@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Consistent form controls - apply to all inputs and selects */
+@layer base {
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  input[type="search"],
+  input[type="url"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="number"] {
+    height: 42px;
+    box-sizing: border-box;
+  }
+
+  select {
+    height: 42px;
+    box-sizing: border-box;
+    padding-right: 2.5rem !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.75rem center;
+    background-repeat: no-repeat;
+    background-size: 1em 1em;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+  }
+}
+
+/* Base styles for dark theme */
+@layer base {
+  :root {
+    --background: #ffffff;
+    --foreground: #000000;
+  }
+
+  html {
+    font-size: 16px;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900;
+    font-size: 1rem;
+  }
+}
+
+/* Filter bar icon button — same height as input/select (42px) */
+@layer components {
+  .btn-filter-icon {
+    @apply flex items-center justify-center border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors;
+    height: 42px;
+    width: 42px;
+    box-sizing: border-box;
+  }
+}
+
+/* ── Global Data Table ── */
+@layer components {
+  /* Filter card */
+  .data-filter-card {
+    @apply bg-white rounded-lg border border-gray-200 p-4;
+  }
+
+  /* Table wrappers */
+  .data-table-wrap {
+    @apply bg-white rounded-lg border border-gray-200 overflow-hidden;
+  }
+  .data-table-wrap-shadow {
+    @apply bg-white rounded-lg shadow overflow-hidden;
+  }
+  .data-table {
+    @apply w-full;
+  }
+  .data-table-fixed {
+    @apply min-w-full divide-y divide-gray-200;
+  }
+  .data-thead {
+    @apply bg-gray-50 border-b border-gray-200;
+  }
+  .data-th {
+    @apply px-6 py-3 text-left text-sm font-semibold text-gray-700 tracking-wide;
+  }
+  .data-tbody {
+    @apply bg-white divide-y divide-gray-200;
+  }
+  .data-tr {
+    @apply hover:bg-gray-50 transition-colors;
+  }
+  .data-td {
+    @apply px-6 py-4;
+  }
+  .data-tfoot {
+    @apply bg-gray-100;
+  }
+  .data-pagination {
+    @apply px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3;
+  }
+}
+
+/* Table body font size max 14px */
+.data-tbody td {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* Filter card inputs — consistent 14px */
+.data-filter-card input,
+.data-filter-card select {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* Pagination per-page select compact */
+.data-pagination select {
+  width: 4.5rem;
+  padding: 0.125rem 0.25rem;
+  text-align: center;
+}
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #9ca3af #f3f4f6;
+}
+
+/* Remove spinner from number inputs */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}

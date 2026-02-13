@@ -1,0 +1,1056 @@
+// Path: components/products/ProductForm.tsx
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
+import { getImageUrl } from '@/lib/utils/image';
+import ImageUploader, { type ProductImage, uploadStagedImages } from '@/components/ui/ImageUploader';
+import {
+  Plus,
+  Trash2,
+  Copy,
+  Loader2,
+  Check,
+  Layers,
+  BoxSelect
+} from 'lucide-react';
+
+// Variation Type (from DB)
+interface VariationTypeItem {
+  id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
+// Variation interface (from API)
+interface Variation {
+  variation_id?: string;
+  bottle_size: string;
+  sku?: string;
+  barcode?: string;
+  attributes?: Record<string, string>;
+  default_price: number;
+  discount_price: number;
+  stock: number;
+  min_stock: number;
+  is_active: boolean;
+}
+
+// Product interface (from API view)
+export interface ProductItem {
+  product_id: string;
+  code: string;
+  name: string;
+  description?: string;
+  image?: string;
+  main_image_url?: string;
+  product_type: 'simple' | 'variation';
+  selected_variation_types?: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  simple_bottle_size?: string;
+  simple_sku?: string;
+  simple_barcode?: string;
+  simple_default_price?: number;
+  simple_discount_price?: number;
+  simple_stock?: number;
+  simple_min_stock?: number;
+  variations: Variation[];
+}
+
+// Form data interface
+interface ProductFormData {
+  code: string;
+  name: string;
+  description: string;
+  image: string;
+  product_type: 'simple' | 'variation';
+  is_active: boolean;
+  selected_variation_types: string[];
+  bottle_size: string;
+  sku: string;
+  barcode: string;
+  default_price: number;
+  discount_price: number;
+  variations: VariationFormData[];
+}
+
+interface VariationFormData {
+  id?: string;
+  _tempId: string;
+  bottle_size: string;
+  sku: string;
+  barcode: string;
+  attributes: Record<string, string>;
+  default_price: number;
+  discount_price: number;
+  is_active: boolean;
+}
+
+interface ProductFormProps {
+  editingProduct?: ProductItem | null;
+  initialImages?: ProductImage[];
+  initialVariationImages?: Record<string, ProductImage[]>;
+}
+
+// Field error type — key is field path like "name", "default_price", "variation.0.ความจุ"
+type FieldErrors = Record<string, string>;
+
+// Inline error message component
+function FieldError({ error }: { error?: string }) {
+  if (!error) return null;
+  return <p className="text-red-500 text-xs mt-1">{error}</p>;
+}
+
+export default function ProductForm({
+  editingProduct,
+  initialImages,
+  initialVariationImages
+}: ProductFormProps) {
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const [variationTypes, setVariationTypes] = useState<VariationTypeItem[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [serverError, setServerError] = useState('');
+
+  // Image state
+  const [productImages, setProductImages] = useState<ProductImage[]>(initialImages || []);
+  const [variationImages, setVariationImages] = useState<Record<string, ProductImage[]>>(initialVariationImages || {});
+
+  // Generate sellable product code
+  const generateSellableCode = () => {
+    const prefix = 'SKU';
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+    return `${prefix}-${timestamp}${random}`;
+  };
+
+  // Initialize form data
+  const initFormData = (): ProductFormData => {
+    if (editingProduct) {
+      const useCode = editingProduct.product_id ? editingProduct.code : generateSellableCode();
+      if (editingProduct.product_type === 'simple') {
+        return {
+          code: useCode,
+          name: editingProduct.name,
+          description: editingProduct.description || '',
+          image: editingProduct.image || '',
+          product_type: 'simple',
+          is_active: editingProduct.is_active,
+          selected_variation_types: [],
+          bottle_size: editingProduct.simple_bottle_size || '-',
+          sku: editingProduct.simple_sku || '',
+          barcode: editingProduct.simple_barcode || '',
+          default_price: editingProduct.simple_default_price || 0,
+          discount_price: editingProduct.simple_discount_price || 0,
+          variations: []
+        };
+      } else {
+        return {
+          code: useCode,
+          name: editingProduct.name,
+          description: editingProduct.description || '',
+          image: editingProduct.image || '',
+          product_type: 'variation',
+          is_active: editingProduct.is_active,
+          selected_variation_types: editingProduct.selected_variation_types || [],
+          bottle_size: '',
+          sku: '',
+          barcode: '',
+          default_price: 0,
+          discount_price: 0,
+          variations: editingProduct.variations.map(v => ({
+            id: v.variation_id,
+            _tempId: v.variation_id || crypto.randomUUID(),
+            bottle_size: v.bottle_size,
+            sku: v.sku || '',
+            barcode: v.barcode || '',
+            attributes: v.attributes || {},
+            default_price: v.default_price,
+            discount_price: v.discount_price,
+            is_active: v.is_active
+          }))
+        };
+      }
+    }
+
+    return {
+      code: generateSellableCode(),
+      name: '',
+      description: '',
+      image: '',
+      product_type: 'simple',
+      is_active: true,
+      selected_variation_types: [],
+      bottle_size: '',
+      sku: '',
+      barcode: '',
+      default_price: 0,
+      discount_price: 0,
+      variations: []
+    };
+  };
+
+  const [formData, setFormData] = useState<ProductFormData>(initFormData);
+
+  // Fetch variation types (with guard against StrictMode double-mount)
+  const fetchedRef = useRef(false);
+  useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    const fetchVariationTypes = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token || '';
+        const response = await fetch('/api/variation-types', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        setVariationTypes(data.data || []);
+      } catch (err) {
+        console.error('Error fetching variation types:', err);
+      }
+    };
+    fetchVariationTypes();
+  }, []);
+
+  // Sync initialImages/initialVariationImages when they change (edit mode)
+  useEffect(() => {
+    if (initialImages) setProductImages(initialImages);
+  }, [initialImages]);
+
+  useEffect(() => {
+    if (initialVariationImages) setVariationImages(initialVariationImages);
+  }, [initialVariationImages]);
+
+  // Clear server error after 5s
+  useEffect(() => {
+    if (serverError) {
+      const timer = setTimeout(() => setServerError(''), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [serverError]);
+
+  // Clear field error when user types
+  const clearFieldError = (key: string) => {
+    if (fieldErrors[key]) {
+      setFieldErrors(prev => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
+  };
+
+  // Get selected type names from IDs
+  const getSelectedTypeNames = (): string[] => {
+    return formData.selected_variation_types
+      .map(id => variationTypes.find(t => t.id === id)?.name)
+      .filter((n): n is string => !!n);
+  };
+
+  // Build display name from attributes
+  const buildDisplayName = (attrs: Record<string, string>): string => {
+    const parts: string[] = [];
+    for (const value of Object.values(attrs)) {
+      if (value && value.trim()) parts.push(value.trim());
+    }
+    return parts.join(' / ') || '';
+  };
+
+  // Add variation
+  const addVariation = () => {
+    const newTempId = crypto.randomUUID();
+    const attrs: Record<string, string> = {};
+    for (const typeName of getSelectedTypeNames()) {
+      attrs[typeName] = '';
+    }
+    setFormData(prev => ({
+      ...prev,
+      variations: [
+        ...prev.variations,
+        {
+          _tempId: newTempId,
+          bottle_size: '',
+          sku: '',
+          barcode: '',
+          attributes: attrs,
+          default_price: 0,
+          discount_price: 0,
+          is_active: true
+        }
+      ]
+    }));
+    // Focus first attribute input of the new variation
+    setTimeout(() => {
+      const el = document.querySelector(`[data-variation-id="${newTempId}"] input[type="text"]`) as HTMLInputElement;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.focus();
+      }
+    }, 50);
+  };
+
+  // Remove variation
+  const removeVariation = (index: number) => {
+    const removed = formData.variations[index];
+    // Clean up variation images for this temp ID
+    if (removed) {
+      setVariationImages(prev => {
+        const updated = { ...prev };
+        delete updated[removed._tempId];
+        return updated;
+      });
+    }
+    setFormData(prev => ({
+      ...prev,
+      variations: prev.variations.filter((_, i) => i !== index)
+    }));
+    // Clear any errors for this variation
+    setFieldErrors(prev => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        if (key.startsWith(`variation.${index}.`)) delete next[key];
+      }
+      return next;
+    });
+  };
+
+  // Duplicate variation — always append to the end
+  const duplicateVariation = (index: number) => {
+    const source = formData.variations[index];
+    if (!source) return;
+    const newTempId = crypto.randomUUID();
+    setFormData(prev => ({
+      ...prev,
+      variations: [
+        ...prev.variations,
+        {
+          ...source,
+          id: undefined,
+          _tempId: newTempId,
+          sku: '',
+          barcode: '',
+          attributes: { ...source.attributes },
+        }
+      ]
+    }));
+    setTimeout(() => {
+      const el = document.querySelector(`[data-variation-id="${newTempId}"] input[type="text"]`) as HTMLInputElement;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.focus();
+      }
+    }, 50);
+  };
+
+  // Update variation
+  const updateVariation = (index: number, field: keyof VariationFormData, value: unknown) => {
+    setFormData(prev => ({
+      ...prev,
+      variations: prev.variations.map((v, i) => {
+        if (i !== index) return v;
+        const updated = { ...v, [field]: value };
+        if (field === 'attributes') {
+          updated.bottle_size = buildDisplayName(updated.attributes);
+        }
+        return updated;
+      })
+    }));
+    // Clear error for this field
+    if (field === 'default_price') clearFieldError(`variation.${index}.price`);
+  };
+
+  // Update single attribute
+  const updateVariationAttribute = (index: number, typeName: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      variations: prev.variations.map((v, i) => {
+        if (i !== index) return v;
+        const newAttrs = { ...v.attributes, [typeName]: value };
+        return {
+          ...v,
+          attributes: newAttrs,
+          bottle_size: buildDisplayName(newAttrs)
+        };
+      })
+    }));
+    clearFieldError(`variation.${index}.${typeName}`);
+  };
+
+  // Validate form — returns true if valid
+  const validate = (): boolean => {
+    const errors: FieldErrors = {};
+
+    if (!formData.name.trim()) {
+      errors.name = 'กรุณากรอกชื่อสินค้า';
+    }
+
+    if (!formData.code.trim()) {
+      errors.code = 'กรุณากรอกรหัสสินค้า';
+    }
+
+    if (formData.product_type === 'simple') {
+      if (formData.default_price <= 0) {
+        errors.default_price = 'ราคาต้องมากกว่า 0';
+      }
+    } else if (formData.product_type === 'variation') {
+      if (formData.selected_variation_types.length === 0) {
+        errors.variation_types = 'กรุณาเลือกอย่างน้อย 1 ประเภท';
+      }
+      if (formData.variations.length === 0) {
+        errors.variations_empty = 'กรุณาเพิ่มอย่างน้อย 1 variation';
+      }
+
+      const selectedNames = getSelectedTypeNames();
+      for (let i = 0; i < formData.variations.length; i++) {
+        const v = formData.variations[i];
+        for (const typeName of selectedNames) {
+          if (!v.attributes[typeName]?.trim()) {
+            errors[`variation.${i}.${typeName}`] = 'กรุณากรอก';
+          }
+        }
+        if (v.default_price <= 0) {
+          errors[`variation.${i}.price`] = 'ต้องมากกว่า 0';
+        }
+      }
+
+      // Check for duplicate attribute combinations
+      if (selectedNames.length > 0) {
+        const seen = new Map<string, number>();
+        for (let i = 0; i < formData.variations.length; i++) {
+          const v = formData.variations[i];
+          const key = selectedNames.map(n => (v.attributes[n] || '').trim().toLowerCase()).join('|');
+          if (!key.replace(/\|/g, '')) continue; // skip if all empty
+          if (seen.has(key)) {
+            const firstIdx = seen.get(key)!;
+            const firstTypeName = selectedNames[0];
+            errors[`variation.${i}.${firstTypeName}`] = 'ตัวเลือกซ้ำกับ #' + (firstIdx + 1);
+          } else {
+            seen.set(key, i);
+          }
+        }
+      }
+
+      // Check for duplicate SKU across variations
+      const skuSeen = new Map<string, number>();
+      for (let i = 0; i < formData.variations.length; i++) {
+        const sku = (formData.variations[i].sku || '').trim().toLowerCase();
+        if (!sku) continue;
+        if (skuSeen.has(sku)) {
+          const firstIdx = skuSeen.get(sku)!;
+          errors[`variation.${i}.sku`] = 'SKU ซ้ำกับ #' + (firstIdx + 1);
+        } else {
+          skuSeen.set(sku, i);
+        }
+      }
+
+      // Check for duplicate Barcode across variations
+      const barcodeSeen = new Map<string, number>();
+      for (let i = 0; i < formData.variations.length; i++) {
+        const barcode = (formData.variations[i].barcode || '').trim().toLowerCase();
+        if (!barcode) continue;
+        if (barcodeSeen.has(barcode)) {
+          const firstIdx = barcodeSeen.get(barcode)!;
+          errors[`variation.${i}.barcode`] = 'Barcode ซ้ำกับ #' + (firstIdx + 1);
+        } else {
+          barcodeSeen.set(barcode, i);
+        }
+      }
+    }
+
+    setFieldErrors(errors);
+
+    // Scroll to first error
+    if (Object.keys(errors).length > 0) {
+      const firstKey = Object.keys(errors)[0];
+      const el = document.querySelector(`[data-field="${firstKey}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    return Object.keys(errors).length === 0;
+  };
+
+  // Input class with error state
+  const inputClass = (fieldKey: string, base: string) => {
+    if (fieldErrors[fieldKey]) {
+      return base.replace('border-gray-200', 'border-red-400').replace('focus:ring-[#E9B308]', 'focus:ring-red-400');
+    }
+    return base;
+  };
+
+  // Handle save
+  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setServerError('');
+
+    if (!validate()) return;
+
+    setSaving(true);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token || '';
+
+      const method = editingProduct?.product_id ? 'PUT' : 'POST';
+      const submitData = {
+        ...formData,
+        bottle_size: formData.product_type === 'variation' ? '' : (formData.bottle_size.trim() || '-'),
+        // Strip _tempId from variations before sending to API
+        variations: formData.variations.map(({ _tempId, ...rest }) => rest),
+      };
+      const body = editingProduct?.product_id
+        ? { id: editingProduct.product_id, ...submitData }
+        : submitData;
+
+      const response = await fetch('/api/products', {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setServerError(result.error || 'ไม่สามารถบันทึกข้อมูลได้');
+        setTimeout(() => {
+          const el = document.querySelector('[data-field="server-error"]');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+        setSaving(false);
+        return;
+      }
+
+      // Get product ID
+      const newProductId = result.product?.product_id || result.product?.id;
+
+      // Upload staged images — reuse token for all uploads
+      if (newProductId) {
+        const hasStagedProductImages = productImages.some(img => img._stagedFile);
+        if (hasStagedProductImages) {
+          try {
+            await uploadStagedImages(productImages, newProductId, undefined, token);
+          } catch (imgError) {
+            console.error('Error uploading product images:', imgError);
+          }
+        }
+
+        // Upload staged variation images — in parallel (not sequential)
+        if (result.variations?.length > 0) {
+          const uploadPromises: Promise<void>[] = [];
+
+          for (let i = 0; i < formData.variations.length; i++) {
+            const tempId = formData.variations[i]._tempId;
+            const actualId = result.variations[i]?.id;
+            const imgs = variationImages[tempId];
+            if (actualId && imgs?.some(img => img._stagedFile)) {
+              uploadPromises.push(
+                uploadStagedImages(imgs, newProductId, actualId, token)
+                  .then(() => {})
+                  .catch(imgError => {
+                    console.error(`Error uploading variation ${i} images:`, imgError);
+                  })
+              );
+            }
+          }
+
+          if (uploadPromises.length > 0) {
+            await Promise.allSettled(uploadPromises);
+          }
+        }
+      }
+
+      // Navigate back to products list
+      router.push('/products');
+    } catch (err) {
+      console.error('Error saving:', err);
+      if (err instanceof Error) {
+        setServerError(err.message);
+      } else {
+        setServerError('เกิดข้อผิดพลาดในการบันทึก');
+      }
+      // Scroll to server error at bottom
+      setTimeout(() => {
+        const el = document.querySelector('[data-field="server-error"]');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form ref={formRef} onSubmit={handleSave} className="space-y-6" noValidate>
+      {/* Top: Image + Basic Info */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Image Section */}
+          <div className="w-full md:w-56 flex-shrink-0">
+            <label className="block text-sm font-medium text-gray-600 mb-2">
+              รูปภาพสินค้า
+            </label>
+            <ImageUploader
+              images={productImages}
+              onImagesChange={setProductImages}
+              productId={editingProduct?.product_id}
+              maxImages={10}
+            />
+            {formData.image && !productImages.length && (
+              <div className="mt-2 flex items-center gap-2">
+                <img src={getImageUrl(formData.image)} alt="รูปเดิม" className="w-10 h-10 rounded object-cover" />
+                <span className="text-[10px] text-gray-400">รูปเดิม</span>
+              </div>
+            )}
+          </div>
+
+          {/* Basic Info */}
+          <div className="flex-1 space-y-4">
+            {/* Active toggle */}
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-gray-600">
+                สถานะ
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, is_active: !formData.is_active })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    formData.is_active ? 'bg-[#E9B308]' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                    formData.is_active ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+                <span className="text-sm text-gray-500">{formData.is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}</span>
+              </div>
+            </div>
+
+            {/* Name */}
+            <div data-field="name">
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">
+                ชื่อสินค้า *
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => { setFormData({ ...formData, name: e.target.value }); clearFieldError('name'); }}
+                className={inputClass('name', 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent')}
+              />
+              <FieldError error={fieldErrors.name} />
+            </div>
+
+            {/* Code */}
+            <div data-field="code">
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">
+                รหัสสินค้า *
+              </label>
+              <input
+                type="text"
+                value={formData.code}
+                onChange={(e) => { setFormData({ ...formData, code: e.target.value }); clearFieldError('code'); }}
+                className={inputClass('code', 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent')}
+              />
+              <FieldError error={fieldErrors.code} />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">
+                คำอธิบาย
+              </label>
+              <input
+                type="text"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                placeholder="รายละเอียดสินค้า (ไม่จำเป็น)"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Product Type Selector */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <label className="block text-sm font-medium text-gray-600 mb-3">
+          ประเภทสินค้า
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Simple */}
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, product_type: 'simple' })}
+            className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+              formData.product_type === 'simple'
+                ? 'border-[#E9B308] bg-[#E9B308]/5 shadow-sm'
+                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                formData.product_type === 'simple'
+                  ? 'bg-[#E9B308]/20 text-[#B8860B]'
+                  : 'bg-gray-100 text-gray-400'
+              }`}>
+                <BoxSelect className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-semibold text-sm text-gray-900">Simple Product</div>
+                <div className="text-xs text-gray-500 mt-0.5">สินค้าแบบเดี่ยว มีราคาเดียว</div>
+              </div>
+            </div>
+            {formData.product_type === 'simple' && (
+              <div className="absolute top-3 right-3 w-5 h-5 bg-[#E9B308] rounded-full flex items-center justify-center">
+                <Check className="w-3 h-3 text-white" />
+              </div>
+            )}
+          </button>
+
+          {/* Variation */}
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, product_type: 'variation' })}
+            className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+              formData.product_type === 'variation'
+                ? 'border-[#E9B308] bg-[#E9B308]/5 shadow-sm'
+                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                formData.product_type === 'variation'
+                  ? 'bg-[#E9B308]/20 text-[#B8860B]'
+                  : 'bg-gray-100 text-gray-400'
+              }`}>
+                <Layers className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-semibold text-sm text-gray-900">Variation Product</div>
+                <div className="text-xs text-gray-500 mt-0.5">มีหลายตัวเลือก เช่น ขนาด, สี</div>
+              </div>
+            </div>
+            {formData.product_type === 'variation' && (
+              <div className="absolute top-3 right-3 w-5 h-5 bg-[#E9B308] rounded-full flex items-center justify-center">
+                <Check className="w-3 h-3 text-white" />
+              </div>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Simple Product Fields */}
+      {formData.product_type === 'simple' && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">ราคาสินค้า</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">SKU</label>
+              <input
+                type="text"
+                value={formData.sku}
+                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                placeholder="SKU-001"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">Barcode</label>
+              <input
+                type="text"
+                value={formData.barcode}
+                onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                placeholder="8851234567890"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+              />
+            </div>
+            <div data-field="default_price">
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">ราคาปกติ (฿) *</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.default_price}
+                onChange={(e) => { setFormData({ ...formData, default_price: parseFloat(e.target.value) || 0 }); clearFieldError('default_price'); }}
+                className={inputClass('default_price', 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent')}
+              />
+              <FieldError error={fieldErrors.default_price} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">ราคาลด (฿)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.discount_price}
+                onChange={(e) => setFormData({ ...formData, discount_price: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Variation Product Fields */}
+      {formData.product_type === 'variation' && (
+        <div className="space-y-5">
+          {/* Select Variation Types */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5" data-field="variation_types">
+            <h3 className="text-sm font-semibold text-gray-700 mb-1">เลือกประเภทตัวเลือก *</h3>
+            <p className="text-sm text-gray-400 mb-3">เลือกอย่างน้อย 1 ประเภท เพื่อกำหนดตัวเลือก</p>
+            {variationTypes.length === 0 ? (
+              <p className="text-sm text-gray-400 bg-gray-50 rounded-lg p-3 text-center">ยังไม่มีประเภทตัวเลือก กรุณาเพิ่มใน Settings</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {variationTypes.map(vt => {
+                  const isSelected = formData.selected_variation_types.includes(vt.id);
+                  return (
+                    <button
+                      key={vt.id}
+                      type="button"
+                      onClick={() => {
+                        const newTypes = isSelected
+                          ? formData.selected_variation_types.filter(id => id !== vt.id)
+                          : [...formData.selected_variation_types, vt.id];
+
+                        const newTypeNames = newTypes
+                          .map(id => variationTypes.find(t => t.id === id)?.name)
+                          .filter((n): n is string => !!n);
+
+                        const updatedVariations = formData.variations.map(v => {
+                          const newAttrs: Record<string, string> = {};
+                          for (const name of newTypeNames) {
+                            newAttrs[name] = v.attributes[name] || '';
+                          }
+                          return {
+                            ...v,
+                            attributes: newAttrs,
+                            bottle_size: buildDisplayName(newAttrs)
+                          };
+                        });
+
+                        setFormData(prev => ({
+                          ...prev,
+                          selected_variation_types: newTypes,
+                          variations: updatedVariations
+                        }));
+                        clearFieldError('variation_types');
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-150 ${
+                        isSelected
+                          ? 'bg-[#E9B308] text-[#00231F] shadow-sm'
+                          : 'bg-gray-50 border border-gray-200 text-gray-600 hover:border-[#E9B308] hover:text-[#B8860B]'
+                      }`}
+                    >
+                      {isSelected && <Check className="w-3.5 h-3.5" />}
+                      {vt.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <FieldError error={fieldErrors.variation_types} />
+          </div>
+
+          {/* Variations List */}
+          {formData.selected_variation_types.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-5" data-field="variations_empty">
+              <h3 className="text-sm font-semibold text-gray-700 mb-4">Variations ({formData.variations.length})</h3>
+
+              {formData.variations.length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                  <Layers className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm text-gray-400 mb-3">ยังไม่มี variation</p>
+                  <button
+                    type="button"
+                    onClick={addVariation}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#E9B308] hover:bg-[#d4a307] text-[#00231F] rounded-lg font-semibold transition-colors text-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    เพิ่ม Variation
+                  </button>
+                  <FieldError error={fieldErrors.variations_empty} />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {formData.variations.map((variation, index) => {
+                    const selectedNames = getSelectedTypeNames();
+                    const imageKey = variation._tempId;
+                    return (
+                      <div key={variation._tempId} data-variation-id={variation._tempId} className="bg-gray-50 border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
+                        {/* Header — number + inline attribute inputs + controls */}
+                        <div className="flex items-center justify-between mb-3 gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
+                            <span className="w-6 h-6 bg-white rounded-full flex items-center justify-center text-xs font-bold text-gray-500 border flex-shrink-0">{index + 1}</span>
+                            {selectedNames.map(typeName => {
+                              const errKey = `variation.${index}.${typeName}`;
+                              return (
+                                <div key={typeName} className="flex items-center gap-1" data-field={errKey}>
+                                  <span className="text-xs text-gray-400 flex-shrink-0">{typeName}:</span>
+                                  <input
+                                    type="text"
+                                    value={variation.attributes[typeName] || ''}
+                                    onChange={(e) => updateVariationAttribute(index, typeName, e.target.value)}
+                                    placeholder={typeName}
+                                    className={inputClass(errKey, 'w-36 sm:w-48 px-2 py-1 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent bg-white')}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <label className="flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={variation.is_active}
+                                onChange={(e) => updateVariation(index, 'is_active', e.target.checked)}
+                                className="w-3.5 h-3.5 text-[#E9B308] border-gray-300 rounded focus:ring-[#E9B308]"
+                              />
+                              <span className="text-sm text-gray-500">ใช้งาน</span>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => duplicateVariation(index)}
+                              className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                              title="คัดลอก"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeVariation(index)}
+                              className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                              title="ลบ"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        {/* Attribute validation errors */}
+                        {selectedNames.some(typeName => fieldErrors[`variation.${index}.${typeName}`]) && (
+                          <div className="mb-2">
+                            {selectedNames.map(typeName => {
+                              const errKey = `variation.${index}.${typeName}`;
+                              return fieldErrors[errKey] ? (
+                                <p key={typeName} className="text-red-500 text-xs">{typeName}: {fieldErrors[errKey]}</p>
+                              ) : null;
+                            })}
+                          </div>
+                        )}
+
+                        {/* Image + Fields */}
+                        <div className="flex gap-3 items-start">
+                          {/* Variation Image — compact thumbnail */}
+                          <div className="w-[100px] flex-shrink-0">
+                            <ImageUploader
+                              images={variationImages[imageKey] || []}
+                              onImagesChange={(imgs) => setVariationImages(prev => ({ ...prev, [imageKey]: imgs }))}
+                              variationId={variation.id}
+                              maxImages={1}
+                              compact
+                            />
+                          </div>
+
+                          {/* Fields — SKU, Barcode, Price, Discount */}
+                          <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div data-field={`variation.${index}.sku`}>
+                              <label className="block text-xs font-medium text-gray-400 mb-0.5">SKU</label>
+                              <input
+                                type="text"
+                                value={variation.sku}
+                                onChange={(e) => { updateVariation(index, 'sku', e.target.value); clearFieldError(`variation.${index}.sku`); }}
+                                placeholder="SKU-001"
+                                className={inputClass(`variation.${index}.sku`, 'w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent bg-white')}
+                              />
+                              <FieldError error={fieldErrors[`variation.${index}.sku`]} />
+                            </div>
+                            <div data-field={`variation.${index}.barcode`}>
+                              <label className="block text-xs font-medium text-gray-400 mb-0.5">Barcode</label>
+                              <input
+                                type="text"
+                                value={variation.barcode}
+                                onChange={(e) => { updateVariation(index, 'barcode', e.target.value); clearFieldError(`variation.${index}.barcode`); }}
+                                placeholder="8851234567890"
+                                className={inputClass(`variation.${index}.barcode`, 'w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent bg-white')}
+                              />
+                              <FieldError error={fieldErrors[`variation.${index}.barcode`]} />
+                            </div>
+                            <div data-field={`variation.${index}.price`}>
+                              <label className="block text-xs font-medium text-gray-400 mb-0.5">ราคา (฿) *</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={variation.default_price}
+                                onChange={(e) => updateVariation(index, 'default_price', parseFloat(e.target.value) || 0)}
+                                className={inputClass(`variation.${index}.price`, 'w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent bg-white')}
+                              />
+                              <FieldError error={fieldErrors[`variation.${index}.price`]} />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-400 mb-0.5">ราคาลด (฿)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={variation.discount_price}
+                                onChange={(e) => updateVariation(index, 'discount_price', parseFloat(e.target.value) || 0)}
+                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent bg-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Add variation button — always at the bottom */}
+                  <button
+                    type="button"
+                    onClick={addVariation}
+                    className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 hover:border-[#E9B308] hover:bg-[#E9B308]/5 rounded-xl text-sm font-semibold text-gray-500 hover:text-[#B8860B] transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    เพิ่ม Variation
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Server Error — shown near save button */}
+      {serverError && (
+        <div data-field="server-error" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          {serverError}
+        </div>
+      )}
+
+      {/* Form Actions */}
+      <div className="flex items-center justify-end gap-3 pt-2">
+        <button
+          type="button"
+          onClick={() => router.push('/products')}
+          className="px-5 py-2.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors text-sm font-medium"
+        >
+          ยกเลิก
+        </button>
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-5 py-2.5 bg-[#E9B308] hover:bg-[#d4a307] text-[#00231F] rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
+        >
+          {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+          <span>{saving ? 'กำลังบันทึก...' : 'บันทึก'}</span>
+        </button>
+      </div>
+    </form>
+  );
+}
