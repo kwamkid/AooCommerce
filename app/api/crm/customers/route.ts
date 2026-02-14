@@ -1,51 +1,22 @@
 // Path: app/api/crm/customers/route.ts
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
-
-// Create Supabase Admin client (service role)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-// Helper function: Check authentication
-async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string }> {
-  try {
-    const authHeader = request.headers.get('authorization');
-
-    if (!authHeader?.startsWith('Bearer ')) {
-      return { isAuth: false };
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-    if (error || !user) {
-      return { isAuth: false };
-    }
-
-    return { isAuth: true, userId: user.id };
-  } catch (error) {
-    console.error('Auth check error:', error);
-    return { isAuth: false };
-  }
-}
 
 // GET - Get customers with CRM data (last order, total orders, LINE contact, etc.)
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const { isAuth, companyId } = await checkAuthWithCompany(request);
 
     if (!isAuth) {
       return NextResponse.json(
         { error: 'Unauthorized. Login required.' },
         { status: 401 }
+      );
+    }
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'No company context' },
+        { status: 403 }
       );
     }
 
@@ -65,6 +36,7 @@ export async function GET(request: NextRequest) {
     let customersQuery = supabaseAdmin
       .from('customers')
       .select('id, customer_code, name, contact_person, phone, province, customer_type_new, is_active')
+      .eq('company_id', companyId)
       .eq('is_active', true);
 
     if (search) {
@@ -101,6 +73,7 @@ export async function GET(request: NextRequest) {
     const { data: orderStats, error: ordersError } = await supabaseAdmin
       .from('orders')
       .select('customer_id, order_date, total_amount, order_status')
+      .eq('company_id', companyId)
       .in('customer_id', customerIds)
       .neq('order_status', 'cancelled')
       .order('order_date', { ascending: false });
@@ -113,6 +86,7 @@ export async function GET(request: NextRequest) {
     const { data: lineContacts } = await supabaseAdmin
       .from('line_contacts')
       .select('customer_id, line_user_id, display_name')
+      .eq('company_id', companyId)
       .in('customer_id', customerIds)
       .eq('status', 'active');
 
@@ -296,6 +270,7 @@ export async function GET(request: NextRequest) {
       const { data: settingsData } = await supabaseAdmin
         .from('crm_settings')
         .select('setting_value')
+        .eq('company_id', companyId)
         .eq('setting_key', 'follow_up_day_ranges')
         .single();
 

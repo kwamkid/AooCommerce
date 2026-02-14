@@ -4,7 +4,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api-client';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
 import {
@@ -100,7 +100,7 @@ function SortableHeader({
 
   return (
     <th
-      className={`data-th cursor-pointer hover:bg-gray-100 select-none ${className}`}
+      className={`data-th cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 select-none ${className}`}
       onClick={() => onSort(field)}
     >
       <div className="flex items-center gap-1">
@@ -108,9 +108,9 @@ function SortableHeader({
         <span className="inline-flex flex-col">
           {isActive ? (
             currentOrder === 'asc' ? (
-              <ArrowUp className="w-3 h-3 text-[#E9B308]" />
+              <ArrowUp className="w-3 h-3 text-[#F4511E]" />
             ) : (
-              <ArrowDown className="w-3 h-3 text-[#E9B308]" />
+              <ArrowDown className="w-3 h-3 text-[#F4511E]" />
             )
           ) : (
             <ArrowUpDown className="w-3 h-3 text-gray-300" />
@@ -217,11 +217,6 @@ export default function PaymentFollowupPage() {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        throw new Error('No session');
-      }
 
       const params = new URLSearchParams();
       if (debouncedSearch) params.set('search', debouncedSearch);
@@ -247,11 +242,7 @@ export default function PaymentFollowupPage() {
         params.set('date_to', typeof dateRange.endDate === 'string' ? dateRange.endDate : dateRange.endDate.toISOString().split('T')[0]);
       }
 
-      const response = await fetch(`/api/crm/payment-followup?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
+      const response = await apiFetch(`/api/crm/payment-followup?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch data');
@@ -322,7 +313,7 @@ export default function PaymentFollowupPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
         </div>
       </Layout>
     );
@@ -334,8 +325,8 @@ export default function PaymentFollowupPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <DollarSign className="w-7 h-7 text-[#E9B308]" />
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <DollarSign className="w-7 h-7 text-[#F4511E]" />
               ติดตามหนี้
             </h1>
             <p className="text-gray-500 mt-1">ติดตามยอดค้างชำระจากลูกค้า</p>
@@ -346,7 +337,7 @@ export default function PaymentFollowupPage() {
         {summary && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {/* Total pending */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
               <div className="flex items-center gap-2 text-red-600 mb-1">
                 <DollarSign className="w-4 h-4" />
                 <span className="text-xs">ยอดค้างรวม</span>
@@ -357,25 +348,25 @@ export default function PaymentFollowupPage() {
             </div>
 
             {/* Total customers */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
               <div className="flex items-center gap-2 text-gray-500 mb-1">
                 <Users className="w-4 h-4" />
                 <span className="text-xs">ลูกค้าค้างชำระ</span>
               </div>
-              <div className="text-2xl font-bold text-gray-900">{summary.totalCustomers} ราย</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{summary.totalCustomers} ราย</div>
             </div>
 
             {/* Total orders */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
               <div className="flex items-center gap-2 text-gray-500 mb-1">
                 <FileText className="w-4 h-4" />
                 <span className="text-xs">บิลค้างชำระ</span>
               </div>
-              <div className="text-2xl font-bold text-gray-900">{summary.totalOrders} บิล</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{summary.totalOrders} บิล</div>
             </div>
 
             {/* Customers with LINE */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
               <div className="flex items-center gap-2 text-green-600 mb-1">
                 <MessageCircle className="w-4 h-4" />
                 <span className="text-xs">เชื่อม LINE แล้ว</span>
@@ -391,10 +382,10 @@ export default function PaymentFollowupPage() {
             {/* All */}
             <button
               onClick={() => { setFilterDays('all'); setCurrentPage(1); }}
-              className={`bg-white rounded-lg border p-3 text-left transition-all hover:shadow-md ${filterDays === 'all' ? 'border-[#E9B308] ring-2 ring-[#E9B308]/20' : 'border-gray-200'}`}
+              className={`bg-white dark:bg-slate-800 rounded-lg border p-3 text-left transition-all hover:shadow-md ${filterDays === 'all' ? 'border-[#F4511E] ring-2 ring-[#F4511E]/20' : 'border-gray-200 dark:border-slate-700'}`}
             >
-              <div className="text-xs text-gray-500 mb-1">ทั้งหมด</div>
-              <div className="text-xl font-bold text-gray-900">{summary.totalCustomers}</div>
+              <div className="text-xs text-gray-500 dark:text-slate-400 mb-1">ทั้งหมด</div>
+              <div className="text-xl font-bold text-gray-900 dark:text-white">{summary.totalCustomers}</div>
             </button>
 
             {/* Dynamic range cards */}
@@ -415,7 +406,7 @@ export default function PaymentFollowupPage() {
                 <button
                   key={rangeKey}
                   onClick={() => { setFilterDays(rangeKey); setCurrentPage(1); }}
-                  className={`bg-white rounded-lg border p-3 text-left transition-all hover:shadow-md ${isActive ? `${colors.border} ring-2 ${colors.ring}` : 'border-gray-200'}`}
+                  className={`bg-white dark:bg-slate-800 rounded-lg border p-3 text-left transition-all hover:shadow-md ${isActive ? `${colors.border} ring-2 ${colors.ring}` : 'border-gray-200 dark:border-slate-700'}`}
                 >
                   <div className={`text-xs ${colors.text} mb-1`}>{range.label}</div>
                   <div className={`text-xl font-bold ${colors.text}`}>{count}</div>
@@ -436,7 +427,7 @@ export default function PaymentFollowupPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="ค้นหาชื่อลูกค้า, รหัส, เบอร์โทร..."
-                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] text-sm"
+                className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm"
               />
             </div>
 
@@ -456,7 +447,7 @@ export default function PaymentFollowupPage() {
               <select
                 value={filterDays}
                 onChange={(e) => { setFilterDays(e.target.value); setCurrentPage(1); }}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] text-sm"
+                className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm"
               >
                 <option value="all">ทั้งหมด</option>
                 {summary?.dayRanges.map((range) => {
@@ -484,7 +475,7 @@ export default function PaymentFollowupPage() {
         <div className="data-table-wrap">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+              <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
             </div>
           ) : customers.length === 0 ? (
             <div className="text-center py-12">
@@ -546,14 +537,14 @@ export default function PaymentFollowupPage() {
                     <Fragment key={customer.customerId}>
                       {/* Customer Row */}
                       <tr
-                        className="hover:bg-gray-50 cursor-pointer"
+                        className="hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer"
                         onClick={() => toggleRow(customer.customerId)}
                       >
                         {/* Customer Info */}
                         <td className="px-6 py-4">
                           <div>
                             <div className="text-xs text-gray-400 mb-0.5">{customer.customerCode}</div>
-                            <div className="font-medium text-gray-900">{customer.customerName}</div>
+                            <div className="font-medium text-gray-900 dark:text-white">{customer.customerName}</div>
                             {customer.phone !== '-' && (
                               <a
                                 href={`tel:${customer.phone}`}
@@ -581,12 +572,12 @@ export default function PaymentFollowupPage() {
 
                         {/* Date Range */}
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-1 text-sm text-gray-600">
+                          <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
                             <Calendar className="w-3.5 h-3.5" />
                             <span>{formatDate(customer.oldestOrderDate)}</span>
                             {customer.orderCount > 1 && (
                               <>
-                                <span className="text-gray-400">-</span>
+                                <span className="text-gray-400 dark:text-slate-500">-</span>
                                 <span>{formatDate(customer.newestOrderDate)}</span>
                               </>
                             )}
@@ -615,7 +606,7 @@ export default function PaymentFollowupPage() {
                             )}
                             <button
                               onClick={() => router.push(`/customers/${customer.customerId}`)}
-                              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
                               title="ดูรายละเอียดลูกค้า"
                             >
                               <ExternalLink className="w-4 h-4" />
@@ -637,17 +628,17 @@ export default function PaymentFollowupPage() {
                       {expandedRows.has(customer.customerId) && customer.orders.map((order) => (
                         <tr
                           key={order.id}
-                          className="bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                          className="bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
                           onClick={() => router.push(`/orders/${order.id}`)}
                         >
                           <td className="px-6 py-3 pl-12">
                             <div>
-                              <span className="text-sm font-medium text-gray-900">{order.orderNumber}</span>
-                              <div className="text-xs text-gray-500">สั่ง: {formatDate(order.orderDate)}</div>
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">{order.orderNumber}</span>
+                              <div className="text-xs text-gray-500 dark:text-slate-400">สั่ง: {formatDate(order.orderDate)}</div>
                             </div>
                           </td>
                           <td className="px-6 py-3 text-center">
-                            <span className="text-sm text-gray-600">{order.daysAgo} วัน</span>
+                            <span className="text-sm text-gray-600 dark:text-slate-400">{order.daysAgo} วัน</span>
                           </td>
                           <td className="px-6 py-3 text-center">
                             <div className="flex items-center justify-center gap-1">
@@ -656,12 +647,12 @@ export default function PaymentFollowupPage() {
                             </div>
                           </td>
                           <td className="px-6 py-3">
-                            <div className="text-sm text-gray-600">
+                            <div className="text-sm text-gray-600 dark:text-slate-400">
                               ส่ง: {formatDate(order.deliveryDate)}
                             </div>
                           </td>
                           <td className="px-6 py-3 text-right">
-                            <span className="text-sm font-semibold text-gray-900">{formatCurrency(order.totalAmount)}</span>
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(order.totalAmount)}</span>
                           </td>
                           <td colSpan={2} className="px-6 py-3 text-center">
                             <ChevronRight className="w-4 h-4 text-gray-400 inline" />
@@ -675,7 +666,7 @@ export default function PaymentFollowupPage() {
                 {/* Total Footer */}
                 <tfoot className="data-tfoot">
                   <tr>
-                    <td colSpan={4} className="px-6 py-4 font-bold text-gray-900">
+                    <td colSpan={4} className="px-6 py-4 font-bold text-gray-900 dark:text-white">
                       รวมทั้งหมด ({summary?.totalOrders || 0} บิล จาก {summary?.totalCustomers || 0} ลูกค้า)
                     </td>
                     <td className="px-6 py-4 text-right font-bold text-red-600">
@@ -691,12 +682,12 @@ export default function PaymentFollowupPage() {
           {/* Pagination */}
           {!loading && pagination.total > 0 && (
             <div className="data-pagination">
-              <div className="flex items-center gap-1 text-sm text-gray-600">
+              <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
                 <span>{((currentPage - 1) * rowsPerPage) + 1} - {Math.min(currentPage * rowsPerPage, pagination.total)} จาก {pagination.total} รายการ</span>
                 <select
                   value={rowsPerPage}
                   onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                 >
                   <option value={20}>20</option>
                   <option value={50}>50</option>
@@ -706,10 +697,10 @@ export default function PaymentFollowupPage() {
               </div>
               {pagination.totalPages > 1 && (
                 <div className="flex items-center gap-2">
-                  <button onClick={() => handlePageChange(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
+                  <button onClick={() => handlePageChange(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
                     <ChevronsLeft className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
+                  <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <div className="flex items-center gap-1">
@@ -729,15 +720,15 @@ export default function PaymentFollowupPage() {
                       }
                       return pages.map((page, idx) =>
                         page === '...' ? (
-                          <span key={`dots-${idx}`} className="px-1 text-gray-400">...</span>
+                          <span key={`dots-${idx}`} className="px-1 text-gray-400 dark:text-slate-500">...</span>
                         ) : (
                           <button
                             key={page}
                             onClick={() => handlePageChange(page as number)}
                             className={`w-8 h-8 rounded text-sm font-medium ${
                               currentPage === page
-                                ? 'bg-[#E9B308] text-[#00231F]'
-                                : 'hover:bg-gray-100 text-gray-700'
+                                ? 'bg-[#F4511E] text-white'
+                                : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700'
                             }`}
                           >
                             {page}
@@ -746,10 +737,10 @@ export default function PaymentFollowupPage() {
                       );
                     })()}
                   </div>
-                  <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === pagination.totalPages} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
+                  <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === pagination.totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
                     <ChevronRight className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handlePageChange(pagination.totalPages)} disabled={currentPage === pagination.totalPages} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
+                  <button onClick={() => handlePageChange(pagination.totalPages)} disabled={currentPage === pagination.totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
                     <ChevronsRight className="w-4 h-4" />
                   </button>
                 </div>

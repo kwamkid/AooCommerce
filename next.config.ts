@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
         hostname: 'stickershop.line-scdn.net',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/storage/**',
+      },
     ],
   },
 };

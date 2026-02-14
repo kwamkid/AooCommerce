@@ -1,51 +1,22 @@
 // Path: app/api/line/contacts/route.ts
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
-
-// Create Supabase Admin client (service role)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-// Helper function: Check authentication
-async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string }> {
-  try {
-    const authHeader = request.headers.get('authorization');
-
-    if (!authHeader?.startsWith('Bearer ')) {
-      return { isAuth: false };
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-    if (error || !user) {
-      return { isAuth: false };
-    }
-
-    return { isAuth: true, userId: user.id };
-  } catch (error) {
-    console.error('Auth check error:', error);
-    return { isAuth: false };
-  }
-}
 
 // GET - Get LINE contacts list
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const { isAuth, companyId } = await checkAuthWithCompany(request);
 
     if (!isAuth) {
       return NextResponse.json(
         { error: 'Unauthorized. Login required.' },
         { status: 401 }
+      );
+    }
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'No company context' },
+        { status: 403 }
       );
     }
 
@@ -67,6 +38,7 @@ export async function GET(request: NextRequest) {
     let countQuery = supabaseAdmin
       .from('line_contacts')
       .select('id', { count: 'exact', head: true })
+      .eq('company_id', companyId)
       .eq('status', 'active');
 
     let query = supabaseAdmin
@@ -95,6 +67,7 @@ export async function GET(request: NextRequest) {
           is_active
         )
       `)
+      .eq('company_id', companyId)
       .eq('status', 'active')
       .order('last_message_at', { ascending: false, nullsFirst: false });
 
@@ -142,6 +115,7 @@ export async function GET(request: NextRequest) {
         const { data: allOrders } = await supabaseAdmin
           .from('orders')
           .select('customer_id, order_date, created_at')
+          .eq('company_id', companyId)
           .in('customer_id', customerIds)
           .neq('order_status', 'cancelled')
           .order('order_date', { ascending: false });
@@ -229,6 +203,7 @@ export async function GET(request: NextRequest) {
         const { data: lastOrders } = await supabaseAdmin
           .from('orders')
           .select('customer_id, order_date, created_at')
+          .eq('company_id', companyId)
           .in('customer_id', customerIds)
           .neq('order_status', 'cancelled')
           .order('order_date', { ascending: false });
@@ -277,6 +252,7 @@ export async function GET(request: NextRequest) {
         const { data: orders } = await supabaseAdmin
           .from('orders')
           .select('customer_id, order_date, created_at')
+          .eq('company_id', companyId)
           .in('customer_id', customerIds)
           .neq('order_status', 'cancelled')
           .order('order_date', { ascending: false });
@@ -338,6 +314,7 @@ export async function GET(request: NextRequest) {
       const { data: lastMessages } = await supabaseAdmin
         .from('line_messages')
         .select('line_contact_id, content, message_type')
+        .eq('company_id', companyId)
         .in('line_contact_id', contactIds)
         .order('created_at', { ascending: false });
 
@@ -392,12 +369,18 @@ export async function GET(request: NextRequest) {
 // PUT - Update LINE contact (link to customer, etc.)
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const { isAuth, companyId } = await checkAuthWithCompany(request);
 
     if (!isAuth) {
       return NextResponse.json(
         { error: 'Unauthorized. Login required.' },
         { status: 401 }
+      );
+    }
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'No company context' },
+        { status: 403 }
       );
     }
 
@@ -422,7 +405,8 @@ export async function PUT(request: NextRequest) {
     const { error } = await supabaseAdmin
       .from('line_contacts')
       .update(updateData)
-      .eq('id', id);
+      .eq('id', id)
+      .eq('company_id', companyId);
 
     if (error) {
       return NextResponse.json(

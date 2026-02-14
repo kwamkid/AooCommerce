@@ -1,40 +1,14 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string }> {
-  try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return { isAuth: false };
-    }
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !user) {
-      return { isAuth: false };
-    }
-    return { isAuth: true, userId: user.id };
-  } catch (error) {
-    console.error('Auth check error:', error);
-    return { isAuth: false };
-  }
-}
 
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const { isAuth, companyId } = await checkAuthWithCompany(request);
     if (!isAuth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!companyId) {
+      return NextResponse.json({ error: 'No company context' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -70,6 +44,7 @@ export async function GET(request: NextRequest) {
           phone
         )
       `)
+      .eq('company_id', companyId)
       .gte('delivery_date', startDate)
       .lte('delivery_date', endDate)
       .neq('order_status', 'cancelled')
@@ -108,7 +83,8 @@ export async function GET(request: NextRequest) {
         quantity,
         unit_price
       `)
-      .in('order_id', orderIds);
+      .in('order_id', orderIds)
+      .eq('company_id', companyId);
 
     if (itemsError) {
       console.error('Order items fetch error:', itemsError);
@@ -152,6 +128,7 @@ export async function GET(request: NextRequest) {
         .from('product_images')
         .select('product_id, variation_id, image_url, sort_order')
         .or(orConditions.join(','))
+        .eq('company_id', companyId)
         .order('sort_order', { ascending: true });
 
       (images || []).forEach(img => {
@@ -184,7 +161,8 @@ export async function GET(request: NextRequest) {
       const { data: variations } = await supabaseAdmin
         .from('product_variations')
         .select('id, barcode')
-        .in('id', variationIds);
+        .in('id', variationIds)
+        .eq('company_id', companyId);
 
       (variations || []).forEach(v => {
         if (v.barcode) {
@@ -217,7 +195,8 @@ export async function GET(request: NextRequest) {
           google_maps_link
         )
       `)
-      .in('order_item_id', orderItemIds);
+      .in('order_item_id', orderItemIds)
+      .eq('company_id', companyId);
 
     if (shipmentsError) {
       console.error('Shipments fetch error:', shipmentsError);

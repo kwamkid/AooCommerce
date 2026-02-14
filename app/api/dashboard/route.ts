@@ -1,50 +1,15 @@
 // Path: app/api/dashboard/route.ts
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-
-// Create Supabase Admin client (service role)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-// Helper function: Check authentication
-async function checkAuth(request: NextRequest): Promise<boolean> {
-  try {
-    const authHeader = request.headers.get('authorization');
-
-    if (!authHeader?.startsWith('Bearer ')) {
-      return false;
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-    if (error || !user) {
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error('Auth check error:', error);
-    return false;
-  }
-}
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 // GET - Get dashboard stats
 export async function GET(request: NextRequest) {
   try {
-    const isAuth = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -70,6 +35,7 @@ export async function GET(request: NextRequest) {
           phone
         )
       `)
+      .eq('company_id', auth.companyId)
       .gte('delivery_date', today.toISOString().split('T')[0])
       .lt('delivery_date', tomorrow.toISOString().split('T')[0])
       .in('order_status', ['new', 'shipping'])

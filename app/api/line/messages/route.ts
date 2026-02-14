@@ -1,53 +1,24 @@
 // Path: app/api/line/messages/route.ts
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
-// Create Supabase Admin client (service role)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
-
-// Helper function: Check authentication
-async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string }> {
-  try {
-    const authHeader = request.headers.get('authorization');
-
-    if (!authHeader?.startsWith('Bearer ')) {
-      return { isAuth: false };
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-    if (error || !user) {
-      return { isAuth: false };
-    }
-
-    return { isAuth: true, userId: user.id };
-  } catch (error) {
-    console.error('Auth check error:', error);
-    return { isAuth: false };
-  }
-}
 
 // GET - Get messages for a contact
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const { isAuth, companyId } = await checkAuthWithCompany(request);
 
     if (!isAuth) {
       return NextResponse.json(
         { error: 'Unauthorized. Login required.' },
         { status: 401 }
+      );
+    }
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'No company context' },
+        { status: 403 }
       );
     }
 
@@ -70,6 +41,7 @@ export async function GET(request: NextRequest) {
         *,
         sent_by_user:user_profiles!sent_by(id, name)
       `)
+      .eq('company_id', companyId)
       .eq('line_contact_id', contactId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
@@ -85,7 +57,8 @@ export async function GET(request: NextRequest) {
     await supabaseAdmin
       .from('line_contacts')
       .update({ unread_count: 0 })
-      .eq('id', contactId);
+      .eq('id', contactId)
+      .eq('company_id', companyId);
 
     // Return messages in chronological order (oldest first for chat display)
     return NextResponse.json({
@@ -126,12 +99,18 @@ type MessageBody = TextMessageBody | ImageMessageBody | StickerMessageBody;
 // POST - Send a message
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, userId } = await checkAuth(request);
+    const { isAuth, userId, companyId } = await checkAuthWithCompany(request);
 
     if (!isAuth) {
       return NextResponse.json(
         { error: 'Unauthorized. Login required.' },
         { status: 401 }
+      );
+    }
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'No company context' },
+        { status: 403 }
       );
     }
 
@@ -178,6 +157,7 @@ export async function POST(request: NextRequest) {
       .from('line_contacts')
       .select('line_user_id')
       .eq('id', contact_id)
+      .eq('company_id', companyId)
       .single();
 
     if (contactError || !contact) {
@@ -217,6 +197,7 @@ export async function POST(request: NextRequest) {
     const { data: savedMessage, error: saveError } = await supabaseAdmin
       .from('line_messages')
       .insert({
+        company_id: companyId,
         line_contact_id: contact_id,
         direction: 'outgoing',
         message_type: messageType,
@@ -243,7 +224,8 @@ export async function POST(request: NextRequest) {
         last_message_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .eq('id', contact_id);
+      .eq('id', contact_id)
+      .eq('company_id', companyId);
 
     return NextResponse.json({
       success: true,

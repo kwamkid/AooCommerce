@@ -1,6 +1,6 @@
 // Path: app/api/customers/route.ts
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 // Type definitions
 interface CustomerData {
@@ -24,49 +24,14 @@ interface CustomerData {
   notes?: string;
 }
 
-// สร้าง Supabase Admin client (service role)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-// Helper function: ตรวจสอบว่าล็อกอินหรือไม่
-async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string }> {
-  try {
-    const authHeader = request.headers.get('authorization');
-
-    if (!authHeader?.startsWith('Bearer ')) {
-      return { isAuth: false };
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-    if (error || !user) {
-      return { isAuth: false };
-    }
-
-    return { isAuth: true, userId: user.id };
-  } catch (error) {
-    console.error('Auth check error:', error);
-    return { isAuth: false };
-  }
-}
-
 // POST - สร้างลูกค้าใหม่
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, userId } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -83,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     // Generate customer code
     const { data: codeData, error: codeError } = await supabaseAdmin
-      .rpc('generate_customer_code');
+      .rpc('generate_customer_code', { p_company_id: auth.companyId });
 
     if (codeError) {
       console.error('Customer code generation error:', codeError);
@@ -97,6 +62,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('customers')
       .insert({
+        company_id: auth.companyId,
         customer_code: codeData,
         name: customerData.name,
         contact_person: customerData.contact_person || null,
@@ -116,7 +82,7 @@ export async function POST(request: NextRequest) {
         assigned_salesperson: customerData.assigned_salesperson || null,
         is_active: customerData.is_active !== undefined ? customerData.is_active : true,
         notes: customerData.notes || null,
-        created_by: userId,
+        created_by: auth.userId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -137,6 +103,7 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin
           .from('shipping_addresses')
           .insert({
+            company_id: auth.companyId,
             customer_id: data.id,
             address_name: 'สำนักงานใหญ่', // Default name
             contact_person: customerData.contact_person || null,
@@ -148,7 +115,7 @@ export async function POST(request: NextRequest) {
             postal_code: customerData.postal_code || null,
             is_default: true,
             is_active: true,
-            created_by: userId,
+            created_by: auth.userId,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           });
@@ -174,11 +141,11 @@ export async function POST(request: NextRequest) {
 // GET - ดึงรายการลูกค้า
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -191,7 +158,8 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('customers')
-      .select('*');
+      .select('*')
+      .eq('company_id', auth.companyId);
 
     // Apply filters
     if (search) {
@@ -224,6 +192,7 @@ export async function GET(request: NextRequest) {
         .from('shipping_addresses')
         .select('customer_id')
         .in('customer_id', customerIds)
+        .eq('company_id', auth.companyId)
         .eq('is_active', true);
 
       // Fetch LINE contacts with display_name (only those linked to customers)
@@ -241,6 +210,7 @@ export async function GET(request: NextRequest) {
         .from('orders')
         .select('customer_id, total_amount')
         .in('customer_id', customerIds)
+        .eq('company_id', auth.companyId)
         .neq('order_status', 'cancelled');
 
       // Create lookup maps
@@ -286,11 +256,11 @@ export async function GET(request: NextRequest) {
 // PUT - อัพเดทลูกค้า
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -320,6 +290,7 @@ export async function PUT(request: NextRequest) {
       .from('customers')
       .update(dataToUpdate)
       .eq('id', id)
+      .eq('company_id', auth.companyId)
       .select()
       .single();
 
@@ -345,11 +316,11 @@ export async function PUT(request: NextRequest) {
 // DELETE - ลบลูกค้า (soft delete)
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -371,7 +342,8 @@ export async function DELETE(request: NextRequest) {
         is_active: false,
         updated_at: new Date().toISOString()
       })
-      .eq('id', customerId);
+      .eq('id', customerId)
+      .eq('company_id', auth.companyId);
 
     if (error) {
       return NextResponse.json(

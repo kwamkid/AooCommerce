@@ -6,7 +6,7 @@ import Layout from '@/components/layout/Layout';
 import OrderForm from '@/components/orders/OrderForm';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api-client';
 import {
   ArrowLeft,
   Loader2,
@@ -131,12 +131,8 @@ export default function OrderDetailPage() {
   const fetchOrderHeader = async () => {
     try {
       setLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
 
-      const response = await fetch(`/api/orders?id=${orderId}`, {
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
-      });
+      const response = await apiFetch(`/api/orders?id=${orderId}`);
       if (!response.ok) throw new Error('Failed to fetch order');
 
       const result = await response.json();
@@ -148,7 +144,7 @@ export default function OrderDetailPage() {
       setPaymentStatus(order.payment_status);
 
       if (order.payment_status === 'paid' || order.payment_status === 'verifying') {
-        await fetchPaymentRecord(session.access_token);
+        await fetchPaymentRecord();
       }
     } catch (err) {
       console.error('Error fetching order:', err);
@@ -158,11 +154,9 @@ export default function OrderDetailPage() {
     }
   };
 
-  const fetchPaymentRecord = async (accessToken: string) => {
+  const fetchPaymentRecord = async () => {
     try {
-      const response = await fetch(`/api/payment-records?order_id=${orderId}`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
+      const response = await apiFetch(`/api/payment-records?order_id=${orderId}`);
       if (!response.ok) return;
       const result = await response.json();
       if (result.payment_records?.length > 0) {
@@ -226,8 +220,6 @@ export default function OrderDetailPage() {
 
     try {
       setUpdating(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
 
       const updateData: any = { id: orderId };
 
@@ -240,10 +232,9 @@ export default function OrderDetailPage() {
         updateData.payment_status = statusModal.nextStatus;
       }
 
-      const response = await fetch('/api/orders', {
+      const response = await apiFetch('/api/orders', {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(updateData)
@@ -253,10 +244,9 @@ export default function OrderDetailPage() {
 
       // If marking as paid, create payment record
       if (statusModal.statusType === 'payment' && statusModal.nextStatus === 'paid') {
-        await fetch('/api/payment-records', {
+        await apiFetch('/api/payment-records', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -269,7 +259,7 @@ export default function OrderDetailPage() {
             notes: paymentDetails.notes || null
           })
         });
-        await fetchPaymentRecord(session.access_token);
+        await fetchPaymentRecord();
       }
 
       // Update local state
@@ -297,14 +287,11 @@ export default function OrderDetailPage() {
     if (!paymentRecord) return;
     try {
       setUpdating(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
 
       // Update payment_records.status = 'verified'
-      const verifyRes = await fetch('/api/payment-records/verify', {
+      const verifyRes = await apiFetch('/api/payment-records/verify', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ payment_record_id: paymentRecord.id, action: 'verify' })
@@ -312,10 +299,9 @@ export default function OrderDetailPage() {
       if (!verifyRes.ok) throw new Error('Failed to verify payment');
 
       // Update orders.payment_status = 'paid'
-      await fetch('/api/orders', {
+      await apiFetch('/api/orders', {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ id: orderId, payment_status: 'paid' })
@@ -323,7 +309,7 @@ export default function OrderDetailPage() {
 
       setPaymentStatus('paid');
       showToast('ยืนยันการชำระเงินสำเร็จ');
-      await fetchPaymentRecord(session.access_token);
+      await fetchPaymentRecord();
     } catch (err) {
       console.error('Error approving payment:', err);
       showToast('ไม่สามารถยืนยันการชำระเงินได้', 'error');
@@ -339,24 +325,20 @@ export default function OrderDetailPage() {
 
     try {
       setUpdating(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
 
       // Update payment_records.status = 'rejected'
-      await fetch('/api/payment-records/verify', {
+      await apiFetch('/api/payment-records/verify', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ payment_record_id: paymentRecord.id, action: 'reject' })
       });
 
       // Update orders.payment_status = 'pending'
-      await fetch('/api/orders', {
+      await apiFetch('/api/orders', {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ id: orderId, payment_status: 'pending' })
@@ -382,7 +364,7 @@ export default function OrderDetailPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
         </div>
       </Layout>
     );
@@ -395,7 +377,7 @@ export default function OrderDetailPage() {
           <div className="text-red-600 mb-4">{error}</div>
           <button
             onClick={() => router.push('/orders')}
-            className="text-[#E9B308] hover:underline"
+            className="text-[#F4511E] hover:underline"
           >
             กลับไปหน้ารายการคำสั่งซื้อ
           </button>
@@ -412,13 +394,13 @@ export default function OrderDetailPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/orders')}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-6 h-6 text-gray-600" />
             </button>
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-gray-900">{orderNumber}</h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{orderNumber}</h1>
                 <OrderStatusBadge status={orderStatus} />
               </div>
               {orderDate && (
@@ -440,21 +422,21 @@ export default function OrderDetailPage() {
                   showToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
                 });
               }}
-              className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm"
+              className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-1.5 text-sm"
             >
               <Link2 className="w-4 h-4" />
               บิลออนไลน์
             </button>
             <button
               onClick={() => window.open(`/orders/${orderId}/shipping-labels`, '_blank')}
-              className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm"
+              className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-1.5 text-sm"
             >
               <Printer className="w-4 h-4" />
               ใบปะหน้า
             </button>
             <button
               onClick={() => window.print()}
-              className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm"
+              className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-1.5 text-sm"
             >
               <Printer className="w-4 h-4" />
               พิมพ์
@@ -477,7 +459,7 @@ export default function OrderDetailPage() {
                       <button
                         onClick={handleOrderStatusClick}
                         disabled={updating}
-                        className="px-4 py-2 bg-[#E9B308] text-[#00231F] rounded-lg hover:bg-[#d4a307] transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                        className="px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
                       >
                         <Truck className="w-4 h-4" />
                         เปลี่ยนเป็น &quot;{getOrderStatusLabel(getNextOrderStatus(orderStatus)!)}&quot;
@@ -528,7 +510,7 @@ export default function OrderDetailPage() {
                       {paymentRecord.slip_image_url && (
                         <button
                           onClick={() => setShowSlipModal(true)}
-                          className="text-xs text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline flex items-center gap-1"
                         >
                           <Eye className="w-3 h-3" />
                           ดูสลิป
@@ -597,23 +579,23 @@ export default function OrderDetailPage() {
           >
             <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   {statusModal.nextStatus === 'cancelled'
                     ? 'ยืนยันการยกเลิกคำสั่งซื้อ'
                     : `ยืนยันการเปลี่ยน${statusModal.statusType === 'order' ? 'สถานะคำสั่งซื้อ' : 'สถานะการชำระเงิน'}`
                   }
                 </h3>
-                <button onClick={closeStatusModal} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+                <button onClick={closeStatusModal} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
                   <X className="w-5 h-5 text-gray-400" />
                 </button>
               </div>
 
               <div className="mb-6 space-y-3">
-                <p className="text-gray-700">
+                <p className="text-gray-700 dark:text-slate-300">
                   คำสั่งซื้อ: <span className="font-medium">{orderNumber}</span>
                 </p>
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="text-gray-600">เปลี่ยนจาก:</span>
+                  <span className="text-gray-600 dark:text-slate-400">เปลี่ยนจาก:</span>
                   {statusModal.statusType === 'order' ? (
                     <>
                       <OrderStatusBadge status={orderStatus} />
@@ -639,7 +621,7 @@ export default function OrderDetailPage() {
                 {/* Payment Details Form (when marking as paid) */}
                 {statusModal.statusType === 'payment' && statusModal.nextStatus === 'paid' && (
                   <div className="mt-6 pt-6 border-t space-y-4">
-                    <h4 className="font-medium text-gray-900">รายละเอียดการชำระเงิน</h4>
+                    <h4 className="font-medium text-gray-900 dark:text-white">รายละเอียดการชำระเงิน</h4>
 
                     {/* Payment Method Selection */}
                     <div>
@@ -652,7 +634,7 @@ export default function OrderDetailPage() {
                           onClick={() => setPaymentDetails({ ...paymentDetails, paymentMethod: 'cash' })}
                           className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
                             paymentDetails.paymentMethod === 'cash'
-                              ? 'border-[#E9B308] bg-[#E9B308] bg-opacity-10 text-[#00231F] font-medium'
+                              ? 'border-[#F4511E] bg-[#F4511E] bg-opacity-10 text-[#F4511E] font-medium'
                               : 'border-gray-300 text-gray-700 hover:border-gray-400'
                           }`}
                         >
@@ -663,7 +645,7 @@ export default function OrderDetailPage() {
                           onClick={() => setPaymentDetails({ ...paymentDetails, paymentMethod: 'transfer' })}
                           className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
                             paymentDetails.paymentMethod === 'transfer'
-                              ? 'border-[#E9B308] bg-[#E9B308] bg-opacity-10 text-[#00231F] font-medium'
+                              ? 'border-[#F4511E] bg-[#F4511E] bg-opacity-10 text-[#F4511E] font-medium'
                               : 'border-gray-300 text-gray-700 hover:border-gray-400'
                           }`}
                         >
@@ -683,7 +665,7 @@ export default function OrderDetailPage() {
                           value={paymentDetails.collectedBy}
                           onChange={(e) => setPaymentDetails({ ...paymentDetails, collectedBy: e.target.value })}
                           placeholder="ระบุชื่อคนเก็บเงิน"
-                          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                          className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                         />
                       </div>
                     )}
@@ -700,7 +682,7 @@ export default function OrderDetailPage() {
                               type="date"
                               value={paymentDetails.transferDate}
                               onChange={(e) => setPaymentDetails({ ...paymentDetails, transferDate: e.target.value })}
-                              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                             />
                           </div>
                           <div>
@@ -711,7 +693,7 @@ export default function OrderDetailPage() {
                               type="time"
                               value={paymentDetails.transferTime}
                               onChange={(e) => setPaymentDetails({ ...paymentDetails, transferTime: e.target.value })}
-                              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                             />
                           </div>
                         </div>
@@ -726,7 +708,7 @@ export default function OrderDetailPage() {
                         onChange={(e) => setPaymentDetails({ ...paymentDetails, notes: e.target.value })}
                         placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
                         rows={2}
-                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       />
                     </div>
                   </div>
@@ -737,7 +719,7 @@ export default function OrderDetailPage() {
                 <button
                   onClick={closeStatusModal}
                   disabled={updating}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
                 >
                   ยกเลิก
                 </button>
@@ -747,7 +729,7 @@ export default function OrderDetailPage() {
                   className={`px-4 py-2 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2 font-medium ${
                     statusModal.nextStatus === 'cancelled'
                       ? 'bg-red-600 text-white hover:bg-red-700'
-                      : 'bg-[#E9B308] text-[#00231F] hover:bg-[#d4a307]'
+                      : 'bg-[#F4511E] text-white hover:bg-[#D63B0E]'
                   }`}
                 >
                   {updating ? (
@@ -772,7 +754,7 @@ export default function OrderDetailPage() {
             <div className="relative max-w-lg w-full max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => setShowSlipModal(false)}
-                className="absolute -top-3 -right-3 bg-white rounded-full p-1.5 shadow-lg hover:bg-gray-100 transition-colors z-10"
+                className="absolute -top-3 -right-3 bg-white rounded-full p-1.5 shadow-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors z-10"
               >
                 <X className="w-5 h-5 text-gray-600" />
               </button>

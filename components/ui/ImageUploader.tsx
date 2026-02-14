@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { ImagePlus, X, Loader2, GripVertical } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
@@ -29,7 +30,6 @@ interface ImageUploaderProps {
 // Helper: upload a file to Storage + save metadata via API
 async function uploadFileToStorage(
   file: File,
-  token: string,
   options: {
     productId?: string | null;
     variationId?: string | null;
@@ -58,12 +58,9 @@ async function uploadFileToStorage(
     .getPublicUrl(storagePath);
 
   // Save metadata via API
-  const response = await fetch('/api/product-images', {
+  const response = await apiFetch('/api/product-images', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       product_id: options.productId || null,
       variation_id: options.variationId || null,
@@ -91,20 +88,11 @@ async function uploadFileToStorage(
 }
 
 // Helper: upload staged images to storage + save metadata via API
-// token param is optional — if not provided, will fetch session internally
 export async function uploadStagedImages(
   images: ProductImage[],
   productId: string,
   variationId?: string,
-  token?: string
 ): Promise<ProductImage[]> {
-  let accessToken = token;
-  if (!accessToken) {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error('No session');
-    accessToken = session.access_token;
-  }
-
   const uploaded: ProductImage[] = [];
 
   for (const img of images) {
@@ -118,7 +106,7 @@ export async function uploadStagedImages(
     // Retry up to 2 times on failure
     let result: ProductImage | null = null;
     for (let attempt = 0; attempt < 3; attempt++) {
-      result = await uploadFileToStorage(img._stagedFile, accessToken, {
+      result = await uploadFileToStorage(img._stagedFile, {
         productId: variationId ? null : productId,
         variationId: variationId || null,
         sortOrder: img.sort_order,
@@ -170,9 +158,6 @@ export default function ImageUploader({
 
     try {
       if (isLiveMode) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error('No session');
-
         const newImages: ProductImage[] = [];
 
         for (let i = 0; i < filesToProcess.length; i++) {
@@ -192,7 +177,7 @@ export default function ImageUploader({
 
           const sortOrder = images.length + newImages.length;
 
-          const result = await uploadFileToStorage(namedFile, session.access_token, {
+          const result = await uploadFileToStorage(namedFile, {
             productId: productId || null,
             variationId: variationId || null,
             sortOrder,
@@ -319,17 +304,11 @@ export default function ImageUploader({
       const liveImages = updated.filter(img => img.id);
       if (liveImages.length > 0) {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            await fetch('/api/product-images', {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`
-              },
-              body: JSON.stringify({ images: liveImages.map(img => ({ id: img.id, sort_order: img.sort_order })) })
-            });
-          }
+          await apiFetch('/api/product-images', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ images: liveImages.map(img => ({ id: img.id, sort_order: img.sort_order })) })
+          });
         } catch (error) {
           console.error('Error updating sort order:', error);
         }
@@ -354,12 +333,8 @@ export default function ImageUploader({
     if (!confirm('ต้องการลบรูปภาพนี้?')) return;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
-
-      const response = await fetch(`/api/product-images?id=${imageToDelete.id}`, {
+      const response = await apiFetch(`/api/product-images?id=${imageToDelete.id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
       });
 
       if (response.ok) {
@@ -382,7 +357,7 @@ export default function ImageUploader({
       onDrop={handleDrop}
       className={`relative rounded-xl border-2 border-dashed transition-all duration-200 ${
         isDragOver
-          ? 'border-[#E9B308] bg-[#E9B308]/5 scale-[1.01]'
+          ? 'border-[#F4511E] bg-[#F4511E]/5 scale-[1.01]'
           : images.length > 0
             ? 'border-gray-200 bg-gray-50/50'
             : 'border-gray-300 bg-white'
@@ -400,7 +375,7 @@ export default function ImageUploader({
               onDragOver={(e) => e.preventDefault()}
               className={`relative group ${compact ? 'w-full aspect-square' : 'w-20 h-20'} rounded-lg overflow-hidden flex-shrink-0 transition-all duration-150 ${
                 dragIndex === index ? 'opacity-40 scale-95' : ''
-              } ${dragOverIndex === index ? 'ring-2 ring-[#E9B308] ring-offset-2' : ''} ${
+              } ${dragOverIndex === index ? 'ring-2 ring-[#F4511E] ring-offset-2' : ''} ${
                 !disabled ? 'cursor-grab active:cursor-grabbing' : ''
               }`}
             >
@@ -411,7 +386,7 @@ export default function ImageUploader({
                 draggable={false}
               />
               {index === 0 && !compact && (
-                <span className="absolute bottom-0 left-0 right-0 bg-[#E9B308] text-[#00231F] text-[9px] font-bold text-center py-0.5">
+                <span className="absolute bottom-0 left-0 right-0 bg-[#F4511E] text-white text-[9px] font-bold text-center py-0.5">
                   หลัก
                 </span>
               )}
@@ -444,10 +419,10 @@ export default function ImageUploader({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 hover:border-[#E9B308] hover:bg-[#E9B308]/5 flex flex-col items-center justify-center gap-1 transition-colors flex-shrink-0"
+              className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 hover:border-[#F4511E] hover:bg-[#F4511E]/5 flex flex-col items-center justify-center gap-1 transition-colors flex-shrink-0"
             >
               <ImagePlus className="w-5 h-5 text-gray-400" />
-              <span className="text-[10px] text-gray-400">{images.length}/{maxImages}</span>
+              <span className="text-[10px] text-gray-400 dark:text-slate-500">{images.length}/{maxImages}</span>
             </button>
           )}
         </div>
@@ -458,22 +433,22 @@ export default function ImageUploader({
           <button
             type="button"
             onClick={() => !disabled && fileInputRef.current?.click()}
-            className="w-full aspect-square flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-gray-50 transition-colors rounded-xl"
+            className="w-full aspect-square flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors rounded-xl"
           >
             <ImagePlus className="w-5 h-5 text-gray-400" />
-            <span className="text-[10px] text-gray-400">เพิ่มรูป</span>
+            <span className="text-[10px] text-gray-400 dark:text-slate-500">เพิ่มรูป</span>
           </button>
         ) : (
           <button
             type="button"
             onClick={() => !disabled && fileInputRef.current?.click()}
-            className="w-full p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 transition-colors rounded-xl"
+            className="w-full p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors rounded-xl"
           >
             <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
               <ImagePlus className="w-6 h-6 text-gray-400" />
             </div>
             <div className="text-center">
-              <p className="text-sm font-medium text-gray-600">
+              <p className="text-sm font-medium text-gray-600 dark:text-slate-400">
                 {isDragOver ? 'วางรูปภาพที่นี่' : 'ลากรูปภาพมาวาง หรือคลิกเพื่อเลือก'}
               </p>
               <p className="text-xs text-gray-400 mt-1">
@@ -485,17 +460,17 @@ export default function ImageUploader({
       )}
 
       {uploading && (
-        <div className="flex items-center justify-center gap-2 p-4 text-gray-500">
-          <Loader2 className="w-5 h-5 animate-spin text-[#E9B308]" />
+        <div className="flex items-center justify-center gap-2 p-4 text-gray-500 dark:text-slate-400">
+          <Loader2 className="w-5 h-5 animate-spin text-[#F4511E]" />
           <span className="text-sm">{uploadProgress || 'กำลังประมวลผล...'}</span>
         </div>
       )}
 
       {isDragOver && !uploading && (
-        <div className="absolute inset-0 bg-[#E9B308]/10 rounded-xl flex items-center justify-center pointer-events-none z-10">
-          <div className="bg-white rounded-lg shadow-lg px-6 py-3 flex items-center gap-2">
-            <ImagePlus className="w-5 h-5 text-[#E9B308]" />
-            <span className="text-sm font-medium text-gray-700">วางรูปภาพที่นี่</span>
+        <div className="absolute inset-0 bg-[#F4511E]/10 rounded-xl flex items-center justify-center pointer-events-none z-10">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg px-6 py-3 flex items-center gap-2">
+            <ImagePlus className="w-5 h-5 text-[#F4511E]" />
+            <span className="text-sm font-medium text-gray-700 dark:text-slate-300">วางรูปภาพที่นี่</span>
           </div>
         </div>
       )}

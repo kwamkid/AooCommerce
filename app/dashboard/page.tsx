@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api-client';
 import {
   Truck,
   Phone,
@@ -60,13 +60,13 @@ function StatCard({
 
   return (
     <div
-      className={`bg-white rounded-lg shadow p-6 ${onClick ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
+      className={`bg-white dark:bg-slate-800 rounded-lg shadow p-6 ${onClick ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-gray-600 mb-1">{title}</p>
-          <p className="text-lg font-semibold text-gray-900">{value}</p>
+          <p className="text-lg font-semibold text-gray-900 dark:text-white">{value}</p>
         </div>
         <div className={`${colorClasses[color]} p-3 rounded-lg`}>
           <Icon className="w-6 h-6 text-white" />
@@ -87,13 +87,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-
-        const response = await fetch('/api/dashboard', {
-          headers: {
-            'Authorization': `Bearer ${sessionData?.session?.access_token || ''}`
-          }
-        });
+        const response = await apiFetch('/api/dashboard');
 
         if (!response.ok) {
           throw new Error('Failed to fetch dashboard stats');
@@ -124,9 +118,9 @@ export default function DashboardPage() {
   // Show loading while checking auth
   if (authLoading || loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#00231F]">
+      <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#E9B308] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังโหลด...</p>
         </div>
       </div>
@@ -147,11 +141,11 @@ export default function DashboardPage() {
     >
       {/* Welcome Message */}
       <div className="mb-6">
-        <h2 className="text-xl text-gray-700">
+        <h2 className="text-xl text-gray-700 dark:text-slate-300">
           สวัสดี, {userProfile.name || 'ผู้ใช้งาน'}
         </h2>
-        <p className="text-gray-500">
-          {userProfile.role === 'admin' && 'ภาพรวมระบบทั้งหมด'}
+        <p className="text-gray-500 dark:text-slate-400">
+          {(userProfile.role === 'owner' || userProfile.role === 'admin') && 'ภาพรวมระบบทั้งหมด'}
           {userProfile.role === 'manager' && 'ภาพรวมระบบ'}
           {userProfile.role === 'sales' && 'ภาพรวมการขายและลูกค้า'}
         </p>
@@ -177,14 +171,14 @@ export default function DashboardPage() {
       {/* Main Content Area */}
       <div className="grid grid-cols-1 gap-6">
         {/* Today's Deliveries */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               ลูกค้าที่ต้องส่งวันนี้
             </h3>
             <Link
               href="/orders"
-              className="text-[#E9B308] hover:text-[#d4a307] text-sm font-medium flex items-center"
+              className="text-[#F4511E] hover:text-[#D63B0E] text-sm font-medium flex items-center"
             >
               ดูทั้งหมด
               <ChevronRight className="w-4 h-4 ml-1" />
@@ -196,12 +190,12 @@ export default function DashboardPage() {
                 <Link
                   key={order.id}
                   href={`/orders/${order.id}`}
-                  className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                 >
                   <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{order.customer.name}</p>
-                    <p className="text-xs text-gray-600">Order: {order.orderNumber}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{order.customer.name}</p>
+                    <p className="text-xs text-gray-600 dark:text-slate-400">Order: {order.orderNumber}</p>
                     {order.customer.phone && (
                       <p className="text-xs text-gray-500 flex items-center mt-1">
                         <Phone className="w-3 h-3 mr-1" />
@@ -210,7 +204,7 @@ export default function DashboardPage() {
                     )}
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-[#E9B308]">
+                    <p className="text-sm font-semibold text-[#F4511E]">
                       ฿{order.totalAmount.toLocaleString()}
                     </p>
                   </div>

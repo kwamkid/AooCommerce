@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api-client';
 import { getImageUrl } from '@/lib/utils/image';
 import ImageUploader, { type ProductImage, uploadStagedImages } from '@/components/ui/ImageUploader';
 import {
@@ -205,11 +205,7 @@ export default function ProductForm({
     fetchedRef.current = true;
     const fetchVariationTypes = async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData?.session?.access_token || '';
-        const response = await fetch('/api/variation-types', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const response = await apiFetch('/api/variation-types');
         const data = await response.json();
         setVariationTypes(data.data || []);
       } catch (err) {
@@ -481,7 +477,7 @@ export default function ProductForm({
   // Input class with error state
   const inputClass = (fieldKey: string, base: string) => {
     if (fieldErrors[fieldKey]) {
-      return base.replace('border-gray-200', 'border-red-400').replace('focus:ring-[#E9B308]', 'focus:ring-red-400');
+      return base.replace('border-gray-200', 'border-red-400').replace('focus:ring-[#F4511E]', 'focus:ring-red-400');
     }
     return base;
   };
@@ -496,9 +492,6 @@ export default function ProductForm({
     setSaving(true);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token || '';
-
       const method = editingProduct?.product_id ? 'PUT' : 'POST';
       const submitData = {
         ...formData,
@@ -510,12 +503,9 @@ export default function ProductForm({
         ? { id: editingProduct.product_id, ...submitData }
         : submitData;
 
-      const response = await fetch('/api/products', {
+      const response = await apiFetch('/api/products', {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
 
@@ -539,7 +529,7 @@ export default function ProductForm({
         const hasStagedProductImages = productImages.some(img => img._stagedFile);
         if (hasStagedProductImages) {
           try {
-            await uploadStagedImages(productImages, newProductId, undefined, token);
+            await uploadStagedImages(productImages, newProductId);
           } catch (imgError) {
             console.error('Error uploading product images:', imgError);
           }
@@ -555,7 +545,7 @@ export default function ProductForm({
             const imgs = variationImages[tempId];
             if (actualId && imgs?.some(img => img._stagedFile)) {
               uploadPromises.push(
-                uploadStagedImages(imgs, newProductId, actualId, token)
+                uploadStagedImages(imgs, newProductId, actualId)
                   .then(() => {})
                   .catch(imgError => {
                     console.error(`Error uploading variation ${i} images:`, imgError);
@@ -592,11 +582,11 @@ export default function ProductForm({
   return (
     <form ref={formRef} onSubmit={handleSave} className="space-y-6" noValidate>
       {/* Top: Image + Basic Info */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
         <div className="flex flex-col md:flex-row gap-6">
           {/* Image Section */}
           <div className="w-full md:w-56 flex-shrink-0">
-            <label className="block text-sm font-medium text-gray-600 mb-2">
+            <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-2">
               รูปภาพสินค้า
             </label>
             <ImageUploader
@@ -608,7 +598,7 @@ export default function ProductForm({
             {formData.image && !productImages.length && (
               <div className="mt-2 flex items-center gap-2">
                 <img src={getImageUrl(formData.image)} alt="รูปเดิม" className="w-10 h-10 rounded object-cover" />
-                <span className="text-[10px] text-gray-400">รูปเดิม</span>
+                <span className="text-[10px] text-gray-400 dark:text-slate-500">รูปเดิม</span>
               </div>
             )}
           </div>
@@ -617,7 +607,7 @@ export default function ProductForm({
           <div className="flex-1 space-y-4">
             {/* Active toggle */}
             <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-gray-600">
+              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400">
                 สถานะ
               </label>
               <div className="flex items-center gap-2">
@@ -625,55 +615,55 @@ export default function ProductForm({
                   type="button"
                   onClick={() => setFormData({ ...formData, is_active: !formData.is_active })}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    formData.is_active ? 'bg-[#E9B308]' : 'bg-gray-300'
+                    formData.is_active ? 'bg-[#F4511E]' : 'bg-gray-300'
                   }`}
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
                     formData.is_active ? 'translate-x-6' : 'translate-x-1'
                   }`} />
                 </button>
-                <span className="text-sm text-gray-500">{formData.is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}</span>
+                <span className="text-sm text-gray-500 dark:text-slate-400">{formData.is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}</span>
               </div>
             </div>
 
             {/* Name */}
             <div data-field="name">
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">
+              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">
                 ชื่อสินค้า *
               </label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => { setFormData({ ...formData, name: e.target.value }); clearFieldError('name'); }}
-                className={inputClass('name', 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent')}
+                className={inputClass('name', 'w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent')}
               />
               <FieldError error={fieldErrors.name} />
             </div>
 
             {/* Code */}
             <div data-field="code">
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">
+              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">
                 รหัสสินค้า *
               </label>
               <input
                 type="text"
                 value={formData.code}
                 onChange={(e) => { setFormData({ ...formData, code: e.target.value }); clearFieldError('code'); }}
-                className={inputClass('code', 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent')}
+                className={inputClass('code', 'w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent')}
               />
               <FieldError error={fieldErrors.code} />
             </div>
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">
+              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">
                 คำอธิบาย
               </label>
               <input
                 type="text"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                 placeholder="รายละเอียดสินค้า (ไม่จำเป็น)"
               />
             </div>
@@ -682,8 +672,8 @@ export default function ProductForm({
       </div>
 
       {/* Product Type Selector */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <label className="block text-sm font-medium text-gray-600 mb-3">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+        <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-3">
           ประเภทสินค้า
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -693,25 +683,25 @@ export default function ProductForm({
             onClick={() => setFormData({ ...formData, product_type: 'simple' })}
             className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
               formData.product_type === 'simple'
-                ? 'border-[#E9B308] bg-[#E9B308]/5 shadow-sm'
-                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                ? 'border-[#F4511E] bg-[#F4511E]/5 shadow-sm'
+                : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'
             }`}
           >
             <div className="flex items-start gap-3">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
                 formData.product_type === 'simple'
-                  ? 'bg-[#E9B308]/20 text-[#B8860B]'
-                  : 'bg-gray-100 text-gray-400'
+                  ? 'bg-[#F4511E]/20 text-[#C0400E]'
+                  : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500'
               }`}>
                 <BoxSelect className="w-5 h-5" />
               </div>
               <div>
-                <div className="font-semibold text-sm text-gray-900">Simple Product</div>
-                <div className="text-xs text-gray-500 mt-0.5">สินค้าแบบเดี่ยว มีราคาเดียว</div>
+                <div className="font-semibold text-sm text-gray-900 dark:text-white">Simple Product</div>
+                <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">สินค้าแบบเดี่ยว มีราคาเดียว</div>
               </div>
             </div>
             {formData.product_type === 'simple' && (
-              <div className="absolute top-3 right-3 w-5 h-5 bg-[#E9B308] rounded-full flex items-center justify-center">
+              <div className="absolute top-3 right-3 w-5 h-5 bg-[#F4511E] rounded-full flex items-center justify-center">
                 <Check className="w-3 h-3 text-white" />
               </div>
             )}
@@ -723,25 +713,25 @@ export default function ProductForm({
             onClick={() => setFormData({ ...formData, product_type: 'variation' })}
             className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
               formData.product_type === 'variation'
-                ? 'border-[#E9B308] bg-[#E9B308]/5 shadow-sm'
-                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                ? 'border-[#F4511E] bg-[#F4511E]/5 shadow-sm'
+                : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'
             }`}
           >
             <div className="flex items-start gap-3">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
                 formData.product_type === 'variation'
-                  ? 'bg-[#E9B308]/20 text-[#B8860B]'
-                  : 'bg-gray-100 text-gray-400'
+                  ? 'bg-[#F4511E]/20 text-[#C0400E]'
+                  : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500'
               }`}>
                 <Layers className="w-5 h-5" />
               </div>
               <div>
-                <div className="font-semibold text-sm text-gray-900">Variation Product</div>
-                <div className="text-xs text-gray-500 mt-0.5">มีหลายตัวเลือก เช่น ขนาด, สี</div>
+                <div className="font-semibold text-sm text-gray-900 dark:text-white">Variation Product</div>
+                <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">มีหลายตัวเลือก เช่น ขนาด, สี</div>
               </div>
             </div>
             {formData.product_type === 'variation' && (
-              <div className="absolute top-3 right-3 w-5 h-5 bg-[#E9B308] rounded-full flex items-center justify-center">
+              <div className="absolute top-3 right-3 w-5 h-5 bg-[#F4511E] rounded-full flex items-center justify-center">
                 <Check className="w-3 h-3 text-white" />
               </div>
             )}
@@ -751,48 +741,48 @@ export default function ProductForm({
 
       {/* Simple Product Fields */}
       {formData.product_type === 'simple' && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">ราคาสินค้า</h3>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">ราคาสินค้า</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">SKU</label>
+              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">SKU</label>
               <input
                 type="text"
                 value={formData.sku}
                 onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
                 placeholder="SKU-001"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">Barcode</label>
+              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">Barcode</label>
               <input
                 type="text"
                 value={formData.barcode}
                 onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
                 placeholder="8851234567890"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
               />
             </div>
             <div data-field="default_price">
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">ราคาปกติ (฿) *</label>
+              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">ราคาปกติ (฿) *</label>
               <input
                 type="number"
                 step="0.01"
                 value={formData.default_price}
                 onChange={(e) => { setFormData({ ...formData, default_price: parseFloat(e.target.value) || 0 }); clearFieldError('default_price'); }}
-                className={inputClass('default_price', 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent')}
+                className={inputClass('default_price', 'w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent')}
               />
               <FieldError error={fieldErrors.default_price} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">ราคาลด (฿)</label>
+              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">ราคาลด (฿)</label>
               <input
                 type="number"
                 step="0.01"
                 value={formData.discount_price}
                 onChange={(e) => setFormData({ ...formData, discount_price: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
               />
             </div>
           </div>
@@ -803,11 +793,11 @@ export default function ProductForm({
       {formData.product_type === 'variation' && (
         <div className="space-y-5">
           {/* Select Variation Types */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5" data-field="variation_types">
-            <h3 className="text-sm font-semibold text-gray-700 mb-1">เลือกประเภทตัวเลือก *</h3>
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5" data-field="variation_types">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">เลือกประเภทตัวเลือก *</h3>
             <p className="text-sm text-gray-400 mb-3">เลือกอย่างน้อย 1 ประเภท เพื่อกำหนดตัวเลือก</p>
             {variationTypes.length === 0 ? (
-              <p className="text-sm text-gray-400 bg-gray-50 rounded-lg p-3 text-center">ยังไม่มีประเภทตัวเลือก กรุณาเพิ่มใน Settings</p>
+              <p className="text-sm text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-700 rounded-lg p-3 text-center">ยังไม่มีประเภทตัวเลือก กรุณาเพิ่มใน Settings</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {variationTypes.map(vt => {
@@ -846,8 +836,8 @@ export default function ProductForm({
                       }}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-150 ${
                         isSelected
-                          ? 'bg-[#E9B308] text-[#00231F] shadow-sm'
-                          : 'bg-gray-50 border border-gray-200 text-gray-600 hover:border-[#E9B308] hover:text-[#B8860B]'
+                          ? 'bg-[#F4511E] text-white shadow-sm'
+                          : 'bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:border-[#F4511E] hover:text-[#C0400E]'
                       }`}
                     >
                       {isSelected && <Check className="w-3.5 h-3.5" />}
@@ -862,17 +852,17 @@ export default function ProductForm({
 
           {/* Variations List */}
           {formData.selected_variation_types.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5" data-field="variations_empty">
-              <h3 className="text-sm font-semibold text-gray-700 mb-4">Variations ({formData.variations.length})</h3>
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5" data-field="variations_empty">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">Variations ({formData.variations.length})</h3>
 
               {formData.variations.length === 0 ? (
-                <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                <div className="text-center py-8 bg-gray-50 dark:bg-slate-700/50 rounded-xl border-2 border-dashed border-gray-200 dark:border-slate-600">
                   <Layers className="w-10 h-10 text-gray-300 mx-auto mb-3" />
                   <p className="text-sm text-gray-400 mb-3">ยังไม่มี variation</p>
                   <button
                     type="button"
                     onClick={addVariation}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#E9B308] hover:bg-[#d4a307] text-[#00231F] rounded-lg font-semibold transition-colors text-sm"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white rounded-lg font-semibold transition-colors text-sm"
                   >
                     <Plus className="w-4 h-4" />
                     เพิ่ม Variation
@@ -885,11 +875,11 @@ export default function ProductForm({
                     const selectedNames = getSelectedTypeNames();
                     const imageKey = variation._tempId;
                     return (
-                      <div key={variation._tempId} data-variation-id={variation._tempId} className="bg-gray-50 border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
+                      <div key={variation._tempId} data-variation-id={variation._tempId} className="bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-xl p-4 hover:border-gray-300 dark:hover:border-slate-500 transition-colors">
                         {/* Header — number + inline attribute inputs + controls */}
                         <div className="flex items-center justify-between mb-3 gap-2">
                           <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
-                            <span className="w-6 h-6 bg-white rounded-full flex items-center justify-center text-xs font-bold text-gray-500 border flex-shrink-0">{index + 1}</span>
+                            <span className="w-6 h-6 bg-white dark:bg-slate-600 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 dark:text-slate-200 border dark:border-slate-500 flex-shrink-0">{index + 1}</span>
                             {selectedNames.map(typeName => {
                               const errKey = `variation.${index}.${typeName}`;
                               return (
@@ -900,7 +890,7 @@ export default function ProductForm({
                                     value={variation.attributes[typeName] || ''}
                                     onChange={(e) => updateVariationAttribute(index, typeName, e.target.value)}
                                     placeholder={typeName}
-                                    className={inputClass(errKey, 'w-36 sm:w-48 px-2 py-1 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent bg-white')}
+                                    className={inputClass(errKey, 'w-36 sm:w-48 px-2 py-1 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700 dark:text-white')}
                                   />
                                 </div>
                               );
@@ -912,9 +902,9 @@ export default function ProductForm({
                                 type="checkbox"
                                 checked={variation.is_active}
                                 onChange={(e) => updateVariation(index, 'is_active', e.target.checked)}
-                                className="w-3.5 h-3.5 text-[#E9B308] border-gray-300 rounded focus:ring-[#E9B308]"
+                                className="w-3.5 h-3.5 text-[#F4511E] border-gray-300 rounded focus:ring-[#F4511E]"
                               />
-                              <span className="text-sm text-gray-500">ใช้งาน</span>
+                              <span className="text-sm text-gray-500 dark:text-slate-400">ใช้งาน</span>
                             </label>
                             <button
                               type="button"
@@ -968,7 +958,7 @@ export default function ProductForm({
                                 value={variation.sku}
                                 onChange={(e) => { updateVariation(index, 'sku', e.target.value); clearFieldError(`variation.${index}.sku`); }}
                                 placeholder="SKU-001"
-                                className={inputClass(`variation.${index}.sku`, 'w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent bg-white')}
+                                className={inputClass(`variation.${index}.sku`, 'w-full px-2 py-1.5 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700 dark:text-white')}
                               />
                               <FieldError error={fieldErrors[`variation.${index}.sku`]} />
                             </div>
@@ -979,7 +969,7 @@ export default function ProductForm({
                                 value={variation.barcode}
                                 onChange={(e) => { updateVariation(index, 'barcode', e.target.value); clearFieldError(`variation.${index}.barcode`); }}
                                 placeholder="8851234567890"
-                                className={inputClass(`variation.${index}.barcode`, 'w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent bg-white')}
+                                className={inputClass(`variation.${index}.barcode`, 'w-full px-2 py-1.5 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700 dark:text-white')}
                               />
                               <FieldError error={fieldErrors[`variation.${index}.barcode`]} />
                             </div>
@@ -990,7 +980,7 @@ export default function ProductForm({
                                 step="0.01"
                                 value={variation.default_price}
                                 onChange={(e) => updateVariation(index, 'default_price', parseFloat(e.target.value) || 0)}
-                                className={inputClass(`variation.${index}.price`, 'w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent bg-white')}
+                                className={inputClass(`variation.${index}.price`, 'w-full px-2 py-1.5 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700 dark:text-white')}
                               />
                               <FieldError error={fieldErrors[`variation.${index}.price`]} />
                             </div>
@@ -1001,7 +991,7 @@ export default function ProductForm({
                                 step="0.01"
                                 value={variation.discount_price}
                                 onChange={(e) => updateVariation(index, 'discount_price', parseFloat(e.target.value) || 0)}
-                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent bg-white"
+                                className="w-full px-2 py-1.5 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700 dark:text-white"
                               />
                             </div>
                           </div>
@@ -1014,7 +1004,7 @@ export default function ProductForm({
                   <button
                     type="button"
                     onClick={addVariation}
-                    className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 hover:border-[#E9B308] hover:bg-[#E9B308]/5 rounded-xl text-sm font-semibold text-gray-500 hover:text-[#B8860B] transition-colors"
+                    className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 dark:border-slate-600 hover:border-[#F4511E] hover:bg-[#F4511E]/5 rounded-xl text-sm font-semibold text-gray-500 dark:text-slate-400 hover:text-[#C0400E] transition-colors"
                   >
                     <Plus className="w-4 h-4" />
                     เพิ่ม Variation
@@ -1038,14 +1028,14 @@ export default function ProductForm({
         <button
           type="button"
           onClick={() => router.push('/products')}
-          className="px-5 py-2.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors text-sm font-medium"
+          className="px-5 py-2.5 border border-gray-200 dark:border-slate-700 rounded-lg text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium"
         >
           ยกเลิก
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="px-5 py-2.5 bg-[#E9B308] hover:bg-[#d4a307] text-[#00231F] rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
+          className="px-5 py-2.5 bg-[#F4511E] hover:bg-[#D63B0E] text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
         >
           {saving && <Loader2 className="w-4 h-4 animate-spin" />}
           <span>{saving ? 'กำลังบันทึก...' : 'บันทึก'}</span>

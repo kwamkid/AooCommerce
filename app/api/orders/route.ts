@@ -1,6 +1,6 @@
 // Path: app/api/orders/route.ts
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 // Type definitions
 interface OrderItemInput {
@@ -31,49 +31,15 @@ interface OrderData {
   items: OrderItemInput[];
 }
 
-// Create Supabase Admin client (service role)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-// Helper function: Check authentication
-async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string }> {
-  try {
-    const authHeader = request.headers.get('authorization');
-
-    if (!authHeader?.startsWith('Bearer ')) {
-      return { isAuth: false };
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-    if (error || !user) {
-      return { isAuth: false };
-    }
-
-    return { isAuth: true, userId: user.id };
-  } catch (error) {
-    console.error('Auth check error:', error);
-    return { isAuth: false };
-  }
-}
 
 // POST - Create new order with items and shipments
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, userId } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -158,7 +124,7 @@ export async function POST(request: NextRequest) {
 
     // Generate order number
     const { data: orderNumber, error: codeError } = await supabaseAdmin
-      .rpc('generate_order_number');
+      .rpc('generate_order_number', { p_company_id: auth.companyId });
 
     if (codeError) {
       console.error('Order number generation error:', codeError);
@@ -172,6 +138,7 @@ export async function POST(request: NextRequest) {
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
       .insert({
+        company_id: auth.companyId,
         order_number: orderNumber,
         customer_id: orderData.customer_id,
         delivery_date: orderData.delivery_date || null,
@@ -185,7 +152,7 @@ export async function POST(request: NextRequest) {
         order_status: 'new',
         notes: orderData.notes || null,
         internal_notes: orderData.internal_notes || null,
-        created_by: userId,
+        created_by: auth.userId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -206,6 +173,7 @@ export async function POST(request: NextRequest) {
       const { data: orderItem, error: itemError } = await supabaseAdmin
         .from('order_items')
         .insert({
+          company_id: auth.companyId,
           order_id: order.id,
           variation_id: item.variation_id,
           product_id: item.product_id,
@@ -229,7 +197,7 @@ export async function POST(request: NextRequest) {
       if (itemError) {
         console.error('Order item creation error:', itemError);
         // Rollback: delete the order
-        await supabaseAdmin.from('orders').delete().eq('id', order.id);
+        await supabaseAdmin.from('orders').delete().eq('id', order.id).eq('company_id', auth.companyId);
         return NextResponse.json(
           { error: itemError.message },
           { status: 400 }
@@ -238,6 +206,7 @@ export async function POST(request: NextRequest) {
 
       // Create shipments for this item
       const shipmentsToInsert = item.shipments.map((shipment: any) => ({
+        company_id: auth.companyId,
         order_item_id: orderItem.id,
         shipping_address_id: shipment.shipping_address_id,
         quantity: shipment.quantity,
@@ -255,7 +224,7 @@ export async function POST(request: NextRequest) {
       if (shipmentError) {
         console.error('Shipment creation error:', shipmentError);
         // Rollback: delete the order
-        await supabaseAdmin.from('orders').delete().eq('id', order.id);
+        await supabaseAdmin.from('orders').delete().eq('id', order.id).eq('company_id', auth.companyId);
         return NextResponse.json(
           { error: shipmentError.message },
           { status: 400 }
@@ -288,11 +257,11 @@ export async function POST(request: NextRequest) {
 // GET - Get orders list or single order
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -317,6 +286,7 @@ export async function GET(request: NextRequest) {
           )
         `)
         .eq('id', orderId)
+        .eq('company_id', auth.companyId)
         .single();
 
       if (orderError || !order) {
@@ -330,7 +300,8 @@ export async function GET(request: NextRequest) {
       const { data: items, error: itemsError } = await supabaseAdmin
         .from('order_items')
         .select('*')
-        .eq('order_id', orderId);
+        .eq('order_id', orderId)
+        .eq('company_id', auth.companyId);
 
       if (itemsError) {
         return NextResponse.json(
@@ -348,6 +319,7 @@ export async function GET(request: NextRequest) {
         const { data: images } = await supabaseAdmin
           .from('product_images')
           .select('product_id, variation_id, image_url, sort_order')
+          .eq('company_id', auth.companyId)
           .or(
             [
               variationIds.length > 0 ? `variation_id.in.(${variationIds.join(',')})` : '',
@@ -394,7 +366,8 @@ export async function GET(request: NextRequest) {
                 postal_code
               )
             `)
-            .eq('order_item_id', item.id);
+            .eq('order_item_id', item.id)
+            .eq('company_id', auth.companyId);
 
           return {
             ...item,
@@ -433,6 +406,7 @@ export async function GET(request: NextRequest) {
       const { data: matchingCustomers } = await supabaseAdmin
         .from('customers')
         .select('id')
+        .eq('company_id', auth.companyId)
         .ilike('name', `%${search}%`);
       searchCustomerIds = (matchingCustomers || []).map(c => c.id);
     }
@@ -447,7 +421,8 @@ export async function GET(request: NextRequest) {
         customer:customers (
           customer_code, name, contact_person, phone
         )
-      `, { count: 'exact' });
+      `, { count: 'exact' })
+      .eq('company_id', auth.companyId);
 
     // Apply filters
     if (customerId) {
@@ -498,7 +473,8 @@ export async function GET(request: NextRequest) {
     // Fetch status counts (independent of status/payment filters)
     let countQuery = supabaseAdmin
       .from('orders')
-      .select('order_status, payment_status', { count: 'exact' });
+      .select('order_status, payment_status', { count: 'exact' })
+      .eq('company_id', auth.companyId);
 
     if (customerId) {
       countQuery = countQuery.eq('customer_id', customerId);
@@ -548,7 +524,8 @@ export async function GET(request: NextRequest) {
           )
         )
       `)
-      .in('order_id', orderIds);
+      .in('order_id', orderIds)
+      .eq('company_id', auth.companyId);
 
     // Build branch names map from joined data
     const orderBranchesMap = new Map<string, Set<string>>();
@@ -592,11 +569,11 @@ export async function GET(request: NextRequest) {
 // PUT - Update order (full update with items and shipments)
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -616,6 +593,7 @@ export async function PUT(request: NextRequest) {
       .from('orders')
       .select('id, order_status')
       .eq('id', id)
+      .eq('company_id', auth.companyId)
       .single();
 
     if (fetchError || !existingOrder) {
@@ -715,7 +693,8 @@ export async function PUT(request: NextRequest) {
       const { error: deleteItemsError } = await supabaseAdmin
         .from('order_items')
         .delete()
-        .eq('order_id', id);
+        .eq('order_id', id)
+        .eq('company_id', auth.companyId);
 
       if (deleteItemsError) {
         console.error('Error deleting old order items:', deleteItemsError);
@@ -740,7 +719,8 @@ export async function PUT(request: NextRequest) {
           internal_notes: internal_notes || null,
           updated_at: new Date().toISOString()
         })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('company_id', auth.companyId);
 
       if (updateOrderError) {
         console.error('Order update error:', updateOrderError);
@@ -755,6 +735,7 @@ export async function PUT(request: NextRequest) {
         const { data: orderItem, error: itemError } = await supabaseAdmin
           .from('order_items')
           .insert({
+            company_id: auth.companyId,
             order_id: id,
             variation_id: item.variation_id,
             product_id: item.product_id,
@@ -785,6 +766,7 @@ export async function PUT(request: NextRequest) {
 
         // Create shipments for this item
         const shipmentsToInsert = item.shipments.map((shipment: any) => ({
+          company_id: auth.companyId,
           order_item_id: orderItem.id,
           shipping_address_id: shipment.shipping_address_id,
           quantity: shipment.quantity,
@@ -831,7 +813,8 @@ export async function PUT(request: NextRequest) {
       const { error: updateError } = await supabaseAdmin
         .from('orders')
         .update(updateData)
-        .eq('id', id);
+        .eq('id', id)
+        .eq('company_id', auth.companyId);
 
       if (updateError) {
         return NextResponse.json(
@@ -857,11 +840,11 @@ export async function PUT(request: NextRequest) {
 // DELETE - Cancel order
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -884,7 +867,8 @@ export async function DELETE(request: NextRequest) {
         payment_status: 'cancelled',
         updated_at: new Date().toISOString()
       })
-      .eq('id', orderId);
+      .eq('id', orderId)
+      .eq('company_id', auth.companyId);
 
     if (error) {
       return NextResponse.json(

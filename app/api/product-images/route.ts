@@ -1,29 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string }> {
-  try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) return { isAuth: false };
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !user) return { isAuth: false };
-    return { isAuth: true, userId: user.id };
-  } catch {
-    return { isAuth: false };
-  }
-}
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 // GET - Fetch images for a product or variation
 // Supports: ?product_id=X (product images only)
@@ -31,8 +7,8 @@ async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userI
 //           ?variation_id=X (single variation images)
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
-    if (!isAuth) {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -51,7 +27,8 @@ export async function GET(request: NextRequest) {
       const { data: variations } = await supabaseAdmin
         .from('product_variations')
         .select('id')
-        .eq('product_id', productId);
+        .eq('product_id', productId)
+        .eq('company_id', auth.companyId);
 
       const variationIds = (variations || []).map(v => v.id);
 
@@ -60,6 +37,7 @@ export async function GET(request: NextRequest) {
         .from('product_images')
         .select('*')
         .eq('product_id', productId)
+        .eq('company_id', auth.companyId)
         .order('sort_order', { ascending: true });
 
       if (prodErr) {
@@ -73,6 +51,7 @@ export async function GET(request: NextRequest) {
           .from('product_images')
           .select('*')
           .in('variation_id', variationIds)
+          .eq('company_id', auth.companyId)
           .order('sort_order', { ascending: true });
 
         if (varErr) {
@@ -101,6 +80,7 @@ export async function GET(request: NextRequest) {
     let query = supabaseAdmin
       .from('product_images')
       .select('*')
+      .eq('company_id', auth.companyId)
       .order('sort_order', { ascending: true });
 
     if (productId) {
@@ -124,8 +104,8 @@ export async function GET(request: NextRequest) {
 // POST - Save image metadata (client uploads file to Storage directly)
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
-    if (!isAuth) {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -143,6 +123,7 @@ export async function POST(request: NextRequest) {
     const { data: image, error } = await supabaseAdmin
       .from('product_images')
       .insert({
+        company_id: auth.companyId,
         product_id: product_id || null,
         variation_id: variation_id || null,
         image_url,
@@ -165,8 +146,8 @@ export async function POST(request: NextRequest) {
 // PUT - Update sort order for images
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
-    if (!isAuth) {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -181,7 +162,8 @@ export async function PUT(request: NextRequest) {
       const { error } = await supabaseAdmin
         .from('product_images')
         .update({ sort_order: img.sort_order })
-        .eq('id', img.id);
+        .eq('id', img.id)
+        .eq('company_id', auth.companyId);
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -197,8 +179,8 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete an image from DB and Storage
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
-    if (!isAuth) {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -214,6 +196,7 @@ export async function DELETE(request: NextRequest) {
       .from('product_images')
       .select('storage_path')
       .eq('id', imageId)
+      .eq('company_id', auth.companyId)
       .single();
 
     if (fetchError || !image) {
@@ -231,7 +214,8 @@ export async function DELETE(request: NextRequest) {
     const { error: deleteError } = await supabaseAdmin
       .from('product_images')
       .delete()
-      .eq('id', imageId);
+      .eq('id', imageId)
+      .eq('company_id', auth.companyId);
 
     if (deleteError) {
       return NextResponse.json({ error: deleteError.message }, { status: 500 });

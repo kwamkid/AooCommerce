@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api-client';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
 import {
@@ -238,10 +238,7 @@ export default function OrderForm({
         // Fetch customer prices
         (async () => {
           try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const response = await fetch(`/api/customer-prices?customer_id=${customer.id}`, {
-              headers: { 'Authorization': `Bearer ${sessionData?.session?.access_token || ''}` }
-            });
+            const response = await apiFetch(`/api/customer-prices?customer_id=${customer.id}`);
             if (response.ok) {
               const result = await response.json();
               setCustomerPrices(result.prices || {});
@@ -277,13 +274,9 @@ export default function OrderForm({
     const loadOrder = async () => {
       try {
         setLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
 
         // Fetch order details
-        const response = await fetch(`/api/orders?id=${editOrderId}`, {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
-        });
+        const response = await apiFetch(`/api/orders?id=${editOrderId}`);
         if (!response.ok) throw new Error('Failed to fetch order');
 
         const result = await response.json();
@@ -316,18 +309,14 @@ export default function OrderForm({
 
         // Fetch shipping addresses
         if (order.customer?.id) {
-          const addrResponse = await fetch(`/api/shipping-addresses?customer_id=${order.customer.id}`, {
-            headers: { 'Authorization': `Bearer ${session.access_token}` }
-          });
+          const addrResponse = await apiFetch(`/api/shipping-addresses?customer_id=${order.customer.id}`);
           if (addrResponse.ok) {
             const addrResult = await addrResponse.json();
             setShippingAddresses(addrResult.addresses || []);
           }
 
           // Fetch customer prices
-          const priceResponse = await fetch(`/api/customer-prices?customer_id=${order.customer.id}`, {
-            headers: { 'Authorization': `Bearer ${session.access_token}` }
-          });
+          const priceResponse = await apiFetch(`/api/customer-prices?customer_id=${order.customer.id}`);
           if (priceResponse.ok) {
             const priceResult = await priceResponse.json();
             setCustomerPrices(priceResult.prices || {});
@@ -390,13 +379,7 @@ export default function OrderForm({
 
   const fetchCustomers = async () => {
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const response = await fetch('/api/customers?active=true', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${sessionData?.session?.access_token || ''}`
-        }
-      });
+      const response = await apiFetch('/api/customers?active=true');
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to fetch customers');
 
@@ -411,12 +394,7 @@ export default function OrderForm({
 
   const fetchProducts = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const productsResponse = await fetch('/api/products', {
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
-      });
+      const productsResponse = await apiFetch('/api/products');
 
       if (!productsResponse.ok) throw new Error('Failed to fetch products');
 
@@ -464,12 +442,7 @@ export default function OrderForm({
 
   const fetchShippingAddresses = async (customerId: string, forceInit: boolean = true) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const response = await fetch(`/api/shipping-addresses?customer_id=${customerId}`, {
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
-      });
+      const response = await apiFetch(`/api/shipping-addresses?customer_id=${customerId}`);
 
       if (response.ok) {
         const result = await response.json();
@@ -509,10 +482,7 @@ export default function OrderForm({
     fetchShippingAddresses(customer.id);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const response = await fetch(`/api/customer-prices?customer_id=${customer.id}`, {
-        headers: { 'Authorization': `Bearer ${sessionData?.session?.access_token || ''}` }
-      });
+      const response = await apiFetch(`/api/customer-prices?customer_id=${customer.id}`);
       if (response.ok) {
         const result = await response.json();
         setCustomerPrices(result.prices || {});
@@ -529,13 +499,8 @@ export default function OrderForm({
     try {
       setLoadingLatestOrder(true);
       setError('');
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
       // Fetch latest order for this customer
-      const response = await fetch(`/api/orders?customer_id=${selectedCustomer.id}&limit=1`, {
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
-      });
+      const response = await apiFetch(`/api/orders?customer_id=${selectedCustomer.id}&limit=1`);
 
       if (!response.ok) throw new Error('Failed to fetch orders');
 
@@ -551,9 +516,7 @@ export default function OrderForm({
       const latestOrder = orders[0];
 
       // Fetch full order details
-      const detailResponse = await fetch(`/api/orders?id=${latestOrder.id}`, {
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
-      });
+      const detailResponse = await apiFetch(`/api/orders?id=${latestOrder.id}`);
 
       if (!detailResponse.ok) throw new Error('Failed to fetch order details');
 
@@ -842,9 +805,6 @@ export default function OrderForm({
       setSaving(true);
       setError('');
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
-
       const items = branchOrders.flatMap(branch =>
         branch.products.map(product => ({
           variation_id: product.variation_id,
@@ -878,12 +838,9 @@ export default function OrderForm({
         orderData.id = editOrderId;
       }
 
-      const response = await fetch('/api/orders', {
+      const response = await apiFetch('/api/orders', {
         method: isEditMode ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData)
       });
 
@@ -924,7 +881,7 @@ export default function OrderForm({
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
       </div>
     );
   }
@@ -970,11 +927,11 @@ export default function OrderForm({
       {readOnlyBanner}
 
       {/* Step 1: Customer + Delivery Date */}
-      <div className={`bg-white rounded-lg ${embedded ? '' : 'border border-gray-200'} p-4`}>
+      <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Customer Search */}
           <div ref={customerSectionRef} className="relative md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
               ลูกค้า <span className="text-red-500">*</span>
             </label>
             <div className="relative">
@@ -991,7 +948,7 @@ export default function OrderForm({
                   setFieldErrors(prev => { const { customer, ...rest } = prev; return rest; });
                 }}
                 placeholder="ค้นหาชื่อลูกค้าหรือรหัส..."
-                className={`w-full pl-9 pr-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] text-sm ${fieldErrors.customer ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                className={`w-full pl-9 pr-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm ${fieldErrors.customer ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                 disabled={(!!preselectedCustomerId || isEditMode) && !!selectedCustomer}
               />
             </div>
@@ -999,19 +956,19 @@ export default function OrderForm({
               <p className="text-red-500 text-xs mt-1">{fieldErrors.customer}</p>
             )}
             {showCustomerDropdown && customerSearch && !preselectedCustomerId && (
-              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+              <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-auto">
                 {filteredCustomers.length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-gray-500">ไม่พบลูกค้า</div>
+                  <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">ไม่พบลูกค้า</div>
                 ) : (
                   filteredCustomers.map(customer => (
                     <button
                       key={customer.id}
                       type="button"
                       onClick={() => handleSelectCustomer(customer)}
-                      className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors"
+                      className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
                     >
                       <div className="text-sm font-medium">{customer.name}</div>
-                      <div className="text-xs text-gray-500">{customer.customer_code}</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400">{customer.customer_code}</div>
                     </button>
                   ))
                 )}
@@ -1021,7 +978,7 @@ export default function OrderForm({
 
           {/* Delivery Date */}
           <div ref={deliveryDateRef}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
               วันที่ส่งของ <span className="text-red-500">*</span>
             </label>
             <div className={fieldErrors.deliveryDate ? 'ring-2 ring-red-400 rounded-lg' : ''}>
@@ -1049,13 +1006,13 @@ export default function OrderForm({
         {selectedCustomer && (
           <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 text-sm">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-gray-500">ผู้ติดต่อ: <span className="text-gray-900 font-medium">{selectedCustomer.contact_person || '-'}</span></span>
+              <span className="text-gray-500 dark:text-slate-400">ผู้ติดต่อ: <span className="text-gray-900 font-medium">{selectedCustomer.contact_person || '-'}</span></span>
               <span className="text-gray-300">|</span>
-              <span className="text-gray-500">โทร: <span className="text-gray-900">{selectedCustomer.phone || '-'}</span></span>
+              <span className="text-gray-500 dark:text-slate-400">โทร: <span className="text-gray-900 dark:text-white">{selectedCustomer.phone || '-'}</span></span>
               {shippingAddresses.length > 0 && (
                 <>
                   <span className="text-gray-300">|</span>
-                  <span className="text-gray-500">
+                  <span className="text-gray-500 dark:text-slate-400">
                     <MapPin className="w-3.5 h-3.5 inline mr-0.5" />
                     {shippingAddresses.length} สาขา
                   </span>
@@ -1104,7 +1061,7 @@ export default function OrderForm({
 
       {/* Step 2: Branch Orders - Product List */}
       {selectedCustomer && branchOrders.length > 0 && (
-        <div ref={branchSectionRef} className={`bg-white rounded-lg ${embedded ? '' : 'border border-gray-200'} overflow-visible`}>
+        <div ref={branchSectionRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} overflow-visible`}>
           {/* Branch Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             {/* Branch Tabs with inline dropdown */}
@@ -1126,15 +1083,15 @@ export default function OrderForm({
                       }}
                       className={`px-3 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                         isActive
-                          ? 'bg-[#E9B308] text-[#00231F]'
-                          : 'text-gray-600 hover:bg-gray-100'
+                          ? 'bg-[#F4511E] text-white'
+                          : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
                       }`}
                     >
                       <MapPin className="w-3.5 h-3.5" />
                       {branch.address_name}
                       {branch.products.length > 0 && (
                         <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                          isActive ? 'bg-[#00231F]/20' : 'bg-gray-200'
+                          isActive ? 'bg-[#1A1A2E]/20' : 'bg-gray-200'
                         }`}>
                           {branch.products.length}
                         </span>
@@ -1147,7 +1104,7 @@ export default function OrderForm({
                     {isDropdownOpen && (() => {
                       const usedIds = branchOrders.map(b => b.shipping_address_id).filter(id => id !== branch.shipping_address_id);
                       return (
-                        <div className="absolute top-full left-0 mt-1 z-30 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[200px] py-1">
+                        <div className="absolute top-full left-0 mt-1 z-30 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg min-w-[200px] py-1">
                           {shippingAddresses
                             .filter(addr => !usedIds.includes(addr.id))
                             .map(addr => (
@@ -1160,7 +1117,7 @@ export default function OrderForm({
                                 }}
                                 className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2 ${
                                   branch.shipping_address_id === addr.id
-                                    ? 'bg-[#E9B308]/10 text-[#00231F] font-medium'
+                                    ? 'bg-[#F4511E]/10 text-[#F4511E] font-medium'
                                     : 'text-gray-700 hover:bg-gray-50'
                                 }`}
                               >
@@ -1192,7 +1149,7 @@ export default function OrderForm({
                   type="button"
                   onClick={handleAddBranch}
                   disabled={!canAddBranch}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors whitespace-nowrap bg-blue-50 text-blue-700 dark:text-blue-400 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-50"
                   title={!canAddBranch ? (shippingAddresses.length <= 1 ? 'ลูกค้ามีสาขาเดียว' : 'เพิ่มครบทุกสาขาแล้ว') : 'เพิ่มสาขา'}
                 >
                   <Plus className="w-4 h-4" />
@@ -1232,10 +1189,10 @@ export default function OrderForm({
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="text-sm font-medium text-gray-900 line-clamp-2">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
                               {product.product_name}{capacityDisplay && ` - ${capacityDisplay}`}
                             </div>
-                            <div className="text-xs text-gray-400">{product.product_code}</div>
+                            <div className="text-xs text-gray-400 dark:text-slate-500">{product.product_code}</div>
                           </div>
                           {!isReadOnly && (
                             <button
@@ -1256,7 +1213,7 @@ export default function OrderForm({
                             value={product.quantity}
                             onChange={(e) => handleUpdateProductQuantity(branchIndex, productIndex, parseInt(e.target.value) || 1)}
                             disabled={isReadOnly}
-                            className="w-12 px-1 py-1 border border-gray-300 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#E9B308] disabled:bg-gray-100 disabled:text-gray-500"
+                            className="w-12 px-1 py-1 border border-gray-300 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 disabled:text-gray-500"
                           />
                           <span className="text-gray-300 text-xs">&times;</span>
                           <div className="relative">
@@ -1267,7 +1224,7 @@ export default function OrderForm({
                               value={product.unit_price}
                               onChange={(e) => handleUpdateProductPrice(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
                               disabled={isReadOnly}
-                              className="w-16 px-1 pr-4 py-1 border border-gray-300 rounded text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#E9B308] disabled:bg-gray-100 disabled:text-gray-500"
+                              className="w-16 px-1 pr-4 py-1 border border-gray-300 rounded text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 disabled:text-gray-500"
                             />
                             <span className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-300 text-xs pointer-events-none">฿</span>
                           </div>
@@ -1280,19 +1237,19 @@ export default function OrderForm({
                               value={product.discount_value}
                               onChange={(e) => handleUpdateProductDiscount(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
                               disabled={isReadOnly}
-                              className="w-10 px-1 py-1 border border-gray-300 rounded-l border-r-0 text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:z-10 disabled:bg-gray-100 disabled:text-gray-500"
+                              className="w-10 px-1 py-1 border border-gray-300 rounded-l border-r-0 text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 disabled:text-gray-500"
                             />
                             <button
                               type="button"
                               onClick={() => handleToggleProductDiscountType(branchIndex, productIndex)}
                               disabled={isReadOnly}
-                              className="px-1.5 text-xs font-medium border border-gray-300 rounded-r bg-gray-50 hover:bg-gray-100 transition-colors min-w-[24px] flex items-center justify-center disabled:opacity-50"
+                              className="px-1.5 text-xs font-medium border border-gray-300 rounded-r bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-w-[24px] flex items-center justify-center disabled:opacity-50"
                               title={product.discount_type === 'percent' ? 'เปลี่ยนเป็นจำนวนเงิน' : 'เปลี่ยนเป็นเปอร์เซ็นต์'}
                             >
                               {product.discount_type === 'percent' ? '%' : '฿'}
                             </button>
                           </div>
-                          <span className="ml-auto text-sm font-medium text-gray-900 whitespace-nowrap">
+                          <span className="ml-auto text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
                             {calculateProductTotal(product).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
@@ -1304,7 +1261,7 @@ export default function OrderForm({
                 /* Full page mode: table layout */
                 <div>
                   <table className="w-full table-fixed">
-                    <thead className="bg-gray-50 border-b text-xs">
+                    <thead className="bg-gray-50 dark:bg-slate-900 border-b text-xs">
                       <tr>
                         <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">สินค้า</th>
                         <th className="px-2 py-2 text-center font-medium text-gray-500 uppercase w-16">จำนวน</th>
@@ -1334,10 +1291,10 @@ export default function OrderForm({
                                   </div>
                                 )}
                                 <div className="min-w-0">
-                                  <div className="text-sm font-medium text-gray-900 line-clamp-2">
+                                  <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
                                     {product.product_name}{capacityDisplay && ` - ${capacityDisplay}`}
                                   </div>
-                                  <div className="text-xs text-gray-400">{product.product_code}</div>
+                                  <div className="text-xs text-gray-400 dark:text-slate-500">{product.product_code}</div>
                                 </div>
                               </div>
                             </td>
@@ -1349,7 +1306,7 @@ export default function OrderForm({
                                 value={product.quantity}
                                 onChange={(e) => handleUpdateProductQuantity(branchIndex, productIndex, parseInt(e.target.value) || 1)}
                                 disabled={isReadOnly}
-                                className="w-14 px-1.5 py-1 border border-gray-300 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#E9B308] disabled:bg-gray-100 disabled:text-gray-500"
+                                className="w-14 px-1.5 py-1 border border-gray-300 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 disabled:text-gray-500"
                               />
                             </td>
                             <td className="px-2 py-2.5 text-right">
@@ -1361,7 +1318,7 @@ export default function OrderForm({
                                   value={product.unit_price}
                                   onChange={(e) => handleUpdateProductPrice(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
                                   disabled={isReadOnly}
-                                  className="w-20 px-1.5 pr-5 py-1 border border-gray-300 rounded text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#E9B308] disabled:bg-gray-100 disabled:text-gray-500"
+                                  className="w-20 px-1.5 pr-5 py-1 border border-gray-300 rounded text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 disabled:text-gray-500"
                                 />
                                 <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-300 text-xs pointer-events-none">฿</span>
                               </div>
@@ -1376,20 +1333,20 @@ export default function OrderForm({
                                   value={product.discount_value}
                                   onChange={(e) => handleUpdateProductDiscount(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
                                   disabled={isReadOnly}
-                                  className="w-14 px-1.5 py-1 border border-gray-300 rounded-l border-r-0 text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:z-10 disabled:bg-gray-100 disabled:text-gray-500"
+                                  className="w-14 px-1.5 py-1 border border-gray-300 rounded-l border-r-0 text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 disabled:text-gray-500"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => handleToggleProductDiscountType(branchIndex, productIndex)}
                                   disabled={isReadOnly}
-                                  className="px-2 text-xs font-medium border border-gray-300 rounded-r bg-gray-50 hover:bg-gray-100 transition-colors min-w-[28px] flex items-center justify-center disabled:opacity-50"
+                                  className="px-2 text-xs font-medium border border-gray-300 rounded-r bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-w-[28px] flex items-center justify-center disabled:opacity-50"
                                   title={product.discount_type === 'percent' ? 'เปลี่ยนเป็นจำนวนเงิน' : 'เปลี่ยนเป็นเปอร์เซ็นต์'}
                                 >
                                   {product.discount_type === 'percent' ? '%' : '฿'}
                                 </button>
                               </div>
                             </td>
-                            <td className="px-2 py-2.5 text-right text-sm font-medium text-gray-900">
+                            <td className="px-2 py-2.5 text-right text-sm font-medium text-gray-900 dark:text-white">
                               {calculateProductTotal(product).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                             </td>
                             <td className="px-1 py-2.5 text-center">
@@ -1414,7 +1371,7 @@ export default function OrderForm({
               {/* Add Product Search */}
               {!isReadOnly && <div className="px-4 py-3 border-t border-gray-100">
                 <div className="relative">
-                  <div className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:border-[#E9B308] transition-colors bg-white">
+                  <div className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-[#F4511E] transition-colors bg-white dark:bg-slate-700">
                     <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     <input
                       ref={(el) => { productSearchRefs.current[branchIndex] = el; }}
@@ -1445,12 +1402,12 @@ export default function OrderForm({
                     />
                   </div>
                   {showProductDropdowns[branchIndex] && productSearches[branchIndex] && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-auto">
+                    <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-auto">
                       {products.filter(p =>
                         p.name.toLowerCase().includes(productSearches[branchIndex].toLowerCase()) ||
                         p.code.toLowerCase().includes(productSearches[branchIndex].toLowerCase())
                       ).length === 0 ? (
-                        <div className="px-4 py-3 text-sm text-gray-500">ไม่พบสินค้า</div>
+                        <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">ไม่พบสินค้า</div>
                       ) : (
                         products
                           .filter(p =>
@@ -1464,7 +1421,7 @@ export default function OrderForm({
                                 key={product.id}
                                 type="button"
                                 onClick={() => handleAddProductToBranch(branchIndex, product)}
-                                className="w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                                className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-3"
                               >
                                 {product.image ? (
                                   <img src={product.image} alt={product.name} className="w-10 h-10 object-cover rounded flex-shrink-0" />
@@ -1477,7 +1434,7 @@ export default function OrderForm({
                                   <div className="text-sm font-medium truncate">
                                     {product.name}{capacityDisplay && ` - ${capacityDisplay}`}
                                   </div>
-                                  <div className="text-xs text-gray-400">{product.code} · ฿{product.default_price}</div>
+                                  <div className="text-xs text-gray-400 dark:text-slate-500">{product.code} · ฿{product.default_price}</div>
                                 </div>
                               </button>
                             );
@@ -1497,9 +1454,9 @@ export default function OrderForm({
 
               {/* Shipping Fee + Branch Total */}
               {branch.products.length > 0 && (
-                <div className="px-4 py-3 bg-gray-50 border-t space-y-1.5">
+                <div className="px-4 py-3 bg-gray-50 dark:bg-slate-700/50 border-t dark:border-slate-600 space-y-1.5">
                   <div className="flex items-center justify-end gap-2">
-                    <span className="text-xs text-gray-500">ค่าจัดส่ง</span>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">ค่าจัดส่ง</span>
                     <div className="relative">
                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">฿</span>
                       <input
@@ -1510,15 +1467,15 @@ export default function OrderForm({
                         onChange={(e) => handleUpdateBranchShippingFee(branchIndex, parseFloat(e.target.value) || 0)}
                         placeholder="0"
                         disabled={isReadOnly}
-                        className="w-24 pl-5 pr-2 py-1 border border-gray-300 rounded text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#E9B308] disabled:bg-gray-100 disabled:text-gray-500"
+                        className="w-24 pl-5 pr-2 py-1 border border-gray-300 rounded text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 disabled:text-gray-500"
                       />
                     </div>
                   </div>
                   <div className="flex items-center justify-end gap-2">
-                    <span className="text-sm font-medium text-gray-500">
+                    <span className="text-sm font-medium text-gray-500 dark:text-slate-400">
                       ยอดรวมสาขา {branch.address_name}
                     </span>
-                    <span className="text-lg font-bold text-[#E9B308]">
+                    <span className="text-lg font-bold text-[#F4511E]">
                       ฿{(calculateBranchTotal(branch) + (branch.shipping_fee || 0)).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -1531,12 +1488,12 @@ export default function OrderForm({
 
       {/* Step 3: Summary */}
       {branchOrders.length > 0 && branchOrders.some(b => b.products.length > 0) && (
-        <div className={`bg-white rounded-lg ${embedded ? '' : 'border border-gray-200'} p-4`}>
+        <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Notes */}
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                   หมายเหตุ <span className="text-gray-400 font-normal">(แสดงในบิล / การจัดส่ง)</span>
                 </label>
                 <textarea
@@ -1544,7 +1501,7 @@ export default function OrderForm({
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
                   disabled={isReadOnly}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm disabled:bg-gray-100 disabled:text-gray-500"
                   placeholder="หมายเหตุสำหรับลูกค้า, การจัดส่ง..."
                 />
               </div>
@@ -1564,19 +1521,19 @@ export default function OrderForm({
             </div>
 
             {/* Order Summary */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">สรุปคำสั่งซื้อ</h3>
+            <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">สรุปคำสั่งซื้อ</h3>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between text-gray-500">
+                <div className="flex justify-between text-gray-500 dark:text-slate-400">
                   <span>ยอดรวมสินค้า (รวม VAT)</span>
                   <span>฿{itemsTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="flex justify-between text-gray-500">
+                <div className="flex justify-between text-gray-500 dark:text-slate-400">
                   <span>ค่าจัดส่ง</span>
                   <span>฿{totalShippingFee.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-500">ส่วนลดรวม</span>
+                  <span className="text-gray-500 dark:text-slate-400">ส่วนลดรวม</span>
                   <div className="flex items-stretch">
                     <input
                       type="number"
@@ -1586,7 +1543,7 @@ export default function OrderForm({
                       value={orderDiscount}
                       onChange={(e) => setOrderDiscount(parseFloat(e.target.value) || 0)}
                       disabled={isReadOnly}
-                      className="w-20 px-2 py-1 border border-gray-300 rounded-l border-r-0 text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:z-10 disabled:bg-gray-100 disabled:text-gray-500"
+                      className="w-20 px-2 py-1 border border-gray-300 rounded-l border-r-0 text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 disabled:text-gray-500"
                     />
                     <button
                       type="button"
@@ -1595,24 +1552,24 @@ export default function OrderForm({
                         setOrderDiscount(0);
                       }}
                       disabled={isReadOnly}
-                      className="px-2 text-xs font-medium border border-gray-300 rounded-r bg-gray-50 hover:bg-gray-100 transition-colors min-w-[28px] flex items-center justify-center disabled:opacity-50"
+                      className="px-2 text-xs font-medium border border-gray-300 rounded-r bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-w-[28px] flex items-center justify-center disabled:opacity-50"
                       title={orderDiscountType === 'percent' ? 'เปลี่ยนเป็นจำนวนเงิน' : 'เปลี่ยนเป็นเปอร์เซ็นต์'}
                     >
                       {orderDiscountType === 'percent' ? '%' : '฿'}
                     </button>
                   </div>
                 </div>
-                <div className="flex justify-between text-gray-500 pt-2 border-t border-gray-200">
+                <div className="flex justify-between text-gray-500 pt-2 border-t border-gray-200 dark:border-slate-700">
                   <span>ยอดก่อน VAT</span>
                   <span>฿{subtotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="flex justify-between text-gray-500">
+                <div className="flex justify-between text-gray-500 dark:text-slate-400">
                   <span>VAT 7%</span>
                   <span>฿{vat.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200">
+                <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200 dark:border-slate-700">
                   <span>ยอดรวมสุทธิ</span>
-                  <span className="text-[#E9B308]">฿{total.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-[#F4511E]">฿{total.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
             </div>
@@ -1626,14 +1583,14 @@ export default function OrderForm({
           <button
             type="button"
             onClick={handleCancel}
-            className="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+            className="px-5 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium"
           >
             ยกเลิก
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="bg-[#E9B308] text-[#00231F] px-5 py-2 rounded-lg hover:bg-[#d4a307] transition-colors flex items-center gap-2 disabled:opacity-50 text-sm font-medium"
+            className="bg-[#F4511E] text-white px-5 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50 text-sm font-medium"
           >
             {saving ? (
               <>
@@ -1680,32 +1637,32 @@ export default function OrderForm({
           tabIndex={-1}
           ref={(el) => el?.focus()}
         >
-          <div className="bg-white rounded-lg p-6 max-w-md mx-4 w-full relative" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md mx-4 w-full relative" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={() => setShowSuccessModal(false)}
-              className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
             <div className="text-center">
-              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+              <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle className="w-10 h-10 text-green-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">สร้างคำสั่งซื้อสำเร็จ!</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">สร้างคำสั่งซื้อสำเร็จ!</h3>
               {savedOrderNumber && (
-                <p className="text-gray-600 mb-4">เลขที่คำสั่งซื้อ: <span className="font-medium">{savedOrderNumber}</span></p>
+                <p className="text-gray-600 dark:text-slate-400 mb-4">เลขที่คำสั่งซื้อ: <span className="font-medium">{savedOrderNumber}</span></p>
               )}
               <div className="space-y-3">
                 {/* Bill Online Link with copy */}
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1 text-left">บิลออนไลน์</label>
+                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1 text-left">บิลออนไลน์</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       readOnly
                       value={`${typeof window !== 'undefined' ? window.location.origin : ''}/bills/${savedOrderId}`}
-                      className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 select-all"
+                      className="flex-1 px-3 py-2 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-700 rounded-lg text-sm text-gray-700 dark:text-slate-300 select-all"
                       onClick={(e) => (e.target as HTMLInputElement).select()}
                     />
                     <button
@@ -1718,8 +1675,8 @@ export default function OrderForm({
                       }}
                       className={`flex-shrink-0 p-2 rounded-lg transition-colors ${
                         billLinkCopied
-                          ? 'bg-green-100 text-green-600'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
+                          : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'
                       }`}
                       title="คัดลอกลิงก์"
                     >
@@ -1739,7 +1696,7 @@ export default function OrderForm({
                       setShowSuccessModal(false);
                       onSendBillToChat(savedOrderId, savedOrderNumber, billUrl);
                     }}
-                    className="w-full px-4 py-2.5 bg-[#E9B308] text-[#00231F] rounded-lg hover:bg-[#d4a307] transition-colors font-medium flex items-center justify-center gap-2"
+                    className="w-full px-4 py-2.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium flex items-center justify-center gap-2"
                   >
                     <Send className="w-4 h-4" />
                     ส่งบิลให้ลูกค้า
@@ -1758,7 +1715,7 @@ export default function OrderForm({
                   className={`w-full px-4 py-2.5 rounded-lg transition-colors font-medium ${
                     onSendBillToChat
                       ? 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                      : 'bg-[#E9B308] text-[#00231F] hover:bg-[#d4a307]'
+                      : 'bg-[#F4511E] text-white hover:bg-[#D63B0E]'
                   }`}
                 >
                   ดูคำสั่งซื้อ

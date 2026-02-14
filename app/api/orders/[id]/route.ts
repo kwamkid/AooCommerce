@@ -1,16 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 // GET - Get single order by ID
 export async function GET(
@@ -18,18 +7,9 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json(
-        { error: 'No authorization header' },
-        { status: 401 }
-      );
-    }
+    const auth = await checkAuthWithCompany(request);
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
-
-    if (userError || !user) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -54,6 +34,7 @@ export async function GET(
         )
       `)
       .eq('id', orderId)
+      .eq('company_id', auth.companyId)
       .single();
 
     if (orderError || !order) {
@@ -90,7 +71,8 @@ export async function GET(
           )
         )
       `)
-      .eq('order_id', orderId);
+      .eq('order_id', orderId)
+      .eq('company_id', auth.companyId);
 
     if (itemsError) {
       console.error('Error fetching items:', itemsError);

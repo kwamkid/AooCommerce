@@ -1,42 +1,19 @@
 // Path: app/api/variation-types/route.ts
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string }> {
-  try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) return { isAuth: false };
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !user) return { isAuth: false };
-    return { isAuth: true, userId: user.id };
-  } catch {
-    return { isAuth: false };
-  }
-}
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 // GET - Fetch all variation types
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
-    if (!isAuth) {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { data, error } = await supabaseAdmin
       .from('variation_types')
       .select('*')
+      .eq('company_id', auth.companyId)
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
 
@@ -52,8 +29,8 @@ export async function GET(request: NextRequest) {
 // POST - Create new variation type
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
-    if (!isAuth) {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -64,10 +41,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
-    // Get max sort_order
+    // Get max sort_order within this company
     const { data: maxData } = await supabaseAdmin
       .from('variation_types')
       .select('sort_order')
+      .eq('company_id', auth.companyId)
       .order('sort_order', { ascending: false })
       .limit(1)
       .single();
@@ -76,7 +54,11 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from('variation_types')
-      .insert({ name: name.trim(), sort_order: nextOrder })
+      .insert({
+        company_id: auth.companyId,
+        name: name.trim(),
+        sort_order: nextOrder
+      })
       .select()
       .single();
 
@@ -97,8 +79,8 @@ export async function POST(request: NextRequest) {
 // PUT - Update variation type
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
-    if (!isAuth) {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -117,6 +99,7 @@ export async function PUT(request: NextRequest) {
       .from('variation_types')
       .update(updateData)
       .eq('id', id)
+      .eq('company_id', auth.companyId)
       .select()
       .single();
 
@@ -137,8 +120,8 @@ export async function PUT(request: NextRequest) {
 // DELETE - Soft delete variation type
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
-    if (!isAuth) {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -152,7 +135,8 @@ export async function DELETE(request: NextRequest) {
     const { error } = await supabaseAdmin
       .from('variation_types')
       .update({ is_active: false })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('company_id', auth.companyId);
 
     if (error) throw error;
 

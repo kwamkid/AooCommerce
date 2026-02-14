@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
-import { Settings as SettingsIcon, Users, Plus, X, Save, Loader2, Tag, Edit2, Check } from 'lucide-react';
+import { apiFetch } from '@/lib/api-client';
+import { Users, Plus, X, Save, Loader2, Tag, Edit2, Check } from 'lucide-react';
 
 interface DayRange {
   minDays: number;
@@ -45,7 +45,7 @@ export default function SettingsPage() {
 
   // Fetch CRM settings + Variation Types
   useEffect(() => {
-    if (userProfile?.role === 'admin') {
+    if (userProfile?.role === 'admin' || userProfile?.role === 'owner') {
       fetchCRMSettings();
       fetchVariationTypes();
     }
@@ -54,13 +54,8 @@ export default function SettingsPage() {
   const fetchCRMSettings = async () => {
     try {
       setLoadingCRM(true);
-      const { data: sessionData } = await supabase.auth.getSession();
 
-      const response = await fetch('/api/settings/crm', {
-        headers: {
-          'Authorization': `Bearer ${sessionData?.session?.access_token || ''}`
-        }
-      });
+      const response = await apiFetch('/api/settings/crm');
 
       const result = await response.json();
       if (result.dayRanges) {
@@ -84,14 +79,9 @@ export default function SettingsPage() {
     setSuccess('');
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-
-      const response = await fetch('/api/settings/crm', {
+      const response = await apiFetch('/api/settings/crm', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionData?.session?.access_token || ''}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dayRanges })
       });
 
@@ -185,10 +175,7 @@ export default function SettingsPage() {
   const fetchVariationTypes = async () => {
     try {
       setLoadingVT(true);
-      const { data: sessionData } = await supabase.auth.getSession();
-      const response = await fetch('/api/variation-types', {
-        headers: { 'Authorization': `Bearer ${sessionData?.session?.access_token || ''}` }
-      });
+      const response = await apiFetch('/api/variation-types');
       const result = await response.json();
       setVariationTypes(result.data || []);
     } catch (err) {
@@ -203,13 +190,9 @@ export default function SettingsPage() {
     setAddingVT(true);
     setError('');
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const response = await fetch('/api/variation-types', {
+      const response = await apiFetch('/api/variation-types', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionData?.session?.access_token || ''}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newTypeName.trim() })
       });
       const result = await response.json();
@@ -230,13 +213,9 @@ export default function SettingsPage() {
     if (!editingVTName.trim()) return;
     setError('');
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const response = await fetch('/api/variation-types', {
+      const response = await apiFetch('/api/variation-types', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionData?.session?.access_token || ''}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, name: editingVTName.trim() })
       });
       const result = await response.json();
@@ -256,10 +235,8 @@ export default function SettingsPage() {
     if (!confirm(`ลบ "${name}" หรือไม่?`)) return;
     setError('');
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const response = await fetch(`/api/variation-types?id=${id}`, {
+      const response = await apiFetch(`/api/variation-types?id=${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${sessionData?.session?.access_token || ''}` }
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
@@ -273,13 +250,13 @@ export default function SettingsPage() {
   };
 
   // Only allow admin to access this page
-  if (userProfile?.role !== 'admin') {
+  if (userProfile?.role !== 'admin' && userProfile?.role !== 'owner') {
     return (
       <Layout>
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">ไม่มีสิทธิ์เข้าถึง</h2>
-            <p className="text-gray-600">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</p>
+            <p className="text-gray-600 dark:text-slate-400">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</p>
           </div>
         </div>
       </Layout>
@@ -287,38 +264,39 @@ export default function SettingsPage() {
   }
 
   return (
-    <Layout>
-      <div className="p-6 space-y-6">
-        <div className="flex items-center gap-3">
-          <SettingsIcon className="w-8 h-8 text-[#E9B308]" />
-          <h1 className="text-2xl font-bold text-[#00231F]">ตั้งค่าระบบ</h1>
-        </div>
-
+    <Layout
+      title="ทั่วไป"
+      breadcrumbs={[
+        { label: 'ตั้งค่าระบบ', href: '/settings' },
+        { label: 'ทั่วไป' },
+      ]}
+    >
+      <div className="space-y-6">
         {/* Success Message */}
         {success && (
-          <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg">
+          <div className="bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400 px-4 py-3 rounded-lg">
             {success}
           </div>
         )}
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+          <div className="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
 
         {/* CRM Settings */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between p-4 border-b border-gray-100">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+          <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-slate-700">
             <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-[#E9B308]" />
-              <h2 className="text-lg font-semibold text-gray-900">ช่วงวันติดตามลูกค้า</h2>
+              <Users className="w-5 h-5 text-[#F4511E]" />
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ช่วงวันติดตามลูกค้า</h2>
             </div>
             <button
               onClick={handleSaveCRMSettings}
               disabled={savingCRM}
-              className="flex items-center gap-2 px-4 py-2 bg-[#E9B308] text-[#00231F] rounded-lg hover:bg-[#d4a307] transition-colors font-medium disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium disabled:opacity-50"
             >
               {savingCRM ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               บันทึก
@@ -326,18 +304,18 @@ export default function SettingsPage() {
           </div>
 
           <div className="p-4">
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
               ระบุจำนวนวันสูงสุดของแต่ละช่วง ระบบจะคำนวณช่วงวันให้อัตโนมัติ (เว้นว่างสำหรับไม่จำกัด)
             </p>
 
             {loadingCRM ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 text-[#E9B308] animate-spin" />
+                <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
               </div>
             ) : (
               <div className="space-y-3">
                 {/* Header Row */}
-                <div className="grid grid-cols-12 gap-3 px-3 text-xs font-medium text-gray-500 uppercase">
+                <div className="grid grid-cols-12 gap-3 px-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">
                   <div className="col-span-1">สี</div>
                   <div className="col-span-2">ช่วงวัน</div>
                   <div className="col-span-2">ถึงวันที่</div>
@@ -349,12 +327,12 @@ export default function SettingsPage() {
                 {dayRanges.map((range, index) => {
                   const preset = getColorPreset(range.color);
                   return (
-                    <div key={index} className="grid grid-cols-12 gap-3 items-center p-3 bg-gray-50 rounded-lg">
+                    <div key={index} className="grid grid-cols-12 gap-3 items-center p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
                       {/* Color Picker */}
                       <div className="col-span-1">
                         <div className="relative group">
-                          <button className={`w-8 h-8 rounded-full ${preset.bg} cursor-pointer ring-2 ring-offset-2 ring-gray-200 hover:ring-[#E9B308] transition-all`} />
-                          <div className="absolute left-0 top-10 hidden group-hover:block p-2 bg-white shadow-xl rounded-lg z-20 border border-gray-200">
+                          <button className={`w-8 h-8 rounded-full ${preset.bg} cursor-pointer ring-2 ring-offset-2 ring-gray-200 dark:ring-slate-600 dark:ring-offset-slate-800 hover:ring-[#F4511E] transition-all`} />
+                          <div className="absolute left-0 top-10 hidden group-hover:block p-2 bg-white dark:bg-slate-700 shadow-xl rounded-lg z-20">
                             <div className="grid grid-cols-4 gap-1.5 w-[130px]">
                               {colorPresets.map((c) => (
                                 <button
@@ -371,7 +349,7 @@ export default function SettingsPage() {
 
                       {/* Calculated Range Display */}
                       <div className="col-span-2">
-                        <span className="text-sm font-medium text-gray-700">
+                        <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
                           {range.minDays} - {range.maxDays ?? '∞'}
                         </span>
                       </div>
@@ -384,7 +362,7 @@ export default function SettingsPage() {
                           value={range.maxDays ?? ''}
                           placeholder="∞"
                           onChange={(e) => handleUpdateMaxDays(index, e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                         />
                       </div>
 
@@ -412,7 +390,7 @@ export default function SettingsPage() {
                 {/* Add Button */}
                 <button
                   onClick={handleAddRange}
-                  className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-[#E9B308] hover:text-[#E9B308] transition-colors"
+                  className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors"
                 >
                   <Plus className="w-5 h-5" />
                   เพิ่มช่วงวัน
@@ -423,28 +401,28 @@ export default function SettingsPage() {
         </div>
 
         {/* Variation Types Settings */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between p-4 border-b border-gray-100">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+          <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-slate-700">
             <div className="flex items-center gap-2">
-              <Tag className="w-5 h-5 text-[#E9B308]" />
-              <h2 className="text-lg font-semibold text-gray-900">ประเภทตัวเลือกสินค้า</h2>
+              <Tag className="w-5 h-5 text-[#F4511E]" />
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประเภทตัวเลือกสินค้า</h2>
             </div>
           </div>
 
           <div className="p-4">
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
               จัดการประเภทตัวเลือกสำหรับ Variation Products เช่น ความจุ, รูปทรง, สี
             </p>
 
             {loadingVT ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 text-[#E9B308] animate-spin" />
+                <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
               </div>
             ) : (
               <div className="space-y-2">
                 {/* Existing Types */}
                 {variationTypes.map((vt) => (
-                  <div key={vt.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <div key={vt.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
                     {editingVTId === vt.id ? (
                       <>
                         <input
@@ -455,7 +433,7 @@ export default function SettingsPage() {
                             if (e.key === 'Enter') handleUpdateVariationType(vt.id);
                             if (e.key === 'Escape') { setEditingVTId(null); setEditingVTName(''); }
                           }}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                           autoFocus
                         />
                         <button
@@ -467,7 +445,7 @@ export default function SettingsPage() {
                         </button>
                         <button
                           onClick={() => { setEditingVTId(null); setEditingVTName(''); }}
-                          className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg"
+                          className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
                           title="ยกเลิก"
                         >
                           <X className="w-4 h-4" />
@@ -475,10 +453,10 @@ export default function SettingsPage() {
                       </>
                     ) : (
                       <>
-                        <span className="flex-1 text-sm font-medium text-gray-700">{vt.name}</span>
+                        <span className="flex-1 text-sm font-medium text-gray-700 dark:text-slate-300">{vt.name}</span>
                         <button
                           onClick={() => { setEditingVTId(vt.id); setEditingVTName(vt.name); }}
-                          className="p-2 text-gray-400 hover:text-[#E9B308] hover:bg-yellow-50 rounded-lg transition-colors"
+                          className="p-2 text-gray-400 hover:text-[#F4511E] hover:bg-yellow-50 rounded-lg transition-colors"
                           title="แก้ไข"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -503,12 +481,12 @@ export default function SettingsPage() {
                     onChange={(e) => setNewTypeName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') handleAddVariationType(); }}
                     placeholder="ชื่อประเภทตัวเลือกใหม่"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                   />
                   <button
                     onClick={handleAddVariationType}
                     disabled={addingVT || !newTypeName.trim()}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#E9B308] text-[#00231F] rounded-lg hover:bg-[#d4a307] transition-colors font-medium disabled:opacity-50 text-sm"
+                    className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium disabled:opacity-50 text-sm"
                   >
                     {addingVT ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                     เพิ่ม

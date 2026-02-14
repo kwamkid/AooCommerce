@@ -4,8 +4,9 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { apiFetch } from '@/lib/api-client';
 import Layout from '@/components/layout/Layout';
-import { supabase } from '@/lib/supabase';
+
 import {
   FileText,
   Calendar,
@@ -84,19 +85,9 @@ export default function PendingReportPage() {
       setLoading(true);
       setError('');
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/login');
-        return;
-      }
-
       const params = new URLSearchParams({ group_by: groupBy });
 
-      const response = await fetch(`/api/reports/pending?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
+      const response = await apiFetch(`/api/reports/pending?${params}`);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -164,9 +155,9 @@ export default function PendingReportPage() {
   // Get order status badge
   const getOrderStatusBadge = (status: string) => {
     const statusConfig: { [key: string]: { label: string; color: string } } = {
-      new: { label: 'ใหม่', color: 'bg-blue-100 text-blue-700' },
-      shipping: { label: 'กำลังส่ง', color: 'bg-yellow-100 text-yellow-700' },
-      completed: { label: 'ส่งแล้ว', color: 'bg-green-100 text-green-700' }
+      new: { label: 'ใหม่', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' },
+      shipping: { label: 'กำลังส่ง', color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' },
+      completed: { label: 'ส่งแล้ว', color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' }
     };
     const config = statusConfig[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
     return (
@@ -181,27 +172,27 @@ export default function PendingReportPage() {
     if (days === null) return null;
     if (days < 0) {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
           ยังไม่ถึงกำหนด
         </span>
       );
     }
     if (days <= 7) {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
           {days} วัน
         </span>
       );
     }
     if (days <= 30) {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
           {days} วัน
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
         {days} วัน
       </span>
     );
@@ -211,7 +202,7 @@ export default function PendingReportPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
         </div>
       </Layout>
     );
@@ -224,17 +215,17 @@ export default function PendingReportPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <div className="flex items-center gap-3 mb-4 sm:mb-0">
-          <FileText className="w-8 h-8 text-[#E9B308]" />
+          <FileText className="w-8 h-8 text-[#F4511E]" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">รายงานยอดค้างชำระ</h1>
-            <p className="text-gray-600">ติดตามยอดค้างชำระจากลูกค้า</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">รายงานยอดค้างชำระ</h1>
+            <p className="text-gray-600 dark:text-slate-400">ติดตามยอดค้างชำระจากลูกค้า</p>
           </div>
         </div>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
           {error}
         </div>
       )}
@@ -242,52 +233,52 @@ export default function PendingReportPage() {
       {/* Summary Cards */}
       {summary && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                <AlertCircle className="w-5 h-5 text-orange-600" />
+              <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-500">จำนวนออเดอร์ค้าง</p>
-                <p className="text-xl font-bold text-gray-900">{summary.totalOrders} รายการ</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">จำนวนออเดอร์ค้าง</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{summary.totalOrders} รายการ</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-red-600 dark:text-red-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-500">ยอดค้างชำระรวม</p>
-                <p className="text-xl font-bold text-red-600">{formatCurrency(summary.totalPending)}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">ยอดค้างชำระรวม</p>
+                <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(summary.totalPending)}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Clock className="w-5 h-5 text-blue-600" />
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-500">ออเดอร์เก่าสุด</p>
-                <p className="text-lg font-semibold text-gray-900">
+                <p className="text-sm text-gray-500 dark:text-slate-400">ออเดอร์เก่าสุด</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
                   {summary.oldestPending ? formatDate(summary.oldestPending) : '-'}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-green-600" />
+              <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-500">ออเดอร์ใหม่สุด</p>
-                <p className="text-lg font-semibold text-gray-900">
+                <p className="text-sm text-gray-500 dark:text-slate-400">ออเดอร์ใหม่สุด</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
                   {summary.newestPending ? formatDate(summary.newestPending) : '-'}
                 </p>
               </div>
@@ -297,15 +288,15 @@ export default function PendingReportPage() {
       )}
 
       {/* Group By Toggle */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 mb-6">
         <div className="flex items-center gap-4">
-          <span className="text-sm font-medium text-gray-700">จัดกลุ่มตาม:</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-slate-300">จัดกลุ่มตาม:</span>
           <div className="flex gap-2">
             <button
               onClick={() => setGroupBy('customer')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 groupBy === 'customer'
-                  ? 'bg-[#E9B308] text-[#00231F]'
+                  ? 'bg-[#F4511E] text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -316,7 +307,7 @@ export default function PendingReportPage() {
               onClick={() => setGroupBy('order')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 groupBy === 'order'
-                  ? 'bg-[#E9B308] text-[#00231F]'
+                  ? 'bg-[#F4511E] text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -329,14 +320,14 @@ export default function PendingReportPage() {
 
       {/* Loading */}
       {loading ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-12">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-12">
           <div className="flex flex-col items-center justify-center">
-            <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin mb-4" />
-            <p className="text-gray-500">กำลังโหลดข้อมูล...</p>
+            <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin mb-4" />
+            <p className="text-gray-500 dark:text-slate-400">กำลังโหลดข้อมูล...</p>
           </div>
         </div>
       ) : groupedData.length === 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-12">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-12">
           <div className="flex flex-col items-center justify-center">
             <FileText className="w-16 h-16 text-gray-300 mb-4" />
             <p className="text-gray-500 text-lg">ไม่มียอดค้างชำระ</p>
@@ -373,23 +364,23 @@ export default function PendingReportPage() {
                 {groupBy === 'customer' && groupedData.map((item: GroupedDataByCustomer, index: number) => (
                   <Fragment key={item.customerId || `customer-${index}`}>
                     <tr
-                      className="hover:bg-gray-50 cursor-pointer"
+                      className="hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer"
                       onClick={() => toggleRow(item.customerId || `customer-${index}`)}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <div className="font-medium text-gray-900">{item.customerName}</div>
-                          <div className="text-sm text-gray-500">{item.customerCode}</div>
+                          <div className="font-medium text-gray-900 dark:text-white">{item.customerName}</div>
+                          <div className="text-sm text-gray-500 dark:text-slate-400">{item.customerCode}</div>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
                         <div className="text-sm">
-                          <div className="flex items-center justify-center gap-1 text-gray-600">
+                          <div className="flex items-center justify-center gap-1 text-gray-600 dark:text-slate-400">
                             <User className="w-3 h-3" />
                             {item.contactPerson}
                           </div>
                           {item.phone !== '-' && (
-                            <div className="flex items-center justify-center gap-1 text-gray-500">
+                            <div className="flex items-center justify-center gap-1 text-gray-500 dark:text-slate-400">
                               <Phone className="w-3 h-3" />
                               {item.phone}
                             </div>
@@ -397,12 +388,12 @@ export default function PendingReportPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-700">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
                           {item.orderCount} รายการ
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <span className="font-bold text-red-600">{formatCurrency(item.totalPending)}</span>
+                        <span className="font-bold text-red-600 dark:text-red-400">{formatCurrency(item.totalPending)}</span>
                       </td>
                       <td className="px-6 py-4 text-center">
                         {expandedRows.has(item.customerId || `customer-${index}`) ? (
@@ -415,17 +406,17 @@ export default function PendingReportPage() {
                     {expandedRows.has(item.customerId || `customer-${index}`) && item.orders.map((order) => (
                       <tr
                         key={order.id}
-                        className="bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                        className="bg-gray-50 dark:bg-slate-900/50 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
                         onClick={() => router.push(`/orders/${order.id}`)}
                       >
                         <td className="px-6 py-3 pl-12">
                           <div>
-                            <span className="text-sm font-medium text-gray-900">{order.orderNumber}</span>
-                            <div className="text-xs text-gray-500">สั่ง: {formatDate(order.orderDate)}</div>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">{order.orderNumber}</span>
+                            <div className="text-xs text-gray-500 dark:text-slate-400">สั่ง: {formatDate(order.orderDate)}</div>
                           </div>
                         </td>
                         <td className="px-6 py-3 text-center">
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-gray-600 dark:text-slate-400">
                             ส่ง: {formatDate(order.deliveryDate)}
                           </div>
                         </td>
@@ -433,7 +424,7 @@ export default function PendingReportPage() {
                           {getAgingBadge(getDaysSinceDelivery(order.deliveryDate))}
                         </td>
                         <td className="px-6 py-3 text-right">
-                          <span className="text-sm font-semibold text-gray-900">{formatCurrency(order.totalAmount)}</span>
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(order.totalAmount)}</span>
                         </td>
                         <td className="px-6 py-3 text-center">
                           {getOrderStatusBadge(order.orderStatus)}
@@ -448,23 +439,23 @@ export default function PendingReportPage() {
                   return (
                     <tr
                       key={item.id}
-                      className="hover:bg-gray-50 cursor-pointer"
+                      className="hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer"
                       onClick={() => router.push(`/orders/${item.id}`)}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <div className="font-medium text-gray-900">{item.orderNumber}</div>
-                          <div className="text-sm text-gray-500">สั่ง: {formatDate(item.orderDate)}</div>
+                          <div className="font-medium text-gray-900 dark:text-white">{item.orderNumber}</div>
+                          <div className="text-sm text-gray-500 dark:text-slate-400">สั่ง: {formatDate(item.orderDate)}</div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <div>
-                          <div className="font-medium text-gray-900">{item.customerName}</div>
-                          <div className="text-sm text-gray-500">{item.customerCode}</div>
+                          <div className="font-medium text-gray-900 dark:text-white">{item.customerName}</div>
+                          <div className="text-sm text-gray-500 dark:text-slate-400">{item.customerCode}</div>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className="text-sm text-gray-900">{formatDate(item.deliveryDate)}</span>
+                        <span className="text-sm text-gray-900 dark:text-white">{formatDate(item.deliveryDate)}</span>
                       </td>
                       <td className="px-6 py-4 text-center">
                         {getAgingBadge(daysSince)}
@@ -473,7 +464,7 @@ export default function PendingReportPage() {
                         {getOrderStatusBadge(item.orderStatus)}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <span className="font-bold text-red-600">{formatCurrency(item.totalAmount)}</span>
+                        <span className="font-bold text-red-600 dark:text-red-400">{formatCurrency(item.totalAmount)}</span>
                       </td>
                     </tr>
                   );
@@ -483,10 +474,10 @@ export default function PendingReportPage() {
               {/* Total Footer */}
               <tfoot className="data-tfoot">
                 <tr>
-                  <td colSpan={groupBy === 'customer' ? 3 : 5} className="px-6 py-4 font-bold text-gray-900">
+                  <td colSpan={groupBy === 'customer' ? 3 : 5} className="px-6 py-4 font-bold text-gray-900 dark:text-white">
                     รวมทั้งหมด ({summary?.totalOrders || 0} รายการ)
                   </td>
-                  <td className={`px-6 py-4 font-bold text-red-600 ${groupBy === 'customer' ? 'text-right' : 'text-right'}`}>
+                  <td className={`px-6 py-4 font-bold text-red-600 dark:text-red-400 ${groupBy === 'customer' ? 'text-right' : 'text-right'}`}>
                     {formatCurrency(summary?.totalPending || 0)}
                   </td>
                   {groupBy === 'customer' && <td></td>}

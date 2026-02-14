@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
+import { apiFetch } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import {
   MessageCircle,
@@ -238,12 +239,7 @@ function LineChatPageContent() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-
-        const response = await fetch('/api/settings/crm', {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
-        });
+        const response = await apiFetch('/api/settings/crm');
 
         if (response.ok) {
           const result = await response.json();
@@ -400,13 +396,8 @@ function LineChatPageContent() {
 
             // If incoming message for selected contact, reset unread in database
             if (newMsg.direction === 'incoming') {
-              const { data: { session } } = await supabase.auth.getSession();
-              if (session) {
-                // Mark as read by fetching messages (which resets unread_count)
-                fetch(`/api/line/messages?contact_id=${selectedContact.id}&limit=1`, {
-                  headers: { 'Authorization': `Bearer ${session.access_token}` }
-                }).catch(() => {});
-              }
+              // Mark as read by fetching messages (which resets unread_count)
+              apiFetch(`/api/line/messages?contact_id=${selectedContact.id}&limit=1`).catch(() => {});
             }
           }
 
@@ -443,10 +434,6 @@ function LineChatPageContent() {
       if (loadMore) {
         setLoadingMoreContacts(true);
       }
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) return;
-
       const params = new URLSearchParams();
       if (searchTerm) params.set('search', searchTerm);
       if (filterUnread) params.set('unread_only', 'true');
@@ -461,11 +448,7 @@ function LineChatPageContent() {
       params.set('limit', '30');
       params.set('offset', loadMore ? contacts.length.toString() : '0');
 
-      const response = await fetch(`/api/line/contacts?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
+      const response = await apiFetch(`/api/line/contacts?${params.toString()}`);
 
       if (!response.ok) throw new Error('Failed to fetch contacts');
 
@@ -510,17 +493,9 @@ function LineChatPageContent() {
       } else {
         setLoadingMessages(true);
       }
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) return;
-
       const offset = loadMore ? messages.length : 0;
       const limit = 50;
-      const response = await fetch(`/api/line/messages?contact_id=${contactId}&limit=${limit}&offset=${offset}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
+      const response = await apiFetch(`/api/line/messages?contact_id=${contactId}&limit=${limit}&offset=${offset}`);
 
       if (!response.ok) throw new Error('Failed to fetch messages');
 
@@ -590,15 +565,9 @@ function LineChatPageContent() {
     // Async send
     const contactId = selectedContact.id;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
-
-      const response = await fetch('/api/line/messages', {
+      const response = await apiFetch('/api/line/messages', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contact_id: contactId,
           message: messageText
@@ -655,16 +624,9 @@ function LineChatPageContent() {
     const contactId = selectedContact.id;
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (!session) throw new Error('No session');
-
-        const response = await fetch('/api/line/messages', {
+        const response = await apiFetch('/api/line/messages', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contact_id: contactId,
             message: messageText
@@ -812,12 +774,9 @@ function LineChatPageContent() {
       const imageUrl = urlData.publicUrl;
 
       // Send via LINE API
-      const response = await fetch('/api/line/messages', {
+      const response = await apiFetch('/api/line/messages', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contact_id: contactId,
           type: 'image',
@@ -878,15 +837,9 @@ function LineChatPageContent() {
 
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error('No session');
-
-        const response = await fetch('/api/line/messages', {
+        const response = await apiFetch('/api/line/messages', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contact_id: contactId,
             type: 'sticker',
@@ -934,15 +887,8 @@ function LineChatPageContent() {
   const fetchCustomers = async (search: string) => {
     try {
       setLoadingCustomers(true);
-      const { data: { session } } = await supabase.auth.getSession();
 
-      if (!session) return;
-
-      const response = await fetch(`/api/customers?search=${encodeURIComponent(search)}&limit=10`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
+      const response = await apiFetch(`/api/customers?search=${encodeURIComponent(search)}&limit=10`);
 
       if (!response.ok) throw new Error('Failed to fetch customers');
 
@@ -959,16 +905,9 @@ function LineChatPageContent() {
     if (!selectedContact) return;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) return;
-
-      const response = await fetch('/api/line/contacts', {
+      const response = await apiFetch('/api/line/contacts', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: selectedContact.id,
           customer_id: customerId
@@ -1015,9 +954,6 @@ function LineChatPageContent() {
     setCustomerError('');
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
-
       // Determine billing address (use shipping if same_as_shipping is checked)
       const billingAddress = formData.billing_same_as_shipping ? formData.shipping_address : formData.billing_address;
       const billingDistrict = formData.billing_same_as_shipping ? formData.shipping_district : formData.billing_district;
@@ -1048,12 +984,9 @@ function LineChatPageContent() {
         postal_code: billingPostalCode
       };
 
-      const createResponse = await fetch('/api/customers', {
+      const createResponse = await apiFetch('/api/customers', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(customerPayload)
       });
 
@@ -1081,23 +1014,17 @@ function LineChatPageContent() {
           is_default: true
         };
 
-        await fetch('/api/shipping-addresses', {
+        await apiFetch('/api/shipping-addresses', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(shippingPayload)
         });
       }
 
       // 3. Link to LINE contact
-      const linkResponse = await fetch('/api/line/contacts', {
+      const linkResponse = await apiFetch('/api/line/contacts', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: selectedContact.id,
           customer_id: newCustomer.id
@@ -1172,9 +1099,6 @@ function LineChatPageContent() {
     setEditCustomerError('');
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
-
       // Determine billing address (use shipping if same_as_shipping is checked)
       const billingAddress = formData.billing_same_as_shipping ? formData.shipping_address : formData.billing_address;
       const billingDistrict = formData.billing_same_as_shipping ? formData.shipping_district : formData.billing_district;
@@ -1205,12 +1129,9 @@ function LineChatPageContent() {
         postal_code: billingPostalCode
       };
 
-      const response = await fetch('/api/customers', {
+      const response = await apiFetch('/api/customers', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
@@ -1300,12 +1221,8 @@ function LineChatPageContent() {
   const fetchOrderHistory = async (customerId: string) => {
     try {
       setLoadingHistory(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
 
-      const response = await fetch(`/api/orders?customer_id=${customerId}&limit=20`, {
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
-      });
+      const response = await apiFetch(`/api/orders?customer_id=${customerId}&limit=20`);
 
       if (!response.ok) throw new Error('Failed to fetch orders');
 
@@ -1345,7 +1262,7 @@ function LineChatPageContent() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
         </div>
       </Layout>
     );
@@ -1353,13 +1270,13 @@ function LineChatPageContent() {
 
   return (
     <Layout>
-      <div className="flex h-[calc(100vh-120px)] bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="flex h-[calc(100vh-120px)] bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
         {/* Contacts Sidebar - hidden on mobile when chat or order is open */}
-        <div className={`w-full md:w-80 border-r border-gray-200 flex flex-col ${mobileView !== 'contacts' ? 'hidden md:flex' : 'flex'} ${rightPanel ? 'md:hidden xl:flex' : ''}`}>
+        <div className={`w-full md:w-80 border-r border-gray-200 dark:border-slate-700 flex flex-col ${mobileView !== 'contacts' ? 'hidden md:flex' : 'flex'} ${rightPanel ? 'md:hidden xl:flex' : ''}`}>
           {/* Header */}
-          <div className="p-4 border-b border-gray-200">
+          <div className="p-4 border-b border-gray-200 dark:border-slate-700">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <MessageCircle className="w-5 h-5 text-[#06C755]" />
                 LINE Chat
               </h2>
@@ -1380,7 +1297,7 @@ function LineChatPageContent() {
                 className={`px-2 py-1 text-xs rounded-lg transition-colors flex items-center gap-1 ${
                   filterOrderDaysRange === null && filterLinked !== 'linked'
                     ? 'bg-gray-900 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'
                 }`}
               >
                 ทั้งหมด
@@ -1398,7 +1315,7 @@ function LineChatPageContent() {
                   red: { active: 'bg-red-500 text-white', inactive: 'bg-red-50 text-red-700 hover:bg-red-100' },
                   pink: { active: 'bg-pink-500 text-white', inactive: 'bg-pink-50 text-pink-700 hover:bg-pink-100' },
                   purple: { active: 'bg-purple-500 text-white', inactive: 'bg-purple-50 text-purple-700 hover:bg-purple-100' },
-                  blue: { active: 'bg-blue-500 text-white', inactive: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
+                  blue: { active: 'bg-blue-500 text-white', inactive: 'bg-blue-50 text-blue-700 dark:text-blue-400 hover:bg-blue-100' },
                   gray: { active: 'bg-gray-500 text-white', inactive: 'bg-gray-50 text-gray-700 hover:bg-gray-100' }
                 };
                 const colors = colorClasses[range.color] || colorClasses.gray;
@@ -1429,14 +1346,14 @@ function LineChatPageContent() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="ค้นหาชื่อ..."
-                  className="w-full h-[42px] pl-9 pr-4 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#06C755]"
+                  className="w-full h-[42px] pl-9 pr-4 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#06C755]"
                 />
               </div>
               {/* Filter button */}
               <div className="relative h-[42px]" data-filter-popover>
                 <button
                   onClick={() => setShowFilterPopover(!showFilterPopover)}
-                  className={`h-full w-[42px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-[#06C755] border-[#06C755] text-white' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`}
+                  className={`h-full w-[42px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-[#06C755] border-[#06C755] text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}
                   title="กรองรายชื่อ"
                 >
                   <Filter className="w-5 h-5" />
@@ -1444,9 +1361,9 @@ function LineChatPageContent() {
 
                 {/* Filter Popover */}
                 {showFilterPopover && (
-                  <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                    <div className="p-3 border-b border-gray-100 flex items-center justify-between">
-                      <span className="font-medium text-gray-900">กรองรายชื่อ</span>
+                  <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
+                    <div className="p-3 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
+                      <span className="font-medium text-gray-900 dark:text-white">กรองรายชื่อ</span>
                       {hasActiveFilter && (
                         <button
                           onClick={() => {
@@ -1464,18 +1381,18 @@ function LineChatPageContent() {
                     <div className="p-3 space-y-4">
                       {/* Link status filter */}
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-2 block">สถานะเชื่อมลูกค้า</label>
+                        <label className="text-xs font-medium text-gray-600 dark:text-slate-400 mb-2 block">สถานะเชื่อมลูกค้า</label>
                         <div className="flex gap-2">
                           <button
                             onClick={() => setFilterLinked('all')}
-                            className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                            className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}
                             title="ทั้งหมด"
                           >
                             <User className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setFilterLinked('linked')}
-                            className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'linked' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                            className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'linked' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}
                             title="เชื่อมลูกค้าแล้ว"
                           >
                             <UserCheck className="w-4 h-4" />
@@ -1485,7 +1402,7 @@ function LineChatPageContent() {
                               setFilterLinked('unlinked');
                               setFilterOrderDaysRange(null);
                             }}
-                            className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'unlinked' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                            className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'unlinked' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}
                             title="ยังไม่เชื่อมลูกค้า"
                           >
                             <UserX className="w-4 h-4" />
@@ -1495,10 +1412,10 @@ function LineChatPageContent() {
 
                       {/* Unread filter */}
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-2 block">ข้อความใหม่</label>
+                        <label className="text-xs font-medium text-gray-600 dark:text-slate-400 mb-2 block">ข้อความใหม่</label>
                         <button
                           onClick={() => setFilterUnread(!filterUnread)}
-                          className={`px-3 py-2 rounded-lg transition-colors flex items-center justify-center ${filterUnread ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                          className={`px-3 py-2 rounded-lg transition-colors flex items-center justify-center ${filterUnread ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}
                           title="เฉพาะข้อความที่ยังไม่อ่าน"
                         >
                           <Bell className="w-4 h-4" />
@@ -1507,7 +1424,7 @@ function LineChatPageContent() {
 
                     </div>
 
-                    <div className="p-3 border-t border-gray-100">
+                    <div className="p-3 border-t border-gray-100 dark:border-slate-700">
                       <button
                         onClick={() => setShowFilterPopover(false)}
                         className="w-full px-3 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 transition-colors"
@@ -1577,7 +1494,7 @@ function LineChatPageContent() {
                 <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
               </div>
             ) : contacts.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 dark:text-slate-400">
                 <MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                 <p>ยังไม่มีข้อความ</p>
               </div>
@@ -1587,7 +1504,7 @@ function LineChatPageContent() {
                   <button
                     key={contact.id}
                     onClick={() => setSelectedContact(contact)}
-                    className={`w-full p-3 flex items-center gap-3 hover:bg-gray-50 transition-colors border-b border-gray-100 ${selectedContact?.id === contact.id ? 'bg-[#06C755]/10' : ''
+                    className={`w-full p-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-100 dark:border-slate-700 ${selectedContact?.id === contact.id ? 'bg-[#06C755]/10' : ''
                       }`}
                   >
                     {/* Avatar */}
@@ -1612,7 +1529,7 @@ function LineChatPageContent() {
                       )}
                       {/* Linked customer indicator */}
                       {contact.customer && (
-                        <span className="absolute -bottom-0.5 -right-0.5 bg-blue-500 text-white w-4 h-4 rounded-full flex items-center justify-center shadow-sm border border-white">
+                        <span className="absolute -bottom-0.5 -right-0.5 bg-blue-500 text-white w-4 h-4 rounded-full flex items-center justify-center shadow-sm border border-white dark:border-slate-800">
                           <LinkIcon className="w-2.5 h-2.5" />
                         </span>
                       )}
@@ -1621,10 +1538,10 @@ function LineChatPageContent() {
                     {/* Info */}
                     <div className="flex-1 min-w-0 text-left">
                       <div className="flex items-center justify-between">
-                        <span className="font-medium text-gray-900 truncate">
+                        <span className="font-medium text-gray-900 dark:text-white truncate">
                           {contact.display_name}
                         </span>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-gray-400 dark:text-slate-500">
                           {formatLastMessage(contact.last_message_at)}
                         </span>
                       </div>
@@ -1639,7 +1556,7 @@ function LineChatPageContent() {
                           {contact.customer.customer_code} - {contact.customer.name}
                         </div>
                       ) : (
-                        <div className="text-xs text-gray-400">ยังไม่มีข้อความ</div>
+                        <div className="text-xs text-gray-400 dark:text-slate-500">ยังไม่มีข้อความ</div>
                       )}
                       {/* Show last order date when filtering by linked customers */}
                       {filterLinked === 'linked' && (
@@ -1671,7 +1588,7 @@ function LineChatPageContent() {
           {selectedContact ? (
             <>
               {/* Chat Header */}
-              <div className="p-4 border-b border-gray-200 flex items-center justify-between min-h-[81px]">
+              <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between min-h-[81px]">
                 <div className="flex items-center gap-3">
                   {/* Back button - mobile only */}
                   <button
@@ -1697,13 +1614,13 @@ function LineChatPageContent() {
                     </div>
                   )}
                   <div>
-                    <h3 className="font-medium text-gray-900">{selectedContact.display_name}</h3>
+                    <h3 className="font-medium text-gray-900 dark:text-white">{selectedContact.display_name}</h3>
                     {selectedContact.customer ? (
                       <div className="flex flex-col">
                         <p className="text-xs text-[#06C755]">
                           {selectedContact.customer.name}
                         </p>
-                        <p className="text-[10px] text-gray-500">
+                        <p className="text-[10px] text-gray-500 dark:text-slate-400">
                           {selectedContact.last_order_date ? (
                             <>
                               ล่าสุด {new Date(selectedContact.last_order_created_at || selectedContact.last_order_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} {selectedContact.last_order_created_at && new Date(selectedContact.last_order_created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
@@ -1713,7 +1630,7 @@ function LineChatPageContent() {
                           )}
                         </p>
                         {selectedContact.avg_order_frequency != null && (
-                          <p className="text-[10px] text-gray-400">
+                          <p className="text-[10px] text-gray-400 dark:text-slate-500">
                             {selectedContact.avg_order_frequency <= 1 ? 'สั่งทุกวัน' : `~${selectedContact.avg_order_frequency} วัน/ออเดอร์`}
                           </p>
                         )}
@@ -1725,7 +1642,7 @@ function LineChatPageContent() {
                           setCustomerSearch('');
                           setCustomers([]);
                         }}
-                        className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                       >
                         <LinkIcon className="w-3 h-3" />
                         เชื่อมกับลูกค้าในระบบ
@@ -1743,7 +1660,7 @@ function LineChatPageContent() {
                         className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${
                           rightPanel === 'history'
                             ? 'bg-blue-500 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
                         }`}
                         title="ดูประวัติออเดอร์"
                       >
@@ -1761,8 +1678,8 @@ function LineChatPageContent() {
                         }}
                         className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${
                           rightPanel === 'order'
-                            ? 'bg-[#E9B308] text-[#00231F]'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            ? 'bg-[#F4511E] text-white'
+                            : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
                         }`}
                         title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}
                       >
@@ -1775,7 +1692,7 @@ function LineChatPageContent() {
                         className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${
                           rightPanel === 'profile'
                             ? 'bg-blue-500 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
                         }`}
                         title="ดูข้อมูลลูกค้า"
                       >
@@ -1790,7 +1707,7 @@ function LineChatPageContent() {
                         className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${
                           rightPanel === 'create-customer'
                             ? 'bg-blue-500 text-white'
-                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            : 'bg-blue-100 text-blue-700 dark:text-blue-400 hover:bg-blue-200'
                         }`}
                         title="สร้างลูกค้าใหม่"
                       >
@@ -1804,7 +1721,7 @@ function LineChatPageContent() {
                           setCustomerSearch('');
                           setCustomers([]);
                         }}
-                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600"
                         title="เชื่อมลูกค้าที่มีอยู่"
                       >
                         <LinkIcon className="w-4 h-4" />
@@ -1819,14 +1736,14 @@ function LineChatPageContent() {
               <div
                 ref={messagesContainerRef}
                 onScroll={handleScroll}
-                className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 relative"
+                className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-slate-900 relative"
               >
                 {loadingMessages ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
                   </div>
                 ) : messages.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-gray-500 dark:text-slate-400">
                     <MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                     <p>ยังไม่มีข้อความ</p>
                   </div>
@@ -1857,7 +1774,7 @@ function LineChatPageContent() {
                               className="w-8 h-8 rounded-full object-cover"
                             />
                           ) : (
-                            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                            <div className="w-8 h-8 bg-gray-300 dark:bg-slate-600 rounded-full flex items-center justify-center">
                               <User className="w-4 h-4 text-gray-500" />
                             </div>
                           )}
@@ -1873,7 +1790,7 @@ function LineChatPageContent() {
                         <div className="flex items-end gap-1.5">
                           {/* Status + Timestamp (before bubble for outgoing) */}
                           {msg.direction === 'outgoing' && (
-                            <div className="flex flex-col items-end self-end mb-0.5 text-[10px] text-gray-400">
+                            <div className="flex flex-col items-end self-end mb-0.5 text-[10px] text-gray-400 dark:text-slate-500">
                               {msg.sent_by_user && <span>{msg.sent_by_user.name}</span>}
                               <div className="flex items-center gap-1">
                                 {msg._status === 'failed' && (
@@ -1904,7 +1821,7 @@ function LineChatPageContent() {
                                 : msg._status === 'sending'
                                   ? 'bg-[#06C755]/70 text-white rounded-br-sm px-3 py-1.5 md:px-4 md:py-2'
                                   : 'bg-[#06C755] text-white rounded-br-sm px-3 py-1.5 md:px-4 md:py-2'
-                              : 'bg-white text-gray-900 rounded-bl-sm shadow-sm px-3 py-1.5 md:px-4 md:py-2'
+                              : 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-bl-sm shadow-sm px-3 py-1.5 md:px-4 md:py-2'
                             }`}
                           >
                             {/* Sticker */}
@@ -1993,7 +1910,7 @@ function LineChatPageContent() {
               {showScrollButton && (
                 <button
                   onClick={scrollToBottom}
-                  className="absolute bottom-24 left-1/2 -translate-x-1/2 p-3 bg-white border border-gray-200 rounded-full shadow-xl hover:bg-gray-50 hover:shadow-2xl transition-all z-20 animate-bounce"
+                  className="absolute bottom-24 left-1/2 -translate-x-1/2 p-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full shadow-xl hover:bg-gray-50 dark:hover:bg-slate-700/50 hover:shadow-2xl transition-all z-20 animate-bounce"
                   title="ไปที่ข้อความล่าสุด"
                 >
                   <ArrowDown className="w-5 h-5 text-[#06C755]" />
@@ -2001,12 +1918,12 @@ function LineChatPageContent() {
               )}
 
               {/* Message Input */}
-              <div className="p-2 md:p-4 border-t border-gray-200 bg-white relative">
+              <div className="p-2 md:p-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 relative">
                 {/* Sticker Picker */}
                 {showStickerPicker && (
-                  <div className="absolute bottom-full left-0 right-0 bg-white border border-gray-200 rounded-t-lg shadow-lg max-h-48 md:max-h-64 overflow-y-auto">
-                    <div className="p-2 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
-                      <span className="text-sm font-medium text-gray-700">เลือกสติกเกอร์</span>
+                  <div className="absolute bottom-full left-0 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-t-lg shadow-lg max-h-48 md:max-h-64 overflow-y-auto">
+                    <div className="p-2 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-800">
+                      <span className="text-sm font-medium text-gray-700 dark:text-slate-300">เลือกสติกเกอร์</span>
                       <button
                         onClick={() => setShowStickerPicker(false)}
                         className="p-1 text-gray-400 hover:text-gray-600"
@@ -2022,7 +1939,7 @@ function LineChatPageContent() {
                               <button
                                 key={stickerId}
                                 onClick={() => sendSticker(pack.packageId, stickerId)}
-                                className="p-1.5 md:p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                className="p-1.5 md:p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                               >
                                 <img
                                   src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/iPhone/sticker@2x.png`}
@@ -2058,7 +1975,7 @@ function LineChatPageContent() {
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploadingImage}
-                    className="p-2 text-gray-500 hover:text-[#06C755] hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
+                    className="p-2 text-gray-500 hover:text-[#06C755] hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-50"
                     title="ส่งรูปภาพ"
                   >
                     {uploadingImage ? (
@@ -2071,7 +1988,7 @@ function LineChatPageContent() {
                   {/* Sticker button */}
                   <button
                     onClick={() => setShowStickerPicker(!showStickerPicker)}
-                    className={`p-2 rounded-full transition-colors ${showStickerPicker ? 'text-[#06C755] bg-[#06C755]/10' : 'text-gray-500 hover:text-[#06C755] hover:bg-gray-100'}`}
+                    className={`p-2 rounded-full transition-colors ${showStickerPicker ? 'text-[#06C755] bg-[#06C755]/10' : 'text-gray-500 hover:text-[#06C755] hover:bg-gray-100 dark:hover:bg-slate-700'}`}
                     title="ส่งสติกเกอร์"
                   >
                     <Smile className="w-5 h-5" />
@@ -2102,8 +2019,8 @@ function LineChatPageContent() {
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-gray-50">
-              <div className="text-center text-gray-500">
+            <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-slate-900">
+              <div className="text-center text-gray-500 dark:text-slate-400">
                 <MessageCircle className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                 <p className="text-lg font-medium">เลือกแชทเพื่อเริ่มสนทนา</p>
                 <p className="text-sm">ข้อความจากลูกค้าจะแสดงที่นี่</p>
@@ -2114,9 +2031,9 @@ function LineChatPageContent() {
 
         {/* Mobile Order View - Full screen on mobile */}
         {mobileView === 'order' && selectedContact?.customer && (
-          <div className="flex md:hidden w-full flex-col bg-gray-50">
+          <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setMobileView('chat')}
@@ -2124,10 +2041,10 @@ function LineChatPageContent() {
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
-                <ShoppingCart className="w-5 h-5 text-[#E9B308]" />
+                <ShoppingCart className="w-5 h-5 text-[#F4511E]" />
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">เปิดบิล</h2>
-                  <p className="text-xs text-gray-500">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
                     {selectedContact.customer.customer_code} - {selectedContact.customer.name}
                   </p>
                 </div>
@@ -2152,9 +2069,9 @@ function LineChatPageContent() {
 
         {/* Mobile History View - Full screen on mobile */}
         {mobileView === 'history' && selectedContact?.customer && (
-          <div className="flex md:hidden w-full flex-col bg-gray-50">
+          <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setMobileView('chat')}
@@ -2164,8 +2081,8 @@ function LineChatPageContent() {
                 </button>
                 <History className="w-5 h-5 text-blue-500" />
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">ประวัติออเดอร์</h2>
-                  <p className="text-xs text-gray-500">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติออเดอร์</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
                     {selectedContact.customer.customer_code} - {selectedContact.customer.name}
                   </p>
                 </div>
@@ -2179,7 +2096,7 @@ function LineChatPageContent() {
                   <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
                 </div>
               ) : orderHistory.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-gray-500 dark:text-slate-400">
                   <History className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                   <p>ยังไม่มีประวัติออเดอร์</p>
                 </div>
@@ -2190,7 +2107,7 @@ function LineChatPageContent() {
                     return (
                       <div
                         key={order.id}
-                        className="bg-white rounded-lg border border-gray-200 p-3 hover:border-blue-300 transition-colors cursor-pointer"
+                        className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-3 hover:border-blue-300 transition-colors cursor-pointer"
                         onClick={() => {
                           setSelectedOrderId(order.id);
                           if (window.innerWidth < 768) {
@@ -2202,7 +2119,7 @@ function LineChatPageContent() {
                       >
                         <div className="flex items-center justify-between mb-2">
                           <div>
-                            <span className="font-medium text-gray-900">{order.order_number}</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{order.order_number}</span>
                             {order.order_date && (
                               <p className="text-xs text-gray-400 mt-0.5">
                                 เปิดบิล {new Date(order.created_at || order.order_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} {order.created_at && new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
@@ -2210,11 +2127,11 @@ function LineChatPageContent() {
                             )}
                           </div>
                           <span className={`px-2 py-0.5 text-xs rounded-full ${
-                            orderStatus === 'completed' ? 'bg-green-100 text-green-700' :
-                            orderStatus === 'new' ? 'bg-blue-100 text-blue-700' :
-                            orderStatus === 'shipping' ? 'bg-yellow-100 text-yellow-700' :
-                            orderStatus === 'cancelled' ? 'bg-red-100 text-red-700' :
-                            'bg-gray-100 text-gray-700'
+                            orderStatus === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                            orderStatus === 'new' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                            orderStatus === 'shipping' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
+                            orderStatus === 'cancelled' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                            'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
                           }`}>
                             {orderStatus === 'completed' ? 'เสร็จสิ้น' :
                              orderStatus === 'new' ? 'ใหม่' :
@@ -2226,20 +2143,20 @@ function LineChatPageContent() {
                         {order.branch_names && order.branch_names.length > 0 && (
                           <div className="flex flex-wrap gap-1 mb-1.5">
                             {order.branch_names.map((name: string, idx: number) => (
-                              <span key={idx} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-blue-50 text-blue-600">
+                              <span key={idx} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
                                 {name}
                               </span>
                             ))}
                           </div>
                         )}
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-gray-500 dark:text-slate-400">
                           <div className="flex items-center justify-between">
                             <span>
                               {order.delivery_date
                                 ? `จัดส่ง ${new Date(order.delivery_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}`
                                 : 'ยังไม่กำหนดจัดส่ง'}
                             </span>
-                            <span className="font-medium text-gray-900">฿{order.total_amount?.toLocaleString('th-TH', { minimumFractionDigits: 2 }) || '0.00'}</span>
+                            <span className="font-medium text-gray-900 dark:text-white">฿{order.total_amount?.toLocaleString('th-TH', { minimumFractionDigits: 2 }) || '0.00'}</span>
                           </div>
                         </div>
                       </div>
@@ -2253,9 +2170,9 @@ function LineChatPageContent() {
 
         {/* Mobile Profile View - Full screen on mobile */}
         {mobileView === 'profile' && selectedContact?.customer && (
-          <div className="flex md:hidden w-full flex-col bg-gray-50">
+          <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setMobileView('chat')}
@@ -2265,13 +2182,13 @@ function LineChatPageContent() {
                 </button>
                 <User className="w-5 h-5 text-blue-500" />
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">ข้อมูลลูกค้า</h2>
-                  <p className="text-xs text-gray-500">{selectedContact.customer.customer_code}</p>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ข้อมูลลูกค้า</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p>
                 </div>
               </div>
               <button
                 onClick={handleOpenEditCustomer}
-                className="px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors"
               >
                 แก้ไข
               </button>
@@ -2279,18 +2196,18 @@ function LineChatPageContent() {
 
             {/* Customer Info */}
             <div className="flex-1 overflow-y-auto p-4">
-              <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
+              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-4">
                 {/* Header with picture */}
-                <div className="text-center pb-4 border-b border-gray-100">
-                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <div className="text-center pb-4 border-b border-gray-100 dark:border-slate-700">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
                     <User className="w-8 h-8 text-blue-500" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">{selectedContact.customer.name}</h3>
-                  <p className="text-sm text-gray-500">{selectedContact.customer.customer_code}</p>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedContact.customer.name}</h3>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p>
                   <span className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    selectedContact.customer.customer_type === 'retail' ? 'bg-blue-100 text-blue-800' :
-                    selectedContact.customer.customer_type === 'wholesale' ? 'bg-purple-100 text-purple-800' :
-                    'bg-green-100 text-green-800'
+                    selectedContact.customer.customer_type === 'retail' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400' :
+                    selectedContact.customer.customer_type === 'wholesale' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400' :
+                    'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
                   }`}>
                     {selectedContact.customer.customer_type === 'retail' ? 'ขายปลีก' :
                      selectedContact.customer.customer_type === 'wholesale' ? 'ขายส่ง' : 'ตัวแทนจำหน่าย'}
@@ -2300,8 +2217,8 @@ function LineChatPageContent() {
                 {/* Contact info */}
                 <div className="space-y-3">
                   <div>
-                    <label className="text-xs text-gray-500">LINE</label>
-                    <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                    <label className="text-xs text-gray-500 dark:text-slate-400">LINE</label>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1">
                       <MessageCircle className="w-3.5 h-3.5 text-[#06C755]" />
                       {selectedContact.display_name}
                     </p>
@@ -2309,17 +2226,17 @@ function LineChatPageContent() {
 
                   {selectedContact.customer.contact_person && (
                     <div>
-                      <label className="text-xs text-gray-500">ผู้ติดต่อ</label>
-                      <p className="text-sm font-medium text-gray-900">{selectedContact.customer.contact_person}</p>
+                      <label className="text-xs text-gray-500 dark:text-slate-400">ผู้ติดต่อ</label>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedContact.customer.contact_person}</p>
                     </div>
                   )}
 
                   {selectedContact.customer.phone && (
                     <div>
-                      <label className="text-xs text-gray-500">เบอร์โทร</label>
+                      <label className="text-xs text-gray-500 dark:text-slate-400">เบอร์โทร</label>
                       <a
                         href={`tel:${selectedContact.customer.phone}`}
-                        className="text-sm font-medium text-blue-600 hover:underline flex items-center gap-1"
+                        className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                       >
                         <Phone className="w-3.5 h-3.5" />
                         {selectedContact.customer.phone}
@@ -2329,17 +2246,17 @@ function LineChatPageContent() {
 
                   {selectedContact.customer.email && (
                     <div>
-                      <label className="text-xs text-gray-500">อีเมล</label>
-                      <p className="text-sm font-medium text-gray-900">{selectedContact.customer.email}</p>
+                      <label className="text-xs text-gray-500 dark:text-slate-400">อีเมล</label>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedContact.customer.email}</p>
                     </div>
                   )}
                 </div>
 
                 {/* Address */}
                 {(selectedContact.customer.address || selectedContact.customer.province) && (
-                  <div className="pt-3 border-t border-gray-100">
-                    <label className="text-xs text-gray-500">ที่อยู่ออกบิล</label>
-                    <p className="text-sm text-gray-900">
+                  <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+                    <label className="text-xs text-gray-500 dark:text-slate-400">ที่อยู่ออกบิล</label>
+                    <p className="text-sm text-gray-900 dark:text-white">
                       {[
                         selectedContact.customer.address,
                         selectedContact.customer.district,
@@ -2353,33 +2270,33 @@ function LineChatPageContent() {
 
                 {/* Tax info */}
                 {selectedContact.customer.tax_id && (
-                  <div className="pt-3 border-t border-gray-100">
-                    <label className="text-xs text-gray-500">ข้อมูลใบกำกับภาษี</label>
+                  <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+                    <label className="text-xs text-gray-500 dark:text-slate-400">ข้อมูลใบกำกับภาษี</label>
                     {selectedContact.customer.tax_company_name && (
-                      <p className="text-sm font-medium text-gray-900">{selectedContact.customer.tax_company_name}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedContact.customer.tax_company_name}</p>
                     )}
-                    <p className="text-sm text-gray-600">เลขผู้เสียภาษี: {selectedContact.customer.tax_id}</p>
+                    <p className="text-sm text-gray-600 dark:text-slate-400">เลขผู้เสียภาษี: {selectedContact.customer.tax_id}</p>
                     {selectedContact.customer.tax_branch && (
-                      <p className="text-sm text-gray-600">สาขา: {selectedContact.customer.tax_branch}</p>
+                      <p className="text-sm text-gray-600 dark:text-slate-400">สาขา: {selectedContact.customer.tax_branch}</p>
                     )}
                   </div>
                 )}
 
                 {/* Credit info */}
                 {(selectedContact.customer.credit_limit || selectedContact.customer.credit_days) ? (
-                  <div className="pt-3 border-t border-gray-100">
-                    <label className="text-xs text-gray-500">เงื่อนไขเครดิต</label>
+                  <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+                    <label className="text-xs text-gray-500 dark:text-slate-400">เงื่อนไขเครดิต</label>
                     <div className="flex gap-4 mt-1">
                       {selectedContact.customer.credit_limit ? (
                         <div>
-                          <span className="text-xs text-gray-500">วงเงิน</span>
-                          <p className="text-sm font-medium text-gray-900">฿{selectedContact.customer.credit_limit.toLocaleString()}</p>
+                          <span className="text-xs text-gray-500 dark:text-slate-400">วงเงิน</span>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">฿{selectedContact.customer.credit_limit.toLocaleString()}</p>
                         </div>
                       ) : null}
                       {selectedContact.customer.credit_days ? (
                         <div>
-                          <span className="text-xs text-gray-500">ระยะเวลา</span>
-                          <p className="text-sm font-medium text-gray-900">{selectedContact.customer.credit_days} วัน</p>
+                          <span className="text-xs text-gray-500 dark:text-slate-400">ระยะเวลา</span>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedContact.customer.credit_days} วัน</p>
                         </div>
                       ) : null}
                     </div>
@@ -2388,24 +2305,24 @@ function LineChatPageContent() {
 
                 {/* Notes */}
                 {selectedContact.customer.notes && (
-                  <div className="pt-3 border-t border-gray-100">
-                    <label className="text-xs text-gray-500">หมายเหตุ</label>
+                  <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+                    <label className="text-xs text-gray-500 dark:text-slate-400">หมายเหตุ</label>
                     <p className="text-sm text-gray-900 whitespace-pre-wrap">{selectedContact.customer.notes}</p>
                   </div>
                 )}
 
                 {/* Action buttons */}
-                <div className="pt-4 border-t border-gray-100 space-y-2">
+                <div className="pt-4 border-t border-gray-100 dark:border-slate-700 space-y-2">
                   <button
                     onClick={() => setMobileView('order')}
-                    className="w-full py-2 bg-[#E9B308] text-[#00231F] rounded-lg font-medium hover:bg-[#d4a307] transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"
                   >
                     <ShoppingCart className="w-4 h-4" />
                     เปิดบิล
                   </button>
                   <button
                     onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')}
-                    className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                    className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
                   >
                     ดูรายละเอียดเต็ม
                   </button>
@@ -2417,9 +2334,9 @@ function LineChatPageContent() {
 
         {/* Mobile Edit Customer View - Full screen on mobile */}
         {mobileView === 'edit-customer' && selectedContact?.customer && (
-          <div className="flex md:hidden w-full flex-col bg-gray-50">
+          <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setMobileView('profile')}
@@ -2429,8 +2346,8 @@ function LineChatPageContent() {
                 </button>
                 <User className="w-5 h-5 text-blue-500" />
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">แก้ไขข้อมูลลูกค้า</h2>
-                  <p className="text-xs text-gray-500">{selectedContact.customer.customer_code}</p>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">แก้ไขข้อมูลลูกค้า</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p>
                 </div>
               </div>
             </div>
@@ -2472,9 +2389,9 @@ function LineChatPageContent() {
 
         {/* Mobile Create Customer View - Full screen on mobile */}
         {mobileView === 'create-customer' && selectedContact && !selectedContact.customer && (
-          <div className="flex md:hidden w-full flex-col bg-gray-50">
+          <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setMobileView('chat')}
@@ -2484,8 +2401,8 @@ function LineChatPageContent() {
                 </button>
                 <UserPlus className="w-5 h-5 text-blue-500" />
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">สร้างลูกค้าใหม่</h2>
-                  <p className="text-xs text-gray-500">LINE: {selectedContact.display_name}</p>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">สร้างลูกค้าใหม่</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">LINE: {selectedContact.display_name}</p>
                 </div>
               </div>
             </div>
@@ -2506,8 +2423,8 @@ function LineChatPageContent() {
 
         {/* Mobile Order Detail View - Full screen on mobile */}
         {mobileView === 'order-detail' && selectedOrderId && (
-          <div className="flex md:hidden w-full flex-col bg-gray-50">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+          <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setMobileView('history')}
@@ -2516,7 +2433,7 @@ function LineChatPageContent() {
                   <ChevronLeft className="w-6 h-6" />
                 </button>
                 <FileText className="w-5 h-5 text-blue-500" />
-                <h2 className="text-lg font-semibold text-gray-900">รายละเอียดออเดอร์</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">รายละเอียดออเดอร์</h2>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
@@ -2537,21 +2454,21 @@ function LineChatPageContent() {
 
         {/* Order Panel - Right Side (Desktop only) */}
         {rightPanel === 'order' && selectedContact?.customer && (
-          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 bg-gray-50">
+          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white min-h-[81px]">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3">
-                <ShoppingCart className="w-5 h-5 text-[#E9B308]" />
+                <ShoppingCart className="w-5 h-5 text-[#F4511E]" />
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">เปิดบิล</h2>
-                  <p className="text-xs text-gray-500">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
                     {selectedContact.customer.customer_code} - {selectedContact.customer.name}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setRightPanel(null)}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 title="ปิด"
               >
                 <X className="w-5 h-5" />
@@ -2576,21 +2493,21 @@ function LineChatPageContent() {
 
         {/* Order History Panel - Right Side (Desktop only) */}
         {rightPanel === 'history' && selectedContact?.customer && (
-          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 bg-gray-50">
+          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white min-h-[81px]">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3">
                 <History className="w-5 h-5 text-blue-500" />
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">ประวัติออเดอร์</h2>
-                  <p className="text-xs text-gray-500">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติออเดอร์</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
                     {selectedContact.customer.customer_code} - {selectedContact.customer.name}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setRightPanel(null)}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 title="ปิด"
               >
                 <X className="w-5 h-5" />
@@ -2604,7 +2521,7 @@ function LineChatPageContent() {
                   <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
                 </div>
               ) : orderHistory.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-gray-500 dark:text-slate-400">
                   <History className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                   <p>ยังไม่มีประวัติออเดอร์</p>
                 </div>
@@ -2615,7 +2532,7 @@ function LineChatPageContent() {
                     return (
                       <div
                         key={order.id}
-                        className="bg-white rounded-lg border border-gray-200 p-3 hover:border-blue-300 transition-colors cursor-pointer"
+                        className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-3 hover:border-blue-300 transition-colors cursor-pointer"
                         onClick={() => {
                           setSelectedOrderId(order.id);
                           if (window.innerWidth < 768) {
@@ -2627,7 +2544,7 @@ function LineChatPageContent() {
                       >
                         <div className="flex items-center justify-between mb-2">
                           <div>
-                            <span className="font-medium text-gray-900">{order.order_number}</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{order.order_number}</span>
                             {order.order_date && (
                               <p className="text-xs text-gray-400 mt-0.5">
                                 เปิดบิล {new Date(order.created_at || order.order_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} {order.created_at && new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
@@ -2635,11 +2552,11 @@ function LineChatPageContent() {
                             )}
                           </div>
                           <span className={`px-2 py-0.5 text-xs rounded-full ${
-                            orderStatus === 'completed' ? 'bg-green-100 text-green-700' :
-                            orderStatus === 'new' ? 'bg-blue-100 text-blue-700' :
-                            orderStatus === 'shipping' ? 'bg-yellow-100 text-yellow-700' :
-                            orderStatus === 'cancelled' ? 'bg-red-100 text-red-700' :
-                            'bg-gray-100 text-gray-700'
+                            orderStatus === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                            orderStatus === 'new' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                            orderStatus === 'shipping' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
+                            orderStatus === 'cancelled' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                            'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
                           }`}>
                             {orderStatus === 'completed' ? 'เสร็จสิ้น' :
                              orderStatus === 'new' ? 'ใหม่' :
@@ -2651,20 +2568,20 @@ function LineChatPageContent() {
                         {order.branch_names && order.branch_names.length > 0 && (
                           <div className="flex flex-wrap gap-1 mb-1.5">
                             {order.branch_names.map((name: string, idx: number) => (
-                              <span key={idx} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-blue-50 text-blue-600">
+                              <span key={idx} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
                                 {name}
                               </span>
                             ))}
                           </div>
                         )}
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-gray-500 dark:text-slate-400">
                           <div className="flex items-center justify-between">
                             <span>
                               {order.delivery_date
                                 ? `จัดส่ง ${new Date(order.delivery_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}`
                                 : 'ยังไม่กำหนดจัดส่ง'}
                             </span>
-                            <span className="font-medium text-gray-900">฿{order.total_amount?.toLocaleString('th-TH', { minimumFractionDigits: 2 }) || '0.00'}</span>
+                            <span className="font-medium text-gray-900 dark:text-white">฿{order.total_amount?.toLocaleString('th-TH', { minimumFractionDigits: 2 }) || '0.00'}</span>
                           </div>
                         </div>
                       </div>
@@ -2678,14 +2595,14 @@ function LineChatPageContent() {
 
         {/* Customer Profile Panel - Right Side (Desktop only) */}
         {rightPanel === 'profile' && selectedContact?.customer && (
-          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 bg-gray-50">
+          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white min-h-[81px]">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3">
                 <User className="w-5 h-5 text-blue-500" />
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">ข้อมูลลูกค้า</h2>
-                  <p className="text-xs text-gray-500">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ข้อมูลลูกค้า</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
                     {selectedContact.customer.customer_code}
                   </p>
                 </div>
@@ -2693,13 +2610,13 @@ function LineChatPageContent() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleOpenEditCustomer}
-                  className="px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  className="px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors"
                 >
                   แก้ไข
                 </button>
                 <button
                   onClick={() => setRightPanel(null)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                   title="ปิด"
                 >
                   <X className="w-5 h-5" />
@@ -2709,18 +2626,18 @@ function LineChatPageContent() {
 
             {/* Customer Info */}
             <div className="flex-1 overflow-y-auto p-4">
-              <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
+              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-4">
                 {/* Header with picture */}
-                <div className="text-center pb-4 border-b border-gray-100">
-                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <div className="text-center pb-4 border-b border-gray-100 dark:border-slate-700">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
                     <User className="w-8 h-8 text-blue-500" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">{selectedContact.customer.name}</h3>
-                  <p className="text-sm text-gray-500">{selectedContact.customer.customer_code}</p>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedContact.customer.name}</h3>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p>
                   <span className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    selectedContact.customer.customer_type === 'retail' ? 'bg-blue-100 text-blue-800' :
-                    selectedContact.customer.customer_type === 'wholesale' ? 'bg-purple-100 text-purple-800' :
-                    'bg-green-100 text-green-800'
+                    selectedContact.customer.customer_type === 'retail' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400' :
+                    selectedContact.customer.customer_type === 'wholesale' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400' :
+                    'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
                   }`}>
                     {selectedContact.customer.customer_type === 'retail' ? 'ขายปลีก' :
                      selectedContact.customer.customer_type === 'wholesale' ? 'ขายส่ง' : 'ตัวแทนจำหน่าย'}
@@ -2730,8 +2647,8 @@ function LineChatPageContent() {
                 {/* Contact info */}
                 <div className="space-y-3">
                   <div>
-                    <label className="text-xs text-gray-500">LINE</label>
-                    <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                    <label className="text-xs text-gray-500 dark:text-slate-400">LINE</label>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1">
                       <MessageCircle className="w-3.5 h-3.5 text-[#06C755]" />
                       {selectedContact.display_name}
                     </p>
@@ -2739,17 +2656,17 @@ function LineChatPageContent() {
 
                   {selectedContact.customer.contact_person && (
                     <div>
-                      <label className="text-xs text-gray-500">ผู้ติดต่อ</label>
-                      <p className="text-sm font-medium text-gray-900">{selectedContact.customer.contact_person}</p>
+                      <label className="text-xs text-gray-500 dark:text-slate-400">ผู้ติดต่อ</label>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedContact.customer.contact_person}</p>
                     </div>
                   )}
 
                   {selectedContact.customer.phone && (
                     <div>
-                      <label className="text-xs text-gray-500">เบอร์โทร</label>
+                      <label className="text-xs text-gray-500 dark:text-slate-400">เบอร์โทร</label>
                       <a
                         href={`tel:${selectedContact.customer.phone}`}
-                        className="text-sm font-medium text-blue-600 hover:underline flex items-center gap-1"
+                        className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                       >
                         <Phone className="w-3.5 h-3.5" />
                         {selectedContact.customer.phone}
@@ -2759,17 +2676,17 @@ function LineChatPageContent() {
 
                   {selectedContact.customer.email && (
                     <div>
-                      <label className="text-xs text-gray-500">อีเมล</label>
-                      <p className="text-sm font-medium text-gray-900">{selectedContact.customer.email}</p>
+                      <label className="text-xs text-gray-500 dark:text-slate-400">อีเมล</label>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedContact.customer.email}</p>
                     </div>
                   )}
                 </div>
 
                 {/* Address */}
                 {(selectedContact.customer.address || selectedContact.customer.province) && (
-                  <div className="pt-3 border-t border-gray-100">
-                    <label className="text-xs text-gray-500">ที่อยู่ออกบิล</label>
-                    <p className="text-sm text-gray-900">
+                  <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+                    <label className="text-xs text-gray-500 dark:text-slate-400">ที่อยู่ออกบิล</label>
+                    <p className="text-sm text-gray-900 dark:text-white">
                       {[
                         selectedContact.customer.address,
                         selectedContact.customer.district,
@@ -2783,33 +2700,33 @@ function LineChatPageContent() {
 
                 {/* Tax info */}
                 {selectedContact.customer.tax_id && (
-                  <div className="pt-3 border-t border-gray-100">
-                    <label className="text-xs text-gray-500">ข้อมูลใบกำกับภาษี</label>
+                  <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+                    <label className="text-xs text-gray-500 dark:text-slate-400">ข้อมูลใบกำกับภาษี</label>
                     {selectedContact.customer.tax_company_name && (
-                      <p className="text-sm font-medium text-gray-900">{selectedContact.customer.tax_company_name}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedContact.customer.tax_company_name}</p>
                     )}
-                    <p className="text-sm text-gray-600">เลขผู้เสียภาษี: {selectedContact.customer.tax_id}</p>
+                    <p className="text-sm text-gray-600 dark:text-slate-400">เลขผู้เสียภาษี: {selectedContact.customer.tax_id}</p>
                     {selectedContact.customer.tax_branch && (
-                      <p className="text-sm text-gray-600">สาขา: {selectedContact.customer.tax_branch}</p>
+                      <p className="text-sm text-gray-600 dark:text-slate-400">สาขา: {selectedContact.customer.tax_branch}</p>
                     )}
                   </div>
                 )}
 
                 {/* Credit info */}
                 {(selectedContact.customer.credit_limit || selectedContact.customer.credit_days) ? (
-                  <div className="pt-3 border-t border-gray-100">
-                    <label className="text-xs text-gray-500">เงื่อนไขเครดิต</label>
+                  <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+                    <label className="text-xs text-gray-500 dark:text-slate-400">เงื่อนไขเครดิต</label>
                     <div className="flex gap-4 mt-1">
                       {selectedContact.customer.credit_limit ? (
                         <div>
-                          <span className="text-xs text-gray-500">วงเงิน</span>
-                          <p className="text-sm font-medium text-gray-900">฿{selectedContact.customer.credit_limit.toLocaleString()}</p>
+                          <span className="text-xs text-gray-500 dark:text-slate-400">วงเงิน</span>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">฿{selectedContact.customer.credit_limit.toLocaleString()}</p>
                         </div>
                       ) : null}
                       {selectedContact.customer.credit_days ? (
                         <div>
-                          <span className="text-xs text-gray-500">ระยะเวลา</span>
-                          <p className="text-sm font-medium text-gray-900">{selectedContact.customer.credit_days} วัน</p>
+                          <span className="text-xs text-gray-500 dark:text-slate-400">ระยะเวลา</span>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedContact.customer.credit_days} วัน</p>
                         </div>
                       ) : null}
                     </div>
@@ -2818,24 +2735,24 @@ function LineChatPageContent() {
 
                 {/* Notes */}
                 {selectedContact.customer.notes && (
-                  <div className="pt-3 border-t border-gray-100">
-                    <label className="text-xs text-gray-500">หมายเหตุ</label>
+                  <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+                    <label className="text-xs text-gray-500 dark:text-slate-400">หมายเหตุ</label>
                     <p className="text-sm text-gray-900 whitespace-pre-wrap">{selectedContact.customer.notes}</p>
                   </div>
                 )}
 
                 {/* Action buttons */}
-                <div className="pt-4 border-t border-gray-100 space-y-2">
+                <div className="pt-4 border-t border-gray-100 dark:border-slate-700 space-y-2">
                   <button
                     onClick={() => setRightPanel('order')}
-                    className="w-full py-2 bg-[#E9B308] text-[#00231F] rounded-lg font-medium hover:bg-[#d4a307] transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"
                   >
                     <ShoppingCart className="w-4 h-4" />
                     เปิดบิล
                   </button>
                   <button
                     onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')}
-                    className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                    className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
                   >
                     ดูรายละเอียดเต็ม
                   </button>
@@ -2847,19 +2764,19 @@ function LineChatPageContent() {
 
         {/* Edit Customer Panel - Right Side (Desktop only) */}
         {rightPanel === 'edit-customer' && selectedContact?.customer && (
-          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 bg-gray-50">
+          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white min-h-[81px]">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3">
                 <User className="w-5 h-5 text-blue-500" />
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">แก้ไขข้อมูลลูกค้า</h2>
-                  <p className="text-xs text-gray-500">{selectedContact.customer.customer_code}</p>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">แก้ไขข้อมูลลูกค้า</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p>
                 </div>
               </div>
               <button
                 onClick={() => setRightPanel('profile')}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 title="ปิด"
               >
                 <X className="w-5 h-5" />
@@ -2903,19 +2820,19 @@ function LineChatPageContent() {
 
         {/* Create Customer Panel - Right Side (Desktop only) */}
         {rightPanel === 'create-customer' && selectedContact && !selectedContact.customer && (
-          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 bg-gray-50">
+          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white min-h-[81px]">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3">
                 <UserPlus className="w-5 h-5 text-blue-500" />
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">สร้างลูกค้าใหม่</h2>
-                  <p className="text-xs text-gray-500">LINE: {selectedContact.display_name}</p>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">สร้างลูกค้าใหม่</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">LINE: {selectedContact.display_name}</p>
                 </div>
               </div>
               <button
                 onClick={() => setRightPanel(null)}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 title="ปิด"
               >
                 <X className="w-5 h-5" />
@@ -2937,9 +2854,9 @@ function LineChatPageContent() {
         )}
         {/* Order Detail Panel - Right Side (Desktop only) */}
         {rightPanel === 'order-detail' && selectedOrderId && (
-          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 bg-gray-50">
+          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white min-h-[81px]">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setRightPanel('history')}
@@ -2948,11 +2865,11 @@ function LineChatPageContent() {
                   <ChevronLeft className="w-5 h-5" />
                 </button>
                 <FileText className="w-5 h-5 text-blue-500" />
-                <h2 className="text-lg font-semibold text-gray-900">รายละเอียดออเดอร์</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">รายละเอียดออเดอร์</h2>
               </div>
               <button
                 onClick={() => setRightPanel(null)}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 title="ปิด"
               >
                 <X className="w-5 h-5" />
@@ -2982,7 +2899,7 @@ function LineChatPageContent() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-full max-w-md mx-4 shadow-xl">
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">เชื่อมกับลูกค้าในระบบ</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white">เชื่อมกับลูกค้าในระบบ</h3>
               <button
                 onClick={() => setShowLinkModal(false)}
                 className="p-1 text-gray-400 hover:text-gray-600"
@@ -3004,7 +2921,7 @@ function LineChatPageContent() {
                     }
                   }}
                   placeholder="ค้นหาชื่อหรือรหัสลูกค้า..."
-                  className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                  className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                 />
               </div>
 
@@ -3023,11 +2940,11 @@ function LineChatPageContent() {
                       <button
                         key={customer.id}
                         onClick={() => linkCustomer(customer.id)}
-                        className="w-full p-3 text-left hover:bg-gray-50 rounded-lg transition-colors flex items-center justify-between"
+                        className="w-full p-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors flex items-center justify-between"
                       >
                         <div>
-                          <div className="text-xs text-gray-400">{customer.customer_code}</div>
-                          <div className="font-medium text-gray-900">{customer.name}</div>
+                          <div className="text-xs text-gray-400 dark:text-slate-500">{customer.customer_code}</div>
+                          <div className="font-medium text-gray-900 dark:text-white">{customer.name}</div>
                           {customer.phone && (
                             <div className="text-xs text-gray-500 flex items-center gap-1">
                               <Phone className="w-3 h-3" />
@@ -3043,7 +2960,7 @@ function LineChatPageContent() {
               </div>
 
               {selectedContact?.customer && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700">
                   <button
                     onClick={() => linkCustomer(null)}
                     className="w-full p-2 text-red-600 hover:bg-red-50 rounded-lg text-sm transition-colors"
@@ -3206,7 +3123,7 @@ export default function LineChatPage() {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
       </div>
     }>
       <LineChatPageContent />

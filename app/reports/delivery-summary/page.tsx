@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api-client';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
 import { getImageUrl } from '@/lib/utils/image';
@@ -122,10 +122,10 @@ interface ReportData {
 // Status badge components
 function OrderStatusBadge({ status, clickable = false }: { status: string; clickable?: boolean }) {
   const statusConfig: Record<string, { label: string; color: string; hoverColor: string }> = {
-    new: { label: 'ใหม่', color: 'bg-blue-100 text-blue-700', hoverColor: 'hover:bg-blue-200' },
-    shipping: { label: 'กำลังส่ง', color: 'bg-yellow-100 text-yellow-700', hoverColor: 'hover:bg-yellow-200' },
-    completed: { label: 'สำเร็จ', color: 'bg-green-100 text-green-700', hoverColor: '' },
-    cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700', hoverColor: '' },
+    new: { label: 'ใหม่', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400', hoverColor: 'hover:bg-blue-200 dark:hover:bg-blue-900/50' },
+    shipping: { label: 'กำลังส่ง', color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400', hoverColor: 'hover:bg-yellow-200 dark:hover:bg-yellow-900/50' },
+    completed: { label: 'สำเร็จ', color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', hoverColor: '' },
+    cancelled: { label: 'ยกเลิก', color: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400', hoverColor: '' },
   };
   const config = statusConfig[status] || statusConfig.new;
   return (
@@ -138,9 +138,9 @@ function OrderStatusBadge({ status, clickable = false }: { status: string; click
 
 function PaymentStatusBadge({ status, clickable = false }: { status: string; clickable?: boolean }) {
   const statusConfig: Record<string, { label: string; color: string; hoverColor: string }> = {
-    pending: { label: 'รอชำระ', color: 'bg-orange-100 text-orange-700', hoverColor: 'hover:bg-orange-200' },
-    verifying: { label: 'รอตรวจสอบ', color: 'bg-purple-100 text-purple-700', hoverColor: '' },
-    paid: { label: 'ชำระแล้ว', color: 'bg-green-100 text-green-700', hoverColor: '' },
+    pending: { label: 'รอชำระ', color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400', hoverColor: 'hover:bg-orange-200 dark:hover:bg-orange-900/50' },
+    verifying: { label: 'รอตรวจสอบ', color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400', hoverColor: '' },
+    paid: { label: 'ชำระแล้ว', color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', hoverColor: '' },
   };
   const config = statusConfig[status] || statusConfig.pending;
   return (
@@ -202,25 +202,25 @@ function SortableDeliveryCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white rounded-lg border overflow-hidden mb-3 ${isDragging ? 'border-[#E9B308] shadow-lg' : 'border-gray-200'}`}
+      className={`bg-white dark:bg-slate-800 rounded-lg border overflow-hidden mb-3 ${isDragging ? 'border-[#F4511E] shadow-lg' : 'border-gray-200 dark:border-slate-700'}`}
     >
       {/* Card Header */}
-      <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between flex-wrap gap-2">
+      <div className="px-4 py-3 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <button
             {...attributes}
             {...listeners}
-            className="touch-none text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing p-1 -ml-1"
+            className="touch-none text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 cursor-grab active:cursor-grabbing p-1 -ml-1"
             title="ลากเพื่อเรียงลำดับ"
           >
             <GripVertical className="w-5 h-5" />
           </button>
-          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[#E9B308] text-[#00231F] text-base font-bold flex-shrink-0">
+          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[#F4511E] text-white text-base font-bold flex-shrink-0">
             {index + 1}
           </span>
           <div className="flex items-center gap-2">
-            <span className="font-medium text-gray-900">{delivery.customer.name}</span>
-            <span className="text-xs text-gray-500">({delivery.orderNumber})</span>
+            <span className="font-medium text-gray-900 dark:text-white">{delivery.customer.name}</span>
+            <span className="text-xs text-gray-500 dark:text-slate-400">({delivery.orderNumber})</span>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -261,10 +261,10 @@ function SortableDeliveryCard({
             >
               <MapPin className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
               <div>
-                <div className={`font-medium text-sm text-gray-900 ${mapLink ? 'group-hover:text-blue-600' : ''}`}>
+                <div className={`font-medium text-sm text-gray-900 dark:text-white ${mapLink ? 'group-hover:text-blue-600' : ''}`}>
                   {delivery.shippingAddress.addressName}
                 </div>
-                <div className={`text-sm text-gray-600 ${mapLink ? 'group-hover:text-blue-500' : ''}`}>
+                <div className={`text-sm text-gray-600 dark:text-slate-400 ${mapLink ? 'group-hover:text-blue-500' : ''}`}>
                   {formatAddress(delivery.shippingAddress)}
                 </div>
               </div>
@@ -272,7 +272,7 @@ function SortableDeliveryCard({
 
             <div className="flex flex-wrap gap-4 text-sm">
               {(delivery.shippingAddress.contactPerson || delivery.customer.contactPerson) && (
-                <div className="flex items-center gap-1.5 text-gray-600">
+                <div className="flex items-center gap-1.5 text-gray-600 dark:text-slate-400">
                   <User className="w-3.5 h-3.5" />
                   {delivery.shippingAddress.contactPerson || delivery.customer.contactPerson}
                 </div>
@@ -280,7 +280,7 @@ function SortableDeliveryCard({
               {(delivery.shippingAddress.phone || delivery.customer.phone) && (
                 <a
                   href={`tel:${delivery.shippingAddress.phone || delivery.customer.phone}`}
-                  className="flex items-center gap-1.5 text-gray-600 hover:text-blue-600"
+                  className="flex items-center gap-1.5 text-gray-600 hover:text-blue-600 dark:text-blue-400"
                 >
                   <Phone className="w-3.5 h-3.5" />
                   {delivery.shippingAddress.phone || delivery.customer.phone}
@@ -297,8 +297,8 @@ function SortableDeliveryCard({
                       note.type === 'internal' ? 'text-purple-400' : 'text-gray-400'
                     }`} />
                     <span className={
-                      note.type === 'delivery' ? 'text-amber-700' :
-                      note.type === 'internal' ? 'text-purple-600' : 'text-gray-600'
+                      note.type === 'delivery' ? 'text-amber-700 dark:text-amber-400' :
+                      note.type === 'internal' ? 'text-purple-600 dark:text-purple-400' : 'text-gray-600 dark:text-slate-400'
                     }>
                       {note.text}
                     </span>
@@ -309,8 +309,8 @@ function SortableDeliveryCard({
           </div>
 
           {/* Right Column: Products */}
-          <div className="md:border-l md:border-gray-100 md:pl-4">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 uppercase mb-2">
+          <div className="md:border-l md:border-gray-100 dark:md:border-slate-700 md:pl-4">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-2">
               <Package className="w-3.5 h-3.5" />
               สินค้า
             </div>
@@ -325,20 +325,20 @@ function SortableDeliveryCard({
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                   ) : (
-                    <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                       <Package className="w-4 h-4 text-gray-400" />
                     </div>
                   )}
-                  <span className="text-gray-700 flex-1">
+                  <span className="text-gray-700 dark:text-slate-300 flex-1">
                     {product.productName}
-                    {product.bottleSize && <span className="text-gray-400 ml-1">{product.bottleSize}</span>}
+                    {product.bottleSize && <span className="text-gray-400 dark:text-slate-500 ml-1">{product.bottleSize}</span>}
                   </span>
-                  <span className="font-medium text-gray-900">x {product.quantity}</span>
+                  <span className="font-medium text-gray-900 dark:text-white">x {product.quantity}</span>
                 </div>
               ))}
             </div>
-            <div className="flex justify-end mt-2 pt-2 border-t border-gray-100">
-              <span className="text-sm font-medium text-gray-700">รวม: {delivery.totalBottles} ขวด</span>
+            <div className="flex justify-end mt-2 pt-2 border-t border-gray-100 dark:border-slate-700">
+              <span className="text-sm font-medium text-gray-700 dark:text-slate-300">รวม: {delivery.totalBottles} ขวด</span>
             </div>
           </div>
         </div>
@@ -436,9 +436,7 @@ export default function DeliverySummaryPage() {
     setError('');
     try {
       const params = new URLSearchParams({ start_date: deliveryDate, end_date: deliveryDate });
-      const response = await fetch(`/api/reports/delivery-summary?${params}`, {
-        headers: { 'Authorization': `Bearer ${session.access_token}` },
-      });
+      const response = await apiFetch(`/api/reports/delivery-summary?${params}`);
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'ไม่สามารถโหลดข้อมูลได้');
       setReportData(result.report);
@@ -554,8 +552,6 @@ export default function DeliverySummaryPage() {
 
     try {
       setUpdatingStatus(true);
-      const { data: { session: sess } } = await supabase.auth.getSession();
-      if (!sess) throw new Error('No session');
 
       const updateData: Record<string, unknown> = { id: delivery.orderId };
       if (statusUpdateModal.statusType === 'order') {
@@ -564,9 +560,9 @@ export default function DeliverySummaryPage() {
         updateData.payment_status = statusUpdateModal.nextStatus;
       }
 
-      const response = await fetch('/api/orders', {
+      const response = await apiFetch('/api/orders', {
         method: 'PUT',
-        headers: { 'Authorization': `Bearer ${sess.access_token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData),
       });
 
@@ -574,9 +570,9 @@ export default function DeliverySummaryPage() {
 
       // Create payment record if marking as paid
       if (statusUpdateModal.statusType === 'payment' && statusUpdateModal.nextStatus === 'paid') {
-        await fetch('/api/payment-records', {
+        await apiFetch('/api/payment-records', {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${sess.access_token}`, 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             order_id: delivery.orderId,
             payment_method: paymentDetails.paymentMethod,
@@ -876,7 +872,7 @@ export default function DeliverySummaryPage() {
 
         row.push({
           stack: [
-            { text: `${product.totalQuantity}`, bold: true, fontSize: 14, color: '#00231F', alignment: 'center' as const },
+            { text: `${product.totalQuantity}`, bold: true, fontSize: 14, color: '#1A1A2E', alignment: 'center' as const },
             { text: 'ขวด', fontSize: 7, color: '#787878', alignment: 'center' as const, margin: [0, 1, 0, 0] as [number, number, number, number] },
           ],
           margin: [0, 30, 0, 0] as [number, number, number, number],
@@ -910,7 +906,7 @@ export default function DeliverySummaryPage() {
           // Gold divider
           {
             canvas: [
-              { type: 'line', x1: 0, y1: 0, x2: 535, y2: 0, lineWidth: 1, lineColor: '#E9B308' },
+              { type: 'line', x1: 0, y1: 0, x2: 535, y2: 0, lineWidth: 1, lineColor: '#F4511E' },
             ],
             margin: [0, 0, 0, 8],
           },
@@ -940,7 +936,7 @@ export default function DeliverySummaryPage() {
           // Gold divider after table
           {
             canvas: [
-              { type: 'line', x1: 0, y1: 0, x2: 535, y2: 0, lineWidth: 1, lineColor: '#E9B308' },
+              { type: 'line', x1: 0, y1: 0, x2: 535, y2: 0, lineWidth: 1, lineColor: '#F4511E' },
             ],
             margin: [0, 8, 0, 6],
           },
@@ -950,12 +946,12 @@ export default function DeliverySummaryPage() {
             text: `รวมทั้งหมด: ${reportData.totals.totalBottles.toLocaleString()} ขวด (${reportData.productSummary.length} รายการ)`,
             bold: true,
             fontSize: 12,
-            color: '#00231F',
+            color: '#1A1A2E',
             alignment: 'center',
           },
         ],
         styles: {
-          title: { fontSize: 16, bold: true, color: '#00231F' },
+          title: { fontSize: 16, bold: true, color: '#1A1A2E' },
           subtitle: { fontSize: 10, color: '#666666' },
           tableHeader: { fontSize: 9, bold: true, color: '#666666', margin: [0, 2, 0, 2] },
         },
@@ -989,7 +985,7 @@ export default function DeliverySummaryPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
         </div>
       </Layout>
     );
@@ -1003,16 +999,16 @@ export default function DeliverySummaryPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Truck className="w-8 h-8 text-[#E9B308]" />
+            <Truck className="w-8 h-8 text-[#F4511E]" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">จัดของ & ส่ง</h1>
-              <p className="text-sm text-gray-600">เตรียมสินค้าและจัดส่งตามวันที่</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">จัดของ & ส่ง</h1>
+              <p className="text-sm text-gray-600 dark:text-slate-400">เตรียมสินค้าและจัดส่งตามวันที่</p>
             </div>
           </div>
         </div>
 
         {/* Date Picker + Tab Switcher + Action Buttons */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             {/* Date Picker - first priority */}
             <div className="max-w-xs">
@@ -1028,13 +1024,13 @@ export default function DeliverySummaryPage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex bg-gray-100 rounded-lg p-1">
+            <div className="flex bg-gray-100 dark:bg-slate-700 rounded-lg p-1">
               <button
                 onClick={() => setActiveTab('packing')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'packing'
-                    ? 'bg-[#E9B308] text-[#00231F] shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-[#F4511E] text-white shadow-sm'
+                    : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
                 <ClipboardList className="w-4 h-4" />
@@ -1044,15 +1040,15 @@ export default function DeliverySummaryPage() {
                 onClick={() => setActiveTab('delivery')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'delivery'
-                    ? 'bg-[#E9B308] text-[#00231F] shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-[#F4511E] text-white shadow-sm'
+                    : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
                 <Truck className="w-4 h-4" />
                 จัดส่ง
                 {reportData && reportData.totals.totalDeliveries > 0 && (
                   <span className={`px-1.5 py-0.5 rounded-full text-xs ${
-                    activeTab === 'delivery' ? 'bg-[#00231F]/20 text-[#00231F]' : 'bg-gray-200 text-gray-600'
+                    activeTab === 'delivery' ? 'bg-[#1A1A2E]/20 text-[#1A1A2E] dark:text-white' : 'bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-slate-300'
                   }`}>
                     {reportData.totals.totalDeliveries}
                   </span>
@@ -1066,7 +1062,7 @@ export default function DeliverySummaryPage() {
                 <button
                   onClick={handleExportPackingPdf}
                   disabled={!reportData || reportData.productSummary.length === 0 || generatingPdf}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-[#E9B308] text-[#00231F] hover:bg-[#d4a307] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-[#F4511E] text-white hover:bg-[#D63B0E] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {generatingPdf ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /><span>กำลังสร้าง PDF...</span></>
@@ -1078,7 +1074,7 @@ export default function DeliverySummaryPage() {
                 <button
                   onClick={handleCopyText}
                   disabled={!reportData || reportData.byDate.length === 0}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {copySuccess ? (
                     <><Check className="w-4 h-4 text-green-500" /><span className="text-green-600">คัดลอกแล้ว!</span></>
@@ -1092,12 +1088,12 @@ export default function DeliverySummaryPage() {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">{error}</div>
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg">{error}</div>
         )}
 
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+            <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
           </div>
         )}
 
@@ -1107,57 +1103,57 @@ export default function DeliverySummaryPage() {
             {/* Summary Cards */}
             {reportData.totals.totalDeliveries > 0 && (
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900">{reportData.productSummary.length}</div>
-                  <div className="text-xs text-gray-500 mt-1">ชนิดสินค้า</div>
+                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 text-center">
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{reportData.productSummary.length}</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">ชนิดสินค้า</div>
                 </div>
-                <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900">{reportData.totals.totalBottles.toLocaleString()}</div>
-                  <div className="text-xs text-gray-500 mt-1">ขวดทั้งหมด</div>
+                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 text-center">
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{reportData.totals.totalBottles.toLocaleString()}</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">ขวดทั้งหมด</div>
                 </div>
-                <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900">{reportData.totals.totalDeliveries}</div>
-                  <div className="text-xs text-gray-500 mt-1">จุดส่ง</div>
+                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 text-center">
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{reportData.totals.totalDeliveries}</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">จุดส่ง</div>
                 </div>
               </div>
             )}
 
             {/* Product Packing Table */}
             {reportData.productSummary.length === 0 ? (
-              <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-12 text-center">
                 <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">ไม่มีสินค้าที่ต้องจัดในวันที่เลือก</p>
+                <p className="text-gray-500 dark:text-slate-400">ไม่มีสินค้าที่ต้องจัดในวันที่เลือก</p>
               </div>
             ) : (
-              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
+                    <tr className="bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700">
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-10">#</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">สินค้า</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase w-28">จำนวน</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                     {reportData.productSummary.map((product, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-400">{index + 1}</td>
+                      <tr key={index} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 dark:bg-slate-900">
+                        <td className="px-4 py-3 text-sm text-gray-400 dark:text-slate-500">{index + 1}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             {product.image ? (
                               <img
                                 src={getImageUrl(product.image)}
                                 alt={product.productName}
-                                className="w-16 h-16 rounded-lg object-cover flex-shrink-0 border border-gray-200"
+                                className="w-16 h-16 rounded-lg object-cover flex-shrink-0 border border-gray-200 dark:border-slate-700"
                                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                               />
                             ) : (
-                              <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                              <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                                 <Package className="w-8 h-8 text-gray-300" />
                               </div>
                             )}
                             <div>
-                              <div className="font-medium text-gray-900 text-sm">
+                              <div className="font-medium text-gray-900 dark:text-white text-sm">
                                 {product.productName}{product.bottleSize ? ` - ${product.bottleSize}` : ''}
                               </div>
                               <div className="text-xs text-gray-400 font-mono">{product.productCode}</div>
@@ -1165,21 +1161,21 @@ export default function DeliverySummaryPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className="inline-flex items-center gap-1 bg-[#E9B308]/10 text-[#00231F] px-3 py-1 rounded-full">
+                          <span className="inline-flex items-center gap-1 bg-[#F4511E]/10 text-[#F4511E] px-3 py-1 rounded-full">
                             <span className="text-lg font-bold">{product.totalQuantity}</span>
-                            <span className="text-xs text-gray-600">ขวด</span>
+                            <span className="text-xs text-gray-600 dark:text-slate-400">ขวด</span>
                           </span>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-gray-50 border-t border-gray-200">
-                      <td colSpan={2} className="px-4 py-3 text-sm text-gray-600">
+                    <tr className="bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-700">
+                      <td colSpan={2} className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                         {reportData.productSummary.length} รายการ
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="text-lg font-bold text-[#00231F]">
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
                           รวม {reportData.totals.totalBottles.toLocaleString()} ขวด
                         </span>
                       </td>
@@ -1197,26 +1193,26 @@ export default function DeliverySummaryPage() {
             {/* Summary Cards */}
             {reportData.totals.totalDeliveries > 0 && (
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900">{reportData.totals.totalDeliveries}</div>
-                  <div className="text-xs text-gray-500 mt-1">จุดส่ง</div>
+                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 text-center">
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{reportData.totals.totalDeliveries}</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">จุดส่ง</div>
                 </div>
-                <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900">{reportData.totals.totalBottles.toLocaleString()}</div>
-                  <div className="text-xs text-gray-500 mt-1">ขวดทั้งหมด</div>
+                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 text-center">
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{reportData.totals.totalBottles.toLocaleString()}</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">ขวดทั้งหมด</div>
                 </div>
-                <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900">{reportData.productSummary.length}</div>
-                  <div className="text-xs text-gray-500 mt-1">ชนิดสินค้า</div>
+                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 text-center">
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{reportData.productSummary.length}</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">ชนิดสินค้า</div>
                 </div>
               </div>
             )}
 
             {/* Delivery List by Date */}
             {reportData.byDate.length === 0 ? (
-              <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-12 text-center">
                 <Truck className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">ไม่มีรายการจัดส่งในช่วงวันที่เลือก</p>
+                <p className="text-gray-500 dark:text-slate-400">ไม่มีรายการจัดส่งในช่วงวันที่เลือก</p>
               </div>
             ) : (
               reportData.byDate.map(dateGroup => {
@@ -1226,12 +1222,12 @@ export default function DeliverySummaryPage() {
                 return (
                   <div key={dateGroup.date} className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-semibold text-gray-900">
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                         {new Date(dateGroup.date).toLocaleDateString('th-TH', {
                           weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
                         })}
                       </h2>
-                      <span className="text-sm text-gray-500">
+                      <span className="text-sm text-gray-500 dark:text-slate-400">
                         {dateGroup.dateTotals.totalDeliveries} จุดส่ง / {dateGroup.dateTotals.totalBottles} ขวด
                       </span>
                     </div>
@@ -1268,15 +1264,15 @@ export default function DeliverySummaryPage() {
 
             {/* Product Summary - Collapsible */}
             {reportData.productSummary.length > 0 && (
-              <div className="bg-white rounded-lg border border-gray-200">
+              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
                 <button
                   onClick={() => setShowProductSummary(!showProductSummary)}
-                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <Package className="w-5 h-5 text-[#E9B308]" />
-                    <span className="font-medium text-gray-900">สรุปสินค้าทั้งหมด</span>
-                    <span className="text-sm text-gray-500">({reportData.productSummary.length} รายการ)</span>
+                    <Package className="w-5 h-5 text-[#F4511E]" />
+                    <span className="font-medium text-gray-900 dark:text-white">สรุปสินค้าทั้งหมด</span>
+                    <span className="text-sm text-gray-500 dark:text-slate-400">({reportData.productSummary.length} รายการ)</span>
                   </div>
                   {showProductSummary ? (
                     <ChevronDown className="w-5 h-5 text-gray-400" />
@@ -1285,7 +1281,7 @@ export default function DeliverySummaryPage() {
                   )}
                 </button>
                 {showProductSummary && (
-                  <div className="px-4 pb-4 border-t border-gray-100">
+                  <div className="px-4 pb-4 border-t border-gray-100 dark:border-slate-700">
                     <div className="space-y-2 mt-3">
                       {reportData.productSummary.map((product, index) => (
                         <div key={index} className="flex items-center gap-2 text-sm">
@@ -1297,20 +1293,20 @@ export default function DeliverySummaryPage() {
                               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                             />
                           ) : (
-                            <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center flex-shrink-0">
+                            <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                               <Package className="w-4 h-4 text-gray-400" />
                             </div>
                           )}
-                          <span className="text-gray-900 flex-1">
+                          <span className="text-gray-900 dark:text-white flex-1">
                             {product.productName}
-                            {product.bottleSize && <span className="text-gray-400 ml-1">{product.bottleSize}</span>}
+                            {product.bottleSize && <span className="text-gray-400 dark:text-slate-500 ml-1">{product.bottleSize}</span>}
                           </span>
-                          <span className="font-medium text-gray-900">{product.totalQuantity}</span>
+                          <span className="font-medium text-gray-900 dark:text-white">{product.totalQuantity}</span>
                         </div>
                       ))}
                     </div>
-                    <div className="flex justify-end mt-3 pt-2 border-t border-gray-200">
-                      <span className="text-sm font-medium text-gray-700">
+                    <div className="flex justify-end mt-3 pt-2 border-t border-gray-200 dark:border-slate-700">
+                      <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
                         รวมทั้งหมด: {reportData.totals.totalBottles.toLocaleString()} ขวด
                       </span>
                     </div>
@@ -1327,20 +1323,20 @@ export default function DeliverySummaryPage() {
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
             onClick={() => setStatusUpdateModal({ show: false, delivery: null, nextStatus: '', statusType: 'order' })}
           >
-            <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-semibold mb-4 text-gray-900">
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
                 ยืนยันการเปลี่ยน{statusUpdateModal.statusType === 'order' ? 'สถานะคำสั่งซื้อ' : 'สถานะการชำระเงิน'}
               </h3>
 
               <div className="mb-6 space-y-3">
-                <p className="text-gray-700">
+                <p className="text-gray-700 dark:text-slate-300">
                   คำสั่งซื้อ: <span className="font-medium">{statusUpdateModal.delivery?.orderNumber}</span>
                 </p>
-                <p className="text-gray-700">
+                <p className="text-gray-700 dark:text-slate-300">
                   ลูกค้า: <span className="font-medium">{statusUpdateModal.delivery?.customer.name}</span>
                 </p>
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="text-gray-600">เปลี่ยนจาก:</span>
+                  <span className="text-gray-600 dark:text-slate-400">เปลี่ยนจาก:</span>
                   {statusUpdateModal.statusType === 'order' ? (
                     <>
                       <OrderStatusBadge status={statusUpdateModal.delivery?.orderStatus || ''} />
@@ -1358,16 +1354,16 @@ export default function DeliverySummaryPage() {
 
                 {/* Payment Details Form */}
                 {statusUpdateModal.statusType === 'payment' && statusUpdateModal.nextStatus === 'paid' && (
-                  <div className="mt-6 pt-6 border-t space-y-4">
-                    <h4 className="font-medium text-gray-900">รายละเอียดการชำระเงิน</h4>
-                    <p className="text-sm text-gray-600">
-                      ยอดชำระ: <span className="font-semibold text-[#E9B308]">
+                  <div className="mt-6 pt-6 border-t dark:border-slate-700 space-y-4">
+                    <h4 className="font-medium text-gray-900 dark:text-white">รายละเอียดการชำระเงิน</h4>
+                    <p className="text-sm text-gray-600 dark:text-slate-400">
+                      ยอดชำระ: <span className="font-semibold text-[#F4511E]">
                         ฿{statusUpdateModal.delivery?.totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                       </span>
                     </p>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                         วิธีการชำระเงิน <span className="text-red-500">*</span>
                       </label>
                       <div className="flex gap-3">
@@ -1376,8 +1372,8 @@ export default function DeliverySummaryPage() {
                           onClick={() => setPaymentDetails({ ...paymentDetails, paymentMethod: 'cash' })}
                           className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
                             paymentDetails.paymentMethod === 'cash'
-                              ? 'border-[#E9B308] bg-[#E9B308] bg-opacity-10 text-[#00231F] font-medium'
-                              : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                              ? 'border-[#F4511E] bg-[#F4511E] bg-opacity-10 text-[#F4511E] font-medium'
+                              : 'border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:border-gray-400 dark:hover:border-slate-500'
                           }`}
                         >
                           เงินสด
@@ -1387,8 +1383,8 @@ export default function DeliverySummaryPage() {
                           onClick={() => setPaymentDetails({ ...paymentDetails, paymentMethod: 'transfer' })}
                           className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
                             paymentDetails.paymentMethod === 'transfer'
-                              ? 'border-[#E9B308] bg-[#E9B308] bg-opacity-10 text-[#00231F] font-medium'
-                              : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                              ? 'border-[#F4511E] bg-[#F4511E] bg-opacity-10 text-[#F4511E] font-medium'
+                              : 'border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:border-gray-400 dark:hover:border-slate-500'
                           }`}
                         >
                           โอนเงิน
@@ -1398,7 +1394,7 @@ export default function DeliverySummaryPage() {
 
                     {paymentDetails.paymentMethod === 'cash' && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                           ชื่อคนเก็บเงิน <span className="text-red-500">*</span>
                         </label>
                         <input
@@ -1406,7 +1402,7 @@ export default function DeliverySummaryPage() {
                           value={paymentDetails.collectedBy}
                           onChange={(e) => setPaymentDetails({ ...paymentDetails, collectedBy: e.target.value })}
                           placeholder="ระบุชื่อคนเก็บเงิน"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                         />
                       </div>
                     )}
@@ -1414,38 +1410,38 @@ export default function DeliverySummaryPage() {
                     {paymentDetails.paymentMethod === 'transfer' && (
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                             วันที่จากสลิป <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="date"
                             value={paymentDetails.transferDate}
                             onChange={(e) => setPaymentDetails({ ...paymentDetails, transferDate: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                             เวลาจากสลิป <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="time"
                             value={paymentDetails.transferTime}
                             onChange={(e) => setPaymentDetails({ ...paymentDetails, transferTime: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                           />
                         </div>
                       </div>
                     )}
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">หมายเหตุ</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">หมายเหตุ</label>
                       <textarea
                         value={paymentDetails.notes}
                         onChange={(e) => setPaymentDetails({ ...paymentDetails, notes: e.target.value })}
                         placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
                         rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       />
                     </div>
                   </div>
@@ -1456,14 +1452,14 @@ export default function DeliverySummaryPage() {
                 <button
                   onClick={() => setStatusUpdateModal({ show: false, delivery: null, nextStatus: '', statusType: 'order' })}
                   disabled={updatingStatus}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
                 >
                   ยกเลิก
                 </button>
                 <button
                   onClick={confirmStatusUpdate}
                   disabled={updatingStatus}
-                  className="px-4 py-2 bg-[#E9B308] text-[#00231F] rounded-lg hover:bg-[#d4a307] transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
                   {updatingStatus ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /><span>กำลังบันทึก...</span></>

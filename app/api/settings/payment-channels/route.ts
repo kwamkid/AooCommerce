@@ -1,39 +1,15 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
-
-async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string; isAdmin?: boolean }> {
-  try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) return { isAuth: false };
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !user) return { isAuth: false };
-
-    // Check admin role
-    const { data: profile } = await supabaseAdmin
-      .from('user_profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    return { isAuth: true, userId: user.id, isAdmin: profile?.role === 'admin' };
-  } catch {
-    return { isAuth: false };
-  }
-}
 
 // GET - Fetch payment channels
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
     if (!isAuth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!companyId) {
+      return NextResponse.json({ error: 'No company context' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -42,6 +18,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('payment_channels')
       .select('*')
+      .eq('company_id', companyId)
       .eq('channel_group', group)
       .order('sort_order', { ascending: true });
 
@@ -57,9 +34,10 @@ export async function GET(request: NextRequest) {
 // POST - Create payment channel (bank_transfer or payment_gateway)
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, isAdmin } = await checkAuth(request);
+    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isAdmin) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
+    if (!isAdminRole(companyRole)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
     const { type, name, config, channel_group = 'bill_online' } = body;
@@ -78,6 +56,7 @@ export async function POST(request: NextRequest) {
       const { data: existing } = await supabaseAdmin
         .from('payment_channels')
         .select('id')
+        .eq('company_id', companyId)
         .eq('channel_group', channel_group)
         .eq('type', 'payment_gateway')
         .single();
@@ -93,6 +72,7 @@ export async function POST(request: NextRequest) {
     const { data: maxData } = await supabaseAdmin
       .from('payment_channels')
       .select('sort_order')
+      .eq('company_id', companyId)
       .eq('channel_group', channel_group)
       .order('sort_order', { ascending: false })
       .limit(1)
@@ -102,6 +82,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('payment_channels')
       .insert({
+        company_id: companyId,
         channel_group,
         type,
         name: name.trim(),
@@ -124,9 +105,10 @@ export async function POST(request: NextRequest) {
 // PUT - Update payment channel
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, isAdmin } = await checkAuth(request);
+    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isAdmin) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
+    if (!isAdminRole(companyRole)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
     const { id, name, is_active, config, sort_order } = body;
@@ -148,6 +130,7 @@ export async function PUT(request: NextRequest) {
       .from('payment_channels')
       .update(updateData)
       .eq('id', id)
+      .eq('company_id', companyId)
       .select()
       .single();
 
@@ -163,9 +146,10 @@ export async function PUT(request: NextRequest) {
 // PATCH - Batch reorder payment channels
 export async function PATCH(request: NextRequest) {
   try {
-    const { isAuth, isAdmin } = await checkAuth(request);
+    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isAdmin) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
+    if (!isAdminRole(companyRole)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
     const { orders } = body as { orders: { id: string; sort_order: number }[] };
@@ -179,7 +163,8 @@ export async function PATCH(request: NextRequest) {
       await supabaseAdmin
         .from('payment_channels')
         .update({ sort_order: item.sort_order, updated_at: new Date().toISOString() })
-        .eq('id', item.id);
+        .eq('id', item.id)
+        .eq('company_id', companyId);
     }
 
     return NextResponse.json({ success: true });
@@ -192,9 +177,10 @@ export async function PATCH(request: NextRequest) {
 // DELETE - Delete bank account (bank_transfer only)
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth, isAdmin } = await checkAuth(request);
+    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isAdmin) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
+    if (!isAdminRole(companyRole)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -208,6 +194,7 @@ export async function DELETE(request: NextRequest) {
       .from('payment_channels')
       .select('type')
       .eq('id', id)
+      .eq('company_id', companyId)
       .single();
 
     if (!channel) {
@@ -221,7 +208,8 @@ export async function DELETE(request: NextRequest) {
     const { error } = await supabaseAdmin
       .from('payment_channels')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('company_id', companyId);
 
     if (error) throw error;
 

@@ -1,41 +1,19 @@
 // Path: app/api/reports/sales/route.ts
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-});
-
-// Helper: ตรวจสอบ auth
-async function checkAuth(request: NextRequest): Promise<boolean> {
-  try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) return false;
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-    return !error && !!user;
-  } catch {
-    return false;
-  }
-}
 
 export async function GET(request: NextRequest) {
   try {
     console.log('Sales report API called');
 
-    const isAuth = await checkAuth(request);
-    console.log('Auth check result:', isAuth);
+    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    console.log('Auth check result:', isAuth, 'companyId:', companyId);
 
     if (!isAuth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!companyId) {
+      return NextResponse.json({ error: 'No company context' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -74,6 +52,7 @@ export async function GET(request: NextRequest) {
           total
         )
       `)
+      .eq('company_id', companyId)
       .neq('order_status', 'cancelled');
 
     // Filter by date range

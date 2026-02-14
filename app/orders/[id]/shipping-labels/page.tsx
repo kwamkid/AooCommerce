@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api-client';
 import { ArrowLeft, Printer } from 'lucide-react';
 import QRCode from 'qrcode';
 
@@ -61,17 +61,7 @@ export default function ShippingLabelsPage() {
 
   const fetchOrderData = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/login');
-        return;
-      }
-
-      const response = await fetch(`/api/orders/${orderId}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
+      const response = await apiFetch(`/api/orders/${orderId}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch order');
@@ -161,8 +151,8 @@ export default function ShippingLabelsPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#E9B308] mx-auto"></div>
-          <p className="mt-4 text-gray-600">กำลังโหลด...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#F4511E] mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-slate-400">กำลังโหลด...</p>
         </div>
       </div>
     );
@@ -171,7 +161,7 @@ export default function ShippingLabelsPage() {
   if (!order) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">ไม่พบข้อมูลคำสั่งซื้อ</p>
+        <p className="text-gray-600 dark:text-slate-400">ไม่พบข้อมูลคำสั่งซื้อ</p>
       </div>
     );
   }
@@ -179,14 +169,14 @@ export default function ShippingLabelsPage() {
   return (
     <>
       {/* Print controls - hidden when printing */}
-      <div className="no-print bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-end sticky top-0 z-10">
+      <div className="no-print bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex items-center justify-end sticky top-0 z-10">
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-gray-600 dark:text-slate-400">
             {labels.length} ใบปะหน้า
           </span>
           <button
             onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 bg-[#E9B308] text-[#00231F] rounded-lg hover:bg-[#d4a307] transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors"
           >
             <Printer className="w-5 h-5" />
             พิมพ์ทั้งหมด
@@ -465,7 +455,7 @@ export default function ShippingLabelsPage() {
         .branch-name {
           font-size: 18px;
           font-weight: bold;
-          color: #E9B308;
+          color: #F4511E;
           margin-bottom: 6px;
         }
 

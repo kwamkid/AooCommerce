@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api-client';
 import {
   ArrowLeft,
   Edit2,
@@ -143,7 +143,7 @@ export default function CustomerEditPage() {
   const customerId = params.id as string;
 
   // Permission: admin & manager can edit
-  const canEdit = userProfile?.role === 'admin' || userProfile?.role === 'manager';
+  const canEdit = userProfile?.role === 'owner' || userProfile?.role === 'admin' || userProfile?.role === 'manager';
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [addresses, setAddresses] = useState<ShippingAddress[]>([]);
@@ -241,17 +241,11 @@ export default function CustomerEditPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
 
       // Fetch customer and addresses in parallel
       const [customerRes, addressRes] = await Promise.all([
-        fetch('/api/customers', {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
-        }),
-        fetch(`/api/shipping-addresses?customer_id=${customerId}`, {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
-        })
+        apiFetch('/api/customers'),
+        apiFetch(`/api/shipping-addresses?customer_id=${customerId}`)
       ]);
 
       const customerResult = await customerRes.json();
@@ -353,9 +347,6 @@ export default function CustomerEditPage() {
     setSuccess('');
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('กรุณาเข้าสู่ระบบใหม่');
-
       // Determine billing address
       const billingAddress = form.billing_same_as_shipping ? form.shipping_address : form.billing_address;
       const billingDistrict = form.billing_same_as_shipping ? form.shipping_district : form.billing_district;
@@ -385,11 +376,10 @@ export default function CustomerEditPage() {
         postal_code: billingPostalCode,
       };
 
-      const customerRes = await fetch('/api/customers', {
+      const customerRes = await apiFetch('/api/customers', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify(customerPayload)
       });
@@ -416,21 +406,19 @@ export default function CustomerEditPage() {
 
       if (defaultAddressId) {
         // Update existing
-        await fetch('/api/shipping-addresses', {
+        await apiFetch('/api/shipping-addresses', {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
           },
           body: JSON.stringify({ id: defaultAddressId, ...shippingPayload })
         });
       } else if (form.shipping_address || form.shipping_province) {
         // Create new default shipping address
-        const addrRes = await fetch('/api/shipping-addresses', {
+        const addrRes = await apiFetch('/api/shipping-addresses', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
           },
           body: JSON.stringify({ customer_id: customerId, ...shippingPayload })
         });
@@ -453,11 +441,7 @@ export default function CustomerEditPage() {
 
   const fetchAddresses = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const res = await fetch(`/api/shipping-addresses?customer_id=${customerId}`, {
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
-      });
+      const res = await apiFetch(`/api/shipping-addresses?customer_id=${customerId}`);
       const result = await res.json();
       if (res.ok) setAddresses(result.addresses || []);
     } catch (err) {
@@ -504,19 +488,15 @@ export default function CustomerEditPage() {
     setError('');
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('กรุณาเข้าสู่ระบบใหม่');
-
       const method = editingAddress ? 'PUT' : 'POST';
       const payload = editingAddress
         ? { id: editingAddress.id, ...addressForm }
         : { customer_id: customerId, ...addressForm };
 
-      const res = await fetch('/api/shipping-addresses', {
+      const res = await apiFetch('/api/shipping-addresses', {
         method,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify(payload)
       });
@@ -541,11 +521,8 @@ export default function CustomerEditPage() {
   const handleDeleteAddress = async (addressId: string) => {
     if (!confirm('คุณต้องการลบที่อยู่นี้ใช่หรือไม่?')) return;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const res = await fetch(`/api/shipping-addresses?id=${addressId}`, {
+      const res = await apiFetch(`/api/shipping-addresses?id=${addressId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
       });
       if (res.ok) {
         setSuccess('ลบที่อยู่สำเร็จ');
@@ -558,13 +535,13 @@ export default function CustomerEditPage() {
   };
 
   // Input class helper
-  const inputClass = `w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] ${!canEdit ? 'bg-gray-50 text-gray-500' : ''}`;
+  const inputClass = `w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] ${!canEdit ? 'bg-gray-50 dark:bg-slate-700 text-gray-500 dark:text-slate-400' : 'dark:bg-slate-900 dark:text-white'}`;
 
   if (authLoading || loading) {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
         </div>
       </Layout>
     );
@@ -576,7 +553,7 @@ export default function CustomerEditPage() {
         <div className="text-center py-12">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <p className="text-gray-500 text-lg">ไม่พบข้อมูลลูกค้า</p>
-          <button onClick={() => router.push('/customers')} className="mt-4 text-[#E9B308] hover:underline">
+          <button onClick={() => router.push('/customers')} className="mt-4 text-[#F4511E] hover:underline">
             กลับหน้ารายการลูกค้า
           </button>
         </div>
@@ -598,10 +575,10 @@ export default function CustomerEditPage() {
               กลับ
             </button>
             <div className="flex items-center gap-3">
-              <UserCircle className="w-8 h-8 text-[#E9B308]" />
+              <UserCircle className="w-8 h-8 text-[#F4511E]" />
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
-                <p className="text-sm text-gray-500">รหัส: {customer.customer_code}</p>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{customer.name}</h1>
+                <p className="text-sm text-gray-500 dark:text-slate-400">รหัส: {customer.customer_code}</p>
               </div>
               {!form.is_active && (
                 <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded-full">ปิดใช้งาน</span>
@@ -612,7 +589,7 @@ export default function CustomerEditPage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="bg-[#E9B308] text-[#00231F] px-5 py-2.5 rounded-lg hover:bg-[#d4a307] transition-colors flex items-center gap-2 disabled:opacity-50"
+              className="bg-[#F4511E] text-white px-5 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {saving ? 'กำลังบันทึก...' : 'บันทึก'}
@@ -641,11 +618,11 @@ export default function CustomerEditPage() {
         )}
 
         {/* Section 1: Basic Information */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold mb-4 text-gray-900">ข้อมูลพื้นฐาน</h3>
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">ข้อมูลพื้นฐาน</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                 ชื่อร้าน/ชื่อลูกค้า <span className="text-red-500">*</span>
               </label>
               <input
@@ -659,7 +636,7 @@ export default function CustomerEditPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ประเภทลูกค้า</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ประเภทลูกค้า</label>
               <select
                 value={form.customer_type}
                 onChange={(e) => setForm(prev => ({ ...prev, customer_type: e.target.value as 'retail' | 'wholesale' | 'distributor' }))}
@@ -673,7 +650,7 @@ export default function CustomerEditPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ผู้ติดต่อ</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ผู้ติดต่อ</label>
               <input
                 type="text"
                 value={form.contact_person}
@@ -684,7 +661,7 @@ export default function CustomerEditPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">เบอร์โทร</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทร</label>
               <input
                 type="tel"
                 value={phoneDisplay}
@@ -696,7 +673,7 @@ export default function CustomerEditPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">อีเมล</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อีเมล</label>
               <input
                 type="email"
                 value={form.email}
@@ -709,19 +686,19 @@ export default function CustomerEditPage() {
         </div>
 
         {/* Section 2: Shipping Addresses — left: default branch form, right: additional branches */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Truck className="w-5 h-5" />
               ที่อยู่จัดส่ง
-              <span className="text-sm font-normal text-gray-500">
+              <span className="text-sm font-normal text-gray-500 dark:text-slate-400">
                 (ทั้งหมด {addresses.length} สาขา)
               </span>
             </h3>
             {canEdit && (
               <button
                 onClick={() => { resetAddressForm(); setShowAddressModal(true); }}
-                className="bg-[#E9B308] text-[#00231F] px-3 py-1.5 rounded-lg hover:bg-[#d4a307] transition-colors flex items-center text-sm"
+                className="bg-[#F4511E] text-white px-3 py-1.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center text-sm"
               >
                 <Plus className="w-4 h-4 mr-1" />
                 เพิ่มสาขา
@@ -733,12 +710,12 @@ export default function CustomerEditPage() {
             {/* Left: Default branch form */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <Star className="w-4 h-4 text-[#E9B308]" />
-                <h4 className="font-medium text-gray-800">สาขาหลัก <span className="text-xs font-normal text-gray-400">(ที่อยู่หลัก)</span></h4>
+                <Star className="w-4 h-4 text-[#F4511E]" />
+                <h4 className="font-medium text-gray-800 dark:text-slate-200">สาขาหลัก <span className="text-xs font-normal text-gray-400 dark:text-slate-500">(ที่อยู่หลัก)</span></h4>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อสาขา</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อสาขา</label>
                   <input
                     type="text"
                     value={form.shipping_address_name}
@@ -750,7 +727,7 @@ export default function CustomerEditPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ผู้รับสินค้า</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ผู้รับสินค้า</label>
                     <input
                       type="text"
                       value={form.shipping_contact_person}
@@ -760,7 +737,7 @@ export default function CustomerEditPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">เบอร์โทรผู้รับ</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทรผู้รับ</label>
                     <input
                       type="tel"
                       value={shippingPhoneDisplay}
@@ -773,7 +750,7 @@ export default function CustomerEditPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ที่อยู่จัดส่ง</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่จัดส่ง</label>
                   <textarea
                     value={form.shipping_address}
                     onChange={(e) => setForm(prev => ({ ...prev, shipping_address: e.target.value }))}
@@ -801,7 +778,7 @@ export default function CustomerEditPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ตำบล/แขวง</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ตำบล/แขวง</label>
                     <input
                       type="text"
                       value={form.shipping_district}
@@ -811,7 +788,7 @@ export default function CustomerEditPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">อำเภอ/เขต</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อำเภอ/เขต</label>
                     <input
                       type="text"
                       value={form.shipping_amphoe}
@@ -824,7 +801,7 @@ export default function CustomerEditPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">จังหวัด</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">จังหวัด</label>
                     <input
                       type="text"
                       value={form.shipping_province}
@@ -834,7 +811,7 @@ export default function CustomerEditPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">รหัสไปรษณีย์</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">รหัสไปรษณีย์</label>
                     <input
                       type="text"
                       value={form.shipping_postal_code}
@@ -846,7 +823,7 @@ export default function CustomerEditPage() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 flex items-center gap-1">
                     <MapPin className="w-4 h-4" />
                     Google Maps Link
                   </label>
@@ -855,7 +832,7 @@ export default function CustomerEditPage() {
                       type="url"
                       value={form.shipping_google_maps_link}
                       onChange={(e) => setForm(prev => ({ ...prev, shipping_google_maps_link: e.target.value }))}
-                      className={`flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] ${!canEdit ? 'bg-gray-50 text-gray-500' : ''}`}
+                      className={`flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] ${!canEdit ? 'bg-gray-50 dark:bg-slate-700 text-gray-500 dark:text-slate-400' : ''}`}
                       disabled={!canEdit}
                       placeholder="วาง link Google Maps"
                     />
@@ -874,7 +851,7 @@ export default function CustomerEditPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุสำหรับการจัดส่ง</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุสำหรับการจัดส่ง</label>
                   <textarea
                     value={form.shipping_delivery_notes}
                     onChange={(e) => setForm(prev => ({ ...prev, shipping_delivery_notes: e.target.value }))}
@@ -891,22 +868,22 @@ export default function CustomerEditPage() {
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <MapPin className="w-4 h-4 text-gray-500" />
-                <h4 className="font-medium text-gray-800">สาขาเพิ่มเติม</h4>
+                <h4 className="font-medium text-gray-800 dark:text-slate-200">สาขาเพิ่มเติม</h4>
                 {additionalAddresses.length > 0 && (
-                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 px-2 py-0.5 rounded-full">
                     {additionalAddresses.length}
                   </span>
                 )}
               </div>
 
               {additionalAddresses.length === 0 ? (
-                <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center text-gray-400">
+                <div className="border-2 border-dashed border-gray-200 dark:border-slate-600 rounded-lg p-6 text-center text-gray-400 dark:text-slate-500">
                   <MapPin className="w-8 h-8 mx-auto mb-2" />
                   <p className="text-sm">ยังไม่มีสาขาเพิ่มเติม</p>
                   {canEdit && (
                     <button
                       onClick={() => { resetAddressForm(); setShowAddressModal(true); }}
-                      className="mt-2 text-sm text-[#E9B308] hover:underline"
+                      className="mt-2 text-sm text-[#F4511E] hover:underline"
                     >
                       + เพิ่มสาขา
                     </button>
@@ -917,13 +894,13 @@ export default function CustomerEditPage() {
                   {additionalAddresses.map((address) => (
                     <div
                       key={address.id}
-                      className="border border-gray-200 rounded-lg p-3 hover:border-[#E9B308] transition-colors"
+                      className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 hover:border-[#F4511E] transition-colors"
                     >
                       <div className="flex justify-between items-start mb-1">
-                        <h5 className="font-semibold text-sm text-gray-900">{address.address_name}</h5>
+                        <h5 className="font-semibold text-sm text-gray-900 dark:text-white">{address.address_name}</h5>
                         {canEdit && (
                           <div className="flex gap-1.5">
-                            <button onClick={() => handleEditAddress(address)} className="text-gray-400 hover:text-[#E9B308]">
+                            <button onClick={() => handleEditAddress(address)} className="text-gray-400 hover:text-[#F4511E]">
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button onClick={() => handleDeleteAddress(address.id)} className="text-gray-400 hover:text-red-600">
@@ -932,7 +909,7 @@ export default function CustomerEditPage() {
                           </div>
                         )}
                       </div>
-                      <div className="text-xs text-gray-600 space-y-0.5">
+                      <div className="text-xs text-gray-600 dark:text-slate-400 space-y-0.5">
                         <p>
                           {[address.address_line1, address.district,
                             address.amphoe, address.province, address.postal_code].filter(Boolean).join(' ')}
@@ -942,12 +919,12 @@ export default function CustomerEditPage() {
                         )}
                         {address.google_maps_link && (
                           <a href={address.google_maps_link} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-[#E9B308] hover:underline">
+                            className="flex items-center gap-1 text-[#F4511E] hover:underline">
                             <ExternalLink className="w-3 h-3" />Google Maps
                           </a>
                         )}
                         {address.delivery_notes && (
-                          <p className="text-gray-500 bg-gray-50 rounded px-2 py-1 mt-1">
+                          <p className="text-gray-500 dark:text-slate-500 bg-gray-50 dark:bg-slate-700/50 rounded px-2 py-1 mt-1">
                             {address.delivery_notes}
                           </p>
                         )}
@@ -961,26 +938,26 @@ export default function CustomerEditPage() {
         </div>
 
         {/* Section 3: Tax Invoice (Optional) */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
           <label className="flex items-center gap-2 cursor-pointer mb-4">
             <input
               type="checkbox"
               checked={form.needs_tax_invoice}
               onChange={(e) => setForm(prev => ({ ...prev, needs_tax_invoice: e.target.checked }))}
-              className="rounded border-gray-300 text-[#E9B308] focus:ring-[#E9B308]"
+              className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
               disabled={!canEdit}
             />
-            <span className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <span className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Building2 className="w-5 h-5" />
               ใบกำกับภาษี
             </span>
           </label>
 
           {form.needs_tax_invoice && (
-            <div className="pl-6 border-l-2 border-[#E9B308] space-y-4">
+            <div className="pl-6 border-l-2 border-[#F4511E] space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
                   <input
                     type="text"
                     value={form.tax_company_name}
@@ -992,7 +969,7 @@ export default function CustomerEditPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">เลขประจำตัวผู้เสียภาษี</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เลขประจำตัวผู้เสียภาษี</label>
                   <input
                     type="text"
                     value={form.tax_id}
@@ -1004,7 +981,7 @@ export default function CustomerEditPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">สาขา</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">สาขา</label>
                   <input
                     type="text"
                     value={form.tax_branch}
@@ -1023,16 +1000,16 @@ export default function CustomerEditPage() {
                     type="checkbox"
                     checked={form.billing_same_as_shipping}
                     onChange={(e) => setForm(prev => ({ ...prev, billing_same_as_shipping: e.target.checked }))}
-                    className="rounded border-gray-300 text-[#E9B308] focus:ring-[#E9B308]"
+                    className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
                     disabled={!canEdit}
                   />
-                  <span className="text-gray-700">ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง</span>
+                  <span className="text-gray-700 dark:text-slate-300">ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง</span>
                 </label>
 
                 {!form.billing_same_as_shipping && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ที่อยู่ออกบิล</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่ออกบิล</label>
                       <textarea
                         value={form.billing_address}
                         onChange={(e) => setForm(prev => ({ ...prev, billing_address: e.target.value }))}
@@ -1043,7 +1020,7 @@ export default function CustomerEditPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ตำบล/แขวง</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ตำบล/แขวง</label>
                       <input
                         type="text"
                         value={form.billing_district}
@@ -1053,7 +1030,7 @@ export default function CustomerEditPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">อำเภอ/เขต</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อำเภอ/เขต</label>
                       <input
                         type="text"
                         value={form.billing_amphoe}
@@ -1063,7 +1040,7 @@ export default function CustomerEditPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">จังหวัด</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">จังหวัด</label>
                       <input
                         type="text"
                         value={form.billing_province}
@@ -1073,7 +1050,7 @@ export default function CustomerEditPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">รหัสไปรษณีย์</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">รหัสไปรษณีย์</label>
                       <input
                         type="text"
                         value={form.billing_postal_code}
@@ -1090,14 +1067,14 @@ export default function CustomerEditPage() {
         </div>
 
         {/* Section 4: Credit Terms */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold mb-4 text-gray-900 flex items-center gap-2">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
             <CreditCard className="w-5 h-5" />
             เงื่อนไขเครดิต
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">วงเงินเครดิต (บาท)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">วงเงินเครดิต (บาท)</label>
               <input
                 type="number"
                 value={form.credit_limit}
@@ -1109,7 +1086,7 @@ export default function CustomerEditPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ระยะเวลาเครดิต (วัน)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ระยะเวลาเครดิต (วัน)</label>
               <input
                 type="number"
                 value={form.credit_days}
@@ -1123,10 +1100,10 @@ export default function CustomerEditPage() {
         </div>
 
         {/* Section 5: Notes & Status */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุ</label>
               <textarea
                 value={form.notes}
                 onChange={(e) => setForm(prev => ({ ...prev, notes: e.target.value }))}
@@ -1140,10 +1117,10 @@ export default function CustomerEditPage() {
                 type="checkbox"
                 checked={form.is_active}
                 onChange={(e) => setForm(prev => ({ ...prev, is_active: e.target.checked }))}
-                className="rounded border-gray-300 text-[#E9B308] focus:ring-[#E9B308]"
+                className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
                 disabled={!canEdit}
               />
-              <span className="text-sm font-medium text-gray-700">ใช้งาน</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-slate-300">ใช้งาน</span>
             </label>
           </div>
         </div>
@@ -1154,14 +1131,14 @@ export default function CustomerEditPage() {
             <button
               onClick={() => router.push('/customers')}
               disabled={saving}
-              className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+              className="px-6 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2 disabled:opacity-50"
             >
               ยกเลิก
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="bg-[#E9B308] text-[#00231F] px-6 py-2.5 rounded-lg hover:bg-[#d4a307] transition-colors flex items-center gap-2 disabled:opacity-50"
+              className="bg-[#F4511E] text-white px-6 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {saving ? 'กำลังบันทึก...' : 'บันทึก'}
@@ -1173,23 +1150,23 @@ export default function CustomerEditPage() {
       {/* Address Modal (for additional branches) */}
       {showAddressModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <h2 className="text-2xl font-bold mb-6">
+              <h2 className="text-2xl font-bold mb-6 dark:text-white">
                 {editingAddress ? 'แก้ไขที่อยู่จัดส่ง' : 'เพิ่มสาขาจัดส่ง'}
               </h2>
 
               <form onSubmit={handleSaveAddress}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                       ชื่อสาขา <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={addressForm.address_name}
                       onChange={(e) => setAddressForm({ ...addressForm, address_name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       placeholder="เช่น สาขาลาดพร้าว, คลังบางนา"
                       required
                     />
@@ -1197,28 +1174,28 @@ export default function CustomerEditPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ผู้รับสินค้า</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ผู้รับสินค้า</label>
                       <input
                         type="text"
                         value={addressForm.contact_person}
                         onChange={(e) => setAddressForm({ ...addressForm, contact_person: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">เบอร์โทรผู้รับ</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทรผู้รับ</label>
                       <input
                         type="tel"
                         value={addressForm.phone}
                         onChange={(e) => setAddressForm({ ...addressForm, phone: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                         placeholder="0xx-xxx-xxxx"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                       ที่อยู่จัดส่ง <span className="text-red-500">*</span>
                     </label>
                     <textarea
@@ -1239,7 +1216,7 @@ export default function CustomerEditPage() {
                           }));
                         }
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       rows={2}
                       placeholder="วางที่อยู่เต็ม — ระบบจะแยกตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์ให้อัตโนมัติ"
                       required
@@ -1248,51 +1225,51 @@ export default function CustomerEditPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ตำบล/แขวง</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ตำบล/แขวง</label>
                       <input
                         type="text"
                         value={addressForm.district}
                         onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">อำเภอ/เขต</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อำเภอ/เขต</label>
                       <input
                         type="text"
                         value={addressForm.amphoe}
                         onChange={(e) => setAddressForm({ ...addressForm, amphoe: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                         จังหวัด <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         value={addressForm.province}
                         onChange={(e) => setAddressForm({ ...addressForm, province: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">รหัสไปรษณีย์</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">รหัสไปรษณีย์</label>
                       <input
                         type="text"
                         value={addressForm.postal_code}
                         onChange={(e) => setAddressForm({ ...addressForm, postal_code: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                    <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 flex items-center gap-1">
                       <MapPin className="w-4 h-4" />
                       Google Maps Link
                     </label>
@@ -1300,17 +1277,17 @@ export default function CustomerEditPage() {
                       type="url"
                       value={addressForm.google_maps_link}
                       onChange={(e) => setAddressForm({ ...addressForm, google_maps_link: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       placeholder="วาง link Google Maps"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุสำหรับการจัดส่ง</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุสำหรับการจัดส่ง</label>
                     <textarea
                       value={addressForm.delivery_notes}
                       onChange={(e) => setAddressForm({ ...addressForm, delivery_notes: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       rows={2}
                       placeholder="เช่น ส่งช่วงเช้า, โทรก่อนส่ง"
                     />
@@ -1321,14 +1298,14 @@ export default function CustomerEditPage() {
                   <button
                     type="button"
                     onClick={() => { setShowAddressModal(false); resetAddressForm(); }}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 dark:bg-slate-900"
                     disabled={saving}
                   >
                     ยกเลิก
                   </button>
                   <button
                     type="submit"
-                    className="bg-[#E9B308] text-[#00231F] px-4 py-2 rounded-lg hover:bg-[#d4a307] disabled:opacity-50 flex items-center"
+                    className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] disabled:opacity-50 flex items-center"
                     disabled={saving}
                   >
                     {saving ? (

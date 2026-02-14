@@ -1,77 +1,64 @@
 // Path: lib/auth-context.tsx
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { UserProfile } from '@/types';
 
-// Auth Context Interface
 interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
   session: Session | null;
   loading: boolean;
+  hasCompany: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, name: string, inviteToken?: string) => Promise<{ error: string | null }>;
   signInWithLine: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
-// Create Auth Context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Public routes that don't require authentication
-const PUBLIC_ROUTES = ['/login', '/auth/callback', '/line-callback'];
+const PUBLIC_ROUTES = ['/login', '/register', '/auth/callback', '/line-callback', '/onboarding'];
+const STORAGE_KEY = 'aoo-current-company-id';
 
-// Auth Provider Component
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  // loading = true until we know auth state + company state
   const [loading, setLoading] = useState(true);
+  const [hasCompany, setHasCompany] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
-  // Fetch user profile via API (bypasses RLS)
-  const fetchUserProfile = async (authUser: User, accessToken?: string): Promise<UserProfile> => {
+  const fetchUserProfile = useCallback(async (authUser: User, accessToken: string): Promise<UserProfile | null> => {
     try {
-      // Get token if not provided
-      let token = accessToken;
-      if (!token) {
-        const { data: sessionData } = await supabase.auth.getSession();
-        token = sessionData.session?.access_token;
-      }
-
-      if (!token) {
-        console.log('No access token available');
-        throw new Error('No access token');
-      }
-
-      // Fetch profile via API
       const response = await fetch('/api/auth/me', {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${accessToken}` }
       });
 
       const result = await response.json();
-
-      if (!response.ok || !result.profile) {
-        console.log('API error or no profile:', result.error);
-        throw new Error(result.error || 'Failed to fetch profile');
-      }
+      if (!response.ok || !result.profile) return null;
 
       const data = result.profile;
+      const companies = result.companies || [];
+      setHasCompany(companies.length > 0);
 
-      // Map database fields to UserProfile
+      // Use company role directly as the user's effective role
+      const savedCompanyId = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+      const currentMembership = companies.find((m: { company_id: string }) => m.company_id === savedCompanyId) || companies[0];
+      const effectiveRole = currentMembership?.role || data.role || 'sales';
+
       return {
         id: data.id,
         email: data.email || authUser.email || '',
         name: data.name || authUser.email?.split('@')[0] || 'User',
-        role: data.role || 'operation',
+        role: effectiveRole,
         phone: data.phone || undefined,
         isActive: data.is_active ?? true,
         createdAt: new Date(data.created_at),
@@ -79,218 +66,205 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
     } catch (error) {
       console.error('Error fetching user profile:', error);
-      // Fallback on error
-      const isAdmin = authUser.email === 'kwamkid@gmail.com';
-      return {
-        id: authUser.id,
-        email: authUser.email || '',
-        name: authUser.email?.split('@')[0] || 'User',
-        role: isAdmin ? 'admin' : 'operation',
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
+      return null;
     }
-  };
+  }, []);
 
-  // Initialize auth on mount
+  // Single init on mount — determines full auth + company state
   useEffect(() => {
     let mounted = true;
 
-    const initAuth = async () => {
-      console.log('Initializing auth...');
-      
+    const init = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Session error:', error);
-          if (mounted) setLoading(false);
-          return;
-        }
-        
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (!mounted) return;
 
-        if (session?.user) {
-          console.log('Found user:', session.user.email);
-          setSession(session);
-          setUser(session.user);
+        if (currentSession?.user) {
+          setSession(currentSession);
+          setUser(currentSession.user);
 
-          // ดึง profile ผ่าน API
-          const profile = await fetchUserProfile(session.user, session.access_token);
-          setUserProfile(profile);
-          console.log('Loaded profile from API:', profile);
-        } else {
-          console.log('No session found');
+          const profile = await fetchUserProfile(currentSession.user, currentSession.access_token);
+          if (!mounted) return;
+
+          if (profile) {
+            setUserProfile(profile);
+          } else {
+            // Fallback profile
+            setUserProfile({
+              id: currentSession.user.id,
+              email: currentSession.user.email || '',
+              name: currentSession.user.email?.split('@')[0] || 'User',
+              role: 'sales',
+              isActive: true,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            });
+          }
         }
       } catch (error) {
-        console.error('Init error:', error);
+        console.error('Auth init error:', error);
       } finally {
-        if (mounted) {
-          setLoading(false);
-          console.log('Init complete');
-        }
+        if (mounted) setLoading(false);
       }
     };
 
-    // รันทันที ไม่ต้อง delay
-    initAuth();
+    init();
+    return () => { mounted = false; };
+  }, [fetchUserProfile]);
 
-    return () => {
-      mounted = false;
-    };
+  // Listen for sign-out only (sign-in is handled by login page redirect)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      if (event === 'TOKEN_REFRESHED' && currentSession) {
+        setSession(currentSession);
+      }
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setUserProfile(null);
+        setSession(null);
+        setHasCompany(false);
+        setLoading(false);
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Listen to auth changes
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, currentSession) => {
-        console.log('Auth event:', event);
-
-        // Skip initial session - already handled in initAuth
-        if (event === 'INITIAL_SESSION') return;
-
-        // Only handle actual sign in/out events, not token refresh
-        if (event === 'SIGNED_IN' && currentSession) {
-          // Check if user actually changed to prevent infinite loop
-          setSession(prev => {
-            if (prev?.user?.id === currentSession.user.id) {
-              return prev; // No change needed
-            }
-            return currentSession;
-          });
-
-          setUser(prev => {
-            if (prev?.id === currentSession.user.id) {
-              return prev; // No change needed
-            }
-            // Only update profile if user actually changed
-            fetchUserProfile(currentSession.user, currentSession.access_token).then(profile => {
-              setUserProfile(profile);
-            });
-            return currentSession.user;
-          });
-
-          setLoading(false);
-
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setUserProfile(null);
-          setSession(null);
-          setLoading(false);
-          router.push('/login');
-        } else if (event === 'TOKEN_REFRESHED' && currentSession) {
-          // Only update session token, not trigger re-render of user/profile
-          setSession(currentSession);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, [router]);
-
-  // Handle routing
+  // Routing — only runs after loading is done
   useEffect(() => {
     if (loading) return;
 
-    // ถ้ามี user และอยู่หน้า login -> ไป dashboard
-    if (user && pathname === '/login') {
-      console.log('Redirecting to dashboard');
-      router.push('/dashboard');
+    const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route));
+    const isInvitePage = pathname.startsWith('/invite/');
+    if (isInvitePage) return;
+
+    // Not logged in → go to login (unless already on public route)
+    if (!user) {
+      if (!isPublicRoute && pathname !== '/') {
+        router.replace('/login');
+      }
+      return;
     }
 
-    // ถ้าไม่มี user และอยู่หน้า protected -> ไป login
-    if (!user && !PUBLIC_ROUTES.includes(pathname) && pathname !== '/') {
-      console.log('Redirecting to login');
-      router.push('/login');
+    // Logged in → handle routing
+    // On login/register page → go to company list
+    if (pathname === '/login' || pathname === '/register') {
+      router.replace('/onboarding');
+      return;
     }
-  }, [user, pathname, loading, router]);
 
-  // Sign in
+    // No company AND no saved selection → must create/join one
+    const savedCompanyId = localStorage.getItem(STORAGE_KEY);
+    if (!hasCompany && !savedCompanyId && !isPublicRoute) {
+      router.replace('/onboarding');
+      return;
+    }
+  }, [user, pathname, loading, router, hasCompany]);
+
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // Reset state for fresh login
+      setLoading(true);
+      setHasCompany(false);
+      localStorage.removeItem(STORAGE_KEY);
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
+        setLoading(false);
         if (error.message.includes('Invalid login credentials')) {
           return { error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
         }
         return { error: error.message };
       }
 
+      if (data.session?.user) {
+        setSession(data.session);
+        setUser(data.session.user);
+
+        const profile = await fetchUserProfile(data.session.user, data.session.access_token);
+        if (profile) {
+          setUserProfile(profile);
+        }
+      }
+
+      setLoading(false);
       return { error: null };
     } catch (error) {
       console.error('Sign in error:', error);
+      setLoading(false);
       return { error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ' };
     }
   };
 
-  // Sign in with LINE
+  const signUp = async (email: string, password: string, name: string, inviteToken?: string) => {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (inviteToken) headers['X-Invite-Token'] = inviteToken;
+
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ email, password, name }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        return { error: result.error || 'เกิดข้อผิดพลาดในการสมัครสมาชิก' };
+      }
+
+      // Auto sign in after registration
+      const signInResult = await signIn(email, password);
+      return signInResult;
+    } catch (error) {
+      console.error('Sign up error:', error);
+      return { error: 'เกิดข้อผิดพลาดในการสมัครสมาชิก' };
+    }
+  };
+
   const signInWithLine = async () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
-
-      if (error) {
-        return { error: error.message };
-      }
-
+      if (error) return { error: error.message };
       return { error: null };
-    } catch (error) {
-      return { error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย LINE' };
+    } catch {
+      return { error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google' };
     }
   };
 
-  // Sign out
   const signOut = async () => {
+    localStorage.removeItem(STORAGE_KEY);
     try {
       await supabase.auth.signOut();
     } catch (error) {
       console.error('Sign out error:', error);
-    } finally {
-      // Clear state และ redirect เสมอ แม้จะมี error
-      setUser(null);
-      setUserProfile(null);
-      setSession(null);
-      router.push('/login');
     }
+    setUser(null);
+    setUserProfile(null);
+    setSession(null);
+    setHasCompany(false);
+    router.replace('/login');
   };
 
-  // Refresh profile - ดึงผ่าน API
   const refreshProfile = async () => {
     if (user && session) {
       const profile = await fetchUserProfile(user, session.access_token);
-      setUserProfile(profile);
+      if (profile) setUserProfile(profile);
     }
   };
 
-  // Context value
-  const value: AuthContextType = {
-    user,
-    userProfile,
-    session,
-    loading,
-    signIn,
-    signInWithLine,
-    signOut,
-    refreshProfile,
-  };
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{
+      user, userProfile, session, loading, hasCompany,
+      signIn, signUp, signInWithLine, signOut, refreshProfile,
+    }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-// Custom hook
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

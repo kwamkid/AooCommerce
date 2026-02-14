@@ -1,29 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 // POST - Verify or reject a payment record (admin only)
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'No authorization header' }, { status: 401 });
-    }
+    const auth = await checkAuthWithCompany(request);
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
-
-    if (userError || !user) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -42,7 +25,8 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabaseAdmin
       .from('payment_records')
       .update({ status: newStatus })
-      .eq('id', payment_record_id);
+      .eq('id', payment_record_id)
+      .eq('company_id', auth.companyId);
 
     if (updateError) {
       console.error('Error updating payment record:', updateError);

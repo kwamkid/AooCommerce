@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api-client';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
 import {
@@ -243,11 +243,6 @@ export default function OrdersPage() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        throw new Error('No session');
-      }
 
       // Build query params for server-side filtering
       const params = new URLSearchParams();
@@ -259,11 +254,7 @@ export default function OrdersPage() {
       if (paymentFilter !== 'all') params.set('payment_status', paymentFilter);
       if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
 
-      const response = await fetch(`/api/orders?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
+      const response = await apiFetch(`/api/orders?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch orders');
@@ -376,11 +367,6 @@ export default function OrdersPage() {
 
     try {
       setUpdatingStatus(true);
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        throw new Error('No session');
-      }
 
       const updateData: any = { id: statusUpdateModal.order.id };
 
@@ -391,10 +377,9 @@ export default function OrdersPage() {
       }
 
       // Update order status
-      const response = await fetch('/api/orders', {
+      const response = await apiFetch('/api/orders', {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(updateData)
@@ -416,10 +401,9 @@ export default function OrdersPage() {
           notes: paymentDetails.notes || null
         };
 
-        const paymentResponse = await fetch('/api/payment-records', {
+        const paymentResponse = await apiFetch('/api/payment-records', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(paymentRecordData)
@@ -456,17 +440,8 @@ export default function OrdersPage() {
     if (!confirm(`คุณต้องการลบคำสั่งซื้อ "${order.order_number}" หรือไม่?\n\nการลบจะเป็นการลบถาวร ไม่สามารถกู้คืนได้`)) return;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        throw new Error('No session');
-      }
-
-      const response = await fetch(`/api/orders?id=${order.id}`, {
+      const response = await apiFetch(`/api/orders?id=${order.id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
       });
 
       if (!response.ok) {
@@ -520,8 +495,8 @@ export default function OrdersPage() {
   const SortIcon = ({ column }: { column: string }) => {
     if (sortBy !== column) return <ArrowUpDown className="w-3 h-3 text-gray-400" />;
     return sortDir === 'asc'
-      ? <ArrowUp className="w-3 h-3 text-[#E9B308]" />
-      : <ArrowDown className="w-3 h-3 text-[#E9B308]" />;
+      ? <ArrowUp className="w-3 h-3 text-[#F4511E]" />
+      : <ArrowDown className="w-3 h-3 text-[#F4511E]" />;
   };
 
   // Client-side date filter only (server doesn't support date range yet)
@@ -565,7 +540,7 @@ export default function OrdersPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
         </div>
       </Layout>
     );
@@ -577,12 +552,12 @@ export default function OrdersPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <ShoppingCart className="w-8 h-8 text-[#E9B308]" />
-            <h1 className="text-3xl font-bold text-gray-900">คำสั่งซื้อ</h1>
+            <ShoppingCart className="w-8 h-8 text-[#F4511E]" />
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">คำสั่งซื้อ</h1>
           </div>
           <button
             onClick={() => router.push('/orders/new')}
-            className="bg-[#E9B308] text-[#00231F] px-4 py-2 rounded-lg hover:bg-[#d4a307] transition-colors flex items-center gap-2"
+            className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2"
           >
             <Plus className="w-5 h-5" />
             สร้างคำสั่งซื้อ
@@ -608,7 +583,7 @@ export default function OrdersPage() {
                   placeholder="ค้นหาเลขที่, ชื่อลูกค้า..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                 />
               </div>
               <div className="w-64 flex-shrink-0">
@@ -627,19 +602,19 @@ export default function OrdersPage() {
                   <Columns3 className="w-5 h-5 text-gray-500" />
                 </button>
                 {showColumnSettings && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1">
-                    <div className="px-3 py-2 text-xs font-medium text-gray-500 uppercase border-b border-gray-100">
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-10 py-1">
+                    <div className="px-3 py-2 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase border-b border-gray-100 dark:border-slate-700">
                       แสดงคอลัมน์
                     </div>
                     {COLUMN_CONFIGS.filter(c => !c.alwaysVisible).map(col => (
-                      <label key={col.key} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                      <label key={col.key} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.has(col.key)}
                           onChange={() => toggleColumn(col.key)}
-                          className="w-3.5 h-3.5 text-[#E9B308] border-gray-300 rounded focus:ring-[#E9B308]"
+                          className="w-3.5 h-3.5 text-[#F4511E] border-gray-300 dark:border-slate-500 rounded focus:ring-[#F4511E]"
                         />
-                        <span className="text-sm text-gray-700">{col.label}</span>
+                        <span className="text-sm text-gray-700 dark:text-slate-300">{col.label}</span>
                       </label>
                     ))}
                   </div>
@@ -654,11 +629,11 @@ export default function OrdersPage() {
         <div className="flex gap-2 overflow-x-auto pb-1">
           {/* Order Status */}
           {[
-            { key: 'all', label: 'ทั้งหมด', active: 'bg-indigo-600 border-indigo-600 ring-indigo-600/30', inactive: 'bg-indigo-50 border-indigo-200 hover:border-indigo-300', labelColor: 'text-indigo-600', countColor: 'text-indigo-700' },
-            { key: 'new', label: 'ใหม่', active: 'bg-blue-600 border-blue-600 ring-blue-600/30', inactive: 'bg-blue-50 border-blue-200 hover:border-blue-300', labelColor: 'text-blue-600', countColor: 'text-blue-700' },
-            { key: 'shipping', label: 'กำลังส่ง', active: 'bg-amber-500 border-amber-500 ring-amber-500/30', inactive: 'bg-amber-50 border-amber-200 hover:border-amber-300', labelColor: 'text-amber-600', countColor: 'text-amber-700' },
-            { key: 'completed', label: 'สำเร็จ', active: 'bg-emerald-600 border-emerald-600 ring-emerald-600/30', inactive: 'bg-emerald-50 border-emerald-200 hover:border-emerald-300', labelColor: 'text-emerald-600', countColor: 'text-emerald-700' },
-            { key: 'cancelled', label: 'ยกเลิก', active: 'bg-gray-500 border-gray-500 ring-gray-500/30', inactive: 'bg-gray-100 border-gray-200 hover:border-gray-300', labelColor: 'text-gray-500', countColor: 'text-gray-600' },
+            { key: 'all', label: 'ทั้งหมด', active: 'bg-indigo-600', inactive: 'bg-indigo-50 dark:bg-indigo-950/50', labelColor: 'text-indigo-600 dark:text-indigo-400', countColor: 'text-indigo-700 dark:text-indigo-300' },
+            { key: 'new', label: 'ใหม่', active: 'bg-blue-600', inactive: 'bg-blue-50 dark:bg-blue-950/50', labelColor: 'text-blue-600 dark:text-blue-400', countColor: 'text-blue-700 dark:text-blue-300' },
+            { key: 'shipping', label: 'กำลังส่ง', active: 'bg-amber-500', inactive: 'bg-amber-50 dark:bg-amber-950/50', labelColor: 'text-amber-600 dark:text-amber-400', countColor: 'text-amber-700 dark:text-amber-300' },
+            { key: 'completed', label: 'สำเร็จ', active: 'bg-emerald-600', inactive: 'bg-emerald-50 dark:bg-emerald-950/50', labelColor: 'text-emerald-600 dark:text-emerald-400', countColor: 'text-emerald-700 dark:text-emerald-300' },
+            { key: 'cancelled', label: 'ยกเลิก', active: 'bg-gray-500', inactive: 'bg-gray-100 dark:bg-gray-800', labelColor: 'text-gray-500 dark:text-gray-400', countColor: 'text-gray-600 dark:text-gray-300' },
           ].map((s) => {
             const isActive = statusFilter === s.key;
             const count = statusCounts[s.key] || 0;
@@ -666,10 +641,10 @@ export default function OrdersPage() {
               <button
                 key={s.key}
                 onClick={() => setStatusFilter(s.key)}
-                className={`flex-shrink-0 rounded-xl border-2 px-4 py-2 min-w-[80px] text-center transition-all ${
+                className={`flex-shrink-0 rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
                   isActive
-                    ? `${s.active} text-white shadow-md ring-2 ring-offset-1`
-                    : `${s.inactive} hover:shadow-sm`
+                    ? `${s.active} text-white shadow-md`
+                    : `${s.inactive} hover:opacity-80`
                 }`}
               >
                 <div className={`text-xs font-medium ${isActive ? 'text-white/80' : s.labelColor}`}>{s.label}</div>
@@ -679,14 +654,14 @@ export default function OrdersPage() {
           })}
 
           {/* Divider */}
-          <div className="w-px bg-gray-300 self-stretch flex-shrink-0 mx-1" />
+          <div className="w-px bg-gray-300 dark:bg-slate-600 self-stretch flex-shrink-0 mx-1" />
 
-          {/* Payment Status — tonal shift to warm/slate */}
+          {/* Payment Status */}
           {[
-            { key: 'all', label: 'ชำระทั้งหมด', active: 'bg-slate-600 border-slate-600 ring-slate-600/30', inactive: 'bg-slate-50 border-slate-200 hover:border-slate-300', labelColor: 'text-slate-500', countColor: 'text-slate-700' },
-            { key: 'pending', label: 'รอชำระ', active: 'bg-orange-500 border-orange-500 ring-orange-500/30', inactive: 'bg-orange-50 border-orange-200 hover:border-orange-300', labelColor: 'text-orange-500', countColor: 'text-orange-700' },
-            { key: 'verifying', label: 'รอตรวจสอบ', active: 'bg-purple-500 border-purple-500 ring-purple-500/30', inactive: 'bg-purple-50 border-purple-200 hover:border-purple-300', labelColor: 'text-purple-500', countColor: 'text-purple-700' },
-            { key: 'paid', label: 'ชำระแล้ว', active: 'bg-teal-600 border-teal-600 ring-teal-600/30', inactive: 'bg-teal-50 border-teal-200 hover:border-teal-300', labelColor: 'text-teal-600', countColor: 'text-teal-700' },
+            { key: 'all', label: 'ชำระทั้งหมด', active: 'bg-slate-600', inactive: 'bg-slate-50 dark:bg-slate-800', labelColor: 'text-slate-500 dark:text-slate-400', countColor: 'text-slate-700 dark:text-slate-300' },
+            { key: 'pending', label: 'รอชำระ', active: 'bg-orange-500', inactive: 'bg-orange-50 dark:bg-orange-950/50', labelColor: 'text-orange-500 dark:text-orange-400', countColor: 'text-orange-700 dark:text-orange-300' },
+            { key: 'verifying', label: 'รอตรวจสอบ', active: 'bg-purple-500', inactive: 'bg-purple-50 dark:bg-purple-950/50', labelColor: 'text-purple-500 dark:text-purple-400', countColor: 'text-purple-700 dark:text-purple-300' },
+            { key: 'paid', label: 'ชำระแล้ว', active: 'bg-teal-600', inactive: 'bg-teal-50 dark:bg-teal-950/50', labelColor: 'text-teal-600 dark:text-teal-400', countColor: 'text-teal-700 dark:text-teal-300' },
           ].map((s) => {
             const isActive = paymentFilter === s.key;
             const count = paymentCounts[s.key] || 0;
@@ -694,10 +669,10 @@ export default function OrdersPage() {
               <button
                 key={`pay-${s.key}`}
                 onClick={() => setPaymentFilter(s.key)}
-                className={`flex-shrink-0 rounded-xl border-2 px-4 py-2 min-w-[80px] text-center transition-all ${
+                className={`flex-shrink-0 rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
                   isActive
-                    ? `${s.active} text-white shadow-md ring-2 ring-offset-1`
-                    : `${s.inactive} hover:shadow-sm`
+                    ? `${s.active} text-white shadow-md`
+                    : `${s.inactive} hover:opacity-80`
                 }`}
               >
                 <div className={`text-xs font-medium ${isActive ? 'text-white/80' : s.labelColor}`}>{s.label}</div>
@@ -738,7 +713,7 @@ export default function OrdersPage() {
               <tbody className="data-tbody">
                 {displayedOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={visibleColumns.size} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={visibleColumns.size} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
                       {searchTerm || statusFilter !== 'all' || paymentFilter !== 'all' || deliveryDateRange?.startDate ? 'ไม่พบคำสั่งซื้อที่ค้นหา' : 'ยังไม่มีคำสั่งซื้อ'}
                     </td>
                   </tr>
@@ -752,8 +727,8 @@ export default function OrdersPage() {
                       {/* คำสั่งซื้อ: order_number + วันเปิดบิล + เวลา */}
                       {visibleColumns.has('orderInfo') && (
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{order.order_number}</div>
-                          <div className="text-xs text-gray-400">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{order.order_number}</div>
+                          <div className="text-xs text-gray-400 dark:text-slate-500">
                             {new Date(order.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
                             {' '}
                             {new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
@@ -765,34 +740,36 @@ export default function OrdersPage() {
                       {visibleColumns.has('deliveryDate') && (
                         <td className="px-6 py-4 whitespace-nowrap">
                           {order.delivery_date ? (
-                            <div className="text-sm text-gray-900">
+                            <div className="text-sm text-gray-900 dark:text-white">
                               {new Date(order.delivery_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
                             </div>
                           ) : (
-                            <span className="text-xs text-gray-400">ไม่ระบุ</span>
+                            <span className="text-xs text-gray-400 dark:text-slate-500">ไม่ระบุ</span>
                           )}
                         </td>
                       )}
 
-                      {/* ลูกค้า: ชื่อ (กดไปหน้า edit) + เบอร์โทร (กดโทร) */}
+                      {/* ลูกค้า: ชื่อ (กดไปหน้า detail) + เบอร์โทร (กดโทร) */}
                       {visibleColumns.has('customer') && (
                         <td className="px-6 py-4">
                           <div>
                             <button
                               onClick={(e) => { e.stopPropagation(); router.push(`/customers/${order.customer_id}`); }}
-                              className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline text-left"
+                              className="text-sm font-medium text-[#F4511E] hover:text-[#D63B0E] hover:underline text-left"
                             >
                               {order.customer_name}
                             </button>
                             {order.customer_phone && (
-                              <a
-                                href={`tel:${order.customer_phone}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-1 text-xs text-gray-500 hover:text-emerald-600 mt-0.5"
-                              >
-                                <Phone className="w-3 h-3" />
-                                {order.customer_phone}
-                              </a>
+                              <div className="mt-1">
+                                <a
+                                  href={`tel:${order.customer_phone}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400 hover:text-emerald-600"
+                                >
+                                  <Phone className="w-3 h-3" />
+                                  {order.customer_phone}
+                                </a>
+                              </div>
                             )}
                           </div>
                         </td>
@@ -809,7 +786,7 @@ export default function OrdersPage() {
                                 </span>
                               ))
                             ) : (
-                              <span className="text-xs text-gray-400">-</span>
+                              <span className="text-xs text-gray-400 dark:text-slate-500">-</span>
                             )}
                           </div>
                         </td>
@@ -818,7 +795,7 @@ export default function OrdersPage() {
                       {/* ยอดรวม */}
                       {visibleColumns.has('total') && (
                         <td className="px-6 py-4 text-right">
-                          <div className="text-sm font-semibold text-gray-900">
+                          <div className="text-sm font-semibold text-gray-900 dark:text-white">
                             ฿{order.total_amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                           </div>
                         </td>
@@ -844,7 +821,7 @@ export default function OrdersPage() {
                       {visibleColumns.has('payment') && (
                         <td className="px-6 py-4 whitespace-nowrap">
                           {order.order_status === 'cancelled' ? (
-                            <span className="text-gray-400">-</span>
+                            <span className="text-gray-400 dark:text-slate-500">-</span>
                           ) : getNextPaymentStatus(order.payment_status) ? (
                             <button
                               onClick={(e) => handlePaymentStatusClick(e, order)}
@@ -871,19 +848,19 @@ export default function OrdersPage() {
                                   setTimeout(() => setToast(''), 2500);
                                 });
                               }}
-                              className="text-gray-500 hover:text-[#E9B308] p-1"
+                              className="text-gray-500 hover:text-[#F4511E] p-1"
                               title="คัดลอกลิงก์บิลออนไลน์"
                             >
                               <Link2 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); router.push(`/orders/${order.id}/edit`); }}
-                              className="text-blue-600 hover:text-blue-800 p-1"
+                              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 p-1"
                               title="แก้ไขคำสั่งซื้อ"
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
-                            {userProfile?.role === 'admin' && (
+                            {(userProfile?.role === 'owner' || userProfile?.role === 'admin') && (
                               <button
                                 onClick={(e) => handleDeleteOrder(e, order)}
                                 className="text-red-600 hover:text-red-900 p-1"
@@ -905,7 +882,7 @@ export default function OrdersPage() {
           {/* Pagination */}
           {totalRecords > 0 && (
             <div className="data-pagination">
-              <div className="flex items-center gap-1 text-sm text-gray-600">
+              <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
                 <span>{startIndex + 1} - {endIndex} จาก {totalRecords} รายการ</span>
                 <select
                   value={recordsPerPage}
@@ -913,7 +890,7 @@ export default function OrdersPage() {
                     setRecordsPerPage(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                 >
                   <option value={20}>20</option>
                   <option value={50}>50</option>
@@ -923,17 +900,17 @@ export default function OrdersPage() {
               </div>
               {totalPages > 1 && (
                 <div className="flex items-center gap-2">
-                  <button onClick={goToFirstPage} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
+                  <button onClick={goToFirstPage} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
                     <ChevronsLeft className="w-4 h-4" />
                   </button>
-                  <button onClick={goToPreviousPage} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
+                  <button onClick={goToPreviousPage} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <div className="flex items-center gap-1">
                     {getPageNumbers().map((page, index) => {
                       if (page === '...') {
                         return (
-                          <span key={`ellipsis-${index}`} className="px-2 text-gray-500">
+                          <span key={`ellipsis-${index}`} className="px-2 text-gray-500 dark:text-slate-400">
                             ...
                           </span>
                         );
@@ -944,8 +921,8 @@ export default function OrdersPage() {
                           onClick={() => goToPage(page as number)}
                           className={`w-8 h-8 rounded text-sm font-medium ${
                             currentPage === page
-                              ? 'bg-[#E9B308] text-[#00231F]'
-                              : 'hover:bg-gray-100 text-gray-700'
+                              ? 'bg-[#F4511E] text-white'
+                              : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700'
                           }`}
                         >
                           {page}
@@ -953,10 +930,10 @@ export default function OrdersPage() {
                       );
                     })}
                   </div>
-                  <button onClick={goToNextPage} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
+                  <button onClick={goToNextPage} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
                     <ChevronRight className="w-4 h-4" />
                   </button>
-                  <button onClick={goToLastPage} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
+                  <button onClick={goToLastPage} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
                     <ChevronsRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -973,26 +950,26 @@ export default function OrdersPage() {
           >
             <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   ยืนยันการเปลี่ยน{statusUpdateModal.statusType === 'order' ? 'สถานะคำสั่งซื้อ' : 'สถานะการชำระเงิน'}
                 </h3>
                 <button
                   onClick={() => setStatusUpdateModal({ show: false, order: null, nextStatus: '', statusType: 'order' })}
-                  className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-400" />
                 </button>
               </div>
 
               <div className="mb-6 space-y-3">
-                <p className="text-gray-700">
+                <p className="text-gray-700 dark:text-slate-300">
                   คำสั่งซื้อ: <span className="font-medium">{statusUpdateModal.order?.order_number}</span>
                 </p>
-                <p className="text-gray-700">
+                <p className="text-gray-700 dark:text-slate-300">
                   ลูกค้า: <span className="font-medium">{statusUpdateModal.order?.customer_name}</span>
                 </p>
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="text-gray-600">เปลี่ยนจาก:</span>
+                  <span className="text-gray-600 dark:text-slate-400">เปลี่ยนจาก:</span>
                   {statusUpdateModal.statusType === 'order' ? (
                     <>
                       <OrderStatusBadge status={statusUpdateModal.order?.order_status || ''} />
@@ -1011,10 +988,10 @@ export default function OrdersPage() {
                 {/* Payment Details Form (only show when updating payment status to 'paid') */}
                 {statusUpdateModal.statusType === 'payment' && statusUpdateModal.nextStatus === 'paid' && (
                   <div className="mt-6 pt-6 border-t space-y-4">
-                    <h4 className="font-medium text-gray-900">รายละเอียดการชำระเงิน</h4>
+                    <h4 className="font-medium text-gray-900 dark:text-white">รายละเอียดการชำระเงิน</h4>
 
-                    <p className="text-sm text-gray-600">
-                      ยอดชำระ: <span className="font-semibold text-[#E9B308]">
+                    <p className="text-sm text-gray-600 dark:text-slate-400">
+                      ยอดชำระ: <span className="font-semibold text-[#F4511E]">
                         ฿{statusUpdateModal.order?.total_amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                       </span>
                     </p>
@@ -1030,7 +1007,7 @@ export default function OrdersPage() {
                           onClick={() => setPaymentDetails({ ...paymentDetails, paymentMethod: 'cash' })}
                           className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
                             paymentDetails.paymentMethod === 'cash'
-                              ? 'border-[#E9B308] bg-[#E9B308] bg-opacity-10 text-[#00231F] font-medium'
+                              ? 'border-[#F4511E] bg-[#F4511E] bg-opacity-10 text-[#F4511E] font-medium'
                               : 'border-gray-300 text-gray-700 hover:border-gray-400'
                           }`}
                         >
@@ -1041,7 +1018,7 @@ export default function OrdersPage() {
                           onClick={() => setPaymentDetails({ ...paymentDetails, paymentMethod: 'transfer' })}
                           className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
                             paymentDetails.paymentMethod === 'transfer'
-                              ? 'border-[#E9B308] bg-[#E9B308] bg-opacity-10 text-[#00231F] font-medium'
+                              ? 'border-[#F4511E] bg-[#F4511E] bg-opacity-10 text-[#F4511E] font-medium'
                               : 'border-gray-300 text-gray-700 hover:border-gray-400'
                           }`}
                         >
@@ -1061,7 +1038,7 @@ export default function OrdersPage() {
                           value={paymentDetails.collectedBy}
                           onChange={(e) => setPaymentDetails({ ...paymentDetails, collectedBy: e.target.value })}
                           placeholder="ระบุชื่อคนเก็บเงิน"
-                          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                          className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                         />
                       </div>
                     )}
@@ -1078,7 +1055,7 @@ export default function OrdersPage() {
                               type="date"
                               value={paymentDetails.transferDate}
                               onChange={(e) => setPaymentDetails({ ...paymentDetails, transferDate: e.target.value })}
-                              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                             />
                           </div>
                           <div>
@@ -1089,7 +1066,7 @@ export default function OrdersPage() {
                               type="time"
                               value={paymentDetails.transferTime}
                               onChange={(e) => setPaymentDetails({ ...paymentDetails, transferTime: e.target.value })}
-                              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                             />
                           </div>
                         </div>
@@ -1106,7 +1083,7 @@ export default function OrdersPage() {
                         onChange={(e) => setPaymentDetails({ ...paymentDetails, notes: e.target.value })}
                         placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
                         rows={2}
-                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       />
                     </div>
                   </div>
@@ -1117,14 +1094,14 @@ export default function OrdersPage() {
                 <button
                   onClick={() => setStatusUpdateModal({ show: false, order: null, nextStatus: '', statusType: 'order' })}
                   disabled={updatingStatus}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
                 >
                   ยกเลิก
                 </button>
                 <button
                   onClick={confirmStatusUpdate}
                   disabled={updatingStatus}
-                  className="px-4 py-2 bg-[#E9B308] text-[#00231F] rounded-lg hover:bg-[#d4a307] transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
                   {updatingStatus ? (
                     <>

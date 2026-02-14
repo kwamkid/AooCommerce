@@ -54,9 +54,12 @@ export default function DateRangePicker({
           apply: 'ตกลง',
         },
       }}
-      inputClassName="w-full h-[42px] px-3 border border-gray-300 rounded-lg text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:border-transparent bg-white text-gray-900 placeholder:text-gray-400"
+      inputClassName="w-full h-[42px] px-3 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white text-gray-900 placeholder:text-gray-400"
       toggleClassName="absolute right-0 h-full px-3 text-amber-500 focus:outline-none"
-      containerClassName="relative font-bold"
+      containerClassName="relative"
+      classNames={{
+        footer: () => "flex items-center justify-end pb-2.5 pt-2 px-4 gap-2",
+      }}
     />
   );
 }

@@ -1,6 +1,6 @@
 // Path: app/api/shipping-addresses/route.ts
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 // Type definitions
 interface ShippingAddressData {
@@ -22,49 +22,14 @@ interface ShippingAddressData {
   is_active?: boolean;
 }
 
-// Create Supabase Admin client (service role)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-// Helper function: Check authentication
-async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string }> {
-  try {
-    const authHeader = request.headers.get('authorization');
-
-    if (!authHeader?.startsWith('Bearer ')) {
-      return { isAuth: false };
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-    if (error || !user) {
-      return { isAuth: false };
-    }
-
-    return { isAuth: true, userId: user.id };
-  } catch (error) {
-    console.error('Auth check error:', error);
-    return { isAuth: false };
-  }
-}
-
 // GET - Get shipping addresses for a customer
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -82,6 +47,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('shipping_addresses')
       .select('*')
+      .eq('company_id', auth.companyId)
       .eq('customer_id', customerId)
       .eq('is_active', true)
       .order('is_default', { ascending: false })
@@ -106,11 +72,11 @@ export async function GET(request: NextRequest) {
 // POST - Create new shipping address
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, userId } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -129,6 +95,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('shipping_addresses')
       .insert({
+        company_id: auth.companyId,
         customer_id: addressData.customer_id,
         address_name: addressData.address_name,
         contact_person: addressData.contact_person || null,
@@ -145,7 +112,7 @@ export async function POST(request: NextRequest) {
         delivery_notes: addressData.delivery_notes || null,
         is_default: addressData.is_default !== undefined ? addressData.is_default : false,
         is_active: addressData.is_active !== undefined ? addressData.is_active : true,
-        created_by: userId,
+        created_by: auth.userId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -176,11 +143,11 @@ export async function POST(request: NextRequest) {
 // PUT - Update shipping address
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -202,6 +169,7 @@ export async function PUT(request: NextRequest) {
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
+      .eq('company_id', auth.companyId)
       .select()
       .single();
 
@@ -227,11 +195,11 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete shipping address (soft delete)
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -253,7 +221,8 @@ export async function DELETE(request: NextRequest) {
         is_active: false,
         updated_at: new Date().toISOString()
       })
-      .eq('id', addressId);
+      .eq('id', addressId)
+      .eq('company_id', auth.companyId);
 
     if (error) {
       return NextResponse.json(

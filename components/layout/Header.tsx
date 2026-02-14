@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
+import { useCompany } from '@/lib/company-context';
+import { useTheme } from '@/lib/theme-context';
 import {
   Bell,
   User,
@@ -12,7 +14,10 @@ import {
   ChevronDown,
   AlertCircle,
   Clock,
-  CheckCircle
+  CheckCircle,
+  Sun,
+  Moon,
+  Monitor
 } from 'lucide-react';
 
 // Notification interface
@@ -27,9 +32,11 @@ interface Notification {
 
 export default function Header() {
   const { userProfile, signOut } = useAuth();
+  const { currentCompany, companyRole } = useCompany();
+  const { theme, setTheme } = useTheme();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  
+
   // Initialize notifications with mock data (ในระบบจริงจะดึงจาก database)
   const [notifications] = useState<Notification[]>([
     {
@@ -57,7 +64,7 @@ export default function Header() {
       read: true
     }
   ]);
-  
+
   const [currentTime, setCurrentTime] = useState('');
 
   // Update current time
@@ -77,7 +84,7 @@ export default function Header() {
     };
 
     updateTime();
-    const interval = setInterval(updateTime, 60000); // Update every minute
+    const interval = setInterval(updateTime, 60000);
 
     return () => clearInterval(interval);
   }, []);
@@ -113,19 +120,44 @@ export default function Header() {
   // Count unread notifications
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  // Theme options
+  const themeOptions = [
+    { value: 'light' as const, icon: Sun, label: 'สว่าง' },
+    { value: 'dark' as const, icon: Moon, label: 'มืด' },
+    { value: 'system' as const, icon: Monitor, label: 'ตามระบบ' },
+  ];
+
   return (
-    <header className="bg-[#00231F] lg:bg-white border-b border-[#E9B308]/20 lg:border-gray-200 sticky top-0 z-30">
+    <header className="bg-[#1A1A2E] lg:bg-white lg:dark:bg-slate-900 border-b border-[#F4511E]/20 lg:border-gray-200 lg:dark:border-slate-700 sticky top-0 z-30">
       <div className="relative flex items-center justify-end h-16 px-4 lg:px-6">
         {/* Mobile Logo (absolute center) */}
         <div className="lg:hidden absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <Image src="/logo.svg" alt="JOOLZ Factory" width={100} height={65} className="h-10 w-auto" />
+          <Image src="/logo.svg" alt="AooDelivery" width={100} height={65} className="h-10 w-auto" />
         </div>
 
         {/* Right section */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 lg:space-x-4">
           {/* Current Time */}
-          <div className="hidden lg:block text-sm text-gray-600">
+          <div className="hidden lg:block text-sm text-gray-600 dark:text-slate-400">
             {currentTime}
+          </div>
+
+          {/* Theme Switcher */}
+          <div className="hidden lg:flex items-center bg-gray-100 dark:bg-slate-800 rounded-lg p-0.5">
+            {themeOptions.map(({ value, icon: Icon }) => (
+              <button
+                key={value}
+                onClick={() => setTheme(value)}
+                className={`p-1.5 rounded-md transition-colors ${
+                  theme === value
+                    ? 'bg-white dark:bg-slate-600 text-[#F4511E] shadow-sm'
+                    : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
+                }`}
+                title={themeOptions.find(o => o.value === value)?.label}
+              >
+                <Icon className="w-4 h-4" />
+              </button>
+            ))}
           </div>
 
           {/* Notifications */}
@@ -135,7 +167,7 @@ export default function Header() {
                 setShowNotifications(!showNotifications);
                 setShowUserMenu(false);
               }}
-              className="relative p-2 text-[#E9B308] lg:text-gray-600 hover:bg-white/10 lg:hover:bg-gray-100 rounded-lg transition-colors"
+              className="relative p-2 text-[#F4511E] lg:text-gray-600 lg:dark:text-slate-400 hover:bg-white/10 lg:hover:bg-gray-100 lg:dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
@@ -145,33 +177,33 @@ export default function Header() {
 
             {/* Notifications Dropdown */}
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg">
-                <div className="p-4 border-b border-gray-200">
-                  <h3 className="font-semibold text-gray-900">การแจ้งเตือน</h3>
+              <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg">
+                <div className="p-4 border-b border-gray-200 dark:border-slate-700">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">การแจ้งเตือน</h3>
                   {unreadCount > 0 && (
-                    <p className="text-sm text-gray-500">{unreadCount} รายการที่ยังไม่ได้อ่าน</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">{unreadCount} รายการที่ยังไม่ได้อ่าน</p>
                   )}
                 </div>
-                
+
                 <div className="max-h-96 overflow-y-auto">
                   {notifications.length > 0 ? (
                     notifications.map((notification) => (
                       <div
                         key={notification.id}
-                        className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                          !notification.read ? 'bg-blue-50/30' : ''
+                        className={`p-4 border-b border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${
+                          !notification.read ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''
                         }`}
                       >
                         <div className="flex items-start space-x-3">
                           {getNotificationIcon(notification.type)}
                           <div className="flex-1">
-                            <p className="font-medium text-gray-900 text-sm">
+                            <p className="font-medium text-gray-900 dark:text-white text-sm">
                               {notification.title}
                             </p>
-                            <p className="text-sm text-gray-600 mt-1">
+                            <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
                               {notification.message}
                             </p>
-                            <p className="text-xs text-gray-400 mt-1">
+                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
                               {notification.time}
                             </p>
                           </div>
@@ -179,15 +211,15 @@ export default function Header() {
                       </div>
                     ))
                   ) : (
-                    <div className="p-8 text-center text-gray-500">
+                    <div className="p-8 text-center text-gray-500 dark:text-slate-400">
                       ไม่มีการแจ้งเตือน
                     </div>
                   )}
                 </div>
 
                 {notifications.length > 0 && (
-                  <div className="p-3 border-t border-gray-200">
-                    <button className="w-full text-center text-sm text-[#E9B308] hover:text-[#E9B308]/80 font-medium">
+                  <div className="p-3 border-t border-gray-200 dark:border-slate-700">
+                    <button className="w-full text-center text-sm text-[#F4511E] hover:text-[#F4511E]/80 font-medium">
                       ดูทั้งหมด
                     </button>
                   </div>
@@ -203,10 +235,10 @@ export default function Header() {
                 setShowUserMenu(!showUserMenu);
                 setShowNotifications(false);
               }}
-              className="flex items-center space-x-2 p-2 text-white lg:text-gray-700 hover:bg-white/10 lg:hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex items-center space-x-2 p-2 text-white lg:text-gray-700 lg:dark:text-slate-200 hover:bg-white/10 lg:hover:bg-gray-100 lg:dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
-              <div className="w-8 h-8 bg-[#E9B308] rounded-full flex items-center justify-center">
-                <span className="text-[#00231F] font-semibold text-sm">
+              <div className="w-8 h-8 bg-[#F4511E] rounded-full flex items-center justify-center">
+                <span className="text-white font-semibold text-sm">
                   {userProfile?.name.charAt(0).toUpperCase()}
                 </span>
               </div>
@@ -218,29 +250,51 @@ export default function Header() {
 
             {/* User Dropdown */}
             {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg">
-                <div className="p-4 border-b border-gray-200">
-                  <p className="font-medium text-gray-900">{userProfile?.name}</p>
-                  <p className="text-sm text-gray-500">{userProfile?.email}</p>
-                  <p className="text-xs text-[#E9B308] mt-1">
-                    {userProfile?.role === 'admin' && 'ผู้ดูแลระบบ'}
-                    {userProfile?.role === 'manager' && 'ผู้จัดการ'}
-                    {userProfile?.role === 'operation' && 'พนักงานผลิต'}
-                    {userProfile?.role === 'sales' && 'ฝ่ายขาย'}
-                  </p>
+              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg">
+                <div className="p-4 border-b border-gray-200 dark:border-slate-700">
+                  <p className="font-medium text-gray-900 dark:text-white">{userProfile?.name}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{userProfile?.email}</p>
+                  {companyRole && (
+                    <p className="text-xs text-[#F4511E] mt-1">
+                      {currentCompany?.name} · {
+                        { owner: 'เจ้าของ', admin: 'ผู้ดูแลระบบ', manager: 'ผู้จัดการ', account: 'ฝ่ายบัญชี', warehouse: 'ฝ่ายคลังสินค้า', sales: 'ฝ่ายขาย' }[companyRole] || companyRole
+                      }
+                    </p>
+                  )}
+                </div>
+
+                {/* Mobile Theme Switcher */}
+                <div className="lg:hidden p-2 border-b border-gray-200 dark:border-slate-700">
+                  <p className="text-xs text-gray-500 dark:text-slate-400 px-3 mb-1">ธีม</p>
+                  <div className="flex gap-1 px-2">
+                    {themeOptions.map(({ value, icon: Icon, label }) => (
+                      <button
+                        key={value}
+                        onClick={() => setTheme(value)}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-colors ${
+                          theme === value
+                            ? 'bg-[#F4511E]/10 text-[#F4511E] font-medium'
+                            : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="p-2">
                   <button
-                    className="w-full flex items-center space-x-3 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="w-full flex items-center space-x-3 px-3 py-2 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                   >
                     <User className="w-4 h-4" />
                     <span className="text-sm">โปรไฟล์</span>
                   </button>
-                  
-                  {userProfile?.role === 'admin' && (
+
+                  {(companyRole === 'owner' || companyRole === 'admin') && (
                     <button
-                      className="w-full flex items-center space-x-3 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      className="w-full flex items-center space-x-3 px-3 py-2 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                     >
                       <Settings className="w-4 h-4" />
                       <span className="text-sm">ตั้งค่าระบบ</span>
@@ -248,10 +302,10 @@ export default function Header() {
                   )}
                 </div>
 
-                <div className="border-t border-gray-200 p-2">
+                <div className="border-t border-gray-200 dark:border-slate-700 p-2">
                   <button
                     onClick={() => signOut()}
-                    className="w-full flex items-center space-x-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="w-full flex items-center space-x-3 px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                   >
                     <LogOut className="w-4 h-4" />
                     <span className="text-sm">ออกจากระบบ</span>

@@ -256,38 +256,38 @@ export default function CustomerForm({
 
         {/* Basic Info */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
             ชื่อร้าน/ชื่อลูกค้า <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="ชื่อร้าน/ชื่อลูกค้า"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">ผู้ติดต่อ</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ผู้ติดต่อ</label>
           <input
             type="text"
             value={formData.contact_person}
             onChange={(e) => setFormData(prev => ({ ...prev, contact_person: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="ชื่อผู้ติดต่อ"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">เบอร์โทร</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทร</label>
           <input
             type="tel"
             value={phoneDisplay}
             onChange={(e) => handlePhoneChange(e.target.value)}
             onBlur={() => setShowPhoneError(true)}
             onFocus={() => setShowPhoneError(false)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="0xx-xxx-xxxx"
           />
           {showPhoneError && formData.phone && !validatePhone(formData.phone) && (
@@ -296,11 +296,11 @@ export default function CustomerForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">ประเภทลูกค้า</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ประเภทลูกค้า</label>
           <select
             value={formData.customer_type}
             onChange={(e) => setFormData(prev => ({ ...prev, customer_type: e.target.value as 'retail' | 'wholesale' | 'distributor' }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="retail">ขายปลีก</option>
             <option value="wholesale">ขายส่ง</option>
@@ -310,7 +310,7 @@ export default function CustomerForm({
 
         {/* Shipping Address */}
         <div className="border-t pt-4">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+          <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3 flex items-center gap-2">
             <Truck className="w-4 h-4" />
             ที่อยู่จัดส่ง
           </h4>
@@ -328,59 +328,59 @@ export default function CustomerForm({
                 }))}
                 className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
               />
-              <span className="text-xs text-gray-600">มีหลายสาขา</span>
+              <span className="text-xs text-gray-600 dark:text-slate-400">มีหลายสาขา</span>
             </label>
 
             {/* Branch name - only show if has multiple branches */}
             {formData.has_multiple_branches && (
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">ชื่อสาขา/ที่อยู่</label>
+                <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">ชื่อสาขา/ที่อยู่</label>
                 <input
                   type="text"
                   value={formData.shipping_address_name}
                   onChange={(e) => setFormData(prev => ({ ...prev, shipping_address_name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   placeholder="เช่น สาขาหลัก, โกดังสินค้า"
                 />
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">ที่อยู่</label>
+              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">ที่อยู่</label>
               <textarea
                 value={formData.shipping_address}
                 onChange={(e) => setFormData(prev => ({ ...prev, shipping_address: e.target.value }))}
                 rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 placeholder="บ้านเลขที่ ซอย ถนน"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">จังหวัด</label>
+                <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">จังหวัด</label>
                 <input
                   type="text"
                   value={formData.shipping_province}
                   onChange={(e) => setFormData(prev => ({ ...prev, shipping_province: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   placeholder="จังหวัด"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">รหัสไปรษณีย์</label>
+                <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">รหัสไปรษณีย์</label>
                 <input
                   type="text"
                   value={formData.shipping_postal_code}
                   onChange={(e) => setFormData(prev => ({ ...prev, shipping_postal_code: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   placeholder="xxxxx"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1 flex items-center gap-1">
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400 mb-1 flex items-center gap-1">
                 <MapPin className="w-3 h-3" />
                 Google Maps Link
               </label>
@@ -389,7 +389,7 @@ export default function CustomerForm({
                   type="url"
                   value={formData.shipping_google_maps_link}
                   onChange={(e) => setFormData(prev => ({ ...prev, shipping_google_maps_link: e.target.value }))}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   placeholder="วาง link Google Maps"
                 />
                 {formData.shipping_google_maps_link && (
@@ -416,7 +416,7 @@ export default function CustomerForm({
               onChange={(e) => setFormData(prev => ({ ...prev, needs_tax_invoice: e.target.checked }))}
               className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
             />
-            <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
               <Building2 className="w-4 h-4" />
               ต้องการออกใบกำกับภาษี
             </span>
@@ -425,34 +425,34 @@ export default function CustomerForm({
           {formData.needs_tax_invoice && (
             <div className="mt-3 space-y-3 pl-6 border-l-2 border-blue-200">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
+                <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
                 <input
                   type="text"
                   value={formData.tax_company_name}
                   onChange={(e) => setFormData(prev => ({ ...prev, tax_company_name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   placeholder="บริษัท XXX จำกัด"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">เลขประจำตัวผู้เสียภาษี</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">เลขประจำตัวผู้เสียภาษี</label>
                   <input
                     type="text"
                     value={formData.tax_id}
                     onChange={(e) => setFormData(prev => ({ ...prev, tax_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     placeholder="X-XXXX-XXXXX-XX-X"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">สาขา</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">สาขา</label>
                   <input
                     type="text"
                     value={formData.tax_branch}
                     onChange={(e) => setFormData(prev => ({ ...prev, tax_branch: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     placeholder="สำนักงานใหญ่"
                   />
                 </div>
@@ -466,7 +466,7 @@ export default function CustomerForm({
                     onChange={(e) => setFormData(prev => ({ ...prev, billing_same_as_shipping: e.target.checked }))}
                     className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
                   />
-                  <span className="text-gray-600">ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง</span>
+                  <span className="text-gray-600 dark:text-slate-400">ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง</span>
                 </label>
 
                 {!formData.billing_same_as_shipping && (
@@ -475,7 +475,7 @@ export default function CustomerForm({
                       value={formData.billing_address}
                       onChange={(e) => setFormData(prev => ({ ...prev, billing_address: e.target.value }))}
                       rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                       placeholder="ที่อยู่ออกบิล"
                     />
                     <div className="grid grid-cols-2 gap-2">
@@ -483,14 +483,14 @@ export default function CustomerForm({
                         type="text"
                         value={formData.billing_province}
                         onChange={(e) => setFormData(prev => ({ ...prev, billing_province: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                         placeholder="จังหวัด"
                       />
                       <input
                         type="text"
                         value={formData.billing_postal_code}
                         onChange={(e) => setFormData(prev => ({ ...prev, billing_postal_code: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                         placeholder="รหัสไปรษณีย์"
                       />
                     </div>
@@ -502,12 +502,12 @@ export default function CustomerForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุ</label>
           <textarea
             value={formData.notes}
             onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
             rows={2}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="หมายเหตุเพิ่มเติม"
           />
         </div>
@@ -516,7 +516,7 @@ export default function CustomerForm({
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
           >
             ยกเลิก
           </button>
@@ -554,27 +554,27 @@ export default function CustomerForm({
 
       {/* Basic Information */}
       <div className="mb-6">
-        <h3 className="text-lg font-semibold mb-3 text-gray-700">ข้อมูลพื้นฐาน</h3>
+        <h3 className="text-lg font-semibold mb-3 text-gray-700 dark:text-slate-300">ข้อมูลพื้นฐาน</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
               ชื่อร้าน/ชื่อลูกค้า <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ประเภทลูกค้า</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ประเภทลูกค้า</label>
             <select
               value={formData.customer_type}
               onChange={(e) => setFormData(prev => ({ ...prev, customer_type: e.target.value as 'retail' | 'wholesale' | 'distributor' }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
             >
               <option value="retail">ขายปลีก</option>
               <option value="wholesale">ขายส่ง</option>
@@ -583,24 +583,24 @@ export default function CustomerForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ผู้ติดต่อ</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ผู้ติดต่อ</label>
             <input
               type="text"
               value={formData.contact_person}
               onChange={(e) => setFormData(prev => ({ ...prev, contact_person: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">เบอร์โทร</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทร</label>
             <input
               type="tel"
               value={phoneDisplay}
               onChange={(e) => handlePhoneChange(e.target.value)}
               onBlur={() => setShowPhoneError(true)}
               onFocus={() => setShowPhoneError(false)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
               placeholder="0xx-xxx-xxxx"
             />
             {showPhoneError && formData.phone && !validatePhone(formData.phone) && (
@@ -609,12 +609,12 @@ export default function CustomerForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">อีเมล</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อีเมล</label>
             <input
               type="email"
               value={formData.email}
               onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
             />
           </div>
         </div>
@@ -622,7 +622,7 @@ export default function CustomerForm({
 
       {/* Shipping Address - Primary */}
       <div className="mb-6">
-        <h3 className="text-lg font-semibold mb-3 text-gray-700 flex items-center gap-2">
+        <h3 className="text-lg font-semibold mb-3 text-gray-700 dark:text-slate-300 flex items-center gap-2">
           <Truck className="w-5 h-5" />
           ที่อยู่จัดส่ง
         </h3>
@@ -640,45 +640,45 @@ export default function CustomerForm({
                   // Reset to default if unchecking
                   shipping_address_name: e.target.checked ? prev.shipping_address_name : 'สาขาหลัก'
                 }))}
-                className="rounded border-gray-300 text-[#E9B308] focus:ring-[#E9B308]"
+                className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
               />
-              <span className="text-sm text-gray-700">มีหลายสาขา</span>
+              <span className="text-sm text-gray-700 dark:text-slate-300">มีหลายสาขา</span>
             </label>
           </div>
 
           {/* Branch name - only show if has multiple branches */}
           {formData.has_multiple_branches && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อสาขา/ที่อยู่</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อสาขา/ที่อยู่</label>
               <input
                 type="text"
                 value={formData.shipping_address_name}
                 onChange={(e) => setFormData(prev => ({ ...prev, shipping_address_name: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                 placeholder="เช่น สาขาหลัก, โกดังสินค้า"
               />
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ผู้รับสินค้า</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ผู้รับสินค้า</label>
             <input
               type="text"
               value={formData.shipping_contact_person}
               onChange={(e) => setFormData(prev => ({ ...prev, shipping_contact_person: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">เบอร์โทรผู้รับ</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทรผู้รับ</label>
             <input
               type="tel"
               value={shippingPhoneDisplay}
               onChange={(e) => handlePhoneChange(e.target.value, true)}
               onBlur={() => setShowShippingPhoneError(true)}
               onFocus={() => setShowShippingPhoneError(false)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
               placeholder="0xx-xxx-xxxx"
             />
             {showShippingPhoneError && formData.shipping_phone && !validatePhone(formData.shipping_phone) && (
@@ -687,58 +687,58 @@ export default function CustomerForm({
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">ที่อยู่จัดส่ง</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่จัดส่ง</label>
             <textarea
               value={formData.shipping_address}
               onChange={(e) => setFormData(prev => ({ ...prev, shipping_address: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
               rows={2}
               placeholder="บ้านเลขที่ ซอย ถนน"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ตำบล/แขวง</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ตำบล/แขวง</label>
             <input
               type="text"
               value={formData.shipping_district}
               onChange={(e) => setFormData(prev => ({ ...prev, shipping_district: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">อำเภอ/เขต</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อำเภอ/เขต</label>
             <input
               type="text"
               value={formData.shipping_amphoe}
               onChange={(e) => setFormData(prev => ({ ...prev, shipping_amphoe: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">จังหวัด</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">จังหวัด</label>
             <input
               type="text"
               value={formData.shipping_province}
               onChange={(e) => setFormData(prev => ({ ...prev, shipping_province: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">รหัสไปรษณีย์</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">รหัสไปรษณีย์</label>
             <input
               type="text"
               value={formData.shipping_postal_code}
               onChange={(e) => setFormData(prev => ({ ...prev, shipping_postal_code: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
             />
           </div>
 
           <div className="md:col-span-2">
-            <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+            <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 flex items-center gap-1">
               <MapPin className="w-4 h-4" />
               Google Maps Link
             </label>
@@ -747,7 +747,7 @@ export default function CustomerForm({
                 type="url"
                 value={formData.shipping_google_maps_link}
                 onChange={(e) => setFormData(prev => ({ ...prev, shipping_google_maps_link: e.target.value }))}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                 placeholder="วาง link Google Maps เพื่อให้พนักงานส่งของนำทางได้"
               />
               {formData.shipping_google_maps_link && (
@@ -768,11 +768,11 @@ export default function CustomerForm({
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุสำหรับการจัดส่ง</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุสำหรับการจัดส่ง</label>
             <textarea
               value={formData.shipping_delivery_notes}
               onChange={(e) => setFormData(prev => ({ ...prev, shipping_delivery_notes: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
               rows={2}
               placeholder="เช่น ส่งช่วงเช้า, โทรก่อนส่ง, ประตูสีเขียว"
             />
@@ -787,46 +787,46 @@ export default function CustomerForm({
             type="checkbox"
             checked={formData.needs_tax_invoice}
             onChange={(e) => setFormData(prev => ({ ...prev, needs_tax_invoice: e.target.checked }))}
-            className="rounded border-gray-300 text-[#E9B308] focus:ring-[#E9B308]"
+            className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
           />
-          <span className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+          <span className="text-lg font-semibold text-gray-700 dark:text-slate-300 flex items-center gap-2">
             <Building2 className="w-5 h-5" />
             ต้องการออกใบกำกับภาษี
           </span>
         </label>
 
         {formData.needs_tax_invoice && (
-          <div className="pl-6 border-l-2 border-[#E9B308] space-y-4">
+          <div className="pl-6 border-l-2 border-[#F4511E] space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
                 <input
                   type="text"
                   value={formData.tax_company_name}
                   onChange={(e) => setFormData(prev => ({ ...prev, tax_company_name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                   placeholder="บริษัท XXX จำกัด"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">เลขประจำตัวผู้เสียภาษี</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เลขประจำตัวผู้เสียภาษี</label>
                 <input
                   type="text"
                   value={formData.tax_id}
                   onChange={(e) => setFormData(prev => ({ ...prev, tax_id: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                   placeholder="X-XXXX-XXXXX-XX-X"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">สาขา</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">สาขา</label>
                 <input
                   type="text"
                   value={formData.tax_branch}
                   onChange={(e) => setFormData(prev => ({ ...prev, tax_branch: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                   placeholder="สำนักงานใหญ่ หรือ สาขาที่ XXXXX"
                 />
               </div>
@@ -839,61 +839,61 @@ export default function CustomerForm({
                   type="checkbox"
                   checked={formData.billing_same_as_shipping}
                   onChange={(e) => setFormData(prev => ({ ...prev, billing_same_as_shipping: e.target.checked }))}
-                  className="rounded border-gray-300 text-[#E9B308] focus:ring-[#E9B308]"
+                  className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
                 />
-                <span className="text-gray-700">ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง</span>
+                <span className="text-gray-700 dark:text-slate-300">ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง</span>
               </label>
 
               {!formData.billing_same_as_shipping && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ที่อยู่ออกบิล</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่ออกบิล</label>
                     <textarea
                       value={formData.billing_address}
                       onChange={(e) => setFormData(prev => ({ ...prev, billing_address: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       rows={2}
                       placeholder="บ้านเลขที่ ซอย ถนน"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ตำบล/แขวง</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ตำบล/แขวง</label>
                     <input
                       type="text"
                       value={formData.billing_district}
                       onChange={(e) => setFormData(prev => ({ ...prev, billing_district: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">อำเภอ/เขต</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อำเภอ/เขต</label>
                     <input
                       type="text"
                       value={formData.billing_amphoe}
                       onChange={(e) => setFormData(prev => ({ ...prev, billing_amphoe: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">จังหวัด</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">จังหวัด</label>
                     <input
                       type="text"
                       value={formData.billing_province}
                       onChange={(e) => setFormData(prev => ({ ...prev, billing_province: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">รหัสไปรษณีย์</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">รหัสไปรษณีย์</label>
                     <input
                       type="text"
                       value={formData.billing_postal_code}
                       onChange={(e) => setFormData(prev => ({ ...prev, billing_postal_code: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                     />
                   </div>
                 </div>
@@ -905,27 +905,27 @@ export default function CustomerForm({
 
       {/* Credit Terms */}
       <div className="mb-6">
-        <h3 className="text-lg font-semibold mb-3 text-gray-700">เงื่อนไขเครดิต</h3>
+        <h3 className="text-lg font-semibold mb-3 text-gray-700 dark:text-slate-300">เงื่อนไขเครดิต</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">วงเงินเครดิต (บาท)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">วงเงินเครดิต (บาท)</label>
             <input
               type="number"
               value={formData.credit_limit}
               onChange={(e) => setFormData(prev => ({ ...prev, credit_limit: parseFloat(e.target.value) || 0 }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
               min="0"
               step="0.01"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ระยะเวลาเครดิต (วัน)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ระยะเวลาเครดิต (วัน)</label>
             <input
               type="number"
               value={formData.credit_days}
               onChange={(e) => setFormData(prev => ({ ...prev, credit_days: parseInt(e.target.value) || 0 }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
               min="0"
             />
           </div>
@@ -934,11 +934,11 @@ export default function CustomerForm({
 
       {/* Notes */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุ</label>
         <textarea
           value={formData.notes}
           onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
           rows={3}
         />
       </div>
@@ -950,9 +950,9 @@ export default function CustomerForm({
             type="checkbox"
             checked={formData.is_active}
             onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
-            className="mr-2 rounded border-gray-300 text-[#E9B308] focus:ring-[#E9B308]"
+            className="mr-2 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
           />
-          <span className="text-sm font-medium text-gray-700">ใช้งาน</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-slate-300">ใช้งาน</span>
         </label>
       </div>
 
@@ -961,14 +961,14 @@ export default function CustomerForm({
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+          className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 dark:bg-slate-900"
           disabled={isLoading}
         >
           ยกเลิก
         </button>
         <button
           type="submit"
-          className="bg-[#E9B308] text-[#00231F] px-4 py-2 rounded-lg hover:bg-[#d4a307] disabled:opacity-50 flex items-center"
+          className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] disabled:opacity-50 flex items-center"
           disabled={isLoading}
         >
           {isLoading ? (

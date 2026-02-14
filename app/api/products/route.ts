@@ -1,6 +1,6 @@
 // Path: app/api/products/route.ts
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 // Type definitions
 interface ProductData {
@@ -48,44 +48,10 @@ function computeDisplayName(attrs: Record<string, string> | null | undefined): s
   return parts.join(' / ') || '';
 }
 
-// Create Supabase Admin client (service role)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-// Helper function: Check authentication
-async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string }> {
-  try {
-    const authHeader = request.headers.get('authorization');
-
-    if (!authHeader?.startsWith('Bearer ')) {
-      return { isAuth: false };
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-    if (error || !user) {
-      return { isAuth: false };
-    }
-
-    return { isAuth: true, userId: user.id };
-  } catch (error) {
-    console.error('Auth check error:', error);
-    return { isAuth: false };
-  }
-}
-
 // Helper: Check for duplicate SKU/Barcode across all product_variations
 // excludeProductId: skip variations belonging to this product (used in PUT/edit)
 async function checkDuplicateSkuBarcode(
+  companyId: string,
   skus: string[],
   barcodes: string[],
   excludeProductId?: string
@@ -98,6 +64,7 @@ async function checkDuplicateSkuBarcode(
     let query = supabaseAdmin
       .from('product_variations')
       .select('sku, product_id')
+      .eq('company_id', companyId)
       .in('sku', validSkus);
     if (excludeProductId) {
       query = query.neq('product_id', excludeProductId);
@@ -112,6 +79,7 @@ async function checkDuplicateSkuBarcode(
     let query = supabaseAdmin
       .from('product_variations')
       .select('barcode, product_id')
+      .eq('company_id', companyId)
       .in('barcode', validBarcodes);
     if (excludeProductId) {
       query = query.neq('product_id', excludeProductId);
@@ -128,11 +96,11 @@ async function checkDuplicateSkuBarcode(
 // POST - Create new product
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, userId } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -164,10 +132,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check if code already exists
+    // Check if code already exists within this company
     const { data: existingCode } = await supabaseAdmin
       .from('products')
       .select('id')
+      .eq('company_id', auth.companyId)
       .eq('code', productData.code)
       .single();
 
@@ -190,7 +159,7 @@ export async function POST(request: NextRequest) {
         if (v.barcode) allBarcodes.push(v.barcode);
       }
     }
-    const dupCheck = await checkDuplicateSkuBarcode(allSkus, allBarcodes);
+    const dupCheck = await checkDuplicateSkuBarcode(auth.companyId, allSkus, allBarcodes);
     if (dupCheck) {
       return NextResponse.json(
         { error: `${dupCheck.field} "${dupCheck.value}" ถูกใช้งานแล้วในสินค้าอื่น` },
@@ -200,6 +169,7 @@ export async function POST(request: NextRequest) {
 
     // Create product (minimal fields only - price/stock go in variations table)
     const productInsert: Record<string, unknown> = {
+      company_id: auth.companyId,
       code: productData.code,
       name: productData.name,
       description: productData.description || null,
@@ -207,7 +177,7 @@ export async function POST(request: NextRequest) {
       // For simple products, store bottle_size here (used by view to determine product_type)
       bottle_size: productData.product_type === 'simple' ? productData.bottle_size : null,
       is_active: productData.is_active !== undefined ? productData.is_active : true,
-      created_by: userId,
+      created_by: auth.userId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
@@ -239,6 +209,7 @@ export async function POST(request: NextRequest) {
       const { error: variationError } = await supabaseAdmin
         .from('product_variations')
         .insert({
+          company_id: auth.companyId,
           product_id: newProduct.id,
           bottle_size: productData.bottle_size,
           sku: productData.sku || null,
@@ -257,7 +228,8 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin
           .from('products')
           .delete()
-          .eq('id', newProduct.id);
+          .eq('id', newProduct.id)
+          .eq('company_id', auth.companyId);
 
         return NextResponse.json(
           { error: 'Failed to create simple product variation: ' + variationError.message },
@@ -267,6 +239,7 @@ export async function POST(request: NextRequest) {
     } else if (productData.product_type === 'variation' && productData.variations && productData.variations.length > 0) {
       // Variation product: create multiple variation rows
       const variationsToInsert = productData.variations.map(v => ({
+        company_id: auth.companyId,
         product_id: newProduct.id,
         // Auto-generate bottle_size from attributes, fallback to provided bottle_size
         bottle_size: v.attributes ? computeDisplayName(v.attributes) : v.bottle_size,
@@ -291,7 +264,8 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin
           .from('products')
           .delete()
-          .eq('id', newProduct.id);
+          .eq('id', newProduct.id)
+          .eq('company_id', auth.companyId);
 
         return NextResponse.json(
           { error: 'Failed to create variations: ' + variationsError.message },
@@ -305,6 +279,7 @@ export async function POST(request: NextRequest) {
       .from('product_variations')
       .select('id, bottle_size')
       .eq('product_id', newProduct.id)
+      .eq('company_id', auth.companyId)
       .order('created_at', { ascending: true });
 
     return NextResponse.json({
@@ -324,11 +299,11 @@ export async function POST(request: NextRequest) {
 // GET - Get products (with joins)
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -342,6 +317,7 @@ export async function GET(request: NextRequest) {
         .from('products_view')
         .select('*')
         .eq('id', productId)
+        .eq('company_id', auth.companyId)
         .single();
 
       if (error || !data) {
@@ -359,6 +335,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('products_with_variations')
       .select('*')
+      .eq('company_id', auth.companyId)
       .eq('is_active', true)
       .order('name', { ascending: true });
 
@@ -455,6 +432,7 @@ export async function GET(request: NextRequest) {
         .from('product_images')
         .select('product_id, image_url, sort_order')
         .in('product_id', productIds)
+        .eq('company_id', auth.companyId)
         .is('variation_id', null)
         .order('sort_order', { ascending: true });
 
@@ -483,6 +461,7 @@ export async function GET(request: NextRequest) {
           .from('product_images')
           .select('variation_id, image_url, sort_order')
           .in('variation_id', allVariationIds)
+          .eq('company_id', auth.companyId)
           .order('sort_order', { ascending: true });
 
         if (varImages) {
@@ -517,11 +496,11 @@ export async function GET(request: NextRequest) {
 // PUT - Update product
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -551,6 +530,7 @@ export async function PUT(request: NextRequest) {
       const { data: existingCode } = await supabaseAdmin
         .from('products')
         .select('id')
+        .eq('company_id', auth.companyId)
         .eq('code', code)
         .neq('id', id)
         .single();
@@ -575,7 +555,7 @@ export async function PUT(request: NextRequest) {
       }
     }
     if (putSkus.length > 0 || putBarcodes.length > 0) {
-      const dupCheck = await checkDuplicateSkuBarcode(putSkus, putBarcodes, id);
+      const dupCheck = await checkDuplicateSkuBarcode(auth.companyId, putSkus, putBarcodes, id);
       if (dupCheck) {
         return NextResponse.json(
           { error: `${dupCheck.field} "${dupCheck.value}" ถูกใช้งานแล้วในสินค้าอื่น` },
@@ -605,6 +585,7 @@ export async function PUT(request: NextRequest) {
       .from('products')
       .update(updateData)
       .eq('id', id)
+      .eq('company_id', auth.companyId)
       .select()
       .single();
 
@@ -631,6 +612,7 @@ export async function PUT(request: NextRequest) {
           .from('product_variations')
           .select('id')
           .eq('product_id', id)
+          .eq('company_id', auth.companyId)
           .single();
 
         if (existingVariation) {
@@ -647,7 +629,8 @@ export async function PUT(request: NextRequest) {
           await supabaseAdmin
             .from('product_variations')
             .update(variationUpdate)
-            .eq('id', existingVariation.id);
+            .eq('id', existingVariation.id)
+            .eq('company_id', auth.companyId);
         }
       }
     } else {
@@ -657,7 +640,8 @@ export async function PUT(request: NextRequest) {
         const { data: existingVariations } = await supabaseAdmin
           .from('product_variations')
           .select('id, bottle_size')
-          .eq('product_id', id);
+          .eq('product_id', id)
+          .eq('company_id', auth.companyId);
 
         const existingIds = existingVariations?.map(v => v.id) || [];
         const providedIds = variations.filter(v => v.id).map(v => v.id);
@@ -668,7 +652,8 @@ export async function PUT(request: NextRequest) {
           await supabaseAdmin
             .from('product_variations')
             .delete()
-            .in('id', toDelete);
+            .in('id', toDelete)
+            .eq('company_id', auth.companyId);
         }
 
         // Update or insert variations
@@ -694,12 +679,14 @@ export async function PUT(request: NextRequest) {
                 attributes: variation.attributes || null,
                 updated_at: new Date().toISOString()
               })
-              .eq('id', variation.id);
+              .eq('id', variation.id)
+              .eq('company_id', auth.companyId);
           } else {
             // Insert new
             await supabaseAdmin
               .from('product_variations')
               .insert({
+                company_id: auth.companyId,
                 product_id: id,
                 bottle_size: displayName,
                 sku: variation.sku || null,
@@ -723,6 +710,7 @@ export async function PUT(request: NextRequest) {
       .from('products_with_variations')
       .select('*')
       .eq('product_id', id)
+      .eq('company_id', auth.companyId)
       .single();
 
     return NextResponse.json({
@@ -740,11 +728,11 @@ export async function PUT(request: NextRequest) {
 // DELETE - Deactivate product (soft delete)
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const auth = await checkAuthWithCompany(request);
 
-    if (!isAuth) {
+    if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json(
-        { error: 'Unauthorized. Login required.' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -766,7 +754,8 @@ export async function DELETE(request: NextRequest) {
         is_active: false,
         updated_at: new Date().toISOString()
       })
-      .eq('id', productId);
+      .eq('id', productId)
+      .eq('company_id', auth.companyId);
 
     if (error) {
       console.error('Error deactivating product:', error);
@@ -783,7 +772,8 @@ export async function DELETE(request: NextRequest) {
         is_active: false,
         updated_at: new Date().toISOString()
       })
-      .eq('product_id', productId);
+      .eq('product_id', productId)
+      .eq('company_id', auth.companyId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

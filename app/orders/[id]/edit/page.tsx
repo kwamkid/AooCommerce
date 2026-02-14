@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api-client';
 import {
   ArrowLeft,
   Plus,
@@ -183,18 +183,9 @@ export default function EditOrderPage() {
   const fetchOrderAndInitialize = async () => {
     try {
       setLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        throw new Error('No session');
-      }
 
       // Fetch order details
-      const response = await fetch(`/api/orders?id=${orderId}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
+      const response = await apiFetch(`/api/orders?id=${orderId}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch order');
@@ -290,14 +281,7 @@ export default function EditOrderPage() {
 
   const fetchProducts = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const response = await fetch('/api/products', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
+      const response = await apiFetch('/api/products');
 
       if (!response.ok) throw new Error('Failed to fetch products');
 
@@ -346,14 +330,7 @@ export default function EditOrderPage() {
 
   const fetchShippingAddresses = async (customerId: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const response = await fetch(`/api/shipping-addresses?customer_id=${customerId}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
+      const response = await apiFetch(`/api/shipping-addresses?customer_id=${customerId}`);
 
       if (response.ok) {
         const result = await response.json();
@@ -367,12 +344,7 @@ export default function EditOrderPage() {
 
   const fetchCustomerPrices = async (customerId: string) => {
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const response = await fetch(`/api/customer-prices?customer_id=${customerId}`, {
-        headers: {
-          'Authorization': `Bearer ${sessionData?.session?.access_token || ''}`
-        }
-      });
+      const response = await apiFetch(`/api/customer-prices?customer_id=${customerId}`);
 
       if (response.ok) {
         const result = await response.json();
@@ -590,11 +562,6 @@ export default function EditOrderPage() {
       setSaving(true);
       setError('');
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No session');
-      }
-
       // Convert branch-first structure to flat order items
       const items = branchOrders.flatMap(branch =>
         branch.products.map(product => ({
@@ -625,11 +592,10 @@ export default function EditOrderPage() {
         items
       };
 
-      const response = await fetch('/api/orders', {
+      const response = await apiFetch('/api/orders', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify(orderData)
       });
@@ -656,7 +622,7 @@ export default function EditOrderPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
         </div>
       </Layout>
     );
@@ -670,11 +636,11 @@ export default function EditOrderPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push(`/orders/${orderId}`)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-6 h-6 text-gray-600" />
             </button>
-            <h1 className="text-3xl font-bold text-gray-900">แก้ไขคำสั่งซื้อ</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">แก้ไขคำสั่งซื้อ</h1>
           </div>
 
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex items-start gap-4">
@@ -688,13 +654,13 @@ export default function EditOrderPage() {
           <div className="flex gap-3">
             <button
               onClick={() => router.push('/orders')}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-6 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
             >
               กลับไปหน้ารายการคำสั่งซื้อ
             </button>
             <button
               onClick={() => router.push(`/orders/${orderId}`)}
-              className="bg-[#E9B308] text-[#00231F] px-6 py-2 rounded-lg hover:bg-[#d4a307] transition-colors"
+              className="bg-[#F4511E] text-white px-6 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors"
             >
               ดูรายละเอียดคำสั่งซื้อ
             </button>
@@ -712,12 +678,12 @@ export default function EditOrderPage() {
           <button
             type="button"
             onClick={() => router.push('/orders')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-6 h-6 text-gray-600" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
               แก้ไขคำสั่งซื้อ #{originalOrder?.order_number}
             </h1>
             {originalOrder && (
@@ -747,27 +713,27 @@ export default function EditOrderPage() {
         )}
 
         {/* Customer Information (Read-only) */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-lg font-semibold mb-4">ข้อมูลลูกค้า</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="text-sm text-gray-600 mb-1">ชื่อลูกค้า</div>
+            <div className="bg-gray-50 dark:bg-slate-700/50 p-4 rounded-lg">
+              <div className="text-sm text-gray-600 dark:text-slate-400 mb-1">ชื่อลูกค้า</div>
               <div className="font-medium">{selectedCustomer?.name}</div>
-              <div className="text-sm text-gray-500">{selectedCustomer?.customer_code}</div>
+              <div className="text-sm text-gray-500 dark:text-slate-400">{selectedCustomer?.customer_code}</div>
             </div>
 
             {selectedCustomer && (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="text-sm text-gray-600 mb-1">ผู้ติดต่อ</div>
-                <div className="font-medium">{selectedCustomer.contact_person || '-'}</div>
-                <div className="text-sm text-gray-600">{selectedCustomer.phone || '-'}</div>
+              <div className="bg-gray-50 dark:bg-slate-700/50 p-4 rounded-lg">
+                <div className="text-sm text-gray-600 dark:text-slate-400 mb-1">ผู้ติดต่อ</div>
+                <div className="font-medium dark:text-white">{selectedCustomer.contact_person || '-'}</div>
+                <div className="text-sm text-gray-600 dark:text-slate-400">{selectedCustomer.phone || '-'}</div>
               </div>
             )}
           </div>
 
           {selectedCustomer && shippingAddresses.length > 0 && (
             <div className="mt-4">
-              <div className="text-sm text-gray-600 mb-2">ที่อยู่จัดส่ง ({shippingAddresses.length} แห่ง)</div>
+              <div className="text-sm text-gray-600 dark:text-slate-400 mb-2">ที่อยู่จัดส่ง ({shippingAddresses.length} แห่ง)</div>
               <div className="flex flex-wrap gap-2">
                 {shippingAddresses.map(addr => (
                   <div key={addr.id} className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm flex items-center gap-1">
@@ -782,7 +748,7 @@ export default function EditOrderPage() {
 
         {/* Branch Orders */}
         {selectedCustomer && branchOrders.length > 0 && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 overflow-visible">
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6 overflow-visible">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">รายการสินค้าแยกตามสาขา</h2>
               <button
@@ -805,7 +771,7 @@ export default function EditOrderPage() {
                     onClick={() => setActiveBranchIndex(index)}
                     className={`px-4 py-2 font-medium whitespace-nowrap border-b-2 transition-colors ${
                       activeBranchIndex === index
-                        ? 'border-[#E9B308] text-[#E9B308]'
+                        ? 'border-[#F4511E] text-[#F4511E]'
                         : 'border-transparent text-gray-600 hover:text-gray-900'
                     }`}
                   >
@@ -836,7 +802,7 @@ export default function EditOrderPage() {
                       <select
                         value={branch.shipping_address_id}
                         onChange={(e) => handleUpdateBranchAddress(branchIndex, e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       >
                         {shippingAddresses.map(addr => (
                           <option key={addr.id} value={addr.id}>
@@ -858,7 +824,7 @@ export default function EditOrderPage() {
                           value={branch.shipping_fee || ''}
                           onChange={(e) => handleUpdateBranchShippingFee(branchIndex, parseFloat(e.target.value) || 0)}
                           placeholder="0.00"
-                          className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                          className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                         />
                       </div>
                     </div>
@@ -871,7 +837,7 @@ export default function EditOrderPage() {
                         value={branch.delivery_notes}
                         onChange={(e) => handleUpdateBranchNotes(branchIndex, e.target.value)}
                         placeholder="หมายเหตุสำหรับสาขานี้..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                       />
                     </div>
                   </div>
@@ -907,7 +873,7 @@ export default function EditOrderPage() {
                         <tr key={product.variation_id}>
                           <td className="px-4 py-3">
                             <div className="font-medium">{product.product_name}</div>
-                            <div className="text-sm text-gray-500">{product.product_code}</div>
+                            <div className="text-sm text-gray-500 dark:text-slate-400">{product.product_code}</div>
                           </td>
                           <td className="px-4 py-3 text-center">
                             <input
@@ -919,7 +885,7 @@ export default function EditOrderPage() {
                               min="1"
                               value={product.quantity}
                               onChange={(e) => handleUpdateProductQuantity(branchIndex, productIndex, parseInt(e.target.value) || 1)}
-                              className="w-20 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                              className="w-20 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                             />
                           </td>
                           <td className="px-4 py-3 text-right">
@@ -929,7 +895,7 @@ export default function EditOrderPage() {
                               step="0.01"
                               value={product.unit_price}
                               onChange={(e) => handleUpdateProductPrice(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
-                              className="w-full px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                             />
                           </td>
                           <td className="px-4 py-3 text-center">
@@ -940,7 +906,7 @@ export default function EditOrderPage() {
                               step="0.01"
                               value={product.discount_percent}
                               onChange={(e) => handleUpdateProductDiscount(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
-                              className="w-20 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                              className="w-20 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                             />
                           </td>
                           <td className="px-4 py-3 text-right font-medium">
@@ -964,7 +930,7 @@ export default function EditOrderPage() {
                 {/* Add Product Search - Below table, aligned with product column */}
                 <div className="mt-4">
                   <div className="relative inline-block w-auto min-w-[300px]">
-                    <div className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-[#E9B308] transition-colors bg-white">
+                    <div className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-[#F4511E] transition-colors bg-white">
                       <Plus className="w-5 h-5 text-gray-400 flex-shrink-0" />
                       <input
                         type="text"
@@ -996,12 +962,12 @@ export default function EditOrderPage() {
                       />
                     </div>
                     {showProductDropdowns[branchIndex] && productSearches[branchIndex] && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-auto">
                         {products.filter(p =>
                           p.name.toLowerCase().includes(productSearches[branchIndex].toLowerCase()) ||
                           p.code.toLowerCase().includes(productSearches[branchIndex].toLowerCase())
                         ).length === 0 ? (
-                          <div className="px-4 py-3 text-sm text-gray-500">ไม่พบสินค้า</div>
+                          <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">ไม่พบสินค้า</div>
                         ) : (
                           products
                             .filter(p =>
@@ -1013,10 +979,10 @@ export default function EditOrderPage() {
                                 key={product.id}
                                 type="button"
                                 onClick={() => handleAddProductToBranch(branchIndex, product)}
-                                className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors"
+                                className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
                               >
                                 <div className="font-medium">{product.name}</div>
-                                <div className="text-sm text-gray-500">
+                                <div className="text-sm text-gray-500 dark:text-slate-400">
                                   {product.code} • คงเหลือ: {product.stock}
                                 </div>
                               </button>
@@ -1028,7 +994,7 @@ export default function EditOrderPage() {
                 </div>
 
                 {branch.products.length === 0 && (
-                  <div className="text-center py-12 text-gray-500">
+                  <div className="text-center py-12 text-gray-500 dark:text-slate-400">
                     <Package className="w-12 h-12 mx-auto mb-2 text-gray-400" />
                     <p>ยังไม่มีสินค้าในสาขานี้</p>
                     <p className="text-sm">ค้นหาและเพิ่มสินค้าด้านบน</p>
@@ -1044,7 +1010,7 @@ export default function EditOrderPage() {
                         <span className="text-gray-400 font-normal ml-2">(รวมค่าส่ง ฿{branch.shipping_fee.toLocaleString('th-TH', { minimumFractionDigits: 2 })})</span>
                       )}
                     </span>
-                    <span className="text-lg font-bold text-[#E9B308]">
+                    <span className="text-lg font-bold text-[#F4511E]">
                       ฿{(calculateBranchTotal(branch) + (branch.shipping_fee || 0)).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -1056,7 +1022,7 @@ export default function EditOrderPage() {
 
         {/* Order Summary and Details */}
         {branchOrders.length > 0 && branchOrders.some(b => b.products.length > 0) && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Left Column (Desktop) / Second on Mobile - Delivery & Payment Info */}
               <div className="order-2 md:order-1 space-y-4">
@@ -1069,7 +1035,7 @@ export default function EditOrderPage() {
                     value={deliveryDate}
                     onChange={(e) => setDeliveryDate(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                   />
                 </div>
                 <div>
@@ -1080,7 +1046,7 @@ export default function EditOrderPage() {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                     placeholder="หมายเหตุสำหรับลูกค้า..."
                   />
                 </div>
@@ -1092,7 +1058,7 @@ export default function EditOrderPage() {
                     value={internalNotes}
                     onChange={(e) => setInternalNotes(e.target.value)}
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                     placeholder="หมายเหตุภายใน (ไม่แสดงให้ลูกค้า)..."
                   />
                 </div>
@@ -1102,12 +1068,12 @@ export default function EditOrderPage() {
               <div className="order-1 md:order-2">
                 <h2 className="text-lg font-semibold mb-4">สรุปคำสั่งซื้อ</h2>
                 <div className="space-y-3">
-                  <div className="flex justify-between text-sm text-gray-600">
+                  <div className="flex justify-between text-sm text-gray-600 dark:text-slate-400">
                     <span>ยอดรวมสินค้า (รวม VAT)</span>
                     <span>฿{itemsTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
                   </div>
                   {totalShippingFee > 0 && (
-                    <div className="flex justify-between text-sm text-gray-600">
+                    <div className="flex justify-between text-sm text-gray-600 dark:text-slate-400">
                       <span>ค่าจัดส่ง</span>
                       <span>฿{totalShippingFee.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
                     </div>
@@ -1120,20 +1086,20 @@ export default function EditOrderPage() {
                       step="0.01"
                       value={orderDiscount}
                       onChange={(e) => setOrderDiscount(parseFloat(e.target.value) || 0)}
-                      className="w-32 px-3 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-2 focus:ring-[#E9B308]"
+                      className="w-32 px-3 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                     />
                   </div>
                   <div className="flex justify-between text-sm text-gray-600 pt-2 border-t">
                     <span>ยอดก่อน VAT</span>
                     <span>฿{subtotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
                   </div>
-                  <div className="flex justify-between text-sm text-gray-600">
+                  <div className="flex justify-between text-sm text-gray-600 dark:text-slate-400">
                     <span>VAT 7%</span>
                     <span>฿{vat.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex justify-between text-xl font-bold pt-3 border-t">
                     <span>ยอดรวมสุทธิ</span>
-                    <span className="text-[#E9B308]">฿{total.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                    <span className="text-[#F4511E]">฿{total.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </div>
@@ -1147,7 +1113,7 @@ export default function EditOrderPage() {
             <button
               type="button"
               onClick={() => router.push('/orders')}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
             >
               <X className="w-5 h-5" />
               ยกเลิก
@@ -1155,7 +1121,7 @@ export default function EditOrderPage() {
             <button
               type="submit"
               disabled={saving}
-              className="bg-[#E9B308] text-[#00231F] px-6 py-2 rounded-lg hover:bg-[#d4a307] transition-colors flex items-center gap-2 disabled:opacity-50"
+              className="bg-[#F4511E] text-white px-6 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50"
             >
               {saving ? (
                 <>

@@ -4,6 +4,7 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { apiFetch } from '@/lib/api-client';
 import Layout from '@/components/layout/Layout';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
@@ -141,11 +142,7 @@ export default function SalesReportPage() {
       console.log('Fetching sales report with params:', params.toString());
       console.log('Session token exists:', !!session.access_token);
 
-      const response = await fetch(`/api/reports/sales?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
+      const response = await apiFetch(`/api/reports/sales?${params}`);
 
       console.log('Response status:', response.status);
 
@@ -264,9 +261,9 @@ export default function SalesReportPage() {
 
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#00231F]">
+      <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#E9B308] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังตรวจสอบสิทธิ์...</p>
         </div>
       </div>
@@ -280,17 +277,17 @@ export default function SalesReportPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <div className="flex items-center gap-3 mb-4 sm:mb-0">
-          <BarChart3 className="w-8 h-8 text-[#E9B308]" />
+          <BarChart3 className="w-8 h-8 text-[#F4511E]" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">รายงานยอดขาย</h1>
-            <p className="text-gray-600">วิเคราะห์ยอดขายตามช่วงเวลา</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">รายงานยอดขาย</h1>
+            <p className="text-gray-600 dark:text-slate-400">วิเคราะห์ยอดขายตามช่วงเวลา</p>
           </div>
         </div>
 
         <button
           onClick={exportToCSV}
           disabled={exporting || loading}
-          className="flex items-center gap-2 px-4 py-2 bg-[#E9B308] text-[#00231F] rounded-lg hover:bg-[#d4a307] transition-colors font-medium disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium disabled:opacity-50"
         >
           {exporting ? (
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -302,7 +299,7 @@ export default function SalesReportPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Date Range Picker */}
           <div>
@@ -328,7 +325,7 @@ export default function SalesReportPage() {
                   onClick={() => setGroupBy(option.value as GroupBy)}
                   className={`flex items-center gap-1.5 px-4 h-[42px] rounded-lg text-sm font-medium transition-colors ${
                     groupBy === option.value
-                      ? 'bg-[#00231F] text-white'
+                      ? 'bg-[#1A1A2E] text-white'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
@@ -344,50 +341,50 @@ export default function SalesReportPage() {
       {/* Summary Cards */}
       {summary && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-blue-600" />
+                <TrendingUp className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-500">ยอดขายสุทธิ</p>
-                <p className="text-xl font-bold text-gray-900">{formatCurrency(summary.totalNet)}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">ยอดขายสุทธิ</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(summary.totalNet)}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                 <CheckCircle className="w-6 h-6 text-green-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-500">ชำระแล้ว</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">ชำระแล้ว</p>
                 <p className="text-xl font-bold text-green-600">{formatCurrency(summary.paidAmount)}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
                 <Clock className="w-6 h-6 text-orange-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-500">รอชำระ</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">รอชำระ</p>
                 <p className="text-xl font-bold text-orange-600">{formatCurrency(summary.pendingAmount)}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                 <Banknote className="w-6 h-6 text-purple-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-500">Order ({summary.totalOrders})</p>
-                <p className="text-xl font-bold text-gray-900">เฉลี่ย {formatCurrency(summary.averageOrderValue)}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Order ({summary.totalOrders})</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">เฉลี่ย {formatCurrency(summary.averageOrderValue)}</p>
               </div>
             </div>
           </div>
@@ -398,13 +395,13 @@ export default function SalesReportPage() {
       <div className="data-table-wrap-shadow">
         {loading ? (
           <div className="p-8 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-[#E9B308]" />
-            <p className="text-gray-500">กำลังโหลดข้อมูล...</p>
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-[#F4511E]" />
+            <p className="text-gray-500 dark:text-slate-400">กำลังโหลดข้อมูล...</p>
           </div>
         ) : groupedData.length === 0 ? (
           <div className="p-8 text-center">
             <BarChart3 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500">ไม่พบข้อมูลในช่วงเวลานี้</p>
+            <p className="text-gray-500 dark:text-slate-400">ไม่พบข้อมูลในช่วงเวลานี้</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -445,17 +442,17 @@ export default function SalesReportPage() {
                 {groupBy === 'date' && groupedData.map((item: GroupedDataByDate, index: number) => (
                   <Fragment key={item.date || `date-${index}`}>
                     <tr
-                      className="hover:bg-gray-50 cursor-pointer"
+                      className="hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer"
                       onClick={() => toggleRow(item.date || `date-${index}`)}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-gray-400" />
-                          <span className="font-medium text-gray-900">{item.date ? formatDate(item.date) : 'ไม่ระบุ'}</span>
+                          <span className="font-medium text-gray-900 dark:text-white">{item.date ? formatDate(item.date) : 'ไม่ระบุ'}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center text-gray-900">{item.orderCount}</td>
-                      <td className="px-6 py-4 text-right font-semibold text-gray-900">{formatCurrency(item.totalAmount)}</td>
+                      <td className="px-6 py-4 text-center text-gray-900 dark:text-white">{item.orderCount}</td>
+                      <td className="px-6 py-4 text-right font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount)}</td>
                       <td className="px-6 py-4 text-right text-green-600">{formatCurrency(item.paidAmount)}</td>
                       <td className="px-6 py-4 text-right text-orange-600">{formatCurrency(item.pendingAmount)}</td>
                       <td className="px-6 py-4">
@@ -467,12 +464,12 @@ export default function SalesReportPage() {
                       </td>
                     </tr>
                     {expandedRows.has(item.date || `date-${index}`) && item.orders.map((order) => (
-                      <tr key={order.id} className="bg-gray-50">
+                      <tr key={order.id} className="bg-gray-50 dark:bg-slate-900">
                         <td className="px-6 py-3 pl-12">
-                          <span className="text-sm text-gray-600">{order.orderNumber}</span>
+                          <span className="text-sm text-gray-600 dark:text-slate-400">{order.orderNumber}</span>
                         </td>
-                        <td className="px-6 py-3 text-center text-sm text-gray-600">{order.customerName}</td>
-                        <td className="px-6 py-3 text-right text-sm text-gray-900">{formatCurrency(order.totalAmount)}</td>
+                        <td className="px-6 py-3 text-center text-sm text-gray-600 dark:text-slate-400">{order.customerName}</td>
+                        <td className="px-6 py-3 text-right text-sm text-gray-900 dark:text-white">{formatCurrency(order.totalAmount)}</td>
                         <td className="px-6 py-3 text-right" colSpan={2}>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                             order.paymentStatus === 'paid'
@@ -491,17 +488,17 @@ export default function SalesReportPage() {
                 {groupBy === 'customer' && groupedData.map((item: GroupedDataByCustomer, index: number) => (
                   <Fragment key={item.customerId || `customer-${index}`}>
                     <tr
-                      className="hover:bg-gray-50 cursor-pointer"
+                      className="hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer"
                       onClick={() => toggleRow(item.customerId || `customer-${index}`)}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <div className="font-medium text-gray-900">{item.customerName}</div>
-                          <div className="text-sm text-gray-500">{item.customerCode}</div>
+                          <div className="font-medium text-gray-900 dark:text-white">{item.customerName}</div>
+                          <div className="text-sm text-gray-500 dark:text-slate-400">{item.customerCode}</div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center text-gray-900">{item.orderCount}</td>
-                      <td className="px-6 py-4 text-right font-semibold text-gray-900">{formatCurrency(item.totalAmount)}</td>
+                      <td className="px-6 py-4 text-center text-gray-900 dark:text-white">{item.orderCount}</td>
+                      <td className="px-6 py-4 text-right font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount)}</td>
                       <td className="px-6 py-4 text-right text-green-600">{formatCurrency(item.paidAmount)}</td>
                       <td className="px-6 py-4 text-right text-orange-600">{formatCurrency(item.pendingAmount)}</td>
                       <td className="px-6 py-4">
@@ -513,12 +510,12 @@ export default function SalesReportPage() {
                       </td>
                     </tr>
                     {expandedRows.has(item.customerId || `customer-${index}`) && item.orders.map((order) => (
-                      <tr key={order.id} className="bg-gray-50">
+                      <tr key={order.id} className="bg-gray-50 dark:bg-slate-900">
                         <td className="px-6 py-3 pl-12">
-                          <span className="text-sm text-gray-600">{order.orderNumber}</span>
+                          <span className="text-sm text-gray-600 dark:text-slate-400">{order.orderNumber}</span>
                         </td>
-                        <td className="px-6 py-3 text-center text-sm text-gray-600">{formatDate(order.orderDate)}</td>
-                        <td className="px-6 py-3 text-right text-sm text-gray-900">{formatCurrency(order.totalAmount)}</td>
+                        <td className="px-6 py-3 text-center text-sm text-gray-600 dark:text-slate-400">{formatDate(order.orderDate)}</td>
+                        <td className="px-6 py-3 text-right text-sm text-gray-900 dark:text-white">{formatCurrency(order.totalAmount)}</td>
                         <td className="px-6 py-3 text-right" colSpan={2}>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                             order.paymentStatus === 'paid'
@@ -535,22 +532,22 @@ export default function SalesReportPage() {
                 ))}
 
                 {groupBy === 'product' && groupedData.map((item: GroupedDataByProduct, index: number) => (
-                  <tr key={`${item.productCode || 'unknown'}-${item.bottleSize || 'unknown'}-${index}`} className="hover:bg-gray-50">
+                  <tr key={`${item.productCode || 'unknown'}-${item.bottleSize || 'unknown'}-${index}`} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 dark:bg-slate-900">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <div className="font-medium text-gray-900">{item.productName}</div>
-                        <div className="text-sm text-gray-500">{item.productCode}</div>
+                        <div className="font-medium text-gray-900 dark:text-white">{item.productName}</div>
+                        <div className="text-sm text-gray-500 dark:text-slate-400">{item.productCode}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:text-blue-400">
                         {item.bottleSize}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center font-semibold text-gray-900">
+                    <td className="px-6 py-4 text-center font-semibold text-gray-900 dark:text-white">
                       {(item.totalQuantity || 0).toLocaleString()} ขวด
                     </td>
-                    <td className="px-6 py-4 text-right font-semibold text-gray-900">{formatCurrency(item.totalAmount || 0)}</td>
+                    <td className="px-6 py-4 text-right font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount || 0)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -558,21 +555,21 @@ export default function SalesReportPage() {
               {/* Total Footer */}
               <tfoot className="data-tfoot">
                 <tr>
-                  <td className="px-6 py-4 font-bold text-gray-900" colSpan={groupBy === 'product' ? 2 : 2}>
+                  <td className="px-6 py-4 font-bold text-gray-900 dark:text-white" colSpan={groupBy === 'product' ? 2 : 2}>
                     รวมทั้งหมด
                   </td>
                   {groupBy === 'product' ? (
                     <>
-                      <td className="px-6 py-4 text-center font-bold text-gray-900">
+                      <td className="px-6 py-4 text-center font-bold text-gray-900 dark:text-white">
                         {groupedData.reduce((sum: number, item: GroupedDataByProduct) => sum + (item.totalQuantity || 0), 0).toLocaleString()} ขวด
                       </td>
-                      <td className="px-6 py-4 text-right font-bold text-gray-900">
+                      <td className="px-6 py-4 text-right font-bold text-gray-900 dark:text-white">
                         {formatCurrency(summary?.totalNet || 0)}
                       </td>
                     </>
                   ) : (
                     <>
-                      <td className="px-6 py-4 text-right font-bold text-gray-900">
+                      <td className="px-6 py-4 text-right font-bold text-gray-900 dark:text-white">
                         {formatCurrency(summary?.totalNet || 0)}
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-green-600">

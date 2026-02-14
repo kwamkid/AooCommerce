@@ -1,13 +1,76 @@
 // Path: src/types/index.ts
 
-// User & Authentication Types
-export type UserRole = 'admin' | 'manager' | 'operation' | 'sales';
+// Company & Multi-Tenant Types
+export type CompanyRole = 'owner' | 'admin' | 'manager' | 'account' | 'warehouse' | 'sales';
+
+// UserRole is an alias for CompanyRole (single source of truth)
+export type UserRole = CompanyRole;
+
+export interface Company {
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl: string | null;
+  description?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  taxId?: string;
+  taxCompanyName?: string;
+  taxBranch?: string;
+  website?: string;
+  isActive: boolean;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CompanyMembership {
+  companyId: string;
+  role: CompanyRole;
+  company: Company;
+}
+
+export interface CompanyInvitation {
+  id: string;
+  companyId: string;
+  email: string;
+  role: CompanyRole;
+  token: string;
+  status: 'pending' | 'accepted' | 'expired' | 'cancelled';
+  invitedBy: string;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+export interface Package {
+  id: string;
+  name: string;
+  slug: string;
+  maxCompanies: number | null;
+  maxMembersPerCompany: number | null;
+  priceMonthly: number;
+  priceYearly: number;
+  features: Record<string, unknown>;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface UserSubscription {
+  id: string;
+  userId: string;
+  packageId: string;
+  package?: Package;
+  status: 'active' | 'cancelled' | 'expired';
+  startedAt: Date;
+  expiresAt?: Date;
+}
 
 export interface UserProfile {
   id: string;
   email: string;
   name: string;
-  role: UserRole;
+  role: CompanyRole;
   lineUserId?: string;
   phone?: string;
   avatar?: string;

@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api-client';
 import { getImageUrl } from '@/lib/utils/image';
 import {
   Plus,
@@ -86,7 +86,7 @@ function ActiveBadge({ isActive }: { isActive: boolean }) {
       <span className="text-sm">ใช้งาน</span>
     </span>
   ) : (
-    <span className="flex items-center text-gray-600">
+    <span className="flex items-center text-gray-600 dark:text-slate-400">
       <X className="w-4 h-4 mr-1" />
       <span className="text-sm">ปิดใช้งาน</span>
     </span>
@@ -124,6 +124,9 @@ export default function ProductsPage() {
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const columnSettingsRef = useRef<HTMLDivElement>(null);
 
+  // Lightbox state
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
   // Close column settings on click outside
   useEffect(() => {
     if (!showColumnSettings) return;
@@ -135,6 +138,16 @@ export default function ProductsPage() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showColumnSettings]);
+
+  // Close lightbox on ESC
+  useEffect(() => {
+    if (!lightboxImage) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxImage(null);
+    };
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [lightboxImage]);
 
   const toggleColumn = (key: ColumnKey) => {
     const config = COLUMN_CONFIGS.find(c => c.key === key);
@@ -153,12 +166,7 @@ export default function ProductsPage() {
   // Fetch products
   const fetchData = async () => {
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token || '';
-
-      const response = await fetch('/api/products', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await apiFetch('/api/products');
       const data = await response.json();
       setProductsList(data.products || []);
       setDataFetched(true);
@@ -179,11 +187,8 @@ export default function ProductsPage() {
   const handleDelete = async (product: ProductItem) => {
     if (!confirm(`คุณต้องการลบ ${product.name} หรือไม่?`)) return;
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token || '';
-      const response = await fetch(`/api/products?id=${product.product_id}`, {
+      const response = await apiFetch(`/api/products?id=${product.product_id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'ไม่สามารถลบได้');
@@ -238,9 +243,9 @@ export default function ProductsPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#00231F]">
+      <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#E9B308] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังโหลดข้อมูล...</p>
         </div>
       </div>
@@ -257,12 +262,12 @@ export default function ProductsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">สินค้า</h1>
-            <p className="text-gray-600 mt-1">จัดการสินค้า (สินค้าปกติ หรือ สินค้าย่อย)</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">สินค้า</h1>
+            <p className="text-gray-600 dark:text-slate-400 mt-1">จัดการสินค้า (สินค้าปกติ หรือ สินค้าย่อย)</p>
           </div>
           <button
             onClick={() => router.push('/products/new')}
-            className="flex items-center space-x-2 px-4 py-2 bg-[#E9B308] hover:bg-[#d4a307] text-[#00231F] rounded-lg font-semibold transition-colors"
+            className="flex items-center space-x-2 px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white rounded-lg font-semibold transition-colors"
           >
             <Plus className="w-5 h-5" />
             <span>เพิ่มสินค้า</span>
@@ -293,13 +298,13 @@ export default function ProductsPage() {
                 placeholder="ค้นหาชื่อ, รหัส, SKU, Barcode..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
               />
             </div>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as 'all' | 'simple' | 'variation')}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+              className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
             >
               <option value="all">ทั้งหมด</option>
               <option value="simple">สินค้าปกติ</option>
@@ -314,19 +319,19 @@ export default function ProductsPage() {
                 <Columns3 className="w-5 h-5 text-gray-500" />
               </button>
               {showColumnSettings && (
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1">
+                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-10 py-1">
                   <div className="px-3 py-2 text-xs font-medium text-gray-500 uppercase border-b border-gray-100">
                     แสดงคอลัมน์
                   </div>
                   {COLUMN_CONFIGS.filter(c => !c.alwaysVisible).map(col => (
-                    <label key={col.key} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                    <label key={col.key} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={visibleColumns.has(col.key)}
                         onChange={() => toggleColumn(col.key)}
-                        className="w-3.5 h-3.5 text-[#E9B308] border-gray-300 rounded focus:ring-[#E9B308]"
+                        className="w-3.5 h-3.5 text-[#F4511E] border-gray-300 rounded focus:ring-[#F4511E]"
                       />
-                      <span className="text-sm text-gray-700">{col.label}</span>
+                      <span className="text-sm text-gray-700 dark:text-slate-300">{col.label}</span>
                     </label>
                   ))}
                 </div>
@@ -351,7 +356,7 @@ export default function ProductsPage() {
             <tbody className="data-tbody">
               {paginatedProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={visibleColumns.size} className="px-6 py-8 text-center text-gray-500">ไม่พบข้อมูลสินค้า</td>
+                  <td colSpan={visibleColumns.size} className="px-6 py-8 text-center text-gray-500 dark:text-slate-400">ไม่พบข้อมูลสินค้า</td>
                 </tr>
               ) : (
                 paginatedProducts.map((product) => (
@@ -363,10 +368,11 @@ export default function ProductsPage() {
                           <img
                             src={product.main_image_url || getImageUrl(product.image)}
                             alt={product.name}
-                            className="w-16 h-16 object-cover rounded"
+                            className="w-16 h-16 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => setLightboxImage(product.main_image_url || getImageUrl(product.image))}
                           />
                         ) : (
-                          <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center">
+                          <div className="w-16 h-16 bg-gray-200 dark:bg-slate-700 rounded flex items-center justify-center">
                             <Package2 className="w-8 h-8 text-gray-400" />
                           </div>
                         )}
@@ -376,8 +382,8 @@ export default function ProductsPage() {
                     {/* Name / Code */}
                     {isCol('nameCode') && (
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                        <div className="text-xs text-gray-400">{product.code}</div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">{product.name}</div>
+                        <div className="text-xs text-gray-400 dark:text-slate-500">{product.code}</div>
                       </td>
                     )}
 
@@ -403,16 +409,16 @@ export default function ProductsPage() {
                               <span className="text-gray-400 font-medium">฿</span>
                               <span>{product.simple_default_price}</span>
                               {product.simple_discount_price && product.simple_discount_price > 0 && (
-                                <span className="text-red-600">(฿{product.simple_discount_price})</span>
+                                <span className="text-red-600 dark:text-red-400">(฿{product.simple_discount_price})</span>
                               )}
                             </div>
                             {(isCol('sku') || isCol('barcode')) && (product.simple_sku || product.simple_barcode) && (
                               <div className="flex items-center gap-2 mt-0.5">
                                 {isCol('sku') && product.simple_sku && (
-                                  <span className="text-xs text-gray-400">SKU: {product.simple_sku}</span>
+                                  <span className="text-xs text-gray-400 dark:text-slate-500">SKU: {product.simple_sku}</span>
                                 )}
                                 {isCol('barcode') && product.simple_barcode && (
-                                  <span className="text-xs text-gray-400">BC: {product.simple_barcode}</span>
+                                  <span className="text-xs text-gray-400 dark:text-slate-500">BC: {product.simple_barcode}</span>
                                 )}
                               </div>
                             )}
@@ -424,27 +430,27 @@ export default function ProductsPage() {
                                 <div key={v.variation_id || `${product.product_id}-${v.bottle_size}`}>
                                   <div className="text-sm flex items-center space-x-1">
                                     <Wine className="w-3.5 h-3.5 text-gray-400" />
-                                    <span className="text-gray-500">{v.bottle_size}</span>
+                                    <span className="text-gray-500 dark:text-slate-400">{v.bottle_size}</span>
                                     <span className="text-gray-400 font-medium ml-1">฿</span>
                                     <span>{v.default_price}</span>
                                     {v.discount_price > 0 && (
-                                      <span className="text-red-600">(฿{v.discount_price})</span>
+                                      <span className="text-red-600 dark:text-red-400">(฿{v.discount_price})</span>
                                     )}
                                   </div>
                                   {(isCol('sku') || isCol('barcode')) && (v.sku || v.barcode) && (
                                     <div className="flex items-center gap-2 ml-5">
                                       {isCol('sku') && v.sku && (
-                                        <span className="text-xs text-gray-400">SKU: {v.sku}</span>
+                                        <span className="text-xs text-gray-400 dark:text-slate-500">SKU: {v.sku}</span>
                                       )}
                                       {isCol('barcode') && v.barcode && (
-                                        <span className="text-xs text-gray-400">BC: {v.barcode}</span>
+                                        <span className="text-xs text-gray-400 dark:text-slate-500">BC: {v.barcode}</span>
                                       )}
                                     </div>
                                   )}
                                 </div>
                               ))
                             ) : (
-                              <span className="text-sm text-gray-400">ไม่มีสินค้าย่อย</span>
+                              <span className="text-sm text-gray-400 dark:text-slate-500">ไม่มีสินค้าย่อย</span>
                             )}
                           </div>
                         )}
@@ -463,7 +469,7 @@ export default function ProductsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                         <button
                           onClick={() => router.push(`/products/${product.product_id}/edit`)}
-                          className="text-[#E9B308] hover:text-[#d4a307] inline-flex items-center"
+                          className="text-[#F4511E] hover:text-[#D63B0E] inline-flex items-center"
                           title="แก้ไข"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -493,12 +499,12 @@ export default function ProductsPage() {
           {/* Pagination */}
           {totalFiltered > 0 && (
             <div className="data-pagination">
-              <div className="flex items-center gap-1 text-sm text-gray-600">
+              <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
                 <span>{startIndex + 1} - {Math.min(startIndex + rowsPerPage, totalFiltered)} จาก {totalFiltered} รายการ</span>
                 <select
                   value={rowsPerPage}
                   onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                 >
                   <option value={20}>20</option>
                   <option value={50}>50</option>
@@ -507,10 +513,10 @@ export default function ProductsPage() {
                 <span>/หน้า</span>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => goToPage(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
+                <button onClick={() => goToPage(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
                   <ChevronsLeft className="w-4 h-4" />
                 </button>
-                <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
+                <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <div className="flex items-center gap-1">
@@ -529,13 +535,13 @@ export default function ProductsPage() {
                     }
                     return pages.map((page, idx) =>
                       page === '...' ? (
-                        <span key={`dots-${idx}`} className="px-1 text-gray-400">...</span>
+                        <span key={`dots-${idx}`} className="px-1 text-gray-400 dark:text-slate-500">...</span>
                       ) : (
                         <button
                           key={page}
                           onClick={() => goToPage(page as number)}
                           className={`w-8 h-8 rounded text-sm font-medium ${
-                            currentPage === page ? 'bg-[#E9B308] text-[#00231F]' : 'hover:bg-gray-100 text-gray-700'
+                            currentPage === page ? 'bg-[#F4511E] text-white' : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700'
                           }`}
                         >
                           {page}
@@ -544,10 +550,10 @@ export default function ProductsPage() {
                     );
                   })()}
                 </div>
-                <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
+                <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
                   <ChevronRight className="w-4 h-4" />
                 </button>
-                <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
+                <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
                   <ChevronsRight className="w-4 h-4" />
                 </button>
               </div>
@@ -555,6 +561,28 @@ export default function ProductsPage() {
           )}
         </div>
       </div>
+
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70"
+          onClick={() => setLightboxImage(null)}
+          role="dialog"
+        >
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={lightboxImage}
+            alt="Product"
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </Layout>
   );
 }

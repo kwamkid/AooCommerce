@@ -18,7 +18,7 @@ export default function Layout({ children, title, breadcrumbs }: LayoutProps) {
   // ไม่มี loading check ใดๆ - ให้ page component จัดการเอง
   
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
       {/* Sidebar */}
       <Sidebar />
 
@@ -31,10 +31,10 @@ export default function Layout({ children, title, breadcrumbs }: LayoutProps) {
         <main className="flex-1 overflow-y-auto">
           {/* Page Header */}
           {(title || breadcrumbs) && (
-            <div className="bg-white border-b border-gray-200 px-4 lg:px-6 py-4">
+            <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-4">
               {/* Breadcrumbs */}
               {breadcrumbs && breadcrumbs.length > 0 && (
-                <nav className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+                <nav className="flex items-center space-x-2 text-sm text-gray-600 dark:text-slate-400 mb-2">
                   {breadcrumbs.map((item, index) => (
                     <div key={index} className="flex items-center">
                       {index > 0 && (
@@ -43,12 +43,12 @@ export default function Layout({ children, title, breadcrumbs }: LayoutProps) {
                       {item.href ? (
                         <a
                           href={item.href}
-                          className="hover:text-[#E9B308] transition-colors"
+                          className="hover:text-[#F4511E] transition-colors"
                         >
                           {item.label}
                         </a>
                       ) : (
-                        <span className="text-gray-900 font-medium">
+                        <span className="text-gray-900 dark:text-white font-medium">
                           {item.label}
                         </span>
                       )}
@@ -59,7 +59,7 @@ export default function Layout({ children, title, breadcrumbs }: LayoutProps) {
 
               {/* Page Title */}
               {title && (
-                <h1 className="text-2xl font-bold text-gray-900">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                   {title}
                 </h1>
               )}

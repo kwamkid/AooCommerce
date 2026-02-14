@@ -1,39 +1,6 @@
 // Path: app/api/settings/crm/route.ts
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-// Helper function: ตรวจสอบว่าล็อกอินหรือไม่
-async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string }> {
-  try {
-    const authHeader = request.headers.get('authorization');
-
-    if (!authHeader?.startsWith('Bearer ')) {
-      return { isAuth: false };
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-    if (error || !user) {
-      return { isAuth: false };
-    }
-
-    return { isAuth: true, userId: user.id };
-  } catch {
-    return { isAuth: false };
-  }
-}
 
 interface DayRange {
   minDays: number;
@@ -45,7 +12,7 @@ interface DayRange {
 // GET - ดึงค่า settings
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth } = await checkAuth(request);
+    const { isAuth, companyId } = await checkAuthWithCompany(request);
 
     if (!isAuth) {
       return NextResponse.json(
@@ -53,10 +20,17 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'No company context' },
+        { status: 403 }
+      );
+    }
 
     const { data, error } = await supabaseAdmin
       .from('crm_settings')
       .select('*')
+      .eq('company_id', companyId)
       .eq('setting_key', 'follow_up_day_ranges')
       .single();
 
@@ -86,7 +60,7 @@ export async function GET(request: NextRequest) {
 // PUT - อัปเดตค่า settings
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, userId } = await checkAuth(request);
+    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
 
     if (!isAuth) {
       return NextResponse.json(
@@ -94,15 +68,15 @@ export async function PUT(request: NextRequest) {
         { status: 401 }
       );
     }
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'No company context' },
+        { status: 403 }
+      );
+    }
 
-    // Check if user is admin
-    const { data: userProfile } = await supabaseAdmin
-      .from('user_profiles')
-      .select('role')
-      .eq('id', userId)
-      .single();
-
-    if (userProfile?.role !== 'admin') {
+    // Check admin role
+    if (!isAdminRole(companyRole)) {
       return NextResponse.json(
         { error: 'Only admin can update settings' },
         { status: 403 }
@@ -143,12 +117,13 @@ export async function PUT(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('crm_settings')
       .upsert({
+        company_id: companyId,
         setting_key: 'follow_up_day_ranges',
         setting_value: sortedRanges,
         description: 'ช่วงวันที่สำหรับติดตามลูกค้า (หน้า CRM และ LINE Chat)',
         updated_at: new Date().toISOString()
       }, {
-        onConflict: 'setting_key'
+        onConflict: 'company_id,setting_key'
       })
       .select()
       .single();

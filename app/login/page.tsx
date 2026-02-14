@@ -20,19 +20,14 @@ export default function LoginPage() {
     password: ''
   });
 
-  // Check if already logged in
+  // Check if already logged in — let auth context handle redirect
   useEffect(() => {
-    // Set timeout to prevent infinite checking
-    const timer = setTimeout(() => {
-      if (user) {
-        router.push('/dashboard');
-      } else {
-        setCheckingAuth(false);
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [user, router]);
+    if (user) {
+      // Auth context will redirect to /onboarding
+    } else {
+      setCheckingAuth(false);
+    }
+  }, [user]);
 
   // Handle email/password login
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -46,12 +41,8 @@ export default function LoginPage() {
       if (error) {
         setError(error);
         setIsLoading(false);
-      } else {
-        // Login สำเร็จ - ให้ auth context จัดการ redirect
-        setTimeout(() => {
-          router.push('/dashboard');
-        }, 100);
       }
+      // Login สำเร็จ — auth context routing จะ redirect ไป /onboarding
     } catch (err) {
       setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
       setIsLoading(false);
@@ -79,9 +70,9 @@ export default function LoginPage() {
   // แสดง loading เฉพาะตอนเริ่มต้นเท่านั้น
   if (checkingAuth) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#00231F]">
+      <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#E9B308] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังตรวจสอบ...</p>
         </div>
       </div>
@@ -89,7 +80,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#00231F] to-[#003028] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] to-[#16213E] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -102,7 +93,7 @@ export default function LoginPage() {
         </div>
 
         {/* Login Card */}
-        <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-[#E9B308]/20">
+        <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-[#F4511E]/20">
           {/* Error Alert */}
           {error && (
             <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start space-x-3">
@@ -124,7 +115,7 @@ export default function LoginPage() {
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all"
                   placeholder="your@email.com"
                   required
                   disabled={isLoading}
@@ -143,7 +134,7 @@ export default function LoginPage() {
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all"
                   placeholder="••••••••"
                   required
                   disabled={isLoading}
@@ -155,7 +146,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 bg-[#E9B308] hover:bg-[#E9B308]/90 text-[#00231F] font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              className="w-full py-3 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
               {isLoading ? (
                 <>
@@ -174,7 +165,7 @@ export default function LoginPage() {
               <div className="w-full border-t border-gray-600"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-transparent text-gray-400">หรือ</span>
+              <span className="px-4 bg-transparent text-gray-400 dark:text-slate-500">หรือ</span>
             </div>
           </div>
 

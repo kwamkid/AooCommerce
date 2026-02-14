@@ -1,13 +1,6 @@
-// Public API — customer-facing, no auth required
 // Creates a Beam Checkout payment link and redirects customer to pay
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 // Map internal channel codes to Beam linkSettings keys
 const BEAM_LINK_SETTINGS_MAP: Record<string, string> = {
@@ -27,6 +20,12 @@ const BEAM_LINK_SETTINGS_MAP: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await checkAuthWithCompany(request);
+
+    if (!auth.isAuth || !auth.companyId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { order_id } = await request.json();
 
     if (!order_id) {
@@ -38,6 +37,7 @@ export async function POST(request: NextRequest) {
       .from('orders')
       .select('id, order_number, total_amount, payment_status, order_status, customer_id')
       .eq('id', order_id)
+      .eq('company_id', auth.companyId)
       .single();
 
     if (orderError || !order) {
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
     const { data: gatewayChannel } = await supabaseAdmin
       .from('payment_channels')
       .select('config')
+      .eq('company_id', auth.companyId)
       .eq('channel_group', 'bill_online')
       .eq('type', 'payment_gateway')
       .eq('is_active', true)
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest) {
       .from('customers')
       .select('customer_type_new')
       .eq('id', order.customer_id)
+      .eq('company_id', auth.companyId)
       .single();
 
     const customerType = customer?.customer_type_new || 'retail';
@@ -158,11 +160,13 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     })
       .eq('order_id', order.id)
+      .eq('company_id', auth.companyId)
       .eq('payment_method', 'payment_gateway')
       .eq('status', 'pending');
 
     // Create new payment record
     await supabaseAdmin.from('payment_records').insert({
+      company_id: auth.companyId,
       order_id: order.id,
       payment_method: 'payment_gateway',
       amount: order.total_amount,

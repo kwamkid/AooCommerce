@@ -2,7 +2,9 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Sans_Thai } from 'next/font/google';
 import { AuthProvider } from '@/lib/auth-context';
+import { CompanyProvider } from '@/lib/company-context';
 import { ToastProvider } from '@/lib/toast-context';
+import { ThemeProvider } from '@/lib/theme-context';
 import './globals.css';
 
 const ibmPlexSansThai = IBM_Plex_Sans_Thai({
@@ -12,8 +14,8 @@ const ibmPlexSansThai = IBM_Plex_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: 'JOOLZ Factory Management System',
-  description: 'ระบบจัดการโรงงานผลิตน้ำผลไม้ JOOLZ',
+  title: 'AooDelivery - ระบบจัดการธุรกิจ',
+  description: 'ระบบจัดการธุรกิจครบวงจร สั่งซื้อ จัดส่ง และติดตามลูกค้า',
 };
 
 export default function RootLayout({
@@ -22,13 +24,28 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="th">
+    <html lang="th" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `
+          (function() {
+            try {
+              var theme = localStorage.getItem('aoo-theme') || 'system';
+              var dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+              if (dark) document.documentElement.classList.add('dark');
+            } catch(e) {}
+          })();
+        `}} />
+      </head>
       <body className={ibmPlexSansThai.className}>
-        <AuthProvider>
-          <ToastProvider>
-            {children}
-          </ToastProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <CompanyProvider>
+              <ToastProvider>
+                {children}
+              </ToastProvider>
+            </CompanyProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

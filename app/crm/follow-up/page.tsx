@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api-client';
 import {
   Users,
   Search,
@@ -84,7 +84,7 @@ function CustomerTypeBadge({ type }: { type: string }) {
   };
 
   return (
-    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${colors[type] || 'bg-gray-100 text-gray-800'}`}>
+    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${colors[type] || 'bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-300'}`}>
       {labels[type] || type}
     </span>
   );
@@ -94,7 +94,7 @@ function CustomerTypeBadge({ type }: { type: string }) {
 function DaysBadge({ days, avgFrequency }: { days: number | null; avgFrequency: number | null }) {
   if (days === null) {
     return (
-      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400">
         ยังไม่เคยสั่ง
       </span>
     );
@@ -139,7 +139,7 @@ function FrequencyBadge({ frequency, onClick }: { frequency: number | null; onCl
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick?.(); }}
-      className="text-sm text-blue-600 hover:text-blue-800 hover:underline cursor-pointer transition-colors"
+      className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline cursor-pointer transition-colors"
       title="ดูประวัติการสั่งซื้อ"
     >
       ทุก ~{frequency} วัน
@@ -167,7 +167,7 @@ function SortableHeader({
 
   return (
     <th
-      className={`data-th cursor-pointer hover:bg-gray-100 select-none ${className}`}
+      className={`data-th cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 select-none ${className}`}
       onClick={() => onSort(field)}
     >
       <div className="flex items-center gap-1">
@@ -175,9 +175,9 @@ function SortableHeader({
         <span className="inline-flex flex-col">
           {isActive ? (
             currentOrder === 'asc' ? (
-              <ArrowUp className="w-3 h-3 text-[#E9B308]" />
+              <ArrowUp className="w-3 h-3 text-[#F4511E]" />
             ) : (
-              <ArrowDown className="w-3 h-3 text-[#E9B308]" />
+              <ArrowDown className="w-3 h-3 text-[#F4511E]" />
             )
           ) : (
             <ArrowUpDown className="w-3 h-3 text-gray-300" />
@@ -234,11 +234,6 @@ export default function CRMFollowUpPage() {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        throw new Error('No session');
-      }
 
       const params = new URLSearchParams();
       if (debouncedSearch) params.set('search', debouncedSearch);
@@ -259,11 +254,7 @@ export default function CRMFollowUpPage() {
         params.set('has_orders', 'true');
       }
 
-      const response = await fetch(`/api/crm/customers?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
+      const response = await apiFetch(`/api/crm/customers?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch customers');
@@ -312,17 +303,18 @@ export default function CRMFollowUpPage() {
     setOrderHistoryModal({ show: true, customer, orders: [], loading: true });
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      const res = await apiFetch(`/api/orders?customer_id=${customer.id}&limit=20&sort_by=order_date&sort_dir=desc`);
+      const data = await res.json();
+      const orders = (data.orders || [])
+        .filter((o: { order_status: string }) => o.order_status !== 'cancelled')
+        .map((o: { order_number: string; order_date: string; total_amount: number; order_status: string }) => ({
+          order_number: o.order_number,
+          order_date: o.order_date,
+          total_amount: o.total_amount,
+          order_status: o.order_status,
+        }));
 
-      const { data: orders } = await supabase
-        .from('orders')
-        .select('order_number, order_date, total_amount, order_status')
-        .eq('customer_id', customer.id)
-        .neq('order_status', 'cancelled')
-        .order('order_date', { ascending: false });
-
-      setOrderHistoryModal(prev => ({ ...prev, orders: orders || [], loading: false }));
+      setOrderHistoryModal(prev => ({ ...prev, orders, loading: false }));
     } catch {
       setOrderHistoryModal(prev => ({ ...prev, loading: false }));
     }
@@ -338,7 +330,7 @@ export default function CRMFollowUpPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
         </div>
       </Layout>
     );
@@ -350,8 +342,8 @@ export default function CRMFollowUpPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Users className="w-7 h-7 text-[#E9B308]" />
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Users className="w-7 h-7 text-[#F4511E]" />
               ติดตามลูกค้า
             </h1>
             <p className="text-gray-500 mt-1">ติดตามลูกค้าที่ไม่ได้สั่งซื้อนาน</p>
@@ -364,25 +356,25 @@ export default function CRMFollowUpPage() {
             {/* Total customers */}
             <button
               onClick={() => { setFilterDays('all'); setCurrentPage(1); }}
-              className={`bg-white rounded-lg border p-4 text-left transition-all hover:shadow-md ${filterDays === 'all' ? 'border-[#E9B308] ring-2 ring-[#E9B308]/20' : 'border-gray-200'}`}
+              className={`bg-white dark:bg-slate-800 rounded-lg border p-4 text-left transition-all hover:shadow-md ${filterDays === 'all' ? 'border-[#F4511E] ring-2 ring-[#F4511E]/20' : 'border-gray-200 dark:border-slate-700'}`}
             >
-              <div className="flex items-center gap-2 text-gray-500 mb-1">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400 mb-1">
                 <Users className="w-4 h-4" />
                 <span className="text-xs">ทั้งหมด</span>
               </div>
-              <div className="text-2xl font-bold text-gray-900">{summary.totalCustomers}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{summary.totalCustomers}</div>
             </button>
 
             {/* Never ordered */}
             <button
               onClick={() => { setFilterDays('never'); setCurrentPage(1); }}
-              className={`bg-white rounded-lg border p-4 text-left transition-all hover:shadow-md ${filterDays === 'never' ? 'border-gray-500 ring-2 ring-gray-500/20' : 'border-gray-200'}`}
+              className={`bg-white dark:bg-slate-800 rounded-lg border p-4 text-left transition-all hover:shadow-md ${filterDays === 'never' ? 'border-gray-500 ring-2 ring-gray-500/20' : 'border-gray-200 dark:border-slate-700'}`}
             >
-              <div className="flex items-center gap-2 text-gray-500 mb-1">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400 mb-1">
                 <Clock className="w-4 h-4" />
                 <span className="text-xs">ยังไม่เคยสั่ง</span>
               </div>
-              <div className="text-2xl font-bold text-gray-600">{summary.customersNeverOrdered}</div>
+              <div className="text-2xl font-bold text-gray-600 dark:text-slate-400">{summary.customersNeverOrdered}</div>
             </button>
 
             {/* Dynamic range cards */}
@@ -404,7 +396,7 @@ export default function CRMFollowUpPage() {
                 <button
                   key={rangeKey}
                   onClick={() => { setFilterDays(rangeKey); setCurrentPage(1); }}
-                  className={`bg-white rounded-lg border p-4 text-left transition-all hover:shadow-md ${isActive ? `${colors.border} ring-2 ${colors.ring}` : 'border-gray-200'}`}
+                  className={`bg-white dark:bg-slate-800 rounded-lg border p-4 text-left transition-all hover:shadow-md ${isActive ? `${colors.border} ring-2 ${colors.ring}` : 'border-gray-200 dark:border-slate-700'}`}
                 >
                   <div className={`flex items-center gap-2 ${colors.text} mb-1`}>
                     {isWarning ? <AlertTriangle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
@@ -428,7 +420,7 @@ export default function CRMFollowUpPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="ค้นหาชื่อลูกค้า, รหัส, เบอร์โทร..."
-                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] text-sm"
+                className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm"
               />
             </div>
 
@@ -438,7 +430,7 @@ export default function CRMFollowUpPage() {
               <select
                 value={filterDays}
                 onChange={(e) => { setFilterDays(e.target.value); setCurrentPage(1); }}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] text-sm"
+                className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm"
               >
                 <option value="all">ทั้งหมด</option>
                 <option value="never">ยังไม่เคยสั่ง</option>
@@ -467,12 +459,12 @@ export default function CRMFollowUpPage() {
         <div className="data-table-wrap">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 text-[#E9B308] animate-spin" />
+              <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
             </div>
           ) : customers.length === 0 ? (
             <div className="text-center py-12">
               <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">ไม่พบลูกค้าตามเงื่อนไขที่เลือก</p>
+              <p className="text-gray-500 dark:text-slate-400">ไม่พบลูกค้าตามเงื่อนไขที่เลือก</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -531,7 +523,7 @@ export default function CRMFollowUpPage() {
                       <td className="px-6 py-4">
                         <div>
                           <div className="text-xs text-gray-400 mb-0.5">{customer.customer_code}</div>
-                          <div className="font-medium text-gray-900">{customer.name}</div>
+                          <div className="font-medium text-gray-900 dark:text-white">{customer.name}</div>
                           {customer.phone && (
                             <a
                               href={`tel:${customer.phone}`}
@@ -551,7 +543,7 @@ export default function CRMFollowUpPage() {
 
                       {/* Last Order Date */}
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                        <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-400">
                           <Calendar className="w-3.5 h-3.5" />
                           {formatDate(customer.last_order_date)}
                         </div>
@@ -572,12 +564,12 @@ export default function CRMFollowUpPage() {
 
                       {/* Total Orders */}
                       <td className="px-6 py-4 text-center">
-                        <span className="text-sm font-medium text-gray-900">{customer.total_orders}</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{customer.total_orders}</span>
                       </td>
 
                       {/* Total Spent */}
                       <td className="px-6 py-4 text-right">
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
                           ฿{customer.total_spent.toLocaleString('th-TH', { minimumFractionDigits: 0 })}
                         </span>
                       </td>
@@ -597,7 +589,7 @@ export default function CRMFollowUpPage() {
                           ) : (
                             <button
                               onClick={() => handleCreateOrder(customer.id)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#E9B308] text-[#00231F] rounded-lg hover:bg-[#d4a307] text-sm font-medium transition-colors"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] text-sm font-medium transition-colors"
                             >
                               <Plus className="w-3.5 h-3.5" />
                               สร้างออเดอร์
@@ -605,7 +597,7 @@ export default function CRMFollowUpPage() {
                           )}
                           <button
                             onClick={() => router.push(`/customers/${customer.id}`)}
-                            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
                             title="ดูรายละเอียด"
                           >
                             <ExternalLink className="w-4 h-4" />
@@ -622,12 +614,12 @@ export default function CRMFollowUpPage() {
           {/* Pagination */}
           {!loading && pagination.total > 0 && (
             <div className="data-pagination">
-              <div className="flex items-center gap-1 text-sm text-gray-600">
+              <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
                 <span>{((currentPage - 1) * rowsPerPage) + 1} - {Math.min(currentPage * rowsPerPage, pagination.total)} จาก {pagination.total} รายการ</span>
                 <select
                   value={rowsPerPage}
                   onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                 >
                   <option value={20}>20</option>
                   <option value={50}>50</option>
@@ -637,10 +629,10 @@ export default function CRMFollowUpPage() {
               </div>
               {pagination.totalPages > 1 && (
                 <div className="flex items-center gap-2">
-                  <button onClick={() => handlePageChange(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
+                  <button onClick={() => handlePageChange(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
                     <ChevronsLeft className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
+                  <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <div className="flex items-center gap-1">
@@ -660,15 +652,15 @@ export default function CRMFollowUpPage() {
                       }
                       return pages.map((page, idx) =>
                         page === '...' ? (
-                          <span key={`dots-${idx}`} className="px-1 text-gray-400">...</span>
+                          <span key={`dots-${idx}`} className="px-1 text-gray-400 dark:text-slate-500">...</span>
                         ) : (
                           <button
                             key={page}
                             onClick={() => handlePageChange(page as number)}
                             className={`w-8 h-8 rounded text-sm font-medium ${
                               currentPage === page
-                                ? 'bg-[#E9B308] text-[#00231F]'
-                                : 'hover:bg-gray-100 text-gray-700'
+                                ? 'bg-[#F4511E] text-white'
+                                : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700'
                             }`}
                           >
                             {page}
@@ -677,10 +669,10 @@ export default function CRMFollowUpPage() {
                       );
                     })()}
                   </div>
-                  <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === pagination.totalPages} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
+                  <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === pagination.totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
                     <ChevronRight className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handlePageChange(pagination.totalPages)} disabled={currentPage === pagination.totalPages} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
+                  <button onClick={() => handlePageChange(pagination.totalPages)} disabled={currentPage === pagination.totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
                     <ChevronsRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -695,19 +687,19 @@ export default function CRMFollowUpPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setOrderHistoryModal({ show: false, customer: null, orders: [], loading: false })}>
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-slate-700">
               <div>
-                <h3 className="font-semibold text-gray-900">{orderHistoryModal.customer.name}</h3>
-                <p className="text-sm text-gray-500">
+                <h3 className="font-semibold text-gray-900 dark:text-white">{orderHistoryModal.customer.name}</h3>
+                <p className="text-sm text-gray-500 dark:text-slate-400">
                   ประวัติการสั่งซื้อ {orderHistoryModal.orders.length > 0 ? `(${orderHistoryModal.orders.length} รายการ)` : ''}
                   {orderHistoryModal.customer.avg_order_frequency && (
-                    <span className="ml-2 text-blue-600 font-medium">เฉลี่ยทุก ~{orderHistoryModal.customer.avg_order_frequency} วัน</span>
+                    <span className="ml-2 text-blue-600 dark:text-blue-400 font-medium">เฉลี่ยทุก ~{orderHistoryModal.customer.avg_order_frequency} วัน</span>
                   )}
                 </p>
               </div>
               <button
                 onClick={() => setOrderHistoryModal({ show: false, customer: null, orders: [], loading: false })}
-                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -717,10 +709,10 @@ export default function CRMFollowUpPage() {
             <div className="overflow-y-auto max-h-[60vh] px-5 py-4">
               {orderHistoryModal.loading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 text-[#E9B308] animate-spin" />
+                  <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
                 </div>
               ) : orderHistoryModal.orders.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
+                <div className="text-center py-8 text-gray-400 dark:text-slate-500">
                   <FileText className="w-10 h-10 mx-auto mb-2" />
                   <p className="text-sm">ไม่มีประวัติการสั่งซื้อ</p>
                 </div>
@@ -749,14 +741,14 @@ export default function CRMFollowUpPage() {
                           <div className="w-6 text-center text-xs text-gray-400 font-medium">{idx + 1}</div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-gray-900">{order.order_number}</span>
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">{order.order_number}</span>
                               <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${status.color}`}>{status.label}</span>
                             </div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-gray-500 dark:text-slate-400">
                               {new Date(order.order_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
                             </div>
                           </div>
-                          <div className="text-sm font-medium text-gray-900 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
                             ฿{order.total_amount.toLocaleString('th-TH', { minimumFractionDigits: 0 })}
                           </div>
                         </div>
@@ -765,7 +757,7 @@ export default function CRMFollowUpPage() {
                         {gap !== null && (
                           <div className="flex items-center gap-3 py-1">
                             <div className="w-6" />
-                            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                            <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-slate-500">
                               <div className="w-px h-3 bg-gray-200 ml-1" />
                               <ArrowRight className="w-3 h-3" />
                               <span className={gap > (orderHistoryModal.customer?.avg_order_frequency || 999) ? 'text-orange-500 font-medium' : ''}>

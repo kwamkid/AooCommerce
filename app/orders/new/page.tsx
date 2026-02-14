@@ -16,11 +16,11 @@ export default function NewOrderPage() {
           <button
             type="button"
             onClick={() => router.back()}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">สร้างคำสั่งซื้อใหม่</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">สร้างคำสั่งซื้อใหม่</h1>
         </div>
 
         {/* Order Form */}

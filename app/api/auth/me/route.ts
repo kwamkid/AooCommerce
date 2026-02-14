@@ -1,23 +1,10 @@
 // Path: app/api/auth/me/route.ts
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
-// สร้าง Supabase Admin client (service role)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-// GET - ดึง profile ของ user ปัจจุบัน
+// GET - ดึง profile ของ user ปัจจุบัน + companies
 export async function GET(request: NextRequest) {
   try {
-    // Get token from Authorization header
     const authHeader = request.headers.get('authorization');
 
     if (!authHeader?.startsWith('Bearer ')) {
@@ -29,7 +16,6 @@ export async function GET(request: NextRequest) {
 
     const token = authHeader.substring(7);
 
-    // Verify token and get user
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
 
     if (authError || !user) {
@@ -39,7 +25,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user profile from database
+    // Get user profile
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .select('*')
@@ -47,22 +33,49 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (profileError || !profile) {
-      // Fallback: ถ้าไม่มี profile ใน database ให้สร้าง default
-      const isAdmin = user.email === 'kwamkid@gmail.com';
       return NextResponse.json({
         profile: {
           id: user.id,
           email: user.email || '',
           name: user.email?.split('@')[0] || 'User',
-          role: isAdmin ? 'admin' : 'operation',
           is_active: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        }
+        },
+        companies: [],
+        subscription: null,
       });
     }
 
-    return NextResponse.json({ profile });
+    // Get company memberships
+    const { data: memberships } = await supabaseAdmin
+      .from('company_members')
+      .select(`
+        company_id,
+        role,
+        company:companies (
+          id, name, slug, logo_url, is_active
+        )
+      `)
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+
+    // Get subscription
+    const { data: subscription } = await supabaseAdmin
+      .from('user_subscriptions')
+      .select(`
+        id, status, started_at, expires_at,
+        package:packages (id, name, slug, max_companies, max_members_per_company)
+      `)
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .single();
+
+    return NextResponse.json({
+      profile,
+      companies: memberships || [],
+      subscription: subscription || null,
+    });
   } catch (error) {
     console.error('Server error:', error);
     return NextResponse.json(

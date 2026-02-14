@@ -5,7 +5,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { useCompany } from '@/lib/company-context';
+import { apiFetch } from '@/lib/api-client';
 import {
   Users,
   Plus,
@@ -125,14 +126,7 @@ export default function UsersPage() {
       setLoading(true);
 
       // ใช้ API route แทน direct Supabase call เพื่อหลีก RLS
-      const { data: sessionData } = await supabase.auth.getSession();
-
-      const response = await fetch('/api/users', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${sessionData?.session?.access_token || ''}`
-        }
-      });
+      const response = await apiFetch('/api/users');
 
       const result = await response.json();
 
@@ -162,7 +156,7 @@ export default function UsersPage() {
       return;
     }
     
-    if (userProfile.role !== 'admin') {
+    if (userProfile.role !== 'admin' && userProfile.role !== 'owner') {
       router.push('/dashboard');
       return;
     }
@@ -170,7 +164,7 @@ export default function UsersPage() {
 
   // Fetch users
   useEffect(() => {
-    if (!authLoading && userProfile?.role === 'admin' && !dataFetched) {
+    if (!authLoading && (userProfile?.role === 'admin' || userProfile?.role === 'owner') && !dataFetched) {
       fetchUsers();
     }
   }, [authLoading, userProfile, dataFetched, fetchUsers]);
@@ -193,13 +187,10 @@ export default function UsersPage() {
     try {
       if (editingUser) {
         // Update existing user - ใช้ API route
-        const { data: sessionData } = await supabase.auth.getSession();
-        
-        const response = await fetch('/api/users', {
+        const response = await apiFetch('/api/users', {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionData?.session?.access_token || ''}`
           },
           body: JSON.stringify({
             id: editingUser.id,
@@ -219,14 +210,10 @@ export default function UsersPage() {
         setSuccess('อัพเดทข้อมูลผู้ใช้สำเร็จ');
       } else {
         // Create new user - ใช้ API route
-        // ต้องส่ง Authorization header
-        const { data: sessionData } = await supabase.auth.getSession();
-        
-        const response = await fetch('/api/users', {
+        const response = await apiFetch('/api/users', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionData?.session?.access_token || ''}`
           },
           body: JSON.stringify({
             email: formData.email,
@@ -290,13 +277,10 @@ export default function UsersPage() {
     if (!confirm(`คุณต้องการ${action}ผู้ใช้นี้หรือไม่?`)) return;
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-
-      const response = await fetch('/api/users', {
+      const response = await apiFetch('/api/users', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionData?.session?.access_token || ''}`
         },
         body: JSON.stringify({
           id: user.id,
@@ -331,13 +315,8 @@ export default function UsersPage() {
     if (!confirm(`⚠️ คุณแน่ใจหรือไม่ที่จะลบผู้ใช้ "${user.name}" ถาวร?\n\nการดำเนินการนี้ไม่สามารถย้อนกลับได้!`)) return;
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-
-      const response = await fetch(`/api/users?id=${user.id}&hard=true`, {
+      const response = await apiFetch(`/api/users?id=${user.id}&hard=true`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${sessionData?.session?.access_token || ''}`
-        }
       });
 
       const result = await response.json();
@@ -417,9 +396,9 @@ export default function UsersPage() {
   // Show loading while checking auth
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#00231F]">
+      <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#E9B308] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังตรวจสอบสิทธิ์...</p>
         </div>
       </div>
@@ -427,16 +406,16 @@ export default function UsersPage() {
   }
 
   // Not authorized
-  if (!userProfile || userProfile.role !== 'admin') {
+  if (!userProfile || (userProfile.role !== 'admin' && userProfile.role !== 'owner')) {
     return null;
   }
 
   // Loading users
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#00231F]">
+      <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#E9B308] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังโหลดข้อมูล...</p>
         </div>
       </div>
@@ -455,10 +434,10 @@ export default function UsersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center space-x-3">
-          <Shield className="w-8 h-8 text-[#E9B308]" />
+          <Shield className="w-8 h-8 text-[#F4511E]" />
           <div>
-            <p className="text-sm text-gray-500">จำนวนผู้ใช้ทั้งหมด</p>
-            <p className="text-2xl font-bold text-gray-900">{users.length} คน</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">จำนวนผู้ใช้ทั้งหมด</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{users.length} คน</p>
           </div>
         </div>
 
@@ -475,7 +454,7 @@ export default function UsersPage() {
             });
             setShowModal(true);
           }}
-          className="flex items-center px-4 py-2 bg-[#E9B308] text-[#00231F] rounded-lg hover:bg-[#E9B308]/90 font-medium transition-colors"
+          className="flex items-center px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#F4511E]/90 font-medium transition-colors"
         >
           <Plus className="w-5 h-5 mr-2" />
           เพิ่มผู้ใช้ใหม่
@@ -522,7 +501,7 @@ export default function UsersPage() {
             placeholder="ค้นหาชื่อหรืออีเมล..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
           />
         </div>
       </div>
@@ -559,17 +538,17 @@ export default function UsersPage() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-[#E9B308]/20 flex items-center justify-center">
-                          <span className="text-[#E9B308] font-semibold">
+                        <div className="h-10 w-10 rounded-full bg-[#F4511E]/20 flex items-center justify-center">
+                          <span className="text-[#F4511E] font-semibold">
                             {user.name.charAt(0).toUpperCase()}
                           </span>
                         </div>
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
                           {user.name}
                           {user.id === userProfile?.id && (
-                            <span className="ml-2 text-xs text-gray-500">(คุณ)</span>
+                            <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">(คุณ)</span>
                           )}
                         </div>
                         <div className="text-sm text-gray-500 flex items-center">
@@ -582,20 +561,20 @@ export default function UsersPage() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <RoleBadge role={user.role} />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-slate-400">
                     {user.phone ? (
                       <span className="flex items-center">
                         <Phone className="w-3 h-3 mr-1" />
                         {user.phone}
                       </span>
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <span className="text-gray-400 dark:text-slate-500">-</span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <StatusBadge isActive={user.is_active} />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-slate-400">
                     {new Date(user.created_at).toLocaleDateString('th-TH', {
                       year: 'numeric',
                       month: 'short',
@@ -606,7 +585,7 @@ export default function UsersPage() {
                     <div className="flex justify-end space-x-2">
                       <button
                         onClick={() => handleEditUser(user)}
-                        className="text-[#E9B308] hover:text-[#E9B308]/80 p-1"
+                        className="text-[#F4511E] hover:text-[#F4511E]/80 p-1"
                         title="แก้ไข"
                       >
                         <Edit2 className="w-4 h-4" />
@@ -643,14 +622,14 @@ export default function UsersPage() {
           {paginatedUsers.length === 0 && (
             <div className="text-center py-12">
               <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500">ไม่พบผู้ใช้งาน</p>
+              <p className="text-gray-500 dark:text-slate-400">ไม่พบผู้ใช้งาน</p>
             </div>
           )}
 
           {/* Pagination */}
           {totalFiltered > 0 && (
             <div className="data-pagination">
-              <div className="flex items-center gap-1 text-sm text-gray-600">
+              <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
                 <span>{startIndex + 1} - {Math.min(startIndex + rowsPerPage, totalFiltered)} จาก {totalFiltered} รายการ</span>
                 <select
                   value={rowsPerPage}
@@ -658,7 +637,7 @@ export default function UsersPage() {
                     setRowsPerPage(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                 >
                   <option value={20}>20</option>
                   <option value={50}>50</option>
@@ -668,10 +647,10 @@ export default function UsersPage() {
               </div>
               {totalPages > 1 && (
                 <div className="flex items-center gap-2">
-                  <button onClick={() => goToPage(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
+                  <button onClick={() => goToPage(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
                     <ChevronsLeft className="w-4 h-4" />
                   </button>
-                  <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
+                  <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <div className="flex items-center gap-1">
@@ -690,15 +669,15 @@ export default function UsersPage() {
                       }
                       return pages.map((page, idx) =>
                         page === '...' ? (
-                          <span key={`dots-${idx}`} className="px-1 text-gray-400">...</span>
+                          <span key={`dots-${idx}`} className="px-1 text-gray-400 dark:text-slate-500">...</span>
                         ) : (
                           <button
                             key={page}
                             onClick={() => goToPage(page as number)}
                             className={`w-8 h-8 rounded text-sm font-medium ${
                               currentPage === page
-                                ? 'bg-[#E9B308] text-[#00231F]'
-                                : 'hover:bg-gray-100 text-gray-700'
+                                ? 'bg-[#F4511E] text-white'
+                                : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700'
                             }`}
                           >
                             {page}
@@ -707,10 +686,10 @@ export default function UsersPage() {
                       );
                     })()}
                   </div>
-                  <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
+                  <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
                     <ChevronRight className="w-4 h-4" />
                   </button>
-                  <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
+                  <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
                     <ChevronsRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -733,7 +712,7 @@ export default function UsersPage() {
 
             <div className="relative bg-white rounded-lg max-w-md w-full">
               <div className="flex items-center justify-between p-5 border-b">
-                <h3 className="text-xl font-semibold text-gray-900">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
                   {editingUser ? 'แก้ไขข้อมูลผู้ใช้' : 'เพิ่มผู้ใช้ใหม่'}
                 </h3>
                 <button
@@ -754,7 +733,7 @@ export default function UsersPage() {
                       type="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                       required
                       disabled={!!editingUser}
                       placeholder="user@company.com"
@@ -769,7 +748,7 @@ export default function UsersPage() {
                       type="text"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                       required
                     />
                   </div>
@@ -783,7 +762,7 @@ export default function UsersPage() {
                         type="password"
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                         required
                         minLength={6}
                       />
@@ -800,7 +779,7 @@ export default function UsersPage() {
                     <select
                       value={formData.role}
                       onChange={handleRoleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                       required
                     >
                       <option value="operation">พนักงานผลิต</option>
@@ -818,7 +797,7 @@ export default function UsersPage() {
                       type="tel"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E9B308] focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                       placeholder="0812345678"
                     />
                   </div>
@@ -829,9 +808,9 @@ export default function UsersPage() {
                         type="checkbox"
                         checked={formData.is_active}
                         onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                        className="mr-2 rounded border-gray-300 text-[#E9B308] focus:ring-[#E9B308]"
+                        className="mr-2 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
                       />
-                      <span className="text-sm text-gray-700">เปิดใช้งาน</span>
+                      <span className="text-sm text-gray-700 dark:text-slate-300">เปิดใช้งาน</span>
                     </label>
                   </div>
                 </div>
@@ -847,7 +826,7 @@ export default function UsersPage() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-4 py-2 bg-[#E9B308] text-[#00231F] rounded-lg hover:bg-[#E9B308]/90 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    className="px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#F4511E]/90 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                   >
                     {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                     {editingUser ? 'บันทึก' : 'เพิ่มผู้ใช้'}

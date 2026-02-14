@@ -32,11 +32,36 @@
   }
 }
 
-/* Base styles for dark theme */
+/* Base styles */
 @layer base {
   :root {
     --background: #ffffff;
-    --foreground: #000000;
+    --foreground: #111827;
+    --card: #ffffff;
+    --card-border: #e5e7eb;
+    --muted: #f9fafb;
+    --muted-foreground: #6b7280;
+    --input-bg: #ffffff;
+    --input-border: #d1d5db;
+    --sidebar-bg: #1A1A2E;
+    --sidebar-text: #d1d5db;
+    --scrollbar-track: #f3f4f6;
+    --scrollbar-thumb: #9ca3af;
+  }
+
+  .dark {
+    --background: #0f172a;
+    --foreground: #f1f5f9;
+    --card: #1e293b;
+    --card-border: #334155;
+    --muted: #1e293b;
+    --muted-foreground: #94a3b8;
+    --input-bg: #1e293b;
+    --input-border: #475569;
+    --sidebar-bg: #0f0f23;
+    --sidebar-text: #cbd5e1;
+    --scrollbar-track: #1e293b;
+    --scrollbar-thumb: #475569;
   }
 
   html {
@@ -44,7 +69,8 @@
   }
 
   body {
-    @apply bg-gray-50 text-gray-900;
+    background-color: var(--background);
+    color: var(--foreground);
     font-size: 1rem;
   }
 }
@@ -52,7 +78,7 @@
 /* Filter bar icon button — same height as input/select (42px) */
 @layer components {
   .btn-filter-icon {
-    @apply flex items-center justify-center border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors;
+    @apply flex items-center justify-center border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors;
     height: 42px;
     width: 42px;
     box-sizing: border-box;
@@ -63,42 +89,90 @@
 @layer components {
   /* Filter card */
   .data-filter-card {
-    @apply bg-white rounded-lg border border-gray-200 p-4;
+    @apply bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4;
   }
 
   /* Table wrappers */
   .data-table-wrap {
-    @apply bg-white rounded-lg border border-gray-200 overflow-hidden;
+    @apply bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden;
   }
   .data-table-wrap-shadow {
-    @apply bg-white rounded-lg shadow overflow-hidden;
+    @apply bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden;
   }
   .data-table {
     @apply w-full;
   }
   .data-table-fixed {
-    @apply min-w-full divide-y divide-gray-200;
+    @apply min-w-full divide-y divide-gray-200 dark:divide-slate-700;
   }
   .data-thead {
-    @apply bg-gray-50 border-b border-gray-200;
+    @apply bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700;
   }
   .data-th {
-    @apply px-6 py-3 text-left text-sm font-semibold text-gray-700 tracking-wide;
+    @apply px-6 py-3 text-left text-sm font-semibold text-gray-700 dark:text-slate-300 tracking-wide;
   }
   .data-tbody {
-    @apply bg-white divide-y divide-gray-200;
+    @apply bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700;
   }
   .data-tr {
-    @apply hover:bg-gray-50 transition-colors;
+    @apply hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors;
   }
   .data-td {
     @apply px-6 py-4;
   }
   .data-tfoot {
-    @apply bg-gray-100;
+    @apply bg-gray-100 dark:bg-slate-900;
   }
   .data-pagination {
-    @apply px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3;
+    @apply px-4 py-3 border-t border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3;
+  }
+}
+
+/* ── Global Auto Dark Mode ── */
+/* Forms: inputs, selects, textareas auto-adapt to dark mode */
+@layer base {
+  .dark input[type="text"],
+  .dark input[type="email"],
+  .dark input[type="tel"],
+  .dark input[type="password"],
+  .dark input[type="search"],
+  .dark input[type="url"],
+  .dark input[type="date"],
+  .dark input[type="time"],
+  .dark input[type="datetime-local"],
+  .dark input[type="number"],
+  .dark select,
+  .dark textarea {
+    background-color: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--foreground);
+  }
+
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: #64748b;
+  }
+
+  .dark select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  }
+
+  /* Labels auto-adapt */
+  .dark label {
+    color: #cbd5e1;
+  }
+}
+
+/* Cards: no border, use subtle shadow instead */
+@layer components {
+  .card {
+    background-color: var(--card);
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+    padding: 1.5rem;
+  }
+  .dark .card {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
   }
 }
 
@@ -129,11 +203,11 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #f3f4f6;
+  background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #9ca3af;
+  background: var(--scrollbar-thumb);
   border-radius: 9999px;
 }
 
@@ -144,7 +218,7 @@
 /* Firefox scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #9ca3af #f3f4f6;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 /* Remove spinner from number inputs */
@@ -157,3 +231,4 @@ input[type="number"]::-webkit-outer-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
 }
+
