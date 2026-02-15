@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
+import { apiFetch } from '@/lib/api-client';
 import {
   Home,
   Users,
@@ -28,7 +29,12 @@ import {
   Building2,
   UserCog,
   Check,
-  Facebook
+  Facebook,
+  Warehouse,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  ArrowLeftRight,
+  ClipboardList
 } from 'lucide-react';
 
 interface MenuItem {
@@ -48,13 +54,23 @@ const menuSections: MenuSection[] = [
   {
     title: 'ระบบการขาย',
     items: [
-      { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
+      { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-5 h-5" />, roles: ['admin', 'manager', 'sales', 'warehouse'] },
       { label: 'Chat', href: '/chat', icon: <MessageCircle className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
       { label: 'ติดตามลูกค้า', href: '/crm/follow-up', icon: <UserCheck className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
       { label: 'ติดตามหนี้', href: '/crm/payment-followup', icon: <DollarSign className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
-      { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
+      { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-5 h-5" />, roles: ['admin', 'manager', 'sales', 'warehouse'] },
       { label: 'ลูกค้า', href: '/customers', icon: <UserCircle className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
-      { label: 'สินค้า', href: '/products', icon: <Package2 className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] }
+      { label: 'สินค้า', href: '/products', icon: <Package2 className="w-5 h-5" />, roles: ['admin', 'manager', 'sales', 'warehouse'] }
+    ]
+  },
+  {
+    title: 'คลังสินค้า',
+    items: [
+      { label: 'สินค้าคงคลัง', href: '/inventory', icon: <Warehouse className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] },
+      { label: 'รับเข้า', href: '/inventory/receive', icon: <ArrowDownToLine className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] },
+      { label: 'เบิกออก', href: '/inventory/issue', icon: <ArrowUpFromLine className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] },
+      { label: 'โอนย้าย', href: '/inventory/transfer', icon: <ArrowLeftRight className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] },
+      { label: 'ประวัติ', href: '/inventory/transactions', icon: <ClipboardList className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] }
     ]
   },
   {
@@ -82,6 +98,8 @@ export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [lowStockCount, setLowStockCount] = useState(0);
+  const [stockEnabled, setStockEnabled] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { userProfile, signOut } = useAuth();
@@ -91,7 +109,8 @@ export default function Sidebar() {
   const effectiveRole = (() => {
     if (companyRole === 'owner' || companyRole === 'admin') return 'admin';
     if (companyRole === 'manager') return 'manager';
-    if (companyRole === 'account' || companyRole === 'warehouse' || companyRole === 'sales') return 'sales';
+    if (companyRole === 'warehouse') return 'warehouse';
+    if (companyRole === 'account' || companyRole === 'sales') return 'sales';
     return userProfile?.role || null;
   })();
 
@@ -114,12 +133,61 @@ export default function Sidebar() {
     return () => document.removeEventListener('click', handleClick);
   }, []);
 
+  // Check if stock feature is enabled + fetch low stock count
+  useEffect(() => {
+    const fetchStockStatus = async () => {
+      try {
+        const res = await apiFetch('/api/warehouses');
+        if (res.ok) {
+          const data = await res.json();
+          const enabled = data.stockConfig?.stockEnabled === true;
+          setStockEnabled(enabled);
+
+          // Only fetch low stock if enabled
+          if (enabled) {
+            try {
+              const invRes = await apiFetch('/api/inventory?low_stock=true&limit=1');
+              if (invRes.ok) {
+                const invData = await invRes.json();
+                setLowStockCount(invData.total || 0);
+              }
+            } catch {
+              // Ignore
+            }
+          }
+        }
+      } catch {
+        // Stock feature not available
+        setStockEnabled(false);
+      }
+    };
+    if (userProfile) {
+      fetchStockStatus();
+    }
+  }, [userProfile]);
+
   const filteredSections = menuSections
+    .filter(section => {
+      // Hide "คลังสินค้า" section when stock feature is not enabled
+      if (section.title === 'คลังสินค้า' && !stockEnabled) return false;
+      return true;
+    })
     .map(section => ({
       ...section,
       items: section.items.filter(item => effectiveRole && item.roles.includes(effectiveRole))
     }))
     .filter(section => section.items.length > 0);
+
+  // Inject low stock badge into inventory menu item
+  if (lowStockCount > 0) {
+    filteredSections.forEach(section => {
+      section.items.forEach(item => {
+        if (item.href === '/inventory') {
+          item.badge = lowStockCount;
+        }
+      });
+    });
+  }
 
   const handleSwitchCompany = (companyId: string) => {
     setCompanyDropdownOpen(false);
@@ -273,7 +341,7 @@ export default function Sidebar() {
                     key={item.href}
                     href={item.href}
                     className={`flex items-center space-x-3 px-3 py-2 rounded-lg mb-1 transition-colors ${
-                      (pathname === item.href || (item.href === '/chat' && (pathname === '/line-chat' || pathname === '/fb-chat')))
+                      (pathname === item.href || pathname?.startsWith(item.href + '/') || (item.href === '/chat' && (pathname === '/line-chat' || pathname === '/fb-chat')))
                         ? 'bg-[#F4511E] text-white'
                         : 'text-gray-300 hover:bg-[#F4511E]/10 hover:text-[#F4511E]'
                     }`}
@@ -329,6 +397,10 @@ export default function Sidebar() {
                     <Link href="/settings/chat-channels" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/chat-channels' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                       <MessageCircle className="w-4 h-4" />
                       <span className="text-[16px] font-medium">ช่องทาง Chat</span>
+                    </Link>
+                    <Link href="/settings/warehouses" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/warehouses' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                      <Warehouse className="w-4 h-4" />
+                      <span className="text-[16px] font-medium">คลังสินค้า</span>
                     </Link>
                   </div>
                 )}

@@ -10,7 +10,8 @@ import {
   Truck,
   Phone,
   LucideIcon,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle
 } from 'lucide-react';
 
 // Define color type
@@ -35,6 +36,7 @@ interface DashboardStats {
     count: number;
     orders: DeliveryOrder[];
   };
+  lowStockCount?: number;
 }
 
 // Stat Card Component
@@ -166,6 +168,15 @@ export default function DashboardPage() {
           icon={Truck}
           color="blue"
         />
+        {(stats?.lowStockCount ?? 0) > 0 && (
+          <StatCard
+            title="สินค้าใกล้หมด"
+            value={`${stats?.lowStockCount || 0} รายการ`}
+            icon={AlertTriangle}
+            color="red"
+            onClick={() => router.push('/inventory?low_stock=true')}
+          />
+        )}
       </div>
 
       {/* Main Content Area */}

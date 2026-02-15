@@ -18,7 +18,9 @@ import {
   Copy,
   ChevronDown,
   CheckCircle,
-  Send
+  Send,
+  Warehouse,
+  AlertTriangle
 } from 'lucide-react';
 
 // Interfaces
@@ -168,6 +170,12 @@ export default function OrderForm({
   const [orderDiscount, setOrderDiscount] = useState(0);
   const [orderDiscountType, setOrderDiscountType] = useState<'percent' | 'amount'>('amount');
 
+  // Stock & Warehouse
+  const [stockEnabled, setStockEnabled] = useState(false);
+  const [warehouses, setWarehouses] = useState<{ id: string; name: string; code: string; is_default: boolean }[]>([]);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+  const [inventoryMap, setInventoryMap] = useState<Record<string, { quantity: number; reserved_quantity: number; available: number }>>({});
+
   // Product search per branch
   const [productSearches, setProductSearches] = useState<string[]>([]);
   const [showProductDropdowns, setShowProductDropdowns] = useState<boolean[]>([]);
@@ -205,11 +213,12 @@ export default function OrderForm({
   const deliveryDateRef = useRef<HTMLDivElement>(null);
   const branchSectionRef = useRef<HTMLDivElement>(null);
 
-  // Fetch customers and products
+  // Fetch customers, products, and warehouse config
   useEffect(() => {
     if (!authLoading && userProfile) {
       fetchCustomers();
       fetchProducts();
+      fetchWarehouses();
     }
   }, [authLoading, userProfile]);
 
@@ -437,6 +446,46 @@ export default function OrderForm({
       setProducts(flatProducts);
     } catch (error) {
       console.error('Error fetching products:', error);
+    }
+  };
+
+  const fetchWarehouses = async () => {
+    try {
+      const response = await apiFetch('/api/warehouses');
+      if (!response.ok) return;
+      const result = await response.json();
+      const { warehouses: wh, stockConfig } = result;
+      if (stockConfig?.stockEnabled) {
+        setStockEnabled(true);
+        setWarehouses(wh || []);
+        const defaultWh = (wh || []).find((w: any) => w.is_default);
+        if (defaultWh && !selectedWarehouseId) {
+          setSelectedWarehouseId(defaultWh.id);
+          fetchInventoryForWarehouse(defaultWh.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching warehouses:', error);
+    }
+  };
+
+  const fetchInventoryForWarehouse = async (warehouseId: string) => {
+    if (!warehouseId) return;
+    try {
+      const response = await apiFetch(`/api/inventory?warehouse_id=${warehouseId}&limit=9999`);
+      if (!response.ok) return;
+      const result = await response.json();
+      const map: Record<string, { quantity: number; reserved_quantity: number; available: number }> = {};
+      for (const item of result.items || []) {
+        map[item.variation_id] = {
+          quantity: item.quantity,
+          reserved_quantity: item.reserved_quantity,
+          available: item.available,
+        };
+      }
+      setInventoryMap(map);
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
     }
   };
 
@@ -831,7 +880,8 @@ export default function OrderForm({
         order_discount_type: orderDiscountType,
         notes: notes || undefined,
         internal_notes: internalNotes || undefined,
-        items
+        items,
+        ...(stockEnabled && selectedWarehouseId ? { warehouse_id: selectedWarehouseId } : {}),
       };
 
       if (isEditMode) {
@@ -910,6 +960,24 @@ export default function OrderForm({
     return bottleSize || '';
   };
 
+  const getStockBadge = (variationId: string, orderQty: number) => {
+    if (!stockEnabled || !selectedWarehouseId) return null;
+    const inv = inventoryMap[variationId];
+    const available = inv ? inv.available : 0;
+    const isLow = available > 0 && orderQty > available;
+    const isOut = available <= 0;
+    return (
+      <span className={`text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+        isOut ? 'bg-red-100 text-red-700' :
+        isLow ? 'bg-amber-100 text-amber-700' :
+        'bg-green-100 text-green-700'
+      }`}>
+        {isOut ? 'หมด' : `คงเหลือ ${available}`}
+        {isLow && <AlertTriangle className="w-3 h-3 inline ml-0.5" />}
+      </span>
+    );
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Server error (API errors only) */}
@@ -928,7 +996,7 @@ export default function OrderForm({
 
       {/* Step 1: Customer + Delivery Date */}
       <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 ${stockEnabled && warehouses.length > 0 ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
           {/* Customer Search */}
           <div ref={customerSectionRef} className="relative md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -1000,6 +1068,31 @@ export default function OrderForm({
               <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryDate}</p>
             )}
           </div>
+
+          {/* Warehouse Picker (only when stock enabled) */}
+          {stockEnabled && warehouses.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                <Warehouse className="w-3.5 h-3.5 inline mr-1" />
+                คลังสินค้า
+              </label>
+              <select
+                value={selectedWarehouseId}
+                onChange={(e) => {
+                  setSelectedWarehouseId(e.target.value);
+                  fetchInventoryForWarehouse(e.target.value);
+                }}
+                disabled={isReadOnly}
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm bg-white dark:bg-slate-700 disabled:bg-gray-100 disabled:text-gray-500"
+              >
+                {warehouses.map(wh => (
+                  <option key={wh.id} value={wh.id}>
+                    {wh.name}{wh.is_default ? ' (ค่าเริ่มต้น)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Selected customer info */}
@@ -1192,7 +1285,10 @@ export default function OrderForm({
                             <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
                               {product.product_name}{capacityDisplay && ` - ${capacityDisplay}`}
                             </div>
-                            <div className="text-xs text-gray-400 dark:text-slate-500">{product.product_code}</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-gray-400 dark:text-slate-500">{product.product_code}</span>
+                              {getStockBadge(product.variation_id, product.quantity)}
+                            </div>
                           </div>
                           {!isReadOnly && (
                             <button
@@ -1294,7 +1390,10 @@ export default function OrderForm({
                                   <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
                                     {product.product_name}{capacityDisplay && ` - ${capacityDisplay}`}
                                   </div>
-                                  <div className="text-xs text-gray-400 dark:text-slate-500">{product.product_code}</div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-gray-400 dark:text-slate-500">{product.product_code}</span>
+                                    {getStockBadge(product.variation_id, product.quantity)}
+                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -1434,7 +1533,20 @@ export default function OrderForm({
                                   <div className="text-sm font-medium truncate">
                                     {product.name}{capacityDisplay && ` - ${capacityDisplay}`}
                                   </div>
-                                  <div className="text-xs text-gray-400 dark:text-slate-500">{product.code} · ฿{product.default_price}</div>
+                                  <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-slate-500">
+                                    <span>{product.code} · ฿{product.default_price}</span>
+                                    {stockEnabled && selectedWarehouseId && (() => {
+                                      const inv = inventoryMap[product.id];
+                                      const avail = inv ? inv.available : 0;
+                                      return (
+                                        <span className={`px-1 py-0.5 rounded text-[10px] ${
+                                          avail <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                                        }`}>
+                                          {avail <= 0 ? 'หมด' : `stock ${avail}`}
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
                                 </div>
                               </button>
                             );

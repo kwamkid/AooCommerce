@@ -45,6 +45,24 @@ export async function GET(request: NextRequest) {
       console.error('Deliveries error:', deliveriesError);
     }
 
+    // Low stock items (stock feature - best effort, table may not exist)
+    let lowStockCount = 0;
+    try {
+      const { data: inventoryItems, error: invError } = await supabaseAdmin
+        .from('inventory')
+        .select('id, quantity, reserved_quantity')
+        .eq('company_id', auth.companyId);
+
+      if (!invError && inventoryItems) {
+        lowStockCount = inventoryItems.filter(item => {
+          const available = (item.quantity || 0) - (item.reserved_quantity || 0);
+          return available <= 5 && available >= 0;
+        }).length;
+      }
+    } catch {
+      // Stock feature might not be enabled or table doesn't exist, ignore
+    }
+
     // Format the data
     const stats = {
       todayDeliveries: {
@@ -61,7 +79,8 @@ export async function GET(request: NextRequest) {
             phone: order.customers?.phone
           }
         }))
-      }
+      },
+      lowStockCount,
     };
 
     return NextResponse.json({ stats });
