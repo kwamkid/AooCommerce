@@ -23,6 +23,16 @@ const nextConfig: NextConfig = {
         hostname: '*.supabase.co',
         pathname: '/storage/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'graph.facebook.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.fbcdn.net',
+        pathname: '/**',
+      },
     ],
   },
 };

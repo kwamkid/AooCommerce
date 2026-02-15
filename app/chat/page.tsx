@@ -142,6 +142,15 @@ interface ChatAccountInfo {
   is_active: boolean;
 }
 
+// Helper: get avatar URL — fallback to FB Graph avatar for FB contacts without picture
+function getAvatarUrl(contact: UnifiedContact): string | null {
+  if (contact.picture_url) return contact.picture_url;
+  if (contact.platform === 'facebook' && contact.platform_user_id) {
+    return `https://graph.facebook.com/${contact.platform_user_id}/picture?type=large`;
+  }
+  return null;
+}
+
 function UnifiedChatPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1116,8 +1125,8 @@ function UnifiedChatPageContent() {
                     className={`w-full p-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-100 dark:border-slate-700 ${selectedContact?.id === contact.id ? (contact.platform === 'line' ? 'bg-[#06C755]/10' : 'bg-[#1877F2]/10') : ''}`}>
                     {/* Avatar with platform badge */}
                     <div className="relative flex-shrink-0">
-                      {contact.picture_url ? (
-                        <Image src={contact.picture_url} alt={contact.display_name} width={48} height={48} className="w-12 h-12 rounded-full object-cover" />
+                      {getAvatarUrl(contact) ? (
+                        <Image src={getAvatarUrl(contact)!} alt={contact.display_name} width={48} height={48} className="w-12 h-12 rounded-full object-cover" unoptimized />
                       ) : (
                         <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: contact.platform === 'line' ? '#06C755' : '#1877F2' }}>
                           <User className="w-6 h-6 text-white" />
@@ -1172,8 +1181,8 @@ function UnifiedChatPageContent() {
               <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between min-h-[81px]">
                 <div className="flex items-center gap-3">
                   <button onClick={() => { setSelectedContact(null); setMobileView('contacts'); }} className="md:hidden p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button>
-                  {selectedContact.picture_url ? (
-                    <Image src={selectedContact.picture_url} alt={selectedContact.display_name} width={40} height={40} className="w-10 h-10 rounded-full object-cover" />
+                  {getAvatarUrl(selectedContact) ? (
+                    <Image src={getAvatarUrl(selectedContact)!} alt={selectedContact.display_name} width={40} height={40} className="w-10 h-10 rounded-full object-cover" unoptimized />
                   ) : (
                     <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: platformColor }}><User className="w-5 h-5 text-white" /></div>
                   )}
