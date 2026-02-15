@@ -22,7 +22,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const PUBLIC_ROUTES = ['/login', '/register', '/auth/callback', '/line-callback', '/onboarding'];
+const PUBLIC_ROUTES = ['/login', '/register', '/auth/callback', '/line-callback', '/onboarding', '/bills'];
 const STORAGE_KEY = 'aoo-current-company-id';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
