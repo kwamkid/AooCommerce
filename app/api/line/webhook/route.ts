@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import sharp from 'sharp';
+import { getLineCredentials } from '@/lib/line-config';
+import { getChatAccount, getDefaultChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
 
 // Create Supabase Admin client (service role)
 const supabaseAdmin = createClient(
@@ -16,17 +18,15 @@ const supabaseAdmin = createClient(
   }
 );
 
-const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET || '';
-
 // Verify LINE signature
-function verifySignature(body: string, signature: string): boolean {
-  if (!LINE_CHANNEL_SECRET) {
+function verifySignature(body: string, signature: string, channelSecret: string): boolean {
+  if (!channelSecret) {
     console.error('LINE_CHANNEL_SECRET not set');
     return false;
   }
 
   const hash = crypto
-    .createHmac('sha256', LINE_CHANNEL_SECRET)
+    .createHmac('sha256', channelSecret)
     .update(body)
     .digest('base64');
 
@@ -82,6 +82,47 @@ export async function POST(request: NextRequest) {
     const body = await request.text();
     const signature = request.headers.get('x-line-signature') || '';
 
+    // Get account or company ID from query param
+    const { searchParams } = new URL(request.url);
+    const accountId = searchParams.get('account');
+    const companyParam = searchParams.get('company');
+
+    let channelSecret = process.env.LINE_CHANNEL_SECRET || '';
+    let accessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+    let companyId: string | null = companyParam;
+    let chatAccountId: string | null = accountId;
+
+    if (accountId) {
+      // New: account-based routing
+      const account = await getChatAccount(accountId);
+      if (account && account.is_active) {
+        const creds = getLineCredsFromAccount(account);
+        if (creds) {
+          channelSecret = creds.channel_secret;
+          accessToken = creds.channel_access_token;
+          companyId = account.company_id;
+        }
+      }
+    } else if (companyId) {
+      // Backward compat: company-based routing
+      const account = await getDefaultChatAccount(companyId, 'line');
+      if (account) {
+        chatAccountId = account.id;
+        const creds = getLineCredsFromAccount(account);
+        if (creds) {
+          channelSecret = creds.channel_secret;
+          accessToken = creds.channel_access_token;
+        }
+      } else {
+        // Legacy fallback to crm_settings
+        const credentials = await getLineCredentials(companyId);
+        if (credentials && credentials.is_active) {
+          channelSecret = credentials.channel_secret;
+          accessToken = credentials.channel_access_token;
+        }
+      }
+    }
+
     const webhookBody: LineWebhookBody = JSON.parse(body);
 
     // LINE verification request sends empty events array - just return 200
@@ -90,14 +131,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify signature for actual events
-    if (!verifySignature(body, signature)) {
+    if (!verifySignature(body, signature, channelSecret)) {
       console.error('Invalid LINE signature');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     // Process each event
     for (const event of webhookBody.events) {
-      await processEvent(event);
+      await processEvent(event, accessToken, companyId, chatAccountId);
     }
 
     return NextResponse.json({ success: true });
@@ -108,7 +149,7 @@ export async function POST(request: NextRequest) {
 }
 
 // Process individual LINE event
-async function processEvent(event: LineEvent) {
+async function processEvent(event: LineEvent, accessToken: string, companyId: string | null, chatAccountId: string | null) {
   const sourceType = event.source.type;
   const lineUserId = event.source.userId;
   const groupId = event.source.groupId;
@@ -135,36 +176,36 @@ async function processEvent(event: LineEvent) {
 
   // Handle message events
   if (event.type === 'message' && event.message) {
-    await handleMessageEvent(contactId, event, isGroup, lineUserId);
+    await handleMessageEvent(contactId, event, isGroup, lineUserId, accessToken, companyId, chatAccountId);
   }
 
   // Handle follow event (user adds friend) - only for 1:1
   if (event.type === 'follow' && lineUserId && !isGroup) {
-    await handleFollowEvent(lineUserId);
+    await handleFollowEvent(lineUserId, accessToken, companyId, chatAccountId);
   }
 
   // Handle unfollow event (user blocks) - only for 1:1
   if (event.type === 'unfollow' && lineUserId && !isGroup) {
-    await handleUnfollowEvent(lineUserId);
+    await handleUnfollowEvent(lineUserId, companyId);
   }
 
   // Handle join event (bot joins group)
   if (event.type === 'join' && isGroup) {
-    await handleJoinGroupEvent(contactId, sourceType === 'group');
+    await handleJoinGroupEvent(contactId, sourceType === 'group', accessToken, companyId, chatAccountId);
   }
 
   // Handle leave event (bot leaves group)
   if (event.type === 'leave' && isGroup) {
-    await handleLeaveGroupEvent(contactId);
+    await handleLeaveGroupEvent(contactId, companyId);
   }
 }
 
 // Handle incoming message
-async function handleMessageEvent(contactId: string, event: LineEvent, isGroup: boolean, senderUserId?: string) {
+async function handleMessageEvent(contactId: string, event: LineEvent, isGroup: boolean, senderUserId: string | undefined, accessToken: string, companyId: string | null, chatAccountId: string | null) {
   const message = event.message!;
 
   // Get or create LINE contact
-  const contact = await getOrCreateLineContact(contactId, isGroup, senderUserId);
+  const contact = await getOrCreateLineContact(contactId, isGroup, senderUserId, accessToken, companyId, chatAccountId);
 
   if (!contact) {
     console.error('Failed to get/create contact for:', contactId);
@@ -179,11 +220,11 @@ async function handleMessageEvent(contactId: string, event: LineEvent, isGroup: 
     // For groups: get sender profile from group member API
     // For 1:1: get user profile
     if (isGroup) {
-      const memberProfile = await getGroupMemberProfile(contactId, senderUserId, event.source.type === 'group');
+      const memberProfile = await getGroupMemberProfile(contactId, senderUserId, event.source.type === 'group', accessToken);
       senderName = memberProfile?.displayName || null;
       senderPictureUrl = memberProfile?.pictureUrl || null;
     } else {
-      const profile = await getLineProfile(senderUserId);
+      const profile = await getLineProfile(senderUserId, accessToken);
       senderName = profile?.displayName || null;
       senderPictureUrl = profile?.pictureUrl || null;
     }
@@ -200,7 +241,7 @@ async function handleMessageEvent(contactId: string, event: LineEvent, isGroup: 
     messageContent = '[รูปภาพ]';
     // For LINE provider images, fetch and store in Supabase Storage
     if (message.contentProvider?.type === 'line') {
-      const imageUrl = await fetchAndStoreLineContent(message.id, 'image');
+      const imageUrl = await fetchAndStoreLineContent(message.id, 'image', accessToken);
       if (imageUrl) {
         metadata.imageUrl = imageUrl;
       }
@@ -211,7 +252,7 @@ async function handleMessageEvent(contactId: string, event: LineEvent, isGroup: 
     messageContent = '[วิดีโอ]';
     // Store video in Supabase Storage
     if (message.contentProvider?.type === 'line') {
-      const videoUrl = await fetchAndStoreLineContent(message.id, 'video');
+      const videoUrl = await fetchAndStoreLineContent(message.id, 'video', accessToken);
       if (videoUrl) {
         metadata.videoUrl = videoUrl;
       }
@@ -242,21 +283,24 @@ async function handleMessageEvent(contactId: string, event: LineEvent, isGroup: 
   }
 
   // Save message to database with sender info
+  const insertData: Record<string, unknown> = {
+    line_contact_id: contact.id,
+    line_message_id: message.id,
+    direction: 'incoming',
+    message_type: messageType,
+    content: messageContent,
+    raw_message: { ...message, ...metadata },
+    sender_user_id: senderUserId || null,
+    sender_name: senderName,
+    sender_picture_url: senderPictureUrl,
+    received_at: new Date(event.timestamp).toISOString(),
+    created_at: new Date().toISOString()
+  };
+  if (companyId) insertData.company_id = companyId;
+
   const { error } = await supabaseAdmin
     .from('line_messages')
-    .insert({
-      line_contact_id: contact.id,
-      line_message_id: message.id,
-      direction: 'incoming',
-      message_type: messageType,
-      content: messageContent,
-      raw_message: { ...message, ...metadata },
-      sender_user_id: senderUserId || null,
-      sender_name: senderName,
-      sender_picture_url: senderPictureUrl,
-      received_at: new Date(event.timestamp).toISOString(),
-      created_at: new Date().toISOString()
-    });
+    .insert(insertData);
 
   if (error) {
     console.error('Failed to save message:', error);
@@ -274,21 +318,25 @@ async function handleMessageEvent(contactId: string, event: LineEvent, isGroup: 
 }
 
 // Handle follow event
-async function handleFollowEvent(lineUserId: string) {
+async function handleFollowEvent(lineUserId: string, accessToken: string, companyId: string | null, chatAccountId: string | null) {
   // Get LINE profile
-  const profile = await getLineProfile(lineUserId);
+  const profile = await getLineProfile(lineUserId, accessToken);
+
+  const upsertData: Record<string, unknown> = {
+    line_user_id: lineUserId,
+    display_name: profile?.displayName || 'Unknown',
+    picture_url: profile?.pictureUrl || null,
+    status: 'active',
+    followed_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  if (companyId) upsertData.company_id = companyId;
+  if (chatAccountId) upsertData.chat_account_id = chatAccountId;
 
   // Create or update contact
   const { error } = await supabaseAdmin
     .from('line_contacts')
-    .upsert({
-      line_user_id: lineUserId,
-      display_name: profile?.displayName || 'Unknown',
-      picture_url: profile?.pictureUrl || null,
-      status: 'active',
-      followed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }, {
+    .upsert(upsertData, {
       onConflict: 'line_user_id'
     });
 
@@ -298,8 +346,8 @@ async function handleFollowEvent(lineUserId: string) {
 }
 
 // Handle unfollow event
-async function handleUnfollowEvent(lineUserId: string) {
-  const { error } = await supabaseAdmin
+async function handleUnfollowEvent(lineUserId: string, companyId: string | null) {
+  let query = supabaseAdmin
     .from('line_contacts')
     .update({
       status: 'blocked',
@@ -307,26 +355,34 @@ async function handleUnfollowEvent(lineUserId: string) {
     })
     .eq('line_user_id', lineUserId);
 
+  if (companyId) query = query.eq('company_id', companyId);
+
+  const { error } = await query;
+
   if (error) {
     console.error('Failed to update contact on unfollow:', error);
   }
 }
 
 // Handle join group event
-async function handleJoinGroupEvent(groupId: string, isGroup: boolean) {
+async function handleJoinGroupEvent(groupId: string, isGroup: boolean, accessToken: string, companyId: string | null, chatAccountId: string | null) {
   // Get group summary (name)
-  const groupInfo = await getGroupInfo(groupId, isGroup);
+  const groupInfo = await getGroupInfo(groupId, isGroup, accessToken);
+
+  const upsertData: Record<string, unknown> = {
+    line_user_id: groupId,
+    display_name: groupInfo?.groupName || groupInfo?.roomName || 'กลุ่มลูกค้า',
+    picture_url: groupInfo?.pictureUrl || null,
+    status: 'active',
+    followed_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  if (companyId) upsertData.company_id = companyId;
+  if (chatAccountId) upsertData.chat_account_id = chatAccountId;
 
   const { error } = await supabaseAdmin
     .from('line_contacts')
-    .upsert({
-      line_user_id: groupId,
-      display_name: groupInfo?.groupName || groupInfo?.roomName || 'กลุ่มลูกค้า',
-      picture_url: groupInfo?.pictureUrl || null,
-      status: 'active',
-      followed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }, {
+    .upsert(upsertData, {
       onConflict: 'line_user_id'
     });
 
@@ -336,8 +392,8 @@ async function handleJoinGroupEvent(groupId: string, isGroup: boolean) {
 }
 
 // Handle leave group event
-async function handleLeaveGroupEvent(groupId: string) {
-  const { error } = await supabaseAdmin
+async function handleLeaveGroupEvent(groupId: string, companyId: string | null) {
+  let query = supabaseAdmin
     .from('line_contacts')
     .update({
       status: 'blocked',
@@ -345,19 +401,26 @@ async function handleLeaveGroupEvent(groupId: string) {
     })
     .eq('line_user_id', groupId);
 
+  if (companyId) query = query.eq('company_id', companyId);
+
+  const { error } = await query;
+
   if (error) {
     console.error('Failed to update group contact on leave:', error);
   }
 }
 
 // Get or create LINE contact (supports both 1:1 and group)
-async function getOrCreateLineContact(contactId: string, isGroup: boolean, senderUserId?: string) {
+async function getOrCreateLineContact(contactId: string, isGroup: boolean, senderUserId: string | undefined, accessToken: string, companyId: string | null, chatAccountId: string | null) {
   // Check if contact exists
-  const { data: existing } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('line_contacts')
     .select('*')
-    .eq('line_user_id', contactId)
-    .single();
+    .eq('line_user_id', contactId);
+
+  if (companyId) query = query.eq('company_id', companyId);
+
+  const { data: existing } = await query.single();
 
   if (existing) {
     return existing;
@@ -369,28 +432,32 @@ async function getOrCreateLineContact(contactId: string, isGroup: boolean, sende
 
   if (isGroup) {
     // For groups, try to get group info
-    const groupInfo = await getGroupInfo(contactId, true);
+    const groupInfo = await getGroupInfo(contactId, true, accessToken);
     displayName = groupInfo?.groupName || groupInfo?.roomName || 'กลุ่มลูกค้า';
     pictureUrl = groupInfo?.pictureUrl || null;
   } else {
     // For 1:1 chat, get user profile
-    const profile = await getLineProfile(contactId);
+    const profile = await getLineProfile(contactId, accessToken);
     displayName = profile?.displayName || 'Unknown';
     pictureUrl = profile?.pictureUrl || null;
   }
 
   // Create new contact
+  const insertData: Record<string, unknown> = {
+    line_user_id: contactId,
+    display_name: displayName,
+    picture_url: pictureUrl,
+    status: 'active',
+    unread_count: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  if (companyId) insertData.company_id = companyId;
+  if (chatAccountId) insertData.chat_account_id = chatAccountId;
+
   const { data: newContact, error } = await supabaseAdmin
     .from('line_contacts')
-    .insert({
-      line_user_id: contactId,
-      display_name: displayName,
-      picture_url: pictureUrl,
-      status: 'active',
-      unread_count: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
+    .insert(insertData)
     .select()
     .single();
 
@@ -403,10 +470,8 @@ async function getOrCreateLineContact(contactId: string, isGroup: boolean, sende
 }
 
 // Get LINE group/room info
-async function getGroupInfo(groupId: string, isGroup: boolean) {
-  const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-
-  if (!LINE_CHANNEL_ACCESS_TOKEN) {
+async function getGroupInfo(groupId: string, isGroup: boolean, accessToken: string) {
+  if (!accessToken) {
     console.error('LINE_CHANNEL_ACCESS_TOKEN not set');
     return null;
   }
@@ -418,7 +483,7 @@ async function getGroupInfo(groupId: string, isGroup: boolean) {
 
     const response = await fetch(endpoint, {
       headers: {
-        'Authorization': `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`
+        'Authorization': `Bearer ${accessToken}`
       }
     });
 
@@ -435,10 +500,8 @@ async function getGroupInfo(groupId: string, isGroup: boolean) {
 }
 
 // Fetch content from LINE and store in Supabase Storage
-async function fetchAndStoreLineContent(messageId: string, type: 'image' | 'video' | 'audio' | 'file'): Promise<string | null> {
-  const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-
-  if (!LINE_CHANNEL_ACCESS_TOKEN) {
+async function fetchAndStoreLineContent(messageId: string, type: 'image' | 'video' | 'audio' | 'file', accessToken: string): Promise<string | null> {
+  if (!accessToken) {
     console.error('LINE_CHANNEL_ACCESS_TOKEN not set');
     return null;
   }
@@ -447,7 +510,7 @@ async function fetchAndStoreLineContent(messageId: string, type: 'image' | 'vide
     // Fetch content from LINE
     const response = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
       headers: {
-        'Authorization': `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`
+        'Authorization': `Bearer ${accessToken}`
       }
     });
 
@@ -517,10 +580,8 @@ async function fetchAndStoreLineContent(messageId: string, type: 'image' | 'vide
 }
 
 // Get LINE user profile
-async function getLineProfile(lineUserId: string) {
-  const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-
-  if (!LINE_CHANNEL_ACCESS_TOKEN) {
+async function getLineProfile(lineUserId: string, accessToken: string) {
+  if (!accessToken) {
     console.error('LINE_CHANNEL_ACCESS_TOKEN not set');
     return null;
   }
@@ -528,7 +589,7 @@ async function getLineProfile(lineUserId: string) {
   try {
     const response = await fetch(`https://api.line.me/v2/bot/profile/${lineUserId}`, {
       headers: {
-        'Authorization': `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`
+        'Authorization': `Bearer ${accessToken}`
       }
     });
 
@@ -545,10 +606,8 @@ async function getLineProfile(lineUserId: string) {
 }
 
 // Get group/room member profile
-async function getGroupMemberProfile(groupId: string, userId: string, isGroup: boolean) {
-  const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-
-  if (!LINE_CHANNEL_ACCESS_TOKEN) {
+async function getGroupMemberProfile(groupId: string, userId: string, isGroup: boolean, accessToken: string) {
+  if (!accessToken) {
     console.error('LINE_CHANNEL_ACCESS_TOKEN not set');
     return null;
   }
@@ -560,14 +619,14 @@ async function getGroupMemberProfile(groupId: string, userId: string, isGroup: b
 
     const response = await fetch(endpoint, {
       headers: {
-        'Authorization': `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`
+        'Authorization': `Bearer ${accessToken}`
       }
     });
 
     if (!response.ok) {
       console.error('Failed to get group member profile:', response.status);
       // Fallback to regular profile
-      return await getLineProfile(userId);
+      return await getLineProfile(userId, accessToken);
     }
 
     return await response.json();

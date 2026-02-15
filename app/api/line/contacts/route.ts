@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     const unreadOnly = searchParams.get('unread_only') === 'true';
     const linkedOnly = searchParams.get('linked_only') === 'true';
     const unlinkedOnly = searchParams.get('unlinked_only') === 'true';
+    const accountId = searchParams.get('account_id');
     // Order days range filter
     const orderDaysMin = searchParams.get('order_days_min');
     const orderDaysMax = searchParams.get('order_days_max');
@@ -70,6 +71,11 @@ export async function GET(request: NextRequest) {
       .eq('company_id', companyId)
       .eq('status', 'active')
       .order('last_message_at', { ascending: false, nullsFirst: false });
+
+    if (accountId) {
+      query = query.eq('chat_account_id', accountId);
+      countQuery = countQuery.eq('chat_account_id', accountId);
+    }
 
     if (search) {
       query = query.ilike('display_name', `%${search}%`);

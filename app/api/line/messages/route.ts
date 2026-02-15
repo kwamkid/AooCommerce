@@ -1,8 +1,8 @@
 // Path: app/api/line/messages/route.ts
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
-
-const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+import { getLineCredentials } from '@/lib/line-config';
+import { getChatAccount, getDefaultChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
 
 // GET - Get messages for a contact
 export async function GET(request: NextRequest) {
@@ -152,10 +152,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Get contact's LINE user ID
+    // Get contact's LINE user ID and chat_account_id
     const { data: contact, error: contactError } = await supabaseAdmin
       .from('line_contacts')
-      .select('line_user_id')
+      .select('line_user_id, chat_account_id')
       .eq('id', contact_id)
       .eq('company_id', companyId)
       .single();
@@ -167,8 +167,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get LINE credentials — try account-based first, fallback to legacy
+    let accessToken: string | null = null;
+
+    if (contact.chat_account_id) {
+      const account = await getChatAccount(contact.chat_account_id);
+      if (account) {
+        const creds = getLineCredsFromAccount(account);
+        accessToken = creds?.channel_access_token || null;
+      }
+    }
+
+    if (!accessToken) {
+      // Fallback: default account or legacy crm_settings
+      const account = await getDefaultChatAccount(companyId, 'line');
+      if (account) {
+        const creds = getLineCredsFromAccount(account);
+        accessToken = creds?.channel_access_token || null;
+      }
+    }
+
+    if (!accessToken) {
+      const credentials = await getLineCredentials(companyId);
+      accessToken = credentials?.channel_access_token || null;
+    }
+
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: 'LINE ยังไม่ได้ตั้งค่า กรุณาตั้งค่าที่ ตั้งค่า > ช่องทาง Chat' },
+        { status: 400 }
+      );
+    }
+
     // Send message via LINE API
-    const lineResponse = await sendLineMessage(contact.line_user_id, body);
+    const lineResponse = await sendLineMessage(contact.line_user_id, body, accessToken);
 
     if (!lineResponse.success) {
       return NextResponse.json(
@@ -241,9 +273,9 @@ export async function POST(request: NextRequest) {
 }
 
 // Send message via LINE Messaging API
-async function sendLineMessage(lineUserId: string, body: MessageBody): Promise<{ success: boolean; error?: string }> {
-  if (!LINE_CHANNEL_ACCESS_TOKEN) {
-    return { success: false, error: 'LINE_CHANNEL_ACCESS_TOKEN not configured' };
+async function sendLineMessage(lineUserId: string, body: MessageBody, accessToken: string): Promise<{ success: boolean; error?: string }> {
+  if (!accessToken) {
+    return { success: false, error: 'LINE access token not configured' };
   }
 
   try {
@@ -278,7 +310,7 @@ async function sendLineMessage(lineUserId: string, body: MessageBody): Promise<{
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`
+        'Authorization': `Bearer ${accessToken}`
       },
       body: JSON.stringify({
         to: lineUserId,

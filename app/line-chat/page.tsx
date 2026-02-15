@@ -255,12 +255,15 @@ function LineChatPageContent() {
     }
   }, [authLoading, userProfile]);
 
+  // Get account_id from URL params
+  const accountId = searchParams.get('account_id');
+
   // Fetch contacts
   useEffect(() => {
     if (!authLoading && userProfile) {
       fetchContacts();
     }
-  }, [authLoading, userProfile, searchTerm, filterLinked, filterUnread, filterOrderDaysRange]);
+  }, [authLoading, userProfile, searchTerm, filterLinked, filterUnread, filterOrderDaysRange, accountId]);
 
   // Auto-select contact from URL param (e.g., /line-chat?user=U1234567890)
   useEffect(() => {
@@ -435,6 +438,7 @@ function LineChatPageContent() {
         setLoadingMoreContacts(true);
       }
       const params = new URLSearchParams();
+      if (accountId) params.set('account_id', accountId);
       if (searchTerm) params.set('search', searchTerm);
       if (filterUnread) params.set('unread_only', 'true');
       if (filterLinked === 'linked') params.set('linked_only', 'true');

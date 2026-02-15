@@ -27,7 +27,8 @@ import {
   ChevronDown,
   Building2,
   UserCog,
-  Check
+  Check,
+  Facebook
 } from 'lucide-react';
 
 interface MenuItem {
@@ -48,7 +49,7 @@ const menuSections: MenuSection[] = [
     title: 'ระบบการขาย',
     items: [
       { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
-      { label: 'LINE Chat', href: '/line-chat', icon: <MessageCircle className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
+      { label: 'Chat', href: '/chat', icon: <MessageCircle className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
       { label: 'ติดตามลูกค้า', href: '/crm/follow-up', icon: <UserCheck className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
       { label: 'ติดตามหนี้', href: '/crm/payment-followup', icon: <DollarSign className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
       { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
@@ -272,7 +273,7 @@ export default function Sidebar() {
                     key={item.href}
                     href={item.href}
                     className={`flex items-center space-x-3 px-3 py-2 rounded-lg mb-1 transition-colors ${
-                      pathname === item.href
+                      (pathname === item.href || (item.href === '/chat' && (pathname === '/line-chat' || pathname === '/fb-chat')))
                         ? 'bg-[#F4511E] text-white'
                         : 'text-gray-300 hover:bg-[#F4511E]/10 hover:text-[#F4511E]'
                     }`}
@@ -324,6 +325,10 @@ export default function Sidebar() {
                     <Link href="/settings/payment-channels" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/payment-channels' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                       <CreditCard className="w-4 h-4" />
                       <span className="text-[16px] font-medium">ช่องทางชำระเงิน</span>
+                    </Link>
+                    <Link href="/settings/chat-channels" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/chat-channels' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                      <MessageCircle className="w-4 h-4" />
+                      <span className="text-[16px] font-medium">ช่องทาง Chat</span>
                     </Link>
                   </div>
                 )}
