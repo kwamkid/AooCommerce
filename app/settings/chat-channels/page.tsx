@@ -936,28 +936,16 @@ export default function ChatChannelsPage() {
         {/* Expanded Section */}
         {isExpanded && (
           <div className="px-4 pb-4 space-y-3 border-t border-gray-100 dark:border-slate-700 pt-3">
-            {/* Bot/Page Picture */}
-            {botPicture ? (
-              <div className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: `${config.color}08`, border: `1px solid ${config.color}30` }}>
-                <div className="relative flex-shrink-0">
-                  <img src={botPicture} alt={botName || ''} className="w-10 h-10 rounded-full" />
-                  {igPicture && (
-                    <img src={igPicture} alt={igUsername || 'IG'} className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white dark:border-slate-800" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{botName || ''}</p>
-                  {basicId ? <p className="text-xs text-gray-500 dark:text-slate-400">@{basicId}</p> : null}
-                  {pageId ? <p className="text-xs text-gray-500 dark:text-slate-400">Page ID: {pageId}</p> : null}
-                  {igUsername ? (
-                    <p className="text-xs text-pink-500">
-                      IG @{igUsername}{igAccountId ? <span className="text-gray-400 dark:text-slate-500 ml-1">({igAccountId})</span> : null}
-                    </p>
-                  ) : null}
-                </div>
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: config.color }} />
+            {/* Extra info not shown in header */}
+            {(pageId || igAccountId) && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
+                {pageId ? <span>Page ID: {pageId}</span> : null}
+                {igAccountId ? <span className="text-pink-500">IG ID: {igAccountId}</span> : null}
               </div>
-            ) : info ? (
+            )}
+
+            {/* Test result (only shown after clicking test, when no bot info in credentials yet) */}
+            {!botPicture && info ? (
               <div className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: `${config.color}08`, border: `1px solid ${config.color}30` }}>
                 {info.picture_url ? <img src={info.picture_url} alt={info.name} className="w-10 h-10 rounded-full" /> : null}
                 <div className="flex-1">

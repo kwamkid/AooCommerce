@@ -65,7 +65,7 @@ function StatCard({
     >
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-gray-600 mb-1">{title}</p>
+          <p className="text-sm text-gray-600 dark:text-slate-400 mb-1">{title}</p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white">{value}</p>
         </div>
         <div className={`${colorClasses[color]} p-3 rounded-lg`}>
@@ -153,7 +153,7 @@ export default function DashboardPage() {
 
       {/* Error Message */}
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+        <div className="mb-6 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-800 dark:text-red-400 px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
@@ -190,14 +190,14 @@ export default function DashboardPage() {
                 <Link
                   key={order.id}
                   href={`/orders/${order.id}`}
-                  className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                  className="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                 >
                   <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{order.customer.name}</p>
                     <p className="text-xs text-gray-600 dark:text-slate-400">Order: {order.orderNumber}</p>
                     {order.customer.phone && (
-                      <p className="text-xs text-gray-500 flex items-center mt-1">
+                      <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center mt-1">
                         <Phone className="w-3 h-3 mr-1" />
                         {order.customer.phone}
                       </p>
@@ -211,7 +211,7 @@ export default function DashboardPage() {
                 </Link>
               ))
             ) : (
-              <p className="text-gray-500 text-sm text-center py-4">ไม่มีการส่งของวันนี้</p>
+              <p className="text-gray-500 dark:text-slate-400 text-sm text-center py-4">ไม่มีการส่งของวันนี้</p>
             )}
           </div>
         </div>

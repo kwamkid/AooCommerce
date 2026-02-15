@@ -155,6 +155,7 @@ export async function GET(request: NextRequest) {
     const customerType = searchParams.get('type');
     const isActive = searchParams.get('active');
     const withStats = searchParams.get('with_stats') === 'true';
+    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) : null;
 
     let query = supabaseAdmin
       .from('customers')
@@ -174,7 +175,10 @@ export async function GET(request: NextRequest) {
       query = query.eq('is_active', isActive === 'true');
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+    query = query.order('created_at', { ascending: false });
+    if (limit) query = query.limit(limit);
+
+    const { data, error } = await query;
 
     if (error) {
       return NextResponse.json(

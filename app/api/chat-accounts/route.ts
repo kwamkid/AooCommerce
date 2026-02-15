@@ -64,6 +64,41 @@ export async function POST(request: NextRequest) {
       finalCredentials.verify_token = crypto.randomBytes(16).toString('hex');
     }
 
+    // Validate: prevent duplicate FB page_id or LINE channel_secret across all companies
+    if (platform === 'facebook' && finalCredentials.page_id) {
+      const { data: existingFb } = await supabaseAdmin
+        .from('chat_accounts')
+        .select('id, company_id, account_name, credentials')
+        .eq('platform', 'facebook')
+        .eq('is_active', true);
+
+      const duplicate = (existingFb || []).find(a => {
+        const creds = a.credentials as Record<string, unknown> | null;
+        return creds && (creds as Record<string, unknown>).page_id === finalCredentials.page_id;
+      });
+
+      if (duplicate) {
+        return NextResponse.json({ error: 'Facebook Page นี้ถูกเชื่อมต่อแล้วในระบบ ไม่สามารถเพิ่มซ้ำได้' }, { status: 400 });
+      }
+    }
+
+    if (platform === 'line' && finalCredentials.channel_secret) {
+      const { data: existingLine } = await supabaseAdmin
+        .from('chat_accounts')
+        .select('id, company_id, account_name, credentials')
+        .eq('platform', 'line')
+        .eq('is_active', true);
+
+      const duplicate = (existingLine || []).find(a => {
+        const creds = a.credentials as Record<string, unknown> | null;
+        return creds && (creds as Record<string, unknown>).channel_secret === finalCredentials.channel_secret;
+      });
+
+      if (duplicate) {
+        return NextResponse.json({ error: 'LINE OA นี้ถูกเชื่อมต่อแล้วในระบบ ไม่สามารถเพิ่มซ้ำได้' }, { status: 400 });
+      }
+    }
+
     const { data, error } = await supabaseAdmin
       .from('chat_accounts')
       .insert({
@@ -174,6 +209,37 @@ export async function PUT(request: NextRequest) {
           continue;
         }
         mergedCreds[key] = value;
+      }
+
+      // Validate: prevent duplicate FB page_id or LINE channel_secret
+      if (existing.platform === 'facebook' && mergedCreds.page_id) {
+        const { data: others } = await supabaseAdmin
+          .from('chat_accounts')
+          .select('id, credentials')
+          .eq('platform', 'facebook')
+          .eq('is_active', true)
+          .neq('id', id);
+
+        const dup = (others || []).find(a => {
+          const c = a.credentials as Record<string, unknown> | null;
+          return c && c.page_id === mergedCreds.page_id;
+        });
+        if (dup) return NextResponse.json({ error: 'Facebook Page นี้ถูกเชื่อมต่อแล้วในระบบ' }, { status: 400 });
+      }
+
+      if (existing.platform === 'line' && mergedCreds.channel_secret) {
+        const { data: others } = await supabaseAdmin
+          .from('chat_accounts')
+          .select('id, credentials')
+          .eq('platform', 'line')
+          .eq('is_active', true)
+          .neq('id', id);
+
+        const dup = (others || []).find(a => {
+          const c = a.credentials as Record<string, unknown> | null;
+          return c && c.channel_secret === mergedCreds.channel_secret;
+        });
+        if (dup) return NextResponse.json({ error: 'LINE OA นี้ถูกเชื่อมต่อแล้วในระบบ' }, { status: 400 });
       }
 
       updateData.credentials = mergedCreds;

@@ -21,7 +21,10 @@ import {
   Check,
   Truck,
   Save,
-  UserCircle
+  UserCircle,
+  MessageCircle,
+  Facebook,
+  User
 } from 'lucide-react';
 
 // Customer interface
@@ -147,6 +150,7 @@ export default function CustomerEditPage() {
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [addresses, setAddresses] = useState<ShippingAddress[]>([]);
+  const [linkedContacts, setLinkedContacts] = useState<{ id: string; platform: 'line' | 'facebook'; display_name: string; picture_url?: string; last_message_at?: string; account_name?: string }[]>([]);
   const [defaultAddressId, setDefaultAddressId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -242,14 +246,17 @@ export default function CustomerEditPage() {
     try {
       setLoading(true);
 
-      // Fetch customer and addresses in parallel
-      const [customerRes, addressRes] = await Promise.all([
+      // Fetch customer, addresses, and linked contacts in parallel
+      const [customerRes, addressRes, linkedRes] = await Promise.all([
         apiFetch('/api/customers'),
-        apiFetch(`/api/shipping-addresses?customer_id=${customerId}`)
+        apiFetch(`/api/shipping-addresses?customer_id=${customerId}`),
+        apiFetch(`/api/chat/contacts?customer_id=${customerId}`)
       ]);
 
       const customerResult = await customerRes.json();
       const addressResult = await addressRes.json();
+      const linkedResult = await linkedRes.json();
+      setLinkedContacts(linkedResult.linked_contacts || []);
 
       if (!customerRes.ok) throw new Error(customerResult.error || 'Failed to fetch customer');
 
@@ -683,6 +690,53 @@ export default function CustomerEditPage() {
               />
             </div>
           </div>
+        </div>
+
+        {/* Section: Chat Channels */}
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
+            <MessageCircle className="w-5 h-5" />
+            ช่องทางแชท
+            {linkedContacts.length > 0 && (
+              <span className="text-sm font-normal text-gray-500 dark:text-slate-400">({linkedContacts.length})</span>
+            )}
+          </h3>
+          {linkedContacts.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-slate-400">ยังไม่มีช่องทางแชท</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {linkedContacts.map(lc => (
+                <button
+                  key={`${lc.platform}-${lc.id}`}
+                  onClick={() => router.push(`/chat?contact_id=${lc.id}&platform=${lc.platform}`)}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                >
+                  <div className="relative flex-shrink-0">
+                    {lc.picture_url ? (
+                      <img src={lc.picture_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center">
+                        <User className="w-5 h-5 text-gray-500 dark:text-slate-400" />
+                      </div>
+                    )}
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
+                      {lc.platform === 'line' ? <MessageCircle className="w-2.5 h-2.5 text-white" /> : <Facebook className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{lc.display_name}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                      {lc.account_name || (lc.platform === 'line' ? 'LINE' : 'Facebook')}
+                      {lc.last_message_at && (
+                        <> · {new Date(lc.last_message_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</>
+                      )}
+                    </p>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-gray-400 dark:text-slate-500 flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Section 2: Shipping Addresses — left: default branch form, right: additional branches */}

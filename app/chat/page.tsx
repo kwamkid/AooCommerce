@@ -37,7 +37,8 @@ import {
   FileText,
   Download,
   Play,
-  Images
+  Images,
+  ArrowUpDown
 } from 'lucide-react';
 import Image from 'next/image';
 import OrderForm from '@/components/orders/OrderForm';
@@ -140,6 +141,18 @@ interface ChatAccountInfo {
   platform: string;
   account_name: string;
   is_active: boolean;
+  credentials?: Record<string, unknown>;
+}
+
+// Helper: get account profile picture URL
+function getAccountPicture(account: ChatAccountInfo): string | null {
+  if (!account.credentials) return null;
+  if (account.platform === 'line') return (account.credentials.bot_picture_url as string) || null;
+  if (account.platform === 'facebook') {
+    const pageId = account.credentials.page_id as string;
+    if (pageId) return `https://graph.facebook.com/${pageId}/picture?type=small`;
+  }
+  return null;
 }
 
 // Helper: get avatar URL — fallback to FB Graph avatar for FB contacts without picture
@@ -149,6 +162,13 @@ function getAvatarUrl(contact: UnifiedContact): string | null {
     return `https://graph.facebook.com/${contact.platform_user_id}/picture?type=large`;
   }
   return null;
+}
+
+// Helper: get initials from display name
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
 }
 
 function UnifiedChatPageContent() {
@@ -180,6 +200,9 @@ function UnifiedChatPageContent() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
+  // Linked contacts for customer profile
+  const [linkedContacts, setLinkedContacts] = useState<{ id: string; platform: 'line' | 'facebook'; display_name: string; picture_url?: string; last_message_at?: string; account_name?: string }[]>([]);
+
   // Message input
   const [newMessage, setNewMessage] = useState('');
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
@@ -187,16 +210,20 @@ function UnifiedChatPageContent() {
 
   // Link customer modal
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [confirmLinkCustomer, setConfirmLinkCustomer] = useState<Customer | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerSearch, setCustomerSearch] = useState('');
   const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const customerSearchTimer = useRef<NodeJS.Timeout | null>(null);
+  const customerSearchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Image upload
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
 
   // Sticker picker
-  const [showStickerPicker, setShowStickerPicker] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [emojiTab, setEmojiTab] = useState<'emoji' | 'sticker'>('emoji');
+  const [emojiSearch, setEmojiSearch] = useState('');
 
   // Scroll to bottom button
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -231,6 +258,8 @@ function UnifiedChatPageContent() {
   const [filterLinked, setFilterLinked] = useState<'all' | 'linked' | 'unlinked'>('all');
   const [filterUnread, setFilterUnread] = useState(false);
   const [filterOrderDaysRange, setFilterOrderDaysRange] = useState<{ min: number; max: number | null } | null>(null);
+  const [sortMode, setSortMode] = useState<'time' | 'unread'>('time');
+  const [showAccountPicker, setShowAccountPicker] = useState(false);
 
   // Day ranges from CRM settings
   const [dayRanges, setDayRanges] = useState<DayRange[]>([]);
@@ -320,6 +349,19 @@ function UnifiedChatPageContent() {
     }
   }, [selectedContact]);
 
+  // Fetch linked contacts when customer changes
+  useEffect(() => {
+    const customerId = selectedContact?.customer_id || selectedContact?.customer?.id;
+    if (customerId) {
+      apiFetch(`/api/chat/contacts?customer_id=${customerId}`)
+        .then(r => r.json())
+        .then(data => setLinkedContacts(data.linked_contacts || []))
+        .catch(() => setLinkedContacts([]));
+    } else {
+      setLinkedContacts([]);
+    }
+  }, [selectedContact?.customer_id, selectedContact?.customer?.id]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -355,10 +397,31 @@ function UnifiedChatPageContent() {
       if (showFilterPopover && !target.closest('[data-filter-popover]')) {
         setShowFilterPopover(false);
       }
+      if (showAccountPicker && !target.closest('[data-account-picker]')) {
+        setShowAccountPicker(false);
+      }
+      if (showEmojiPicker && !target.closest('[data-emoji-picker]')) {
+        setShowEmojiPicker(false);
+        setEmojiSearch('');
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showFilterPopover]);
+  }, [showFilterPopover, showAccountPicker, showEmojiPicker]);
+
+  // Close emoji picker on Escape key
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowEmojiPicker(false);
+        setEmojiSearch('');
+        inputRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [showEmojiPicker]);
 
   // IntersectionObserver for infinite scroll on contacts list
   useEffect(() => {
@@ -481,10 +544,9 @@ function UnifiedChatPageContent() {
 
       setHasMoreContacts(result.summary?.hasMore || false);
 
-      if (loadMore) {
-        setTotalUnread(prev => prev + contactsList.reduce((sum: number, c: UnifiedContact) => sum + c.unread_count, 0));
-      } else {
-        setTotalUnread(contactsList.reduce((sum: number, c: UnifiedContact) => sum + c.unread_count, 0));
+      // Use totalUnread from API (counts ALL contacts, not just current page)
+      if (!loadMore) {
+        setTotalUnread(result.summary?.totalUnread || 0);
       }
     } catch (error) {
       console.error('Error fetching contacts:', error);
@@ -691,7 +753,7 @@ function UnifiedChatPageContent() {
       raw_message: { packageId, stickerId }, created_at: new Date().toISOString(), _status: 'sending'
     };
     setMessages(prev => [...prev, optimisticMessage]);
-    setShowStickerPicker(false);
+    setShowEmojiPicker(false);
     const contactId = selectedContact.id;
 
     (async () => {
@@ -985,13 +1047,52 @@ function UnifiedChatPageContent() {
           </span>
         </div>
         <div className="space-y-3">
-          <div>
-            <label className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}</label>
-            <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1">
-              {selectedContact.platform === 'line' ? <MessageCircle className="w-3.5 h-3.5 text-[#06C755]" /> : <Facebook className="w-3.5 h-3.5 text-[#1877F2]" />}
-              {selectedContact.display_name}
-            </p>
-          </div>
+          {linkedContacts.length > 0 ? (
+            <div>
+              <label className="text-xs text-gray-500 dark:text-slate-400">ช่องทางแชท</label>
+              <div className="mt-1 space-y-1.5">
+                {linkedContacts.map(lc => {
+                  const isCurrentContact = lc.id === selectedContact.id && lc.platform === selectedContact.platform;
+                  return (
+                    <button
+                      key={`${lc.platform}-${lc.id}`}
+                      onClick={() => {
+                        if (!isCurrentContact) {
+                          const found = contacts.find(ct => ct.id === lc.id && ct.platform === lc.platform);
+                          if (found) setSelectedContact(found);
+                        }
+                      }}
+                      className={`w-full flex items-center gap-2 p-1.5 rounded-md text-left transition-colors ${isCurrentContact ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-200 dark:ring-blue-700' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}
+                    >
+                      <div className="relative flex-shrink-0">
+                        {lc.picture_url ? (
+                          <img src={lc.picture_url} alt="" className="w-7 h-7 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center"><User className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /></div>
+                        )}
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
+                          {lc.platform === 'line' ? <MessageCircle className="w-2 h-2 text-white" /> : <Facebook className="w-2 h-2 text-white" />}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{lc.display_name}</p>
+                        {lc.account_name && <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{lc.account_name}</p>}
+                      </div>
+                      {isCurrentContact && <span className="text-xs text-blue-500 dark:text-blue-400 flex-shrink-0">ปัจจุบัน</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}</label>
+              <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1">
+                {selectedContact.platform === 'line' ? <MessageCircle className="w-3.5 h-3.5 text-[#06C755]" /> : <Facebook className="w-3.5 h-3.5 text-[#1877F2]" />}
+                {selectedContact.display_name}
+              </p>
+            </div>
+          )}
           {c.contact_person && (<div><label className="text-xs text-gray-500 dark:text-slate-400">ผู้ติดต่อ</label><p className="text-sm font-medium text-gray-900 dark:text-white">{c.contact_person}</p></div>)}
           {c.phone && (<div><label className="text-xs text-gray-500 dark:text-slate-400">เบอร์โทร</label><a href={`tel:${c.phone}`} className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{c.phone}</a></div>)}
           {c.email && (<div><label className="text-xs text-gray-500 dark:text-slate-400">อีเมล</label><p className="text-sm font-medium text-gray-900 dark:text-white">{c.email}</p></div>)}
@@ -1032,46 +1133,80 @@ function UnifiedChatPageContent() {
               </h2>
               {totalUnread > 0 && (<span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{totalUnread}</span>)}
             </div>
-            {/* Account filter */}
-            <select value={filterAccountId || filterPlatform} onChange={(e) => { const val = e.target.value; if (val === 'all' || val === 'line' || val === 'facebook') { setFilterPlatform(val as any); setFilterAccountId(''); } else { setFilterAccountId(val); setFilterPlatform('all'); } }}
-              className="w-full px-3 py-2 mb-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#F4511E]">
-              <option value="all">ทุกช่องทาง</option>
-              <option value="line">LINE ทั้งหมด</option>
-              <option value="facebook">Facebook ทั้งหมด</option>
-              {chatAccounts.map(acc => (<option key={acc.id} value={acc.id}>{acc.platform === 'line' ? '🟢' : '🔵'} {acc.account_name}</option>))}
-            </select>
-            {/* Quick filter - Order days */}
-            <div className="flex flex-wrap gap-1 mb-2">
-              <button onClick={() => { setFilterOrderDaysRange(null); setFilterLinked('all'); }}
-                className={`px-2 py-1 text-xs rounded-lg transition-colors flex items-center gap-1 ${filterOrderDaysRange === null && filterLinked !== 'linked' ? 'bg-gray-900 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>ทั้งหมด</button>
-              {dayRanges.map((range) => {
-                const isActive = filterOrderDaysRange?.min === range.minDays && filterOrderDaysRange?.max === range.maxDays;
-                const colorClasses: Record<string, { active: string; inactive: string }> = {
-                  green: { active: 'bg-green-500 text-white', inactive: 'bg-green-50 text-green-700 hover:bg-green-100' },
-                  emerald: { active: 'bg-emerald-500 text-white', inactive: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
-                  yellow: { active: 'bg-yellow-500 text-white', inactive: 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100' },
-                  amber: { active: 'bg-amber-500 text-white', inactive: 'bg-amber-50 text-amber-700 hover:bg-amber-100' },
-                  orange: { active: 'bg-orange-500 text-white', inactive: 'bg-orange-50 text-orange-700 hover:bg-orange-100' },
-                  red: { active: 'bg-red-500 text-white', inactive: 'bg-red-50 text-red-700 hover:bg-red-100' },
-                  pink: { active: 'bg-pink-500 text-white', inactive: 'bg-pink-50 text-pink-700 hover:bg-pink-100' },
-                  purple: { active: 'bg-purple-500 text-white', inactive: 'bg-purple-50 text-purple-700 hover:bg-purple-100' },
-                  blue: { active: 'bg-blue-500 text-white', inactive: 'bg-blue-50 text-blue-700 dark:text-blue-400 hover:bg-blue-100' },
-                  gray: { active: 'bg-gray-500 text-white', inactive: 'bg-gray-50 text-gray-700 hover:bg-gray-100' }
-                };
-                const colors = colorClasses[range.color] || colorClasses.gray;
-                return (<button key={`${range.minDays}-${range.maxDays}`} onClick={() => { setFilterOrderDaysRange({ min: range.minDays, max: range.maxDays }); setFilterLinked('linked'); }}
-                  className={`px-2 py-1 text-xs rounded-lg transition-colors flex items-center gap-1 ${isActive ? colors.active : colors.inactive}`}><Clock className="w-3 h-3" />{range.label}</button>);
-              })}
-            </div>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="ค้นหาชื่อ..."
-                  className="w-full h-[42px] pl-9 pr-4 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
+            {/* Row 1: Account dropdown + Sort + Filter */}
+            <div className="flex gap-2 mb-2">
+              <div className="relative flex-1 min-w-0" data-account-picker>
+                {(() => {
+                  const selectedAccount = filterAccountId ? chatAccounts.find(a => a.id === filterAccountId) : null;
+                  const selectedPic = selectedAccount ? getAccountPicture(selectedAccount) : null;
+                  const selectedColor = selectedAccount ? (selectedAccount.platform === 'line' ? '#06C755' : '#1877F2') : undefined;
+                  return (
+                    <>
+                      <button onClick={() => setShowAccountPicker(!showAccountPicker)}
+                        className="w-full h-[38px] flex items-center gap-2 px-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+                        {selectedAccount ? (
+                          <>
+                            {selectedPic ? (
+                              <Image src={selectedPic} alt={selectedAccount.account_name} width={20} height={20} className="w-5 h-5 rounded-full object-cover flex-shrink-0" unoptimized />
+                            ) : (
+                              <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style={{ backgroundColor: selectedColor }}>
+                                {selectedAccount.platform === 'line' ? 'L' : 'F'}
+                              </span>
+                            )}
+                            <span className="flex-1 text-left text-gray-900 dark:text-white truncate text-sm">{selectedAccount.account_name}</span>
+                          </>
+                        ) : (
+                          <span className="flex-1 text-left text-gray-700 dark:text-slate-300 text-sm">ทุกช่องทาง</span>
+                        )}
+                        {loadingContacts ? (
+                          <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin flex-shrink-0" />
+                        ) : (
+                          <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform flex-shrink-0 ${showAccountPicker ? 'rotate-180' : ''}`} />
+                        )}
+                      </button>
+                      {showAccountPicker && (
+                        <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50 py-1 max-h-60 overflow-y-auto" style={{ width: 'min(calc(100vw - 2rem), 288px)' }}>
+                          <button onClick={() => { setFilterPlatform('all'); setFilterAccountId(''); setShowAccountPicker(false); }}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${!filterAccountId && filterPlatform === 'all' ? 'bg-gray-50 dark:bg-slate-700' : ''}`}>
+                            <MessageCircle className="w-5 h-5 text-gray-400" />
+                            <span className="text-gray-900 dark:text-white">ทุกช่องทาง</span>
+                            {!filterAccountId && filterPlatform === 'all' && <Check className="w-4 h-4 text-[#F4511E] ml-auto" />}
+                          </button>
+                          {chatAccounts.map(acc => {
+                            const pic = getAccountPicture(acc);
+                            const pColor = acc.platform === 'line' ? '#06C755' : '#1877F2';
+                            const isActive = filterAccountId === acc.id;
+                            return (
+                              <button key={acc.id} onClick={() => { setFilterAccountId(acc.id); setFilterPlatform('all'); setShowAccountPicker(false); }}
+                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${isActive ? 'bg-gray-50 dark:bg-slate-700' : ''}`}>
+                                {pic ? (
+                                  <Image src={pic} alt={acc.account_name} width={20} height={20} className="w-5 h-5 rounded-full object-cover" unoptimized />
+                                ) : (
+                                  <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ backgroundColor: pColor }}>
+                                    {acc.platform === 'line' ? 'L' : 'F'}
+                                  </span>
+                                )}
+                                <span className="text-gray-900 dark:text-white truncate flex-1 text-left">{acc.account_name}</span>
+                                <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: pColor }}>
+                                  {acc.platform === 'line' ? <MessageCircle className="w-3 h-3 text-white" /> : <Facebook className="w-3 h-3 text-white" />}
+                                </span>
+                                {isActive && <Check className="w-4 h-4 text-[#F4511E] flex-shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
-              <div className="relative h-[42px]" data-filter-popover>
+              <button onClick={() => setSortMode(sortMode === 'time' ? 'unread' : 'time')}
+                className={`h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${sortMode === 'unread' ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`} title={sortMode === 'time' ? 'เรียงตามเวลา (กดเพื่อเรียงยังไม่อ่านก่อน)' : 'เรียงยังไม่อ่านก่อน (กดเพื่อเรียงตามเวลา)'}>
+                <ArrowUpDown className="w-4 h-4" />
+              </button>
+              <div className="relative h-[38px]" data-filter-popover>
                 <button onClick={() => setShowFilterPopover(!showFilterPopover)}
-                  className={`h-full w-[42px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-[#F4511E] border-[#F4511E] text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`} title="กรองรายชื่อ">
+                  className={`h-full w-[38px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-[#F4511E] border-[#F4511E] text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`} title="กรองรายชื่อ">
                   <Filter className="w-5 h-5" />
                 </button>
                 {showFilterPopover && (
@@ -1093,6 +1228,33 @@ function UnifiedChatPageContent() {
                         <label className="text-xs font-medium text-gray-600 dark:text-slate-400 mb-2 block">ข้อความใหม่</label>
                         <button onClick={() => setFilterUnread(!filterUnread)} className={`px-3 py-2 rounded-lg transition-colors flex items-center justify-center ${filterUnread ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="เฉพาะข้อความที่ยังไม่อ่าน"><Bell className="w-4 h-4" /></button>
                       </div>
+                      {dayRanges.length > 0 && (
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 dark:text-slate-400 mb-2 block">ระยะเวลาไม่สั่งซื้อ</label>
+                          <div className="flex flex-wrap gap-1">
+                            <button onClick={() => { setFilterOrderDaysRange(null); if (filterLinked === 'linked' && filterOrderDaysRange) setFilterLinked('all'); }}
+                              className={`px-2 py-1 text-xs rounded-lg transition-colors ${filterOrderDaysRange === null ? 'bg-gray-900 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>ไม่จำกัด</button>
+                            {dayRanges.map((range) => {
+                              const isActive = filterOrderDaysRange?.min === range.minDays && filterOrderDaysRange?.max === range.maxDays;
+                              const colorClasses: Record<string, { active: string; inactive: string }> = {
+                                green: { active: 'bg-green-500 text-white', inactive: 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400' },
+                                emerald: { active: 'bg-emerald-500 text-white', inactive: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400' },
+                                yellow: { active: 'bg-yellow-500 text-white', inactive: 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400' },
+                                amber: { active: 'bg-amber-500 text-white', inactive: 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400' },
+                                orange: { active: 'bg-orange-500 text-white', inactive: 'bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400' },
+                                red: { active: 'bg-red-500 text-white', inactive: 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400' },
+                                pink: { active: 'bg-pink-500 text-white', inactive: 'bg-pink-50 text-pink-700 hover:bg-pink-100 dark:bg-pink-900/30 dark:text-pink-400' },
+                                purple: { active: 'bg-purple-500 text-white', inactive: 'bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400' },
+                                blue: { active: 'bg-blue-500 text-white', inactive: 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400' },
+                                gray: { active: 'bg-gray-500 text-white', inactive: 'bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-400' }
+                              };
+                              const colors = colorClasses[range.color] || colorClasses.gray;
+                              return (<button key={`${range.minDays}-${range.maxDays}`} onClick={() => { setFilterOrderDaysRange({ min: range.minDays, max: range.maxDays }); setFilterLinked('linked'); }}
+                                className={`px-2 py-1 text-xs rounded-lg transition-colors flex items-center gap-1 ${isActive ? colors.active : colors.inactive}`}><Clock className="w-3 h-3" />{range.label}</button>);
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="p-3 border-t border-gray-100 dark:border-slate-700">
                       <button onClick={() => setShowFilterPopover(false)} className="w-full px-3 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 transition-colors">ปิด</button>
@@ -1100,6 +1262,12 @@ function UnifiedChatPageContent() {
                   </div>
                 )}
               </div>
+            </div>
+            {/* Row 2: Search (full width) */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="ค้นหาชื่อ..."
+                className="w-full h-[38px] pl-9 pr-4 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
             </div>
             {/* Active filters display */}
             {hasActiveFilter && (
@@ -1120,23 +1288,36 @@ function UnifiedChatPageContent() {
               <div className="text-center py-8 text-gray-500 dark:text-slate-400"><MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีข้อความ</p></div>
             ) : (
               <>
-                {contacts.map((contact) => (
+                {(() => {
+                  const sorted = sortMode === 'unread'
+                    ? [...contacts].sort((a, b) => {
+                        const aUnread = (a.unread_count || 0) > 0 ? 1 : 0;
+                        const bUnread = (b.unread_count || 0) > 0 ? 1 : 0;
+                        if (bUnread !== aUnread) return bUnread - aUnread;
+                        return new Date(b.last_message_at || '').getTime() - new Date(a.last_message_at || '').getTime();
+                      })
+                    : contacts;
+                  return sorted;
+                })().map((contact) => (
                   <button key={contact.id} onClick={() => setSelectedContact(contact)}
-                    className={`w-full p-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-100 dark:border-slate-700 ${selectedContact?.id === contact.id ? (contact.platform === 'line' ? 'bg-[#06C755]/10' : 'bg-[#1877F2]/10') : ''}`}>
-                    {/* Avatar with platform badge */}
+                    className={`w-full px-3 py-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-100 dark:border-slate-700 ${selectedContact?.id === contact.id ? (contact.platform === 'line' ? 'bg-[#06C755]/10' : 'bg-[#1877F2]/10') : ''}`}>
+                    {/* Avatar with channel profile badge */}
                     <div className="relative flex-shrink-0">
                       {getAvatarUrl(contact) ? (
                         <Image src={getAvatarUrl(contact)!} alt={contact.display_name} width={48} height={48} className="w-12 h-12 rounded-full object-cover" unoptimized />
                       ) : (
-                        <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: contact.platform === 'line' ? '#06C755' : '#1877F2' }}>
-                          <User className="w-6 h-6 text-white" />
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: contact.platform === 'line' ? '#06C755' : '#1877F2' }}>
+                          {getInitials(contact.display_name)}
                         </div>
                       )}
-                      {contact.unread_count > 0 && (<span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">{contact.unread_count > 9 ? '9+' : contact.unread_count}</span>)}
-                      {/* Platform badge */}
-                      <span className={`absolute -bottom-0.5 -left-0.5 w-4 h-4 rounded-full flex items-center justify-center shadow-sm border border-white dark:border-slate-800 ${contact.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
-                        {contact.platform === 'line' ? <MessageCircle className="w-2.5 h-2.5 text-white" /> : <Facebook className="w-2.5 h-2.5 text-white" />}
-                      </span>
+                      {/* Channel profile pic badge (bottom-left) */}
+                      {contact.account_picture_url ? (
+                        <Image src={contact.account_picture_url} alt={contact.account_name || ''} width={20} height={20} className="absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full object-cover shadow-sm border-2 border-white dark:border-slate-800" unoptimized />
+                      ) : (
+                        <span className={`absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-800 ${contact.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
+                          {contact.platform === 'line' ? <MessageCircle className="w-2.5 h-2.5 text-white" /> : <Facebook className="w-2.5 h-2.5 text-white" />}
+                        </span>
+                      )}
                       {/* Linked customer indicator */}
                       {contact.customer && (<span className="absolute -bottom-0.5 -right-0.5 bg-blue-500 text-white w-4 h-4 rounded-full flex items-center justify-center shadow-sm border border-white dark:border-slate-800"><LinkIcon className="w-2.5 h-2.5" /></span>)}
                     </div>
@@ -1144,7 +1325,13 @@ function UnifiedChatPageContent() {
                     <div className="flex-1 min-w-0 text-left">
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-gray-900 dark:text-white truncate">{contact.display_name}</span>
-                        <span className="text-xs text-gray-400 dark:text-slate-500">{formatLastMessage(contact.last_message_at)}</span>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <span className={`w-4 h-4 rounded-full flex items-center justify-center ${contact.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
+                            {contact.platform === 'line' ? <MessageCircle className="w-2.5 h-2.5 text-white" /> : <Facebook className="w-2.5 h-2.5 text-white" />}
+                          </span>
+                          <span className="text-xs text-gray-400 dark:text-slate-500">{formatLastMessage(contact.last_message_at)}</span>
+                          {contact.unread_count > 0 && (<span className="bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">{contact.unread_count > 99 ? '99+' : contact.unread_count}</span>)}
+                        </div>
                       </div>
                       {contact.account_name && (<span className="text-[10px] text-gray-400 dark:text-slate-500 truncate block">{contact.account_name}</span>)}
                       {contact.last_message ? (
@@ -1184,7 +1371,7 @@ function UnifiedChatPageContent() {
                   {getAvatarUrl(selectedContact) ? (
                     <Image src={getAvatarUrl(selectedContact)!} alt={selectedContact.display_name} width={40} height={40} className="w-10 h-10 rounded-full object-cover" unoptimized />
                   ) : (
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: platformColor }}><User className="w-5 h-5 text-white" /></div>
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: platformColor }}>{getInitials(selectedContact.display_name)}</div>
                   )}
                   <div>
                     <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
@@ -1201,7 +1388,7 @@ function UnifiedChatPageContent() {
                         {selectedContact.avg_order_frequency != null && (<p className="text-[10px] text-gray-400 dark:text-slate-500">{selectedContact.avg_order_frequency <= 1 ? 'สั่งทุกวัน' : `~${selectedContact.avg_order_frequency} วัน/ออเดอร์`}</p>)}
                       </div>
                     ) : (
-                      <button onClick={() => { setShowLinkModal(true); setCustomerSearch(''); setCustomers([]); }} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"><LinkIcon className="w-3 h-3" />เชื่อมกับลูกค้าในระบบ</button>
+                      <button onClick={() => { setShowLinkModal(true); setCustomers([]); setConfirmLinkCustomer(null); }} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"><LinkIcon className="w-3 h-3" />เชื่อมกับลูกค้าในระบบ</button>
                     )}
                   </div>
                 </div>
@@ -1209,13 +1396,13 @@ function UnifiedChatPageContent() {
                   {selectedContact.customer ? (
                     <>
                       <button onClick={handleOpenHistory} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'history' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ดูประวัติออเดอร์"><History className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">ประวัติ</span>}</button>
-                      <button onClick={() => { if (window.innerWidth < 768) setMobileView('order'); else setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'order' ? 'bg-[#F4511E] text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">เปิดบิล</span>}</button>
+                      <button onClick={() => { if (window.innerWidth < 768) setMobileView('order'); else setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'order' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">เปิดบิล</span>}</button>
                       <button onClick={handleOpenProfile} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ดูข้อมูลลูกค้า"><User className="w-4 h-4" /></button>
                     </>
                   ) : (
                     <>
-                      <button onClick={handleOpenCreateCustomer} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'create-customer' ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-700 dark:text-blue-400 hover:bg-blue-200'}`} title="สร้างลูกค้าใหม่"><UserPlus className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">สร้างลูกค้า</span>}</button>
-                      <button onClick={() => { setShowLinkModal(true); setCustomerSearch(''); setCustomers([]); }} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600" title="เชื่อมลูกค้าที่มีอยู่"><LinkIcon className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">เชื่อมลูกค้า</span>}</button>
+                      <button onClick={handleOpenCreateCustomer} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'create-customer' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title="สร้างลูกค้าใหม่"><UserPlus className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">สร้างลูกค้า</span>}</button>
+                      <button onClick={() => { setShowLinkModal(true); setCustomers([]); setConfirmLinkCustomer(null); }} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600" title="เชื่อมลูกค้าที่มีอยู่"><LinkIcon className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">เชื่อมลูกค้า</span>}</button>
                     </>
                   )}
                 </div>
@@ -1234,7 +1421,7 @@ function UnifiedChatPageContent() {
                       <div key={msg.id} className={`flex ${msg.direction === 'outgoing' ? 'justify-end' : 'justify-start'} gap-2`}>
                         {msg.direction === 'incoming' && (
                           <div className="flex-shrink-0 self-end">
-                            {msg.sender_picture_url ? (<Image src={msg.sender_picture_url} alt={msg.sender_name || 'User'} width={32} height={32} className="w-8 h-8 rounded-full object-cover" />) : (<div className="w-8 h-8 bg-gray-300 dark:bg-slate-600 rounded-full flex items-center justify-center"><User className="w-4 h-4 text-gray-500" /></div>)}
+                            {(msg.sender_picture_url || getAvatarUrl(selectedContact)) ? (<Image src={msg.sender_picture_url || getAvatarUrl(selectedContact)!} alt={msg.sender_name || selectedContact.display_name} width={32} height={32} className="w-8 h-8 rounded-full object-cover" unoptimized />) : (<div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold" style={{ backgroundColor: platformColor }}>{getInitials(selectedContact.display_name)}</div>)}
                           </div>
                         )}
                         <div className="flex flex-col">
@@ -1287,39 +1474,134 @@ function UnifiedChatPageContent() {
               {showScrollButton && (<button onClick={scrollToBottom} className="absolute bottom-24 left-1/2 -translate-x-1/2 p-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full shadow-xl hover:bg-gray-50 dark:hover:bg-slate-700/50 hover:shadow-2xl transition-all z-20 animate-bounce" title="ไปที่ข้อความล่าสุด"><ArrowDown className="w-5 h-5" style={{ color: platformColor }} /></button>)}
 
               {/* Message Input */}
-              <div className="p-2 md:p-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 relative">
-                {/* Sticker Picker - LINE only */}
-                {showStickerPicker && selectedContact?.platform === 'line' && (
-                  <div className="absolute bottom-full left-0 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-t-lg shadow-lg max-h-48 md:max-h-64 overflow-y-auto">
-                    <div className="p-2 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-800">
-                      <span className="text-sm font-medium text-gray-700 dark:text-slate-300">เลือกสติกเกอร์</span>
-                      <button onClick={() => setShowStickerPicker(false)} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
-                    </div>
-                    <div className="p-2">
-                      {officialStickers.map((pack) => (
-                        <div key={pack.packageId} className="mb-3">
-                          <div className="grid grid-cols-4 gap-1 md:gap-2">
-                            {pack.stickers.map((stickerId) => (
-                              <button key={stickerId} onClick={() => sendSticker(pack.packageId, stickerId)} className="p-1.5 md:p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                                <img src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/iPhone/sticker@2x.png`} alt="sticker" className="w-10 h-10 md:w-12 md:h-12 object-contain"
-                                  onError={(e) => { const img = e.target as HTMLImageElement; if (img.src.includes('@2x')) img.src = `https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/iPhone/sticker.png`; }} />
-                              </button>
+              <div className="p-2 md:p-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                <div className="flex items-center gap-1 md:gap-2">
+                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  <button onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-50" title="ส่งรูปภาพ">
+                    {uploadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
+                  </button>
+                  {/* Emoji & Sticker wrapper */}
+                  <div className="relative" data-emoji-picker>
+                    <button onClick={() => { setShowEmojiPicker(!showEmojiPicker); setEmojiSearch(''); }} className={`p-2 rounded-full transition-colors ${showEmojiPicker ? 'text-amber-500 bg-amber-50 dark:bg-amber-500/10' : 'text-gray-500 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-slate-700'}`} title="Emoji & Sticker">
+                      <Smile className="w-5 h-5" />
+                    </button>
+                {showEmojiPicker && (() => {
+                  type EmojiItem = { e: string; k: string };
+                  const emojiGroups: { label: string; key: string; items: EmojiItem[] }[] = [
+                    { label: 'ยิ้ม & คน', key: 'smile', items: [
+                      { e: '😀', k: 'smile ยิ้ม grin' }, { e: '😃', k: 'smile ยิ้ม happy สุข' }, { e: '😄', k: 'smile ยิ้ม happy สุข' }, { e: '😁', k: 'grin ยิ้มกว้าง' }, { e: '😆', k: 'laugh หัวเราะ' }, { e: '😅', k: 'sweat เหงื่อ หัวเราะ' }, { e: '🤣', k: 'rofl หัวเราะ ฮา' }, { e: '😂', k: 'joy หัวเราะ ร้องไห้ ดีใจ' }, { e: '🙂', k: 'smile ยิ้ม' }, { e: '😊', k: 'blush ยิ้ม อาย น่ารัก' }, { e: '😇', k: 'angel เทวดา ดี' }, { e: '😉', k: 'wink ขยิบตา' },
+                      { e: '😍', k: 'heart eyes love รัก หัวใจ ตาหัวใจ' }, { e: '🥰', k: 'love รัก หัวใจ hearts' }, { e: '😘', k: 'kiss จูบ รัก love' }, { e: '😗', k: 'kiss จูบ' }, { e: '😚', k: 'kiss จูบ อาย' }, { e: '😋', k: 'yummy อร่อย ลิ้น' }, { e: '😛', k: 'tongue ลิ้น' }, { e: '😜', k: 'wink tongue ลิ้น ขยิบ' }, { e: '🤪', k: 'crazy บ้า ลิ้น' }, { e: '😝', k: 'tongue ลิ้น' },
+                      { e: '🤑', k: 'money เงิน รวย' }, { e: '🤗', k: 'hug กอด' }, { e: '🤭', k: 'oops อุ๊ย ปิดปาก' }, { e: '🫢', k: 'oops ตกใจ' }, { e: '🤫', k: 'quiet เงียบ ชู่' }, { e: '🤔', k: 'think คิด' }, { e: '😐', k: 'neutral เฉย' }, { e: '😑', k: 'expressionless เฉย' }, { e: '😶', k: 'silent เงียบ ไม่พูด' },
+                      { e: '😏', k: 'smirk ยิ้มแกม' }, { e: '😒', k: 'unamused เบื่อ' }, { e: '🙄', k: 'eye roll กลอกตา' }, { e: '😬', k: 'grimace ยิ้มแหย' }, { e: '😌', k: 'relieved โล่งใจ' }, { e: '😔', k: 'sad เศร้า pensive' }, { e: '😪', k: 'sleepy ง่วง' }, { e: '🤤', k: 'drool น้ำลาย อยาก' }, { e: '😴', k: 'sleep นอน หลับ zzz' },
+                      { e: '😷', k: 'mask หน้ากาก ป่วย' }, { e: '🤒', k: 'sick ป่วย ไข้' }, { e: '🤕', k: 'hurt เจ็บ บาดเจ็บ' }, { e: '🤢', k: 'nauseous คลื่นไส้' }, { e: '🤮', k: 'vomit อ้วก' }, { e: '🥴', k: 'woozy เมา' }, { e: '😵', k: 'dizzy มึน เวียน' }, { e: '🤯', k: 'explode ระเบิด ตกใจ mind blown' },
+                      { e: '🥳', k: 'party ปาร์ตี้ ฉลอง celebrate' }, { e: '🥸', k: 'disguise ปลอมตัว' }, { e: '😎', k: 'cool เท่ แว่น sunglasses' }, { e: '🤓', k: 'nerd เนิร์ด แว่น' }, { e: '🧐', k: 'monocle สงสัย' },
+                      { e: '😕', k: 'confused สับสน งง' }, { e: '😟', k: 'worried กังวล' }, { e: '🙁', k: 'sad เศร้า' }, { e: '☹️', k: 'sad เศร้า' }, { e: '😮', k: 'open mouth อ้าปาก ตกใจ' }, { e: '😯', k: 'hushed เงียบ ตกใจ' }, { e: '😲', k: 'astonished ตกใจ wow' }, { e: '😳', k: 'flushed อาย แดง' },
+                      { e: '🥺', k: 'pleading ขอร้อง น่าสงสาร' }, { e: '🥹', k: 'holding tears น้ำตา ซึ้ง' }, { e: '😢', k: 'cry ร้องไห้ เศร้า sad' }, { e: '😭', k: 'sob ร้องไห้ เศร้า cry loud' }, { e: '😱', k: 'scream กรี๊ด ตกใจ' }, { e: '😤', k: 'angry โกรธ พ่นไฟ huff' }, { e: '😡', k: 'angry โกรธ แดง mad' }, { e: '😠', k: 'angry โกรธ' }, { e: '🤬', k: 'curse ด่า โกรธ swear' },
+                      { e: '💀', k: 'skull หัวกะโหลก ตาย dead' }, { e: '💩', k: 'poop อึ' }, { e: '👻', k: 'ghost ผี' }, { e: '👽', k: 'alien เอเลี่ยน' }, { e: '🤖', k: 'robot หุ่นยนต์' },
+                    ]},
+                    { label: 'มือ & หัวใจ', key: 'hands', items: [
+                      { e: '👍', k: 'thumbs up like ดี ไลค์ good' }, { e: '👎', k: 'thumbs down dislike ไม่ดี' }, { e: '👏', k: 'clap ปรบมือ bravo' }, { e: '🙌', k: 'raise hands ยกมือ celebrate' }, { e: '🤝', k: 'handshake จับมือ deal' }, { e: '🙏', k: 'pray ไหว้ ขอบคุณ please thank' }, { e: '💪', k: 'strong แข็งแรง muscle' }, { e: '👋', k: 'wave โบกมือ hi bye สวัสดี' },
+                      { e: '✋', k: 'hand หยุด stop มือ' }, { e: '👌', k: 'ok ได้ ดี' }, { e: '✌️', k: 'peace สอง victory' }, { e: '🤞', k: 'fingers crossed โชคดี luck' }, { e: '🫶', k: 'heart hands หัวใจ มือ love รัก' }, { e: '🤟', k: 'love you รักนะ' }, { e: '🤘', k: 'rock ร็อค' }, { e: '🤙', k: 'call โทร' },
+                      { e: '👈', k: 'point left ชี้ซ้าย' }, { e: '👉', k: 'point right ชี้ขวา' }, { e: '👆', k: 'point up ชี้ขึ้น' }, { e: '👇', k: 'point down ชี้ลง' }, { e: '👊', k: 'fist ชก ต่อย punch' }, { e: '✊', k: 'fist กำปั้น สู้ fight' },
+                      { e: '❤️', k: 'heart หัวใจ รัก love red แดง' }, { e: '🧡', k: 'heart หัวใจ orange ส้ม' }, { e: '💛', k: 'heart หัวใจ yellow เหลือง' }, { e: '💚', k: 'heart หัวใจ green เขียว' }, { e: '💙', k: 'heart หัวใจ blue น้ำเงิน' }, { e: '💜', k: 'heart หัวใจ purple ม่วง' }, { e: '🖤', k: 'heart หัวใจ black ดำ' }, { e: '🤍', k: 'heart หัวใจ white ขาว' }, { e: '🤎', k: 'heart หัวใจ brown น้ำตาล' },
+                      { e: '💔', k: 'broken heart หัวใจสลาย อกหัก' }, { e: '❤️‍🔥', k: 'heart fire หัวใจ ไฟ' }, { e: '💕', k: 'hearts หัวใจ คู่ love' }, { e: '💗', k: 'heart หัวใจ growing โต' }, { e: '💖', k: 'heart หัวใจ sparkle วิ้ง' }, { e: '💘', k: 'heart หัวใจ arrow ลูกศร cupid' }, { e: '💝', k: 'heart หัวใจ ribbon ริบบิ้น gift' },
+                      { e: '🔥', k: 'fire ไฟ hot ร้อน เผา' }, { e: '⭐', k: 'star ดาว' }, { e: '🌟', k: 'star ดาว เปล่งแสง glow' }, { e: '✨', k: 'sparkle วิ้ง แวววาว star' }, { e: '💫', k: 'dizzy star ดาว วิงเวียน' }, { e: '💯', k: '100 ร้อย perfect เต็ม' }, { e: '🎉', k: 'party ปาร์ตี้ ฉลอง celebrate tada' }, { e: '🎊', k: 'confetti ฉลอง celebrate' }, { e: '🏆', k: 'trophy ถ้วย แชมป์ winner' },
+                    ]},
+                    { label: 'อาหาร & เครื่องดื่ม', key: 'food', items: [
+                      { e: '🍎', k: 'apple แอปเปิ้ล ผลไม้ fruit' }, { e: '🍊', k: 'orange ส้ม ผลไม้ fruit' }, { e: '🍋', k: 'lemon เลมอน มะนาว fruit' }, { e: '🍌', k: 'banana กล้วย ผลไม้ fruit' }, { e: '🍉', k: 'watermelon แตงโม ผลไม้ fruit' }, { e: '🍇', k: 'grape องุ่น ผลไม้ fruit' }, { e: '🍓', k: 'strawberry สตรอเบอรี่ ผลไม้ fruit' }, { e: '🍑', k: 'peach พีช ลูกท้อ ผลไม้ fruit' }, { e: '🥭', k: 'mango มะม่วง ผลไม้ fruit' }, { e: '🍍', k: 'pineapple สับปะรด ผลไม้ fruit' },
+                      { e: '🥑', k: 'avocado อะโวคาโด' }, { e: '🍆', k: 'eggplant มะเขือ' }, { e: '🥦', k: 'broccoli บร็อคโคลี่ ผัก' }, { e: '🥕', k: 'carrot แครอท ผัก' }, { e: '🌽', k: 'corn ข้าวโพด' }, { e: '🌶️', k: 'chili พริก เผ็ด hot' },
+                      { e: '🍔', k: 'burger เบอร์เกอร์ แฮมเบอร์เกอร์' }, { e: '🍟', k: 'fries เฟรนช์ฟราย มันทอด' }, { e: '🍕', k: 'pizza พิซซ่า' }, { e: '🌭', k: 'hotdog ฮอทดอก' }, { e: '🥪', k: 'sandwich แซนด์วิช' }, { e: '🌮', k: 'taco ทาโก้' }, { e: '🍝', k: 'pasta พาสต้า สปาเก็ตตี้' }, { e: '🍜', k: 'noodle ก๋วยเตี๋ยว บะหมี่ ramen' }, { e: '🍲', k: 'stew แกง ต้ม soup' }, { e: '🍛', k: 'curry แกง ข้าวแกง' },
+                      { e: '🍣', k: 'sushi ซูชิ ญี่ปุ่น' }, { e: '🍱', k: 'bento เบนโตะ ข้าวกล่อง' }, { e: '🥟', k: 'dumpling เกี๊ยว' }, { e: '🍤', k: 'shrimp กุ้ง tempura' }, { e: '🍙', k: 'rice ball ข้าวปั้น โอนิกิริ' },
+                      { e: '🍦', k: 'ice cream ไอศกรีม ไอติม' }, { e: '🍩', k: 'donut โดนัท' }, { e: '🍪', k: 'cookie คุกกี้' }, { e: '🎂', k: 'cake เค้ก วันเกิด birthday' }, { e: '🍰', k: 'cake เค้ก ชีสเค้ก' }, { e: '🧁', k: 'cupcake คัพเค้ก' }, { e: '🍫', k: 'chocolate ช็อกโกแลต' }, { e: '🍬', k: 'candy ลูกอม' }, { e: '🍭', k: 'lollipop อมยิ้ม' },
+                      { e: '☕', k: 'coffee กาแฟ ร้อน hot' }, { e: '🍵', k: 'tea ชา' }, { e: '🧋', k: 'bubble tea ชานม บิวเบิ้ล โบบา boba' }, { e: '🥤', k: 'drink เครื่องดื่ม น้ำ' }, { e: '🍺', k: 'beer เบียร์' }, { e: '🍻', k: 'cheers ชน เบียร์ beer' }, { e: '🥂', k: 'champagne แชมเปญ ฉลอง toast' }, { e: '🍷', k: 'wine ไวน์' },
+                    ]},
+                    { label: 'สัตว์ & ธรรมชาติ', key: 'animal', items: [
+                      { e: '🐶', k: 'dog หมา สุนัข' }, { e: '🐱', k: 'cat แมว' }, { e: '🐭', k: 'mouse หนู' }, { e: '🐹', k: 'hamster แฮมสเตอร์' }, { e: '🐰', k: 'rabbit กระต่าย' }, { e: '🦊', k: 'fox จิ้งจอก สุนัขจิ้งจอก' }, { e: '🐻', k: 'bear หมี' }, { e: '🐼', k: 'panda แพนด้า หมี' }, { e: '🐨', k: 'koala โคอาล่า' }, { e: '🐯', k: 'tiger เสือ' }, { e: '🦁', k: 'lion สิงโต' }, { e: '🐮', k: 'cow วัว' }, { e: '🐷', k: 'pig หมู' }, { e: '🐸', k: 'frog กบ' }, { e: '🐵', k: 'monkey ลิง' },
+                      { e: '🐔', k: 'chicken ไก่' }, { e: '🐧', k: 'penguin เพนกวิน' }, { e: '🐦', k: 'bird นก' }, { e: '🦆', k: 'duck เป็ด' }, { e: '🦅', k: 'eagle อินทรี นกอินทรี' }, { e: '🦉', k: 'owl นกฮูก' }, { e: '🐝', k: 'bee ผึ้ง' }, { e: '🦋', k: 'butterfly ผีเสื้อ' }, { e: '🐌', k: 'snail หอยทาก' },
+                      { e: '🐙', k: 'octopus ปลาหมึก' }, { e: '🦐', k: 'shrimp กุ้ง' }, { e: '🦀', k: 'crab ปู' }, { e: '🐠', k: 'fish ปลา' }, { e: '🐬', k: 'dolphin โลมา' }, { e: '🐳', k: 'whale ปลาวาฬ วาฬ' }, { e: '🦈', k: 'shark ฉลาม' }, { e: '🐘', k: 'elephant ช้าง' },
+                      { e: '🌸', k: 'cherry blossom ซากุระ ดอกไม้ flower' }, { e: '🌷', k: 'tulip ทิวลิป ดอกไม้ flower' }, { e: '🌹', k: 'rose กุหลาบ ดอกไม้ flower' }, { e: '🌺', k: 'hibiscus ชบา ดอกไม้ flower' }, { e: '🌻', k: 'sunflower ทานตะวัน ดอกไม้ flower' }, { e: '💐', k: 'bouquet ช่อดอกไม้ flower' },
+                      { e: '🌳', k: 'tree ต้นไม้' }, { e: '🌴', k: 'palm tree มะพร้าว ปาล์ม' }, { e: '🍀', k: 'clover โชคดี luck four leaf' }, { e: '🌈', k: 'rainbow สายรุ้ง รุ้ง' }, { e: '☀️', k: 'sun แดด พระอาทิตย์' }, { e: '🌙', k: 'moon พระจันทร์ ดวงจันทร์' }, { e: '🌊', k: 'wave คลื่น ทะเล sea ocean' },
+                    ]},
+                    { label: 'สิ่งของ & สัญลักษณ์', key: 'objects', items: [
+                      { e: '💬', k: 'speech bubble แชท chat พูด' }, { e: '✅', k: 'check ถูก เสร็จ done yes' }, { e: '❌', k: 'cross ผิด ไม่ no wrong' }, { e: '❗', k: 'exclamation ตกใจ สำคัญ important' }, { e: '❓', k: 'question คำถาม ถาม' }, { e: '⚠️', k: 'warning เตือน ระวัง' },
+                      { e: '📌', k: 'pin ปักหมุด' }, { e: '🔗', k: 'link ลิงก์ เชื่อม' }, { e: '💡', k: 'idea ไอเดีย หลอดไฟ light bulb' }, { e: '🔔', k: 'bell แจ้งเตือน notification กระดิ่ง' }, { e: '📣', k: 'megaphone ประกาศ announce' },
+                      { e: '🛒', k: 'cart ตะกร้า shopping ช้อปปิ้ง' }, { e: '📦', k: 'package พัสดุ กล่อง box' }, { e: '🚚', k: 'truck รถ ส่งของ delivery' }, { e: '✈️', k: 'airplane เครื่องบิน บิน' }, { e: '🚗', k: 'car รถ รถยนต์' }, { e: '🏠', k: 'house บ้าน home' }, { e: '🏢', k: 'office ออฟฟิศ ตึก building' },
+                      { e: '🎁', k: 'gift ของขวัญ present' }, { e: '📱', k: 'phone โทรศัพท์ มือถือ mobile' }, { e: '💻', k: 'computer คอมพิวเตอร์ laptop โน้ตบุ๊ค' }, { e: '📷', k: 'camera กล้อง ถ่ายรูป photo' }, { e: '🎬', k: 'movie หนัง film clapper' },
+                      { e: '💰', k: 'money เงิน ถุงเงิน bag' }, { e: '💳', k: 'credit card บัตร จ่าย pay' }, { e: '💵', k: 'money เงิน ธนบัตร dollar cash' }, { e: '📝', k: 'memo จด โน้ต note write เขียน' }, { e: '📋', k: 'clipboard รายการ list' }, { e: '📊', k: 'chart กราฟ สถิติ' },
+                      { e: '🗓️', k: 'calendar ปฏิทิน วัน date' }, { e: '⏰', k: 'alarm clock นาฬิกา เวลา time' }, { e: '🔑', k: 'key กุญแจ' }, { e: '🎵', k: 'music เพลง ดนตรี note' }, { e: '🎶', k: 'music เพลง ดนตรี notes' },
+                      { e: '💤', k: 'sleep นอน หลับ zzz' }, { e: '💨', k: 'dash วิ่ง ลม wind' }, { e: '💦', k: 'sweat เหงื่อ น้ำ water' },
+                    ]},
+                  ];
+                  const searchLower = emojiSearch.toLowerCase();
+                  const filteredGroups = emojiSearch
+                    ? emojiGroups.map(g => ({
+                        ...g,
+                        items: g.items.filter(item => item.k.includes(searchLower))
+                      })).filter(g => g.items.length > 0)
+                    : emojiGroups;
+
+                  return (
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 w-[320px] md:w-[360px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-30 mb-2" style={{ height: '320px' }}>
+                      {/* Header: Tabs + Close */}
+                      <div className="flex items-center border-b border-gray-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 rounded-t-lg">
+                        <button onClick={() => { setEmojiTab('emoji'); setEmojiSearch(''); }} className={`flex-1 py-2.5 text-sm font-medium transition-colors ${emojiTab === 'emoji' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700 dark:text-slate-400'}`}>😊 Emoji</button>
+                        {selectedContact?.platform === 'line' && (
+                          <button onClick={() => { setEmojiTab('sticker'); setEmojiSearch(''); }} className={`flex-1 py-2.5 text-sm font-medium transition-colors ${emojiTab === 'sticker' ? 'text-[#06C755] border-b-2 border-[#06C755]' : 'text-gray-500 hover:text-gray-700 dark:text-slate-400'}`}>🎭 Sticker</button>
+                        )}
+                        <button onClick={() => { setShowEmojiPicker(false); setEmojiSearch(''); }} className="p-2 text-gray-400 hover:text-gray-600 mr-1"><X className="w-4 h-4" /></button>
+                      </div>
+
+                      {/* Emoji Tab */}
+                      {emojiTab === 'emoji' && (
+                        <div className="flex flex-col" style={{ height: 'calc(320px - 42px)' }}>
+                          {/* Search */}
+                          <div className="px-3 py-2 border-b border-gray-50 dark:border-slate-700/50">
+                            <div className="relative">
+                              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                              <input type="text" value={emojiSearch} onChange={(e) => setEmojiSearch(e.target.value)} placeholder="ค้นหา emoji..." className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-400 text-gray-700 dark:text-slate-200" />
+                            </div>
+                          </div>
+                          {/* Emoji grid */}
+                          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+                            {filteredGroups.length === 0 ? (
+                              <div className="text-center text-gray-400 dark:text-slate-500 py-8 text-sm">ไม่พบ emoji</div>
+                            ) : filteredGroups.map((group) => (
+                              <div key={group.key}>
+                                <div className="text-xs text-gray-400 dark:text-slate-500 mb-1.5 font-medium">{group.label}</div>
+                                <div className="flex flex-wrap gap-0.5">
+                                  {group.items.map((item) => (
+                                    <button key={item.e} onClick={() => { setNewMessage(prev => prev + item.e); setShowEmojiPicker(false); setEmojiSearch(''); inputRef.current?.focus(); }} className="w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg text-2xl md:text-[28px] transition-colors" title={item.k}>
+                                      {item.e}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
                             ))}
                           </div>
                         </div>
-                      ))}
+                      )}
+
+                      {/* Sticker Tab - LINE only */}
+                      {emojiTab === 'sticker' && selectedContact?.platform === 'line' && (
+                        <div className="overflow-y-auto p-3" style={{ height: 'calc(320px - 42px)' }}>
+                          {officialStickers.map((pack) => (
+                            <div key={pack.packageId} className="mb-4">
+                              <div className="grid grid-cols-4 gap-2">
+                                {pack.stickers.map((stickerId) => (
+                                  <button key={stickerId} onClick={() => { sendSticker(pack.packageId, stickerId); setShowEmojiPicker(false); }} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                                    <img src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/iPhone/sticker@2x.png`} alt="sticker" className="w-14 h-14 md:w-16 md:h-16 object-contain mx-auto"
+                                      onError={(e) => { const img = e.target as HTMLImageElement; if (img.src.includes('@2x')) img.src = `https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/iPhone/sticker.png`; }} />
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
+                  );
+                })()}
                   </div>
-                )}
-                <div className="flex items-center gap-1 md:gap-2">
-                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                  <button onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-50" style={{ color: uploadingImage ? undefined : undefined }} title="ส่งรูปภาพ">
-                    {uploadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
-                  </button>
-                  {/* Sticker button - LINE only */}
-                  {selectedContact?.platform === 'line' && (
-                    <button onClick={() => setShowStickerPicker(!showStickerPicker)} className={`p-2 rounded-full transition-colors ${showStickerPicker ? 'text-[#06C755] bg-[#06C755]/10' : 'text-gray-500 hover:text-[#06C755] hover:bg-gray-100 dark:hover:bg-slate-700'}`} title="ส่งสติกเกอร์"><Smile className="w-5 h-5" /></button>
-                  )}
                   <input ref={inputRef} type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                     placeholder="พิมพ์ข้อความ..." className="flex-1 min-w-0 px-3 md:px-4 py-2 text-sm md:text-base border border-gray-300 rounded-full focus:outline-none focus:ring-2" style={{ '--tw-ring-color': platformColor } as any} />
@@ -1371,7 +1653,8 @@ function UnifiedChatPageContent() {
               {renderCustomerProfile()}
               <div className="mt-4 space-y-2">
                 <button onClick={() => setMobileView('order')} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
-                <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
+                <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
+                <button onClick={() => { if (confirm(`ยกเลิกการเชื่อม "${selectedContact.display_name}" กับ "${selectedContact.customer!.name}" ?`)) { linkCustomer(null); setMobileView('chat'); } }} className="w-full py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-sm transition-colors">ยกเลิกการเชื่อม</button>
               </div>
             </div>
           </div>
@@ -1443,7 +1726,8 @@ function UnifiedChatPageContent() {
               {renderCustomerProfile()}
               <div className="mt-4 space-y-2">
                 <button onClick={() => setRightPanel('order')} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
-                <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
+                <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
+                <button onClick={() => { if (confirm(`ยกเลิกการเชื่อม "${selectedContact.display_name}" กับ "${selectedContact.customer!.name}" ?`)) { linkCustomer(null); setRightPanel(null); } }} className="w-full py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-sm transition-colors">ยกเลิกการเชื่อม</button>
               </div>
             </div>
           </div>
@@ -1482,34 +1766,66 @@ function UnifiedChatPageContent() {
 
       {/* Link Customer Modal */}
       {showLinkModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg w-full max-w-md mx-4 shadow-xl">
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowLinkModal(false); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') setShowLinkModal(false); }}
+          tabIndex={0} ref={(el) => el?.focus()}>
+          <div className="bg-white dark:bg-slate-800 rounded-lg w-full max-w-md mx-4 shadow-xl">
+            <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
               <h3 className="font-semibold text-gray-900 dark:text-white">เชื่อมกับลูกค้าในระบบ</h3>
-              <button onClick={() => setShowLinkModal(false)} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setShowLinkModal(false)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-4">
+              {!confirmLinkCustomer && (
               <div className="relative mb-4">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input type="text" value={customerSearch} onChange={(e) => { setCustomerSearch(e.target.value); if (e.target.value.length >= 2) fetchCustomers(e.target.value); }}
-                  placeholder="ค้นหาชื่อหรือรหัสลูกค้า..." className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
+                <input type="text" key={showLinkModal ? 'link-search' : ''} defaultValue="" ref={(el) => { customerSearchInputRef.current = el; if (el) { setTimeout(() => el.focus(), 50); } }} onChange={(e) => {
+                    const val = e.target.value.trim();
+                    if (customerSearchTimer.current) clearTimeout(customerSearchTimer.current);
+                    if (val.length >= 2) {
+                      customerSearchTimer.current = setTimeout(() => { setLoadingCustomers(true); fetchCustomers(val); }, 500);
+                    } else if (customers.length > 0 || loadingCustomers) {
+                      setCustomers([]);
+                      setLoadingCustomers(false);
+                    }
+                  }}
+                  placeholder="ค้นหาชื่อหรือรหัสลูกค้า..." className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
               </div>
-              <div className="max-h-64 overflow-y-auto">
-                {loadingCustomers ? (<div className="flex items-center justify-center py-4"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>) : customers.length === 0 ? (
-                  <div className="text-center py-4 text-gray-500 text-sm">{customerSearch.length >= 2 ? 'ไม่พบลูกค้า' : 'พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหา'}</div>
-                ) : (
-                  <div className="space-y-1">
-                    {customers.map((customer) => (
-                      <button key={customer.id} onClick={() => linkCustomer(customer.id)} className="w-full p-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors flex items-center justify-between">
-                        <div><div className="text-xs text-gray-400 dark:text-slate-500">{customer.customer_code}</div><div className="font-medium text-gray-900 dark:text-white">{customer.name}</div>{customer.phone && (<div className="text-xs text-gray-500 flex items-center gap-1"><Phone className="w-3 h-3" />{customer.phone}</div>)}</div>
-                        <Check className="w-5 h-5" style={{ color: platformColor }} />
-                      </button>
-                    ))}
+              )}
+              {confirmLinkCustomer ? (
+                <div className="space-y-4">
+                  <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4 text-center">
+                    <p className="text-sm text-gray-500 dark:text-slate-400 mb-2">ต้องการเชื่อม</p>
+                    <p className="text-base font-semibold text-gray-900 dark:text-white">{selectedContact?.display_name}</p>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">กับลูกค้า</p>
+                    <p className="text-base font-semibold mt-1" style={{ color: platformColor }}>{confirmLinkCustomer.name}</p>
+                    <p className="text-xs text-gray-400 dark:text-slate-500">{confirmLinkCustomer.customer_code}</p>
                   </div>
-                )}
-              </div>
-              {selectedContact?.customer && (
-                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700"><button onClick={() => linkCustomer(null)} className="w-full p-2 text-red-600 hover:bg-red-50 rounded-lg text-sm transition-colors">ยกเลิกการเชื่อมกับลูกค้า</button></div>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setConfirmLinkCustomer(null); setCustomers([]); }} className="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">ย้อนกลับ</button>
+                    <button onClick={() => { linkCustomer(confirmLinkCustomer.id); setConfirmLinkCustomer(null); }} className="flex-1 px-4 py-2 rounded-lg text-sm text-white transition-colors bg-[#F4511E] hover:bg-[#D63B0E]">ยืนยันเชื่อม</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="max-h-64 overflow-y-auto">
+                    {loadingCustomers ? (<div className="flex items-center justify-center py-4"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>) : customers.length === 0 ? (
+                      <div className="text-center py-4 text-gray-500 dark:text-slate-400 text-sm">{(customerSearchInputRef.current?.value?.length || 0) >= 2 ? 'ไม่พบลูกค้า' : 'พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหา'}</div>
+                    ) : (
+                      <div className="space-y-1">
+                        {customers.map((customer) => (
+                          <button key={customer.id} onClick={() => setConfirmLinkCustomer(customer)} className="w-full p-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors flex items-center justify-between">
+                            <div><div className="text-xs text-gray-400 dark:text-slate-500">{customer.customer_code}</div><div className="font-medium text-gray-900 dark:text-white">{customer.name}</div>{customer.phone && (<div className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Phone className="w-3 h-3" />{customer.phone}</div>)}</div>
+                            <Check className="w-5 h-5" style={{ color: platformColor }} />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {selectedContact?.customer && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700"><button onClick={() => linkCustomer(null)} className="w-full p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-sm transition-colors">ยกเลิกการเชื่อมกับลูกค้า</button></div>
+                  )}
+                </>
               )}
             </div>
           </div>

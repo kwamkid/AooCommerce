@@ -9,6 +9,13 @@ export async function GET(request: NextRequest) {
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
+
+    // Fast path: fetch linked contacts for a specific customer
+    const customerId = searchParams.get('customer_id');
+    if (customerId) {
+      return await getLinkedContactsByCustomer(companyId, customerId);
+    }
+
     const search = searchParams.get('search');
     const unreadOnly = searchParams.get('unread_only') === 'true';
     const linkedOnly = searchParams.get('linked_only') === 'true';
@@ -20,24 +27,38 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '30', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    // Determine which platforms to query
-    const queryLine = !platform || platform === 'line';
-    const queryFb = !platform || platform === 'facebook';
-
-    // Build parallel queries
-    const linePromise = queryLine ? fetchLineContacts(companyId, { search, unreadOnly, linkedOnly, unlinkedOnly, accountId }) : Promise.resolve([]);
-    const fbPromise = queryFb ? fetchFbContacts(companyId, { search, unreadOnly, linkedOnly, unlinkedOnly, accountId }) : Promise.resolve([]);
-
-    // Fetch chat accounts for name lookup
-    const accountsPromise = supabaseAdmin
+    // Fetch chat accounts first (needed for account_id lookup and name mapping)
+    const { data: accounts } = await supabaseAdmin
       .from('chat_accounts')
       .select('id, account_name, platform, credentials')
       .eq('company_id', companyId);
 
-    const [lineContacts, fbContacts, { data: accounts }] = await Promise.all([linePromise, fbPromise, accountsPromise]);
+    // Determine which platforms to query
+    let queryLine = !platform || platform === 'line';
+    let queryFb = !platform || platform === 'facebook';
+
+    // If filtering by account_id, only query the matching platform
+    let includeNullAccountId = false;
+    if (accountId && accounts) {
+      const selectedAccount = accounts.find(a => a.id === accountId);
+      if (selectedAccount) {
+        queryLine = selectedAccount.platform === 'line';
+        queryFb = selectedAccount.platform === 'facebook';
+        // Include contacts with null chat_account_id if this is the only account for its platform
+        const sameplatformCount = accounts.filter(a => a.platform === selectedAccount.platform).length;
+        includeNullAccountId = sameplatformCount === 1;
+      }
+    }
+
+    // Build parallel queries
+    const linePromise = queryLine ? fetchLineContacts(companyId, { search, unreadOnly, linkedOnly, unlinkedOnly, accountId, includeNullAccountId }) : Promise.resolve([]);
+    const fbPromise = queryFb ? fetchFbContacts(companyId, { search, unreadOnly, linkedOnly, unlinkedOnly, accountId, includeNullAccountId }) : Promise.resolve([]);
+
+    const [lineContacts, fbContacts] = await Promise.all([linePromise, fbPromise]);
 
     // Build account lookup
     const accountMap = new Map<string, { name: string; platform: string; picture_url?: string }>();
+    const defaultAccountByPlatform = new Map<string, { name: string; platform: string; picture_url?: string }>();
     (accounts || []).forEach(a => {
       const creds = a.credentials as Record<string, string>;
       let picture_url: string | undefined;
@@ -46,7 +67,12 @@ export async function GET(request: NextRequest) {
       } else if (a.platform === 'facebook') {
         picture_url = creds.page_picture_url || undefined;
       }
-      accountMap.set(a.id, { name: a.account_name, platform: a.platform, picture_url });
+      const info = { name: a.account_name, platform: a.platform, picture_url };
+      accountMap.set(a.id, info);
+      // Keep first account per platform as default fallback
+      if (!defaultAccountByPlatform.has(a.platform)) {
+        defaultAccountByPlatform.set(a.platform, info);
+      }
     });
 
     // Normalize to unified format
@@ -73,7 +99,7 @@ export async function GET(request: NextRequest) {
     const unified: UnifiedContact[] = [];
 
     for (const c of lineContacts) {
-      const acc = c.chat_account_id ? accountMap.get(c.chat_account_id) : undefined;
+      const acc = (c.chat_account_id ? accountMap.get(c.chat_account_id) : undefined) || defaultAccountByPlatform.get('line');
       unified.push({
         id: c.id,
         platform: 'line',
@@ -96,7 +122,7 @@ export async function GET(request: NextRequest) {
     }
 
     for (const c of fbContacts) {
-      const acc = c.chat_account_id ? accountMap.get(c.chat_account_id) : undefined;
+      const acc = (c.chat_account_id ? accountMap.get(c.chat_account_id) : undefined) || defaultAccountByPlatform.get('facebook');
       unified.push({
         id: c.id,
         platform: 'facebook',
@@ -238,7 +264,7 @@ export async function PUT(request: NextRequest) {
 // Helper: fetch LINE contacts
 async function fetchLineContacts(companyId: string, filters: {
   search?: string | null; unreadOnly?: boolean; linkedOnly?: boolean;
-  unlinkedOnly?: boolean; accountId?: string | null;
+  unlinkedOnly?: boolean; accountId?: string | null; includeNullAccountId?: boolean;
 }) {
   let query = supabaseAdmin
     .from('line_contacts')
@@ -254,7 +280,13 @@ async function fetchLineContacts(companyId: string, filters: {
     .eq('status', 'active')
     .order('last_message_at', { ascending: false, nullsFirst: false });
 
-  if (filters.accountId) query = query.eq('chat_account_id', filters.accountId);
+  if (filters.accountId) {
+    if (filters.includeNullAccountId) {
+      query = query.or(`chat_account_id.eq.${filters.accountId},chat_account_id.is.null`);
+    } else {
+      query = query.eq('chat_account_id', filters.accountId);
+    }
+  }
   if (filters.search) query = query.ilike('display_name', `%${filters.search}%`);
   if (filters.unreadOnly) query = query.gt('unread_count', 0);
   if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
@@ -299,7 +331,7 @@ async function fetchLineContacts(companyId: string, filters: {
 // Helper: fetch FB contacts
 async function fetchFbContacts(companyId: string, filters: {
   search?: string | null; unreadOnly?: boolean; linkedOnly?: boolean;
-  unlinkedOnly?: boolean; accountId?: string | null;
+  unlinkedOnly?: boolean; accountId?: string | null; includeNullAccountId?: boolean;
 }) {
   let query = supabaseAdmin
     .from('fb_contacts')
@@ -315,7 +347,13 @@ async function fetchFbContacts(companyId: string, filters: {
     .eq('status', 'active')
     .order('last_message_at', { ascending: false, nullsFirst: false });
 
-  if (filters.accountId) query = query.eq('chat_account_id', filters.accountId);
+  if (filters.accountId) {
+    if (filters.includeNullAccountId) {
+      query = query.or(`chat_account_id.eq.${filters.accountId},chat_account_id.is.null`);
+    } else {
+      query = query.eq('chat_account_id', filters.accountId);
+    }
+  }
   if (filters.search) query = query.ilike('display_name', `%${filters.search}%`);
   if (filters.unreadOnly) query = query.gt('unread_count', 0);
   if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
@@ -353,4 +391,53 @@ async function fetchFbContacts(companyId: string, filters: {
     ...c,
     last_message: lastMessageMap.get(c.id) || null,
   }));
+}
+
+// Helper: fetch all linked contacts for a specific customer_id
+async function getLinkedContactsByCustomer(companyId: string, customerId: string) {
+  // Fetch accounts for name mapping
+  const { data: accounts } = await supabaseAdmin
+    .from('chat_accounts')
+    .select('id, account_name, platform')
+    .eq('company_id', companyId);
+
+  const accountMap = new Map<string, { name: string; platform: string }>();
+  (accounts || []).forEach(a => accountMap.set(a.id, { name: a.account_name, platform: a.platform }));
+
+  // Query both tables in parallel
+  const [{ data: lineData }, { data: fbData }] = await Promise.all([
+    supabaseAdmin
+      .from('line_contacts')
+      .select('id, display_name, picture_url, last_message_at, chat_account_id')
+      .eq('company_id', companyId)
+      .eq('customer_id', customerId)
+      .eq('status', 'active'),
+    supabaseAdmin
+      .from('fb_contacts')
+      .select('id, display_name, picture_url, last_message_at, chat_account_id')
+      .eq('company_id', companyId)
+      .eq('customer_id', customerId)
+      .eq('status', 'active'),
+  ]);
+
+  const linked: { id: string; platform: 'line' | 'facebook'; display_name: string; picture_url?: string; last_message_at?: string; account_name?: string }[] = [];
+
+  (lineData || []).forEach(c => {
+    const acc = c.chat_account_id ? accountMap.get(c.chat_account_id) : null;
+    linked.push({ id: c.id, platform: 'line', display_name: c.display_name, picture_url: c.picture_url, last_message_at: c.last_message_at, account_name: acc?.name });
+  });
+
+  (fbData || []).forEach(c => {
+    const acc = c.chat_account_id ? accountMap.get(c.chat_account_id) : null;
+    linked.push({ id: c.id, platform: 'facebook', display_name: c.display_name, picture_url: c.picture_url, last_message_at: c.last_message_at, account_name: acc?.name });
+  });
+
+  // Sort by last_message_at desc
+  linked.sort((a, b) => {
+    const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+    const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+    return bTime - aTime;
+  });
+
+  return NextResponse.json({ linked_contacts: linked });
 }
