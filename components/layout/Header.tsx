@@ -271,14 +271,14 @@ export default function Header() {
                       <button
                         key={value}
                         onClick={() => setTheme(value)}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-colors ${
+                        className={`flex-1 flex items-center justify-center py-1.5 rounded-md transition-colors ${
                           theme === value
-                            ? 'bg-[#F4511E]/10 text-[#F4511E] font-medium'
+                            ? 'bg-[#F4511E]/10 text-[#F4511E]'
                             : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
                         }`}
+                        title={label}
                       >
-                        <Icon className="w-3.5 h-3.5" />
-                        {label}
+                        <Icon className="w-4 h-4" />
                       </button>
                     ))}
                   </div>

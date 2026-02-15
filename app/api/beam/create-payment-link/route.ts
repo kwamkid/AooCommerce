@@ -1,6 +1,7 @@
 // Creates a Beam Checkout payment link and redirects customer to pay
+// Public API - no authentication required (called from customer-facing bill page)
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 // Map internal channel codes to Beam linkSettings keys
 const BEAM_LINK_SETTINGS_MAP: Record<string, string> = {
@@ -20,24 +21,17 @@ const BEAM_LINK_SETTINGS_MAP: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await checkAuthWithCompany(request);
-
-    if (!auth.isAuth || !auth.companyId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { order_id } = await request.json();
 
     if (!order_id) {
       return NextResponse.json({ error: 'order_id is required' }, { status: 400 });
     }
 
-    // 1. Validate order exists and is in pending state
+    // 1. Validate order exists and is in pending state (get company_id from order)
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, order_number, total_amount, payment_status, order_status, customer_id')
+      .select('id, order_number, total_amount, payment_status, order_status, customer_id, company_id')
       .eq('id', order_id)
-      .eq('company_id', auth.companyId)
       .single();
 
     if (orderError || !order) {
@@ -52,11 +46,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Order is not in pending payment state' }, { status: 400 });
     }
 
+    const companyId = order.company_id;
+
     // 2. Fetch gateway config from payment_channels
     const { data: gatewayChannel } = await supabaseAdmin
       .from('payment_channels')
       .select('config')
-      .eq('company_id', auth.companyId)
+      .eq('company_id', companyId)
       .eq('channel_group', 'bill_online')
       .eq('type', 'payment_gateway')
       .eq('is_active', true)
@@ -81,7 +77,7 @@ export async function POST(request: NextRequest) {
       .from('customers')
       .select('customer_type_new')
       .eq('id', order.customer_id)
-      .eq('company_id', auth.companyId)
+      .eq('company_id', companyId)
       .single();
 
     const customerType = customer?.customer_type_new || 'retail';
@@ -160,13 +156,13 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     })
       .eq('order_id', order.id)
-      .eq('company_id', auth.companyId)
+      .eq('company_id', companyId)
       .eq('payment_method', 'payment_gateway')
       .eq('status', 'pending');
 
     // Create new payment record
     await supabaseAdmin.from('payment_records').insert({
-      company_id: auth.companyId,
+      company_id: companyId,
       order_id: order.id,
       payment_method: 'payment_gateway',
       amount: order.total_amount,

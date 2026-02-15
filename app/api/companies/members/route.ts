@@ -82,17 +82,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check package member limit
-    const { data: company } = await supabaseAdmin
-      .from('companies')
-      .select('created_by')
-      .eq('id', auth.companyId)
-      .single();
-
-    if (company) {
+    {
       const { data: subscription } = await supabaseAdmin
         .from('user_subscriptions')
         .select('package:packages(*)')
-        .eq('user_id', company.created_by)
+        .eq('company_id', auth.companyId)
         .eq('status', 'active')
         .single();
 

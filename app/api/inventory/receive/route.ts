@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์รับเข้าสินค้า' }, { status: 403 });
     }
 
-    const stockConfig = await getStockConfig(auth.userId!);
+    const stockConfig = await getStockConfig(auth.companyId!);
     if (!stockConfig.stockEnabled) {
       return NextResponse.json({ error: 'Stock feature not enabled' }, { status: 403 });
     }

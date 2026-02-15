@@ -87,6 +87,38 @@ export function isAdminRole(role?: string): boolean {
 }
 
 /**
+ * Check if request is from a super admin user.
+ */
+export async function checkSuperAdmin(request: NextRequest): Promise<{ isAuth: boolean; isSuperAdmin: boolean; userId?: string }> {
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return { isAuth: false, isSuperAdmin: false };
+    }
+
+    const token = authHeader.substring(7);
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !user) {
+      return { isAuth: false, isSuperAdmin: false };
+    }
+
+    const { data: profile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('is_super_admin')
+      .eq('id', user.id)
+      .single();
+
+    return {
+      isAuth: true,
+      isSuperAdmin: profile?.is_super_admin === true,
+      userId: user.id,
+    };
+  } catch {
+    return { isAuth: false, isSuperAdmin: false };
+  }
+}
+
+/**
  * Simple auth check without company context (for auth-only routes like /api/auth/me)
  */
 export async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string }> {

@@ -60,16 +60,22 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
       .eq('is_active', true);
 
-    // Get subscription
-    const { data: subscription } = await supabaseAdmin
-      .from('user_subscriptions')
-      .select(`
-        id, status, started_at, expires_at,
-        package:packages (id, name, slug, max_companies, max_members_per_company)
-      `)
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .single();
+    // Get subscription — ดึงจาก company แรกที่ user อยู่
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const firstCompanyId = (memberships || [])[0]?.company_id;
+    let subscription = null;
+    if (firstCompanyId) {
+      const { data: sub } = await supabaseAdmin
+        .from('user_subscriptions')
+        .select(`
+          id, status, started_at, expires_at,
+          package:packages (id, name, slug, max_companies, max_members_per_company)
+        `)
+        .eq('company_id', firstCompanyId)
+        .eq('status', 'active')
+        .single();
+      subscription = sub;
+    }
 
     return NextResponse.json({
       profile,

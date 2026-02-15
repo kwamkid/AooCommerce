@@ -91,7 +91,11 @@ export default function PaymentChannelsPage() {
 
       if (!response.ok) throw new Error('Failed to fetch');
       const result = await response.json();
-      setChannels(result.data || []);
+      const data = result.data || [];
+      setChannels(data);
+
+      // Collapse all sections by default
+      setCollapsedSections(new Set(data.map((c: PaymentChannel) => c.id)));
 
       // Populate gateway form if exists
       const gw = (result.data || []).find((c: PaymentChannel) => c.type === 'payment_gateway');

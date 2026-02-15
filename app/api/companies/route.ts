@@ -51,26 +51,30 @@ export async function POST(request: NextRequest) {
     // Generate slug if not provided
     const companySlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
-    // Check package limits
-    const { data: subscription } = await supabaseAdmin
-      .from('user_subscriptions')
-      .select('package:packages(*)')
+    // Check max_companies limit — ดูจาก company ที่ user เป็น owner อยู่แล้ว
+    // ใช้ subscription ของ company แรกที่ user เป็น owner (ถ้ามี) เป็น reference
+    const { data: ownedCompanies } = await supabaseAdmin
+      .from('company_members')
+      .select('company_id')
       .eq('user_id', auth.userId)
-      .eq('status', 'active')
-      .single();
+      .eq('role', 'owner')
+      .eq('is_active', true);
 
-    const pkg = subscription?.package as unknown as { max_companies: number | null } | null;
-    const maxCompanies = pkg?.max_companies;
+    const ownedCount = ownedCompanies?.length || 0;
 
-    if (maxCompanies !== null && maxCompanies !== undefined) {
-      const { count } = await supabaseAdmin
-        .from('company_members')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', auth.userId)
-        .eq('role', 'owner')
-        .eq('is_active', true);
+    if (ownedCount > 0) {
+      // เช็ค limit จาก subscription ของ company แรกที่เป็น owner
+      const { data: subscription } = await supabaseAdmin
+        .from('user_subscriptions')
+        .select('package:packages(*)')
+        .eq('company_id', ownedCompanies![0].company_id)
+        .eq('status', 'active')
+        .single();
 
-      if (count !== null && count >= maxCompanies) {
+      const pkg = subscription?.package as unknown as { max_companies: number | null } | null;
+      const maxCompanies = pkg?.max_companies;
+
+      if (maxCompanies !== null && maxCompanies !== undefined && ownedCount >= maxCompanies) {
         return NextResponse.json(
           { error: `แพ็กเกจของคุณสร้างบริษัทได้สูงสุด ${maxCompanies} บริษัท กรุณาอัพเกรดแพ็กเกจ` },
           { status: 403 }
@@ -117,6 +121,22 @@ export async function POST(request: NextRequest) {
       user_id: auth.userId,
       role: 'owner',
     });
+
+    // Assign Free package to the new company
+    const { data: freePackage } = await supabaseAdmin
+      .from('packages')
+      .select('id')
+      .eq('slug', 'free')
+      .single();
+
+    if (freePackage) {
+      await supabaseAdmin.from('user_subscriptions').insert({
+        company_id: company.id,
+        user_id: auth.userId,
+        package_id: freePackage.id,
+        status: 'active',
+      });
+    }
 
     // Seed default CRM settings for the new company
     await supabaseAdmin.from('crm_settings').insert({

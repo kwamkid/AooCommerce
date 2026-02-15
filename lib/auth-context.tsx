@@ -135,7 +135,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route));
     const isInvitePage = pathname.startsWith('/invite/');
-    if (isInvitePage) return;
+    const isSuperAdminPage = pathname.startsWith('/superadmin');
+    if (isInvitePage || isSuperAdminPage) return;
 
     // Not logged in → go to login (unless already on public route)
     if (!user) {

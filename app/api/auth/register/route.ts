@@ -50,20 +50,7 @@ export async function POST(request: NextRequest) {
       is_active: true,
     });
 
-    // Assign Free package
-    const { data: freePackage } = await supabaseAdmin
-      .from('packages')
-      .select('id')
-      .eq('slug', 'free')
-      .single();
-
-    if (freePackage) {
-      await supabaseAdmin.from('user_subscriptions').insert({
-        user_id: authData.user.id,
-        package_id: freePackage.id,
-        status: 'active',
-      });
-    }
+    // Subscription จะสร้างตอนสร้าง company แทน (ผูกกับ company_id)
 
     // Check if there's a pending invitation
     const inviteToken = request.headers.get('x-invite-token');

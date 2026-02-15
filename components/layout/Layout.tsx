@@ -18,7 +18,7 @@ export default function Layout({ children, title, breadcrumbs }: LayoutProps) {
   // ไม่มี loading check ใดๆ - ให้ page component จัดการเอง
   
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
+    <div className="flex h-dvh bg-gray-50 dark:bg-slate-950 overflow-hidden">
       {/* Sidebar */}
       <Sidebar />
 
@@ -67,7 +67,7 @@ export default function Layout({ children, title, breadcrumbs }: LayoutProps) {
           )}
 
           {/* Page Body */}
-          <div className="p-4 lg:p-6">
+          <div className="p-4 lg:p-6 pb-24 lg:pb-6">
             {children}
           </div>
         </main>

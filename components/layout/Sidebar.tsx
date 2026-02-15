@@ -30,11 +30,7 @@ import {
   UserCog,
   Check,
   Facebook,
-  Warehouse,
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  ArrowLeftRight,
-  ClipboardList
+  Warehouse
 } from 'lucide-react';
 
 interface MenuItem {
@@ -66,11 +62,7 @@ const menuSections: MenuSection[] = [
   {
     title: 'คลังสินค้า',
     items: [
-      { label: 'สินค้าคงคลัง', href: '/inventory', icon: <Warehouse className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] },
-      { label: 'รับเข้า', href: '/inventory/receive', icon: <ArrowDownToLine className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] },
-      { label: 'เบิกออก', href: '/inventory/issue', icon: <ArrowUpFromLine className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] },
-      { label: 'โอนย้าย', href: '/inventory/transfer', icon: <ArrowLeftRight className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] },
-      { label: 'ประวัติ', href: '/inventory/transactions', icon: <ClipboardList className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] }
+      { label: 'สินค้าคงคลัง', href: '/inventory', icon: <Warehouse className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] }
     ]
   },
   {
@@ -99,7 +91,8 @@ export default function Sidebar() {
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
-  const [stockEnabled, setStockEnabled] = useState(false);
+  // Default เป็น true เพื่อไม่ให้เมนูกระพริบ → ถ้า API บอกปิดค่อยซ่อน
+  const [stockEnabled, setStockEnabled] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
   const { userProfile, signOut } = useAuth();
@@ -133,17 +126,16 @@ export default function Sidebar() {
     return () => document.removeEventListener('click', handleClick);
   }, []);
 
-  // Check if stock feature is enabled + fetch low stock count
+  // Check stock enabled + fetch low stock count
   useEffect(() => {
-    const fetchStockStatus = async () => {
+    const fetchStockInfo = async () => {
       try {
         const res = await apiFetch('/api/warehouses');
         if (res.ok) {
           const data = await res.json();
-          const enabled = data.stockConfig?.stockEnabled === true;
+          const enabled = data.stockConfig?.stockEnabled !== false;
           setStockEnabled(enabled);
 
-          // Only fetch low stock if enabled
           if (enabled) {
             try {
               const invRes = await apiFetch('/api/inventory?low_stock=true&limit=1');
@@ -157,12 +149,11 @@ export default function Sidebar() {
           }
         }
       } catch {
-        // Stock feature not available
-        setStockEnabled(false);
+        // API error → keep default (enabled)
       }
     };
     if (userProfile) {
-      fetchStockStatus();
+      fetchStockInfo();
     }
   }, [userProfile]);
 

@@ -10,13 +10,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const stockConfig = await getStockConfig(auth.userId!);
+    const stockConfig = await getStockConfig(auth.companyId!);
     if (!stockConfig.stockEnabled) {
       return NextResponse.json({ error: 'Stock feature not enabled' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
     const warehouseId = searchParams.get('warehouse_id');
+    const variationId = searchParams.get('variation_id');
     const type = searchParams.get('type');
     const search = searchParams.get('search');
     const dateFrom = searchParams.get('date_from');
@@ -34,13 +35,13 @@ export async function GET(request: NextRequest) {
         variation:product_variations(
           id, bottle_size, sku, attributes,
           product:products(id, code, name)
-        ),
-        user:users(id, name)
+        )
       `, { count: 'exact' })
       .eq('company_id', auth.companyId)
       .order('created_at', { ascending: false });
 
     if (warehouseId) query = query.eq('warehouse_id', warehouseId);
+    if (variationId) query = query.eq('variation_id', variationId);
     if (type) query = query.eq('type', type);
     if (dateFrom) query = query.gte('created_at', dateFrom);
     if (dateTo) query = query.lte('created_at', dateTo + 'T23:59:59.999Z');
@@ -49,12 +50,25 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
+    // Fetch user profiles for created_by
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userIds = [...new Set((data || []).map((tx: any) => tx.created_by).filter(Boolean))];
+    const userMap: Record<string, string> = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, name')
+        .in('id', userIds);
+      (profiles || []).forEach((p: { id: string; name: string }) => {
+        userMap[p.id] = p.name || '';
+      });
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const transactions = (data || []).map((tx: any) => {
       const variation = tx.variation;
       const product = variation?.product;
       const warehouse = tx.warehouse;
-      const user = tx.user;
 
       let varLabel = '';
       if (variation?.attributes && typeof variation.attributes === 'object') {
@@ -78,7 +92,7 @@ export async function GET(request: NextRequest) {
         product_name: product?.name || '',
         sku: variation?.sku || '',
         variation_label: varLabel,
-        created_by_name: user?.name || '',
+        created_by_name: tx.created_by ? (userMap[tx.created_by] || '') : '',
       };
     });
 

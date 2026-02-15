@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       .select(`
         id, order_number, order_date, delivery_date,
         subtotal, discount_amount, vat_amount, shipping_fee, total_amount,
-        order_status, payment_status, notes,
+        order_status, payment_status, notes, company_id,
         customer:customers (
           name, contact_person, phone, email,
           address, district, amphoe, province, postal_code,
@@ -48,6 +48,13 @@ export async function GET(request: NextRequest) {
     if (order.order_status === 'cancelled') {
       return NextResponse.json({ error: 'Order has been cancelled' }, { status: 404 });
     }
+
+    // Fetch company info (logo + name)
+    const { data: company } = await supabaseAdmin
+      .from('companies')
+      .select('name, logo_url')
+      .eq('id', order.company_id)
+      .single();
 
     // Fetch order items with shipments (to group by branch)
     const { data: items } = await supabaseAdmin
@@ -237,6 +244,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       bill: {
         ...order,
+        company_name: company?.name || '',
+        company_logo: company?.logo_url || null,
         items: flatItems,
         branches,
         payment_record: paymentRecord,

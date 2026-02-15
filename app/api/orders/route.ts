@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
 
     // --- Stock reservation (best-effort, errors logged but don't block order) ---
     try {
-      const stockConfig = await getStockConfig(auth.userId!);
+      const stockConfig = await getStockConfig(auth.companyId!);
       if (stockConfig.stockEnabled) {
         // Determine warehouse: use provided warehouse_id or find company's default warehouse
         let warehouseId = orderData.warehouse_id || null;
@@ -941,7 +941,7 @@ export async function PUT(request: NextRequest) {
       // --- Stock logic on status change (best-effort) ---
       if (body.order_status && body.order_status !== existingOrder.order_status) {
         try {
-          const stockConfig = await getStockConfig(auth.userId!);
+          const stockConfig = await getStockConfig(auth.companyId!);
           if (stockConfig.stockEnabled) {
             // Fetch the order's warehouse_id
             const { data: orderForStock } = await supabaseAdmin
@@ -1170,7 +1170,7 @@ export async function DELETE(request: NextRequest) {
     // --- Stock return/unreserve on cancel (best-effort) ---
     if (orderBeforeCancel && orderBeforeCancel.order_status !== 'cancelled') {
       try {
-        const stockConfig = await getStockConfig(auth.userId!);
+        const stockConfig = await getStockConfig(auth.companyId!);
         if (stockConfig.stockEnabled && orderBeforeCancel.warehouse_id) {
           const warehouseId = orderBeforeCancel.warehouse_id;
           const oldStatus = orderBeforeCancel.order_status;

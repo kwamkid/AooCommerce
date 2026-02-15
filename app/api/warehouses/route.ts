@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Always return stock config (works even without warehouses table)
-    const stockConfig = await getStockConfig(auth.userId!);
+    const stockConfig = await getStockConfig(auth.companyId!);
 
     // If stock not enabled, return early with empty warehouses
     if (!stockConfig.stockEnabled) {
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check tier limits
-    const limitCheck = await canCreateWarehouse(auth.companyId, auth.userId!);
+    const limitCheck = await canCreateWarehouse(auth.companyId!);
     if (!limitCheck.allowed) {
       if (limitCheck.max === 0) {
         return NextResponse.json({ error: 'แพ็กเกจของคุณไม่รองรับระบบคลังสินค้า กรุณาอัปเกรด' }, { status: 403 });

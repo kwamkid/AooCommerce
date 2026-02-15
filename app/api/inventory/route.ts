@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 
-// GET - List inventory (stock levels)
+// GET - List inventory (stock levels) — shows ALL products, including those with no stock
 export async function GET(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const stockConfig = await getStockConfig(auth.userId!);
+    const stockConfig = await getStockConfig(auth.companyId!);
     if (!stockConfig.stockEnabled) {
       return NextResponse.json({ error: 'Stock feature not enabled' }, { status: 403 });
     }
@@ -23,59 +23,96 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = (page - 1) * limit;
 
-    // Build query: inventory joined with product_variations and products
-    let query = supabaseAdmin
-      .from('inventory')
+    // 1) Fetch all active product variations for this company
+    const { data: variations, error: varError } = await supabaseAdmin
+      .from('product_variations')
       .select(`
-        id, warehouse_id, variation_id, quantity, reserved_quantity, updated_at,
-        warehouse:warehouses!inner(id, name, code),
-        variation:product_variations!inner(
-          id, bottle_size, sku, barcode, default_price, min_stock, attributes, is_active,
-          product:products!inner(id, code, name, image, is_active)
-        )
-      `, { count: 'exact' })
+        id, bottle_size, sku, barcode, default_price, min_stock, attributes, is_active,
+        product:products!inner(id, code, name, image, is_active, company_id)
+      `)
+      .eq('product.company_id', auth.companyId)
+      .eq('is_active', true)
+      .eq('product.is_active', true);
+
+    if (varError) throw varError;
+
+    // 2) Fetch inventory records (optionally filtered by warehouse)
+    let invQuery = supabaseAdmin
+      .from('inventory')
+      .select('id, warehouse_id, variation_id, quantity, reserved_quantity, updated_at')
       .eq('company_id', auth.companyId);
 
     if (warehouseId) {
-      query = query.eq('warehouse_id', warehouseId);
+      invQuery = invQuery.eq('warehouse_id', warehouseId);
     }
 
-    // Fetch all data first, then filter in JS for complex conditions
-    const { data: allData, error, count: totalCount } = await query
-      .order('updated_at', { ascending: false });
+    const { data: inventoryData, error: invError } = await invQuery;
+    if (invError) throw invError;
 
-    if (error) throw error;
+    // 3) Fetch variation images (first image per variation, sorted by sort_order)
+    const allVariationIds = (variations || []).map((v: { id: string }) => v.id);
+    const variationImageMap = new Map<string, string>();
+    if (allVariationIds.length > 0) {
+      const { data: varImages } = await supabaseAdmin
+        .from('product_images')
+        .select('variation_id, image_url, sort_order')
+        .in('variation_id', allVariationIds)
+        .eq('company_id', auth.companyId)
+        .order('sort_order', { ascending: true });
 
+      if (varImages) {
+        for (const img of varImages) {
+          if (img.variation_id && !variationImageMap.has(img.variation_id)) {
+            variationImageMap.set(img.variation_id, img.image_url);
+          }
+        }
+      }
+    }
+
+    // 4) Build inventory lookup: variation_id -> aggregated stock
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let items = (allData || []).map((item: any) => {
-      const variation = item.variation;
-      const product = variation?.product;
-      const warehouse = item.warehouse;
-      const minStock = (variation?.min_stock as number) || 0;
-      const available = (item.quantity || 0) - (item.reserved_quantity || 0);
+    const stockMap: Record<string, { quantity: number; reserved_quantity: number; updated_at: string | null }> = {};
+    (inventoryData || []).forEach((inv: { variation_id: string; quantity: number; reserved_quantity: number; updated_at: string }) => {
+      if (!stockMap[inv.variation_id]) {
+        stockMap[inv.variation_id] = { quantity: 0, reserved_quantity: 0, updated_at: null };
+      }
+      stockMap[inv.variation_id].quantity += (inv.quantity || 0);
+      stockMap[inv.variation_id].reserved_quantity += (inv.reserved_quantity || 0);
+      if (!stockMap[inv.variation_id].updated_at || inv.updated_at > stockMap[inv.variation_id].updated_at!) {
+        stockMap[inv.variation_id].updated_at = inv.updated_at;
+      }
+    });
+
+    // 5) Map all variations to inventory items (including those with no stock)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let items = (variations || []).map((v: any) => {
+      const product = v.product;
+      const stock = stockMap[v.id] || { quantity: 0, reserved_quantity: 0, updated_at: null };
+      const minStock = (v.min_stock as number) || 0;
+      const available = stock.quantity - stock.reserved_quantity;
 
       return {
-        id: item.id,
-        warehouse_id: item.warehouse_id,
-        warehouse_name: warehouse?.name || '',
-        warehouse_code: warehouse?.code || '',
-        variation_id: item.variation_id,
+        id: v.id,
+        warehouse_id: null,
+        warehouse_name: '',
+        warehouse_code: '',
+        variation_id: v.id,
         product_id: product?.id || '',
         product_code: product?.code || '',
         product_name: product?.name || '',
-        product_image: product?.image || null,
-        bottle_size: variation?.bottle_size || '',
-        sku: variation?.sku || '',
-        barcode: variation?.barcode || '',
-        attributes: variation?.attributes || null,
-        default_price: variation?.default_price || 0,
-        quantity: item.quantity || 0,
-        reserved_quantity: item.reserved_quantity || 0,
+        product_image: variationImageMap.get(v.id) || product?.image || null,
+        bottle_size: v.bottle_size || '',
+        sku: v.sku || '',
+        barcode: v.barcode || '',
+        attributes: v.attributes || null,
+        default_price: v.default_price || 0,
+        quantity: stock.quantity,
+        reserved_quantity: stock.reserved_quantity,
         available,
         min_stock: minStock,
         is_low_stock: minStock > 0 && available <= minStock,
-        is_out_of_stock: available <= 0,
-        updated_at: item.updated_at,
+        is_out_of_stock: available <= 0 && stock.quantity === 0,
+        updated_at: stock.updated_at,
       };
     });
 
@@ -92,14 +129,21 @@ export async function GET(request: NextRequest) {
 
     // Apply low stock filter
     if (lowStockOnly) {
-      items = items.filter(item => item.is_low_stock || item.is_out_of_stock);
+      items = items.filter(item => item.is_low_stock || (item.is_out_of_stock && item.min_stock > 0));
     }
+
+    // Sort: low stock first, then by product name
+    items.sort((a, b) => {
+      if (a.is_low_stock && !b.is_low_stock) return -1;
+      if (!a.is_low_stock && b.is_low_stock) return 1;
+      return a.product_name.localeCompare(b.product_name);
+    });
 
     const total = items.length;
     const paginatedItems = items.slice(offset, offset + limit);
 
     // Count low stock items (for badge)
-    const lowStockCount = items.filter(item => item.is_low_stock || item.is_out_of_stock).length;
+    const lowStockCount = items.filter(item => item.is_low_stock || (item.is_out_of_stock && item.min_stock > 0)).length;
 
     return NextResponse.json({
       items: paginatedItems,
@@ -125,7 +169,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์ปรับ stock' }, { status: 403 });
     }
 
-    const stockConfig = await getStockConfig(auth.userId!);
+    const stockConfig = await getStockConfig(auth.companyId!);
     if (!stockConfig.stockEnabled) {
       return NextResponse.json({ error: 'Stock feature not enabled' }, { status: 403 });
     }
