@@ -1,8 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { getFbCredentials } from '@/lib/fb-config';
-import { getChatAccount, getDefaultChatAccount, getFbCredsFromAccount } from '@/lib/chat-config';
+import { getFbCredsFromAccount } from '@/lib/chat-config';
 
 // Create Supabase Admin client (service role)
 const supabaseAdmin = createClient(
@@ -65,6 +64,22 @@ function verifySignature(body: string, signature: string, appSecret: string): bo
   );
 }
 
+// Helper: lookup chat account by page_id from credentials JSON
+async function findAccountByPageId(pageId: string) {
+  const { data } = await supabaseAdmin
+    .from('chat_accounts')
+    .select('*')
+    .eq('platform', 'facebook')
+    .eq('is_active', true);
+
+  if (!data) return null;
+  for (const account of data) {
+    const creds = account.credentials as Record<string, string>;
+    if (creds?.page_id === pageId) return account;
+  }
+  return null;
+}
+
 // GET - Facebook webhook verification
 export async function GET(request: NextRequest) {
   try {
@@ -72,34 +87,30 @@ export async function GET(request: NextRequest) {
     const mode = searchParams.get('hub.mode');
     const token = searchParams.get('hub.verify_token');
     const challenge = searchParams.get('hub.challenge');
-    const accountId = searchParams.get('account');
-    const companyId = searchParams.get('company');
 
     if (mode !== 'subscribe' || !token || !challenge) {
       return NextResponse.json({ error: 'Invalid verification request' }, { status: 400 });
     }
 
-    // Try account-based first, fallback to company-based
-    let verifyToken: string | null = null;
+    // Search all FB chat accounts for matching verify_token
+    const { data: accounts } = await supabaseAdmin
+      .from('chat_accounts')
+      .select('*')
+      .eq('platform', 'facebook')
+      .eq('is_active', true);
 
-    if (accountId) {
-      const account = await getChatAccount(accountId);
-      if (account && account.is_active) {
-        const creds = getFbCredsFromAccount(account);
-        verifyToken = creds?.verify_token || null;
-      }
-    } else if (companyId) {
-      const account = await getDefaultChatAccount(companyId, 'facebook');
-      if (account) {
-        const creds = getFbCredsFromAccount(account);
-        verifyToken = creds?.verify_token || null;
-      } else {
-        const credentials = await getFbCredentials(companyId);
-        verifyToken = credentials?.verify_token || null;
+    let matched = false;
+    if (accounts) {
+      for (const account of accounts) {
+        const creds = account.credentials as Record<string, string>;
+        if (creds?.verify_token === token) {
+          matched = true;
+          break;
+        }
       }
     }
 
-    if (!verifyToken || verifyToken !== token) {
+    if (!matched) {
       return NextResponse.json({ error: 'Invalid verify token' }, { status: 403 });
     }
 
@@ -119,60 +130,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.text();
     const signature = request.headers.get('x-hub-signature-256') || '';
-
-    // Get account or company ID from query param
-    const { searchParams } = new URL(request.url);
-    const accountId = searchParams.get('account');
-    const companyParam = searchParams.get('company');
-
-    let companyId: string | null = companyParam;
-    let chatAccountId: string | null = accountId;
-    let appSecret = '';
-    let pageAccessToken = '';
-
     const envAppSecret = process.env.FACEBOOK_APP_SECRET || '';
-
-    if (accountId) {
-      // New: account-based routing
-      const account = await getChatAccount(accountId);
-      if (account && account.is_active) {
-        const creds = getFbCredsFromAccount(account);
-        if (creds) {
-          appSecret = envAppSecret || creds.app_secret;
-          pageAccessToken = creds.page_access_token;
-          companyId = account.company_id;
-        }
-      }
-    } else if (companyId) {
-      // Backward compat: company-based routing
-      const account = await getDefaultChatAccount(companyId, 'facebook');
-      if (account) {
-        chatAccountId = account.id;
-        const creds = getFbCredsFromAccount(account);
-        if (creds) {
-          appSecret = envAppSecret || creds.app_secret;
-          pageAccessToken = creds.page_access_token;
-        }
-      } else {
-        // Legacy fallback to crm_settings
-        const credentials = await getFbCredentials(companyId);
-        if (credentials && credentials.is_active) {
-          appSecret = envAppSecret || credentials.app_secret;
-          pageAccessToken = credentials.page_access_token;
-        }
-      }
-    }
-
-    if (!companyId || !appSecret) {
-      console.error('FB webhook: no credentials found');
-      return NextResponse.json({ status: 'ok' });
-    }
-
-    // Verify signature
-    if (!verifySignature(body, signature, appSecret)) {
-      console.error('FB webhook: invalid signature');
-      return NextResponse.json({ status: 'ok' });
-    }
 
     const webhookBody: FbWebhookBody = JSON.parse(body);
 
@@ -180,9 +138,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'ok' });
     }
 
-    // Process each entry
+    // Process each entry — each entry.id is the page_id
     for (const entry of webhookBody.entry) {
       if (!entry.messaging) continue;
+
+      const pageId = entry.id;
+
+      // Auto-lookup: find chat_account by page_id in credentials
+      const account = await findAccountByPageId(pageId);
+      if (!account) {
+        console.error('FB webhook: no chat_account found for page_id:', pageId);
+        continue;
+      }
+
+      const creds = getFbCredsFromAccount(account);
+      if (!creds) {
+        console.error('FB webhook: invalid credentials for account:', account.id);
+        continue;
+      }
+
+      const appSecret = envAppSecret || creds.app_secret;
+      const pageAccessToken = creds.page_access_token;
+      const companyId = account.company_id;
+      const chatAccountId = account.id;
+
+      // Verify signature (once per request, but check with this account's secret)
+      if (appSecret && !verifySignature(body, signature, appSecret)) {
+        console.error('FB webhook: invalid signature for page_id:', pageId);
+        continue;
+      }
 
       for (const event of entry.messaging) {
         await processMessagingEvent(event, pageAccessToken, companyId, chatAccountId);
