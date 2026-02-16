@@ -232,23 +232,26 @@ export default function StockReceivePage() {
         notes: batchNotes || undefined,
       };
 
-      const res = await apiFetch('/api/inventory/receive', {
+      const res = await apiFetch('/api/inventory/receives', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
+      const result = await res.json();
+
       if (!res.ok) {
-        const result = await res.json();
         throw new Error(result.error || 'เกิดข้อผิดพลาด');
       }
 
-      showToast('รับเข้าสินค้าสำเร็จ', 'success');
+      showToast(`สร้างใบรับเข้า ${result.receive_number || ''} สำเร็จ`, 'success');
 
-      // Reset form
-      setReceiveItems([]);
-      setBatchNotes('');
-      setProductSearch('');
+      // Redirect to detail or list
+      if (result.receive_id) {
+        router.push(`/inventory/receives/${result.receive_id}`);
+      } else {
+        router.push('/inventory/receives');
+      }
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการรับเข้าสินค้า',
@@ -261,7 +264,7 @@ export default function StockReceivePage() {
 
   // Cancel
   const handleCancel = () => {
-    router.push('/inventory');
+    router.push('/inventory/receives');
   };
 
   const canSubmit = selectedWarehouseId && receiveItems.length > 0 && !submitting;
@@ -272,7 +275,7 @@ export default function StockReceivePage() {
     return (
       <Layout
         title="รับเข้าสินค้า"
-        breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รับเข้าสินค้า' }]}
+        breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า', href: '/inventory/receives' }, { label: 'รับเข้าสินค้า' }]}
       >
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
@@ -284,7 +287,7 @@ export default function StockReceivePage() {
   return (
     <Layout
       title="รับเข้าสินค้า"
-      breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รับเข้าสินค้า' }]}
+      breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า', href: '/inventory/receives' }, { label: 'รับเข้าสินค้า' }]}
     >
       <div className="space-y-4">
         {/* Warehouse Selection */}

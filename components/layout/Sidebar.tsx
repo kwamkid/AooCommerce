@@ -30,7 +30,10 @@ import {
   UserCog,
   Check,
   Facebook,
-  Warehouse
+  Warehouse,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  ArrowLeftRight,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -62,7 +65,7 @@ const menuSections: MenuSection[] = [
   {
     title: 'คลังสินค้า',
     items: [
-      { label: 'สินค้าคงคลัง', href: '/inventory', icon: <Warehouse className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] }
+      { label: 'สินค้าคงคลัง', href: '/inventory', icon: <Warehouse className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] },
     ]
   },
   {
@@ -90,6 +93,7 @@ export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
   // Default เป็น true เพื่อไม่ให้เมนูกระพริบ → ถ้า API บอกปิดค่อยซ่อน
   const [stockEnabled, setStockEnabled] = useState(true);
@@ -109,6 +113,7 @@ export default function Sidebar() {
 
   useEffect(() => {
     if (pathname?.startsWith('/settings')) setSettingsOpen(true);
+    if (pathname?.startsWith('/inventory')) setInventoryOpen(true);
   }, [pathname]);
 
   useEffect(() => {
@@ -327,25 +332,75 @@ export default function Sidebar() {
                 <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
                   {section.title}
                 </h3>
-                {section.items.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex items-center space-x-3 px-3 py-2 rounded-lg mb-1 transition-colors ${
-                      (pathname === item.href || pathname?.startsWith(item.href + '/') || (item.href === '/chat' && (pathname === '/line-chat' || pathname === '/fb-chat')))
-                        ? 'bg-[#F4511E] text-white'
-                        : 'text-gray-300 hover:bg-[#F4511E]/10 hover:text-[#F4511E]'
-                    }`}
-                  >
-                    {item.icon}
-                    <span className="text-[16px] font-medium">{item.label}</span>
-                    {item.badge && (
-                      <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-                        {item.badge}
-                      </span>
-                    )}
-                  </Link>
-                ))}
+                {section.items.map((item) => {
+                  const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/inventory' && pathname?.startsWith(item.href + '/')) || (item.href === '/chat' && (pathname === '/line-chat' || pathname === '/fb-chat'));
+
+                  // Inventory item: render as collapsible with submenu
+                  if (item.href === '/inventory') {
+                    const isInventoryPage = pathname?.startsWith('/inventory');
+                    return (
+                      <div key={item.href}>
+                        <button
+                          onClick={() => setInventoryOpen(!inventoryOpen)}
+                          className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
+                            isInventoryPage
+                              ? 'text-[#F4511E]'
+                              : 'text-gray-300 hover:text-[#F4511E]'
+                          }`}
+                        >
+                          {item.icon}
+                          <span className="text-[16px] font-medium ml-3">{item.label}</span>
+                          {item.badge && (
+                            <span className="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                              {item.badge}
+                            </span>
+                          )}
+                          <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${inventoryOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {inventoryOpen && (
+                          <div className="ml-3 border-l border-[#F4511E]/20">
+                            <Link href="/inventory" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <Warehouse className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">สต๊อกสินค้า</span>
+                            </Link>
+                            <Link href="/inventory/receives" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/receives' || pathname === '/inventory/receive' || pathname?.startsWith('/inventory/receives/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <ArrowDownToLine className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">รายการรับเข้า</span>
+                            </Link>
+                            <Link href="/inventory/issues" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/issues' || pathname === '/inventory/issue' || pathname?.startsWith('/inventory/issues/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <ArrowUpFromLine className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">รายการเบิกออก</span>
+                            </Link>
+                            <Link href="/inventory/transfers" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/transfers' || pathname === '/inventory/transfer' || pathname?.startsWith('/inventory/transfers/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <ArrowLeftRight className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">รายการโอนย้าย</span>
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`flex items-center space-x-3 px-3 py-2 rounded-lg mb-1 transition-colors ${
+                        isActive
+                          ? 'bg-[#F4511E] text-white'
+                          : 'text-gray-300 hover:bg-[#F4511E]/10 hover:text-[#F4511E]'
+                      }`}
+                    >
+                      {item.icon}
+                      <span className="text-[16px] font-medium">{item.label}</span>
+                      {item.badge && (
+                        <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
               </div>
             ))}
 

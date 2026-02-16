@@ -300,7 +300,7 @@ export default function StockTransferPage() {
         notes: batchNotes || undefined,
       };
 
-      const res = await apiFetch('/api/inventory/transfer', {
+      const res = await apiFetch('/api/inventory/transfers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -338,14 +338,14 @@ export default function StockTransferPage() {
         throw new Error(result.error || 'เกิดข้อผิดพลาด');
       }
 
-      showToast('โอนย้ายสินค้าสำเร็จ', 'success');
+      showToast(`สร้างใบโอนย้าย ${result.transfer_number || ''} สำเร็จ`, 'success');
 
-      // Reset form
-      setTransferItems([]);
-      setBatchNotes('');
-      setProductSearch('');
-      // Refresh source inventory
-      fetchSourceInventory(sourceWarehouseId);
+      // Redirect to transfer detail or list
+      if (result.transfer_id) {
+        router.push(`/inventory/transfers/${result.transfer_id}`);
+      } else {
+        router.push('/inventory/transfers');
+      }
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการโอนย้ายสินค้า',
@@ -358,7 +358,7 @@ export default function StockTransferPage() {
 
   // Cancel
   const handleCancel = () => {
-    router.push('/inventory');
+    router.push('/inventory/transfers');
   };
 
   const canSubmit =
@@ -375,7 +375,7 @@ export default function StockTransferPage() {
     return (
       <Layout
         title="โอนย้ายสินค้า"
-        breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'โอนย้ายสินค้า' }]}
+        breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการโอนย้าย', href: '/inventory/transfers' }, { label: 'สร้างใบโอนย้าย' }]}
       >
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
@@ -387,7 +387,7 @@ export default function StockTransferPage() {
   return (
     <Layout
       title="โอนย้ายสินค้า"
-      breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'โอนย้ายสินค้า' }]}
+      breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการโอนย้าย', href: '/inventory/transfers' }, { label: 'สร้างใบโอนย้าย' }]}
     >
       <div className="space-y-4">
         {/* Warehouse Selection */}
@@ -840,12 +840,12 @@ export default function StockTransferPage() {
             {submitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                กำลังโอนย้าย...
+                กำลังสร้างใบโอนย้าย...
               </>
             ) : (
               <>
                 <ArrowRightLeft className="w-4 h-4" />
-                บันทึกโอนย้าย
+                สร้างใบโอนย้ายและจัดส่ง
               </>
             )}
           </button>

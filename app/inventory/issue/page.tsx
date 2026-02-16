@@ -301,29 +301,26 @@ export default function StockIssuePage() {
         notes: batchNotes || undefined,
       };
 
-      const res = await apiFetch('/api/inventory/issue', {
+      const res = await apiFetch('/api/inventory/issues', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
+      const result = await res.json();
+
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || 'เกิดข้อผิดพลาดในการเบิกออกสินค้า');
+        throw new Error(result.error || 'เกิดข้อผิดพลาดในการเบิกออกสินค้า');
       }
 
-      showToast('เบิกออกสินค้าสำเร็จ', 'success');
-      setShowSuccess(true);
+      showToast(`สร้างใบเบิกออก ${result.issue_number || ''} สำเร็จ`, 'success');
 
-      // Reset form
-      setItems([]);
-      setBatchNotes('');
-
-      // Refresh inventory
-      fetchInventory(selectedWarehouse);
-
-      // Auto-hide success after 3 seconds
-      setTimeout(() => setShowSuccess(false), 3000);
+      // Redirect to detail or list
+      if (result.issue_id) {
+        router.push(`/inventory/issues/${result.issue_id}`);
+      } else {
+        router.push('/inventory/issues');
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'เกิดข้อผิดพลาด';
       showToast(message, 'error');
@@ -333,7 +330,7 @@ export default function StockIssuePage() {
   };
 
   const handleCancel = () => {
-    router.back();
+    router.push('/inventory/issues');
   };
 
   // ─── Helper: get stock info for a variation ──────────────
@@ -352,7 +349,7 @@ export default function StockIssuePage() {
     return (
       <Layout
         title="เบิกออกสินค้า"
-        breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'เบิกออกสินค้า' }]}
+        breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการเบิกออก', href: '/inventory/issues' }, { label: 'เบิกออกสินค้า' }]}
       >
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
@@ -366,7 +363,7 @@ export default function StockIssuePage() {
   return (
     <Layout
       title="เบิกออกสินค้า"
-      breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'เบิกออกสินค้า' }]}
+      breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการเบิกออก', href: '/inventory/issues' }, { label: 'เบิกออกสินค้า' }]}
     >
       <div className="space-y-4 max-w-5xl">
         {/* Success Message */}

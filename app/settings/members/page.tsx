@@ -10,6 +10,7 @@ import {
   Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check,
   AlertCircle, Loader2, CheckCircle, Clock, Copy, Phone,
   Search, Plus, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  Warehouse,
 } from 'lucide-react';
 
 interface Member {
@@ -82,6 +83,14 @@ interface EditMemberForm {
   role: string;
   phone: string;
   is_active: boolean;
+  warehouse_ids: string[];
+}
+
+interface WarehouseItem {
+  id: string;
+  name: string;
+  code: string | null;
+  is_default?: boolean;
 }
 
 export default function MembersPage() {
@@ -118,6 +127,9 @@ export default function MembersPage() {
   const [editingRoleMemberId, setEditingRoleMemberId] = useState<string | null>(null);
   const [editingRole, setEditingRole] = useState('');
 
+  // Warehouses (for permission assignment)
+  const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
+
   const isOwnerOrAdmin = companyRole === 'owner' || companyRole === 'admin';
 
   // Fetch members and invitations
@@ -143,6 +155,17 @@ export default function MembersPage() {
 
   useEffect(() => {
     fetchMembers();
+    // Fetch warehouses for permission assignment
+    const fetchWarehouses = async () => {
+      try {
+        const res = await apiFetch('/api/warehouses');
+        if (res.ok) {
+          const data = await res.json();
+          setWarehouses(data.warehouses || []);
+        }
+      } catch { /* silent */ }
+    };
+    fetchWarehouses();
   }, [fetchMembers]);
 
   // Clear alerts
@@ -270,7 +293,7 @@ export default function MembersPage() {
   };
 
   // Handle edit member (full edit modal)
-  const handleOpenEditModal = (member: Member) => {
+  const handleOpenEditModal = async (member: Member) => {
     setEditingMember({
       memberId: member.id,
       userId: member.user.id,
@@ -278,8 +301,18 @@ export default function MembersPage() {
       role: member.role,
       phone: member.user.phone || '',
       is_active: member.is_active,
+      warehouse_ids: [],
     });
     setShowEditModal(true);
+
+    // Fetch warehouse permissions
+    try {
+      const res = await apiFetch(`/api/users/warehouse-permissions?user_id=${member.user.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setEditingMember(prev => prev ? { ...prev, warehouse_ids: data.warehouse_ids || [] } : prev);
+      }
+    } catch { /* silent */ }
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -308,6 +341,16 @@ export default function MembersPage() {
       if (!profileRes.ok) {
         throw new Error(profileResult.error || 'ไม่สามารถอัพเดทข้อมูลได้');
       }
+
+      // Save warehouse permissions
+      await apiFetch('/api/users/warehouse-permissions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: editingMember.userId,
+          warehouse_ids: editingMember.warehouse_ids,
+        }),
+      });
 
       setSuccess('อัพเดทข้อมูลสมาชิกสำเร็จ');
       setShowEditModal(false);
@@ -905,6 +948,39 @@ export default function MembersPage() {
                       <span className="text-sm text-gray-700 dark:text-slate-300">เปิดใช้งาน</span>
                     </label>
                   </div>
+
+                  {/* Warehouse Permissions */}
+                  {warehouses.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                        <Warehouse className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+                        สิทธิ์คลังสินค้า
+                      </label>
+                      <p className="text-xs text-gray-400 dark:text-slate-500 mb-2">
+                        ไม่เลือก = เข้าถึงทุกคลัง, เลือกบางคลัง = เข้าถึงเฉพาะที่เลือก
+                      </p>
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto border border-gray-200 dark:border-slate-600 rounded-lg p-2">
+                        {warehouses.map(wh => (
+                          <label key={wh.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editingMember.warehouse_ids.includes(wh.id)}
+                              onChange={(e) => {
+                                const ids = e.target.checked
+                                  ? [...editingMember.warehouse_ids, wh.id]
+                                  : editingMember.warehouse_ids.filter(id => id !== wh.id);
+                                setEditingMember({ ...editingMember, warehouse_ids: ids });
+                              }}
+                              className="w-3.5 h-3.5 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E]"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-slate-300">
+                              {wh.name}{wh.code ? ` (${wh.code})` : ''}{wh.is_default ? ' - ค่าเริ่มต้น' : ''}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end space-x-3 mt-6">
