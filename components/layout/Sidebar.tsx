@@ -34,6 +34,7 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   ArrowLeftRight,
+  ShoppingBag,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -447,6 +448,10 @@ export default function Sidebar() {
                     <Link href="/settings/warehouses" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/warehouses' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                       <Warehouse className="w-4 h-4" />
                       <span className="text-[16px] font-medium">คลังสินค้า</span>
+                    </Link>
+                    <Link href="/settings/integrations" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/integrations' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                      <ShoppingBag className="w-4 h-4" />
+                      <span className="text-[16px] font-medium">Marketplace</span>
                     </Link>
                   </div>
                 )}
