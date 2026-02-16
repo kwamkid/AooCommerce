@@ -15,19 +15,38 @@ import {
   Clock,
   Plus,
   ChevronRight,
-  ChevronLeft,
   Filter,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
   MessageCircle,
   ExternalLink,
-  ChevronsLeft,
-  ChevronsRight,
   X,
   ArrowRight,
   FileText
 } from 'lucide-react';
+import Pagination from '@/app/components/Pagination';
+import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+
+// Column toggle system
+type ColumnKey = 'customer' | 'type' | 'lastOrder' | 'daysSince' | 'frequency' | 'totalOrders' | 'totalSpent' | 'actions';
+
+const COLUMN_CONFIGS: { key: ColumnKey; label: string; defaultVisible: boolean; alwaysVisible?: boolean }[] = [
+  { key: 'customer', label: 'ลูกค้า', defaultVisible: true, alwaysVisible: true },
+  { key: 'type', label: 'ประเภท', defaultVisible: true },
+  { key: 'lastOrder', label: 'สั่งล่าสุด', defaultVisible: true },
+  { key: 'daysSince', label: 'สั่งไปแล้ว', defaultVisible: true },
+  { key: 'frequency', label: 'รอบสั่งซื้อ', defaultVisible: true },
+  { key: 'totalOrders', label: 'ออเดอร์', defaultVisible: true },
+  { key: 'totalSpent', label: 'ยอดซื้อรวม', defaultVisible: true },
+  { key: 'actions', label: 'ดำเนินการ', defaultVisible: true, alwaysVisible: true },
+];
+
+const STORAGE_KEY = 'crm-followup-visible-columns';
+
+function getDefaultColumns(): ColumnKey[] {
+  return COLUMN_CONFIGS.filter(c => c.defaultVisible).map(c => c.key);
+}
 
 interface CRMCustomer {
   id: string;
@@ -207,6 +226,28 @@ export default function CRMFollowUpPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
+  // Column visibility
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try { return new Set(JSON.parse(stored) as ColumnKey[]); } catch { /* use defaults */ }
+      }
+    }
+    return new Set(getDefaultColumns());
+  });
+
+  const toggleColumn = (key: ColumnKey) => {
+    setVisibleColumns(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const isCol = (key: ColumnKey) => visibleColumns.has(key);
+
   // Order history modal
   const [orderHistoryModal, setOrderHistoryModal] = useState<{
     show: boolean;
@@ -317,12 +358,6 @@ export default function CRMFollowUpPage() {
       setOrderHistoryModal(prev => ({ ...prev, orders, loading: false }));
     } catch {
       setOrderHistoryModal(prev => ({ ...prev, loading: false }));
-    }
-  };
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= pagination.totalPages) {
-      setCurrentPage(newPage);
     }
   };
 
@@ -471,55 +506,21 @@ export default function CRMFollowUpPage() {
               <table className="w-full">
                 <thead className="data-thead">
                   <tr>
-                    <SortableHeader
-                      label="ลูกค้า"
-                      field="name"
-                      currentSort={sortBy}
-                      currentOrder={sortOrder}
-                      onSort={handleSort}
-                      className="text-left"
-                    />
-                    <th className="data-th">ประเภท</th>
-                    <SortableHeader
-                      label="สั่งล่าสุด"
-                      field="last_order_date"
-                      currentSort={sortBy}
-                      currentOrder={sortOrder}
-                      onSort={handleSort}
-                      className="text-left"
-                    />
-                    <SortableHeader
-                      label="สั่งไปแล้ว"
-                      field="days_since_last_order"
-                      currentSort={sortBy}
-                      currentOrder={sortOrder}
-                      onSort={handleSort}
-                      className="text-center"
-                    />
-                    <th className="data-th text-center">รอบสั่งซื้อ</th>
-                    <SortableHeader
-                      label="ออเดอร์"
-                      field="total_orders"
-                      currentSort={sortBy}
-                      currentOrder={sortOrder}
-                      onSort={handleSort}
-                      className="text-center"
-                    />
-                    <SortableHeader
-                      label="ยอดซื้อรวม"
-                      field="total_spent"
-                      currentSort={sortBy}
-                      currentOrder={sortOrder}
-                      onSort={handleSort}
-                      className="text-right"
-                    />
-                    <th className="data-th text-center">ดำเนินการ</th>
+                    {isCol('customer') && <SortableHeader label="ลูกค้า" field="name" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-left" />}
+                    {isCol('type') && <th className="data-th">ประเภท</th>}
+                    {isCol('lastOrder') && <SortableHeader label="สั่งล่าสุด" field="last_order_date" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-left" />}
+                    {isCol('daysSince') && <SortableHeader label="สั่งไปแล้ว" field="days_since_last_order" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-center" />}
+                    {isCol('frequency') && <th className="data-th text-center">รอบสั่งซื้อ</th>}
+                    {isCol('totalOrders') && <SortableHeader label="ออเดอร์" field="total_orders" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-center" />}
+                    {isCol('totalSpent') && <SortableHeader label="ยอดซื้อรวม" field="total_spent" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-right" />}
+                    {isCol('actions') && <th className="data-th text-center">ดำเนินการ</th>}
                   </tr>
                 </thead>
                 <tbody className="data-tbody">
                   {customers.map((customer) => (
                     <tr key={customer.id} className="data-tr">
                       {/* Customer Info */}
+                      {isCol('customer') && (
                       <td className="px-6 py-4">
                         <div>
                           <div className="text-xs text-gray-400 mb-0.5">{customer.customer_code}</div>
@@ -535,46 +536,60 @@ export default function CRMFollowUpPage() {
                           )}
                         </div>
                       </td>
+                      )}
 
                       {/* Type */}
+                      {isCol('type') && (
                       <td className="px-6 py-4">
                         <CustomerTypeBadge type={customer.customer_type || 'retail'} />
                       </td>
+                      )}
 
                       {/* Last Order Date */}
+                      {isCol('lastOrder') && (
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-400">
                           <Calendar className="w-3.5 h-3.5" />
                           {formatDate(customer.last_order_date)}
                         </div>
                       </td>
+                      )}
 
                       {/* Days Since Last Order */}
+                      {isCol('daysSince') && (
                       <td className="px-6 py-4 text-center">
                         <DaysBadge days={customer.days_since_last_order} avgFrequency={customer.avg_order_frequency} />
                       </td>
+                      )}
 
                       {/* Order Frequency */}
+                      {isCol('frequency') && (
                       <td className="px-6 py-4 text-center">
                         <FrequencyBadge
                           frequency={customer.avg_order_frequency}
                           onClick={() => customer.total_orders >= 2 && handleShowOrderHistory(customer)}
                         />
                       </td>
+                      )}
 
                       {/* Total Orders */}
+                      {isCol('totalOrders') && (
                       <td className="px-6 py-4 text-center">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{customer.total_orders}</span>
                       </td>
+                      )}
 
                       {/* Total Spent */}
+                      {isCol('totalSpent') && (
                       <td className="px-6 py-4 text-right">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
                           ฿{customer.total_spent.toLocaleString('th-TH', { minimumFractionDigits: 0 })}
                         </span>
                       </td>
+                      )}
 
                       {/* Actions */}
+                      {isCol('actions') && (
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-2">
                           {customer.line_user_id ? (
@@ -604,6 +619,7 @@ export default function CRMFollowUpPage() {
                           </button>
                         </div>
                       </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -611,73 +627,25 @@ export default function CRMFollowUpPage() {
             </div>
           )}
 
-          {/* Pagination */}
-          {!loading && pagination.total > 0 && (
-            <div className="data-pagination">
-              <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
-                <span>{((currentPage - 1) * rowsPerPage) + 1} - {Math.min(currentPage * rowsPerPage, pagination.total)} จาก {pagination.total} รายการ</span>
-                <select
-                  value={rowsPerPage}
-                  onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                >
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span>/หน้า</span>
-              </div>
-              {pagination.totalPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => handlePageChange(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
-                    <ChevronsLeft className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <div className="flex items-center gap-1">
-                    {(() => {
-                      const pages: (number | string)[] = [];
-                      const tp = pagination.totalPages;
-                      if (tp <= 3) {
-                        for (let i = 1; i <= tp; i++) pages.push(i);
-                      } else {
-                        const start = Math.max(1, currentPage - 1);
-                        const end = Math.min(tp, currentPage + 1);
-                        for (let i = start; i <= end; i++) pages.push(i);
-                        if (end < tp - 1) pages.push('...');
-                        if (end < tp) pages.push(tp);
-                        if (start > 2) pages.unshift('...');
-                        if (start > 1) pages.unshift(1);
-                      }
-                      return pages.map((page, idx) =>
-                        page === '...' ? (
-                          <span key={`dots-${idx}`} className="px-1 text-gray-400 dark:text-slate-500">...</span>
-                        ) : (
-                          <button
-                            key={page}
-                            onClick={() => handlePageChange(page as number)}
-                            className={`w-8 h-8 rounded text-sm font-medium ${
-                              currentPage === page
-                                ? 'bg-[#F4511E] text-white'
-                                : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700'
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        )
-                      );
-                    })()}
-                  </div>
-                  <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === pagination.totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handlePageChange(pagination.totalPages)} disabled={currentPage === pagination.totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
-                    <ChevronsRight className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
+          {!loading && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={pagination.totalPages}
+              totalRecords={pagination.total}
+              startIdx={(currentPage - 1) * rowsPerPage}
+              endIdx={Math.min(currentPage * rowsPerPage, pagination.total)}
+              recordsPerPage={rowsPerPage}
+              setRecordsPerPage={setRowsPerPage}
+              setPage={setCurrentPage}
+            >
+              <ColumnSettingsDropdown
+                configs={COLUMN_CONFIGS}
+                visible={visibleColumns}
+                toggle={toggleColumn}
+                buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+                dropUp
+              />
+            </Pagination>
           )}
         </div>
       </div>

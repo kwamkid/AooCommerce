@@ -191,31 +191,33 @@ export async function GET(request: NextRequest) {
     if (withStats && data && data.length > 0) {
       const customerIds = data.map(c => c.id);
 
-      // Fetch shipping address counts in one query
-      const { data: addressCounts } = await supabaseAdmin
-        .from('shipping_addresses')
-        .select('customer_id')
-        .in('customer_id', customerIds)
-        .eq('company_id', auth.companyId)
-        .eq('is_active', true);
+      // Fetch all stats in parallel
+      const [addressResult, lineResult, orderResult] = await Promise.all([
+        supabaseAdmin
+          .from('shipping_addresses')
+          .select('customer_id')
+          .in('customer_id', customerIds)
+          .eq('company_id', auth.companyId)
+          .eq('is_active', true),
+        supabaseAdmin
+          .from('line_contacts')
+          .select('customer_id, display_name, line_user_id')
+          .in('customer_id', customerIds),
+        supabaseAdmin
+          .from('orders')
+          .select('customer_id, total_amount')
+          .in('customer_id', customerIds)
+          .eq('company_id', auth.companyId)
+          .neq('order_status', 'cancelled'),
+      ]);
 
-      // Fetch LINE contacts with display_name (only those linked to customers)
-      const { data: lineContacts, error: lineError } = await supabaseAdmin
-        .from('line_contacts')
-        .select('customer_id, display_name, line_user_id')
-        .in('customer_id', customerIds);
+      const { data: addressCounts } = addressResult;
+      const { data: lineContacts, error: lineError } = lineResult;
+      const { data: orderTotals } = orderResult;
 
       if (lineError) {
         console.error('Error fetching LINE contacts:', lineError);
       }
-
-      // Fetch order totals in one query (sum per customer)
-      const { data: orderTotals } = await supabaseAdmin
-        .from('orders')
-        .select('customer_id, total_amount')
-        .in('customer_id', customerIds)
-        .eq('company_id', auth.companyId)
-        .neq('order_status', 'cancelled');
 
       // Create lookup maps
       const addressCountMap: Record<string, number> = {};

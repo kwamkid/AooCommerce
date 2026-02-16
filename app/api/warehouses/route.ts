@@ -133,7 +133,28 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, code, address, is_default, is_active } = body;
+    const { id, name, code, address, is_default, is_active, allow_oversell } = body;
+
+    // Handle company-level stock settings (no warehouse id needed)
+    if (allow_oversell !== undefined && !id) {
+      // Read current settings, merge, and save
+      const { data: company } = await supabaseAdmin
+        .from('companies')
+        .select('settings')
+        .eq('id', auth.companyId)
+        .single();
+
+      const currentSettings = (company?.settings as Record<string, unknown>) || {};
+      const newSettings = { ...currentSettings, allow_oversell };
+
+      const { error: updateError } = await supabaseAdmin
+        .from('companies')
+        .update({ settings: newSettings })
+        .eq('id', auth.companyId);
+
+      if (updateError) throw updateError;
+      return NextResponse.json({ success: true });
+    }
 
     if (!id) {
       return NextResponse.json({ error: 'Warehouse ID is required' }, { status: 400 });

@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { Loader2, Search, Package2, AlertTriangle, Pencil, EyeOff, ClipboardList, X } from 'lucide-react';
-import ColumnSettingsDropdown from './ColumnSettingsDropdown';
-import Pagination from './Pagination';
+import { Loader2, Search, Package2, Pencil, Eye, EyeOff, ClipboardList, X } from 'lucide-react';
+import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import Pagination from '@/app/components/Pagination';
 import AdjustStockModal from './AdjustStockModal';
 import {
   InventoryItem, WarehouseItem, StockColumnKey,
@@ -29,9 +29,10 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
   const [recordsPerPage, setRecordsPerPage] = useState(20);
   const [search, setSearch] = useState('');
   const [warehouse, setWarehouse] = useState('');
-  const [lowStockOnly, setLowStockOnly] = useState(false);
-  const [hideZeroStock, setHideZeroStock] = useState(false);
+  const [stockFilter, setStockFilter] = useState<'all' | 'normal' | 'low' | 'out' | 'negative' | 'empty'>('all');
+  const [hideEmpty, setHideEmpty] = useState(false);
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [loadTime, setLoadTime] = useState<number | null>(null);
 
   // Column toggle
   const [visibleColumns, setVisibleColumns] = useState<Set<StockColumnKey>>(() => {
@@ -72,13 +73,14 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
 
   const fetchInventory = useCallback(async () => {
     setLoading(true);
+    const t0 = Date.now();
     try {
       const params = new URLSearchParams();
       params.set('page', String(page));
       params.set('limit', String(recordsPerPage));
       if (warehouse) params.set('warehouse_id', warehouse);
       if (search) params.set('search', search);
-      if (lowStockOnly) params.set('low_stock', 'true');
+      if (stockFilter === 'low') params.set('low_stock', 'true');
 
       const res = await apiFetch(`/api/inventory?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch');
@@ -86,13 +88,15 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
       setItems(data.items || []);
       setTotal(data.total || 0);
       setLowStockCount(data.lowStockCount || 0);
+      setLoadTime((Date.now() - t0) / 1000);
     } catch (error) {
       console.error('Error fetching inventory:', error);
       showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
+      setLoadTime(null);
     } finally {
       setLoading(false);
     }
-  }, [page, recordsPerPage, warehouse, search, lowStockOnly, showToast]);
+  }, [page, recordsPerPage, warehouse, search, stockFilter, showToast]);
 
   useEffect(() => { fetchInventory(); }, [fetchInventory]);
 
@@ -112,11 +116,22 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
     return '';
   };
 
-  // Display
-  const displayedItems = hideZeroStock ? items.filter(item => item.quantity > 0 || item.reserved_quantity > 0) : items;
-  const totalPages = Math.ceil(total / recordsPerPage);
-  const startIdx = (page - 1) * recordsPerPage;
-  const endIdx = Math.min(startIdx + displayedItems.length, total);
+  // Display — apply client-side filters
+  const displayedItems = items.filter(item => {
+    // Hide empty: hide items with 0 quantity AND 0 reserved (including out of stock)
+    if (hideEmpty && item.quantity <= 0 && item.reserved_quantity <= 0) return false;
+    // Stock status filter (client-side for normal/out/negative; low is API-side)
+    if (stockFilter === 'normal' && (item.is_out_of_stock || item.is_low_stock || item.available < 0)) return false;
+    if (stockFilter === 'out' && !item.is_out_of_stock) return false;
+    if (stockFilter === 'negative' && item.available >= 0) return false;
+    if (stockFilter === 'empty' && !(item.quantity === 0 && item.reserved_quantity === 0)) return false;
+    return true;
+  });
+  const hasClientFilter = hideEmpty || (stockFilter !== 'all' && stockFilter !== 'low');
+  const effectiveTotal = hasClientFilter ? displayedItems.length : total;
+  const totalPages = hasClientFilter ? 1 : Math.ceil(total / recordsPerPage);
+  const startIdx = hasClientFilter ? 0 : (page - 1) * recordsPerPage;
+  const endIdx = hasClientFilter ? displayedItems.length : Math.min(startIdx + displayedItems.length, total);
 
   function getStockBadge(item: InventoryItem) {
     if (item.quantity === 0 && item.reserved_quantity === 0) {
@@ -137,7 +152,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
   return (
     <>
       {/* Filters */}
-      <div className="data-filter-card">
+      <div className="data-filter-card space-y-2">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -149,42 +164,49 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
               className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
             />
           </div>
-          <select
-            value={warehouse}
-            onChange={e => { setWarehouse(e.target.value); setPage(1); }}
-            className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-          >
-            <option value="">ทุกคลัง</option>
-            {warehouses.map(wh => <option key={wh.id} value={wh.id}>{wh.name}</option>)}
-          </select>
+          {warehouses.length > 1 && (
+            <select
+              value={warehouse}
+              onChange={e => { setWarehouse(e.target.value); setPage(1); }}
+              className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
+            >
+              <option value="">ทุกคลัง</option>
+              {warehouses.map(wh => <option key={wh.id} value={wh.id}>{wh.name}</option>)}
+            </select>
+          )}
           <button
-            onClick={() => { setLowStockOnly(!lowStockOnly); setPage(1); }}
-            className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-              lowStockOnly
-                ? 'border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                : 'border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50'
-            }`}
-          >
-            <AlertTriangle className="w-4 h-4" />
-            Stock ต่ำ
-            {lowStockCount > 0 && <span className="px-1.5 py-0.5 text-xs bg-red-500 text-white rounded-full">{lowStockCount}</span>}
-          </button>
-          <button
-            onClick={() => setHideZeroStock(!hideZeroStock)}
-            className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-              hideZeroStock
+            onClick={() => setHideEmpty(!hideEmpty)}
+            className={`px-2.5 py-2 border rounded-lg transition-colors ${
+              hideEmpty
                 ? 'border-[#F4511E] bg-[#F4511E]/10 text-[#F4511E]'
-                : 'border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50'
+                : 'border-gray-300 dark:border-slate-600 text-gray-400 dark:text-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'
             }`}
+            title={hideEmpty ? 'แสดงสินค้าหมด/ว่าง' : 'ซ่อนสินค้าหมด/ว่าง'}
           >
-            <EyeOff className="w-4 h-4" />
-            ซ่อน 0
+            {hideEmpty ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </button>
-          <ColumnSettingsDropdown
-            configs={STOCK_COLUMN_CONFIGS}
-            visible={visibleColumns}
-            toggle={toggleColumn}
-          />
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {([
+            { value: 'all', label: 'ทั้งหมด' },
+            { value: 'normal', label: 'ปกติ' },
+            { value: 'low', label: `ต่ำกว่า Min${lowStockCount > 0 ? ` (${lowStockCount})` : ''}` },
+            { value: 'out', label: 'หมด' },
+            { value: 'negative', label: 'ติดลบ' },
+            { value: 'empty', label: 'ยังไม่มี stock' },
+          ] as const).map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => { setStockFilter(opt.value); setPage(1); }}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                stockFilter === opt.value
+                  ? 'bg-[#F4511E] text-white'
+                  : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -195,7 +217,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
         <div className="text-center py-16">
           <Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
           <p className="text-gray-500 dark:text-slate-400 text-sm">
-            {search || lowStockOnly || hideZeroStock ? 'ไม่พบสินค้าที่ตรงกับตัวกรอง' : 'ยังไม่มีสินค้า กรุณาเพิ่มสินค้าก่อน'}
+            {search || stockFilter !== 'all' || hideEmpty ? 'ไม่พบสินค้าที่ตรงกับตัวกรอง' : 'ยังไม่มีสินค้า กรุณาเพิ่มสินค้าก่อน'}
           </p>
         </div>
       ) : (
@@ -289,13 +311,22 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
           <Pagination
             currentPage={page}
             totalPages={totalPages}
-            totalRecords={total}
+            totalRecords={effectiveTotal}
             startIdx={startIdx}
             endIdx={endIdx}
             recordsPerPage={recordsPerPage}
             setRecordsPerPage={setRecordsPerPage}
             setPage={setPage}
-          />
+            loadTime={loadTime}
+          >
+            <ColumnSettingsDropdown
+              configs={STOCK_COLUMN_CONFIGS}
+              visible={visibleColumns}
+              toggle={toggleColumn}
+              buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+              dropUp
+            />
+          </Pagination>
         </div>
       )}
 

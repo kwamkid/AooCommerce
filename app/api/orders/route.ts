@@ -425,72 +425,77 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      // Fetch product images for all items
+      // Fetch product images and shipments in parallel (batch)
       const variationIds = (items || []).map(i => i.variation_id).filter(Boolean);
       const productIds = (items || []).map(i => i.product_id).filter(Boolean);
-      let imageMap: Record<string, string> = {};
+      const itemIds = (items || []).map(i => i.id);
 
-      if (variationIds.length > 0 || productIds.length > 0) {
-        const { data: images } = await supabaseAdmin
-          .from('product_images')
-          .select('product_id, variation_id, image_url, sort_order')
-          .eq('company_id', auth.companyId)
-          .or(
-            [
-              variationIds.length > 0 ? `variation_id.in.(${variationIds.join(',')})` : '',
-              productIds.length > 0 ? `product_id.in.(${productIds.join(',')})` : ''
-            ].filter(Boolean).join(',')
-          )
-          .order('sort_order', { ascending: true });
+      const [imagesResult, shipmentsResult] = await Promise.all([
+        (variationIds.length > 0 || productIds.length > 0)
+          ? supabaseAdmin
+              .from('product_images')
+              .select('product_id, variation_id, image_url, sort_order')
+              .eq('company_id', auth.companyId)
+              .or(
+                [
+                  variationIds.length > 0 ? `variation_id.in.(${variationIds.join(',')})` : '',
+                  productIds.length > 0 ? `product_id.in.(${productIds.join(',')})` : ''
+                ].filter(Boolean).join(',')
+              )
+              .order('sort_order', { ascending: true })
+          : Promise.resolve({ data: [] as { product_id: string; variation_id: string; image_url: string }[] }),
+        itemIds.length > 0
+          ? supabaseAdmin
+              .from('order_shipments')
+              .select(`
+                *,
+                shipping_address:shipping_addresses (
+                  id,
+                  address_name,
+                  contact_person,
+                  phone,
+                  address_line1,
+                  district,
+                  amphoe,
+                  province,
+                  postal_code
+                )
+              `)
+              .in('order_item_id', itemIds)
+              .eq('company_id', auth.companyId)
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
 
-        // Build map: prefer variation image, fallback to product image
-        const productImageMap: Record<string, string> = {};
-        const variationImageMap: Record<string, string> = {};
-        for (const img of images || []) {
-          if (img.variation_id && !variationImageMap[img.variation_id]) {
-            variationImageMap[img.variation_id] = img.image_url;
-          }
-          if (img.product_id && !productImageMap[img.product_id]) {
-            productImageMap[img.product_id] = img.image_url;
-          }
+      // Build image map: prefer variation image, fallback to product image
+      const imageMap: Record<string, string> = {};
+      const productImageMap: Record<string, string> = {};
+      const variationImageMap: Record<string, string> = {};
+      for (const img of imagesResult.data || []) {
+        if (img.variation_id && !variationImageMap[img.variation_id]) {
+          variationImageMap[img.variation_id] = img.image_url;
         }
-
-        // Map each item to its image
-        for (const item of items || []) {
-          const image = variationImageMap[item.variation_id] || productImageMap[item.product_id];
-          if (image) imageMap[item.id] = image;
+        if (img.product_id && !productImageMap[img.product_id]) {
+          productImageMap[img.product_id] = img.image_url;
         }
       }
+      for (const item of items || []) {
+        const image = variationImageMap[item.variation_id] || productImageMap[item.product_id];
+        if (image) imageMap[item.id] = image;
+      }
 
-      // Fetch shipments for each item
-      const itemsWithShipments = await Promise.all(
-        (items || []).map(async (item) => {
-          const { data: shipments } = await supabaseAdmin
-            .from('order_shipments')
-            .select(`
-              *,
-              shipping_address:shipping_addresses (
-                id,
-                address_name,
-                contact_person,
-                phone,
-                address_line1,
-                district,
-                amphoe,
-                province,
-                postal_code
-              )
-            `)
-            .eq('order_item_id', item.id)
-            .eq('company_id', auth.companyId);
+      // Group shipments by order_item_id
+      const shipmentsByItem = new Map<string, any[]>();
+      for (const shipment of shipmentsResult.data || []) {
+        const key = shipment.order_item_id;
+        if (!shipmentsByItem.has(key)) shipmentsByItem.set(key, []);
+        shipmentsByItem.get(key)!.push(shipment);
+      }
 
-          return {
-            ...item,
-            image: imageMap[item.id] || null,
-            shipments: shipments || []
-          };
-        })
-      );
+      const itemsWithShipments = (items || []).map(item => ({
+        ...item,
+        image: imageMap[item.id] || null,
+        shipments: shipmentsByItem.get(item.id) || [],
+      }));
 
       return NextResponse.json({
         order: {
@@ -564,9 +569,33 @@ export async function GET(request: NextRequest) {
     const allowedSortColumns = ['order_date', 'created_at', 'delivery_date', 'total_amount', 'order_number'];
     const sortColumn = allowedSortColumns.includes(sortBy) ? sortBy : 'created_at';
 
-    const { data: rawOrders, error, count } = await query
-      .order(sortColumn, { ascending, nullsFirst: false })
-      .range(offset, offset + limit - 1);
+    // Build status counts query (independent of status/payment filters)
+    let countQuery = supabaseAdmin
+      .from('orders')
+      .select('order_status, payment_status')
+      .eq('company_id', auth.companyId);
+
+    if (customerId) {
+      countQuery = countQuery.eq('customer_id', customerId);
+    }
+    if (search) {
+      if (searchCustomerIds && searchCustomerIds.length > 0) {
+        countQuery = countQuery.or(`order_number.ilike.%${search}%,customer_id.in.(${searchCustomerIds.join(',')})`);
+      } else {
+        countQuery = countQuery.ilike('order_number', `%${search}%`);
+      }
+    }
+
+    // Run main query + status counts in parallel
+    const [mainResult, countResult] = await Promise.all([
+      query
+        .order(sortColumn, { ascending, nullsFirst: false })
+        .range(offset, offset + limit - 1),
+      countQuery,
+    ]);
+
+    const { data: rawOrders, error, count } = mainResult;
+    const { data: allStatusRows } = countResult;
 
     if (error) {
       return NextResponse.json(
@@ -584,25 +613,6 @@ export async function GET(request: NextRequest) {
       customer_phone: o.customer?.phone,
       customer: undefined
     }));
-
-    // Fetch status counts (independent of status/payment filters)
-    let countQuery = supabaseAdmin
-      .from('orders')
-      .select('order_status, payment_status', { count: 'exact' })
-      .eq('company_id', auth.companyId);
-
-    if (customerId) {
-      countQuery = countQuery.eq('customer_id', customerId);
-    }
-    if (search) {
-      if (searchCustomerIds && searchCustomerIds.length > 0) {
-        countQuery = countQuery.or(`order_number.ilike.%${search}%,customer_id.in.(${searchCustomerIds.join(',')})`);
-      } else {
-        countQuery = countQuery.ilike('order_number', `%${search}%`);
-      }
-    }
-
-    const { data: allStatusRows } = await countQuery;
 
     const statusCounts: Record<string, number> = { all: 0, new: 0, shipping: 0, completed: 0, cancelled: 0 };
     const paymentCounts: Record<string, number> = { all: 0, pending: 0, verifying: 0, paid: 0, cancelled: 0 };

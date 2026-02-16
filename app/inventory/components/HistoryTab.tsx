@@ -5,8 +5,8 @@ import { apiFetch } from '@/lib/api-client';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
 import { Loader2, Search, Warehouse, ArrowDownUp, ExternalLink, X } from 'lucide-react';
-import ColumnSettingsDropdown from './ColumnSettingsDropdown';
-import Pagination from './Pagination';
+import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import Pagination from '@/app/components/Pagination';
 import {
   Transaction, TransactionType, WarehouseItem, HistoryColumnKey,
   HISTORY_COLUMN_CONFIGS, HISTORY_COLUMNS_STORAGE_KEY,
@@ -32,6 +32,7 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
   const [type, setType] = useState('');
   const [dateRange, setDateRange] = useState<DateValueType>({ startDate: null, endDate: null });
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [loadTime, setLoadTime] = useState<number | null>(null);
 
   // Variation filter from parent (when clicking "ดูประวัติ" per product)
   const [variationId, setVariationId] = useState(filterVariationId || '');
@@ -61,6 +62,7 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
+    const t0 = Date.now();
     try {
       const params = new URLSearchParams();
       params.set('page', String(page));
@@ -79,8 +81,10 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
       const data = await res.json();
       setTransactions(data.transactions || []);
       setTotal(data.total || 0);
+      setLoadTime((Date.now() - t0) / 1000);
     } catch (error) {
       console.error('Error fetching transactions:', error);
+      setLoadTime(null);
     } finally {
       setLoading(false);
     }
@@ -157,14 +161,16 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
       {/* Filters */}
       <div className="data-filter-card">
         <div className="flex items-center gap-2 flex-wrap">
-          <select
-            value={warehouseFilter}
-            onChange={e => { setWarehouseFilter(e.target.value); setPage(1); }}
-            className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-          >
-            <option value="">ทุกคลัง</option>
-            {warehouses.map(wh => <option key={wh.id} value={wh.id}>{wh.name}</option>)}
-          </select>
+          {warehouses.length > 1 && (
+            <select
+              value={warehouseFilter}
+              onChange={e => { setWarehouseFilter(e.target.value); setPage(1); }}
+              className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
+            >
+              <option value="">ทุกคลัง</option>
+              {warehouses.map(wh => <option key={wh.id} value={wh.id}>{wh.name}</option>)}
+            </select>
+          )}
           <select
             value={type}
             onChange={e => { setType(e.target.value); setPage(1); }}
@@ -192,11 +198,6 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
               className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
             />
           </div>
-          <ColumnSettingsDropdown
-            configs={HISTORY_COLUMN_CONFIGS}
-            visible={visibleColumns}
-            toggle={toggleColumn}
-          />
         </div>
       </div>
 
@@ -289,7 +290,16 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
             recordsPerPage={recordsPerPage}
             setRecordsPerPage={setRecordsPerPage}
             setPage={setPage}
-          />
+            loadTime={loadTime}
+          >
+            <ColumnSettingsDropdown
+              configs={HISTORY_COLUMN_CONFIGS}
+              visible={visibleColumns}
+              toggle={toggleColumn}
+              buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+              dropUp
+            />
+          </Pagination>
         </div>
       )}
     </>

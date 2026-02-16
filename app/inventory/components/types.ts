@@ -123,22 +123,6 @@ export function formatDateValue(value: Date | string | null | undefined): string
   return `${y}-${m}-${d}`;
 }
 
-export function getPageNumbers(currentPage: number, totalPages: number): (number | string)[] {
-  const pages: (number | string)[] = [];
-  if (totalPages <= 3) {
-    for (let i = 1; i <= totalPages; i++) pages.push(i);
-  } else {
-    const start = Math.max(1, currentPage - 1);
-    const end = Math.min(totalPages, currentPage + 1);
-    for (let i = start; i <= end; i++) pages.push(i);
-    if (end < totalPages - 1) pages.push('...');
-    if (end < totalPages) pages.push(totalPages);
-    if (start > 2) pages.unshift('...');
-    if (start > 1) pages.unshift(1);
-  }
-  return pages;
-}
-
 export function getVariationLabel(item: InventoryItem) {
   if (item.attributes && Object.keys(item.attributes).length > 0) {
     return Object.values(item.attributes).join(' / ');

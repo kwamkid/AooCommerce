@@ -1,7 +1,23 @@
 'use client';
 
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
-import { getPageNumbers } from './types';
+import { ReactNode } from 'react';
+
+function getPageNumbers(currentPage: number, totalPages: number): (number | string)[] {
+  const pages: (number | string)[] = [];
+  if (totalPages <= 3) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    const start = Math.max(1, currentPage - 1);
+    const end = Math.min(totalPages, currentPage + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < totalPages - 1) pages.push('...');
+    if (end < totalPages) pages.push(totalPages);
+    if (start > 2) pages.unshift('...');
+    if (start > 1) pages.unshift(1);
+  }
+  return pages;
+}
 
 interface PaginationProps {
   currentPage: number;
@@ -12,6 +28,8 @@ interface PaginationProps {
   recordsPerPage: number;
   setRecordsPerPage: (v: number) => void;
   setPage: (v: number) => void;
+  loadTime?: number | null;
+  children?: ReactNode;
 }
 
 export default function Pagination({
@@ -23,6 +41,8 @@ export default function Pagination({
   recordsPerPage,
   setRecordsPerPage,
   setPage,
+  loadTime,
+  children,
 }: PaginationProps) {
   if (totalRecords <= 0) return null;
 
@@ -40,7 +60,11 @@ export default function Pagination({
           <option value={100}>100</option>
         </select>
         <span>/หน้า</span>
+        {loadTime != null && (
+          <span className="text-xs text-gray-400 dark:text-slate-500 ml-1">({loadTime.toFixed(1)}s)</span>
+        )}
       </div>
+      <div className="flex items-center gap-2">
       {totalPages > 1 && (
         <div className="flex items-center gap-2">
           <button onClick={() => setPage(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
@@ -71,6 +95,8 @@ export default function Pagination({
           </button>
         </div>
       )}
+      {children}
+      </div>
     </div>
   );
 }

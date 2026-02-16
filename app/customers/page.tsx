@@ -17,11 +17,28 @@ import {
   Phone,
   MessageCircle,
   Eye,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight
 } from 'lucide-react';
+import Pagination from '@/app/components/Pagination';
+import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+
+// Column toggle system
+type ColumnKey = 'customer' | 'type' | 'phone' | 'line' | 'totalOrder' | 'branch' | 'status';
+
+const COLUMN_CONFIGS: { key: ColumnKey; label: string; defaultVisible: boolean; alwaysVisible?: boolean }[] = [
+  { key: 'customer', label: 'ลูกค้า', defaultVisible: true, alwaysVisible: true },
+  { key: 'type', label: 'ประเภท', defaultVisible: true },
+  { key: 'phone', label: 'เบอร์โทร', defaultVisible: true },
+  { key: 'line', label: 'LINE', defaultVisible: true },
+  { key: 'totalOrder', label: 'ยอดสั่งซื้อ', defaultVisible: true },
+  { key: 'branch', label: 'สาขา', defaultVisible: true },
+  { key: 'status', label: 'สถานะ', defaultVisible: true },
+];
+
+const STORAGE_KEY = 'customers-visible-columns';
+
+function getDefaultColumns(): ColumnKey[] {
+  return COLUMN_CONFIGS.filter(c => c.defaultVisible).map(c => c.key);
+}
 
 // Customer interface
 interface Customer {
@@ -104,6 +121,28 @@ export default function CustomersPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
+
+  // Column visibility
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try { return new Set(JSON.parse(stored) as ColumnKey[]); } catch { /* use defaults */ }
+      }
+    }
+    return new Set(getDefaultColumns());
+  });
+
+  const toggleColumn = (key: ColumnKey) => {
+    setVisibleColumns(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const isCol = (key: ColumnKey) => visibleColumns.has(key);
 
   // Fetch customers function - optimized with single API call
   const fetchCustomers = useCallback(async () => {
@@ -285,27 +324,13 @@ export default function CustomersPage() {
             <table className="w-full">
               <thead className="data-thead">
                 <tr>
-                  <th className="data-th min-w-[200px]">
-                    ลูกค้า
-                  </th>
-                  <th className="data-th w-[100px]">
-                    ประเภท
-                  </th>
-                  <th className="data-th w-[110px]">
-                    เบอร์โทร
-                  </th>
-                  <th className="data-th min-w-[200px]">
-                    LINE
-                  </th>
-                  <th className="data-th text-right w-[100px]">
-                    ยอดสั่งซื้อ
-                  </th>
-                  <th className="data-th text-center w-[60px]">
-                    สาขา
-                  </th>
-                  <th className="data-th text-center w-[90px]">
-                    สถานะ
-                  </th>
+                  {isCol('customer') && <th className="data-th min-w-[200px]">ลูกค้า</th>}
+                  {isCol('type') && <th className="data-th w-[100px]">ประเภท</th>}
+                  {isCol('phone') && <th className="data-th w-[110px]">เบอร์โทร</th>}
+                  {isCol('line') && <th className="data-th min-w-[200px]">LINE</th>}
+                  {isCol('totalOrder') && <th className="data-th text-right w-[100px]">ยอดสั่งซื้อ</th>}
+                  {isCol('branch') && <th className="data-th text-center w-[60px]">สาขา</th>}
+                  {isCol('status') && <th className="data-th text-center w-[90px]">สถานะ</th>}
                 </tr>
               </thead>
               <tbody className="data-tbody">
@@ -316,6 +341,7 @@ export default function CustomersPage() {
                     className="data-tr cursor-pointer"
                   >
                     {/* ลูกค้า: ชื่อ (เด่น) + รหัส (จาง) */}
+                    {isCol('customer') && (
                     <td className="px-4 py-3">
                       <div className="flex items-start gap-2">
                         <Eye className="w-4 h-4 text-gray-300 mt-0.5 flex-shrink-0" />
@@ -325,13 +351,17 @@ export default function CustomersPage() {
                         </div>
                       </div>
                     </td>
+                    )}
 
                     {/* ประเภท */}
+                    {isCol('type') && (
                     <td className="px-3 py-3 whitespace-nowrap">
                       <CustomerTypeBadge type={customer.customer_type} />
                     </td>
+                    )}
 
                     {/* เบอร์โทร - กดโทรได้ */}
+                    {isCol('phone') && (
                     <td className="px-3 py-3 whitespace-nowrap">
                       {customer.phone ? (
                         <a
@@ -346,8 +376,10 @@ export default function CustomersPage() {
                         <span className="text-gray-400 text-sm">-</span>
                       )}
                     </td>
+                    )}
 
                     {/* LINE status */}
+                    {isCol('line') && (
                     <td className="px-3 py-3">
                       {customer.line_display_name ? (
                         <span className="inline-flex items-center gap-1.5 text-sm text-[#06C755]" title="เชื่อมต่อ LINE แล้ว">
@@ -358,8 +390,10 @@ export default function CustomersPage() {
                         <span className="text-gray-300 text-sm">-</span>
                       )}
                     </td>
+                    )}
 
                     {/* ยอดสั่งซื้อรวม */}
+                    {isCol('totalOrder') && (
                     <td className="px-3 py-3 text-right whitespace-nowrap">
                       {customer.total_order_amount && customer.total_order_amount > 0 ? (
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -369,8 +403,10 @@ export default function CustomersPage() {
                         <span className="text-gray-400 text-sm">-</span>
                       )}
                     </td>
+                    )}
 
                     {/* สาขา */}
+                    {isCol('branch') && (
                     <td className="px-3 py-3 text-center">
                       {customer.shipping_address_count && customer.shipping_address_count > 0 ? (
                         <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#F4511E]/10 text-[#F4511E] text-sm font-semibold">
@@ -380,88 +416,38 @@ export default function CustomersPage() {
                         <span className="text-gray-300 text-sm">-</span>
                       )}
                     </td>
+                    )}
 
                     {/* สถานะ */}
+                    {isCol('status') && (
                     <td className="px-3 py-3 text-center">
                       <StatusBadge isActive={customer.is_active} />
                     </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Pagination */}
-          {filteredCustomers.length > 0 && (
-            <div className="data-pagination">
-              <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
-                <span>{startIndex + 1} - {Math.min(endIndex, filteredCustomers.length)} จาก {filteredCustomers.length} รายการ</span>
-                <select
-                  value={rowsPerPage}
-                  onChange={(e) => {
-                    setRowsPerPage(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                >
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span>/หน้า</span>
-              </div>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
-                    <ChevronsLeft className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <div className="flex items-center gap-1">
-                    {(() => {
-                      const pages: (number | string)[] = [];
-                      if (totalPages <= 3) {
-                        for (let i = 1; i <= totalPages; i++) pages.push(i);
-                      } else {
-                        // current +-1, ..., last
-                        const start = Math.max(1, currentPage - 1);
-                        const end = Math.min(totalPages, currentPage + 1);
-                        for (let i = start; i <= end; i++) pages.push(i);
-                        if (end < totalPages - 1) pages.push('...');
-                        if (end < totalPages) pages.push(totalPages);
-                        if (start > 2) pages.unshift('...');
-                        if (start > 1) pages.unshift(1);
-                      }
-                      return pages.map((page, idx) =>
-                        page === '...' ? (
-                          <span key={`dots-${idx}`} className="px-1 text-gray-400 dark:text-slate-500">...</span>
-                        ) : (
-                          <button
-                            key={page}
-                            onClick={() => setCurrentPage(page as number)}
-                            className={`w-8 h-8 rounded text-sm font-medium ${
-                              currentPage === page
-                                ? 'bg-[#F4511E] text-white'
-                                : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700'
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        )
-                      );
-                    })()}
-                  </div>
-                  <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
-                    <ChevronsRight className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRecords={filteredCustomers.length}
+            startIdx={startIndex}
+            endIdx={Math.min(endIndex, filteredCustomers.length)}
+            recordsPerPage={rowsPerPage}
+            setRecordsPerPage={setRowsPerPage}
+            setPage={setCurrentPage}
+          >
+            <ColumnSettingsDropdown
+              configs={COLUMN_CONFIGS}
+              visible={visibleColumns}
+              toggle={toggleColumn}
+              buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+              dropUp
+            />
+          </Pagination>
         </div>
 
         {/* Empty State */}

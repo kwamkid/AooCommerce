@@ -330,33 +330,49 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ product: data });
     }
 
-    // Get all products using the with_variations view
-    // Only show active products (is_active = true)
-    const { data, error } = await supabaseAdmin
-      .from('products_with_variations')
-      .select('*')
-      .eq('company_id', auth.companyId)
-      .eq('is_active', true)
-      .order('name', { ascending: true });
+    // Run products + images queries in parallel
+    const [productsResult, imagesResult] = await Promise.all([
+      supabaseAdmin
+        .from('products_with_variations')
+        .select('*')
+        .eq('company_id', auth.companyId)
+        .eq('is_active', true)
+        .order('name', { ascending: true }),
+      supabaseAdmin
+        .from('product_images')
+        .select('product_id, variation_id, image_url, sort_order')
+        .eq('company_id', auth.companyId)
+        .order('sort_order', { ascending: true }),
+    ]);
 
-    if (error) {
+    if (productsResult.error) {
       return NextResponse.json(
-        { error: error.message },
+        { error: productsResult.error.message },
         { status: 500 }
       );
     }
 
-    // Group by product_id and aggregate variations
-    const groupedProducts = (data || []).reduce((acc: any[], row: any) => {
-      const existingProduct = acc.find(p => p.product_id === row.product_id);
+    // Build image maps from single query
+    const productImageMap = new Map<string, string>();
+    const variationImageMap = new Map<string, string>();
+    if (imagesResult.data) {
+      for (const img of imagesResult.data) {
+        if (img.variation_id && !variationImageMap.has(img.variation_id)) {
+          variationImageMap.set(img.variation_id, img.image_url);
+        } else if (img.product_id && !img.variation_id && !productImageMap.has(img.product_id)) {
+          productImageMap.set(img.product_id, img.image_url);
+        }
+      }
+    }
 
-      if (existingProduct) {
-        // Add variation to existing product
+    // Group by product_id and aggregate variations
+    const productMap = new Map<string, any>();
+    for (const row of productsResult.data || []) {
+      const existing = productMap.get(row.product_id);
+
+      if (existing) {
         if (row.variation_id) {
-          if (!existingProduct.variations) {
-            existingProduct.variations = [];
-          }
-          existingProduct.variations.push({
+          existing.variations.push({
             variation_id: row.variation_id,
             bottle_size: row.bottle_size,
             sku: row.sku,
@@ -366,11 +382,11 @@ export async function GET(request: NextRequest) {
             discount_price: row.discount_price,
             stock: row.stock,
             min_stock: row.min_stock,
-            is_active: row.variation_is_active
+            is_active: row.variation_is_active,
+            image_url: variationImageMap.get(row.variation_id) || null,
           });
         }
       } else {
-        // Create new product entry
         const newProduct: any = {
           product_id: row.product_id,
           code: row.code,
@@ -381,10 +397,10 @@ export async function GET(request: NextRequest) {
           selected_variation_types: row.selected_variation_types,
           is_active: row.is_active,
           created_at: row.created_at,
-          updated_at: row.updated_at
+          updated_at: row.updated_at,
+          main_image_url: productImageMap.get(row.product_id) || null,
         };
 
-        // Add simple product fields or initialize variations array
         if (row.product_type === 'simple') {
           newProduct.simple_bottle_size = row.simple_bottle_size;
           newProduct.simple_sku = row.sku;
@@ -393,7 +409,6 @@ export async function GET(request: NextRequest) {
           newProduct.simple_discount_price = row.simple_discount_price;
           newProduct.simple_stock = row.simple_stock;
           newProduct.simple_min_stock = row.simple_min_stock;
-          // Simple products also have one variation row - include it for consistency
           newProduct.variations = row.variation_id ? [{
             variation_id: row.variation_id,
             bottle_size: row.simple_bottle_size,
@@ -401,7 +416,8 @@ export async function GET(request: NextRequest) {
             discount_price: row.simple_discount_price,
             stock: row.simple_stock,
             min_stock: row.simple_min_stock,
-            is_active: row.variation_is_active
+            is_active: row.variation_is_active,
+            image_url: variationImageMap.get(row.variation_id) || null,
           }] : [];
         } else {
           newProduct.variations = row.variation_id ? [{
@@ -414,75 +430,16 @@ export async function GET(request: NextRequest) {
             discount_price: row.discount_price,
             stock: row.stock,
             min_stock: row.min_stock,
-            is_active: row.variation_is_active
+            is_active: row.variation_is_active,
+            image_url: variationImageMap.get(row.variation_id) || null,
           }] : [];
         }
 
-        acc.push(newProduct);
+        productMap.set(row.product_id, newProduct);
       }
-
-      return acc;
-    }, []);
-
-    // Fetch images from product_images table
-    const productIds = groupedProducts.map((p: any) => p.product_id);
-    if (productIds.length > 0) {
-      // 1. Product-level images (no variation_id)
-      const { data: productImages } = await supabaseAdmin
-        .from('product_images')
-        .select('product_id, image_url, sort_order')
-        .in('product_id', productIds)
-        .eq('company_id', auth.companyId)
-        .is('variation_id', null)
-        .order('sort_order', { ascending: true });
-
-      const imageMap = new Map<string, string>();
-      if (productImages) {
-        for (const img of productImages) {
-          if (img.product_id && !imageMap.has(img.product_id)) {
-            imageMap.set(img.product_id, img.image_url);
-          }
-        }
-      }
-
-      // 2. Variation-level images (query by variation_id)
-      const allVariationIds: string[] = [];
-      groupedProducts.forEach((p: any) => {
-        if (p.variations) {
-          p.variations.forEach((v: any) => {
-            if (v.variation_id) allVariationIds.push(v.variation_id);
-          });
-        }
-      });
-
-      const variationImageMap = new Map<string, string>();
-      if (allVariationIds.length > 0) {
-        const { data: varImages } = await supabaseAdmin
-          .from('product_images')
-          .select('variation_id, image_url, sort_order')
-          .in('variation_id', allVariationIds)
-          .eq('company_id', auth.companyId)
-          .order('sort_order', { ascending: true });
-
-        if (varImages) {
-          for (const img of varImages) {
-            if (img.variation_id && !variationImageMap.has(img.variation_id)) {
-              variationImageMap.set(img.variation_id, img.image_url);
-            }
-          }
-        }
-      }
-
-      // Assign images to products and variations
-      groupedProducts.forEach((p: any) => {
-        p.main_image_url = imageMap.get(p.product_id) || null;
-        if (p.variations) {
-          p.variations.forEach((v: any) => {
-            v.image_url = variationImageMap.get(v.variation_id) || null;
-          });
-        }
-      });
     }
+
+    const groupedProducts = Array.from(productMap.values());
 
     return NextResponse.json({ products: groupedProducts });
   } catch (error) {

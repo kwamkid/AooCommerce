@@ -1,7 +1,7 @@
 // Path: app/products/page.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
@@ -17,12 +17,9 @@ import {
   Check,
   Package2,
   Wine,
-  Columns3,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight
 } from 'lucide-react';
+import Pagination from '@/app/components/Pagination';
+import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 
 // Product interface (from API view)
 interface ProductItem {
@@ -121,23 +118,11 @@ export default function ProductsPage() {
     }
     return new Set(getDefaultColumns());
   });
-  const [showColumnSettings, setShowColumnSettings] = useState(false);
-  const columnSettingsRef = useRef<HTMLDivElement>(null);
+  // Load time
+  const [loadTime, setLoadTime] = useState<number | null>(null);
 
   // Lightbox state
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-
-  // Close column settings on click outside
-  useEffect(() => {
-    if (!showColumnSettings) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (columnSettingsRef.current && !columnSettingsRef.current.contains(e.target as Node)) {
-        setShowColumnSettings(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showColumnSettings]);
 
   // Close lightbox on ESC
   useEffect(() => {
@@ -165,14 +150,17 @@ export default function ProductsPage() {
 
   // Fetch products
   const fetchData = async () => {
+    const t0 = Date.now();
     try {
       const response = await apiFetch('/api/products');
       const data = await response.json();
       setProductsList(data.products || []);
       setDataFetched(true);
+      setLoadTime((Date.now() - t0) / 1000);
     } catch (err) {
       console.error('Error fetching products:', err);
       setError('ไม่สามารถโหลดข้อมูลได้');
+      setLoadTime(null);
     } finally {
       setLoading(false);
     }
@@ -228,10 +216,6 @@ export default function ProductsPage() {
   const paginatedProducts = filteredProducts.slice(startIndex, startIndex + rowsPerPage);
 
   useEffect(() => { setCurrentPage(1); }, [searchTerm, typeFilter]);
-
-  const goToPage = (page: number) => {
-    if (page >= 1 && page <= totalPages) setCurrentPage(page);
-  };
 
   // Clear alerts
   useEffect(() => {
@@ -310,38 +294,12 @@ export default function ProductsPage() {
               <option value="simple">สินค้าปกติ</option>
               <option value="variation">สินค้าย่อย</option>
             </select>
-            <div className="relative" ref={columnSettingsRef}>
-              <button
-                onClick={() => setShowColumnSettings(!showColumnSettings)}
-                className="btn-filter-icon"
-                title="ตั้งค่าคอลัมน์"
-              >
-                <Columns3 className="w-5 h-5 text-gray-500" />
-              </button>
-              {showColumnSettings && (
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-10 py-1">
-                  <div className="px-3 py-2 text-xs font-medium text-gray-500 uppercase border-b border-gray-100">
-                    แสดงคอลัมน์
-                  </div>
-                  {COLUMN_CONFIGS.filter(c => !c.alwaysVisible).map(col => (
-                    <label key={col.key} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={visibleColumns.has(col.key)}
-                        onChange={() => toggleColumn(col.key)}
-                        className="w-3.5 h-3.5 text-[#F4511E] border-gray-300 rounded focus:ring-[#F4511E]"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-slate-300">{col.label}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
         {/* Products Table */}
-        <div className="data-table-wrap-shadow overflow-x-auto">
+        <div className="data-table-wrap">
+          <div className="overflow-x-auto">
           <table className="data-table-fixed">
             <thead className="data-thead">
               <tr>
@@ -495,70 +453,27 @@ export default function ProductsPage() {
               )}
             </tbody>
           </table>
+          </div>
 
-          {/* Pagination */}
-          {totalFiltered > 0 && (
-            <div className="data-pagination">
-              <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
-                <span>{startIndex + 1} - {Math.min(startIndex + rowsPerPage, totalFiltered)} จาก {totalFiltered} รายการ</span>
-                <select
-                  value={rowsPerPage}
-                  onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                >
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span>/หน้า</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => goToPage(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
-                  <ChevronsLeft className="w-4 h-4" />
-                </button>
-                <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <div className="flex items-center gap-1">
-                  {(() => {
-                    const pages: (number | string)[] = [];
-                    if (totalPages <= 3) {
-                      for (let i = 1; i <= totalPages; i++) pages.push(i);
-                    } else {
-                      const start = Math.max(1, currentPage - 1);
-                      const end = Math.min(totalPages, currentPage + 1);
-                      for (let i = start; i <= end; i++) pages.push(i);
-                      if (end < totalPages - 1) pages.push('...');
-                      if (end < totalPages) pages.push(totalPages);
-                      if (start > 2) pages.unshift('...');
-                      if (start > 1) pages.unshift(1);
-                    }
-                    return pages.map((page, idx) =>
-                      page === '...' ? (
-                        <span key={`dots-${idx}`} className="px-1 text-gray-400 dark:text-slate-500">...</span>
-                      ) : (
-                        <button
-                          key={page}
-                          onClick={() => goToPage(page as number)}
-                          className={`w-8 h-8 rounded text-sm font-medium ${
-                            currentPage === page ? 'bg-[#F4511E] text-white' : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      )
-                    );
-                  })()}
-                </div>
-                <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
-                  <ChevronsRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRecords={totalFiltered}
+            startIdx={startIndex}
+            endIdx={Math.min(startIndex + rowsPerPage, totalFiltered)}
+            recordsPerPage={rowsPerPage}
+            setRecordsPerPage={setRowsPerPage}
+            setPage={setCurrentPage}
+            loadTime={loadTime}
+          >
+            <ColumnSettingsDropdown
+              configs={COLUMN_CONFIGS}
+              visible={visibleColumns}
+              toggle={toggleColumn}
+              buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+              dropUp
+            />
+          </Pagination>
         </div>
       </div>
 

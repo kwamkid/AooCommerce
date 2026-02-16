@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 export interface StockConfig {
   stockEnabled: boolean;
   maxWarehouses: number | null; // null = unlimited
+  allowOversell: boolean; // true = allow selling when stock is 0 or negative
 }
 
 /**
@@ -12,24 +13,35 @@ export interface StockConfig {
  */
 export async function getStockConfig(companyId: string): Promise<StockConfig> {
   try {
-    const { data: subscription } = await supabaseAdmin
-      .from('user_subscriptions')
-      .select('package:packages(features)')
-      .eq('company_id', companyId)
-      .eq('status', 'active')
-      .single();
+    const [subResult, companyResult] = await Promise.all([
+      supabaseAdmin
+        .from('user_subscriptions')
+        .select('package:packages(features)')
+        .eq('company_id', companyId)
+        .eq('status', 'active')
+        .single(),
+      supabaseAdmin
+        .from('companies')
+        .select('settings')
+        .eq('id', companyId)
+        .single(),
+    ]);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const features = (subscription?.package as any)?.features || {};
+    const features = (subResult.data?.package as any)?.features || {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const companySettings = (companyResult.data?.settings as any) || {};
 
     return {
       // Default เปิด stock ถ้าไม่ได้ระบุ stock_enabled: false ใน features
       stockEnabled: features.stock_enabled !== false,
       maxWarehouses: features.max_warehouses ?? null,
+      // Default true (allow oversell) — เหมือนพฤติกรรมเดิม
+      allowOversell: companySettings.allow_oversell !== false,
     };
   } catch {
     // ไม่มี subscription หรือ query error → default เปิดหมด
-    return { stockEnabled: true, maxWarehouses: null };
+    return { stockEnabled: true, maxWarehouses: null, allowOversell: true };
   }
 }
 

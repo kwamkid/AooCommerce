@@ -22,6 +22,7 @@ interface WarehouseItem {
 interface StockConfig {
   stockEnabled: boolean;
   maxWarehouses: number | null;
+  allowOversell: boolean;
 }
 
 function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
@@ -46,7 +47,7 @@ export default function WarehouseSettingsPage() {
 
   const [loading, setLoading] = useState(true);
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
-  const [stockConfig, setStockConfig] = useState<StockConfig>({ stockEnabled: false, maxWarehouses: 0 });
+  const [stockConfig, setStockConfig] = useState<StockConfig>({ stockEnabled: false, maxWarehouses: 0, allowOversell: true });
 
   // Form state
   const [showForm, setShowForm] = useState(false);
@@ -70,7 +71,7 @@ export default function WarehouseSettingsPage() {
       if (!response.ok) throw new Error('Failed to fetch');
       const data = await response.json();
       setWarehouses(data.warehouses || []);
-      setStockConfig(data.stockConfig || { stockEnabled: false, maxWarehouses: 0 });
+      setStockConfig(data.stockConfig || { stockEnabled: false, maxWarehouses: 0, allowOversell: true });
     } catch (error) {
       console.error('Error fetching warehouses:', error);
       showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
@@ -164,6 +165,26 @@ export default function WarehouseSettingsPage() {
     }
   };
 
+  const [savingOversell, setSavingOversell] = useState(false);
+
+  const handleToggleOversell = async (value: boolean) => {
+    setSavingOversell(true);
+    try {
+      const response = await apiFetch('/api/warehouses', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allow_oversell: value }),
+      });
+      if (!response.ok) throw new Error('Failed to save');
+      setStockConfig(prev => ({ ...prev, allowOversell: value }));
+      showToast(value ? 'เปิดอนุญาตขายเมื่อ stock หมด' : 'ปิดอนุญาตขายเมื่อ stock หมด');
+    } catch {
+      showToast('บันทึกไม่สำเร็จ', 'error');
+    } finally {
+      setSavingOversell(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     try {
@@ -222,6 +243,25 @@ export default function WarehouseSettingsPage() {
           </div>
         ) : stockConfig.stockEnabled ? (
           <div className="space-y-4">
+            {/* Stock Settings */}
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">อนุญาตขายเมื่อ stock หมด</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                    {stockConfig.allowOversell
+                      ? 'เปิด — ขายได้แม้ stock เป็น 0 (stock ติดลบได้)'
+                      : 'ปิด — ต้องมี stock จึงจะเพิ่มสินค้าในบิลได้'}
+                  </p>
+                </div>
+                <Toggle
+                  checked={stockConfig.allowOversell}
+                  onChange={handleToggleOversell}
+                  disabled={savingOversell}
+                />
+              </div>
+            </div>
+
             {/* Header with count */}
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-500 dark:text-slate-400">

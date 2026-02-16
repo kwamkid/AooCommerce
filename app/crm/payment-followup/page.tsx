@@ -16,7 +16,6 @@ import {
   AlertTriangle,
   Clock,
   ChevronRight,
-  ChevronLeft,
   ChevronDown,
   ArrowUpDown,
   ArrowUp,
@@ -25,9 +24,27 @@ import {
   Users,
   FileText,
   ExternalLink,
-  ChevronsLeft,
-  ChevronsRight
 } from 'lucide-react';
+import Pagination from '@/app/components/Pagination';
+import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+
+// Column toggle system
+type ColumnKey = 'customer' | 'daysOverdue' | 'orderCount' | 'dateRange' | 'totalPending' | 'actions';
+
+const COLUMN_CONFIGS: { key: ColumnKey; label: string; defaultVisible: boolean; alwaysVisible?: boolean }[] = [
+  { key: 'customer', label: 'ลูกค้า', defaultVisible: true, alwaysVisible: true },
+  { key: 'daysOverdue', label: 'ค้างมา', defaultVisible: true },
+  { key: 'orderCount', label: 'จำนวนบิล', defaultVisible: true },
+  { key: 'dateRange', label: 'ช่วงบิล', defaultVisible: true },
+  { key: 'totalPending', label: 'ยอดค้าง', defaultVisible: true },
+  { key: 'actions', label: 'ดำเนินการ', defaultVisible: true, alwaysVisible: true },
+];
+
+const STORAGE_KEY = 'crm-payment-followup-visible-columns';
+
+function getDefaultColumns(): ColumnKey[] {
+  return COLUMN_CONFIGS.filter(c => c.defaultVisible).map(c => c.key);
+}
 
 interface PendingOrder {
   id: string;
@@ -198,6 +215,28 @@ export default function PaymentFollowupPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
+  // Column visibility
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try { return new Set(JSON.parse(stored) as ColumnKey[]); } catch { /* use defaults */ }
+      }
+    }
+    return new Set(getDefaultColumns());
+  });
+
+  const toggleColumn = (key: ColumnKey) => {
+    setVisibleColumns(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const isCol = (key: ColumnKey) => visibleColumns.has(key);
+
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -301,12 +340,6 @@ export default function PaymentFollowupPage() {
       setSortOrder('desc');
     }
     setCurrentPage(1);
-  };
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= pagination.totalPages) {
-      setCurrentPage(newPage);
-    }
   };
 
   if (authLoading) {
@@ -488,47 +521,12 @@ export default function PaymentFollowupPage() {
               <table className="w-full">
                 <thead className="data-thead">
                   <tr>
-                    <SortableHeader
-                      label="ลูกค้า"
-                      field="name"
-                      currentSort={sortBy}
-                      currentOrder={sortOrder}
-                      onSort={handleSort}
-                      className="text-left"
-                    />
-                    <SortableHeader
-                      label="ค้างมา"
-                      field="days_overdue"
-                      currentSort={sortBy}
-                      currentOrder={sortOrder}
-                      onSort={handleSort}
-                      className="text-center"
-                    />
-                    <SortableHeader
-                      label="จำนวนบิล"
-                      field="order_count"
-                      currentSort={sortBy}
-                      currentOrder={sortOrder}
-                      onSort={handleSort}
-                      className="text-center"
-                    />
-                    <SortableHeader
-                      label="ช่วงบิล"
-                      field="oldest_order"
-                      currentSort={sortBy}
-                      currentOrder={sortOrder}
-                      onSort={handleSort}
-                      className="text-left"
-                    />
-                    <SortableHeader
-                      label="ยอดค้าง"
-                      field="total_pending"
-                      currentSort={sortBy}
-                      currentOrder={sortOrder}
-                      onSort={handleSort}
-                      className="text-right"
-                    />
-                    <th className="data-th text-center">ดำเนินการ</th>
+                    {isCol('customer') && <SortableHeader label="ลูกค้า" field="name" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-left" />}
+                    {isCol('daysOverdue') && <SortableHeader label="ค้างมา" field="days_overdue" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-center" />}
+                    {isCol('orderCount') && <SortableHeader label="จำนวนบิล" field="order_count" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-center" />}
+                    {isCol('dateRange') && <SortableHeader label="ช่วงบิล" field="oldest_order" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-left" />}
+                    {isCol('totalPending') && <SortableHeader label="ยอดค้าง" field="total_pending" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-right" />}
+                    {isCol('actions') && <th className="data-th text-center">ดำเนินการ</th>}
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase w-10"></th>
                   </tr>
                 </thead>
@@ -541,6 +539,7 @@ export default function PaymentFollowupPage() {
                         onClick={() => toggleRow(customer.customerId)}
                       >
                         {/* Customer Info */}
+                        {isCol('customer') && (
                         <td className="px-6 py-4">
                           <div>
                             <div className="text-xs text-gray-400 mb-0.5">{customer.customerCode}</div>
@@ -557,20 +556,26 @@ export default function PaymentFollowupPage() {
                             )}
                           </div>
                         </td>
+                        )}
 
                         {/* Days Overdue */}
+                        {isCol('daysOverdue') && (
                         <td className="px-6 py-4 text-center">
                           <AgingBadge days={customer.daysOverdue} />
                         </td>
+                        )}
 
                         {/* Order Count */}
+                        {isCol('orderCount') && (
                         <td className="px-6 py-4 text-center">
                           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-700">
                             {customer.orderCount} บิล
                           </span>
                         </td>
+                        )}
 
                         {/* Date Range */}
+                        {isCol('dateRange') && (
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
                             <Calendar className="w-3.5 h-3.5" />
@@ -583,13 +588,17 @@ export default function PaymentFollowupPage() {
                             )}
                           </div>
                         </td>
+                        )}
 
                         {/* Total Pending */}
+                        {isCol('totalPending') && (
                         <td className="px-6 py-4 text-right">
                           <span className="font-bold text-red-600">{formatCurrency(customer.totalPending)}</span>
                         </td>
+                        )}
 
                         {/* Actions */}
+                        {isCol('actions') && (
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
                             {customer.lineUserId ? (
@@ -613,6 +622,7 @@ export default function PaymentFollowupPage() {
                             </button>
                           </div>
                         </td>
+                        )}
 
                         {/* Expand */}
                         <td className="px-6 py-4 text-center">
@@ -631,30 +641,40 @@ export default function PaymentFollowupPage() {
                           className="bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
                           onClick={() => router.push(`/orders/${order.id}`)}
                         >
+                          {isCol('customer') && (
                           <td className="px-6 py-3 pl-12">
                             <div>
                               <span className="text-sm font-medium text-gray-900 dark:text-white">{order.orderNumber}</span>
                               <div className="text-xs text-gray-500 dark:text-slate-400">สั่ง: {formatDate(order.orderDate)}</div>
                             </div>
                           </td>
+                          )}
+                          {isCol('daysOverdue') && (
                           <td className="px-6 py-3 text-center">
                             <span className="text-sm text-gray-600 dark:text-slate-400">{order.daysAgo} วัน</span>
                           </td>
+                          )}
+                          {isCol('orderCount') && (
                           <td className="px-6 py-3 text-center">
                             <div className="flex items-center justify-center gap-1">
                               <OrderStatusBadge status={order.orderStatus} />
                               <PaymentStatusBadge status={order.paymentStatus} />
                             </div>
                           </td>
+                          )}
+                          {isCol('dateRange') && (
                           <td className="px-6 py-3">
                             <div className="text-sm text-gray-600 dark:text-slate-400">
                               ส่ง: {formatDate(order.deliveryDate)}
                             </div>
                           </td>
+                          )}
+                          {isCol('totalPending') && (
                           <td className="px-6 py-3 text-right">
                             <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(order.totalAmount)}</span>
                           </td>
-                          <td colSpan={2} className="px-6 py-3 text-center">
+                          )}
+                          <td colSpan={(isCol('actions') ? 1 : 0) + 1} className="px-6 py-3 text-center">
                             <ChevronRight className="w-4 h-4 text-gray-400 inline" />
                           </td>
                         </tr>
@@ -666,86 +686,40 @@ export default function PaymentFollowupPage() {
                 {/* Total Footer */}
                 <tfoot className="data-tfoot">
                   <tr>
-                    <td colSpan={4} className="px-6 py-4 font-bold text-gray-900 dark:text-white">
+                    <td colSpan={[isCol('customer'), isCol('daysOverdue'), isCol('orderCount'), isCol('dateRange')].filter(Boolean).length || 1} className="px-6 py-4 font-bold text-gray-900 dark:text-white">
                       รวมทั้งหมด ({summary?.totalOrders || 0} บิล จาก {summary?.totalCustomers || 0} ลูกค้า)
                     </td>
+                    {isCol('totalPending') && (
                     <td className="px-6 py-4 text-right font-bold text-red-600">
                       {formatCurrency(summary?.totalPending || 0)}
                     </td>
-                    <td colSpan={2}></td>
+                    )}
+                    <td colSpan={(isCol('actions') ? 1 : 0) + 1}></td>
                   </tr>
                 </tfoot>
               </table>
             </div>
           )}
 
-          {/* Pagination */}
-          {!loading && pagination.total > 0 && (
-            <div className="data-pagination">
-              <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
-                <span>{((currentPage - 1) * rowsPerPage) + 1} - {Math.min(currentPage * rowsPerPage, pagination.total)} จาก {pagination.total} รายการ</span>
-                <select
-                  value={rowsPerPage}
-                  onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                >
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span>/หน้า</span>
-              </div>
-              {pagination.totalPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => handlePageChange(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
-                    <ChevronsLeft className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <div className="flex items-center gap-1">
-                    {(() => {
-                      const pages: (number | string)[] = [];
-                      const tp = pagination.totalPages;
-                      if (tp <= 3) {
-                        for (let i = 1; i <= tp; i++) pages.push(i);
-                      } else {
-                        const start = Math.max(1, currentPage - 1);
-                        const end = Math.min(tp, currentPage + 1);
-                        for (let i = start; i <= end; i++) pages.push(i);
-                        if (end < tp - 1) pages.push('...');
-                        if (end < tp) pages.push(tp);
-                        if (start > 2) pages.unshift('...');
-                        if (start > 1) pages.unshift(1);
-                      }
-                      return pages.map((page, idx) =>
-                        page === '...' ? (
-                          <span key={`dots-${idx}`} className="px-1 text-gray-400 dark:text-slate-500">...</span>
-                        ) : (
-                          <button
-                            key={page}
-                            onClick={() => handlePageChange(page as number)}
-                            className={`w-8 h-8 rounded text-sm font-medium ${
-                              currentPage === page
-                                ? 'bg-[#F4511E] text-white'
-                                : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700'
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        )
-                      );
-                    })()}
-                  </div>
-                  <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === pagination.totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handlePageChange(pagination.totalPages)} disabled={currentPage === pagination.totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
-                    <ChevronsRight className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
+          {!loading && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={pagination.totalPages}
+              totalRecords={pagination.total}
+              startIdx={(currentPage - 1) * rowsPerPage}
+              endIdx={Math.min(currentPage * rowsPerPage, pagination.total)}
+              recordsPerPage={rowsPerPage}
+              setRecordsPerPage={setRowsPerPage}
+              setPage={setCurrentPage}
+            >
+              <ColumnSettingsDropdown
+                configs={COLUMN_CONFIGS}
+                visible={visibleColumns}
+                toggle={toggleColumn}
+                buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+                dropUp
+              />
+            </Pagination>
           )}
         </div>
       </div>

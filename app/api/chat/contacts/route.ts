@@ -306,7 +306,8 @@ async function fetchLineContacts(companyId: string, filters: {
       .select('line_contact_id, content, message_type')
       .eq('company_id', companyId)
       .in('line_contact_id', contactIds)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(contactIds.length * 3);
 
     (msgs || []).forEach(msg => {
       if (!lastMessageMap.has(msg.line_contact_id)) {
@@ -373,7 +374,8 @@ async function fetchFbContacts(companyId: string, filters: {
       .select('fb_contact_id, content, message_type')
       .eq('company_id', companyId)
       .in('fb_contact_id', contactIds)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(contactIds.length * 3);
 
     (msgs || []).forEach(msg => {
       if (!lastMessageMap.has(msg.fb_contact_id)) {

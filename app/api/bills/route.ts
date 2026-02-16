@@ -49,68 +49,89 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Order has been cancelled' }, { status: 404 });
     }
 
-    // Fetch company info (logo + name)
-    const { data: company } = await supabaseAdmin
-      .from('companies')
-      .select('name, logo_url')
-      .eq('id', order.company_id)
-      .single();
+    // Wave 2: Fetch company, items, payment records, payment channels in parallel
+    const [companyResult, itemsResult, paymentRecordsResult, paymentChannelsResult] = await Promise.all([
+      supabaseAdmin
+        .from('companies')
+        .select('name, logo_url')
+        .eq('id', order.company_id)
+        .single(),
+      supabaseAdmin
+        .from('order_items')
+        .select(`
+          id, variation_id, product_id, product_code, product_name, bottle_size,
+          quantity, unit_price, discount_percent, discount_amount, subtotal, total
+        `)
+        .eq('order_id', order.id),
+      supabaseAdmin
+        .from('payment_records')
+        .select('id, payment_method, amount, transfer_date, transfer_time, slip_image_url, status, notes, payment_date')
+        .eq('order_id', order.id)
+        .order('payment_date', { ascending: false })
+        .limit(1),
+      supabaseAdmin
+        .from('payment_channels')
+        .select('id, type, name, is_active, config, sort_order')
+        .eq('channel_group', 'bill_online')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true }),
+    ]);
 
-    // Fetch order items with shipments (to group by branch)
-    const { data: items } = await supabaseAdmin
-      .from('order_items')
-      .select(`
-        id, variation_id, product_id, product_code, product_name, bottle_size,
-        quantity, unit_price, discount_percent, discount_amount, subtotal, total
-      `)
-      .eq('order_id', order.id);
+    const company = companyResult.data;
+    const items = itemsResult.data;
+    const paymentRecords = paymentRecordsResult.data;
+    const paymentChannels = paymentChannelsResult.data;
 
-    // Fetch product images
+    // Wave 3: Fetch images + shipments in parallel (depend on items)
     const variationIds = (items || []).map(i => i.variation_id).filter(Boolean);
     const productIds = (items || []).map(i => i.product_id).filter(Boolean);
-    let imageMap: Record<string, string> = {};
+    const itemIds = (items || []).map(i => i.id);
 
-    if (variationIds.length > 0 || productIds.length > 0) {
-      const { data: images } = await supabaseAdmin
-        .from('product_images')
-        .select('product_id, variation_id, image_url, sort_order')
-        .or(
-          [
-            variationIds.length > 0 ? `variation_id.in.(${variationIds.join(',')})` : '',
-            productIds.length > 0 ? `product_id.in.(${productIds.join(',')})` : ''
-          ].filter(Boolean).join(',')
-        )
-        .order('sort_order', { ascending: true });
+    const [imagesResult, shipmentsResult] = await Promise.all([
+      (variationIds.length > 0 || productIds.length > 0)
+        ? supabaseAdmin
+            .from('product_images')
+            .select('product_id, variation_id, image_url, sort_order')
+            .or(
+              [
+                variationIds.length > 0 ? `variation_id.in.(${variationIds.join(',')})` : '',
+                productIds.length > 0 ? `product_id.in.(${productIds.join(',')})` : ''
+              ].filter(Boolean).join(',')
+            )
+            .order('sort_order', { ascending: true })
+        : Promise.resolve({ data: [] as any[] }),
+      itemIds.length > 0
+        ? supabaseAdmin
+            .from('order_shipments')
+            .select(`
+              order_item_id, quantity, shipping_fee,
+              shipping_address:shipping_addresses (
+                id, address_name, contact_person, phone,
+                address_line1, district, amphoe, province, postal_code
+              )
+            `)
+            .in('order_item_id', itemIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
 
-      const productImageMap: Record<string, string> = {};
-      const variationImageMap: Record<string, string> = {};
-      for (const img of images || []) {
-        if (img.variation_id && !variationImageMap[img.variation_id]) {
-          variationImageMap[img.variation_id] = img.image_url;
-        }
-        if (img.product_id && !productImageMap[img.product_id]) {
-          productImageMap[img.product_id] = img.image_url;
-        }
+    // Build image map
+    const imageMap: Record<string, string> = {};
+    const productImageMap: Record<string, string> = {};
+    const variationImageMap: Record<string, string> = {};
+    for (const img of imagesResult.data || []) {
+      if (img.variation_id && !variationImageMap[img.variation_id]) {
+        variationImageMap[img.variation_id] = img.image_url;
       }
-
-      for (const item of items || []) {
-        const image = variationImageMap[item.variation_id] || productImageMap[item.product_id];
-        if (image) imageMap[item.id] = image;
+      if (img.product_id && !productImageMap[img.product_id]) {
+        productImageMap[img.product_id] = img.image_url;
       }
     }
+    for (const item of items || []) {
+      const image = variationImageMap[item.variation_id] || productImageMap[item.product_id];
+      if (image) imageMap[item.id] = image;
+    }
 
-    // Fetch shipments with addresses for all items
-    const itemIds = (items || []).map(i => i.id);
-    const { data: shipments } = await supabaseAdmin
-      .from('order_shipments')
-      .select(`
-        order_item_id, quantity, shipping_fee,
-        shipping_address:shipping_addresses (
-          id, address_name, contact_person, phone,
-          address_line1, district, amphoe, province, postal_code
-        )
-      `)
-      .in('order_item_id', itemIds);
+    const shipments = shipmentsResult.data;
 
     // Group items by branch (shipping_address)
     interface BranchData {
@@ -186,23 +207,7 @@ export async function GET(request: NextRequest) {
       image: imageMap[item.id] || null
     }));
 
-    // Fetch latest payment record (for showing slip/status on bill page)
-    const { data: paymentRecords } = await supabaseAdmin
-      .from('payment_records')
-      .select('id, payment_method, amount, transfer_date, transfer_time, slip_image_url, status, notes, payment_date')
-      .eq('order_id', order.id)
-      .order('payment_date', { ascending: false })
-      .limit(1);
-
     const paymentRecord = paymentRecords && paymentRecords.length > 0 ? paymentRecords[0] : null;
-
-    // Fetch active payment channels for bill_online
-    const { data: paymentChannels } = await supabaseAdmin
-      .from('payment_channels')
-      .select('id, type, name, is_active, config, sort_order')
-      .eq('channel_group', 'bill_online')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true });
 
     // Sanitize payment channels — strip sensitive data before sending to public page
     const customerData = order.customer as unknown as Record<string, unknown> | null;

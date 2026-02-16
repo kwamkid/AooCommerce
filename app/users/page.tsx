@@ -20,11 +20,8 @@ import {
   X,
   Loader2,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight
 } from 'lucide-react';
+import Pagination from '@/app/components/Pagination';
 
 // User interface
 interface User {
@@ -375,13 +372,6 @@ export default function UsersPage() {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // Pagination handlers
-  const goToPage = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-    }
-  };
-
   // Clear alerts after 5 seconds
   useEffect(() => {
     if (error || success) {
@@ -626,76 +616,16 @@ export default function UsersPage() {
             </div>
           )}
 
-          {/* Pagination */}
-          {totalFiltered > 0 && (
-            <div className="data-pagination">
-              <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
-                <span>{startIndex + 1} - {Math.min(startIndex + rowsPerPage, totalFiltered)} จาก {totalFiltered} รายการ</span>
-                <select
-                  value={rowsPerPage}
-                  onChange={(e) => {
-                    setRowsPerPage(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                >
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span>/หน้า</span>
-              </div>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => goToPage(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
-                    <ChevronsLeft className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <div className="flex items-center gap-1">
-                    {(() => {
-                      const pages: (number | string)[] = [];
-                      if (totalPages <= 3) {
-                        for (let i = 1; i <= totalPages; i++) pages.push(i);
-                      } else {
-                        const start = Math.max(1, currentPage - 1);
-                        const end = Math.min(totalPages, currentPage + 1);
-                        for (let i = start; i <= end; i++) pages.push(i);
-                        if (end < totalPages - 1) pages.push('...');
-                        if (end < totalPages) pages.push(totalPages);
-                        if (start > 2) pages.unshift('...');
-                        if (start > 1) pages.unshift(1);
-                      }
-                      return pages.map((page, idx) =>
-                        page === '...' ? (
-                          <span key={`dots-${idx}`} className="px-1 text-gray-400 dark:text-slate-500">...</span>
-                        ) : (
-                          <button
-                            key={page}
-                            onClick={() => goToPage(page as number)}
-                            className={`w-8 h-8 rounded text-sm font-medium ${
-                              currentPage === page
-                                ? 'bg-[#F4511E] text-white'
-                                : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700'
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        )
-                      );
-                    })()}
-                  </div>
-                  <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
-                    <ChevronsRight className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRecords={totalFiltered}
+            startIdx={startIndex}
+            endIdx={Math.min(startIndex + rowsPerPage, totalFiltered)}
+            recordsPerPage={rowsPerPage}
+            setRecordsPerPage={setRowsPerPage}
+            setPage={setCurrentPage}
+          />
         </div>
       </div>
 

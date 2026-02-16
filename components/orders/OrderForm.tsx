@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
@@ -117,6 +118,7 @@ export default function OrderForm({
 }: OrderFormProps) {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
+  const { showToast } = useToast();
 
   // State
   const [loading, setLoading] = useState(!!editOrderId);
@@ -172,6 +174,7 @@ export default function OrderForm({
 
   // Stock & Warehouse
   const [stockEnabled, setStockEnabled] = useState(false);
+  const [allowOversell, setAllowOversell] = useState(true);
   const [warehouses, setWarehouses] = useState<{ id: string; name: string; code: string; is_default: boolean }[]>([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [inventoryMap, setInventoryMap] = useState<Record<string, { quantity: number; reserved_quantity: number; available: number }>>({});
@@ -457,6 +460,7 @@ export default function OrderForm({
       const { warehouses: wh, stockConfig } = result;
       if (stockConfig?.stockEnabled) {
         setStockEnabled(true);
+        setAllowOversell(stockConfig.allowOversell !== false);
         setWarehouses(wh || []);
         const defaultWh = (wh || []).find((w: any) => w.is_default);
         if (defaultWh && !selectedWarehouseId) {
@@ -695,6 +699,20 @@ export default function OrderForm({
 
   // Product management
   const handleAddProductToBranch = (branchIndex: number, product: Product) => {
+    // Stock validation when oversell is not allowed
+    if (!allowOversell && stockEnabled && selectedWarehouseId) {
+      const inv = inventoryMap[product.id];
+      const available = inv ? inv.available : 0;
+      // Sum current qty of this product across all branches
+      const currentQty = branchOrders.reduce((sum, b) =>
+        sum + b.products.filter(p => p.variation_id === product.id).reduce((s, p) => s + p.quantity, 0), 0);
+
+      if (available <= 0 || currentQty >= available) {
+        showToast('สินค้านี้ stock หมด ไม่สามารถเพิ่มได้', 'error');
+        return;
+      }
+    }
+
     const existingProductIndex = branchOrders[branchIndex].products.findIndex(
       p => p.variation_id === product.id
     );
@@ -703,6 +721,16 @@ export default function OrderForm({
 
     if (existingProductIndex !== -1) {
       // Duplicate → increment quantity (barcode scan behavior)
+      if (!allowOversell && stockEnabled && selectedWarehouseId) {
+        const inv = inventoryMap[product.id];
+        const available = inv ? inv.available : 0;
+        const currentQty = branchOrders.reduce((sum, b) =>
+          sum + b.products.filter(p => p.variation_id === product.id).reduce((s, p) => s + p.quantity, 0), 0);
+        if (currentQty >= available) {
+          showToast(`สินค้านี้เหลือ stock ${available} ไม่สามารถเพิ่มได้อีก`, 'error');
+          return;
+        }
+      }
       newBranchOrders[branchIndex].products[existingProductIndex].quantity += 1;
       setBranchOrders(newBranchOrders);
     } else {
@@ -761,8 +789,25 @@ export default function OrderForm({
   };
 
   const handleUpdateProductQuantity = (branchIndex: number, productIndex: number, quantity: number) => {
+    let finalQty = Math.max(1, quantity);
+
+    if (!allowOversell && stockEnabled && selectedWarehouseId) {
+      const variationId = branchOrders[branchIndex].products[productIndex].variation_id;
+      const inv = inventoryMap[variationId];
+      const available = inv ? inv.available : 0;
+      // Sum qty of this product in other branches/rows (excluding current)
+      const otherQty = branchOrders.reduce((sum, b, bi) =>
+        sum + b.products.reduce((s, p, pi) =>
+          (bi === branchIndex && pi === productIndex) ? s : (p.variation_id === variationId ? s + p.quantity : s), 0), 0);
+      const maxAllowed = Math.max(1, available - otherQty);
+      if (finalQty > maxAllowed) {
+        finalQty = maxAllowed;
+        showToast(`stock เหลือ ${available} จำกัดจำนวนที่ ${maxAllowed}`, 'error');
+      }
+    }
+
     const newBranchOrders = [...branchOrders];
-    newBranchOrders[branchIndex].products[productIndex].quantity = Math.max(1, quantity);
+    newBranchOrders[branchIndex].products[productIndex].quantity = finalQty;
     setBranchOrders(newBranchOrders);
   };
 
@@ -1069,8 +1114,8 @@ export default function OrderForm({
             )}
           </div>
 
-          {/* Warehouse Picker (only when stock enabled) */}
-          {stockEnabled && warehouses.length > 0 && (
+          {/* Warehouse Picker (only when stock enabled + multiple warehouses) */}
+          {stockEnabled && warehouses.length > 1 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                 <Warehouse className="w-3.5 h-3.5 inline mr-1" />
@@ -1515,12 +1560,21 @@ export default function OrderForm({
                           )
                           .map(product => {
                             const capacityDisplay = getBottleSizeDisplay(product.bottle_size);
+                            const inv = stockEnabled && selectedWarehouseId ? inventoryMap[product.id] : null;
+                            const avail = inv ? inv.available : 0;
+                            const isOutOfStock = stockEnabled && !!selectedWarehouseId && avail <= 0;
+                            const isDisabled = !allowOversell && isOutOfStock;
                             return (
                               <button
                                 key={product.id}
                                 type="button"
-                                onClick={() => handleAddProductToBranch(branchIndex, product)}
-                                className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-3"
+                                onClick={() => !isDisabled && handleAddProductToBranch(branchIndex, product)}
+                                disabled={isDisabled}
+                                className={`w-full px-3 py-2 text-left transition-colors flex items-center gap-3 ${
+                                  isDisabled
+                                    ? 'opacity-50 cursor-not-allowed bg-gray-50 dark:bg-slate-700/30'
+                                    : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
+                                }`}
                               >
                                 {product.image ? (
                                   <img src={product.image} alt={product.name} className="w-10 h-10 object-cover rounded flex-shrink-0" />
@@ -1535,17 +1589,13 @@ export default function OrderForm({
                                   </div>
                                   <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-slate-500">
                                     <span>{product.code} · ฿{product.default_price}</span>
-                                    {stockEnabled && selectedWarehouseId && (() => {
-                                      const inv = inventoryMap[product.id];
-                                      const avail = inv ? inv.available : 0;
-                                      return (
-                                        <span className={`px-1 py-0.5 rounded text-[10px] ${
-                                          avail <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
-                                        }`}>
-                                          {avail <= 0 ? 'หมด' : `stock ${avail}`}
-                                        </span>
-                                      );
-                                    })()}
+                                    {stockEnabled && selectedWarehouseId && (
+                                      <span className={`px-1 py-0.5 rounded text-[10px] ${
+                                        avail <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                                      }`}>
+                                        {avail <= 0 ? 'หมด' : `stock ${avail}`}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </button>

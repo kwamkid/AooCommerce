@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
@@ -16,11 +16,7 @@ import {
   Trash2,
   Edit2,
   Phone,
-  Columns3,
   ChevronRight,
-  ChevronLeft,
-  ChevronsLeft,
-  ChevronsRight,
   Link2,
   CheckCircle,
   ArrowUpDown,
@@ -28,6 +24,8 @@ import {
   ArrowDown,
   X,
 } from 'lucide-react';
+import Pagination from '@/app/components/Pagination';
+import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 
 // Order interface
 interface Order {
@@ -129,21 +127,6 @@ export default function OrdersPage() {
     }
     return new Set(getDefaultColumns());
   });
-  const [showColumnSettings, setShowColumnSettings] = useState(false);
-  const columnSettingsRef = useRef<HTMLDivElement>(null);
-
-  // Close column settings on click outside
-  useEffect(() => {
-    if (!showColumnSettings) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (columnSettingsRef.current && !columnSettingsRef.current.contains(e.target as Node)) {
-        setShowColumnSettings(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showColumnSettings]);
-
   const toggleColumn = (key: ColumnKey) => {
     const config = COLUMN_CONFIGS.find(c => c.key === key);
     if (config?.alwaysVisible) return;
@@ -510,32 +493,6 @@ export default function OrdersPage() {
   const endIndex = Math.min(startIndex + displayedOrders.length, totalOrders);
   const totalRecords = totalOrders;
 
-  // Page navigation functions
-  const goToFirstPage = () => setCurrentPage(1);
-  const goToLastPage = () => setCurrentPage(totalPages);
-  const goToPreviousPage = () => setCurrentPage(prev => Math.max(1, prev - 1));
-  const goToNextPage = () => setCurrentPage(prev => Math.min(totalPages, prev + 1));
-  const goToPage = (page: number) => setCurrentPage(page);
-
-  // Generate page numbers to display (compact: current +-1, ..., last)
-  const getPageNumbers = () => {
-    const pages: (number | string)[] = [];
-
-    if (totalPages <= 3) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      const start = Math.max(1, currentPage - 1);
-      const end = Math.min(totalPages, currentPage + 1);
-      for (let i = start; i <= end; i++) pages.push(i);
-      if (end < totalPages - 1) pages.push('...');
-      if (end < totalPages) pages.push(totalPages);
-      if (start > 2) pages.unshift('...');
-      if (start > 1) pages.unshift(1);
-    }
-
-    return pages;
-  };
-
   if (authLoading || loading) {
     return (
       <Layout>
@@ -592,33 +549,6 @@ export default function OrdersPage() {
                   onChange={(val) => setDeliveryDateRange(val)}
                   placeholder="วันที่ส่ง - ทั้งหมด"
                 />
-              </div>
-              <div className="relative" ref={columnSettingsRef}>
-                <button
-                  onClick={() => setShowColumnSettings(!showColumnSettings)}
-                  className="btn-filter-icon"
-                  title="ตั้งค่าคอลัมน์"
-                >
-                  <Columns3 className="w-5 h-5 text-gray-500" />
-                </button>
-                {showColumnSettings && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-10 py-1">
-                    <div className="px-3 py-2 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase border-b border-gray-100 dark:border-slate-700">
-                      แสดงคอลัมน์
-                    </div>
-                    {COLUMN_CONFIGS.filter(c => !c.alwaysVisible).map(col => (
-                      <label key={col.key} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={visibleColumns.has(col.key)}
-                          onChange={() => toggleColumn(col.key)}
-                          className="w-3.5 h-3.5 text-[#F4511E] border-gray-300 dark:border-slate-500 rounded focus:ring-[#F4511E]"
-                        />
-                        <span className="text-sm text-gray-700 dark:text-slate-300">{col.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
 
@@ -879,67 +809,24 @@ export default function OrdersPage() {
             </table>
           </div>
 
-          {/* Pagination */}
-          {totalRecords > 0 && (
-            <div className="data-pagination">
-              <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
-                <span>{startIndex + 1} - {endIndex} จาก {totalRecords} รายการ</span>
-                <select
-                  value={recordsPerPage}
-                  onChange={(e) => {
-                    setRecordsPerPage(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                >
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span>/หน้า</span>
-              </div>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <button onClick={goToFirstPage} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าแรก">
-                    <ChevronsLeft className="w-4 h-4" />
-                  </button>
-                  <button onClick={goToPreviousPage} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <div className="flex items-center gap-1">
-                    {getPageNumbers().map((page, index) => {
-                      if (page === '...') {
-                        return (
-                          <span key={`ellipsis-${index}`} className="px-2 text-gray-500 dark:text-slate-400">
-                            ...
-                          </span>
-                        );
-                      }
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => goToPage(page as number)}
-                          className={`w-8 h-8 rounded text-sm font-medium ${
-                            currentPage === page
-                              ? 'bg-[#F4511E] text-white'
-                              : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <button onClick={goToNextPage} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                  <button onClick={goToLastPage} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
-                    <ChevronsRight className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRecords={totalRecords}
+            startIdx={startIndex}
+            endIdx={endIndex}
+            recordsPerPage={recordsPerPage}
+            setRecordsPerPage={setRecordsPerPage}
+            setPage={setCurrentPage}
+          >
+            <ColumnSettingsDropdown
+              configs={COLUMN_CONFIGS}
+              visible={visibleColumns}
+              toggle={toggleColumn}
+              buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+              dropUp
+            />
+          </Pagination>
         </div>
 
         {/* Status Update Confirmation Modal */}
