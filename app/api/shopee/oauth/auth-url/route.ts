@@ -15,13 +15,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Shopee not configured' }, { status: 500 });
     }
 
-    // Build redirect URL with companyId as state
+    // Build redirect URL
     const host = request.headers.get('host') || 'localhost:3000';
     const protocol = host.includes('localhost') ? 'http' : 'https';
-    const redirectUrl = `${protocol}://${host}/api/shopee/oauth/callback?state=${companyId}`;
+    const redirectUrl = `${protocol}://${host}/api/shopee/oauth/callback`;
 
-    const url = generateAuthUrl(redirectUrl);
-    return NextResponse.json({ url });
+    const url = generateAuthUrl(redirectUrl, companyId);
+    console.log('[Shopee OAuth] Generated auth URL, redirect:', redirectUrl);
+
+    // Store companyId in cookie (Shopee doesn't reliably forward state param)
+    const response = NextResponse.json({ url });
+    response.cookies.set('shopee_company_id', companyId, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 600, // 10 minutes — enough for OAuth flow
+      path: '/',
+    });
+
+    return response;
   } catch (error) {
     console.error('Shopee auth URL error:', error);
     return NextResponse.json({ error: 'Failed to generate auth URL' }, { status: 500 });

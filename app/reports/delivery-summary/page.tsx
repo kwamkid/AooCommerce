@@ -6,6 +6,7 @@ import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
+import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
 import { getImageUrl } from '@/lib/utils/image';
@@ -1358,7 +1359,7 @@ export default function DeliverySummaryPage() {
                     <h4 className="font-medium text-gray-900 dark:text-white">รายละเอียดการชำระเงิน</h4>
                     <p className="text-sm text-gray-600 dark:text-slate-400">
                       ยอดชำระ: <span className="font-semibold text-[#F4511E]">
-                        ฿{statusUpdateModal.delivery?.totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                        ฿{formatPrice(statusUpdateModal.delivery?.totalAmount)}
                       </span>
                     </p>
 

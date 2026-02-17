@@ -6,6 +6,7 @@ import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
+import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
 import {
@@ -15,6 +16,7 @@ import {
   Loader2,
   Trash2,
   Edit2,
+  Eye,
   Phone,
   ChevronRight,
   Link2,
@@ -46,6 +48,23 @@ interface Order {
   item_count: number;
   branch_count: number;
   branch_names?: string[];
+  source?: string;
+  external_status?: string;
+  external_order_sn?: string;
+}
+
+// Source badge component
+function SourceBadge({ source }: { source?: string }) {
+  if (!source || source === 'manual') return null;
+  if (source === 'shopee') {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
+        <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3.5 h-3.5" />
+        Shopee
+      </span>
+    );
+  }
+  return null;
 }
 
 // Column toggle system
@@ -657,7 +676,10 @@ export default function OrdersPage() {
                       {/* คำสั่งซื้อ: order_number + วันเปิดบิล + เวลา */}
                       {visibleColumns.has('orderInfo') && (
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{order.order_number}</div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">{order.order_number}</span>
+                            <SourceBadge source={order.source} />
+                          </div>
                           <div className="text-xs text-gray-400 dark:text-slate-500">
                             {new Date(order.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
                             {' '}
@@ -725,8 +747,8 @@ export default function OrdersPage() {
                       {/* ยอดรวม */}
                       {visibleColumns.has('total') && (
                         <td className="px-6 py-4 text-right">
-                          <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                            ฿{order.total_amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                          <div className="text-sm text-gray-900 dark:text-white">
+                            ฿{formatPrice(order.total_amount)}
                           </div>
                         </td>
                       )}
@@ -734,7 +756,7 @@ export default function OrdersPage() {
                       {/* สถานะ */}
                       {visibleColumns.has('status') && (
                         <td className="px-6 py-4">
-                          {getNextOrderStatus(order.order_status) ? (
+                          {order.source !== 'shopee' && getNextOrderStatus(order.order_status) ? (
                             <button
                               onClick={(e) => handleOrderStatusClick(e, order)}
                               title={`คลิกเพื่อเปลี่ยนเป็น "${getOrderStatusLabel(getNextOrderStatus(order.order_status) || '')}"`}
@@ -752,6 +774,8 @@ export default function OrdersPage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           {order.order_status === 'cancelled' ? (
                             <span className="text-gray-400 dark:text-slate-500">-</span>
+                          ) : order.source === 'shopee' ? (
+                            <PaymentStatusBadge status={order.payment_status} />
                           ) : getNextPaymentStatus(order.payment_status) ? (
                             <button
                               onClick={(e) => handlePaymentStatusClick(e, order)}
@@ -769,35 +793,49 @@ export default function OrdersPage() {
                       {visibleColumns.has('actions') && (
                         <td className="px-6 py-4">
                           <div className="flex justify-center gap-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const billUrl = `${window.location.origin}/bills/${order.id}`;
-                                navigator.clipboard.writeText(billUrl).then(() => {
-                                  setToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
-                                  setTimeout(() => setToast(''), 2500);
-                                });
-                              }}
-                              className="text-gray-500 hover:text-[#F4511E] p-1"
-                              title="คัดลอกลิงก์บิลออนไลน์"
-                            >
-                              <Link2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); router.push(`/orders/${order.id}/edit`); }}
-                              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 p-1"
-                              title="แก้ไขคำสั่งซื้อ"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            {(userProfile?.role === 'owner' || userProfile?.role === 'admin') && (
+                            {(!order.source || order.source === 'manual') && (
                               <button
-                                onClick={(e) => handleDeleteOrder(e, order)}
-                                className="text-red-600 hover:text-red-900 p-1"
-                                title="ลบ"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const billUrl = `${window.location.origin}/bills/${order.id}`;
+                                  navigator.clipboard.writeText(billUrl).then(() => {
+                                    setToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
+                                    setTimeout(() => setToast(''), 2500);
+                                  });
+                                }}
+                                className="text-gray-500 hover:text-[#F4511E] p-1"
+                                title="คัดลอกลิงก์บิลออนไลน์"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Link2 className="w-4 h-4" />
                               </button>
+                            )}
+                            {order.source && order.source !== 'manual' ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); router.push(`/orders/${order.id}`); }}
+                                className="text-gray-500 hover:text-gray-700 p-1"
+                                title="ดูคำสั่งซื้อ"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); router.push(`/orders/${order.id}/edit`); }}
+                                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 p-1"
+                                  title="แก้ไขคำสั่งซื้อ"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                {(userProfile?.role === 'owner' || userProfile?.role === 'admin') && (
+                                  <button
+                                    onClick={(e) => handleDeleteOrder(e, order)}
+                                    className="text-red-600 hover:text-red-900 p-1"
+                                    title="ลบ"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </>
                             )}
                           </div>
                         </td>
@@ -879,7 +917,7 @@ export default function OrdersPage() {
 
                     <p className="text-sm text-gray-600 dark:text-slate-400">
                       ยอดชำระ: <span className="font-semibold text-[#F4511E]">
-                        ฿{statusUpdateModal.order?.total_amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                        ฿{formatPrice(statusUpdateModal.order?.total_amount)}
                       </span>
                     </p>
 

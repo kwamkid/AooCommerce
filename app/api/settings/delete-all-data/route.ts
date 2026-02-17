@@ -2,7 +2,21 @@
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
-// DELETE - Delete all data except users (scoped to current company)
+// Helper to delete all rows of a table scoped to company
+async function deleteTable(table: string, companyId: string) {
+  console.log(`Deleting ${table}...`);
+  const { error } = await supabaseAdmin
+    .from(table)
+    .delete()
+    .eq('company_id', companyId)
+    .neq('id', '00000000-0000-0000-0000-000000000000');
+  if (error) {
+    console.error(`Error deleting ${table}:`, error.message);
+    // Don't throw — some tables might not exist or have no data
+  }
+}
+
+// DELETE - Delete all data except users/settings (scoped to current company)
 export async function DELETE(request: NextRequest) {
   try {
     const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
@@ -26,48 +40,63 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    console.log(`Starting to delete all data for company ${companyId}...`);
+    console.log(`[Clear All Data] Starting for company ${companyId}...`);
 
     // Delete in order to respect foreign key constraints
-    // Start with child tables first, then parent tables
+    // Child tables first, then parent tables
 
-    // 1. Delete order shipments (child of order_items)
-    console.log('Deleting order_shipments...');
-    await supabaseAdmin.from('order_shipments').delete().eq('company_id', companyId).neq('id', '00000000-0000-0000-0000-000000000000');
+    // --- Inventory ---
+    await deleteTable('inventory_transfer_items', companyId);
+    await deleteTable('inventory_transfers', companyId);
+    await deleteTable('inventory_receive_items', companyId);
+    await deleteTable('inventory_receives', companyId);
+    await deleteTable('inventory_issue_items', companyId);
+    await deleteTable('inventory_issues', companyId);
+    await deleteTable('inventory_transactions', companyId);
+    await deleteTable('inventory', companyId);
 
-    // 2. Delete order items (child of orders)
-    console.log('Deleting order_items...');
-    await supabaseAdmin.from('order_items').delete().eq('company_id', companyId).neq('id', '00000000-0000-0000-0000-000000000000');
+    // --- Orders ---
+    await deleteTable('order_shipments', companyId);
+    await deleteTable('payment_records', companyId);
+    await deleteTable('order_items', companyId);
+    await deleteTable('orders', companyId);
 
-    // 3. Delete orders
-    console.log('Deleting orders...');
-    await supabaseAdmin.from('orders').delete().eq('company_id', companyId).neq('id', '00000000-0000-0000-0000-000000000000');
+    // --- Chat ---
+    await deleteTable('line_messages', companyId);
+    await deleteTable('line_message_logs', companyId);
+    await deleteTable('line_contacts', companyId);
+    await deleteTable('fb_messages', companyId);
+    await deleteTable('fb_contacts', companyId);
 
-    // 4. Delete product images
-    console.log('Deleting product_images...');
-    await supabaseAdmin.from('product_images').delete().eq('company_id', companyId).neq('id', '00000000-0000-0000-0000-000000000000');
+    // --- Customers ---
+    await deleteTable('customer_activities', companyId);
+    await deleteTable('shipping_addresses', companyId);
+    await deleteTable('customers', companyId);
 
-    // 5. Delete product variations
-    console.log('Deleting product_variations...');
-    await supabaseAdmin.from('product_variations').delete().eq('company_id', companyId).neq('id', '00000000-0000-0000-0000-000000000000');
+    // --- Products ---
+    await deleteTable('product_images', companyId);
+    await deleteTable('product_variations', companyId);
+    await deleteTable('products', companyId);
 
-    // 6. Delete products
-    console.log('Deleting products...');
-    await supabaseAdmin.from('products').delete().eq('company_id', companyId).neq('id', '00000000-0000-0000-0000-000000000000');
+    // --- Other ---
+    await deleteTable('price_lists', companyId);
 
-    // 7. Delete shipping addresses
-    console.log('Deleting shipping_addresses...');
-    await supabaseAdmin.from('shipping_addresses').delete().eq('company_id', companyId).neq('id', '00000000-0000-0000-0000-000000000000');
+    // --- Shopee sync logs (keep accounts, clear logs) ---
+    console.log('Deleting shopee_sync_log...');
+    const { error: syncLogError } = await supabaseAdmin
+      .from('shopee_sync_log')
+      .delete()
+      .eq('company_id', companyId)
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+    if (syncLogError) {
+      console.error('Error deleting shopee_sync_log:', syncLogError.message);
+    }
 
-    // 8. Delete customers
-    console.log('Deleting customers...');
-    await supabaseAdmin.from('customers').delete().eq('company_id', companyId).neq('id', '00000000-0000-0000-0000-000000000000');
-
-    console.log(`All data deleted successfully for company ${companyId}!`);
+    console.log(`[Clear All Data] Completed for company ${companyId}`);
 
     return NextResponse.json({
       success: true,
-      message: 'ลบข้อมูลทั้งหมดสำเร็จ (ยกเว้นข้อมูลผู้ใช้)'
+      message: 'ลบข้อมูลทั้งหมดสำเร็จ (เก็บการตั้งค่าและ Shopee integration ไว้)'
     });
   } catch (error) {
     console.error('Error deleting all data:', error);

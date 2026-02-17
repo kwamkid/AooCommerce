@@ -100,8 +100,8 @@ async function syncSingleOrder(account: ShopeeAccountRow, orderSn: string) {
       .from('shopee_sync_log')
       .update({
         orders_fetched: 1,
-        orders_created: result.created,
-        orders_updated: result.updated,
+        orders_created: result.orders_created,
+        orders_updated: result.orders_updated,
         errors: result.errors.length > 0 ? result.errors : null,
         completed_at: new Date().toISOString(),
       })

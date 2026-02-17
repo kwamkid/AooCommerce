@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee-api';
-import { syncOrdersByTimeRange } from '@/lib/shopee-sync';
+import { ShopeeAccountRow, ensureValidToken, getShopInfo } from '@/lib/shopee-api';
+import { syncOrdersByTimeRange, SyncResult } from '@/lib/shopee-sync';
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,20 +53,37 @@ export async function POST(request: NextRequest) {
       await supabaseAdmin
         .from('shopee_sync_log')
         .update({
-          orders_fetched: result.created + result.updated,
-          orders_created: result.created,
-          orders_updated: result.updated,
+          orders_fetched: result.orders_created + result.orders_updated + result.orders_skipped,
+          orders_created: result.orders_created,
+          orders_updated: result.orders_updated,
           errors: result.errors.length > 0 ? result.errors : null,
           completed_at: new Date().toISOString(),
         })
         .eq('id', log.id);
     }
 
+    // Also refresh shop profile (best effort)
+    try {
+      const creds = await ensureValidToken(account as ShopeeAccountRow);
+      const shopInfo = await getShopInfo(creds);
+      if (shopInfo) {
+        const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        if (shopInfo.shop_name) updateData.shop_name = shopInfo.shop_name;
+        if (shopInfo.shop_logo) {
+          updateData.metadata = { ...(account.metadata || {}), shop_logo: shopInfo.shop_logo };
+        }
+        await supabaseAdmin
+          .from('shopee_accounts')
+          .update(updateData)
+          .eq('id', account.id);
+      }
+    } catch (e) {
+      console.error('[Shopee Sync] Failed to refresh profile:', e);
+    }
+
     return NextResponse.json({
       success: true,
-      created: result.created,
-      updated: result.updated,
-      errors: result.errors,
+      ...result,
     });
   } catch (error) {
     console.error('Shopee sync error:', error);

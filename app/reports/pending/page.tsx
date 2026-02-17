@@ -5,6 +5,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
+import { formatPrice } from '@/lib/utils/format';
 import Layout from '@/components/layout/Layout';
 
 import {
@@ -123,14 +124,6 @@ export default function PendingReportPage() {
     setExpandedRows(newExpanded);
   };
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('th-TH', {
-      style: 'currency',
-      currency: 'THB',
-      minimumFractionDigits: 2
-    }).format(amount);
-  };
 
   // Format date
   const formatDate = (dateString: string | null) => {
@@ -252,7 +245,7 @@ export default function PendingReportPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-slate-400">ยอดค้างชำระรวม</p>
-                <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(summary.totalPending)}</p>
+                <p className="text-xl font-bold text-red-600 dark:text-red-400">฿{formatPrice(summary.totalPending)}</p>
               </div>
             </div>
           </div>
@@ -393,7 +386,7 @@ export default function PendingReportPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <span className="font-bold text-red-600 dark:text-red-400">{formatCurrency(item.totalPending)}</span>
+                        <span className="font-bold text-red-600 dark:text-red-400">฿{formatPrice(item.totalPending)}</span>
                       </td>
                       <td className="px-6 py-4 text-center">
                         {expandedRows.has(item.customerId || `customer-${index}`) ? (
@@ -424,7 +417,7 @@ export default function PendingReportPage() {
                           {getAgingBadge(getDaysSinceDelivery(order.deliveryDate))}
                         </td>
                         <td className="px-6 py-3 text-right">
-                          <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(order.totalAmount)}</span>
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">฿{formatPrice(order.totalAmount)}</span>
                         </td>
                         <td className="px-6 py-3 text-center">
                           {getOrderStatusBadge(order.orderStatus)}
@@ -464,7 +457,7 @@ export default function PendingReportPage() {
                         {getOrderStatusBadge(item.orderStatus)}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <span className="font-bold text-red-600 dark:text-red-400">{formatCurrency(item.totalAmount)}</span>
+                        <span className="font-bold text-red-600 dark:text-red-400">฿{formatPrice(item.totalAmount)}</span>
                       </td>
                     </tr>
                   );
@@ -478,7 +471,7 @@ export default function PendingReportPage() {
                     รวมทั้งหมด ({summary?.totalOrders || 0} รายการ)
                   </td>
                   <td className={`px-6 py-4 font-bold text-red-600 dark:text-red-400 ${groupBy === 'customer' ? 'text-right' : 'text-right'}`}>
-                    {formatCurrency(summary?.totalPending || 0)}
+                    ฿{formatPrice(summary?.totalPending || 0)}
                   </td>
                   {groupBy === 'customer' && <td></td>}
                 </tr>

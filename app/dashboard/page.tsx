@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
+import { formatPrice } from '@/lib/utils/format';
 import {
   Truck,
   Phone,
@@ -216,7 +217,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold text-[#F4511E]">
-                      ฿{order.totalAmount.toLocaleString()}
+                      ฿{formatPrice(order.totalAmount)}
                     </p>
                   </div>
                 </Link>

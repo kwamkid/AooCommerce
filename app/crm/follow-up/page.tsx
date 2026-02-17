@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
+import { formatPrice } from '@/lib/utils/format';
 import {
   Users,
   Search,
@@ -583,7 +584,7 @@ export default function CRMFollowUpPage() {
                       {isCol('totalSpent') && (
                       <td className="px-6 py-4 text-right">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          ฿{customer.total_spent.toLocaleString('th-TH', { minimumFractionDigits: 0 })}
+                          ฿{formatPrice(customer.total_spent)}
                         </span>
                       </td>
                       )}
@@ -717,7 +718,7 @@ export default function CRMFollowUpPage() {
                             </div>
                           </div>
                           <div className="text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
-                            ฿{order.total_amount.toLocaleString('th-TH', { minimumFractionDigits: 0 })}
+                            ฿{formatPrice(order.total_amount)}
                           </div>
                         </div>
 

@@ -6,6 +6,7 @@ import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
+import { formatPrice } from '@/lib/utils/format';
 import { supabase } from '@/lib/supabase';
 import {
   MessageCircle,
@@ -1025,7 +1026,7 @@ function UnifiedChatPageContent() {
         <div className="text-sm text-gray-500 dark:text-slate-400">
           <div className="flex items-center justify-between">
             <span>{order.delivery_date ? `จัดส่ง ${new Date(order.delivery_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}` : 'ยังไม่กำหนดจัดส่ง'}</span>
-            <span className="font-medium text-gray-900 dark:text-white">฿{order.total_amount?.toLocaleString('th-TH', { minimumFractionDigits: 2 }) || '0.00'}</span>
+            <span className="font-medium text-gray-900 dark:text-white">฿{formatPrice(order.total_amount)}</span>
           </div>
         </div>
       </div>
@@ -1099,7 +1100,7 @@ function UnifiedChatPageContent() {
         </div>
         {(c.address || c.province) && (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">ที่อยู่ออกบิล</label><p className="text-sm text-gray-900 dark:text-white">{[c.address, c.district, c.amphoe, c.province, c.postal_code].filter(Boolean).join(' ')}</p></div>)}
         {c.tax_id && (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">ข้อมูลใบกำกับภาษี</label>{c.tax_company_name && <p className="text-sm font-medium text-gray-900 dark:text-white">{c.tax_company_name}</p>}<p className="text-sm text-gray-600 dark:text-slate-400">เลขผู้เสียภาษี: {c.tax_id}</p>{c.tax_branch && <p className="text-sm text-gray-600 dark:text-slate-400">สาขา: {c.tax_branch}</p>}</div>)}
-        {(c.credit_limit || c.credit_days) ? (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">เงื่อนไขเครดิต</label><div className="flex gap-4 mt-1">{c.credit_limit ? <div><span className="text-xs text-gray-500 dark:text-slate-400">วงเงิน</span><p className="text-sm font-medium text-gray-900 dark:text-white">฿{c.credit_limit.toLocaleString()}</p></div> : null}{c.credit_days ? <div><span className="text-xs text-gray-500 dark:text-slate-400">ระยะเวลา</span><p className="text-sm font-medium text-gray-900 dark:text-white">{c.credit_days} วัน</p></div> : null}</div></div>) : null}
+        {(c.credit_limit || c.credit_days) ? (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">เงื่อนไขเครดิต</label><div className="flex gap-4 mt-1">{c.credit_limit ? <div><span className="text-xs text-gray-500 dark:text-slate-400">วงเงิน</span><p className="text-sm font-medium text-gray-900 dark:text-white">฿{formatPrice(c.credit_limit)}</p></div> : null}{c.credit_days ? <div><span className="text-xs text-gray-500 dark:text-slate-400">ระยะเวลา</span><p className="text-sm font-medium text-gray-900 dark:text-white">{c.credit_days} วัน</p></div> : null}</div></div>) : null}
         {c.notes && (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">หมายเหตุ</label><p className="text-sm text-gray-900 whitespace-pre-wrap">{c.notes}</p></div>)}
       </div>
     );

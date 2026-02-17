@@ -46,17 +46,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate customer code
-    const { data: codeData, error: codeError } = await supabaseAdmin
-      .rpc('generate_customer_code', { p_company_id: auth.companyId });
-
-    if (codeError) {
-      console.error('Customer code generation error:', codeError);
-      return NextResponse.json(
-        { error: 'Failed to generate customer code' },
-        { status: 500 }
-      );
-    }
+    // Generate customer code (auto-gen: timestamp + random)
+    const codeData = `C-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
     // Create customer
     const { data, error } = await supabaseAdmin

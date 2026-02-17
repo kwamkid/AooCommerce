@@ -7,6 +7,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
+import { formatPrice, formatNumber } from '@/lib/utils/format';
 import {
   Plus,
   Trash2,
@@ -97,6 +98,8 @@ interface OrderFormProps {
   initialOrderData?: InitialOrderData;
   // Edit existing order by ID
   editOrderId?: string;
+  // Pre-loaded order data from parent to avoid duplicate fetch
+  preloadedOrder?: any;
   // Callback when order is created/updated successfully
   onSuccess?: (orderId: string) => void;
   // Callback when cancelled
@@ -105,16 +108,20 @@ interface OrderFormProps {
   embedded?: boolean;
   // Callback to send bill to customer via LINE Chat (only from LINE Chat new order)
   onSendBillToChat?: (orderId: string, orderNumber: string, billUrl: string) => void;
+  // Print mode: 'order' = order slip, 'packing' = packing list, null = normal view
+  printMode?: 'order' | 'packing' | null;
 }
 
 export default function OrderForm({
   preselectedCustomerId,
   initialOrderData,
   editOrderId,
+  preloadedOrder,
   onSuccess,
   onCancel,
   embedded = false,
-  onSendBillToChat
+  onSendBillToChat,
+  printMode = null,
 }: OrderFormProps) {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
@@ -135,8 +142,9 @@ export default function OrderForm({
   const [editOrderNumber, setEditOrderNumber] = useState('');
   const [editOrderStatus, setEditOrderStatus] = useState('');
   const [editPaymentStatus, setEditPaymentStatus] = useState('');
+  const [editOrderSource, setEditOrderSource] = useState('manual');
   const isEditMode = !!editOrderId;
-  const isReadOnly = isEditMode && (editOrderStatus !== 'new' || editPaymentStatus !== 'pending');
+  const isReadOnly = isEditMode && (editOrderSource === 'shopee' || editOrderStatus !== 'new' || editPaymentStatus !== 'pending');
 
   // Customer selection
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -217,10 +225,15 @@ export default function OrderForm({
   const branchSectionRef = useRef<HTMLDivElement>(null);
 
   // Fetch customers, products, and warehouse config
+  // For marketplace orders (edit mode), skip customers/products — they're read-only
   useEffect(() => {
     if (!authLoading && userProfile) {
-      fetchCustomers();
-      fetchProducts();
+      const source = preloadedOrder?.source || '';
+      const isMarketplace = source && source !== 'manual';
+      if (!isMarketplace) {
+        fetchCustomers();
+        fetchProducts();
+      }
       fetchWarehouses();
     }
   }, [authLoading, userProfile]);
@@ -287,17 +300,22 @@ export default function OrderForm({
       try {
         setLoading(true);
 
-        // Fetch order details
-        const response = await apiFetch(`/api/orders?id=${editOrderId}`);
-        if (!response.ok) throw new Error('Failed to fetch order');
-
-        const result = await response.json();
-        const order = result.order;
+        // Use preloaded order data if available (avoids duplicate fetch)
+        let order;
+        if (preloadedOrder) {
+          order = preloadedOrder;
+        } else {
+          const response = await apiFetch(`/api/orders?id=${editOrderId}`);
+          if (!response.ok) throw new Error('Failed to fetch order');
+          const result = await response.json();
+          order = result.order;
+        }
         if (!order) throw new Error('Order not found');
 
         setEditOrderNumber(order.order_number);
         setEditOrderStatus(order.order_status);
         setEditPaymentStatus(order.payment_status || 'pending');
+        setEditOrderSource(order.source || 'manual');
 
         // Set customer
         if (order.customer) {
@@ -319,15 +337,17 @@ export default function OrderForm({
         if (order.discount_amount) setOrderDiscount(order.discount_amount);
         if (order.order_discount_type) setOrderDiscountType(order.order_discount_type);
 
-        // Fetch shipping addresses
-        if (order.customer?.id) {
+        // For marketplace orders, skip unnecessary fetches (read-only)
+        const isMarketplace = (order.source || 'manual') !== 'manual';
+
+        if (order.customer?.id && !isMarketplace) {
           const addrResponse = await apiFetch(`/api/shipping-addresses?customer_id=${order.customer.id}`);
           if (addrResponse.ok) {
             const addrResult = await addrResponse.json();
             setShippingAddresses(addrResult.addresses || []);
           }
 
-          // Fetch customer prices
+          // Fetch customer prices (only for manual orders)
           const priceResponse = await apiFetch(`/api/customer-prices?customer_id=${order.customer.id}`);
           if (priceResponse.ok) {
             const priceResult = await priceResponse.json();
@@ -335,13 +355,46 @@ export default function OrderForm({
           }
         }
 
-        // Fetch products (needed for product search)
-        await fetchProducts();
+        // Fetch products (only for manual orders — needed for product search)
+        if (!isMarketplace) {
+          await fetchProducts();
+        }
 
         // Convert order items to branch structure
         const branchMap = new Map<string, BranchOrder>();
+        const DEFAULT_BRANCH_KEY = '__default__';
+
         for (const item of order.items || []) {
-          for (const shipment of item.shipments || []) {
+          const shipments = item.shipments || [];
+
+          if (shipments.length === 0) {
+            // Items without shipments (e.g. Shopee orders with masked addresses)
+            if (!branchMap.has(DEFAULT_BRANCH_KEY)) {
+              branchMap.set(DEFAULT_BRANCH_KEY, {
+                shipping_address_id: '',
+                address_name: 'ไม่ระบุ',
+                delivery_notes: '',
+                shipping_fee: 0,
+                products: []
+              });
+            }
+            const branch = branchMap.get(DEFAULT_BRANCH_KEY)!;
+            branch.products.push({
+              variation_id: item.variation_id,
+              product_id: item.product_id,
+              product_code: item.product_code,
+              product_name: item.product_name,
+              bottle_size: item.bottle_size,
+              image: item.image,
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              discount_value: item.discount_type === 'amount' ? (item.discount_amount || 0) : (item.discount_percent || 0),
+              discount_type: item.discount_type || 'percent'
+            });
+            continue;
+          }
+
+          for (const shipment of shipments) {
             const addressId = shipment.shipping_address_id;
             const addressName = shipment.shipping_address?.address_name || 'ไม่ระบุ';
 
@@ -984,13 +1037,21 @@ export default function OrderForm({
   // Read-only banner (shown when order can't be edited)
   const readOnlyBanner = (() => {
     if (!isReadOnly) return null;
+    if (editOrderSource === 'shopee') {
+      return (
+        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/40 text-orange-800 dark:text-orange-300 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+          <img src="/marketplace/shopee.svg" alt="Shopee" className="w-4 h-4" />
+          คำสั่งซื้อ {editOrderNumber} — ออเดอร์จาก Shopee ไม่สามารถแก้ไขได้
+        </div>
+      );
+    }
     const statusLabels: Record<string, string> = { new: 'ใหม่', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
     const paymentLabels: Record<string, string> = { pending: 'รอชำระ', verifying: 'รอตรวจสอบ', paid: 'ชำระแล้ว', cancelled: 'ยกเลิก' };
     const reasonMessage = editOrderStatus !== 'new'
       ? `สถานะออเดอร์ "${statusLabels[editOrderStatus] || editOrderStatus}"`
       : `สถานะชำระเงิน "${paymentLabels[editPaymentStatus] || editPaymentStatus}"`;
     return (
-      <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm">
+      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/40 text-yellow-800 dark:text-yellow-300 px-4 py-3 rounded-lg text-sm">
         คำสั่งซื้อ {editOrderNumber} ({reasonMessage}) — ไม่สามารถแก้ไขได้
       </div>
     );
@@ -1023,8 +1084,156 @@ export default function OrderForm({
     );
   };
 
+  // Print-only view
+  const printView = printMode && (
+    <div className="hidden print:block bg-white text-black p-6 text-sm">
+      {/* Print Header */}
+      <div className="flex justify-between items-start mb-4 pb-3 border-b-2 border-black">
+        <div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide">
+            {printMode === 'order' ? 'ใบออเดอร์' : 'ใบจัดของ (Packing List)'}
+          </div>
+        </div>
+        <div className="text-right text-xs text-gray-500">
+          {deliveryDate && (
+            <div>วันที่ส่ง: {new Date(deliveryDate + 'T00:00:00').toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+          )}
+          <div>พิมพ์เมื่อ: {new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+        </div>
+      </div>
+
+      {/* Customer info - username only */}
+      {selectedCustomer && (
+        <div className="mb-4 text-sm">
+          <span className="text-gray-500">ลูกค้า:</span> <span className="font-medium">{customerSearch || selectedCustomer.name}</span>
+        </div>
+      )}
+
+      {/* Products per branch */}
+      {branchOrders.map((branch, branchIndex) => (
+        <div key={branchIndex} className="mb-4">
+          {branchOrders.length > 1 && (
+            <div className="font-medium text-xs text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
+              <span>{branch.address_name}</span>
+            </div>
+          )}
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b-2 border-gray-800">
+                {printMode === 'packing' && <th className="py-1.5 text-left w-8"></th>}
+                <th className="py-1.5 text-left w-[72px]">รูป</th>
+                <th className="py-1.5 text-left">สินค้า</th>
+                <th className="py-1.5 text-center w-16">จำนวน</th>
+                {printMode === 'order' && (
+                  <>
+                    <th className="py-1.5 text-right w-20">ราคา</th>
+                    <th className="py-1.5 text-right w-20">ส่วนลด</th>
+                    <th className="py-1.5 text-right w-24">รวม</th>
+                  </>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {branch.products.map((product, productIndex) => {
+                const productTotal = calculateProductTotal(product);
+                const discountAmount = product.discount_type === 'percent'
+                  ? (product.unit_price * product.quantity * product.discount_value / 100)
+                  : product.discount_value;
+                return (
+                  <tr key={productIndex} className="border-b border-gray-200">
+                    {printMode === 'packing' && (
+                      <td className="py-2 text-center align-middle">
+                        <span className="inline-block w-5 h-5 border-2 border-gray-400 rounded-sm"></span>
+                      </td>
+                    )}
+                    <td className="py-2 align-middle">
+                      {product.image ? (
+                        <img src={product.image} alt={product.product_name} className="w-16 h-16 object-cover rounded border border-gray-200" />
+                      ) : (
+                        <div className="w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-400 text-xs">N/A</div>
+                      )}
+                    </td>
+                    <td className="py-2 align-middle">
+                      <div className="font-semibold text-sm">{product.product_name}</div>
+                      <div className="text-xs text-gray-400">{product.product_code}</div>
+                    </td>
+                    <td className="py-2 text-center align-middle text-base font-bold">{product.quantity}</td>
+                    {printMode === 'order' && (
+                      <>
+                        <td className="py-2 text-right align-middle">฿{formatNumber(product.unit_price)}</td>
+                        <td className="py-2 text-right align-middle text-gray-500">
+                          {discountAmount > 0 ? `-฿${formatPrice(discountAmount)}` : '-'}
+                        </td>
+                        <td className="py-2 text-right align-middle font-medium">฿{formatPrice(productTotal)}</td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {/* Branch shipping fee */}
+          {printMode === 'order' && branch.shipping_fee > 0 && (
+            <div className="flex justify-between text-xs text-gray-500 mt-1 px-1">
+              <span>ค่าจัดส่ง</span>
+              <span>฿{formatPrice(branch.shipping_fee)}</span>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Order Summary - only for order mode */}
+      {printMode === 'order' && (
+        <div className="border-t-2 border-gray-800 pt-3 mt-4">
+          <div className="flex justify-end">
+            <div className="w-64 space-y-1.5 text-sm">
+              <div className="flex justify-between text-gray-600">
+                <span>ยอดรวมสินค้า</span>
+                <span>฿{formatPrice(itemsTotal)}</span>
+              </div>
+              {totalShippingFee > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>ค่าจัดส่ง</span>
+                  <span>฿{formatPrice(totalShippingFee)}</span>
+                </div>
+              )}
+              {orderDiscount > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>ส่วนลดรวม</span>
+                  <span>-฿{formatPrice(orderDiscountType === 'percent' ? (itemsTotal + totalShippingFee) * orderDiscount / 100 : orderDiscount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-gray-600 pt-1 border-t border-gray-300">
+                <span>ยอดก่อน VAT</span>
+                <span>฿{formatPrice(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>VAT 7%</span>
+                <span>฿{formatPrice(vat)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-base pt-1.5 border-t-2 border-black">
+                <span>ยอดรวมสุทธิ</span>
+                <span>฿{formatPrice(total)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notes */}
+      {notes && (
+        <div className="mt-4 pt-3 border-t border-gray-300">
+          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">หมายเหตุ</div>
+          <div className="text-sm whitespace-pre-wrap">{notes}</div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <>
+    {printView}
+    <form onSubmit={handleSubmit} className={`space-y-4 ${printMode ? 'print:hidden' : ''}`}>
       {/* Server error (API errors only) */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -1061,7 +1270,7 @@ export default function OrderForm({
                   setFieldErrors(prev => { const { customer, ...rest } = prev; return rest; });
                 }}
                 placeholder="ค้นหาชื่อลูกค้าหรือรหัส..."
-                className={`w-full pl-9 pr-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm ${fieldErrors.customer ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                className={`w-full pl-9 pr-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-400 ${fieldErrors.customer ? 'border-red-400 bg-red-50' : 'border-gray-300 dark:border-slate-600'}`}
                 disabled={(!!preselectedCustomerId || isEditMode) && !!selectedCustomer}
               />
             </div>
@@ -1080,7 +1289,7 @@ export default function OrderForm({
                       onClick={() => handleSelectCustomer(customer)}
                       className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
                     >
-                      <div className="text-sm font-medium">{customer.name}</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-slate-200">{customer.name}</div>
                       <div className="text-xs text-gray-500 dark:text-slate-400">{customer.customer_code}</div>
                     </button>
                   ))
@@ -1142,9 +1351,9 @@ export default function OrderForm({
 
         {/* Selected customer info */}
         {selectedCustomer && (
-          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3 text-sm">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-gray-500 dark:text-slate-400">ผู้ติดต่อ: <span className="text-gray-900 font-medium">{selectedCustomer.contact_person || '-'}</span></span>
+              <span className="text-gray-500 dark:text-slate-400">ผู้ติดต่อ: <span className="text-gray-900 dark:text-slate-200 font-medium">{selectedCustomer.contact_person || '-'}</span></span>
               <span className="text-gray-300">|</span>
               <span className="text-gray-500 dark:text-slate-400">โทร: <span className="text-gray-900 dark:text-white">{selectedCustomer.phone || '-'}</span></span>
               {shippingAddresses.length > 0 && (
@@ -1201,7 +1410,7 @@ export default function OrderForm({
       {selectedCustomer && branchOrders.length > 0 && (
         <div ref={branchSectionRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} overflow-visible`}>
           {/* Branch Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-700">
             {/* Branch Tabs with inline dropdown */}
             <div className="flex items-center gap-1 overflow-visible" ref={branchDropdownRef}>
               {branchOrders.map((branch, index) => {
@@ -1322,8 +1531,8 @@ export default function OrderForm({
                               onClick={() => setLightboxImage(product.image!)}
                             />
                           ) : (
-                            <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center flex-shrink-0">
-                              <Package className="w-4 h-4 text-gray-400" />
+                            <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
+                              <Package className="w-4 h-4 text-gray-400 dark:text-slate-500" />
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
@@ -1354,9 +1563,9 @@ export default function OrderForm({
                             value={product.quantity}
                             onChange={(e) => handleUpdateProductQuantity(branchIndex, productIndex, parseInt(e.target.value) || 1)}
                             disabled={isReadOnly}
-                            className="w-12 px-1 py-1 border border-gray-300 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 disabled:text-gray-500"
+                            className="w-12 px-1 py-1 border border-gray-300 dark:border-slate-600 rounded text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
                           />
-                          <span className="text-gray-300 text-xs">&times;</span>
+                          <span className="text-gray-400 dark:text-slate-500 text-xs">&times;</span>
                           <div className="relative">
                             <input
                               type="number"
@@ -1365,9 +1574,9 @@ export default function OrderForm({
                               value={product.unit_price}
                               onChange={(e) => handleUpdateProductPrice(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
                               disabled={isReadOnly}
-                              className="w-16 px-1 pr-4 py-1 border border-gray-300 rounded text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 disabled:text-gray-500"
+                              className="w-16 px-1 pr-4 py-1 border border-gray-300 dark:border-slate-600 rounded text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
                             />
-                            <span className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-300 text-xs pointer-events-none">฿</span>
+                            <span className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-xs pointer-events-none">฿</span>
                           </div>
                           <div className="flex items-stretch">
                             <input
@@ -1378,20 +1587,20 @@ export default function OrderForm({
                               value={product.discount_value}
                               onChange={(e) => handleUpdateProductDiscount(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
                               disabled={isReadOnly}
-                              className="w-10 px-1 py-1 border border-gray-300 rounded-l border-r-0 text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 disabled:text-gray-500"
+                              className="w-10 px-1 py-1 border border-gray-300 dark:border-slate-600 rounded-l border-r-0 text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
                             />
                             <button
                               type="button"
                               onClick={() => handleToggleProductDiscountType(branchIndex, productIndex)}
                               disabled={isReadOnly}
-                              className="px-1.5 text-xs font-medium border border-gray-300 rounded-r bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-w-[24px] flex items-center justify-center disabled:opacity-50"
+                              className="px-1.5 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[24px] flex items-center justify-center disabled:opacity-50"
                               title={product.discount_type === 'percent' ? 'เปลี่ยนเป็นจำนวนเงิน' : 'เปลี่ยนเป็นเปอร์เซ็นต์'}
                             >
                               {product.discount_type === 'percent' ? '%' : '฿'}
                             </button>
                           </div>
                           <span className="ml-auto text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
-                            {calculateProductTotal(product).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                            {formatPrice(calculateProductTotal(product))}
                           </span>
                         </div>
                       </div>
@@ -1402,21 +1611,21 @@ export default function OrderForm({
                 /* Full page mode: table layout */
                 <div>
                   <table className="w-full table-fixed">
-                    <thead className="bg-gray-50 dark:bg-slate-900 border-b text-xs">
+                    <thead className="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600 text-xs">
                       <tr>
-                        <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">สินค้า</th>
-                        <th className="px-2 py-2 text-center font-medium text-gray-500 uppercase w-16">จำนวน</th>
-                        <th className="px-2 py-2 text-right font-medium text-gray-500 uppercase w-24">ราคา</th>
-                        <th className="px-2 py-2 text-center font-medium text-gray-500 uppercase w-24">ส่วนลด</th>
-                        <th className="px-2 py-2 text-right font-medium text-gray-500 uppercase w-24">รวม</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-500 dark:text-slate-400 uppercase">สินค้า</th>
+                        <th className="px-2 py-2 text-center font-medium text-gray-500 dark:text-slate-400 uppercase w-16">จำนวน</th>
+                        <th className="px-2 py-2 text-right font-medium text-gray-500 dark:text-slate-400 uppercase w-24">ราคา</th>
+                        <th className="px-2 py-2 text-center font-medium text-gray-500 dark:text-slate-400 uppercase w-24">ส่วนลด</th>
+                        <th className="px-2 py-2 text-right font-medium text-gray-500 dark:text-slate-400 uppercase w-24">รวม</th>
                         <th className="px-1 py-2 w-8"></th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                       {branch.products.map((product, productIndex) => {
                         const capacityDisplay = getBottleSizeDisplay(product.bottle_size);
                         return (
-                          <tr key={product.variation_id} className="hover:bg-gray-50/50">
+                          <tr key={product.variation_id} className="hover:bg-gray-50/50 dark:hover:bg-slate-700/30">
                             <td className="px-4 py-2.5">
                               <div className="flex items-center gap-2.5">
                                 {product.image ? (
@@ -1427,8 +1636,8 @@ export default function OrderForm({
                                     onClick={() => setLightboxImage(product.image!)}
                                   />
                                 ) : (
-                                  <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center flex-shrink-0">
-                                    <Package className="w-6 h-6 text-gray-400" />
+                                  <div className="w-16 h-16 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
+                                    <Package className="w-6 h-6 text-gray-400 dark:text-slate-500" />
                                   </div>
                                 )}
                                 <div className="min-w-0">
@@ -1450,7 +1659,7 @@ export default function OrderForm({
                                 value={product.quantity}
                                 onChange={(e) => handleUpdateProductQuantity(branchIndex, productIndex, parseInt(e.target.value) || 1)}
                                 disabled={isReadOnly}
-                                className="w-14 px-1.5 py-1 border border-gray-300 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 disabled:text-gray-500"
+                                className="w-14 px-1.5 py-1 border border-gray-300 dark:border-slate-600 rounded text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
                               />
                             </td>
                             <td className="px-2 py-2.5 text-right">
@@ -1462,9 +1671,9 @@ export default function OrderForm({
                                   value={product.unit_price}
                                   onChange={(e) => handleUpdateProductPrice(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
                                   disabled={isReadOnly}
-                                  className="w-20 px-1.5 pr-5 py-1 border border-gray-300 rounded text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 disabled:text-gray-500"
+                                  className="w-20 px-1.5 pr-5 py-1 border border-gray-300 dark:border-slate-600 rounded text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
                                 />
-                                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-300 text-xs pointer-events-none">฿</span>
+                                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-xs pointer-events-none">฿</span>
                               </div>
                             </td>
                             <td className="px-2 py-2.5">
@@ -1477,13 +1686,13 @@ export default function OrderForm({
                                   value={product.discount_value}
                                   onChange={(e) => handleUpdateProductDiscount(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
                                   disabled={isReadOnly}
-                                  className="w-14 px-1.5 py-1 border border-gray-300 rounded-l border-r-0 text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 disabled:text-gray-500"
+                                  className="w-14 px-1.5 py-1 border border-gray-300 dark:border-slate-600 rounded-l border-r-0 text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => handleToggleProductDiscountType(branchIndex, productIndex)}
                                   disabled={isReadOnly}
-                                  className="px-2 text-xs font-medium border border-gray-300 rounded-r bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-w-[28px] flex items-center justify-center disabled:opacity-50"
+                                  className="px-2 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[28px] flex items-center justify-center disabled:opacity-50"
                                   title={product.discount_type === 'percent' ? 'เปลี่ยนเป็นจำนวนเงิน' : 'เปลี่ยนเป็นเปอร์เซ็นต์'}
                                 >
                                   {product.discount_type === 'percent' ? '%' : '฿'}
@@ -1491,7 +1700,7 @@ export default function OrderForm({
                               </div>
                             </td>
                             <td className="px-2 py-2.5 text-right text-sm font-medium text-gray-900 dark:text-white">
-                              {calculateProductTotal(product).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                              {formatPrice(calculateProductTotal(product))}
                             </td>
                             <td className="px-1 py-2.5 text-center">
                               {!isReadOnly && (
@@ -1513,7 +1722,7 @@ export default function OrderForm({
               )}
 
               {/* Add Product Search */}
-              {!isReadOnly && <div className="px-4 py-3 border-t border-gray-100">
+              {!isReadOnly && <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700">
                 <div className="relative">
                   <div className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-[#F4511E] transition-colors bg-white dark:bg-slate-700">
                     <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -1579,16 +1788,16 @@ export default function OrderForm({
                                 {product.image ? (
                                   <img src={product.image} alt={product.name} className="w-10 h-10 object-cover rounded flex-shrink-0" />
                                 ) : (
-                                  <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center flex-shrink-0">
-                                    <Package className="w-5 h-5 text-gray-400" />
+                                  <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
+                                    <Package className="w-5 h-5 text-gray-400 dark:text-slate-500" />
                                   </div>
                                 )}
                                 <div className="flex-1 min-w-0">
-                                  <div className="text-sm font-medium truncate">
+                                  <div className="text-sm font-medium text-gray-900 dark:text-slate-200 truncate">
                                     {product.name}{capacityDisplay && ` - ${capacityDisplay}`}
                                   </div>
                                   <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-slate-500">
-                                    <span>{product.code} · ฿{product.default_price}</span>
+                                    <span>{product.code} · ฿{formatNumber(product.default_price)}</span>
                                     {stockEnabled && selectedWarehouseId && (
                                       <span className={`px-1 py-0.5 rounded text-[10px] ${
                                         avail <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
@@ -1620,7 +1829,7 @@ export default function OrderForm({
                   <div className="flex items-center justify-end gap-2">
                     <span className="text-xs text-gray-500 dark:text-slate-400">ค่าจัดส่ง</span>
                     <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">฿</span>
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-xs">฿</span>
                       <input
                         type="number"
                         min="0"
@@ -1629,7 +1838,7 @@ export default function OrderForm({
                         onChange={(e) => handleUpdateBranchShippingFee(branchIndex, parseFloat(e.target.value) || 0)}
                         placeholder="0"
                         disabled={isReadOnly}
-                        className="w-24 pl-5 pr-2 py-1 border border-gray-300 rounded text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 disabled:text-gray-500"
+                        className="w-24 pl-5 pr-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
                       />
                     </div>
                   </div>
@@ -1638,7 +1847,7 @@ export default function OrderForm({
                       ยอดรวมสาขา {branch.address_name}
                     </span>
                     <span className="text-lg font-bold text-[#F4511E]">
-                      ฿{(calculateBranchTotal(branch) + (branch.shipping_fee || 0)).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                      ฿{formatPrice(calculateBranchTotal(branch) + (branch.shipping_fee || 0))}
                     </span>
                   </div>
                 </div>
@@ -1656,27 +1865,27 @@ export default function OrderForm({
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  หมายเหตุ <span className="text-gray-400 font-normal">(แสดงในบิล / การจัดส่ง)</span>
+                  หมายเหตุ <span className="text-gray-400 dark:text-slate-500 font-normal">(แสดงในบิล / การจัดส่ง)</span>
                 </label>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
                   disabled={isReadOnly}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
                   placeholder="หมายเหตุสำหรับลูกค้า, การจัดส่ง..."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-orange-700 mb-1">
-                  หมายเหตุภายใน <span className="text-orange-400 font-normal">(ไม่แสดงในบิล)</span>
+                <label className="block text-sm font-medium text-orange-700 dark:text-orange-400 mb-1">
+                  หมายเหตุภายใน <span className="text-orange-400 dark:text-orange-500 font-normal">(ไม่แสดงในบิล)</span>
                 </label>
                 <textarea
                   value={internalNotes}
                   onChange={(e) => setInternalNotes(e.target.value)}
                   rows={2}
                   disabled={isReadOnly}
-                  className="w-full px-3 py-2.5 border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-sm bg-orange-50 disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-300"
+                  className="w-full px-3 py-2.5 border border-orange-300 dark:border-orange-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-sm bg-orange-50 dark:bg-orange-900/20 text-gray-900 dark:text-slate-200 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500 disabled:border-gray-300 dark:disabled:border-slate-600"
                   placeholder="หมายเหตุภายใน..."
                 />
               </div>
@@ -1688,11 +1897,11 @@ export default function OrderForm({
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between text-gray-500 dark:text-slate-400">
                   <span>ยอดรวมสินค้า (รวม VAT)</span>
-                  <span>฿{itemsTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                  <span>฿{formatPrice(itemsTotal)}</span>
                 </div>
                 <div className="flex justify-between text-gray-500 dark:text-slate-400">
                   <span>ค่าจัดส่ง</span>
-                  <span>฿{totalShippingFee.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                  <span>฿{formatPrice(totalShippingFee)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500 dark:text-slate-400">ส่วนลดรวม</span>
@@ -1705,7 +1914,7 @@ export default function OrderForm({
                       value={orderDiscount}
                       onChange={(e) => setOrderDiscount(parseFloat(e.target.value) || 0)}
                       disabled={isReadOnly}
-                      className="w-20 px-2 py-1 border border-gray-300 rounded-l border-r-0 text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 disabled:text-gray-500"
+                      className="w-20 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-l border-r-0 text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
                     />
                     <button
                       type="button"
@@ -1714,24 +1923,24 @@ export default function OrderForm({
                         setOrderDiscount(0);
                       }}
                       disabled={isReadOnly}
-                      className="px-2 text-xs font-medium border border-gray-300 rounded-r bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-w-[28px] flex items-center justify-center disabled:opacity-50"
+                      className="px-2 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[28px] flex items-center justify-center disabled:opacity-50"
                       title={orderDiscountType === 'percent' ? 'เปลี่ยนเป็นจำนวนเงิน' : 'เปลี่ยนเป็นเปอร์เซ็นต์'}
                     >
                       {orderDiscountType === 'percent' ? '%' : '฿'}
                     </button>
                   </div>
                 </div>
-                <div className="flex justify-between text-gray-500 pt-2 border-t border-gray-200 dark:border-slate-700">
+                <div className="flex justify-between text-gray-500 dark:text-slate-400 pt-2 border-t border-gray-200 dark:border-slate-600">
                   <span>ยอดก่อน VAT</span>
-                  <span>฿{subtotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                  <span>฿{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-gray-500 dark:text-slate-400">
                   <span>VAT 7%</span>
-                  <span>฿{vat.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                  <span>฿{formatPrice(vat)}</span>
                 </div>
-                <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200 dark:border-slate-700">
+                <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200 dark:border-slate-600 text-gray-900 dark:text-slate-100">
                   <span>ยอดรวมสุทธิ</span>
-                  <span className="text-[#F4511E]">฿{total.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-[#F4511E]">฿{formatPrice(total)}</span>
                 </div>
               </div>
             </div>
@@ -1888,5 +2097,6 @@ export default function OrderForm({
         </div>
       )}
     </form>
+    </>
   );
 }

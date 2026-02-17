@@ -592,7 +592,6 @@ export default function ProductForm({
             <ImageUploader
               images={productImages}
               onImagesChange={setProductImages}
-              productId={editingProduct?.product_id}
               maxImages={10}
             />
             {formData.image && !productImages.length && (
@@ -943,7 +942,6 @@ export default function ProductForm({
                             <ImageUploader
                               images={variationImages[imageKey] || []}
                               onImagesChange={(imgs) => setVariationImages(prev => ({ ...prev, [imageKey]: imgs }))}
-                              variationId={variation.id}
                               maxImages={1}
                               compact
                             />

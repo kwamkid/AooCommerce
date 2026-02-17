@@ -537,6 +537,7 @@ export async function GET(request: NextRequest) {
         id, order_number, order_date, created_at, delivery_date,
         subtotal, discount_amount, vat_amount, shipping_fee, total_amount,
         order_status, payment_status, payment_method,
+        source, external_status, external_order_sn,
         customer_id,
         customer:customers (
           customer_code, name, contact_person, phone
@@ -555,6 +556,11 @@ export async function GET(request: NextRequest) {
 
     if (paymentStatus && paymentStatus !== 'all') {
       query = query.eq('payment_status', paymentStatus);
+    }
+
+    const sourceFilter = searchParams.get('source');
+    if (sourceFilter && sourceFilter !== 'all') {
+      query = query.eq('source', sourceFilter);
     }
 
     if (search) {

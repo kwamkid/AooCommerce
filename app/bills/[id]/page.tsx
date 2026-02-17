@@ -7,6 +7,7 @@ import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
 import { Loader2, Printer, FileText, MapPin, Package, Camera, Upload, Clock, CheckCircle2, CreditCard, Banknote, Globe, Copy, Check, Sun, Moon } from 'lucide-react';
 import { getBankByCode } from '@/lib/constants/banks';
+import { formatPrice, formatNumber } from '@/lib/utils/format';
 import { BEAM_CHANNELS } from '@/lib/constants/payment-gateway';
 
 interface BillItem {
@@ -319,9 +320,6 @@ export default function BillOnlinePage() {
     });
   };
 
-  const formatNumber = (num: number) => {
-    return num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
 
   const hasMultipleBranches = bill.branches && bill.branches.length > 1;
 
@@ -365,9 +363,9 @@ export default function BillOnlinePage() {
               <td className={`py-3 text-right align-top text-base ${dark ? 'text-slate-300' : 'text-gray-700'}`}>{item.quantity}</td>
               <td className={`py-3 text-right align-top text-base ${dark ? 'text-slate-300' : 'text-gray-700'}`}>{formatNumber(item.unit_price)}</td>
               <td className={`py-3 text-right align-top text-base ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
-                {item.discount_amount > 0 ? `-${formatNumber(item.discount_amount)}` : '-'}
+                {item.discount_amount > 0 ? `-${formatPrice(item.discount_amount)}` : '-'}
               </td>
-              <td className={`py-3 text-right font-semibold align-top text-base ${dark ? 'text-white' : 'text-gray-900'}`}>{formatNumber(item.total)}</td>
+              <td className={`py-3 text-right font-semibold align-top text-base ${dark ? 'text-white' : 'text-gray-900'}`}>{formatPrice(item.total)}</td>
             </tr>
           ))}
         </tbody>
@@ -389,10 +387,10 @@ export default function BillOnlinePage() {
               {item.product_code && <div className={`text-sm ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>}
               <div className={`text-sm mt-0.5 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
                 {item.quantity} x ฿{formatNumber(item.unit_price)}
-                {item.discount_amount > 0 && <span className="text-red-400 ml-1">-฿{formatNumber(item.discount_amount)}</span>}
+                {item.discount_amount > 0 && <span className="text-red-400 ml-1">-฿{formatPrice(item.discount_amount)}</span>}
               </div>
             </div>
-            <div className={`text-base font-bold flex-shrink-0 ${dark ? 'text-white' : 'text-gray-900'}`}>฿{formatNumber(item.total)}</div>
+            <div className={`text-base font-bold flex-shrink-0 ${dark ? 'text-white' : 'text-gray-900'}`}>฿{formatPrice(item.total)}</div>
           </div>
         ))}
       </div>
@@ -429,8 +427,8 @@ export default function BillOnlinePage() {
             </td>
             <td className="py-1.5 text-right text-sm align-top">{item.quantity}</td>
             <td className="py-1.5 text-right text-sm align-top">{formatNumber(item.unit_price)}</td>
-            <td className="py-1.5 text-right text-sm align-top">{item.discount_amount > 0 ? `-${formatNumber(item.discount_amount)}` : '-'}</td>
-            <td className="py-1.5 text-right font-medium text-sm align-top">{formatNumber(item.total)}</td>
+            <td className="py-1.5 text-right text-sm align-top">{item.discount_amount > 0 ? `-${formatPrice(item.discount_amount)}` : '-'}</td>
+            <td className="py-1.5 text-right font-medium text-sm align-top">{formatPrice(item.total)}</td>
           </tr>
         ))}
       </tbody>
@@ -575,11 +573,11 @@ export default function BillOnlinePage() {
                       <span className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
                         รวมสาขา {branch.address_name}
                         {branch.shipping_fee > 0 && (
-                          <span className={`ml-1 ${dark ? 'text-slate-500' : 'text-gray-300'}`}>(ค่าส่ง ฿{formatNumber(branch.shipping_fee)})</span>
+                          <span className={`ml-1 ${dark ? 'text-slate-500' : 'text-gray-300'}`}>(ค่าส่ง ฿{formatPrice(branch.shipping_fee)})</span>
                         )}
                       </span>
                       <span className={`font-bold text-base ${dark ? 'text-white' : 'text-gray-900'}`}>
-                        ฿{formatNumber(branchTotal + (branch.shipping_fee || 0))}
+                        ฿{formatPrice(branchTotal + (branch.shipping_fee || 0))}
                       </span>
                     </div>
                   </div>
@@ -615,31 +613,31 @@ export default function BillOnlinePage() {
             <div className="md:ml-auto md:w-72 print:ml-auto print:w-64 space-y-1.5">
               <div className={`flex justify-between text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
                 <span>ยอดรวมสินค้า</span>
-                <span>{formatNumber(bill.items.reduce((sum, i) => sum + i.total, 0))}</span>
+                <span>{formatPrice(bill.items.reduce((sum, i) => sum + i.total, 0))}</span>
               </div>
               {bill.shipping_fee > 0 && (
                 <div className={`flex justify-between text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
                   <span>ค่าจัดส่ง</span>
-                  <span>{formatNumber(bill.shipping_fee)}</span>
+                  <span>{formatPrice(bill.shipping_fee)}</span>
                 </div>
               )}
               {bill.discount_amount > 0 && (
                 <div className={`flex justify-between text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
                   <span>ส่วนลดรวม</span>
-                  <span>-{formatNumber(bill.discount_amount)}</span>
+                  <span>-{formatPrice(bill.discount_amount)}</span>
                 </div>
               )}
               <div className={`flex justify-between text-sm pt-1.5 border-t ${dark ? 'text-slate-400 border-slate-700' : 'text-gray-500 border-gray-100'}`}>
                 <span>ยอดก่อน VAT</span>
-                <span>{formatNumber(bill.subtotal)}</span>
+                <span>{formatPrice(bill.subtotal)}</span>
               </div>
               <div className={`flex justify-between text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
                 <span>VAT 7%</span>
-                <span>{formatNumber(bill.vat_amount)}</span>
+                <span>{formatPrice(bill.vat_amount)}</span>
               </div>
               <div className={`flex justify-between text-lg font-bold pt-2 border-t-2 ${dark ? 'border-slate-600' : 'border-gray-200'}`}>
                 <span className={dark ? 'text-white' : 'text-gray-900'}>ยอดรวมสุทธิ</span>
-                <span className="text-[#F4511E] print:text-black">฿{formatNumber(bill.total_amount)}</span>
+                <span className="text-[#F4511E] print:text-black">฿{formatPrice(bill.total_amount)}</span>
               </div>
             </div>
           </div>
@@ -656,7 +654,7 @@ export default function BillOnlinePage() {
             {/* Grand total in right column */}
             <div className={`flex justify-between items-center py-3 border-b ${dark ? 'border-slate-600' : 'border-gray-200'}`}>
               <span className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>ยอดรวมสุทธิ</span>
-              <span className="text-xl font-bold text-[#F4511E]">฿{formatNumber(bill.total_amount)}</span>
+              <span className="text-xl font-bold text-[#F4511E]">฿{formatPrice(bill.total_amount)}</span>
             </div>
             {/* Status: pending → show CTA or form */}
             {bill.payment_status === 'pending' && !submitSuccess && (

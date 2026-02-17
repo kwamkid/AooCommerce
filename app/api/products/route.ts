@@ -330,14 +330,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ product: data });
     }
 
+    // Optional source filter (e.g. ?source=shopee)
+    const sourceFilter = searchParams.get('source');
+
     // Run products + images queries in parallel
+    let productsQuery = supabaseAdmin
+      .from('products_with_variations')
+      .select('*')
+      .eq('company_id', auth.companyId)
+      .eq('is_active', true);
+    if (sourceFilter) {
+      productsQuery = productsQuery.eq('source', sourceFilter);
+    }
+    productsQuery = productsQuery.order('name', { ascending: true });
+
     const [productsResult, imagesResult] = await Promise.all([
-      supabaseAdmin
-        .from('products_with_variations')
-        .select('*')
-        .eq('company_id', auth.companyId)
-        .eq('is_active', true)
-        .order('name', { ascending: true }),
+      productsQuery,
       supabaseAdmin
         .from('product_images')
         .select('product_id, variation_id, image_url, sort_order')
@@ -395,6 +403,7 @@ export async function GET(request: NextRequest) {
           image: row.image,
           product_type: row.product_type,
           selected_variation_types: row.selected_variation_types,
+          source: row.source || 'manual',
           is_active: row.is_active,
           created_at: row.created_at,
           updated_at: row.updated_at,
@@ -537,6 +546,18 @@ export async function PUT(request: NextRequest) {
     if (is_active !== undefined) updateData.is_active = is_active;
     if (selected_variation_types !== undefined) updateData.selected_variation_types = selected_variation_types;
 
+    // If product was auto-created from Shopee, mark as edited
+    const { data: currentProduct } = await supabaseAdmin
+      .from('products')
+      .select('source')
+      .eq('id', id)
+      .eq('company_id', auth.companyId)
+      .single();
+
+    if (currentProduct?.source === 'shopee') {
+      updateData.source = 'shopee_edited';
+    }
+
     // Update main product
     const { data, error } = await supabaseAdmin
       .from('products')
@@ -670,9 +691,18 @@ export async function PUT(request: NextRequest) {
       .eq('company_id', auth.companyId)
       .single();
 
+    // Also fetch variations for staged image upload mapping
+    const { data: updatedVariations } = await supabaseAdmin
+      .from('product_variations')
+      .select('id, bottle_size')
+      .eq('product_id', id)
+      .eq('company_id', auth.companyId)
+      .order('created_at', { ascending: true });
+
     return NextResponse.json({
       success: true,
-      product: completeProduct || data
+      product: completeProduct || data,
+      variations: updatedVariations || []
     });
   } catch (error) {
     return NextResponse.json(
@@ -696,26 +726,33 @@ export async function DELETE(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get('id');
+    const idsParam = searchParams.get('ids'); // comma-separated IDs for bulk delete
 
-    if (!productId) {
+    const productIds: string[] = [];
+    if (idsParam) {
+      productIds.push(...idsParam.split(',').filter(Boolean));
+    } else if (productId) {
+      productIds.push(productId);
+    }
+
+    if (productIds.length === 0) {
       return NextResponse.json(
         { error: 'Product ID is required' },
         { status: 400 }
       );
     }
 
-    // Instead of deleting, deactivate the product (soft delete)
+    const now = new Date().toISOString();
+
+    // Soft delete products
     const { error } = await supabaseAdmin
       .from('products')
-      .update({
-        is_active: false,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', productId)
+      .update({ is_active: false, updated_at: now })
+      .in('id', productIds)
       .eq('company_id', auth.companyId);
 
     if (error) {
-      console.error('Error deactivating product:', error);
+      console.error('Error deactivating products:', error);
       return NextResponse.json(
         { error: error.message },
         { status: 500 }
@@ -725,14 +762,11 @@ export async function DELETE(request: NextRequest) {
     // Also deactivate all variations
     await supabaseAdmin
       .from('product_variations')
-      .update({
-        is_active: false,
-        updated_at: new Date().toISOString()
-      })
-      .eq('product_id', productId)
+      .update({ is_active: false, updated_at: now })
+      .in('product_id', productIds)
       .eq('company_id', auth.companyId);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, count: productIds.length });
   } catch (error) {
     return NextResponse.json(
       { error: 'Internal server error' },

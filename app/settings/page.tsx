@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
-import { Users, Plus, X, Save, Loader2, Tag, Edit2, Check } from 'lucide-react';
+import { Users, Plus, X, Save, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle } from 'lucide-react';
 
 interface DayRange {
   minDays: number;
@@ -42,6 +42,11 @@ export default function SettingsPage() {
   const [addingVT, setAddingVT] = useState(false);
   const [editingVTId, setEditingVTId] = useState<string | null>(null);
   const [editingVTName, setEditingVTName] = useState('');
+
+  // Clear All Data
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState('');
+  const [clearing, setClearing] = useState(false);
 
   // Fetch CRM settings + Variation Types
   useEffect(() => {
@@ -246,6 +251,29 @@ export default function SettingsPage() {
     } catch (err) {
       if (err instanceof Error) setError(err.message);
       else setError('ไม่สามารถลบได้');
+    }
+  };
+
+  // --- Clear All Data ---
+  const handleClearAllData = async () => {
+    if (clearConfirmText !== 'ลบทั้งหมด') return;
+    setClearing(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await apiFetch('/api/settings/delete-all-data', {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      setSuccess(result.message || 'ลบข้อมูลทั้งหมดสำเร็จ');
+      setShowClearModal(false);
+      setClearConfirmText('');
+    } catch (err) {
+      if (err instanceof Error) setError(err.message);
+      else setError('ไม่สามารถลบข้อมูลได้');
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -496,6 +524,87 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+        {/* Danger Zone: Clear All Data */}
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border-2 border-red-200 dark:border-red-900/50">
+          <div className="flex items-center justify-between p-4 border-b border-red-100 dark:border-red-900/30">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">ล้างข้อมูลทั้งหมด</h2>
+            </div>
+          </div>
+
+          <div className="p-4">
+            <p className="text-sm text-gray-600 dark:text-slate-400 mb-2">
+              ลบข้อมูล <strong>คำสั่งซื้อ, ลูกค้า, สินค้า, สต็อก, แชท, การชำระเงิน</strong> ทั้งหมดออก
+            </p>
+            <p className="text-sm text-gray-500 dark:text-slate-500 mb-4">
+              การตั้งค่าระบบ, Shopee integration, คลังสินค้า และข้อมูลผู้ใช้จะยังคงอยู่
+            </p>
+            <button
+              onClick={() => setShowClearModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
+            >
+              <Trash2 className="w-4 h-4" />
+              ล้างข้อมูลทั้งหมด
+            </button>
+          </div>
+        </div>
+
+        {/* Clear All Data Confirmation Modal */}
+        {showClearModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">ยืนยันการล้างข้อมูล</h3>
+              </div>
+
+              <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
+                การดำเนินการนี้จะลบข้อมูลต่อไปนี้ <strong className="text-red-600">อย่างถาวร</strong>:
+              </p>
+              <ul className="text-sm text-gray-600 dark:text-slate-400 mb-4 space-y-1 ml-4">
+                <li>• คำสั่งซื้อทั้งหมด (Orders, Shipments, Payments)</li>
+                <li>• ลูกค้าทั้งหมด (Customers, Addresses)</li>
+                <li>• สินค้าทั้งหมด (Products, Variations, Images)</li>
+                <li>• สต็อกทั้งหมด (Inventory, Transfers, Receives)</li>
+                <li>• แชททั้งหมด (LINE, Facebook messages)</li>
+                <li>• Shopee sync logs</li>
+              </ul>
+
+              <p className="text-sm text-gray-700 dark:text-slate-300 mb-2 font-medium">
+                พิมพ์ &quot;ลบทั้งหมด&quot; เพื่อยืนยัน:
+              </p>
+              <input
+                type="text"
+                value={clearConfirmText}
+                onChange={(e) => setClearConfirmText(e.target.value)}
+                placeholder="ลบทั้งหมด"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent mb-4 bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                autoFocus
+              />
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowClearModal(false); setClearConfirmText(''); }}
+                  disabled={clearing}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors font-medium text-sm disabled:opacity-50"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  onClick={handleClearAllData}
+                  disabled={clearing || clearConfirmText !== 'ลบทั้งหมด'}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {clearing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  {clearing ? 'กำลังลบ...' : 'ลบทั้งหมด'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

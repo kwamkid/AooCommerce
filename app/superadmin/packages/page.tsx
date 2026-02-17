@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import SuperAdminLayout from '../components/SuperAdminLayout';
 import { apiFetch } from '@/lib/api-client';
+import { formatPrice, formatNumber } from '@/lib/utils/format';
 import { useToast } from '@/lib/toast-context';
 import { Package, Plus, Edit2, Trash2, Users, Loader2, X } from 'lucide-react';
 
@@ -197,10 +198,10 @@ export default function SuperAdminPackages() {
 
                 {/* Price */}
                 <div className="mb-3">
-                  <span className="text-2xl font-bold text-[#F4511E]">฿{pkg.price_monthly.toLocaleString()}</span>
+                  <span className="text-2xl font-bold text-[#F4511E]">฿{formatNumber(pkg.price_monthly)}</span>
                   <span className="text-sm text-gray-500 dark:text-slate-400">/เดือน</span>
                   {pkg.price_yearly > 0 && (
-                    <p className="text-xs text-gray-500 dark:text-slate-400">หรือ ฿{pkg.price_yearly.toLocaleString()}/ปี</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">หรือ ฿{formatNumber(pkg.price_yearly)}/ปี</p>
                   )}
                 </div>
 

@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     .eq('is_active', true)
     .not('refresh_token', 'is', null);
 
-  const results: { shop_id: number; created: number; updated: number; errors: string[] }[] = [];
+  const results: { shop_id: number; orders_created: number; orders_updated: number; products_created: number; customers_created: number; errors: string[] }[] = [];
 
   const now = Math.floor(Date.now() / 1000);
 
@@ -48,9 +48,9 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin
           .from('shopee_sync_log')
           .update({
-            orders_fetched: result.created + result.updated,
-            orders_created: result.created,
-            orders_updated: result.updated,
+            orders_fetched: result.orders_created + result.orders_updated + result.orders_skipped,
+            orders_created: result.orders_created,
+            orders_updated: result.orders_updated,
             errors: result.errors.length > 0 ? result.errors : null,
             completed_at: new Date().toISOString(),
           })
@@ -59,15 +59,19 @@ export async function POST(request: NextRequest) {
 
       results.push({
         shop_id: account.shop_id,
-        created: result.created,
-        updated: result.updated,
+        orders_created: result.orders_created,
+        orders_updated: result.orders_updated,
+        products_created: result.products_created,
+        customers_created: result.customers_created,
         errors: result.errors,
       });
     } catch (e) {
       results.push({
         shop_id: account.shop_id,
-        created: 0,
-        updated: 0,
+        orders_created: 0,
+        orders_updated: 0,
+        products_created: 0,
+        customers_created: 0,
         errors: [e instanceof Error ? e.message : 'Unknown error'],
       });
     }

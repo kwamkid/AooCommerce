@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
+import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
 import {
@@ -308,14 +309,6 @@ export default function PaymentFollowupPage() {
     });
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('th-TH', {
-      style: 'currency',
-      currency: 'THB',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
 
   const toggleRow = (id: string) => {
     const newExpanded = new Set(expandedRows);
@@ -376,7 +369,7 @@ export default function PaymentFollowupPage() {
                 <span className="text-xs">ยอดค้างรวม</span>
               </div>
               <div className="text-2xl font-bold text-red-600">
-                {formatCurrency(summary.totalPending)}
+                ฿{formatPrice(summary.totalPending)}
               </div>
             </div>
 
@@ -593,7 +586,7 @@ export default function PaymentFollowupPage() {
                         {/* Total Pending */}
                         {isCol('totalPending') && (
                         <td className="px-6 py-4 text-right">
-                          <span className="font-bold text-red-600">{formatCurrency(customer.totalPending)}</span>
+                          <span className="font-bold text-red-600">฿{formatPrice(customer.totalPending)}</span>
                         </td>
                         )}
 
@@ -671,7 +664,7 @@ export default function PaymentFollowupPage() {
                           )}
                           {isCol('totalPending') && (
                           <td className="px-6 py-3 text-right">
-                            <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(order.totalAmount)}</span>
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white">฿{formatPrice(order.totalAmount)}</span>
                           </td>
                           )}
                           <td colSpan={(isCol('actions') ? 1 : 0) + 1} className="px-6 py-3 text-center">
@@ -691,7 +684,7 @@ export default function PaymentFollowupPage() {
                     </td>
                     {isCol('totalPending') && (
                     <td className="px-6 py-4 text-right font-bold text-red-600">
-                      {formatCurrency(summary?.totalPending || 0)}
+                      ฿{formatPrice(summary?.totalPending || 0)}
                     </td>
                     )}
                     <td colSpan={(isCol('actions') ? 1 : 0) + 1}></td>

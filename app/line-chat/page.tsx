@@ -6,6 +6,7 @@ import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
+import { formatPrice } from '@/lib/utils/format';
 import { supabase } from '@/lib/supabase';
 import {
   MessageCircle,
@@ -2160,7 +2161,7 @@ function LineChatPageContent() {
                                 ? `จัดส่ง ${new Date(order.delivery_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}`
                                 : 'ยังไม่กำหนดจัดส่ง'}
                             </span>
-                            <span className="font-medium text-gray-900 dark:text-white">฿{order.total_amount?.toLocaleString('th-TH', { minimumFractionDigits: 2 }) || '0.00'}</span>
+                            <span className="font-medium text-gray-900 dark:text-white">฿{formatPrice(order.total_amount)}</span>
                           </div>
                         </div>
                       </div>
@@ -2294,7 +2295,7 @@ function LineChatPageContent() {
                       {selectedContact.customer.credit_limit ? (
                         <div>
                           <span className="text-xs text-gray-500 dark:text-slate-400">วงเงิน</span>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">฿{selectedContact.customer.credit_limit.toLocaleString()}</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">฿{formatPrice(selectedContact.customer.credit_limit)}</p>
                         </div>
                       ) : null}
                       {selectedContact.customer.credit_days ? (
@@ -2585,7 +2586,7 @@ function LineChatPageContent() {
                                 ? `จัดส่ง ${new Date(order.delivery_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}`
                                 : 'ยังไม่กำหนดจัดส่ง'}
                             </span>
-                            <span className="font-medium text-gray-900 dark:text-white">฿{order.total_amount?.toLocaleString('th-TH', { minimumFractionDigits: 2 }) || '0.00'}</span>
+                            <span className="font-medium text-gray-900 dark:text-white">฿{formatPrice(order.total_amount)}</span>
                           </div>
                         </div>
                       </div>
@@ -2724,7 +2725,7 @@ function LineChatPageContent() {
                       {selectedContact.customer.credit_limit ? (
                         <div>
                           <span className="text-xs text-gray-500 dark:text-slate-400">วงเงิน</span>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">฿{selectedContact.customer.credit_limit.toLocaleString()}</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">฿{formatPrice(selectedContact.customer.credit_limit)}</p>
                         </div>
                       ) : null}
                       {selectedContact.customer.credit_days ? (

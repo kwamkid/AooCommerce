@@ -7,6 +7,7 @@ import OrderForm from '@/components/orders/OrderForm';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
+import { formatPrice } from '@/lib/utils/format';
 import {
   ArrowLeft,
   Loader2,
@@ -21,15 +22,20 @@ import {
   Eye,
   ShieldCheck,
   ShieldX,
+  PackageCheck,
+  FileText,
+  ChevronDown,
+  Package,
+  ClipboardList,
 } from 'lucide-react';
 
 // Status badge components
 function OrderStatusBadge({ status }: { status: string }) {
   const statusConfig: Record<string, { label: string; color: string }> = {
-    new: { label: 'ใหม่', color: 'bg-blue-100 text-blue-700' },
-    shipping: { label: 'กำลังส่ง', color: 'bg-yellow-100 text-yellow-700' },
-    completed: { label: 'สำเร็จ', color: 'bg-green-100 text-green-700' },
-    cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700' }
+    new: { label: 'ใหม่', color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-100' },
+    shipping: { label: 'กำลังส่ง', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-100' },
+    completed: { label: 'สำเร็จ', color: 'bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-100' },
+    cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-100' }
   };
   const config = statusConfig[status] || statusConfig.new;
   return (
@@ -41,14 +47,33 @@ function OrderStatusBadge({ status }: { status: string }) {
 
 function PaymentStatusBadge({ status }: { status: string }) {
   const statusConfig: Record<string, { label: string; color: string }> = {
-    pending: { label: 'รอชำระ', color: 'bg-orange-100 text-orange-700' },
-    verifying: { label: 'รอตรวจสอบ', color: 'bg-purple-100 text-purple-700' },
-    paid: { label: 'ชำระแล้ว', color: 'bg-green-100 text-green-700' },
-    cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700' }
+    pending: { label: 'รอชำระ', color: 'bg-orange-100 text-orange-700 dark:bg-orange-500/30 dark:text-orange-100' },
+    verifying: { label: 'รอตรวจสอบ', color: 'bg-purple-100 text-purple-700 dark:bg-purple-500/30 dark:text-purple-100' },
+    paid: { label: 'ชำระแล้ว', color: 'bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-100' },
+    cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-100' }
   };
   const config = statusConfig[status] || statusConfig.pending;
   return (
     <span className={`px-3 py-1 rounded-full text-sm font-medium ${config.color}`}>
+      {config.label}
+    </span>
+  );
+}
+
+function ShopeeExternalStatusBadge({ status }: { status: string }) {
+  const statusConfig: Record<string, { label: string; color: string }> = {
+    UNPAID: { label: 'ยังไม่ชำระ', color: 'bg-gray-100 text-gray-600 dark:bg-gray-500/30 dark:text-gray-100' },
+    READY_TO_SHIP: { label: 'รอรับออเดอร์', color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-100' },
+    PROCESSED: { label: 'พร้อมส่ง', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/30 dark:text-indigo-100' },
+    SHIPPED: { label: 'กำลังจัดส่ง', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-100' },
+    TO_CONFIRM_RECEIVE: { label: 'รอยืนยันรับ', color: 'bg-purple-100 text-purple-700 dark:bg-purple-500/30 dark:text-purple-100' },
+    COMPLETED: { label: 'สำเร็จ', color: 'bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-100' },
+    CANCELLED: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-100' },
+    IN_CANCEL: { label: 'กำลังยกเลิก', color: 'bg-red-50 text-red-600 dark:bg-red-500/30 dark:text-red-100' },
+  };
+  const config = statusConfig[status] || { label: status, color: 'bg-gray-100 text-gray-600 dark:bg-gray-500/30 dark:text-gray-100' };
+  return (
+    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${config.color}`}>
       {config.label}
     </span>
   );
@@ -82,6 +107,18 @@ export default function OrderDetailPage() {
   const [paymentStatus, setPaymentStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Shopee-specific state
+  const [orderSource, setOrderSource] = useState('manual');
+  const [externalStatus, setExternalStatus] = useState('');
+  const [externalOrderSn, setExternalOrderSn] = useState('');
+  const [shopeeActionLoading, setShopeeActionLoading] = useState(false);
+  const [fullOrderData, setFullOrderData] = useState<any>(null);
+  const isShopeeOrder = orderSource === 'shopee';
+
+  // Print
+  const [printMode, setPrintMode] = useState<'order' | 'packing' | null>(null);
+  const [showPrintMenu, setShowPrintMenu] = useState(false);
 
   // Status management
   const [updating, setUpdating] = useState(false);
@@ -142,6 +179,10 @@ export default function OrderDetailPage() {
       setOrderDate(order.order_date);
       setOrderStatus(order.order_status);
       setPaymentStatus(order.payment_status);
+      setOrderSource(order.source || 'manual');
+      setExternalStatus(order.external_status || '');
+      setExternalOrderSn(order.external_order_sn || '');
+      setFullOrderData(order);
 
       if (order.payment_status === 'paid' || order.payment_status === 'verifying') {
         await fetchPaymentRecord();
@@ -355,6 +396,62 @@ export default function OrderDetailPage() {
     }
   };
 
+  // Shopee action handlers
+  const handleAcceptShopeeOrder = async () => {
+    try {
+      setShopeeActionLoading(true);
+      const response = await apiFetch('/api/shopee/orders/ship', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to accept order');
+      }
+      showToast('รับออเดอร์ Shopee สำเร็จ');
+      setExternalStatus('PROCESSED');
+      setOrderStatus('shipping');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setShopeeActionLoading(false);
+    }
+  };
+
+  const handlePrint = (mode: 'order' | 'packing') => {
+    setShowPrintMenu(false);
+    setPrintMode(mode);
+    setTimeout(() => {
+      window.print();
+      setPrintMode(null);
+    }, 150);
+  };
+
+  const handlePrintShopeeLabel = async () => {
+    try {
+      setShopeeActionLoading(true);
+      showToast('กำลังสร้างใบปะหน้า Shopee...');
+      const response = await apiFetch('/api/shopee/orders/shipping-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to generate label');
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      showToast('เปิดใบปะหน้า Shopee แล้ว');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setShopeeActionLoading(false);
+    }
+  };
+
   const handleOrderSaved = (savedOrderId: string) => {
     // Reload header to reflect changes
     fetchOrderHeader();
@@ -388,19 +485,25 @@ export default function OrderDetailPage() {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-6 print:space-y-3 print:bg-white print:text-black">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/orders')}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors print:hidden"
             >
-              <ArrowLeft className="w-6 h-6 text-gray-600" />
+              <ArrowLeft className="w-6 h-6 text-gray-600 dark:text-slate-300" />
             </button>
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{orderNumber}</h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white print:text-black">{orderNumber}</h1>
+                {isShopeeOrder && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
+                    <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3.5 h-3.5" />
+                    Shopee
+                  </span>
+                )}
                 <OrderStatusBadge status={orderStatus} />
               </div>
               {orderDate && (
@@ -414,43 +517,231 @@ export default function OrderDetailPage() {
               )}
             </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                const billUrl = `${window.location.origin}/bills/${orderId}`;
-                navigator.clipboard.writeText(billUrl).then(() => {
-                  showToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
-                });
-              }}
-              className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-1.5 text-sm"
-            >
-              <Link2 className="w-4 h-4" />
-              บิลออนไลน์
-            </button>
-            <button
-              onClick={() => window.open(`/orders/${orderId}/shipping-labels`, '_blank')}
-              className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-1.5 text-sm"
-            >
-              <Printer className="w-4 h-4" />
-              ใบปะหน้า
-            </button>
-            <button
-              onClick={() => window.print()}
-              className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-1.5 text-sm"
-            >
-              <Printer className="w-4 h-4" />
-              พิมพ์
-            </button>
+          <div className="flex gap-2 print:hidden">
+            {/* Bill online - only for manual orders */}
+            {orderSource === 'manual' && (
+              <button
+                onClick={() => {
+                  const billUrl = `${window.location.origin}/bills/${orderId}`;
+                  navigator.clipboard.writeText(billUrl).then(() => {
+                    showToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
+                  });
+                }}
+                className="bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5 text-sm"
+              >
+                <Link2 className="w-4 h-4" />
+                บิลออนไลน์
+              </button>
+            )}
+            {/* Shopee: Accept Order button */}
+            {isShopeeOrder && externalStatus === 'READY_TO_SHIP' && (
+              <button
+                onClick={handleAcceptShopeeOrder}
+                disabled={shopeeActionLoading}
+                className="bg-orange-500 text-white px-3 py-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
+              >
+                {shopeeActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackageCheck className="w-4 h-4" />}
+                รับออเดอร์
+              </button>
+            )}
+            {/* Print dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowPrintMenu(!showPrintMenu)}
+                className="bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5 text-sm"
+              >
+                <Printer className="w-4 h-4" />
+                พิมพ์
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              {showPrintMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowPrintMenu(false)} />
+                  <div className="absolute right-0 mt-1 w-52 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg z-50 py-1">
+                    <button
+                      onClick={() => handlePrint('order')}
+                      className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
+                    >
+                      <FileText className="w-4 h-4 text-gray-400" />
+                      ใบออเดอร์
+                    </button>
+                    <button
+                      onClick={() => handlePrint('packing')}
+                      className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
+                    >
+                      <ClipboardList className="w-4 h-4 text-gray-400" />
+                      ใบจัดของ
+                    </button>
+                    <div className="border-t border-gray-100 dark:border-slate-700 my-1" />
+                    {orderSource === 'manual' ? (
+                      <button
+                        onClick={() => {
+                          setShowPrintMenu(false);
+                          window.open(`/orders/${orderId}/shipping-labels`, '_blank');
+                        }}
+                        className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
+                      >
+                        <Package className="w-4 h-4 text-gray-400" />
+                        ใบปะหน้า
+                      </button>
+                    ) : isShopeeOrder ? (
+                      <button
+                        onClick={() => {
+                          setShowPrintMenu(false);
+                          handlePrintShopeeLabel();
+                        }}
+                        disabled={shopeeActionLoading || externalStatus !== 'PROCESSED'}
+                        className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={externalStatus !== 'PROCESSED' ? 'พิมพ์ใบปะหน้าได้เฉพาะสถานะ "พร้อมส่ง" เท่านั้น' : undefined}
+                      >
+                        <img src="/marketplace/shopee.svg" alt="Shopee" className="w-4 h-4" />
+                        ใบปะหน้า Shopee
+                        {externalStatus !== 'PROCESSED' && (
+                          <span className="text-xs text-gray-400 ml-auto">เฉพาะสถานะพร้อมส่ง</span>
+                        )}
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Status Management — prominent buttons */}
-        {orderStatus !== 'cancelled' && (
-          <div className="bg-white rounded-xl border-2 border-gray-200 p-5">
+        {/* Shopee Order Info Block (hidden on print) */}
+        {isShopeeOrder && externalStatus && (
+          <div className="bg-orange-50 dark:bg-slate-800 border border-orange-200 dark:border-orange-700/40 rounded-xl p-4 space-y-3 print:hidden">
+            <div className="flex items-center gap-3">
+              <img src="/marketplace/shopee.svg" alt="Shopee" className="w-5 h-5" />
+              <div className="flex-1">
+                <span className="text-sm font-medium text-orange-800 dark:text-orange-300">
+                  Shopee Order: {externalOrderSn}
+                </span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs text-gray-500 dark:text-slate-400">สถานะ Shopee:</span>
+                  <ShopeeExternalStatusBadge status={externalStatus} />
+                </div>
+              </div>
+            </div>
+
+            {/* Buyer's note */}
+            {fullOrderData?.external_data?.note && (
+              <div className="bg-white/60 dark:bg-slate-700/50 rounded-lg px-3 py-2">
+                <span className="text-sm text-gray-500 dark:text-slate-400">ข้อความจากผู้ซื้อ:</span>
+                <p className="text-sm text-gray-700 dark:text-slate-200 mt-0.5">{fullOrderData.external_data.note}</p>
+              </div>
+            )}
+
+            {/* Financial Breakdown (from escrow_detail) */}
+            {(() => {
+              const escrow = fullOrderData?.external_data?.escrow_detail;
+              const orderIncome = escrow?.order_income || escrow;
+              if (!escrow) {
+                // No escrow yet — show estimated shipping fee if available
+                const estShipping = fullOrderData?.external_data?.estimated_shipping_fee;
+                if (estShipping && estShipping > 0) {
+                  return (
+                    <div className="border-t border-orange-200/50 dark:border-slate-600 pt-2">
+                      <div className="flex justify-between text-sm text-gray-600 dark:text-slate-300">
+                        <span>ค่าส่ง (ประมาณ)</span>
+                        <span>฿{formatPrice(estShipping)}</span>
+                      </div>
+                      <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">ข้อมูลการเงินจะแสดงเมื่อ order เสร็จสิ้น</p>
+                    </div>
+                  );
+                }
+                return null;
+              }
+
+              const buyerTotal = Number(orderIncome?.buyer_total_amount ?? escrow?.buyer_total_amount ?? 0);
+              const actualShipping = Number(orderIncome?.actual_shipping_fee ?? escrow?.actual_shipping_fee ?? 0);
+              const originalPrice = Number(orderIncome?.original_price ?? escrow?.original_price ?? 0);
+              const voucherSeller = Number(orderIncome?.voucher_from_seller ?? escrow?.voucher_from_seller ?? 0);
+              const voucherShopee = Number(orderIncome?.voucher_from_shopee ?? escrow?.voucher_from_shopee ?? 0);
+              const coins = Number(orderIncome?.coins ?? escrow?.coins ?? 0);
+              const sellerDiscount = Number(orderIncome?.seller_discount ?? escrow?.seller_discount ?? 0);
+              const shopeeDiscount = Number(orderIncome?.shopee_discount ?? escrow?.shopee_discount ?? 0);
+              const commissionFee = Number(orderIncome?.commission_fee ?? escrow?.commission_fee ?? 0);
+              const serviceFee = Number(orderIncome?.service_fee ?? escrow?.service_fee ?? 0);
+              const escrowAmount = Number(orderIncome?.escrow_amount ?? escrow?.escrow_amount ?? 0);
+
+              // ราคาขายจริง = sum(model_discounted_price * qty) จาก item_list
+              const itemList = fullOrderData?.external_data?.item_list || [];
+              const sellingPrice = itemList.reduce((sum: number, item: any) => {
+                const price = item.model_discounted_price || item.model_original_price || 0;
+                const qty = item.model_quantity_purchased || 1;
+                return sum + (price * qty);
+              }, 0);
+
+              // ใช้ราคาขายจริง (sellingPrice) เป็นฐานคำนวณ %
+              const basePrice = sellingPrice > 0 ? sellingPrice : originalPrice;
+              const pct = (val: number) => basePrice > 0 ? ((val / basePrice) * 100).toFixed(1) : '0';
+              // รวมส่วนลดทั้งหมด (ร้าน + Shopee)
+              const totalSellerDiscount = voucherSeller + sellerDiscount;
+              const totalShopeeDiscount = voucherShopee + shopeeDiscount + coins;
+              const totalFees = commissionFee + serviceFee;
+
+              return (
+                <div className="border-t border-orange-200/50 dark:border-slate-600 pt-3 space-y-2">
+                  <div className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-2">รายละเอียดทางการเงิน</div>
+                  <div className="flex justify-between text-sm font-medium">
+                    <span className="text-gray-600 dark:text-slate-300">ราคาขาย</span>
+                    <span className="text-gray-800 dark:text-slate-200">฿{formatPrice(basePrice)}</span>
+                  </div>
+                  {totalSellerDiscount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-slate-300">ส่วนลดจากร้าน</span>
+                      <span className="text-red-500 dark:text-red-400">-฿{formatPrice(totalSellerDiscount)} <span className="text-gray-400 dark:text-slate-500">({pct(totalSellerDiscount)}%)</span></span>
+                    </div>
+                  )}
+                  {totalShopeeDiscount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-slate-300">ส่วนลดจาก Shopee</span>
+                      <span className="text-orange-500 dark:text-orange-400">-฿{formatPrice(totalShopeeDiscount)} <span className="text-gray-400 dark:text-slate-500">({pct(totalShopeeDiscount)}%)</span></span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm pt-1 border-t border-orange-200/30 dark:border-slate-700">
+                    <span className="text-gray-600 dark:text-slate-300">ยอดที่ผู้ซื้อจ่าย</span>
+                    <span className="text-gray-800 dark:text-slate-200">฿{formatPrice(buyerTotal)}</span>
+                  </div>
+                  {actualShipping > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-slate-300">ค่าส่ง (ผู้ซื้อจ่าย)</span>
+                      <span className="text-gray-800 dark:text-slate-200">฿{formatPrice(actualShipping)}</span>
+                    </div>
+                  )}
+                  {totalFees > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-slate-300">ค่าธรรมเนียม Shopee</span>
+                      <span className="text-red-500 dark:text-red-400">-฿{formatPrice(totalFees)} <span className="text-gray-400 dark:text-slate-500">({pct(totalFees)}%)</span></span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-base font-semibold pt-2 border-t border-orange-200/50 dark:border-slate-600">
+                    <span className="text-gray-700 dark:text-slate-200">ยอดที่ได้รับจริง</span>
+                    <span className="text-green-600 dark:text-green-400">฿{formatPrice(escrowAmount)} {basePrice > 0 && <span className="text-sm font-normal text-gray-400 dark:text-slate-500">({(escrowAmount / basePrice * 100).toFixed(1)}%)</span>}</span>
+                  </div>
+                  {basePrice > 0 && (() => {
+                    const totalDeducted = basePrice - escrowAmount;
+                    const deductedPct = (totalDeducted / basePrice * 100).toFixed(1);
+                    return (
+                      <div className="text-xs pt-1 text-right">
+                        <span className="text-gray-400 dark:text-slate-500">ขาย ฿{formatPrice(basePrice)} โดนหักรวม ฿{formatPrice(totalDeducted)} ({deductedPct}%)</span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Status Management — prominent buttons (hidden on print) */}
+        {orderStatus !== 'cancelled' && !isShopeeOrder && (
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               {/* Order Status Section */}
               <div className="flex-1">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">สถานะออเดอร์</div>
+                <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">สถานะออเดอร์</div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <OrderStatusBadge status={orderStatus} />
                   {getNextOrderStatus(orderStatus) && (
@@ -480,12 +771,12 @@ export default function OrderDetailPage() {
               </div>
 
               {/* Divider */}
-              <div className="hidden sm:block w-px h-12 bg-gray-200" />
-              <div className="block sm:hidden w-full h-px bg-gray-200" />
+              <div className="hidden sm:block w-px h-12 bg-gray-200 dark:bg-slate-600" />
+              <div className="block sm:hidden w-full h-px bg-gray-200 dark:bg-slate-600" />
 
               {/* Payment Status Section */}
               <div className="flex-1">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">การชำระเงิน</div>
+                <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">การชำระเงิน</div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <PaymentStatusBadge status={paymentStatus} />
                   {paymentStatus === 'pending' && (
@@ -554,10 +845,42 @@ export default function OrderDetailPage() {
           </div>
         )}
 
+        {/* Shopee Status Management — read-only display (hidden on print) */}
+        {orderStatus !== 'cancelled' && isShopeeOrder && (
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex-1">
+                <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">สถานะออเดอร์</div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <OrderStatusBadge status={orderStatus} />
+                  <span className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400">
+                    <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3.5 h-3.5" />
+                    จัดการผ่าน Shopee
+                  </span>
+                </div>
+              </div>
+
+              <div className="hidden sm:block w-px h-12 bg-gray-200 dark:bg-slate-600" />
+              <div className="block sm:hidden w-full h-px bg-gray-200 dark:bg-slate-600" />
+
+              <div className="flex-1">
+                <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">การชำระเงิน</div>
+                <div className="flex items-center gap-2">
+                  <PaymentStatusBadge status={paymentStatus} />
+                  <span className="inline-flex items-center gap-1 text-xs text-orange-600 bg-orange-50 dark:bg-orange-900/30 dark:text-orange-300 px-2 py-1 rounded">
+                    <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3 h-3" />
+                    ชำระผ่าน Shopee
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Cancelled status info */}
         {orderStatus === 'cancelled' && (
-          <div className="bg-red-50 border-2 border-red-200 rounded-xl p-5">
-            <div className="flex items-center gap-2 text-red-700">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-xl p-5">
+            <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
               <XCircle className="w-5 h-5" />
               <span className="font-medium">คำสั่งซื้อนี้ถูกยกเลิกแล้ว</span>
             </div>
@@ -567,8 +890,10 @@ export default function OrderDetailPage() {
         {/* OrderForm - Edit or Read-only */}
         <OrderForm
           editOrderId={orderId}
+          preloadedOrder={fullOrderData}
           onSuccess={handleOrderSaved}
           onCancel={() => router.push('/orders')}
+          printMode={printMode}
         />
 
         {/* Status Update Confirmation Modal */}

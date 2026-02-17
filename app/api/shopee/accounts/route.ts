@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
+import { ensureValidToken, getShopInfo, ShopeeAccountRow } from '@/lib/shopee-api';
 
 export async function GET(request: NextRequest) {
   try {
@@ -67,5 +68,57 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error('Shopee accounts DELETE error:', error);
     return NextResponse.json({ error: 'Failed to disconnect shop' }, { status: 500 });
+  }
+}
+
+// PATCH - Refresh shop profile (name + logo)
+export async function PATCH(request: NextRequest) {
+  try {
+    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
+    if (!isAuth || !companyId || !isAdminRole(companyRole)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const accountId = body.id;
+    if (!accountId) {
+      return NextResponse.json({ error: 'Missing account ID' }, { status: 400 });
+    }
+
+    const { data: account, error: accError } = await supabaseAdmin
+      .from('shopee_accounts')
+      .select('*')
+      .eq('id', accountId)
+      .eq('company_id', companyId)
+      .eq('is_active', true)
+      .single();
+
+    if (accError || !account) {
+      return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
+    }
+
+    const creds = await ensureValidToken(account as ShopeeAccountRow);
+    const shopInfo = await getShopInfo(creds);
+
+    if (shopInfo) {
+      const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (shopInfo.shop_name) updateData.shop_name = shopInfo.shop_name;
+      if (shopInfo.shop_logo) {
+        updateData.metadata = { ...(account.metadata || {}), shop_logo: shopInfo.shop_logo };
+      }
+      await supabaseAdmin
+        .from('shopee_accounts')
+        .update(updateData)
+        .eq('id', account.id);
+    }
+
+    return NextResponse.json({
+      success: true,
+      shop_name: shopInfo?.shop_name || account.shop_name,
+      shop_logo: shopInfo?.shop_logo || '',
+    });
+  } catch (error) {
+    console.error('Shopee accounts PATCH error:', error);
+    return NextResponse.json({ error: 'Failed to refresh profile' }, { status: 500 });
   }
 }

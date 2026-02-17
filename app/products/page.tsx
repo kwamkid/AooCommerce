@@ -7,6 +7,7 @@ import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { getImageUrl } from '@/lib/utils/image';
+import { formatPrice, formatNumber } from '@/lib/utils/format';
 import {
   Plus,
   Edit2,
@@ -30,6 +31,7 @@ interface ProductItem {
   image?: string;
   main_image_url?: string;
   product_type: 'simple' | 'variation';
+  source?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -99,6 +101,7 @@ export default function ProductsPage() {
   const [dataFetched, setDataFetched] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'simple' | 'variation'>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'shopee' | 'shopee_edited'>('all');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -120,6 +123,10 @@ export default function ProductsPage() {
   });
   // Load time
   const [loadTime, setLoadTime] = useState<number | null>(null);
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Lightbox state
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -189,10 +196,47 @@ export default function ProductsPage() {
     }
   };
 
+  // Bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`คุณต้องการลบสินค้า ${selectedIds.size} รายการ หรือไม่?`)) return;
+    setBulkDeleting(true);
+    try {
+      const ids = [...selectedIds].join(',');
+      const response = await apiFetch(`/api/products?ids=${ids}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'ไม่สามารถลบได้');
+      setSuccess(`ลบสินค้า ${selectedIds.size} รายการสำเร็จ`);
+      setSelectedIds(new Set());
+      setDataFetched(false);
+      fetchData();
+    } catch (err) {
+      console.error('Bulk delete error:', err);
+      setError(err instanceof Error ? err.message : 'ไม่สามารถลบได้');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Clear selection when filters/page change
+  useEffect(() => { setSelectedIds(new Set()); }, [searchTerm, typeFilter, sourceFilter, currentPage]);
+
   // Filter
   const filteredProducts = productsList.filter(product => {
     // Type filter
     if (typeFilter !== 'all' && product.product_type !== typeFilter) return false;
+    if (sourceFilter === 'shopee' && !(product.source === 'shopee' || product.source === 'shopee_edited')) return false;
+    if (sourceFilter === 'shopee_edited' && product.source !== 'shopee_edited') return false;
+    if (sourceFilter === 'manual' && product.source !== 'manual' && product.source !== undefined) return false;
 
     // Search filter — name, code, SKU, barcode
     if (searchTerm) {
@@ -215,7 +259,22 @@ export default function ProductsPage() {
   const startIndex = (currentPage - 1) * rowsPerPage;
   const paginatedProducts = filteredProducts.slice(startIndex, startIndex + rowsPerPage);
 
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, typeFilter]);
+  // Select all on current page
+  const allPageSelected = paginatedProducts.length > 0 && paginatedProducts.every(p => selectedIds.has(p.product_id));
+  const toggleSelectAll = () => {
+    const pageIds = paginatedProducts.map(p => p.product_id);
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        pageIds.forEach(id => next.delete(id));
+      } else {
+        pageIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, typeFilter, sourceFilter]);
 
   // Clear alerts
   useEffect(() => {
@@ -294,8 +353,43 @@ export default function ProductsPage() {
               <option value="simple">สินค้าปกติ</option>
               <option value="variation">สินค้าย่อย</option>
             </select>
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value as 'all' | 'manual' | 'shopee' | 'shopee_edited')}
+              className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+            >
+              <option value="all">ทุกแหล่ง</option>
+              <option value="manual">สร้างเอง</option>
+              <option value="shopee">Shopee (ทั้งหมด)</option>
+              <option value="shopee_edited">Shopee (แก้ไขแล้ว)</option>
+            </select>
           </div>
         </div>
+
+        {/* Bulk Action Bar */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center justify-between bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3">
+            <span className="text-sm text-red-700 dark:text-red-300 font-medium">
+              เลือก {selectedIds.size} รายการ
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="px-3 py-1.5 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm rounded-lg font-medium transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                {bulkDeleting ? 'กำลังลบ...' : `ลบ ${selectedIds.size} รายการ`}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Products Table */}
         <div className="data-table-wrap">
@@ -303,6 +397,14 @@ export default function ProductsPage() {
           <table className="data-table-fixed">
             <thead className="data-thead">
               <tr>
+                <th className="w-[44px] px-3 py-3 text-center">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E] cursor-pointer"
+                  />
+                </th>
                 {isCol('image') && <th className={`${thClass} w-[88px]`}>รูปภาพ</th>}
                 {isCol('nameCode') && <th className={thClass}>ชื่อ/รหัส</th>}
                 {isCol('type') && <th className={thClass}>ประเภท</th>}
@@ -314,11 +416,20 @@ export default function ProductsPage() {
             <tbody className="data-tbody">
               {paginatedProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={visibleColumns.size} className="px-6 py-8 text-center text-gray-500 dark:text-slate-400">ไม่พบข้อมูลสินค้า</td>
+                  <td colSpan={visibleColumns.size + 1} className="px-6 py-8 text-center text-gray-500 dark:text-slate-400">ไม่พบข้อมูลสินค้า</td>
                 </tr>
               ) : (
                 paginatedProducts.map((product) => (
                   <tr key={product.product_id} className="data-tr">
+                    {/* Checkbox */}
+                    <td className="w-[44px] px-3 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(product.product_id)}
+                        onChange={() => toggleSelect(product.product_id)}
+                        className="w-4 h-4 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E] cursor-pointer"
+                      />
+                    </td>
                     {/* Image */}
                     {isCol('image') && (
                       <td className="px-3 py-3 whitespace-nowrap w-[88px]">
@@ -340,18 +451,32 @@ export default function ProductsPage() {
                     {/* Name / Code */}
                     {isCol('nameCode') && (
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">{product.name}</div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
+                          {product.name}
+                          {product.source === 'shopee' && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#EE4D2D]/10 text-[#EE4D2D]">
+                              <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3 h-3" />
+                              Shopee
+                            </span>
+                          )}
+                          {product.source === 'shopee_edited' && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                              <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3 h-3" />
+                              Shopee ✓
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-gray-400 dark:text-slate-500">{product.code}</div>
                       </td>
                     )}
 
                     {/* Type */}
                     {isCol('type') && (
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${
                           product.product_type === 'simple'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-purple-100 text-purple-800'
+                            ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
                         }`}>
                           {product.product_type === 'simple' ? 'สินค้าปกติ' : 'สินค้าย่อย'}
                         </span>
@@ -365,9 +490,9 @@ export default function ProductsPage() {
                           <div>
                             <div className="text-sm flex items-center space-x-1">
                               <span className="text-gray-400 font-medium">฿</span>
-                              <span>{product.simple_default_price}</span>
-                              {product.simple_discount_price && product.simple_discount_price > 0 && (
-                                <span className="text-red-600 dark:text-red-400">(฿{product.simple_discount_price})</span>
+                              <span>{formatNumber(product.simple_default_price)}</span>
+                              {product.simple_discount_price != null && product.simple_discount_price > 0 && (
+                                <span className="text-red-600 dark:text-red-400">(฿{formatNumber(product.simple_discount_price)})</span>
                               )}
                             </div>
                             {(isCol('sku') || isCol('barcode')) && (product.simple_sku || product.simple_barcode) && (
@@ -390,9 +515,9 @@ export default function ProductsPage() {
                                     <Wine className="w-3.5 h-3.5 text-gray-400" />
                                     <span className="text-gray-500 dark:text-slate-400">{v.bottle_size}</span>
                                     <span className="text-gray-400 font-medium ml-1">฿</span>
-                                    <span>{v.default_price}</span>
+                                    <span>{formatNumber(v.default_price)}</span>
                                     {v.discount_price > 0 && (
-                                      <span className="text-red-600 dark:text-red-400">(฿{v.discount_price})</span>
+                                      <span className="text-red-600 dark:text-red-400">(฿{formatNumber(v.discount_price)})</span>
                                     )}
                                   </div>
                                   {(isCol('sku') || isCol('barcode')) && (v.sku || v.barcode) && (

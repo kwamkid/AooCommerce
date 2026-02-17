@@ -17,6 +17,7 @@ import {
   Save,
   AlertCircle
 } from 'lucide-react';
+import { formatPrice, formatNumber } from '@/lib/utils/format';
 
 // Interfaces
 interface Customer {
@@ -910,7 +911,7 @@ export default function EditOrderPage() {
                             />
                           </td>
                           <td className="px-4 py-3 text-right font-medium">
-                            ฿{calculateProductTotal(product).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                            ฿{formatPrice(calculateProductTotal(product))}
                           </td>
                           <td className="px-4 py-3 text-center">
                             <button
@@ -1007,11 +1008,11 @@ export default function EditOrderPage() {
                     <span className="font-medium">
                       ยอดรวมสาขานี้:
                       {branch.shipping_fee > 0 && (
-                        <span className="text-gray-400 font-normal ml-2">(รวมค่าส่ง ฿{branch.shipping_fee.toLocaleString('th-TH', { minimumFractionDigits: 2 })})</span>
+                        <span className="text-gray-400 font-normal ml-2">(รวมค่าส่ง ฿{formatPrice(branch.shipping_fee)})</span>
                       )}
                     </span>
                     <span className="text-lg font-bold text-[#F4511E]">
-                      ฿{(calculateBranchTotal(branch) + (branch.shipping_fee || 0)).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                      ฿{formatPrice(calculateBranchTotal(branch) + (branch.shipping_fee || 0))}
                     </span>
                   </div>
                 )}
@@ -1070,12 +1071,12 @@ export default function EditOrderPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm text-gray-600 dark:text-slate-400">
                     <span>ยอดรวมสินค้า (รวม VAT)</span>
-                    <span>฿{itemsTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                    <span>฿{formatPrice(itemsTotal)}</span>
                   </div>
                   {totalShippingFee > 0 && (
                     <div className="flex justify-between text-sm text-gray-600 dark:text-slate-400">
                       <span>ค่าจัดส่ง</span>
-                      <span>฿{totalShippingFee.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                      <span>฿{formatPrice(totalShippingFee)}</span>
                     </div>
                   )}
                   <div className="flex justify-between items-center">
@@ -1091,15 +1092,15 @@ export default function EditOrderPage() {
                   </div>
                   <div className="flex justify-between text-sm text-gray-600 pt-2 border-t">
                     <span>ยอดก่อน VAT</span>
-                    <span>฿{subtotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                    <span>฿{formatPrice(subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-gray-600 dark:text-slate-400">
                     <span>VAT 7%</span>
-                    <span>฿{vat.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                    <span>฿{formatPrice(vat)}</span>
                   </div>
                   <div className="flex justify-between text-xl font-bold pt-3 border-t">
                     <span>ยอดรวมสุทธิ</span>
-                    <span className="text-[#F4511E]">฿{total.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                    <span className="text-[#F4511E]">฿{formatPrice(total)}</span>
                   </div>
                 </div>
               </div>

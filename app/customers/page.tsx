@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
+import { formatPrice } from '@/lib/utils/format';
 import {
   UserCircle,
   Plus,
@@ -397,7 +398,7 @@ export default function CustomersPage() {
                     <td className="px-3 py-3 text-right whitespace-nowrap">
                       {customer.total_order_amount && customer.total_order_amount > 0 ? (
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          ฿{customer.total_order_amount.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          ฿{formatPrice(customer.total_order_amount)}
                         </span>
                       ) : (
                         <span className="text-gray-400 text-sm">-</span>

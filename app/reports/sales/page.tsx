@@ -5,6 +5,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
+import { formatPrice } from '@/lib/utils/format';
 import Layout from '@/components/layout/Layout';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
@@ -188,13 +189,6 @@ export default function SalesReportPage() {
     setExpandedRows(newExpanded);
   };
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('th-TH', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount);
-  };
 
   // Format date
   const formatDate = (dateStr: string) => {
@@ -219,7 +213,7 @@ export default function SalesReportPage() {
         csvContent += 'วันที่,จำนวน Order,ยอดขายรวม,ชำระแล้ว,รอชำระ\n';
 
         groupedData.forEach((item: GroupedDataByDate) => {
-          csvContent += `${formatDate(item.date)},${item.orderCount},${formatCurrency(item.totalAmount)},${formatCurrency(item.paidAmount)},${formatCurrency(item.pendingAmount)}\n`;
+          csvContent += `${formatDate(item.date)},${item.orderCount},${formatPrice(item.totalAmount)},${formatPrice(item.paidAmount)},${formatPrice(item.pendingAmount)}\n`;
         });
       } else if (groupBy === 'customer') {
         csvContent += 'รายงานยอดขายตามลูกค้า\n';
@@ -227,7 +221,7 @@ export default function SalesReportPage() {
         csvContent += 'รหัสลูกค้า,ชื่อลูกค้า,จำนวน Order,ยอดขายรวม,ชำระแล้ว,รอชำระ\n';
 
         groupedData.forEach((item: GroupedDataByCustomer) => {
-          csvContent += `${item.customerCode},"${item.customerName}",${item.orderCount},${formatCurrency(item.totalAmount)},${formatCurrency(item.paidAmount)},${formatCurrency(item.pendingAmount)}\n`;
+          csvContent += `${item.customerCode},"${item.customerName}",${item.orderCount},${formatPrice(item.totalAmount)},${formatPrice(item.paidAmount)},${formatPrice(item.pendingAmount)}\n`;
         });
       } else {
         csvContent += 'รายงานยอดขายตามสินค้า\n';
@@ -235,16 +229,16 @@ export default function SalesReportPage() {
         csvContent += 'รหัสสินค้า,ชื่อสินค้า,ขนาด,จำนวนขาย,ยอดขาย\n';
 
         groupedData.forEach((item: GroupedDataByProduct) => {
-          csvContent += `${item.productCode},"${item.productName}",${item.bottleSize},${item.totalQuantity},${formatCurrency(item.totalAmount)}\n`;
+          csvContent += `${item.productCode},"${item.productName}",${item.bottleSize},${item.totalQuantity},${formatPrice(item.totalAmount)}\n`;
         });
       }
 
       // Add summary
       csvContent += '\n\nสรุปรวม\n';
       csvContent += `จำนวน Order ทั้งหมด,${summary?.totalOrders || 0}\n`;
-      csvContent += `ยอดขายสุทธิ,${formatCurrency(summary?.totalNet || 0)}\n`;
-      csvContent += `ชำระแล้ว,${formatCurrency(summary?.paidAmount || 0)}\n`;
-      csvContent += `รอชำระ,${formatCurrency(summary?.pendingAmount || 0)}\n`;
+      csvContent += `ยอดขายสุทธิ,${formatPrice(summary?.totalNet || 0)}\n`;
+      csvContent += `ชำระแล้ว,${formatPrice(summary?.paidAmount || 0)}\n`;
+      csvContent += `รอชำระ,${formatPrice(summary?.pendingAmount || 0)}\n`;
 
       // Download
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -348,7 +342,7 @@ export default function SalesReportPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-slate-400">ยอดขายสุทธิ</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(summary.totalNet)}</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{formatPrice(summary.totalNet)}</p>
               </div>
             </div>
           </div>
@@ -360,7 +354,7 @@ export default function SalesReportPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-slate-400">ชำระแล้ว</p>
-                <p className="text-xl font-bold text-green-600">{formatCurrency(summary.paidAmount)}</p>
+                <p className="text-xl font-bold text-green-600">{formatPrice(summary.paidAmount)}</p>
               </div>
             </div>
           </div>
@@ -372,7 +366,7 @@ export default function SalesReportPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-slate-400">รอชำระ</p>
-                <p className="text-xl font-bold text-orange-600">{formatCurrency(summary.pendingAmount)}</p>
+                <p className="text-xl font-bold text-orange-600">{formatPrice(summary.pendingAmount)}</p>
               </div>
             </div>
           </div>
@@ -384,7 +378,7 @@ export default function SalesReportPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-slate-400">Order ({summary.totalOrders})</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">เฉลี่ย {formatCurrency(summary.averageOrderValue)}</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">เฉลี่ย {formatPrice(summary.averageOrderValue)}</p>
               </div>
             </div>
           </div>
@@ -452,9 +446,9 @@ export default function SalesReportPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center text-gray-900 dark:text-white">{item.orderCount}</td>
-                      <td className="px-6 py-4 text-right font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount)}</td>
-                      <td className="px-6 py-4 text-right text-green-600">{formatCurrency(item.paidAmount)}</td>
-                      <td className="px-6 py-4 text-right text-orange-600">{formatCurrency(item.pendingAmount)}</td>
+                      <td className="px-6 py-4 text-right font-semibold text-gray-900 dark:text-white">{formatPrice(item.totalAmount)}</td>
+                      <td className="px-6 py-4 text-right text-green-600">{formatPrice(item.paidAmount)}</td>
+                      <td className="px-6 py-4 text-right text-orange-600">{formatPrice(item.pendingAmount)}</td>
                       <td className="px-6 py-4">
                         {expandedRows.has(item.date || `date-${index}`) ? (
                           <ChevronDown className="w-5 h-5 text-gray-400" />
@@ -469,7 +463,7 @@ export default function SalesReportPage() {
                           <span className="text-sm text-gray-600 dark:text-slate-400">{order.orderNumber}</span>
                         </td>
                         <td className="px-6 py-3 text-center text-sm text-gray-600 dark:text-slate-400">{order.customerName}</td>
-                        <td className="px-6 py-3 text-right text-sm text-gray-900 dark:text-white">{formatCurrency(order.totalAmount)}</td>
+                        <td className="px-6 py-3 text-right text-sm text-gray-900 dark:text-white">{formatPrice(order.totalAmount)}</td>
                         <td className="px-6 py-3 text-right" colSpan={2}>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                             order.paymentStatus === 'paid'
@@ -498,9 +492,9 @@ export default function SalesReportPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center text-gray-900 dark:text-white">{item.orderCount}</td>
-                      <td className="px-6 py-4 text-right font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount)}</td>
-                      <td className="px-6 py-4 text-right text-green-600">{formatCurrency(item.paidAmount)}</td>
-                      <td className="px-6 py-4 text-right text-orange-600">{formatCurrency(item.pendingAmount)}</td>
+                      <td className="px-6 py-4 text-right font-semibold text-gray-900 dark:text-white">{formatPrice(item.totalAmount)}</td>
+                      <td className="px-6 py-4 text-right text-green-600">{formatPrice(item.paidAmount)}</td>
+                      <td className="px-6 py-4 text-right text-orange-600">{formatPrice(item.pendingAmount)}</td>
                       <td className="px-6 py-4">
                         {expandedRows.has(item.customerId || `customer-${index}`) ? (
                           <ChevronDown className="w-5 h-5 text-gray-400" />
@@ -515,7 +509,7 @@ export default function SalesReportPage() {
                           <span className="text-sm text-gray-600 dark:text-slate-400">{order.orderNumber}</span>
                         </td>
                         <td className="px-6 py-3 text-center text-sm text-gray-600 dark:text-slate-400">{formatDate(order.orderDate)}</td>
-                        <td className="px-6 py-3 text-right text-sm text-gray-900 dark:text-white">{formatCurrency(order.totalAmount)}</td>
+                        <td className="px-6 py-3 text-right text-sm text-gray-900 dark:text-white">{formatPrice(order.totalAmount)}</td>
                         <td className="px-6 py-3 text-right" colSpan={2}>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                             order.paymentStatus === 'paid'
@@ -547,7 +541,7 @@ export default function SalesReportPage() {
                     <td className="px-6 py-4 text-center font-semibold text-gray-900 dark:text-white">
                       {(item.totalQuantity || 0).toLocaleString()} ขวด
                     </td>
-                    <td className="px-6 py-4 text-right font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount || 0)}</td>
+                    <td className="px-6 py-4 text-right font-semibold text-gray-900 dark:text-white">{formatPrice(item.totalAmount || 0)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -564,19 +558,19 @@ export default function SalesReportPage() {
                         {groupedData.reduce((sum: number, item: GroupedDataByProduct) => sum + (item.totalQuantity || 0), 0).toLocaleString()} ขวด
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-gray-900 dark:text-white">
-                        {formatCurrency(summary?.totalNet || 0)}
+                        {formatPrice(summary?.totalNet || 0)}
                       </td>
                     </>
                   ) : (
                     <>
                       <td className="px-6 py-4 text-right font-bold text-gray-900 dark:text-white">
-                        {formatCurrency(summary?.totalNet || 0)}
+                        {formatPrice(summary?.totalNet || 0)}
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-green-600">
-                        {formatCurrency(summary?.paidAmount || 0)}
+                        {formatPrice(summary?.paidAmount || 0)}
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-orange-600">
-                        {formatCurrency(summary?.pendingAmount || 0)}
+                        {formatPrice(summary?.pendingAmount || 0)}
                       </td>
                       <td></td>
                     </>

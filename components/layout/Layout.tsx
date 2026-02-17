@@ -18,20 +18,24 @@ export default function Layout({ children, title, breadcrumbs }: LayoutProps) {
   // ไม่มี loading check ใดๆ - ให้ page component จัดการเอง
   
   return (
-    <div className="flex h-dvh bg-gray-50 dark:bg-slate-950 overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar />
+    <div className="flex h-dvh bg-gray-50 dark:bg-slate-950 overflow-hidden print:block print:h-auto print:bg-white print:overflow-visible">
+      {/* Sidebar — hidden on print */}
+      <div className="print:hidden h-full">
+        <Sidebar />
+      </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <Header />
+      <div className="flex-1 flex flex-col overflow-hidden print:block print:overflow-visible">
+        {/* Header — hidden on print */}
+        <div className="print:hidden">
+          <Header />
+        </div>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">
-          {/* Page Header */}
+        <main className="flex-1 overflow-y-auto print:overflow-visible">
+          {/* Page Header — hidden on print */}
           {(title || breadcrumbs) && (
-            <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-4">
+            <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-4 print:hidden">
               {/* Breadcrumbs */}
               {breadcrumbs && breadcrumbs.length > 0 && (
                 <nav className="flex items-center space-x-2 text-sm text-gray-600 dark:text-slate-400 mb-2">
@@ -67,7 +71,7 @@ export default function Layout({ children, title, breadcrumbs }: LayoutProps) {
           )}
 
           {/* Page Body */}
-          <div className="p-4 lg:p-6 pb-24 lg:pb-6">
+          <div className="p-4 lg:p-6 pb-24 lg:pb-6 print:p-0">
             {children}
           </div>
         </main>

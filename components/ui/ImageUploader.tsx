@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { ImagePlus, X, Loader2, GripVertical } from 'lucide-react';
+import { ImagePlus, X, Loader2, GripVertical, ChevronLeft, ChevronRight } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 
 export interface ProductImage {
@@ -141,8 +141,21 @@ export default function ImageUploader({
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const isLiveMode = !!(productId || variationId);
+
+  // Lightbox keyboard navigation
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxIndex(null);
+      if (e.key === 'ArrowLeft') setLightboxIndex(prev => prev !== null && prev > 0 ? prev - 1 : prev);
+      if (e.key === 'ArrowRight') setLightboxIndex(prev => prev !== null && prev < images.length - 1 ? prev + 1 : prev);
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [lightboxIndex, images.length]);
 
   const processFiles = async (files: File[]) => {
     const remainingSlots = maxImages - images.length;
@@ -359,8 +372,8 @@ export default function ImageUploader({
         isDragOver
           ? 'border-[#F4511E] bg-[#F4511E]/5 scale-[1.01]'
           : images.length > 0
-            ? 'border-gray-200 bg-gray-50/50'
-            : 'border-gray-300 bg-white'
+            ? 'border-gray-200 dark:border-slate-600 bg-gray-50/50 dark:bg-slate-800/50'
+            : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800'
       } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
     >
       {images.length > 0 && (
@@ -382,8 +395,9 @@ export default function ImageUploader({
               <img
                 src={image.image_url}
                 alt={`รูปที่ ${index + 1}`}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover cursor-pointer"
                 draggable={false}
+                onClick={() => setLightboxIndex(index)}
               />
               {index === 0 && !compact && (
                 <span className="absolute bottom-0 left-0 right-0 bg-[#F4511E] text-white text-[9px] font-bold text-center py-0.5">
@@ -419,9 +433,9 @@ export default function ImageUploader({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 hover:border-[#F4511E] hover:bg-[#F4511E]/5 flex flex-col items-center justify-center gap-1 transition-colors flex-shrink-0"
+              className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-600 hover:border-[#F4511E] hover:bg-[#F4511E]/5 flex flex-col items-center justify-center gap-1 transition-colors flex-shrink-0"
             >
-              <ImagePlus className="w-5 h-5 text-gray-400" />
+              <ImagePlus className="w-5 h-5 text-gray-400 dark:text-slate-500" />
               <span className="text-[10px] text-gray-400 dark:text-slate-500">{images.length}/{maxImages}</span>
             </button>
           )}
@@ -435,7 +449,7 @@ export default function ImageUploader({
             onClick={() => !disabled && fileInputRef.current?.click()}
             className="w-full aspect-square flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors rounded-xl"
           >
-            <ImagePlus className="w-5 h-5 text-gray-400" />
+            <ImagePlus className="w-5 h-5 text-gray-400 dark:text-slate-500" />
             <span className="text-[10px] text-gray-400 dark:text-slate-500">เพิ่มรูป</span>
           </button>
         ) : (
@@ -444,14 +458,14 @@ export default function ImageUploader({
             onClick={() => !disabled && fileInputRef.current?.click()}
             className="w-full p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors rounded-xl"
           >
-            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
-              <ImagePlus className="w-6 h-6 text-gray-400" />
+            <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
+              <ImagePlus className="w-6 h-6 text-gray-400 dark:text-slate-500" />
             </div>
             <div className="text-center">
               <p className="text-sm font-medium text-gray-600 dark:text-slate-400">
                 {isDragOver ? 'วางรูปภาพที่นี่' : 'ลากรูปภาพมาวาง หรือคลิกเพื่อเลือก'}
               </p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
                 รองรับ JPG, PNG สูงสุด {maxImages} รูป
               </p>
             </div>
@@ -483,6 +497,72 @@ export default function ImageUploader({
         onChange={handleUpload}
         className="hidden"
       />
+
+      {/* Lightbox */}
+      {lightboxIndex !== null && images[lightboxIndex] && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80"
+          onClick={() => setLightboxIndex(null)}
+        >
+          {/* Close */}
+          <button
+            onClick={() => setLightboxIndex(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {/* Counter */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/70 text-sm bg-black/40 px-3 py-1 rounded-full">
+            {lightboxIndex + 1} / {images.length}
+          </div>
+
+          {/* Prev */}
+          {lightboxIndex > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
+            >
+              <ChevronLeft className="w-8 h-8" />
+            </button>
+          )}
+
+          {/* Next */}
+          {lightboxIndex < images.length - 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
+            >
+              <ChevronRight className="w-8 h-8" />
+            </button>
+          )}
+
+          {/* Image */}
+          <img
+            src={images[lightboxIndex].image_url}
+            alt={`รูปที่ ${lightboxIndex + 1}`}
+            className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {/* Thumbnails */}
+          {images.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 bg-black/40 rounded-lg p-2 max-w-[90vw] overflow-x-auto">
+              {images.map((img, i) => (
+                <button
+                  key={img.id || `thumb-${i}`}
+                  onClick={(e) => { e.stopPropagation(); setLightboxIndex(i); }}
+                  className={`w-12 h-12 rounded-md overflow-hidden flex-shrink-0 border-2 transition-all ${
+                    i === lightboxIndex ? 'border-white scale-110' : 'border-transparent opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  <img src={img.image_url} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
