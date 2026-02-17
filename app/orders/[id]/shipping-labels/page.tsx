@@ -22,7 +22,7 @@ interface ShippingAddress {
 
 interface ProductItem {
   product_name: string;
-  bottle_size?: string;
+  variation_label?: string;
   quantity: number;
 }
 
@@ -99,7 +99,7 @@ export default function ShippingLabelsPage() {
 
           // Add or update product in this label
           const existingProduct = label.items.find(
-            p => p.product_name === item.product_name && p.bottle_size === item.bottle_size
+            p => p.product_name === item.product_name && p.variation_label === item.variation_label
           );
 
           if (existingProduct) {
@@ -107,7 +107,7 @@ export default function ShippingLabelsPage() {
           } else {
             label.items.push({
               product_name: item.product_name,
-              bottle_size: item.bottle_size,
+              variation_label: item.variation_label,
               quantity: shipment.quantity
             });
           }
@@ -267,7 +267,7 @@ export default function ShippingLabelsPage() {
                           <td className="table-cell-no">{itemIndex + 1}</td>
                           <td className="table-cell-product">
                             {item.product_name}
-                            {item.bottle_size && ` (${item.bottle_size})`}
+                            {item.variation_label && ` (${item.variation_label})`}
                           </td>
                           <td className="table-cell-qty">{item.quantity} ขวด</td>
                         </tr>

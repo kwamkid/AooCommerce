@@ -35,6 +35,7 @@ import {
   ArrowUpFromLine,
   ArrowLeftRight,
   ShoppingBag,
+  ScrollText,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -95,6 +96,7 @@ export default function Sidebar() {
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [logsOpen, setLogsOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
   // Default เป็น true เพื่อไม่ให้เมนูกระพริบ → ถ้า API บอกปิดค่อยซ่อน
   const [stockEnabled, setStockEnabled] = useState(true);
@@ -115,6 +117,7 @@ export default function Sidebar() {
   useEffect(() => {
     if (pathname?.startsWith('/settings')) setSettingsOpen(true);
     if (pathname?.startsWith('/inventory')) setInventoryOpen(true);
+    if (pathname?.startsWith('/logs')) setLogsOpen(true);
   }, [pathname]);
 
   useEffect(() => {
@@ -404,6 +407,35 @@ export default function Sidebar() {
                 })}
               </div>
             ))}
+
+            {/* Logs Section */}
+            {effectiveRole === 'admin' && (
+              <div>
+                <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
+                  Logs
+                </h3>
+                <button
+                  onClick={() => setLogsOpen(!logsOpen)}
+                  className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
+                    pathname?.startsWith('/logs')
+                      ? 'text-[#F4511E]'
+                      : 'text-gray-300 hover:text-[#F4511E]'
+                  }`}
+                >
+                  <ScrollText className="w-5 h-5" />
+                  <span className="text-[16px] font-medium ml-3">บันทึกระบบ</span>
+                  <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${logsOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {logsOpen && (
+                  <div className="ml-3 border-l border-[#F4511E]/20">
+                    <Link href="/logs/shopee" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/logs/shopee' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                      <img src="/marketplace/shopee.svg" alt="Shopee" className="w-4 h-4" />
+                      <span className="text-[16px] font-medium">Shopee</span>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Admin Section */}
             {effectiveRole === 'admin' && (

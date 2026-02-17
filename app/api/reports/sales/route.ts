@@ -125,12 +125,12 @@ function groupByProduct(orders: any[]) {
   for (const order of orders) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const item of (order.order_items || []) as any[]) {
-      const productKey = `${item.product_code}-${item.bottle_size}`;
+      const productKey = `${item.product_code}-${item.variation_label}`;
       if (!productMap.has(productKey)) {
         productMap.set(productKey, {
           productCode: item.product_code,
           productName: item.product_name,
-          bottleSize: item.bottle_size,
+          variationLabel: item.variation_label,
           totalQuantity: 0,
           totalAmount: 0,
           orderCount: 0,
@@ -182,7 +182,7 @@ export async function GET(request: NextRequest) {
         const groupedData = (productResult.data || []).map((row: any) => ({
           productCode: row.product_code,
           productName: row.product_name,
-          bottleSize: row.bottle_size,
+          variationLabel: row.variation_label,
           totalQuantity: Number(row.total_quantity),
           totalAmount: Number(row.total_amount),
           orderCount: Number(row.order_count),
@@ -252,7 +252,7 @@ async function legacyReport(companyId: string, startDate: string | null, endDate
       id, order_number, order_date, subtotal, discount_amount, vat_amount,
       total_amount, payment_status, customer_id,
       customers (id, customer_code, name),
-      order_items (id, product_name, product_code, bottle_size, quantity, unit_price, discount_amount, total)
+      order_items (id, product_name, product_code, variation_label, quantity, unit_price, discount_amount, total)
     `)
     .eq('company_id', companyId)
     .neq('order_status', 'cancelled');

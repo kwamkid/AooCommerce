@@ -9,7 +9,7 @@ async function legacyInventoryQuery(companyId: string, warehouseId: string | nul
     supabaseAdmin
       .from('product_variations')
       .select(`
-        id, bottle_size, sku, barcode, default_price, min_stock, attributes, is_active,
+        id, variation_label, sku, barcode, default_price, min_stock, attributes, is_active,
         product:products!inner(id, code, name, image, is_active, company_id)
       `)
       .eq('product.company_id', companyId)
@@ -65,7 +65,7 @@ async function legacyInventoryQuery(companyId: string, warehouseId: string | nul
       product_code: product?.code || '',
       product_name: product?.name || '',
       product_image: imageMap.get(v.id) || product?.image || null,
-      bottle_size: v.bottle_size || '',
+      variation_label: v.variation_label || '',
       sku: v.sku || '',
       barcode: v.barcode || '',
       attributes: v.attributes || null,
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     // Try optimized view/RPC first, fallback to legacy if view doesn't exist
-    let rawItems: { variation_id: string; product_id: string; product_code: string; product_name: string; product_image: string | null; bottle_size: string; sku: string; barcode: string; attributes: unknown; default_price: number; min_stock: number; quantity: number; reserved_quantity: number; available: number; updated_at: string | null }[];
+    let rawItems: { variation_id: string; product_id: string; product_code: string; product_name: string; product_image: string | null; variation_label: string; sku: string; barcode: string; attributes: unknown; default_price: number; min_stock: number; quantity: number; reserved_quantity: number; available: number; updated_at: string | null }[];
     let stockConfig;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
         product_code: row.product_code || '',
         product_name: row.product_name || '',
         product_image: row.product_image || null,
-        bottle_size: row.bottle_size || '',
+        variation_label: row.variation_label || '',
         sku: row.sku || '',
         barcode: row.barcode || '',
         attributes: row.attributes || null,
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
         product_code: row.product_code,
         product_name: row.product_name,
         product_image: row.product_image,
-        bottle_size: row.bottle_size,
+        variation_label: row.variation_label,
         sku: row.sku,
         barcode: row.barcode,
         attributes: row.attributes,

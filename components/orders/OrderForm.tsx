@@ -54,7 +54,7 @@ interface Product {
   code: string;
   name: string;
   image?: string;
-  bottle_size?: string;
+  variation_label?: string;
   product_type: 'simple' | 'variation';
   default_price: number;
   discount_price?: number;
@@ -66,7 +66,7 @@ interface BranchProduct {
   product_id: string;
   product_code: string;
   product_name: string;
-  bottle_size?: string;
+  variation_label?: string;
   image?: string;
   quantity: number;
   unit_price: number;
@@ -384,7 +384,7 @@ export default function OrderForm({
               product_id: item.product_id,
               product_code: item.product_code,
               product_name: item.product_name,
-              bottle_size: item.bottle_size,
+              variation_label: item.variation_label,
               image: item.image,
               quantity: item.quantity,
               unit_price: item.unit_price,
@@ -416,7 +416,7 @@ export default function OrderForm({
                 product_id: item.product_id,
                 product_code: item.product_code,
                 product_name: item.product_name,
-                bottle_size: item.bottle_size,
+                variation_label: item.variation_label,
                 image: item.image,
                 quantity: shipment.quantity,
                 unit_price: item.unit_price,
@@ -476,7 +476,7 @@ export default function OrderForm({
             code: sp.code,
             name: sp.name,
             image: sp.main_image_url || sp.image,
-            bottle_size: sp.simple_bottle_size,
+            variation_label: sp.simple_variation_label,
             product_type: 'simple',
             default_price: sp.simple_default_price || 0,
             discount_price: sp.simple_discount_price || 0,
@@ -487,10 +487,10 @@ export default function OrderForm({
             flatProducts.push({
               id: v.variation_id,
               product_id: sp.product_id,
-              code: `${sp.code}-${v.bottle_size}`,
+              code: `${sp.code}-${v.variation_label}`,
               name: sp.name,
               image: v.image_url || sp.main_image_url || sp.image,
-              bottle_size: v.bottle_size,
+              variation_label: v.variation_label,
               product_type: 'variation',
               default_price: v.default_price || 0,
               discount_price: v.discount_price || 0,
@@ -659,7 +659,7 @@ export default function OrderForm({
               product_id: item.product_id,
               product_code: item.product_code,
               product_name: item.product_name,
-              bottle_size: item.bottle_size,
+              variation_label: item.variation_label,
               quantity: shipment.quantity,
               unit_price: item.unit_price,
               discount_value: item.discount_type === 'amount' ? (item.discount_amount || 0) : (item.discount_percent || 0),
@@ -804,7 +804,7 @@ export default function OrderForm({
         product_id: product.product_id,
         product_code: product.code,
         product_name: product.name,
-        bottle_size: product.bottle_size,
+        variation_label: product.variation_label,
         image: product.image,
         quantity: 1,
         unit_price,
@@ -958,7 +958,7 @@ export default function OrderForm({
           product_id: product.product_id,
           product_code: product.product_code,
           product_name: product.product_name,
-          bottle_size: product.bottle_size,
+          variation_label: product.variation_label,
           quantity: product.quantity,
           unit_price: product.unit_price,
           discount_value: product.discount_value,
@@ -1062,8 +1062,8 @@ export default function OrderForm({
     c.customer_code.toLowerCase().includes(customerSearch.toLowerCase())
   );
 
-  const getBottleSizeDisplay = (bottleSize?: string) => {
-    return bottleSize || '';
+  const getVariationLabelDisplay = (variationLabel?: string) => {
+    return variationLabel || '';
   };
 
   const getStockBadge = (variationId: string, orderQty: number) => {
@@ -1518,7 +1518,7 @@ export default function OrderForm({
                 /* Embedded mode: card layout — product name full width, inputs below */
                 <div className="divide-y divide-gray-100">
                   {branch.products.map((product, productIndex) => {
-                    const capacityDisplay = getBottleSizeDisplay(product.bottle_size);
+                    const capacityDisplay = getVariationLabelDisplay(product.variation_label);
                     return (
                       <div key={product.variation_id} className="px-3 py-2.5 hover:bg-gray-50/50">
                         {/* Row 1: Image + Product name + delete */}
@@ -1623,7 +1623,7 @@ export default function OrderForm({
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                       {branch.products.map((product, productIndex) => {
-                        const capacityDisplay = getBottleSizeDisplay(product.bottle_size);
+                        const capacityDisplay = getVariationLabelDisplay(product.variation_label);
                         return (
                           <tr key={product.variation_id} className="hover:bg-gray-50/50 dark:hover:bg-slate-700/30">
                             <td className="px-4 py-2.5">
@@ -1768,7 +1768,7 @@ export default function OrderForm({
                             p.code.toLowerCase().includes(productSearches[branchIndex].toLowerCase())
                           )
                           .map(product => {
-                            const capacityDisplay = getBottleSizeDisplay(product.bottle_size);
+                            const capacityDisplay = getVariationLabelDisplay(product.variation_label);
                             const inv = stockEnabled && selectedWarehouseId ? inventoryMap[product.id] : null;
                             const avail = inv ? inv.available : 0;
                             const isOutOfStock = stockEnabled && !!selectedWarehouseId && avail <= 0;

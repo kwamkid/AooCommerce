@@ -13,7 +13,7 @@ import { BEAM_CHANNELS } from '@/lib/constants/payment-gateway';
 interface BillItem {
   product_code?: string;
   product_name: string;
-  bottle_size?: string;
+  variation_label?: string;
   quantity: number;
   unit_price: number;
   discount_percent: number;

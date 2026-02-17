@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
           items:inventory_transfer_items(
             id, variation_id, qty_sent, qty_received, notes,
             variation:product_variations!inventory_transfer_items_variation_id_fkey(
-              id, bottle_size, sku, attributes,
+              id, variation_label, sku, attributes,
               product:products!product_variations_product_id_fkey(id, code, name, image)
             )
           )

@@ -48,7 +48,7 @@ import {
 interface DeliveryProduct {
   productName: string;
   productCode: string;
-  bottleSize: string | null;
+  variationLabel: string | null;
   quantity: number;
   image: string | null;
 }
@@ -102,7 +102,7 @@ interface DateGroup {
 interface ProductSummary {
   productName: string;
   productCode: string;
-  bottleSize: string | null;
+  variationLabel: string | null;
   totalQuantity: number;
   image: string | null;
   barcode: string | null;
@@ -332,7 +332,7 @@ function SortableDeliveryCard({
                   )}
                   <span className="text-gray-700 dark:text-slate-300 flex-1">
                     {product.productName}
-                    {product.bottleSize && <span className="text-gray-400 dark:text-slate-500 ml-1">{product.bottleSize}</span>}
+                    {product.variationLabel && <span className="text-gray-400 dark:text-slate-500 ml-1">{product.variationLabel}</span>}
                   </span>
                   <span className="font-medium text-gray-900 dark:text-white">x {product.quantity}</span>
                 </div>
@@ -632,8 +632,8 @@ export default function DeliverySummaryPage() {
 
         text += '   สินค้า:\n';
         delivery.products.forEach(product => {
-          const bottleInfo = product.bottleSize ? ` ${product.bottleSize}` : '';
-          text += `   - ${product.productName}${bottleInfo} x ${product.quantity}\n`;
+          const variationInfo = product.variationLabel ? ` ${product.variationLabel}` : '';
+          text += `   - ${product.productName}${variationInfo} x ${product.quantity}\n`;
         });
         text += '\n';
       });
@@ -644,8 +644,8 @@ export default function DeliverySummaryPage() {
     if (reportData.productSummary.length > 0) {
       text += `${'═'.repeat(30)}\n📋 สรุปสินค้าทั้งหมด:\n`;
       reportData.productSummary.forEach(product => {
-        const bottleInfo = product.bottleSize ? ` ${product.bottleSize}` : '';
-        text += `   - ${product.productName}${bottleInfo}: ${product.totalQuantity} ขวด\n`;
+        const variationInfo = product.variationLabel ? ` ${product.variationLabel}` : '';
+        text += `   - ${product.productName}${variationInfo}: ${product.totalQuantity} ขวด\n`;
       });
     }
 
@@ -844,7 +844,7 @@ export default function DeliverySummaryPage() {
       const tableBody: any[][] = [tableHeader];
 
       reportData.productSummary.forEach((product, index) => {
-        const fullName = product.productName + (product.bottleSize ? ` - ${product.bottleSize}` : '');
+        const fullName = product.productName + (product.variationLabel ? ` - ${product.variationLabel}` : '');
         const imgDataUrl = imageDataUrls[index];
         const barcodeDataUrl = barcodeDataUrls[index];
 
@@ -1155,7 +1155,7 @@ export default function DeliverySummaryPage() {
                             )}
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white text-sm">
-                                {product.productName}{product.bottleSize ? ` - ${product.bottleSize}` : ''}
+                                {product.productName}{product.variationLabel ? ` - ${product.variationLabel}` : ''}
                               </div>
                               <div className="text-xs text-gray-400 font-mono">{product.productCode}</div>
                             </div>
@@ -1300,7 +1300,7 @@ export default function DeliverySummaryPage() {
                           )}
                           <span className="text-gray-900 dark:text-white flex-1">
                             {product.productName}
-                            {product.bottleSize && <span className="text-gray-400 dark:text-slate-500 ml-1">{product.bottleSize}</span>}
+                            {product.variationLabel && <span className="text-gray-400 dark:text-slate-500 ml-1">{product.variationLabel}</span>}
                           </span>
                           <span className="font-medium text-gray-900 dark:text-white">{product.totalQuantity}</span>
                         </div>

@@ -35,14 +35,14 @@ interface ProductItem {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  simple_bottle_size?: string;
+  simple_variation_label?: string;
   simple_sku?: string;
   simple_barcode?: string;
   simple_default_price?: number;
   simple_discount_price?: number;
   variations: {
     variation_id?: string;
-    bottle_size: string;
+    variation_label: string;
     sku?: string;
     barcode?: string;
     default_price: number;
@@ -510,10 +510,10 @@ export default function ProductsPage() {
                           <div className="space-y-1">
                             {product.variations && product.variations.length > 0 ? (
                               product.variations.map((v) => (
-                                <div key={v.variation_id || `${product.product_id}-${v.bottle_size}`}>
+                                <div key={v.variation_id || `${product.product_id}-${v.variation_label}`}>
                                   <div className="text-sm flex items-center space-x-1">
                                     <Wine className="w-3.5 h-3.5 text-gray-400" />
-                                    <span className="text-gray-500 dark:text-slate-400">{v.bottle_size}</span>
+                                    <span className="text-gray-500 dark:text-slate-400">{v.variation_label}</span>
                                     <span className="text-gray-400 font-medium ml-1">฿</span>
                                     <span>{formatNumber(v.default_price)}</span>
                                     {v.discount_price > 0 && (

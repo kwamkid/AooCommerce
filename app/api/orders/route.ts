@@ -9,7 +9,7 @@ interface OrderItemInput {
   product_id: string; // products.id
   product_code: string;
   product_name: string;
-  bottle_size?: string;
+  variation_label?: string;
   quantity: number;
   unit_price: number;
   discount_percent?: number;
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
           product_id: item.product_id,
           product_code: item.product_code,
           product_name: item.product_name,
-          bottle_size: item.bottle_size || null,
+          variation_label: item.variation_label || null,
           quantity: item.quantity,
           unit_price: item.unit_price,
           discount_percent: item.discount_percent || 0,
@@ -872,7 +872,7 @@ export async function PUT(request: NextRequest) {
             product_id: item.product_id,
             product_code: item.product_code,
             product_name: item.product_name,
-            bottle_size: item.bottle_size || null,
+            variation_label: item.variation_label || null,
             quantity: item.quantity,
             unit_price: item.unit_price,
             discount_percent: item.discount_percent || 0,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeAccountRow } from '@/lib/shopee-api';
+import { logIntegration } from '@/lib/integration-logger';
 import crypto from 'crypto';
 
 function verifySignature(rawBody: string, signature: string, partnerKey: string): boolean {
@@ -59,6 +60,23 @@ export async function POST(request: NextRequest) {
     if (payload.code === 3) {
       const orderSn = payload.data?.ordersn as string;
       if (orderSn) {
+        // Log incoming webhook
+        logIntegration({
+          company_id: account.company_id,
+          integration: 'shopee',
+          account_id: account.id,
+          account_name: account.shop_name,
+          direction: 'incoming',
+          action: 'webhook_order_status',
+          method: 'POST',
+          api_path: '/api/shopee/webhook',
+          request_body: payload,
+          status: 'success',
+          reference_type: 'order',
+          reference_id: orderSn,
+          reference_label: `Order ${orderSn}`,
+        });
+
         // Sync this specific order asynchronously
         syncSingleOrder(account as ShopeeAccountRow, orderSn).catch(err => {
           console.error('Shopee webhook sync error:', err);

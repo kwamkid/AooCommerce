@@ -47,7 +47,7 @@ interface Product {
   product_id: string;
   code: string;
   name: string;
-  bottle_size?: string;
+  variation_label?: string;
   product_type: 'simple' | 'variation';
   default_price: number;
   discount_price?: number;
@@ -60,7 +60,7 @@ interface BranchProduct {
   product_id: string;
   product_code: string;
   product_name: string;
-  bottle_size?: string;
+  variation_label?: string;
   quantity: number;
   unit_price: number;
   discount_percent: number;
@@ -102,7 +102,7 @@ interface OrderItem {
   product_id: string;
   product_code: string;
   product_name: string;
-  bottle_size?: string;
+  variation_label?: string;
   quantity: number;
   unit_price: number;
   discount_percent: number;
@@ -258,7 +258,7 @@ export default function EditOrderPage() {
               product_id: item.product_id,
               product_code: item.product_code,
               product_name: item.product_name,
-              bottle_size: item.bottle_size,
+              variation_label: item.variation_label,
               quantity: shipment.quantity,
               unit_price: item.unit_price,
               discount_percent: item.discount_percent
@@ -300,7 +300,7 @@ export default function EditOrderPage() {
             product_id: sp.product_id,
             code: sp.code,
             name: sp.name,
-            bottle_size: sp.simple_bottle_size,
+            variation_label: sp.simple_variation_label,
             product_type: 'simple',
             default_price: sp.simple_default_price || 0,
             discount_price: sp.simple_discount_price || 0,
@@ -311,9 +311,9 @@ export default function EditOrderPage() {
             flatProducts.push({
               id: v.variation_id,
               product_id: sp.product_id,
-              code: `${sp.code}-${v.bottle_size}`,
-              name: `${sp.name} (${v.bottle_size})`,
-              bottle_size: v.bottle_size,
+              code: `${sp.code}-${v.variation_label}`,
+              name: `${sp.name} (${v.variation_label})`,
+              variation_label: v.variation_label,
               product_type: 'variation',
               default_price: v.default_price || 0,
               discount_price: v.discount_price || 0,
@@ -444,7 +444,7 @@ export default function EditOrderPage() {
       product_id: product.product_id,
       product_code: product.code,
       product_name: product.name,
-      bottle_size: product.bottle_size,
+      variation_label: product.variation_label,
       quantity: 1,
       unit_price,
       discount_percent
@@ -570,7 +570,7 @@ export default function EditOrderPage() {
           product_id: product.product_id,
           product_code: product.product_code,
           product_name: product.product_name,
-          bottle_size: product.bottle_size,
+          variation_label: product.variation_label,
           quantity: product.quantity,
           unit_price: product.unit_price,
           discount_percent: product.discount_percent,

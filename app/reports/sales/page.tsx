@@ -71,7 +71,7 @@ interface GroupedDataByCustomer {
 interface GroupedDataByProduct {
   productCode: string;
   productName: string;
-  bottleSize: string;
+  variationLabel: string;
   totalQuantity: number;
   totalAmount: number;
   orderCount: number;
@@ -229,7 +229,7 @@ export default function SalesReportPage() {
         csvContent += 'รหัสสินค้า,ชื่อสินค้า,ขนาด,จำนวนขาย,ยอดขาย\n';
 
         groupedData.forEach((item: GroupedDataByProduct) => {
-          csvContent += `${item.productCode},"${item.productName}",${item.bottleSize},${item.totalQuantity},${formatPrice(item.totalAmount)}\n`;
+          csvContent += `${item.productCode},"${item.productName}",${item.variationLabel},${item.totalQuantity},${formatPrice(item.totalAmount)}\n`;
         });
       }
 
@@ -526,7 +526,7 @@ export default function SalesReportPage() {
                 ))}
 
                 {groupBy === 'product' && groupedData.map((item: GroupedDataByProduct, index: number) => (
-                  <tr key={`${item.productCode || 'unknown'}-${item.bottleSize || 'unknown'}-${index}`} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 dark:bg-slate-900">
+                  <tr key={`${item.productCode || 'unknown'}-${item.variationLabel || 'unknown'}-${index}`} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 dark:bg-slate-900">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">{item.productName}</div>
@@ -535,7 +535,7 @@ export default function SalesReportPage() {
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:text-blue-400">
-                        {item.bottleSize}
+                        {item.variationLabel}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center font-semibold text-gray-900 dark:text-white">

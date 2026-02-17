@@ -20,7 +20,7 @@ interface TransferItem {
   notes: string | null;
   variation: {
     id: string;
-    bottle_size: string | null;
+    variation_label: string | null;
     sku: string | null;
     attributes: Record<string, string> | null;
     product: {
@@ -180,7 +180,7 @@ export default function TransferDetailPage() {
 
   const getVariationLabel = (item: TransferItem): string => {
     const parts: string[] = [];
-    if (item.variation?.bottle_size) parts.push(item.variation.bottle_size);
+    if (item.variation?.variation_label) parts.push(item.variation.variation_label);
     if (item.variation?.attributes) {
       Object.values(item.variation.attributes).forEach(v => {
         if (v && v.trim()) parts.push(v.trim());

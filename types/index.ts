@@ -196,10 +196,10 @@ export interface ProductionBatch {
   productId: string;
   status: 'planned' | 'in_production' | 'completed' | 'cancelled';
   plannedQuantity: {
-    [bottleSize: string]: number;
+    [variationLabel: string]: number;
   };
   actualQuantity?: {
-    [bottleSize: string]: number;
+    [variationLabel: string]: number;
   };
   rawMaterialsUsed?: {
     materialId: string;
@@ -250,7 +250,7 @@ export interface SalesOrder {
 export interface OrderItem {
   id: string;
   productId: string;
-  bottleSize: string;
+  variationLabel: string;
   quantity: number;
   pricePerUnit: number;
   total: number;

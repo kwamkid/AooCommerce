@@ -25,7 +25,7 @@ interface Product {
   code: string;
   name: string;
   image?: string;
-  bottle_size?: string;
+  variation_label?: string;
   product_type: 'simple' | 'variation';
   default_price: number;
   sku?: string;
@@ -42,7 +42,7 @@ interface IssueItem {
   product_id: string;
   product_code: string;
   product_name: string;
-  bottle_size?: string;
+  variation_label?: string;
   image?: string;
   sku?: string;
   quantity: number;
@@ -146,7 +146,7 @@ export default function StockIssuePage() {
             code: sp.code,
             name: sp.name,
             image: sp.main_image_url || sp.image,
-            bottle_size: sp.simple_bottle_size,
+            variation_label: sp.simple_variation_label,
             product_type: 'simple',
             default_price: sp.simple_default_price || 0,
             sku: sp.variations?.[0]?.sku || '',
@@ -156,10 +156,10 @@ export default function StockIssuePage() {
             flatProducts.push({
               id: v.variation_id,
               product_id: sp.product_id,
-              code: `${sp.code}-${v.bottle_size}`,
+              code: `${sp.code}-${v.variation_label}`,
               name: sp.name,
               image: v.image_url || sp.main_image_url || sp.image,
-              bottle_size: v.bottle_size,
+              variation_label: v.variation_label,
               product_type: 'variation',
               default_price: v.default_price || 0,
               sku: v.sku || '',
@@ -240,7 +240,7 @@ export default function StockIssuePage() {
         product_id: product.product_id,
         product_code: product.code,
         product_name: product.name,
-        bottle_size: product.bottle_size,
+        variation_label: product.variation_label,
         image: product.image,
         sku: product.sku,
         quantity: 1,
@@ -339,8 +339,8 @@ export default function StockIssuePage() {
     return stockMap[variationId] || null;
   };
 
-  const getBottleSizeDisplay = (bottleSize?: string) => {
-    return bottleSize || '';
+  const getVariationLabelDisplay = (variationLabel?: string) => {
+    return variationLabel || '';
   };
 
   // ─── Loading State ───────────────────────────────────────
@@ -448,7 +448,7 @@ export default function StockIssuePage() {
                     <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">ไม่พบสินค้า</div>
                   ) : (
                     filteredProducts.map(product => {
-                      const capacityDisplay = getBottleSizeDisplay(product.bottle_size);
+                      const capacityDisplay = getVariationLabelDisplay(product.variation_label);
                       const stock = getStock(product.id);
                       return (
                         <button
@@ -513,7 +513,7 @@ export default function StockIssuePage() {
                       const stock = getStock(item.variation_id);
                       const available = stock?.available ?? 0;
                       const isOverStock = item.quantity > available;
-                      const capacityDisplay = getBottleSizeDisplay(item.bottle_size);
+                      const capacityDisplay = getVariationLabelDisplay(item.variation_label);
 
                       return (
                         <tr key={item.variation_id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
@@ -640,7 +640,7 @@ export default function StockIssuePage() {
                 const stock = getStock(item.variation_id);
                 const available = stock?.available ?? 0;
                 const isOverStock = item.quantity > available;
-                const capacityDisplay = getBottleSizeDisplay(item.bottle_size);
+                const capacityDisplay = getVariationLabelDisplay(item.variation_label);
 
                 return (
                   <div key={item.variation_id} className="p-3 space-y-2.5">

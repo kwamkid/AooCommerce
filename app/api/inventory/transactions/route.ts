@@ -6,11 +6,11 @@ import { getStockConfig } from '@/lib/stock-utils';
 function mapTransaction(tx: any, userMap: Record<string, string>) {
   let varLabel = '';
   const attrs = tx.attributes ?? tx.variation?.attributes;
-  const bottleSize = tx.bottle_size ?? tx.variation?.bottle_size;
+  const variationLabel = tx.variation_label ?? tx.variation?.variation_label;
   if (attrs && typeof attrs === 'object') {
     varLabel = Object.values(attrs as Record<string, string>).join(' / ');
-  } else if (bottleSize) {
-    varLabel = bottleSize;
+  } else if (variationLabel) {
+    varLabel = variationLabel;
   }
 
   return {
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
           reference_type, reference_id, notes, created_by, created_at,
           warehouse:warehouses(id, name, code),
           variation:product_variations(
-            id, bottle_size, sku, attributes,
+            id, variation_label, sku, attributes,
             product:products(id, code, name)
           )
         `, { count: 'exact' })

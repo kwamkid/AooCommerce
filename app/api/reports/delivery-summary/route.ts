@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
         product_id,
         product_code,
         product_name,
-        bottle_size,
+        variation_label,
         quantity,
         unit_price
       `)
@@ -220,11 +220,11 @@ export async function GET(request: NextRequest) {
       customer: any;
       shippingAddress: any;
       deliveryNotes: string | null;
-      products: Map<string, { productName: string; productCode: string; bottleSize: string | null; quantity: number; image: string | null; barcode: string | null }>;
+      products: Map<string, { productName: string; productCode: string; variationLabel: string | null; quantity: number; image: string | null; barcode: string | null }>;
     }>>();
 
     // Product summary across all dates
-    const productSummaryMap = new Map<string, { productName: string; productCode: string; bottleSize: string | null; totalQuantity: number; image: string | null; barcode: string | null }>();
+    const productSummaryMap = new Map<string, { productName: string; productCode: string; variationLabel: string | null; totalQuantity: number; image: string | null; barcode: string | null }>();
 
     shipments?.forEach(shipment => {
       const orderItem = orderItemMap.get(shipment.order_item_id);
@@ -288,7 +288,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Add product (merge quantities if same product+bottle in same delivery)
-      const productKey = `${orderItem.product_code}__${orderItem.bottle_size || ''}`;
+      const productKey = `${orderItem.product_code}__${orderItem.variation_label || ''}`;
       // Variation image > product_images product-level > products.image
       const itemImage = (orderItem.variation_id ? variationImageMap.get(orderItem.variation_id) : null)
         || productImageMap.get(orderItem.product_id) || null;
@@ -297,7 +297,7 @@ export async function GET(request: NextRequest) {
         delivery.products.set(productKey, {
           productName: orderItem.product_name,
           productCode: orderItem.product_code,
-          bottleSize: orderItem.bottle_size || null,
+          variationLabel: orderItem.variation_label || null,
           quantity: 0,
           image: itemImage,
           barcode: itemBarcode,
@@ -310,7 +310,7 @@ export async function GET(request: NextRequest) {
         productSummaryMap.set(productKey, {
           productName: orderItem.product_name,
           productCode: orderItem.product_code,
-          bottleSize: orderItem.bottle_size || null,
+          variationLabel: orderItem.variation_label || null,
           totalQuantity: 0,
           image: itemImage,
           barcode: itemBarcode,

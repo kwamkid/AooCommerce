@@ -27,7 +27,7 @@ interface VariationTypeItem {
 // Variation interface (from API)
 interface Variation {
   variation_id?: string;
-  bottle_size: string;
+  variation_label: string;
   sku?: string;
   barcode?: string;
   attributes?: Record<string, string>;
@@ -51,7 +51,7 @@ export interface ProductItem {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  simple_bottle_size?: string;
+  simple_variation_label?: string;
   simple_sku?: string;
   simple_barcode?: string;
   simple_default_price?: number;
@@ -70,7 +70,7 @@ interface ProductFormData {
   product_type: 'simple' | 'variation';
   is_active: boolean;
   selected_variation_types: string[];
-  bottle_size: string;
+  variation_label: string;
   sku: string;
   barcode: string;
   default_price: number;
@@ -81,7 +81,7 @@ interface ProductFormData {
 interface VariationFormData {
   id?: string;
   _tempId: string;
-  bottle_size: string;
+  variation_label: string;
   sku: string;
   barcode: string;
   attributes: Record<string, string>;
@@ -143,7 +143,7 @@ export default function ProductForm({
           product_type: 'simple',
           is_active: editingProduct.is_active,
           selected_variation_types: [],
-          bottle_size: editingProduct.simple_bottle_size || '-',
+          variation_label: editingProduct.simple_variation_label || '-',
           sku: editingProduct.simple_sku || '',
           barcode: editingProduct.simple_barcode || '',
           default_price: editingProduct.simple_default_price || 0,
@@ -159,7 +159,7 @@ export default function ProductForm({
           product_type: 'variation',
           is_active: editingProduct.is_active,
           selected_variation_types: editingProduct.selected_variation_types || [],
-          bottle_size: '',
+          variation_label: '',
           sku: '',
           barcode: '',
           default_price: 0,
@@ -167,7 +167,7 @@ export default function ProductForm({
           variations: editingProduct.variations.map(v => ({
             id: v.variation_id,
             _tempId: v.variation_id || crypto.randomUUID(),
-            bottle_size: v.bottle_size,
+            variation_label: v.variation_label,
             sku: v.sku || '',
             barcode: v.barcode || '',
             attributes: v.attributes || {},
@@ -187,7 +187,7 @@ export default function ProductForm({
       product_type: 'simple',
       is_active: true,
       selected_variation_types: [],
-      bottle_size: '',
+      variation_label: '',
       sku: '',
       barcode: '',
       default_price: 0,
@@ -272,7 +272,7 @@ export default function ProductForm({
         ...prev.variations,
         {
           _tempId: newTempId,
-          bottle_size: '',
+          variation_label: '',
           sku: '',
           barcode: '',
           attributes: attrs,
@@ -353,7 +353,7 @@ export default function ProductForm({
         if (i !== index) return v;
         const updated = { ...v, [field]: value };
         if (field === 'attributes') {
-          updated.bottle_size = buildDisplayName(updated.attributes);
+          updated.variation_label = buildDisplayName(updated.attributes);
         }
         return updated;
       })
@@ -372,7 +372,7 @@ export default function ProductForm({
         return {
           ...v,
           attributes: newAttrs,
-          bottle_size: buildDisplayName(newAttrs)
+          variation_label: buildDisplayName(newAttrs)
         };
       })
     }));
@@ -495,7 +495,7 @@ export default function ProductForm({
       const method = editingProduct?.product_id ? 'PUT' : 'POST';
       const submitData = {
         ...formData,
-        bottle_size: formData.product_type === 'variation' ? '' : (formData.bottle_size.trim() || '-'),
+        variation_label: formData.product_type === 'variation' ? '' : (formData.variation_label.trim() || '-'),
         // Strip _tempId from variations before sending to API
         variations: formData.variations.map(({ _tempId, ...rest }) => rest),
       };
@@ -822,7 +822,7 @@ export default function ProductForm({
                           return {
                             ...v,
                             attributes: newAttrs,
-                            bottle_size: buildDisplayName(newAttrs)
+                            variation_label: buildDisplayName(newAttrs)
                           };
                         });
 

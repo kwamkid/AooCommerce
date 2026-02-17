@@ -17,7 +17,7 @@ interface ReceiveItem {
   notes: string | null;
   variation: {
     id: string;
-    bottle_size: string | null;
+    variation_label: string | null;
     sku: string | null;
     attributes: Record<string, string> | null;
     product: { id: string; code: string; name: string; image: string | null };
@@ -72,7 +72,7 @@ export default function ReceiveDetailPage() {
 
   const getVariationLabel = (item: ReceiveItem) => {
     const parts: string[] = [];
-    if (item.variation?.bottle_size) parts.push(item.variation.bottle_size);
+    if (item.variation?.variation_label) parts.push(item.variation.variation_label);
     if (item.variation?.attributes) Object.values(item.variation.attributes).forEach(v => { if (v?.trim()) parts.push(v.trim()); });
     return parts.join(' / ');
   };

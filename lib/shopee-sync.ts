@@ -1033,7 +1033,7 @@ async function findOrCreateVariationBySku(
   if (sku) {
     const { data: existingVariation } = await supabaseAdmin
       .from('product_variations')
-      .select('id, product_id, sku, bottle_size, is_active, products!inner(id, code, image, is_active)')
+      .select('id, product_id, sku, variation_label, is_active, products!inner(id, code, image, is_active)')
       .eq('company_id', companyId)
       .eq('sku', sku)
       .limit(1)
@@ -1119,7 +1119,7 @@ async function findOrCreateVariationBySku(
       // Get variation type IDs — use tier_variation names from Shopee if available
       const variationTypeIds = await getOrCreateVariationTypeIds(companyId, shopeeInfo.tierVariationNames);
 
-      // Create parent product (bottle_size = NULL → variation type)
+      // Create parent product (variation_label = NULL → variation type)
       const parentImg = shopeeInfo.parentImageUrl || shopeeInfo.shopeeImageUrl || null;
       const { data: newParent, error: parentError } = await supabaseAdmin
         .from('products')
@@ -1127,7 +1127,7 @@ async function findOrCreateVariationBySku(
           company_id: companyId,
           code: parentCode,
           name: shopeeInfo.shopeeItemName,
-          bottle_size: null,  // NULL = variation product
+          variation_label: null,  // NULL = variation product
           image: parentImg,
           source: 'shopee',
           selected_variation_types: variationTypeIds,
@@ -1186,7 +1186,7 @@ async function findOrCreateVariationBySku(
       .insert({
         company_id: companyId,
         product_id: parentId,
-        bottle_size: shopeeInfo.shopeeModelName,  // display name from attributes
+        variation_label: shopeeInfo.shopeeModelName,  // display name from attributes
         sku: variationSku,
         attributes,
         default_price: price,
@@ -1265,7 +1265,7 @@ async function findOrCreateVariationBySku(
       company_id: companyId,
       code: productCode,
       name: productName,
-      bottle_size: simpleLabel,  // Simple product: needs a value (determines product_type in view)
+      variation_label: simpleLabel,  // Simple product: needs a value (determines product_type in view)
       image: simpleImg,
       source: 'shopee',
       is_active: true,
@@ -1293,7 +1293,7 @@ async function findOrCreateVariationBySku(
     .insert({
       company_id: companyId,
       product_id: newProduct.id,
-      bottle_size: simpleLabel,
+      variation_label: simpleLabel,
       sku: sku || null,
       default_price: price,
       discount_price: 0,

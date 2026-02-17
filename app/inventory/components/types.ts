@@ -19,7 +19,7 @@ export interface InventoryItem {
   product_code: string;
   product_name: string;
   product_image: string | null;
-  bottle_size: string;
+  variation_label: string;
   sku: string;
   barcode: string;
   attributes: Record<string, string> | null;
@@ -127,7 +127,7 @@ export function getVariationLabel(item: InventoryItem) {
   if (item.attributes && Object.keys(item.attributes).length > 0) {
     return Object.values(item.attributes).join(' / ');
   }
-  return item.bottle_size || '';
+  return item.variation_label || '';
 }
 
 export function getProductDisplayName(item: InventoryItem) {

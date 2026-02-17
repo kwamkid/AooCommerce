@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
       supabaseAdmin
         .from('order_items')
         .select(`
-          id, variation_id, product_id, product_code, product_name, bottle_size,
+          id, variation_id, product_id, product_code, product_name, variation_label,
           quantity, unit_price, discount_percent, discount_amount, subtotal, total
         `)
         .eq('order_id', order.id),
@@ -178,7 +178,7 @@ export async function GET(request: NextRequest) {
           branch.items.push({
             product_code: item.product_code,
             product_name: item.product_name,
-            bottle_size: item.bottle_size,
+            variation_label: item.variation_label,
             quantity: shipment.quantity || item.quantity,
             unit_price: item.unit_price,
             discount_percent: item.discount_percent,
@@ -197,7 +197,7 @@ export async function GET(request: NextRequest) {
     const flatItems = (items || []).map(item => ({
       product_code: item.product_code,
       product_name: item.product_name,
-      bottle_size: item.bottle_size,
+      variation_label: item.variation_label,
       quantity: item.quantity,
       unit_price: item.unit_price,
       discount_percent: item.discount_percent,

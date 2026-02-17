@@ -13,7 +13,7 @@ interface ProductData {
   selected_variation_types?: string[]; // UUID[] of variation_type IDs
 
   // Simple product fields
-  bottle_size?: string;
+  variation_label?: string;
   sku?: string;
   barcode?: string;
   default_price?: number;
@@ -27,7 +27,7 @@ interface ProductData {
 
 interface VariationData {
   id?: string;
-  bottle_size: string;
+  variation_label: string;
   sku?: string;
   barcode?: string;
   default_price: number;
@@ -117,9 +117,9 @@ export async function POST(request: NextRequest) {
 
     // Validate based on product type
     if (productData.product_type === 'simple') {
-      if (!productData.bottle_size || productData.default_price === undefined) {
+      if (!productData.variation_label || productData.default_price === undefined) {
         return NextResponse.json(
-          { error: 'Simple product requires: bottle_size, default_price' },
+          { error: 'Simple product requires: variation_label, default_price' },
           { status: 400 }
         );
       }
@@ -174,8 +174,8 @@ export async function POST(request: NextRequest) {
       name: productData.name,
       description: productData.description || null,
       image: productData.image || null,
-      // For simple products, store bottle_size here (used by view to determine product_type)
-      bottle_size: productData.product_type === 'simple' ? productData.bottle_size : null,
+      // For simple products, store variation_label here (used by view to determine product_type)
+      variation_label: productData.product_type === 'simple' ? productData.variation_label : null,
       is_active: productData.is_active !== undefined ? productData.is_active : true,
       created_by: auth.userId,
       created_at: new Date().toISOString(),
@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
         .insert({
           company_id: auth.companyId,
           product_id: newProduct.id,
-          bottle_size: productData.bottle_size,
+          variation_label: productData.variation_label,
           sku: productData.sku || null,
           barcode: productData.barcode || null,
           default_price: productData.default_price,
@@ -241,8 +241,8 @@ export async function POST(request: NextRequest) {
       const variationsToInsert = productData.variations.map(v => ({
         company_id: auth.companyId,
         product_id: newProduct.id,
-        // Auto-generate bottle_size from attributes, fallback to provided bottle_size
-        bottle_size: v.attributes ? computeDisplayName(v.attributes) : v.bottle_size,
+        // Auto-generate variation_label from attributes, fallback to provided variation_label
+        variation_label: v.attributes ? computeDisplayName(v.attributes) : v.variation_label,
         sku: v.sku || null,
         barcode: v.barcode || null,
         default_price: v.default_price,
@@ -277,7 +277,7 @@ export async function POST(request: NextRequest) {
     // Fetch created variations (for staged image upload mapping)
     const { data: createdVariations } = await supabaseAdmin
       .from('product_variations')
-      .select('id, bottle_size')
+      .select('id, variation_label')
       .eq('product_id', newProduct.id)
       .eq('company_id', auth.companyId)
       .order('created_at', { ascending: true });
@@ -382,7 +382,7 @@ export async function GET(request: NextRequest) {
         if (row.variation_id) {
           existing.variations.push({
             variation_id: row.variation_id,
-            bottle_size: row.bottle_size,
+            variation_label: row.variation_label,
             sku: row.sku,
             barcode: row.barcode,
             attributes: row.attributes,
@@ -411,7 +411,7 @@ export async function GET(request: NextRequest) {
         };
 
         if (row.product_type === 'simple') {
-          newProduct.simple_bottle_size = row.simple_bottle_size;
+          newProduct.simple_variation_label = row.simple_variation_label;
           newProduct.simple_sku = row.sku;
           newProduct.simple_barcode = row.barcode;
           newProduct.simple_default_price = row.simple_default_price;
@@ -420,7 +420,7 @@ export async function GET(request: NextRequest) {
           newProduct.simple_min_stock = row.simple_min_stock;
           newProduct.variations = row.variation_id ? [{
             variation_id: row.variation_id,
-            bottle_size: row.simple_bottle_size,
+            variation_label: row.simple_variation_label,
             default_price: row.simple_default_price,
             discount_price: row.simple_discount_price,
             stock: row.simple_stock,
@@ -431,7 +431,7 @@ export async function GET(request: NextRequest) {
         } else {
           newProduct.variations = row.variation_id ? [{
             variation_id: row.variation_id,
-            bottle_size: row.bottle_size,
+            variation_label: row.variation_label,
             sku: row.sku,
             barcode: row.barcode,
             attributes: row.attributes,
@@ -479,7 +479,7 @@ export async function PUT(request: NextRequest) {
       name,
       description,
       image,
-      bottle_size,
+      variation_label,
       is_active,
       selected_variation_types,
     } = body;
@@ -539,9 +539,9 @@ export async function PUT(request: NextRequest) {
     if (name !== undefined && name !== '') updateData.name = name;
     if (description !== undefined) updateData.description = description || null;
     if (image !== undefined) updateData.image = image || null;
-    // For bottle_size: empty string should become null (for variation products)
-    if (bottle_size !== undefined) {
-      updateData.bottle_size = bottle_size === '' ? null : bottle_size;
+    // For variation_label: empty string should become null (for variation products)
+    if (variation_label !== undefined) {
+      updateData.variation_label = variation_label === '' ? null : variation_label;
     }
     if (is_active !== undefined) updateData.is_active = is_active;
     if (selected_variation_types !== undefined) updateData.selected_variation_types = selected_variation_types;
@@ -574,10 +574,10 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Determine product type from data.bottle_size
-    // Simple product: has bottle_size in products table
-    // Variation product: bottle_size is null in products table
-    const isSimpleProduct = data.bottle_size !== null;
+    // Determine product type from data.variation_label
+    // Simple product: has variation_label in products table
+    // Variation product: variation_label is null in products table
+    const isSimpleProduct = data.variation_label !== null;
 
     if (isSimpleProduct) {
       // For simple products: update the single variation row
@@ -600,7 +600,7 @@ export async function PUT(request: NextRequest) {
           if (discount_price !== undefined) variationUpdate.discount_price = discount_price;
           if (stock !== undefined) variationUpdate.stock = stock;
           if (min_stock !== undefined) variationUpdate.min_stock = min_stock;
-          if (bottle_size !== undefined) variationUpdate.bottle_size = bottle_size;
+          if (variation_label !== undefined) variationUpdate.variation_label = variation_label;
           if (sku !== undefined) variationUpdate.sku = sku || null;
           if (barcode !== undefined) variationUpdate.barcode = barcode || null;
 
@@ -617,7 +617,7 @@ export async function PUT(request: NextRequest) {
         // Get existing variations
         const { data: existingVariations } = await supabaseAdmin
           .from('product_variations')
-          .select('id, bottle_size')
+          .select('id, variation_label')
           .eq('product_id', id)
           .eq('company_id', auth.companyId);
 
@@ -636,17 +636,17 @@ export async function PUT(request: NextRequest) {
 
         // Update or insert variations
         for (const variation of variations) {
-          // Auto-generate bottle_size from attributes
+          // Auto-generate variation_label from attributes
           const displayName = variation.attributes
             ? computeDisplayName(variation.attributes)
-            : variation.bottle_size;
+            : variation.variation_label;
 
           if (variation.id) {
             // Update existing
             await supabaseAdmin
               .from('product_variations')
               .update({
-                bottle_size: displayName,
+                variation_label: displayName,
                 sku: variation.sku || null,
                 barcode: variation.barcode || null,
                 default_price: variation.default_price,
@@ -666,7 +666,7 @@ export async function PUT(request: NextRequest) {
               .insert({
                 company_id: auth.companyId,
                 product_id: id,
-                bottle_size: displayName,
+                variation_label: displayName,
                 sku: variation.sku || null,
                 barcode: variation.barcode || null,
                 default_price: variation.default_price,
@@ -694,7 +694,7 @@ export async function PUT(request: NextRequest) {
     // Also fetch variations for staged image upload mapping
     const { data: updatedVariations } = await supabaseAdmin
       .from('product_variations')
-      .select('id, bottle_size')
+      .select('id, variation_label')
       .eq('product_id', id)
       .eq('company_id', auth.companyId)
       .order('created_at', { ascending: true });

@@ -26,7 +26,7 @@ interface Product {
   code: string;
   name: string;
   image?: string;
-  bottle_size?: string;
+  variation_label?: string;
   product_type: 'simple' | 'variation';
   default_price: number;
   sku?: string;
@@ -38,7 +38,7 @@ interface TransferItem {
   code: string;
   name: string;
   image?: string;
-  bottle_size?: string;
+  variation_label?: string;
   sku?: string;
   quantity: number;
   available_stock: number | null;
@@ -153,7 +153,7 @@ export default function StockTransferPage() {
             code: sp.code,
             name: sp.name,
             image: sp.main_image_url || sp.image,
-            bottle_size: sp.simple_bottle_size,
+            variation_label: sp.simple_variation_label,
             product_type: 'simple',
             default_price: sp.simple_default_price || 0,
             sku: sp.variations?.[0]?.sku || '',
@@ -163,10 +163,10 @@ export default function StockTransferPage() {
             flatProducts.push({
               id: v.variation_id,
               product_id: sp.product_id,
-              code: `${sp.code}-${v.bottle_size}`,
+              code: `${sp.code}-${v.variation_label}`,
               name: sp.name,
               image: v.image_url || sp.main_image_url || sp.image,
-              bottle_size: v.bottle_size,
+              variation_label: v.variation_label,
               product_type: 'variation',
               default_price: v.default_price || 0,
               sku: v.sku || '',
@@ -230,7 +230,7 @@ export default function StockTransferPage() {
           code: product.code,
           name: product.name,
           image: product.image,
-          bottle_size: product.bottle_size,
+          variation_label: product.variation_label,
           sku: product.sku,
           quantity: 1,
           available_stock: getStockForVariation(product.id),
@@ -506,7 +506,7 @@ export default function StockTransferPage() {
                   </div>
                 ) : (
                   filteredProducts.map(product => {
-                    const bottleSizeDisplay = product.bottle_size || '';
+                    const variationLabelDisplay = product.variation_label || '';
                     const isAlreadyAdded = transferItems.some(
                       item => item.variation_id === product.id
                     );
@@ -532,7 +532,7 @@ export default function StockTransferPage() {
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
                             {product.name}
-                            {bottleSizeDisplay && ` - ${bottleSizeDisplay}`}
+                            {variationLabelDisplay && ` - ${variationLabelDisplay}`}
                           </div>
                           <div className="text-xs text-gray-400 dark:text-slate-500">
                             {product.code}
@@ -619,9 +619,9 @@ export default function StockTransferPage() {
                                 <p className="font-medium text-gray-900 dark:text-white truncate">
                                   {item.name}
                                 </p>
-                                {item.bottle_size && (
+                                {item.variation_label && (
                                   <p className="text-xs text-gray-500 dark:text-slate-400">
-                                    {item.bottle_size}
+                                    {item.variation_label}
                                   </p>
                                 )}
                               </div>
@@ -729,7 +729,7 @@ export default function StockTransferPage() {
                           </p>
                           <p className="text-xs text-gray-500 dark:text-slate-400">
                             {item.code}
-                            {item.bottle_size && ` | ${item.bottle_size}`}
+                            {item.variation_label && ` | ${item.variation_label}`}
                           </p>
                           {item.sku && (
                             <p className="text-xs text-gray-400 dark:text-slate-500">

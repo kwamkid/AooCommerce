@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeAccountRow } from '@/lib/shopee-api';
 import { syncOrdersByTimeRange } from '@/lib/shopee-sync';
+import { logIntegration } from '@/lib/integration-logger';
 
 export async function POST(request: NextRequest) {
   // Verify cron secret
@@ -41,7 +42,9 @@ export async function POST(request: NextRequest) {
         .select()
         .single();
 
+      const startMs = Date.now();
       const result = await syncOrdersByTimeRange(account, lastSync, now);
+      const durationMs = Date.now() - startMs;
 
       // Update sync log
       if (log) {
@@ -56,6 +59,28 @@ export async function POST(request: NextRequest) {
           })
           .eq('id', log.id);
       }
+
+      // Integration log
+      logIntegration({
+        company_id: account.company_id,
+        integration: 'shopee',
+        account_id: account.id,
+        account_name: account.shop_name,
+        direction: 'outgoing',
+        action: 'sync_orders_poll',
+        method: 'POST',
+        api_path: '/api/v2/order/get_order_list',
+        request_body: { time_from: lastSync, time_to: now },
+        response_body: {
+          orders_fetched: result.orders_created + result.orders_updated + result.orders_skipped,
+          orders_created: result.orders_created,
+          orders_updated: result.orders_updated,
+          errors: result.errors,
+        },
+        status: result.errors.length > 0 ? 'error' : 'success',
+        error_message: result.errors.length > 0 ? result.errors.join('; ') : undefined,
+        duration_ms: durationMs,
+      });
 
       results.push({
         shop_id: account.shop_id,
