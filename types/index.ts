@@ -1,7 +1,7 @@
 // Path: src/types/index.ts
 
 // Company & Multi-Tenant Types
-export type CompanyRole = 'owner' | 'admin' | 'manager' | 'account' | 'warehouse' | 'sales';
+export type CompanyRole = 'owner' | 'admin' | 'manager' | 'account' | 'warehouse' | 'sales' | 'cashier';
 
 // UserRole is an alias for CompanyRole (single source of truth)
 export type UserRole = CompanyRole;

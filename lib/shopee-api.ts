@@ -118,7 +118,23 @@ export async function shopeeApiRequest(
 
   console.log(`[Shopee API] ${method} ${apiPath}`, { params: Object.fromEntries(Object.entries(params).filter(([k]) => k !== 'access_token')) });
   const res = await fetch(url, options);
-  const data = await res.json();
+
+  // Handle non-JSON responses gracefully
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const text = await res.text();
+    console.error(`[Shopee API] ${apiPath} returned non-JSON (${res.status}):`, text.substring(0, 500));
+    return { data: null, error: `Shopee API returned non-JSON response (HTTP ${res.status})` };
+  }
+
+  let data: any;
+  try {
+    data = await res.json();
+  } catch (e) {
+    const text = await res.text().catch(() => '');
+    console.error(`[Shopee API] ${apiPath} JSON parse failed:`, text.substring(0, 500));
+    return { data: null, error: `Failed to parse Shopee API response (HTTP ${res.status})` };
+  }
   console.log(`[Shopee API] ${apiPath} response:`, JSON.stringify(data).substring(0, 1000));
 
   if (data.error) {
@@ -690,6 +706,8 @@ export interface ShopeeItemFullDetail {
   has_model: boolean;
   models: ShopeeModelDetail[];
   tierVariations: string[];  // e.g. ["สี", "ขนาด"]
+  category_id?: number;
+  weight?: number; // in kg
 }
 
 export interface ShopeeModelDetail {
@@ -731,6 +749,8 @@ export async function getItemFullDetails(
         item_sku: string;
         item_status: string;
         has_model?: boolean;
+        category_id?: number;
+        weight?: number;
         image?: { image_url_list?: string[] };
         price_info?: Array<{ current_price?: number; original_price?: number }>;
         stock_info_v2?: { summary_info?: { total_available_stock?: number } };
@@ -747,6 +767,8 @@ export async function getItemFullDetails(
           has_model: item.has_model || false,
           models: [],
           tierVariations: [],
+          category_id: item.category_id,
+          weight: item.weight,
         };
 
         // For simple items (no model), extract price/stock from base info

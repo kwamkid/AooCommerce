@@ -153,6 +153,8 @@ async function createLink(params: {
   status: string;
   price: number;
   primaryImage?: string;
+  categoryId?: number;
+  weight?: number;
 }) {
   await supabaseAdmin.from('marketplace_product_links').upsert({
     company_id: params.companyId,
@@ -167,6 +169,8 @@ async function createLink(params: {
     external_item_status: params.status,
     platform_price: params.price || null,
     platform_primary_image: params.primaryImage || null,
+    shopee_category_id: params.categoryId ? String(params.categoryId) : null,
+    weight: params.weight || null,
     last_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }, { onConflict: 'account_id,external_item_id,external_model_id' });
@@ -323,6 +327,8 @@ async function processShopeeItem(
           itemId: item.item_id, modelId: model.model_id,
           sku, status: item.item_status, price: model.current_price,
           primaryImage: model.image_url || primaryImage,
+          categoryId: item.category_id,
+          weight: item.weight,
         });
         // Don't count as updated — counted at parent level
       } else {
@@ -336,6 +342,8 @@ async function processShopeeItem(
             itemId: item.item_id, modelId: model.model_id,
             sku, status: item.item_status, price: model.current_price,
             primaryImage: model.image_url || primaryImage,
+            categoryId: item.category_id,
+            weight: item.weight,
           });
           result.links_created++;
         } else {
@@ -349,6 +357,8 @@ async function processShopeeItem(
               itemId: item.item_id, modelId: model.model_id,
               sku, status: item.item_status, price: model.current_price,
               primaryImage: model.image_url || primaryImage,
+              categoryId: item.category_id,
+              weight: item.weight,
             });
             result.links_created++;
           }
@@ -371,6 +381,8 @@ async function processShopeeItem(
         itemId: item.item_id, modelId: 0,
         sku, status: item.item_status, price: model?.current_price || 0,
         primaryImage,
+        categoryId: item.category_id,
+        weight: item.weight,
       });
       result.products_updated++;
     } else {
@@ -384,6 +396,8 @@ async function processShopeeItem(
           itemId: item.item_id, modelId: 0,
           sku, status: item.item_status, price: model?.current_price || 0,
           primaryImage,
+          categoryId: item.category_id,
+          weight: item.weight,
         });
         result.links_created++;
         result.products_updated++;
@@ -407,6 +421,8 @@ async function processShopeeItem(
             itemId: item.item_id, modelId: 0,
             sku, status: item.item_status, price: model?.current_price || 0,
             primaryImage,
+            categoryId: item.category_id,
+            weight: item.weight,
           });
           result.links_created++;
           result.products_updated++;
@@ -429,6 +445,8 @@ async function processShopeeItem(
               itemId: item.item_id, modelId: 0,
               sku, status: item.item_status, price: model?.current_price || 0,
               primaryImage,
+              categoryId: item.category_id,
+              weight: item.weight,
             });
             result.products_created++;
             result.links_created++;

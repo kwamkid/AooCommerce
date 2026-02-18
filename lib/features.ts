@@ -59,6 +59,23 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
 export const DEFAULT_FEATURES: FeatureFlags = PRESET_DEFAULTS.delivery;
 export const DEFAULT_PRESET: BusinessPreset = 'delivery';
 
+// Detect which preset matches the given features (null if none match)
+export function detectPreset(f: FeatureFlags): BusinessPreset | null {
+  for (const [key, defaults] of Object.entries(PRESET_DEFAULTS) as [BusinessPreset, FeatureFlags][]) {
+    const match =
+      f.customer_branches === defaults.customer_branches &&
+      f.delivery_date.enabled === defaults.delivery_date.enabled &&
+      f.delivery_date.required === defaults.delivery_date.required &&
+      f.billing_cycle === defaults.billing_cycle &&
+      f.marketplace_sync === defaults.marketplace_sync &&
+      f.pos === defaults.pos &&
+      f.consignment === defaults.consignment &&
+      f.product_brand === defaults.product_brand;
+    if (match) return key;
+  }
+  return null;
+}
+
 // Parse features from company settings JSONB (handles missing/partial data)
 export function parseFeatures(settings: Record<string, unknown> | null | undefined): {
   preset: BusinessPreset;
@@ -68,27 +85,28 @@ export function parseFeatures(settings: Record<string, unknown> | null | undefin
     return { preset: DEFAULT_PRESET, features: DEFAULT_FEATURES };
   }
 
-  const preset = (settings.business_preset as BusinessPreset) || DEFAULT_PRESET;
   const stored = settings.features as Partial<FeatureFlags> | undefined;
 
   if (!stored) {
-    return { preset, features: DEFAULT_FEATURES };
+    return { preset: DEFAULT_PRESET, features: DEFAULT_FEATURES };
   }
 
   // Merge with defaults to fill any missing fields
-  return {
-    preset,
-    features: {
-      customer_branches: stored.customer_branches ?? DEFAULT_FEATURES.customer_branches,
-      delivery_date: {
-        enabled: (stored.delivery_date as { enabled?: boolean })?.enabled ?? DEFAULT_FEATURES.delivery_date.enabled,
-        required: (stored.delivery_date as { required?: boolean })?.required ?? DEFAULT_FEATURES.delivery_date.required,
-      },
-      billing_cycle: stored.billing_cycle ?? DEFAULT_FEATURES.billing_cycle,
-      marketplace_sync: stored.marketplace_sync ?? DEFAULT_FEATURES.marketplace_sync,
-      pos: stored.pos ?? DEFAULT_FEATURES.pos,
-      consignment: stored.consignment ?? DEFAULT_FEATURES.consignment,
-      product_brand: stored.product_brand ?? DEFAULT_FEATURES.product_brand,
+  const features: FeatureFlags = {
+    customer_branches: stored.customer_branches ?? DEFAULT_FEATURES.customer_branches,
+    delivery_date: {
+      enabled: (stored.delivery_date as { enabled?: boolean })?.enabled ?? DEFAULT_FEATURES.delivery_date.enabled,
+      required: (stored.delivery_date as { required?: boolean })?.required ?? DEFAULT_FEATURES.delivery_date.required,
     },
+    billing_cycle: stored.billing_cycle ?? DEFAULT_FEATURES.billing_cycle,
+    marketplace_sync: stored.marketplace_sync ?? DEFAULT_FEATURES.marketplace_sync,
+    pos: stored.pos ?? DEFAULT_FEATURES.pos,
+    consignment: stored.consignment ?? DEFAULT_FEATURES.consignment,
+    product_brand: stored.product_brand ?? DEFAULT_FEATURES.product_brand,
   };
+
+  // Derive preset from features — not stored separately
+  const preset = detectPreset(features) ?? DEFAULT_PRESET;
+
+  return { preset, features };
 }

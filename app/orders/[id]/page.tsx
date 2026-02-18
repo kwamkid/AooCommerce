@@ -110,6 +110,9 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Receipt number (POS)
+  const [receiptNumber, setReceiptNumber] = useState('');
+
   // Shopee-specific state
   const [orderSource, setOrderSource] = useState('manual');
   const [externalStatus, setExternalStatus] = useState('');
@@ -117,6 +120,7 @@ export default function OrderDetailPage() {
   const [shopeeActionLoading, setShopeeActionLoading] = useState(false);
   const [fullOrderData, setFullOrderData] = useState<any>(null);
   const isShopeeOrder = orderSource === 'shopee';
+  const isPosOrder = orderSource === 'pos';
 
   // Print
   const [printMode, setPrintMode] = useState<'order' | 'packing' | null>(null);
@@ -182,6 +186,7 @@ export default function OrderDetailPage() {
       setOrderStatus(order.order_status);
       setPaymentStatus(order.payment_status);
       setOrderSource(order.source || 'manual');
+      setReceiptNumber(order.receipt_number || '');
       setExternalStatus(order.external_status || '');
       setExternalOrderSn(order.external_order_sn || '');
       setFullOrderData(order);
@@ -506,6 +511,11 @@ export default function OrderDetailPage() {
                     Shopee
                   </span>
                 )}
+                {isPosOrder && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                    POS
+                  </span>
+                )}
                 <OrderStatusBadge status={orderStatus} />
               </div>
               {features.delivery_date.enabled && orderDate && (
@@ -515,6 +525,11 @@ export default function OrderDetailPage() {
                     month: 'long',
                     day: 'numeric'
                   })}
+                </p>
+              )}
+              {isPosOrder && receiptNumber && (
+                <p className="text-sm text-gray-500 mt-0.5">
+                  เลขที่ใบเสร็จ: {receiptNumber}
                 </p>
               )}
             </div>
@@ -738,7 +753,7 @@ export default function OrderDetailPage() {
         )}
 
         {/* Status Management — prominent buttons (hidden on print) */}
-        {orderStatus !== 'cancelled' && !isShopeeOrder && (
+        {orderStatus !== 'cancelled' && !isShopeeOrder && !isPosOrder && (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               {/* Order Status Section */}
@@ -873,6 +888,33 @@ export default function OrderDetailPage() {
                     <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3 h-3" />
                     ชำระผ่าน Shopee
                   </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* POS Order Status — read-only display */}
+        {orderStatus !== 'cancelled' && isPosOrder && (
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex-1">
+                <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">สถานะออเดอร์</div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <OrderStatusBadge status={orderStatus} />
+                  <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                    POS — ชำระเงินแล้ว
+                  </span>
+                </div>
+              </div>
+
+              <div className="hidden sm:block w-px h-12 bg-gray-200 dark:bg-slate-600" />
+              <div className="block sm:hidden w-full h-px bg-gray-200 dark:bg-slate-600" />
+
+              <div className="flex-1">
+                <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">การชำระเงิน</div>
+                <div className="flex items-center gap-2">
+                  <PaymentStatusBadge status={paymentStatus} />
                 </div>
               </div>
             </div>

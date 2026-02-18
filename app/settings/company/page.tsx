@@ -8,10 +8,11 @@ import { useCompany } from '@/lib/company-context';
 import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
-import { PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS, type BusinessPreset, type FeatureFlags } from '@/lib/features';
+import { useToast } from '@/lib/toast-context';
+import { PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS, detectPreset, type BusinessPreset, type FeatureFlags } from '@/lib/features';
 import {
   Building2, FileText, Phone, Mail, MapPin, Receipt, Upload, X,
-  AlertCircle, Loader2, CheckCircle, Save,
+  AlertCircle, Loader2, Save,
   Truck, ShoppingBag, Store, CalendarDays, CreditCard, ShoppingCart, Monitor, Handshake, Tag,
 } from 'lucide-react';
 
@@ -47,10 +48,10 @@ interface FeatureConfig {
 
 const FEATURE_CONFIGS: FeatureConfig[] = [
   { key: 'customer_branches', label: 'สาขาลูกค้า', description: 'ลูกค้าที่มีหลายสาขา', icon: <Building2 className="w-5 h-5" /> },
-  { key: 'delivery_date', label: 'วันส่งของ', description: 'กำหนดวันส่งในคำสั่งซื้อ', icon: <CalendarDays className="w-5 h-5" />, hasRequired: true },
+  { key: 'delivery_date', label: 'ธุรกิจเดลิเวอรี่', description: 'กำหนดวันส่งของ และเมนูจัดของเตรียมส่ง & คิวคนขับรถ', icon: <CalendarDays className="w-5 h-5" />, hasRequired: true },
   { key: 'billing_cycle', label: 'วางบิล / เครดิต', description: 'ระบบวางบิลสิ้นเดือน', icon: <CreditCard className="w-5 h-5" /> },
   { key: 'marketplace_sync', label: 'Marketplace', description: 'เชื่อม Shopee, Lazada ฯลฯ', icon: <ShoppingCart className="w-5 h-5" /> },
-  { key: 'pos', label: 'POS', description: 'ขายหน้าร้าน', icon: <Monitor className="w-5 h-5" />, comingSoon: true },
+  { key: 'pos', label: 'POS', description: 'ขายหน้าร้าน', icon: <Monitor className="w-5 h-5" /> },
   { key: 'consignment', label: 'ฝากขาย', description: 'Consignment', icon: <Handshake className="w-5 h-5" />, comingSoon: true },
   { key: 'product_brand', label: 'แบรนด์สินค้า', description: 'จัดกลุ่มสินค้าตามแบรนด์', icon: <Tag className="w-5 h-5" /> },
 ];
@@ -58,12 +59,12 @@ const FEATURE_CONFIGS: FeatureConfig[] = [
 export default function CompanySettingsPage() {
   const { currentCompany, companyRole, refreshCompanies } = useCompany();
   const { session } = useAuth();
-  const { preset: currentPreset, features: currentFeatures, refreshFeatures } = useFeatures();
+  const { features: currentFeatures, fetched: featuresFetched, refreshFeatures } = useFeatures();
+  const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Company form state
@@ -75,20 +76,17 @@ export default function CompanySettingsPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
-  // Business mode state
-  const [selectedPreset, setSelectedPreset] = useState<BusinessPreset>(currentPreset);
+  // Business mode state — preset is derived from features, not stored
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(currentFeatures);
-  const [isCustom, setIsCustom] = useState(false);
   const [featuresLoaded, setFeaturesLoaded] = useState(false);
 
-  // Sync features from context
+  // Sync features from context — wait until API data is actually fetched
   useEffect(() => {
-    if (!featuresLoaded) {
-      setSelectedPreset(currentPreset);
+    if (featuresFetched && !featuresLoaded) {
       setFeatureFlags(currentFeatures);
       setFeaturesLoaded(true);
     }
-  }, [currentPreset, currentFeatures, featuresLoaded]);
+  }, [featuresFetched, currentFeatures, featuresLoaded]);
 
   // Fetch company data
   useFetchOnce(async () => {
@@ -117,52 +115,28 @@ export default function CompanySettingsPage() {
   }, !!currentCompany?.id);
 
   // --- Business mode helpers ---
-  const detectPreset = (f: FeatureFlags): BusinessPreset | null => {
-    for (const [key, defaults] of Object.entries(PRESET_DEFAULTS) as [BusinessPreset, FeatureFlags][]) {
-      const match =
-        f.customer_branches === defaults.customer_branches &&
-        f.delivery_date.enabled === defaults.delivery_date.enabled &&
-        f.delivery_date.required === defaults.delivery_date.required &&
-        f.billing_cycle === defaults.billing_cycle &&
-        f.marketplace_sync === defaults.marketplace_sync &&
-        f.pos === defaults.pos &&
-        f.consignment === defaults.consignment &&
-        f.product_brand === defaults.product_brand;
-      if (match) return key;
-    }
-    return null;
-  };
+  const derivedPreset = detectPreset(featureFlags);
+  const isCustom = derivedPreset === null;
 
   const handlePresetSelect = (preset: BusinessPreset) => {
-    setSelectedPreset(preset);
     setFeatureFlags(PRESET_DEFAULTS[preset]);
-    setIsCustom(false);
   };
 
   const toggleFeature = (key: keyof FeatureFlags) => {
     setFeatureFlags(prev => {
-      let next: FeatureFlags;
       if (key === 'delivery_date') {
         const dd = prev.delivery_date;
-        next = { ...prev, delivery_date: { enabled: !dd.enabled, required: !dd.enabled ? dd.required : false } };
-      } else {
-        next = { ...prev, [key]: !prev[key as keyof Omit<FeatureFlags, 'delivery_date'>] };
+        return { ...prev, delivery_date: { enabled: !dd.enabled, required: !dd.enabled ? dd.required : false } };
       }
-      const matched = detectPreset(next);
-      setSelectedPreset(matched ?? selectedPreset);
-      setIsCustom(matched === null);
-      return next;
+      return { ...prev, [key]: !prev[key as keyof Omit<FeatureFlags, 'delivery_date'>] };
     });
   };
 
   const toggleDeliveryDateRequired = () => {
-    setFeatureFlags(prev => {
-      const next = { ...prev, delivery_date: { ...prev.delivery_date, required: !prev.delivery_date.required } };
-      const matched = detectPreset(next);
-      setSelectedPreset(matched ?? selectedPreset);
-      setIsCustom(matched === null);
-      return next;
-    });
+    setFeatureFlags(prev => ({
+      ...prev,
+      delivery_date: { ...prev.delivery_date, required: !prev.delivery_date.required },
+    }));
   };
 
   const getFeatureValue = (key: keyof FeatureFlags): boolean => {
@@ -219,10 +193,9 @@ export default function CompanySettingsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
 
     if (!formData.name.trim()) {
-      setError('กรุณาระบุชื่อบริษัท');
+      showToast('กรุณาระบุชื่อบริษัท', 'error');
       return;
     }
     if (!currentCompany?.id) return;
@@ -249,7 +222,7 @@ export default function CompanySettingsPage() {
         apiFetch('/api/settings/features', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ preset: selectedPreset, features: featureFlags }),
+          body: JSON.stringify({ preset: derivedPreset || 'custom', features: featureFlags }),
         }),
       ]);
 
@@ -259,14 +232,13 @@ export default function CompanySettingsPage() {
       if (!companyRes.ok) throw new Error(companyResult.error || 'ไม่สามารถบันทึกข้อมูลบริษัทได้');
       if (!featuresRes.ok) throw new Error(featuresResult.error || 'ไม่สามารถบันทึก features ได้');
 
-      setSuccess('บันทึกสำเร็จ');
-      setTimeout(() => setSuccess(''), 3000);
+      showToast('บันทึกสำเร็จ', 'success');
 
       await Promise.all([refreshCompanies(), refreshFeatures()]);
 
       if (logoFile) await handleUploadLogo();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึก');
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึก', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -296,17 +268,11 @@ export default function CompanySettingsPage() {
         </div>
       ) : (
         <form onSubmit={handleSubmit}>
-          {/* Alerts */}
+          {/* Error alert */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start space-x-3">
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-            </div>
-          )}
-          {success && (
-            <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-start space-x-3">
-              <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-green-700 dark:text-green-400">{success}</p>
             </div>
           )}
 
@@ -425,7 +391,7 @@ export default function CompanySettingsPage() {
 
                 <div className="grid grid-cols-3 gap-3">
                   {PRESETS.map(({ key, icon }) => {
-                    const isSelected = !isCustom && selectedPreset === key;
+                    const isSelected = derivedPreset === key;
                     return (
                       <button
                         key={key}

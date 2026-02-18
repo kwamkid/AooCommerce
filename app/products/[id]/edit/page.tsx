@@ -713,15 +713,6 @@ export default function EditProductPage() {
                 SKU: {link.external_sku}
               </p>
             )}
-            {link.external_item_status && (
-              <span className={`inline-flex mt-1.5 px-2 py-0.5 rounded text-[10px] font-medium ${
-                link.external_item_status === 'NORMAL'
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                  : 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-400'
-              }`}>
-                {link.external_item_status}
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
             {shopId && (
@@ -849,15 +840,6 @@ export default function EditProductPage() {
               <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 font-mono">
                 Item ID: {firstLink.external_item_id}
               </p>
-              {firstLink.external_item_status && (
-                <span className={`inline-flex mt-1.5 px-2 py-0.5 rounded text-[10px] font-medium ${
-                  firstLink.external_item_status === 'NORMAL'
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-400'
-                }`}>
-                  {firstLink.external_item_status}
-                </span>
-              )}
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
               {shopId && (

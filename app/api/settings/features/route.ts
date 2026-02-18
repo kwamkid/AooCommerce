@@ -69,7 +69,6 @@ export async function PUT(request: NextRequest) {
       business_preset: preset,
       features,
     };
-
     const { error: updateError } = await supabaseAdmin
       .from('companies')
       .update({ settings: newSettings })

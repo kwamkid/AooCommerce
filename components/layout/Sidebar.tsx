@@ -39,6 +39,8 @@ import {
   ShoppingBag,
   Tag,
   Award,
+  Monitor,
+  Receipt,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -55,6 +57,13 @@ interface MenuSection {
 }
 
 const menuSections: MenuSection[] = [
+  {
+    title: 'POS',
+    items: [
+      { label: 'POS', href: '/pos', icon: <Monitor className="w-5 h-5" />, roles: ['admin', 'manager', 'sales', 'cashier'] },
+      { label: 'รายการขาย POS', href: '/pos/orders', icon: <Receipt className="w-5 h-5" />, roles: ['admin', 'manager', 'cashier'] },
+    ]
+  },
   {
     title: 'ระบบการขาย',
     items: [
@@ -95,6 +104,7 @@ const getRoleLabel = (role: string | null) => {
     account: 'ฝ่ายบัญชี',
     warehouse: 'ฝ่ายคลังสินค้า',
     sales: 'ฝ่ายขาย',
+    cashier: 'แคชเชียร์',
   };
   return role ? labels[role] || role : '';
 };
@@ -119,6 +129,7 @@ export default function Sidebar() {
     if (companyRole === 'owner' || companyRole === 'admin') return 'admin';
     if (companyRole === 'manager') return 'manager';
     if (companyRole === 'warehouse') return 'warehouse';
+    if (companyRole === 'cashier') return 'cashier';
     if (companyRole === 'account' || companyRole === 'sales') return 'sales';
     return userProfile?.role || null;
   })();
@@ -174,6 +185,8 @@ export default function Sidebar() {
     .filter(section => {
       // Hide "คลังสินค้า" section when stock feature is not enabled
       if (section.title === 'คลังสินค้า' && !stockEnabled) return false;
+      // Hide "POS" section when pos feature is not enabled
+      if (section.title === 'POS' && !features.pos) return false;
       return true;
     })
     .map(section => ({
@@ -364,7 +377,7 @@ export default function Sidebar() {
                   {section.title}
                 </h3>
                 {section.items.map((item) => {
-                  const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/inventory' && pathname?.startsWith(item.href + '/')) || (item.href === '/chat' && (pathname === '/line-chat' || pathname === '/fb-chat'));
+                  const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/inventory' && item.href !== '/pos' && pathname?.startsWith(item.href + '/')) || (item.href === '/chat' && (pathname === '/line-chat' || pathname === '/fb-chat'));
 
                   // Products item: render as collapsible with submenu
                   if (item.href === '/products') {
@@ -518,6 +531,12 @@ export default function Sidebar() {
                       <Warehouse className="w-4 h-4" />
                       <span className="text-[16px] font-medium">คลังสินค้า</span>
                     </Link>
+                    {features.pos && (
+                    <Link href="/settings/pos-terminals" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/pos-terminals' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                      <Monitor className="w-4 h-4" />
+                      <span className="text-[16px] font-medium">จุดขาย POS</span>
+                    </Link>
+                    )}
                     {features.marketplace_sync && (
                     <Link href="/settings/integrations" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/integrations' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                       <ShoppingBag className="w-4 h-4" />

@@ -10,6 +10,7 @@ interface FeaturesContextType {
   features: FeatureFlags;
   preset: BusinessPreset;
   loading: boolean;
+  fetched: boolean; // true after API data has been loaded at least once
   refreshFeatures: () => Promise<void>;
 }
 
@@ -21,14 +22,17 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
   const [features, setFeatures] = useState<FeatureFlags>(DEFAULT_FEATURES);
   const [preset, setPreset] = useState<BusinessPreset>(DEFAULT_PRESET);
   const [loading, setLoading] = useState(true);
+  const [fetched, setFetched] = useState(false);
 
   const fetchFeatures = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await apiFetch('/api/settings/features');
       if (res.ok) {
         const data = await res.json();
         setPreset(data.preset || DEFAULT_PRESET);
         setFeatures(data.features || DEFAULT_FEATURES);
+        setFetched(true);
       }
     } catch {
       // Keep defaults on error
@@ -46,7 +50,7 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
   }, [userProfile, currentCompany, fetchFeatures]);
 
   return (
-    <FeaturesContext.Provider value={{ features, preset, loading, refreshFeatures: fetchFeatures }}>
+    <FeaturesContext.Provider value={{ features, preset, loading, fetched, refreshFeatures: fetchFeatures }}>
       {children}
     </FeaturesContext.Provider>
   );

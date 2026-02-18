@@ -65,6 +65,13 @@ function SourceBadge({ source }: { source?: string }) {
       </span>
     );
   }
+  if (source === 'pos') {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+        POS
+      </span>
+    );
+  }
   return null;
 }
 
@@ -716,12 +723,16 @@ export default function OrdersPage() {
                       {visibleColumns.has('customer') && (
                         <td className="px-6 py-4">
                           <div>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); router.push(`/customers/${order.customer_id}`); }}
-                              className="text-sm font-medium text-[#F4511E] hover:text-[#D63B0E] hover:underline text-left"
-                            >
-                              {order.customer_name}
-                            </button>
+                            {order.customer_id ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); router.push(`/customers/${order.customer_id}`); }}
+                                className="text-sm font-medium text-[#F4511E] hover:text-[#D63B0E] hover:underline text-left"
+                              >
+                                {order.customer_name}
+                              </button>
+                            ) : (
+                              <span className="text-sm text-gray-500 dark:text-slate-400">ลูกค้าทั่วไป</span>
+                            )}
                             {order.customer_phone && (
                               <div className="mt-1">
                                 <a
