@@ -5,6 +5,7 @@ import { AuthProvider } from '@/lib/auth-context';
 import { CompanyProvider } from '@/lib/company-context';
 import { ToastProvider } from '@/lib/toast-context';
 import { ThemeProvider } from '@/lib/theme-context';
+import { FeaturesProvider } from '@/lib/features-context';
 import './globals.css';
 
 const ibmPlexSansThai = IBM_Plex_Sans_Thai({
@@ -16,6 +17,9 @@ const ibmPlexSansThai = IBM_Plex_Sans_Thai({
 export const metadata: Metadata = {
   title: 'AooDelivery - ระบบจัดการธุรกิจ',
   description: 'ระบบจัดการธุรกิจครบวงจร สั่งซื้อ จัดส่ง และติดตามลูกค้า',
+  icons: {
+    icon: '/logo.svg',
+  },
 };
 
 export default function RootLayout({
@@ -40,9 +44,11 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <CompanyProvider>
-              <ToastProvider>
-                {children}
-              </ToastProvider>
+              <FeaturesProvider>
+                <ToastProvider>
+                  {children}
+                </ToastProvider>
+              </FeaturesProvider>
             </CompanyProvider>
           </AuthProvider>
         </ThemeProvider>

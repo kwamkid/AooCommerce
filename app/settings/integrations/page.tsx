@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
@@ -8,8 +9,9 @@ import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, ShoppingBag, RefreshCw, Unlink, CheckCircle2,
   XCircle, Clock, ExternalLink, AlertTriangle, ChevronDown, ChevronUp,
-  Plus, Trash2
+  Plus, Trash2, Upload
 } from 'lucide-react';
+import ShopeeBulkExportModal from '@/components/shopee/ShopeeBulkExportModal';
 
 interface ShopeeAccount {
   id: string;
@@ -17,6 +19,7 @@ interface ShopeeAccount {
   shop_name: string | null;
   is_active: boolean;
   last_sync_at: string | null;
+  last_product_sync_at: string | null;
   access_token_expires_at: string | null;
   refresh_token_expires_at: string | null;
   connection_status: 'connected' | 'expired' | 'disconnected';
@@ -36,6 +39,12 @@ export default function IntegrationsPage() {
   const [syncRange, setSyncRange] = useState<Record<string, number>>({}); // accountId → days
   const [refreshingLogoId, setRefreshingLogoId] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<number>(0); // 0-100
+  const [syncPhaseLabel, setSyncPhaseLabel] = useState('');
+  const [productSyncingId, setProductSyncingId] = useState<string | null>(null);
+  const [productSyncProgress, setProductSyncProgress] = useState<number>(0);
+  const [productSyncPhaseLabel, setProductSyncPhaseLabel] = useState('');
+  const [bulkExportAccountId, setBulkExportAccountId] = useState<string | null>(null);
+  const [bulkExportAccountName, setBulkExportAccountName] = useState<string>('');
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -51,11 +60,9 @@ export default function IntegrationsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (userProfile?.role === 'admin' || userProfile?.role === 'owner') {
-      fetchAccounts();
-    }
-  }, [userProfile, fetchAccounts]);
+  useFetchOnce(() => {
+    fetchAccounts();
+  }, userProfile?.role === 'admin' || userProfile?.role === 'owner');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -92,16 +99,35 @@ export default function IntegrationsPage() {
     }
   };
 
+  // Helper: read SSE stream from fetch response
+  const readSSEStream = async (
+    response: Response,
+    onEvent: (event: Record<string, unknown>) => void
+  ) => {
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            onEvent(JSON.parse(line.slice(6)));
+          } catch { /* skip malformed */ }
+        }
+      }
+    }
+  };
+
   const handleSync = async (accountId: string) => {
     setSyncingId(accountId);
     setSyncProgress(0);
-
-    // Simulated progress: starts fast, slows down, never reaches 100 until done
-    let progress = 0;
-    const progressInterval = setInterval(() => {
-      progress += (90 - progress) * 0.08; // Ease out — fast at start, slows down
-      setSyncProgress(Math.min(Math.round(progress), 90));
-    }, 300);
+    setSyncPhaseLabel('กำลังเชื่อมต่อ...');
 
     const days = syncRange[accountId] || 1;
     const now = Math.floor(Date.now() / 1000);
@@ -112,29 +138,55 @@ export default function IntegrationsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shopee_account_id: accountId, time_from: timeFrom, time_to: now }),
       });
-      clearInterval(progressInterval);
-      setSyncProgress(100);
-      const data = await res.json();
+
+      if (!res.ok) {
+        const data = await res.json();
+        showToast(data.error || 'Sync ไม่สำเร็จ', 'error');
+        return;
+      }
+
+      let result: Record<string, unknown> = {};
+
+      await readSSEStream(res, (event) => {
+        if (event.type === 'progress') {
+          const phase = event.phase as string;
+          const current = event.current as number;
+          const total = event.total as number | null;
+          const label = event.label as string;
+          setSyncPhaseLabel(label);
+
+          if (phase === 'collecting') {
+            // Indeterminate: oscillate 5-15%
+            setSyncProgress(Math.min(5 + (current % 10), 15));
+          } else if (phase === 'processing' && total) {
+            setSyncProgress(Math.round((current / total) * 80) + 15);
+          }
+        } else if (event.type === 'done') {
+          result = event;
+          setSyncProgress(100);
+          setSyncPhaseLabel('เสร็จสิ้น');
+        } else if (event.type === 'error') {
+          showToast((event.message as string) || 'Sync ไม่สำเร็จ', 'error');
+        }
+      });
+
       // Brief pause to show 100%
       await new Promise(r => setTimeout(r, 500));
-      if (res.ok) {
+
+      if (result.success) {
         const parts: string[] = [];
-        if (data.orders_created > 0) parts.push(`คำสั่งซื้อใหม่ ${data.orders_created}`);
-        if (data.orders_updated > 0) parts.push(`อัพเดทคำสั่งซื้อ ${data.orders_updated}`);
-        if (data.products_created > 0) parts.push(`สินค้าใหม่ ${data.products_created}`);
-        if (data.customers_created > 0) parts.push(`ลูกค้าใหม่ ${data.customers_created}`);
+        if ((result.orders_created as number) > 0) parts.push(`คำสั่งซื้อใหม่ ${result.orders_created}`);
+        if ((result.orders_updated as number) > 0) parts.push(`อัพเดทคำสั่งซื้อ ${result.orders_updated}`);
         const summary = parts.length > 0 ? parts.join(', ') : 'ไม่มีข้อมูลใหม่';
         showToast(`Sync สำเร็จ: ${summary}`, 'success');
         fetchAccounts();
-      } else {
-        showToast(data.error || 'Sync ไม่สำเร็จ', 'error');
       }
     } catch {
-      clearInterval(progressInterval);
       showToast('เกิดข้อผิดพลาดในการ sync', 'error');
     } finally {
       setSyncingId(null);
       setSyncProgress(0);
+      setSyncPhaseLabel('');
     }
   };
 
@@ -176,6 +228,69 @@ export default function IntegrationsPage() {
       showToast('เกิดข้อผิดพลาด', 'error');
     } finally {
       setRefreshingLogoId(null);
+    }
+  };
+
+  const handleProductSync = async (accountId: string) => {
+    setProductSyncingId(accountId);
+    setProductSyncProgress(0);
+    setProductSyncPhaseLabel('กำลังเชื่อมต่อ...');
+
+    try {
+      const res = await apiFetch('/api/shopee/products/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shopee_account_id: accountId }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        showToast(data.error || 'Sync สินค้าไม่สำเร็จ', 'error');
+        return;
+      }
+
+      let result: Record<string, unknown> = {};
+
+      await readSSEStream(res, (event) => {
+        if (event.type === 'progress') {
+          const phase = event.phase as string;
+          const current = event.current as number;
+          const total = event.total as number | null;
+          const label = event.label as string;
+          setProductSyncPhaseLabel(label);
+
+          if (phase === 'collecting') {
+            setProductSyncProgress(Math.min(5 + (current % 10), 15));
+          } else if (phase === 'processing' && total) {
+            setProductSyncProgress(Math.round((current / total) * 80) + 15);
+          }
+        } else if (event.type === 'done') {
+          result = event;
+          setProductSyncProgress(100);
+          setProductSyncPhaseLabel('เสร็จสิ้น');
+        } else if (event.type === 'error') {
+          showToast((event.message as string) || 'Sync สินค้าไม่สำเร็จ', 'error');
+        }
+      });
+
+      await new Promise(r => setTimeout(r, 500));
+
+      if (result.success) {
+        const parts: string[] = [];
+        if ((result.products_created as number) > 0) parts.push(`สินค้าใหม่ ${result.products_created}`);
+        if ((result.products_updated as number) > 0) parts.push(`อัพเดท ${result.products_updated}`);
+        if ((result.links_created as number) > 0) parts.push(`เชื่อมโยง ${result.links_created}`);
+        if ((result.products_skipped as number) > 0) parts.push(`ข้าม ${result.products_skipped}`);
+        const summary = parts.length > 0 ? parts.join(', ') : 'ไม่มีข้อมูลใหม่';
+        showToast(`Sync สินค้าสำเร็จ: ${summary}`, 'success');
+        fetchAccounts();
+      }
+    } catch {
+      showToast('เกิดข้อผิดพลาดในการ sync สินค้า', 'error');
+    } finally {
+      setProductSyncingId(null);
+      setProductSyncProgress(0);
+      setProductSyncPhaseLabel('');
     }
   };
 
@@ -249,6 +364,7 @@ export default function IntegrationsPage() {
               const isSyncing = syncingId === account.id;
               const isDisconnecting = disconnectingId === account.id;
               const isRefreshingLogo = refreshingLogoId === account.id;
+              const isProductSyncing = productSyncingId === account.id;
 
               return (
                 <div key={account.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
@@ -326,15 +442,39 @@ export default function IntegrationsPage() {
 
                   {/* Sync Progress Bar */}
                   {isSyncing && (
-                    <div className="px-4 pb-2">
-                      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-1">
-                        <span>กำลัง Sync ออเดอร์...</span>
+                    <div className="px-4 pb-2 space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md px-2.5 py-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>กรุณาอย่าเปลี่ยนหน้า หรือ refresh ขณะกำลัง sync</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400">
+                        <span>{syncPhaseLabel || 'กำลัง Sync ออเดอร์...'}</span>
                         <span>{syncProgress}%</span>
                       </div>
                       <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-[#EE4D2D] rounded-full transition-all duration-300 ease-out"
                           style={{ width: `${syncProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Product Sync Progress Bar */}
+                  {isProductSyncing && (
+                    <div className="px-4 pb-2 space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md px-2.5 py-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>กรุณาอย่าเปลี่ยนหน้า หรือ refresh ขณะกำลัง sync</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400">
+                        <span>{productSyncPhaseLabel || 'กำลัง Sync สินค้า...'}</span>
+                        <span>{productSyncProgress}%</span>
+                      </div>
+                      <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-green-500 rounded-full transition-all duration-300 ease-out"
+                          style={{ width: `${productSyncProgress}%` }}
                         />
                       </div>
                     </div>
@@ -350,6 +490,7 @@ export default function IntegrationsPage() {
                           <Clock className="w-3 h-3" />
                           Sync ล่าสุด: {formatDate(account.last_sync_at)}
                         </span>
+                        <span>Sync สินค้าล่าสุด: {formatDate(account.last_product_sync_at)}</span>
                         <span>เชื่อมต่อเมื่อ: {formatDate(account.created_at)}</span>
                       </div>
 
@@ -373,6 +514,25 @@ export default function IntegrationsPage() {
                         >
                           <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                           {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
+                        </button>
+                        <button
+                          onClick={() => handleProductSync(account.id)}
+                          disabled={isProductSyncing || account.connection_status === 'expired'}
+                          className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
+                        >
+                          <ShoppingBag className={`w-4 h-4 ${isProductSyncing ? 'animate-pulse' : ''}`} />
+                          {isProductSyncing ? 'กำลัง Sync...' : 'Sync สินค้า'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setBulkExportAccountId(account.id);
+                            setBulkExportAccountName(account.shop_name || `Shop #${account.shop_id}`);
+                          }}
+                          disabled={account.connection_status === 'expired'}
+                          className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-[#EE4D2D] text-[#EE4D2D] hover:bg-[#EE4D2D]/5"
+                        >
+                          <Upload className="w-4 h-4" />
+                          ส่งสินค้าไป Shopee
                         </button>
                         <button
                           onClick={() => handleDisconnect(account.id)}
@@ -405,6 +565,14 @@ export default function IntegrationsPage() {
           </div>
         )}
       </div>
+
+      {/* Bulk Export Modal */}
+      <ShopeeBulkExportModal
+        isOpen={!!bulkExportAccountId}
+        onClose={() => { setBulkExportAccountId(null); setBulkExportAccountName(''); }}
+        accountId={bulkExportAccountId || ''}
+        accountName={bulkExportAccountName}
+      />
     </Layout>
   );
 }

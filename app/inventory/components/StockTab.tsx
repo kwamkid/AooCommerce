@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { Loader2, Search, Package2, Pencil, Eye, EyeOff, ClipboardList, X } from 'lucide-react';
@@ -71,7 +71,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
     });
   };
 
-  const fetchInventory = useCallback(async () => {
+  const fetchInventory = async () => {
     setLoading(true);
     const t0 = Date.now();
     try {
@@ -96,9 +96,20 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
     } finally {
       setLoading(false);
     }
-  }, [page, recordsPerPage, warehouse, search, stockFilter, showToast]);
+  };
 
-  useEffect(() => { fetchInventory(); }, [fetchInventory]);
+  const fetchedRef = useRef(false);
+  const depsKey = `${page}-${recordsPerPage}-${warehouse}-${search}-${stockFilter}`;
+  const prevDepsRef = useRef(depsKey);
+
+  useEffect(() => {
+    const depsChanged = prevDepsRef.current !== depsKey;
+    prevDepsRef.current = depsKey;
+
+    if (fetchedRef.current && !depsChanged) return;
+    fetchedRef.current = true;
+    fetchInventory();
+  }, [depsKey]);
 
   const handleSearch = (val: string) => {
     setSearch(val);

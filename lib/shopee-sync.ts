@@ -1,6 +1,17 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemEnrichment, ShopeeItemEnrichment, getEscrowDetail } from '@/lib/shopee-api';
 
+// --- Sync Progress Types ---
+
+export interface SyncProgressEvent {
+  phase: 'collecting' | 'processing' | 'done';
+  current: number;
+  total: number | null;
+  label: string;
+}
+
+export type SyncProgressCallback = (event: SyncProgressEvent) => void;
+
 // --- Shopee Order Types ---
 
 interface ShopeeOrderItem {
@@ -86,7 +97,8 @@ export interface SyncResult {
 
 export async function syncOrdersByOrderSn(
   account: ShopeeAccountRow,
-  orderSns: string[]
+  orderSns: string[],
+  onProgress?: SyncProgressCallback
 ): Promise<SyncResult> {
   const creds = await ensureValidToken(account);
   const result: SyncResult = {
@@ -97,6 +109,9 @@ export async function syncOrdersByOrderSn(
     customers_created: 0,
     errors: [],
   };
+
+  let processedCount = 0;
+  const totalOrders = orderSns.length;
 
   // Fetch order details in batches of 50
   for (let i = 0; i < orderSns.length; i += 50) {
@@ -109,6 +124,7 @@ export async function syncOrdersByOrderSn(
 
       if (error) {
         result.errors.push(`Batch fetch error: ${error}`);
+        processedCount += batch.length;
         continue;
       }
 
@@ -128,9 +144,17 @@ export async function syncOrdersByOrderSn(
         } catch (e) {
           result.errors.push(`Order ${shopeeOrder.order_sn}: ${e instanceof Error ? e.message : 'Unknown error'}`);
         }
+        processedCount++;
+        onProgress?.({
+          phase: 'processing',
+          current: processedCount,
+          total: totalOrders,
+          label: `กำลังประมวลผลออเดอร์ ${processedCount}/${totalOrders}`,
+        });
       }
     } catch (e) {
       result.errors.push(`Batch error: ${e instanceof Error ? e.message : 'Unknown error'}`);
+      processedCount += batch.length;
     }
   }
 
@@ -143,7 +167,8 @@ export async function syncOrdersByOrderSn(
 export async function syncOrdersByTimeRange(
   account: ShopeeAccountRow,
   timeFrom: number,
-  timeTo: number
+  timeTo: number,
+  onProgress?: SyncProgressCallback
 ): Promise<SyncResult> {
   console.log(`[Shopee Sync] syncOrdersByTimeRange: shop_id=${account.shop_id}, timeFrom=${timeFrom} (${new Date(timeFrom * 1000).toISOString()}), timeTo=${timeTo} (${new Date(timeTo * 1000).toISOString()})`);
   const creds = await ensureValidToken(account);
@@ -197,6 +222,13 @@ export async function syncOrdersByTimeRange(
       allOrderSns.push(order.order_sn);
     }
 
+    onProgress?.({
+      phase: 'collecting',
+      current: allOrderSns.length,
+      total: null,
+      label: `กำลังดึงรายการออเดอร์... (${allOrderSns.length} รายการ)`,
+    });
+
     hasMore = response.more;
     cursor = response.next_cursor || '';
   }
@@ -205,7 +237,7 @@ export async function syncOrdersByTimeRange(
 
   // Fetch full details and sync
   if (allOrderSns.length > 0) {
-    const syncResult = await syncOrdersByOrderSn(account, allOrderSns);
+    const syncResult = await syncOrdersByOrderSn(account, allOrderSns, onProgress);
     result.orders_created = syncResult.orders_created;
     result.orders_updated = syncResult.orders_updated;
     result.orders_skipped = syncResult.orders_skipped;
@@ -401,6 +433,27 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
     // Track newly created resources for potential rollback
     if (matched.isNewProduct) newlyCreatedProductIds.push(matched.product_id);
     if (matched.isNewVariation) newlyCreatedVariationIds.push(matched.variation_id);
+
+    // Upsert marketplace link so product is linked to Shopee item/model
+    try {
+      await supabaseAdmin.from('marketplace_product_links').upsert({
+        company_id: companyId,
+        platform: 'shopee',
+        account_id: account.id,
+        account_name: account.shop_name || '',
+        product_id: matched.product_id,
+        variation_id: matched.variation_id || null,
+        external_item_id: String(item.item_id),
+        external_model_id: String(item.model_id || 0),
+        external_sku: item.model_sku || item.item_sku || '',
+        // Note: do NOT set external_item_status from order_status — they are different fields
+        platform_price: price || null,
+        last_synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'account_id,external_item_id,external_model_id' });
+    } catch (linkErr) {
+      console.error(`[Shopee Sync] Failed to upsert marketplace link for item ${item.item_id}:`, linkErr);
+    }
 
     resolvedItems.push({
       variation_id: matched.variation_id,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
@@ -116,11 +117,9 @@ export default function PaymentChannelsPage() {
     }
   };
 
-  useEffect(() => {
-    if (userProfile?.role === 'admin' || userProfile?.role === 'owner') {
-      fetchChannels();
-    }
-  }, [userProfile]);
+  useFetchOnce(() => {
+    fetchChannels();
+  }, userProfile?.role === 'admin' || userProfile?.role === 'owner');
 
   // Close bank dropdown on outside click
   useEffect(() => {

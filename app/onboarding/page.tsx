@@ -1,9 +1,10 @@
 // Path: app/onboarding/page.tsx
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import { Building2, FileText, Upload, X, AlertCircle, Loader2, Plus, ChevronRight, Users } from 'lucide-react';
 
 interface CompanyMembership {
@@ -39,38 +40,29 @@ export default function OnboardingPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   // Fetch existing companies
-  useEffect(() => {
-    const fetchCompanies = async () => {
-      if (!session?.access_token) {
-        setLoadingCompanies(false);
-        return;
+  useFetchOnce(async () => {
+    if (!session?.access_token) {
+      setLoadingCompanies(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+      const data = await response.json();
+      const memberships: CompanyMembership[] = data.companies || [];
+      setCompanies(memberships);
+
+      if (memberships.length === 0) {
+        setShowCreateForm(true);
       }
-
-      try {
-        const response = await fetch('/api/auth/me', {
-          headers: { 'Authorization': `Bearer ${session.access_token}` },
-        });
-        const data = await response.json();
-        const memberships: CompanyMembership[] = data.companies || [];
-        setCompanies(memberships);
-
-        // If user already has companies, they shouldn't be here — but show the list anyway
-        if (memberships.length === 0) {
-          setShowCreateForm(true);
-        }
-      } catch (error) {
-        console.error('Error fetching companies:', error);
-      } finally {
-        setLoadingCompanies(false);
-      }
-    };
-
-    if (user) {
-      fetchCompanies();
-    } else {
+    } catch (error) {
+      console.error('Error fetching companies:', error);
+    } finally {
       setLoadingCompanies(false);
     }
-  }, [user, session?.access_token]);
+  }, !loading && !!user && !!session?.access_token);
 
   // Handle logo selection
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {

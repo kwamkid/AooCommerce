@@ -6,6 +6,7 @@ import Layout from '@/components/layout/Layout';
 import OrderForm from '@/components/orders/OrderForm';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
+import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import {
@@ -99,6 +100,7 @@ export default function OrderDetailPage() {
   const orderId = params.id as string;
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const { features } = useFeatures();
 
   // Order header info (loaded separately from OrderForm)
   const [orderNumber, setOrderNumber] = useState('');
@@ -506,7 +508,7 @@ export default function OrderDetailPage() {
                 )}
                 <OrderStatusBadge status={orderStatus} />
               </div>
-              {orderDate && (
+              {features.delivery_date.enabled && orderDate && (
                 <p className="text-sm text-gray-500 mt-0.5">
                   เปิดบิล {new Date(orderDate + 'T00:00:00').toLocaleDateString('th-TH', {
                     year: 'numeric',

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
+import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker from '@/components/ui/DateRangePicker';
@@ -135,6 +136,13 @@ export default function OrdersPage() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const { features } = useFeatures();
+
+  const activeColumnConfigs = COLUMN_CONFIGS.filter(col => {
+    if (col.key === 'deliveryDate' && !features.delivery_date.enabled) return false;
+    if (col.key === 'branches' && !features.customer_branches) return false;
+    return true;
+  });
 
   // Column visibility
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
@@ -147,7 +155,7 @@ export default function OrdersPage() {
     return new Set(getDefaultColumns());
   });
   const toggleColumn = (key: ColumnKey) => {
-    const config = COLUMN_CONFIGS.find(c => c.key === key);
+    const config = activeColumnConfigs.find(c => c.key === key);
     if (config?.alwaysVisible) return;
     setVisibleColumns(prev => {
       const next = new Set(prev);
@@ -236,11 +244,12 @@ export default function OrdersPage() {
   }, [statusFilter, paymentFilter, recordsPerPage]);
 
   // Fetch orders with server-side filtering and pagination
+  // isAuthReady is a boolean (false→true once), so it won't re-trigger from object reference changes
+  const isAuthReady = !authLoading && !!userProfile;
   useEffect(() => {
-    if (!authLoading && userProfile) {
-      fetchOrders();
-    }
-  }, [authLoading, userProfile, currentPage, recordsPerPage, statusFilter, paymentFilter, debouncedSearch, sortBy, sortDir]);
+    if (!isAuthReady) return;
+    fetchOrders();
+  }, [isAuthReady, currentPage, recordsPerPage, statusFilter, paymentFilter, debouncedSearch, sortBy, sortDir]);
 
   const fetchOrders = async () => {
     try {
@@ -562,13 +571,15 @@ export default function OrdersPage() {
                   className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
                 />
               </div>
-              <div className="w-64 flex-shrink-0">
-                <DateRangePicker
-                  value={deliveryDateRange}
-                  onChange={(val) => setDeliveryDateRange(val)}
-                  placeholder="วันที่ส่ง - ทั้งหมด"
-                />
-              </div>
+              {features.delivery_date.enabled && (
+                <div className="w-64 flex-shrink-0">
+                  <DateRangePicker
+                    value={deliveryDateRange}
+                    onChange={(val) => setDeliveryDateRange(val)}
+                    placeholder="วันที่ส่ง - ทั้งหมด"
+                  />
+                </div>
+              )}
             </div>
 
           </div>
@@ -858,7 +869,7 @@ export default function OrdersPage() {
             setPage={setCurrentPage}
           >
             <ColumnSettingsDropdown
-              configs={COLUMN_CONFIGS}
+              configs={activeColumnConfigs}
               visible={visibleColumns}
               toggle={toggleColumn}
               buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"

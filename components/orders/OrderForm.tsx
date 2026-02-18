@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
+import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
@@ -126,6 +128,7 @@ export default function OrderForm({
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const { features } = useFeatures();
 
   // State
   const [loading, setLoading] = useState(!!editOrderId);
@@ -224,19 +227,17 @@ export default function OrderForm({
   const deliveryDateRef = useRef<HTMLDivElement>(null);
   const branchSectionRef = useRef<HTMLDivElement>(null);
 
-  // Fetch customers, products, and warehouse config
+  // Fetch customers, products, and warehouse config (once)
   // For marketplace orders (edit mode), skip customers/products — they're read-only
-  useEffect(() => {
-    if (!authLoading && userProfile) {
-      const source = preloadedOrder?.source || '';
-      const isMarketplace = source && source !== 'manual';
-      if (!isMarketplace) {
-        fetchCustomers();
-        fetchProducts();
-      }
-      fetchWarehouses();
+  useFetchOnce(() => {
+    const source = preloadedOrder?.source || '';
+    const isMarketplace = source && source !== 'manual';
+    if (!isMarketplace) {
+      fetchCustomers();
+      fetchProducts();
     }
-  }, [authLoading, userProfile]);
+    fetchWarehouses();
+  }, !authLoading && !!userProfile);
 
   // Auto-select preselected customer
   useEffect(() => {
@@ -585,7 +586,23 @@ export default function OrderForm({
     setShowProductDropdowns([]);
     setShippingAddresses([]);
 
-    fetchShippingAddresses(customer.id);
+    if (features.customer_branches) {
+      fetchShippingAddresses(customer.id);
+    } else {
+      // No branches: create a single default branch for products
+      const defaultBranch: BranchOrder = {
+        shipping_address_id: '',
+        address_name: 'รายการสินค้า',
+        delivery_notes: '',
+        shipping_fee: 0,
+        products: [],
+      };
+      setBranchOrders([defaultBranch]);
+      setProductSearches(['']);
+      setShowProductDropdowns([false]);
+      // Still fetch addresses in background for order data
+      fetchShippingAddresses(customer.id, false);
+    }
 
     try {
       const response = await apiFetch(`/api/customer-prices?customer_id=${customer.id}`);
@@ -926,12 +943,21 @@ export default function OrderForm({
     // Inline validation
     const errors: Record<string, string> = {};
     if (!selectedCustomer) errors.customer = 'กรุณาเลือกลูกค้า';
-    if (!deliveryDate) errors.deliveryDate = 'กรุณาเลือกวันที่ส่งของ';
-    if (branchOrders.length === 0) errors.branches = 'กรุณาเพิ่มอย่างน้อย 1 สาขา';
-    for (let i = 0; i < branchOrders.length; i++) {
-      if (branchOrders[i].products.length === 0) {
-        errors[`branch_${i}`] = `กรุณาเพิ่มสินค้าสำหรับสาขา: ${branchOrders[i].address_name}`;
-        if (!errors.branches) errors.branches = errors[`branch_${i}`];
+    if (features.delivery_date.enabled && features.delivery_date.required && !deliveryDate) {
+      errors.deliveryDate = 'กรุณาเลือกวันที่ส่งของ';
+    }
+    if (features.customer_branches) {
+      if (branchOrders.length === 0) errors.branches = 'กรุณาเพิ่มอย่างน้อย 1 สาขา';
+      for (let i = 0; i < branchOrders.length; i++) {
+        if (branchOrders[i].products.length === 0) {
+          errors[`branch_${i}`] = `กรุณาเพิ่มสินค้าสำหรับสาขา: ${branchOrders[i].address_name}`;
+          if (!errors.branches) errors.branches = errors[`branch_${i}`];
+        }
+      }
+    } else {
+      // No branches: check that at least one product exists in the single branch
+      if (branchOrders.length > 0 && branchOrders[0].products.length === 0) {
+        errors.branches = 'กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ';
       }
     }
 
@@ -1299,9 +1325,10 @@ export default function OrderForm({
           </div>
 
           {/* Delivery Date */}
+          {features.delivery_date.enabled && (
           <div ref={deliveryDateRef}>
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-              วันที่ส่งของ <span className="text-red-500">*</span>
+              วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
             </label>
             <div className={fieldErrors.deliveryDate ? 'ring-2 ring-red-400 rounded-lg' : ''}>
               <DateRangePicker
@@ -1322,6 +1349,7 @@ export default function OrderForm({
               <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryDate}</p>
             )}
           </div>
+          )}
 
           {/* Warehouse Picker (only when stock enabled + multiple warehouses) */}
           {stockEnabled && warehouses.length > 1 && (
@@ -1356,7 +1384,7 @@ export default function OrderForm({
               <span className="text-gray-500 dark:text-slate-400">ผู้ติดต่อ: <span className="text-gray-900 dark:text-slate-200 font-medium">{selectedCustomer.contact_person || '-'}</span></span>
               <span className="text-gray-300">|</span>
               <span className="text-gray-500 dark:text-slate-400">โทร: <span className="text-gray-900 dark:text-white">{selectedCustomer.phone || '-'}</span></span>
-              {shippingAddresses.length > 0 && (
+              {features.customer_branches && shippingAddresses.length > 0 && (
                 <>
                   <span className="text-gray-300">|</span>
                   <span className="text-gray-500 dark:text-slate-400">
@@ -1387,7 +1415,7 @@ export default function OrderForm({
       </div>
 
       {/* No Shipping Addresses Warning */}
-      {selectedCustomer && shippingAddresses.length === 0 && !isReadOnly && (
+      {features.customer_branches && selectedCustomer && shippingAddresses.length === 0 && !isReadOnly && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <div className="flex items-center gap-3">
             <MapPin className="w-5 h-5 text-yellow-600 flex-shrink-0" />
@@ -1410,6 +1438,7 @@ export default function OrderForm({
       {selectedCustomer && branchOrders.length > 0 && (
         <div ref={branchSectionRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} overflow-visible`}>
           {/* Branch Header */}
+          {features.customer_branches && (
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-700">
             {/* Branch Tabs with inline dropdown */}
             <div className="flex items-center gap-1 overflow-visible" ref={branchDropdownRef}>
@@ -1505,6 +1534,7 @@ export default function OrderForm({
               </div>
             )}
           </div>
+          )}
 
           {/* Active Branch Content */}
           {branchOrders.map((branch, branchIndex) => (

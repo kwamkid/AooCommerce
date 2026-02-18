@@ -7,12 +7,25 @@ import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { UserProfile } from '@/types';
 
+interface CompanyMembershipRaw {
+  company_id: string;
+  role: string;
+  company: {
+    id: string;
+    name: string;
+    slug: string;
+    logo_url: string | null;
+    is_active: boolean;
+  };
+}
+
 interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
   session: Session | null;
   loading: boolean;
   hasCompany: boolean;
+  companies: CompanyMembershipRaw[];
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, name: string, inviteToken?: string) => Promise<{ error: string | null }>;
   signInWithLine: () => Promise<{ error: string | null }>;
@@ -32,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // loading = true until we know auth state + company state
   const [loading, setLoading] = useState(true);
   const [hasCompany, setHasCompany] = useState(false);
+  const [companies, setCompanies] = useState<CompanyMembershipRaw[]>([]);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -46,12 +60,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!response.ok || !result.profile) return null;
 
       const data = result.profile;
-      const companies = result.companies || [];
-      setHasCompany(companies.length > 0);
+      const companiesData: CompanyMembershipRaw[] = result.companies || [];
+      setCompanies(companiesData);
+      setHasCompany(companiesData.length > 0);
 
       // Use company role directly as the user's effective role
       const savedCompanyId = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
-      const currentMembership = companies.find((m: { company_id: string }) => m.company_id === savedCompanyId) || companies[0];
+      const currentMembership = companiesData.find((m: { company_id: string }) => m.company_id === savedCompanyId) || companiesData[0];
       const effectiveRole = currentMembership?.role || data.role || 'sales';
 
       return {
@@ -123,6 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUserProfile(null);
         setSession(null);
         setHasCompany(false);
+        setCompanies([]);
         setLoading(false);
       }
     });
@@ -246,6 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUserProfile(null);
     setSession(null);
     setHasCompany(false);
+    setCompanies([]);
     router.replace('/login');
   };
 
@@ -258,7 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, userProfile, session, loading, hasCompany,
+      user, userProfile, session, loading, hasCompany, companies,
       signIn, signUp, signInWithLine, signOut, refreshProfile,
     }}>
       {children}

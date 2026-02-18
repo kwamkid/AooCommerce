@@ -2,11 +2,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
+import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import {
   Home,
@@ -35,7 +37,8 @@ import {
   ArrowUpFromLine,
   ArrowLeftRight,
   ShoppingBag,
-  ScrollText,
+  Tag,
+  Award,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -57,10 +60,7 @@ const menuSections: MenuSection[] = [
     items: [
       { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-5 h-5" />, roles: ['admin', 'manager', 'sales', 'warehouse'] },
       { label: 'Chat', href: '/chat', icon: <MessageCircle className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
-      { label: 'ติดตามลูกค้า', href: '/crm/follow-up', icon: <UserCheck className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
-      { label: 'ติดตามหนี้', href: '/crm/payment-followup', icon: <DollarSign className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
       { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-5 h-5" />, roles: ['admin', 'manager', 'sales', 'warehouse'] },
-      { label: 'ลูกค้า', href: '/customers', icon: <UserCircle className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
       { label: 'สินค้า', href: '/products', icon: <Package2 className="w-5 h-5" />, roles: ['admin', 'manager', 'sales', 'warehouse'] }
     ]
   },
@@ -68,6 +68,14 @@ const menuSections: MenuSection[] = [
     title: 'คลังสินค้า',
     items: [
       { label: 'สินค้าคงคลัง', href: '/inventory', icon: <Warehouse className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] },
+    ]
+  },
+  {
+    title: 'ลูกค้า',
+    items: [
+      { label: 'ลูกค้า', href: '/customers', icon: <UserCircle className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
+      { label: 'ติดตามลูกค้า', href: '/crm/follow-up', icon: <UserCheck className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
+      { label: 'ติดตามหนี้', href: '/crm/payment-followup', icon: <DollarSign className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
     ]
   },
   {
@@ -96,14 +104,15 @@ export default function Sidebar() {
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
-  const [logsOpen, setLogsOpen] = useState(false);
+  const [productsOpen, setProductsOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
   // Default เป็น true เพื่อไม่ให้เมนูกระพริบ → ถ้า API บอกปิดค่อยซ่อน
   const [stockEnabled, setStockEnabled] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
-  const { userProfile, signOut } = useAuth();
-  const { currentCompany, companies, switchCompany, companyRole } = useCompany();
+  const { userProfile, loading: authLoading, signOut } = useAuth();
+  const { currentCompany, companies, switchCompany, companyRole, loading: companyLoading } = useCompany();
+  const { features, loading: featuresLoading } = useFeatures();
   const companyDropdownRef = useRef<HTMLDivElement>(null);
 
   const effectiveRole = (() => {
@@ -117,7 +126,7 @@ export default function Sidebar() {
   useEffect(() => {
     if (pathname?.startsWith('/settings')) setSettingsOpen(true);
     if (pathname?.startsWith('/inventory')) setInventoryOpen(true);
-    if (pathname?.startsWith('/logs')) setLogsOpen(true);
+    if (pathname?.startsWith('/products') || pathname === '/settings/categories' || pathname === '/settings/brands') setProductsOpen(true);
   }, [pathname]);
 
   useEffect(() => {
@@ -135,36 +144,31 @@ export default function Sidebar() {
     return () => document.removeEventListener('click', handleClick);
   }, []);
 
-  // Check stock enabled + fetch low stock count
-  useEffect(() => {
-    const fetchStockInfo = async () => {
-      try {
-        const res = await apiFetch('/api/warehouses');
-        if (res.ok) {
-          const data = await res.json();
-          const enabled = data.stockConfig?.stockEnabled !== false;
-          setStockEnabled(enabled);
+  // Check stock enabled + fetch low stock count (once)
+  useFetchOnce(async () => {
+    try {
+      const res = await apiFetch('/api/warehouses');
+      if (res.ok) {
+        const data = await res.json();
+        const enabled = data.stockConfig?.stockEnabled !== false;
+        setStockEnabled(enabled);
 
-          if (enabled) {
-            try {
-              const invRes = await apiFetch('/api/inventory?low_stock=true&limit=1');
-              if (invRes.ok) {
-                const invData = await invRes.json();
-                setLowStockCount(invData.total || 0);
-              }
-            } catch {
-              // Ignore
+        if (enabled) {
+          try {
+            const invRes = await apiFetch('/api/inventory?low_stock=true&limit=1');
+            if (invRes.ok) {
+              const invData = await invRes.json();
+              setLowStockCount(invData.total || 0);
             }
+          } catch {
+            // Ignore
           }
         }
-      } catch {
-        // API error → keep default (enabled)
       }
-    };
-    if (userProfile) {
-      fetchStockInfo();
+    } catch {
+      // API error → keep default (enabled)
     }
-  }, [userProfile]);
+  }, !!userProfile);
 
   const filteredSections = menuSections
     .filter(section => {
@@ -174,7 +178,13 @@ export default function Sidebar() {
     })
     .map(section => ({
       ...section,
-      items: section.items.filter(item => effectiveRole && item.roles.includes(effectiveRole))
+      items: section.items.filter(item => {
+        if (!effectiveRole || !item.roles.includes(effectiveRole)) return false;
+        // Hide delivery-only menus when feature is off
+        if (item.href === '/reports/delivery-summary' && !features.delivery_date.enabled) return false;
+        if (item.href === '/crm/payment-followup' && !features.billing_cycle) return false;
+        return true;
+      })
     }))
     .filter(section => section.items.length > 0);
 
@@ -230,87 +240,87 @@ export default function Sidebar() {
 
           {/* Company Profile (clickable for company list) */}
           <div className="relative border-b border-[#F4511E]/20" ref={companyDropdownRef}>
-            <button
-              onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
-              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
-            >
-              {/* Company Logo */}
-              {currentCompany?.logo_url ? (
-                <img
-                  src={currentCompany.logo_url}
-                  alt={currentCompany.name}
-                  className="w-9 h-9 rounded-full object-cover border-2 border-[#F4511E]/30 flex-shrink-0"
-                />
-              ) : (
-                <div className="w-9 h-9 rounded-full bg-[#F4511E]/20 flex items-center justify-center border-2 border-[#F4511E]/30 flex-shrink-0">
-                  <Building2 className="w-5 h-5 text-[#F4511E]" />
+            {(authLoading || companyLoading) ? (
+              <div className="w-full px-4 py-3 flex items-center gap-3 animate-pulse">
+                <div className="w-9 h-9 rounded-full bg-white/10 flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-white/10 rounded w-24" />
+                  <div className="h-3 bg-white/10 rounded w-16" />
                 </div>
-              )}
-
-              {/* Company Info */}
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-white text-sm font-semibold truncate">
-                  {currentCompany?.name || 'เลือกบริษัท'}
-                </p>
-                <p className="text-[#F4511E] text-xs">
-                  {getRoleLabel(companyRole)}
-                </p>
               </div>
-
-              {/* Chevron */}
-              <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${companyDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {/* Floating Popup - company list directly */}
-            {companyDropdownOpen && (
+            ) : (
               <>
-                {/* Backdrop */}
-                <div className="fixed inset-0 z-40" onClick={() => setCompanyDropdownOpen(false)} />
-
-                {/* Popup */}
-                <div className="absolute left-2 right-2 top-full mt-1 z-50 bg-white rounded-xl shadow-2xl shadow-black/30 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 border border-gray-200">
-                  {/* Company List */}
-                  <div className="py-1 max-h-64 overflow-y-auto">
-                    {companies.map((m) => (
-                      <button
-                        key={m.company_id}
-                        onClick={() => handleSwitchCompany(m.company_id)}
-                        className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-[#F4511E]/10 transition-colors ${
-                          m.company_id === currentCompany?.id ? 'bg-[#F4511E]/5' : ''
-                        }`}
-                      >
-                        {m.company.logo_url ? (
-                          <img
-                            src={m.company.logo_url}
-                            alt={m.company.name}
-                            className="w-8 h-8 rounded-full object-cover border border-gray-200 flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                            <Building2 className="w-4 h-4 text-gray-400" />
-                          </div>
-                        )}
-                        <div className="flex-1 text-left min-w-0">
-                          <p className="text-gray-900 text-sm font-medium truncate">{m.company.name}</p>
-                          <p className="text-gray-400 text-xs">{getRoleLabel(m.role)}</p>
-                        </div>
-                        {m.company_id === currentCompany?.id && (
-                          <Check className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
-                        )}
-                      </button>
-                    ))}
+                <button
+                  onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
+                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                >
+                  {currentCompany?.logo_url ? (
+                    <img
+                      src={currentCompany.logo_url}
+                      alt={currentCompany.name}
+                      className="w-9 h-9 rounded-full object-cover border-2 border-[#F4511E]/30 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-[#F4511E]/20 flex items-center justify-center border-2 border-[#F4511E]/30 flex-shrink-0">
+                      <Building2 className="w-5 h-5 text-[#F4511E]" />
+                    </div>
+                  )}
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="text-white text-sm font-semibold truncate">
+                      {currentCompany?.name || 'เลือกบริษัท'}
+                    </p>
+                    <p className="text-[#F4511E] text-xs">
+                      {getRoleLabel(companyRole)}
+                    </p>
                   </div>
-
-                  {/* Footer */}
-                  <div className="border-t border-gray-100">
-                    <button
-                      onClick={handleAddCompany}
-                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#F4511E]/10 transition-colors text-gray-500 hover:text-[#F4511E]"
-                    >
-                      <Building2 className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-sm">กลับไปเลือกบริษัท</span>
-                    </button>
-                  </div>
-                </div>
+                  <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${companyDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {companyDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setCompanyDropdownOpen(false)} />
+                    <div className="absolute left-2 right-2 top-full mt-1 z-50 bg-white rounded-xl shadow-2xl shadow-black/30 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 border border-gray-200">
+                      <div className="py-1 max-h-64 overflow-y-auto">
+                        {companies.map((m) => (
+                          <button
+                            key={m.company_id}
+                            onClick={() => handleSwitchCompany(m.company_id)}
+                            className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-[#F4511E]/10 transition-colors ${
+                              m.company_id === currentCompany?.id ? 'bg-[#F4511E]/5' : ''
+                            }`}
+                          >
+                            {m.company.logo_url ? (
+                              <img
+                                src={m.company.logo_url}
+                                alt={m.company.name}
+                                className="w-8 h-8 rounded-full object-cover border border-gray-200 flex-shrink-0"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                <Building2 className="w-4 h-4 text-gray-400" />
+                              </div>
+                            )}
+                            <div className="flex-1 text-left min-w-0">
+                              <p className="text-gray-900 text-sm font-medium truncate">{m.company.name}</p>
+                              <p className="text-gray-400 text-xs">{getRoleLabel(m.role)}</p>
+                            </div>
+                            {m.company_id === currentCompany?.id && (
+                              <Check className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="border-t border-gray-100">
+                        <button
+                          onClick={handleAddCompany}
+                          className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#F4511E]/10 transition-colors text-gray-500 hover:text-[#F4511E]"
+                        >
+                          <Building2 className="w-4 h-4 flex-shrink-0" />
+                          <span className="text-sm">กลับไปเลือกบริษัท</span>
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -330,14 +340,70 @@ export default function Sidebar() {
               <span className="text-[16px] font-medium">Dashboard</span>
             </Link>
 
+            {/* Skeleton loading while auth/company/features are loading */}
+            {(authLoading || companyLoading || featuresLoading) && (
+              <div className="animate-pulse space-y-4 mt-4">
+                {[1, 2, 3].map(section => (
+                  <div key={section}>
+                    <div className="h-3 w-16 bg-white/10 rounded mb-3" />
+                    {Array.from({ length: section === 1 ? 5 : 2 }).map((_, i) => (
+                      <div key={i} className="flex items-center space-x-3 px-3 py-2 mb-1">
+                        <div className="w-5 h-5 bg-white/10 rounded" />
+                        <div className="h-4 bg-white/10 rounded flex-1" />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Menu Sections */}
-            {filteredSections.map((section, sectionIndex) => (
+            {!authLoading && !companyLoading && !featuresLoading && filteredSections.map((section, sectionIndex) => (
               <div key={sectionIndex}>
                 <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
                   {section.title}
                 </h3>
                 {section.items.map((item) => {
                   const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/inventory' && pathname?.startsWith(item.href + '/')) || (item.href === '/chat' && (pathname === '/line-chat' || pathname === '/fb-chat'));
+
+                  // Products item: render as collapsible with submenu
+                  if (item.href === '/products') {
+                    const isProductsPage = pathname?.startsWith('/products') || pathname === '/settings/categories' || pathname === '/settings/brands';
+                    return (
+                      <div key={item.href}>
+                        <button
+                          onClick={() => setProductsOpen(!productsOpen)}
+                          className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
+                            isProductsPage
+                              ? 'text-[#F4511E]'
+                              : 'text-gray-300 hover:text-[#F4511E]'
+                          }`}
+                        >
+                          {item.icon}
+                          <span className="text-[16px] font-medium ml-3">{item.label}</span>
+                          <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${productsOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {productsOpen && (
+                          <div className="ml-3 border-l border-[#F4511E]/20">
+                            <Link href="/products" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/products' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <Package2 className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">รายการสินค้า</span>
+                            </Link>
+                            <Link href="/settings/categories" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/categories' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <Tag className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">หมวดหมู่</span>
+                            </Link>
+                            {features.product_brand && (
+                            <Link href="/settings/brands" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/brands' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <Award className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">แบรนด์</span>
+                            </Link>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
 
                   // Inventory item: render as collapsible with submenu
                   if (item.href === '/inventory') {
@@ -408,37 +474,8 @@ export default function Sidebar() {
               </div>
             ))}
 
-            {/* Logs Section */}
-            {effectiveRole === 'admin' && (
-              <div>
-                <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
-                  Logs
-                </h3>
-                <button
-                  onClick={() => setLogsOpen(!logsOpen)}
-                  className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
-                    pathname?.startsWith('/logs')
-                      ? 'text-[#F4511E]'
-                      : 'text-gray-300 hover:text-[#F4511E]'
-                  }`}
-                >
-                  <ScrollText className="w-5 h-5" />
-                  <span className="text-[16px] font-medium ml-3">บันทึกระบบ</span>
-                  <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${logsOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {logsOpen && (
-                  <div className="ml-3 border-l border-[#F4511E]/20">
-                    <Link href="/logs/shopee" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/logs/shopee' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
-                      <img src="/marketplace/shopee.svg" alt="Shopee" className="w-4 h-4" />
-                      <span className="text-[16px] font-medium">Shopee</span>
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Admin Section */}
-            {effectiveRole === 'admin' && (
+            {!authLoading && !companyLoading && !featuresLoading && effectiveRole === 'admin' && (
               <div>
                 <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
                   ผู้ดูแลระบบ
@@ -481,10 +518,12 @@ export default function Sidebar() {
                       <Warehouse className="w-4 h-4" />
                       <span className="text-[16px] font-medium">คลังสินค้า</span>
                     </Link>
+                    {features.marketplace_sync && (
                     <Link href="/settings/integrations" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/integrations' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                       <ShoppingBag className="w-4 h-4" />
                       <span className="text-[16px] font-medium">Marketplace</span>
                     </Link>
+                    )}
                   </div>
                 )}
               </div>

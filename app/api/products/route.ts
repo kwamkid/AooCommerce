@@ -11,6 +11,8 @@ interface ProductData {
   product_type: 'simple' | 'variation';
   is_active?: boolean;
   selected_variation_types?: string[]; // UUID[] of variation_type IDs
+  category_id?: string;
+  brand_id?: string;
 
   // Simple product fields
   variation_label?: string;
@@ -182,6 +184,10 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString()
     };
 
+    // Optional category and brand
+    if (productData.category_id) productInsert.category_id = productData.category_id;
+    if (productData.brand_id) productInsert.brand_id = productData.brand_id;
+
     // For variation products, store selected variation type IDs
     if (productData.product_type === 'variation' && productData.selected_variation_types) {
       productInsert.selected_variation_types = productData.selected_variation_types;
@@ -330,8 +336,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ product: data });
     }
 
-    // Optional source filter (e.g. ?source=shopee)
+    // Optional filters
     const sourceFilter = searchParams.get('source');
+    const categoryFilter = searchParams.get('category_id');
+    const brandFilter = searchParams.get('brand_id');
 
     // Run products + images queries in parallel
     let productsQuery = supabaseAdmin
@@ -342,15 +350,23 @@ export async function GET(request: NextRequest) {
     if (sourceFilter) {
       productsQuery = productsQuery.eq('source', sourceFilter);
     }
+    if (categoryFilter) {
+      productsQuery = productsQuery.eq('category_id', categoryFilter);
+    }
+    if (brandFilter) {
+      productsQuery = productsQuery.eq('brand_id', brandFilter);
+    }
     productsQuery = productsQuery.order('name', { ascending: true });
+
+    const imagesQuery = supabaseAdmin
+      .from('product_images')
+      .select('product_id, variation_id, image_url, sort_order')
+      .eq('company_id', auth.companyId)
+      .order('sort_order', { ascending: true });
 
     const [productsResult, imagesResult] = await Promise.all([
       productsQuery,
-      supabaseAdmin
-        .from('product_images')
-        .select('product_id, variation_id, image_url, sort_order')
-        .eq('company_id', auth.companyId)
-        .order('sort_order', { ascending: true }),
+      imagesQuery,
     ]);
 
     if (productsResult.error) {
@@ -404,6 +420,8 @@ export async function GET(request: NextRequest) {
           product_type: row.product_type,
           selected_variation_types: row.selected_variation_types,
           source: row.source || 'manual',
+          category_id: row.category_id || null,
+          brand_id: row.brand_id || null,
           is_active: row.is_active,
           created_at: row.created_at,
           updated_at: row.updated_at,
@@ -482,6 +500,8 @@ export async function PUT(request: NextRequest) {
       variation_label,
       is_active,
       selected_variation_types,
+      category_id,
+      brand_id,
     } = body;
 
     if (!id) {
@@ -545,6 +565,8 @@ export async function PUT(request: NextRequest) {
     }
     if (is_active !== undefined) updateData.is_active = is_active;
     if (selected_variation_types !== undefined) updateData.selected_variation_types = selected_variation_types;
+    if (category_id !== undefined) updateData.category_id = category_id || null;
+    if (brand_id !== undefined) updateData.brand_id = brand_id || null;
 
     // If product was auto-created from Shopee, mark as edited
     const { data: currentProduct } = await supabaseAdmin

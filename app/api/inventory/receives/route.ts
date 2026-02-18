@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
         .select(`
           *,
           warehouse:warehouses!inventory_receives_warehouse_id_fkey(id, name, code),
-          created_by_user:user_profiles!inventory_receives_created_by_fkey(id, name, email),
           items:inventory_receive_items(
             id, variation_id, quantity, notes,
             variation:product_variations!inventory_receive_items_variation_id_fkey(
@@ -36,25 +35,54 @@ export async function GET(request: NextRequest) {
       if (error || !data) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
       }
+
+      // Fetch created_by user name
+      if (data.created_by) {
+        const { data: profile } = await supabaseAdmin
+          .from('user_profiles')
+          .select('id, name, email')
+          .eq('id', data.created_by)
+          .single();
+        (data as Record<string, unknown>).created_by_user = profile || null;
+      }
+
       return NextResponse.json({ receive: data });
     }
 
     const { data, error } = await supabaseAdmin
       .from('inventory_receives')
       .select(`
-        id, receive_number, status, notes, created_at,
+        id, receive_number, status, notes, created_at, created_by,
         warehouse:warehouses!inventory_receives_warehouse_id_fkey(id, name, code),
-        created_by_user:user_profiles!inventory_receives_created_by_fkey(id, name),
         items:inventory_receive_items(id)
       `)
       .eq('company_id', auth.companyId)
       .order('created_at', { ascending: false });
 
     if (error) {
+      console.error('GET receives DB error:', error.message, error.details, error.hint);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ receives: data || [] });
+    // Batch fetch user names for created_by
+    const userIds = [...new Set((data || []).map(r => r.created_by).filter(Boolean))];
+    let userMap: Record<string, { id: string; name: string }> = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, name')
+        .in('id', userIds);
+      if (profiles) {
+        userMap = Object.fromEntries(profiles.map(p => [p.id, p]));
+      }
+    }
+
+    const receives = (data || []).map(r => ({
+      ...r,
+      created_by_user: r.created_by ? userMap[r.created_by] || null : null,
+    }));
+
+    return NextResponse.json({ receives });
   } catch (error) {
     console.error('GET receives error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

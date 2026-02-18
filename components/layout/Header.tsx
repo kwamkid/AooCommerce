@@ -3,9 +3,11 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { useTheme } from '@/lib/theme-context';
+import { useFeatures } from '@/lib/features-context';
 import {
   Bell,
   User,
@@ -17,7 +19,8 @@ import {
   CheckCircle,
   Sun,
   Moon,
-  Monitor
+  Monitor,
+  ScrollText,
 } from 'lucide-react';
 
 // Notification interface
@@ -34,6 +37,7 @@ export default function Header() {
   const { userProfile, signOut } = useAuth();
   const { currentCompany, companyRole } = useCompany();
   const { theme, setTheme } = useTheme();
+  const { features } = useFeatures();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -301,6 +305,21 @@ export default function Header() {
                     </button>
                   )}
                 </div>
+
+                {/* Support / Logs */}
+                {(companyRole === 'owner' || companyRole === 'admin') && features.marketplace_sync && (
+                  <div className="border-t border-gray-200 dark:border-slate-700 p-2">
+                    <p className="text-xs text-gray-400 dark:text-slate-500 px-3 mb-1">Support</p>
+                    <Link
+                      href="/logs/shopee"
+                      onClick={() => setShowUserMenu(false)}
+                      className="w-full flex items-center space-x-3 px-3 py-2 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                    >
+                      <ScrollText className="w-4 h-4" />
+                      <span className="text-sm">Shopee Log</span>
+                    </Link>
+                  </div>
+                )}
 
                 <div className="border-t border-gray-200 dark:border-slate-700 p-2">
                   <button

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
@@ -48,13 +49,11 @@ export default function SettingsPage() {
   const [clearConfirmText, setClearConfirmText] = useState('');
   const [clearing, setClearing] = useState(false);
 
-  // Fetch CRM settings + Variation Types
-  useEffect(() => {
-    if (userProfile?.role === 'admin' || userProfile?.role === 'owner') {
-      fetchCRMSettings();
-      fetchVariationTypes();
-    }
-  }, [userProfile]);
+  // Fetch CRM settings + Variation Types (once)
+  useFetchOnce(() => {
+    fetchCRMSettings();
+    fetchVariationTypes();
+  }, userProfile?.role === 'admin' || userProfile?.role === 'owner');
 
   const fetchCRMSettings = async () => {
     try {

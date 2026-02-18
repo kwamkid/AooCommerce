@@ -248,11 +248,11 @@ export default function PaymentFollowupPage() {
   }, [searchTerm]);
 
   // Fetch data
+  const isAuthReady = !authLoading && !!userProfile;
   useEffect(() => {
-    if (!authLoading && userProfile) {
-      fetchCustomers();
-    }
-  }, [authLoading, userProfile, debouncedSearch, filterDays, dateRange, sortBy, sortOrder, currentPage, rowsPerPage]);
+    if (!isAuthReady) return;
+    fetchCustomers();
+  }, [isAuthReady, debouncedSearch, filterDays, dateRange, sortBy, sortOrder, currentPage, rowsPerPage]);
 
   const fetchCustomers = async () => {
     try {

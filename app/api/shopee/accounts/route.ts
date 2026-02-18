@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     const { data: accounts, error } = await supabaseAdmin
       .from('shopee_accounts')
-      .select('id, company_id, shop_id, shop_name, is_active, last_sync_at, access_token_expires_at, refresh_token_expires_at, metadata, created_at, updated_at')
+      .select('id, company_id, shop_id, shop_name, is_active, last_sync_at, last_product_sync_at, access_token_expires_at, refresh_token_expires_at, metadata, created_at, updated_at')
       .eq('company_id', companyId)
       .order('created_at', { ascending: false });
 

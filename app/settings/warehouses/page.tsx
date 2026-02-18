@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
@@ -58,12 +59,9 @@ export default function WarehouseSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (userProfile?.role === 'admin' || userProfile?.role === 'owner') {
-      fetchWarehouses();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userProfile]);
+  useFetchOnce(() => {
+    fetchWarehouses();
+  }, userProfile?.role === 'admin' || userProfile?.role === 'owner');
 
   const fetchWarehouses = async () => {
     try {

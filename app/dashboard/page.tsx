@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import {
@@ -87,29 +88,23 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
 
   // Fetch dashboard stats
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await apiFetch('/api/dashboard');
+  useFetchOnce(async () => {
+    try {
+      const response = await apiFetch('/api/dashboard');
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch dashboard stats');
-        }
-
-        const result = await response.json();
-        setStats(result.stats);
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-        setError('ไม่สามารถโหลดข้อมูลได้');
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error('Failed to fetch dashboard stats');
       }
-    };
 
-    if (!authLoading && userProfile) {
-      fetchStats();
+      const result = await response.json();
+      setStats(result.stats);
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+      setError('ไม่สามารถโหลดข้อมูลได้');
+    } finally {
+      setLoading(false);
     }
-  }, [authLoading, userProfile]);
+  }, !authLoading && !!userProfile);
 
   // Check auth and redirect if needed
   useEffect(() => {

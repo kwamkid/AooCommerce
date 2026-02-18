@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
+import { useFeatures } from '@/lib/features-context';
 import { getImageUrl } from '@/lib/utils/image';
 import ImageUploader, { type ProductImage, uploadStagedImages } from '@/components/ui/ImageUploader';
 import {
@@ -15,6 +16,17 @@ import {
   Layers,
   BoxSelect
 } from 'lucide-react';
+
+interface CategoryOption {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  children?: CategoryOption[];
+}
+interface BrandOption {
+  id: string;
+  name: string;
+}
 
 // Variation Type (from DB)
 interface VariationTypeItem {
@@ -67,6 +79,8 @@ interface ProductFormData {
   name: string;
   description: string;
   image: string;
+  category_id?: string;
+  brand_id?: string;
   product_type: 'simple' | 'variation';
   is_active: boolean;
   selected_variation_types: string[];
@@ -90,10 +104,18 @@ interface VariationFormData {
   is_active: boolean;
 }
 
+export interface FormOptions {
+  categories: CategoryOption[];
+  brands: BrandOption[];
+  variation_types: VariationTypeItem[];
+}
+
 interface ProductFormProps {
   editingProduct?: ProductItem | null;
   initialImages?: ProductImage[];
   initialVariationImages?: Record<string, ProductImage[]>;
+  /** Pass undefined = still loading (don't self-fetch yet), null = not provided (self-fetch), FormOptions = use this */
+  formOptions?: FormOptions | null;
 }
 
 // Field error type — key is field path like "name", "default_price", "variation.0.ความจุ"
@@ -108,15 +130,26 @@ function FieldError({ error }: { error?: string }) {
 export default function ProductForm({
   editingProduct,
   initialImages,
-  initialVariationImages
+  initialVariationImages,
+  formOptions,
 }: ProductFormProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+  const { features } = useFeatures();
 
   const [variationTypes, setVariationTypes] = useState<VariationTypeItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState('');
+
+  // Category & Brand state
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [brands, setBrands] = useState<BrandOption[]>([]);
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryParentId, setNewCategoryParentId] = useState('');
+  const [showNewBrand, setShowNewBrand] = useState(false);
+  const [newBrandName, setNewBrandName] = useState('');
 
   // Image state
   const [productImages, setProductImages] = useState<ProductImage[]>(initialImages || []);
@@ -140,6 +173,8 @@ export default function ProductForm({
           name: editingProduct.name,
           description: editingProduct.description || '',
           image: editingProduct.image || '',
+          category_id: (editingProduct as any).category_id || '',
+          brand_id: (editingProduct as any).brand_id || '',
           product_type: 'simple',
           is_active: editingProduct.is_active,
           selected_variation_types: [],
@@ -156,6 +191,8 @@ export default function ProductForm({
           name: editingProduct.name,
           description: editingProduct.description || '',
           image: editingProduct.image || '',
+          category_id: (editingProduct as any).category_id || '',
+          brand_id: (editingProduct as any).brand_id || '',
           product_type: 'variation',
           is_active: editingProduct.is_active,
           selected_variation_types: editingProduct.selected_variation_types || [],
@@ -184,6 +221,8 @@ export default function ProductForm({
       name: '',
       description: '',
       image: '',
+      category_id: '',
+      brand_id: '',
       product_type: 'simple',
       is_active: true,
       selected_variation_types: [],
@@ -198,22 +237,37 @@ export default function ProductForm({
 
   const [formData, setFormData] = useState<ProductFormData>(initFormData);
 
-  // Fetch variation types (with guard against StrictMode double-mount)
+  // Initialize from props if provided
+  useEffect(() => {
+    if (formOptions) {
+      setCategories(formOptions.categories);
+      setBrands(formOptions.brands);
+      setVariationTypes(formOptions.variation_types);
+    }
+  }, [formOptions]);
+
+  // Fetch form options only if formOptions is explicitly not provided (undefined = still loading from parent, skip)
   const fetchedRef = useRef(false);
   useEffect(() => {
+    // formOptions === undefined → parent is loading, wait
+    // formOptions is a FormOptions object → use it, skip fetch
+    // formOptions === null → not provided, fetch ourselves
+    if (formOptions !== null) return;
     if (fetchedRef.current) return;
     fetchedRef.current = true;
-    const fetchVariationTypes = async () => {
+    const fetchFormOptions = async () => {
       try {
-        const response = await apiFetch('/api/variation-types');
+        const response = await apiFetch('/api/products/form-options');
         const data = await response.json();
-        setVariationTypes(data.data || []);
+        setCategories(data.categories || []);
+        setBrands(data.brands || []);
+        setVariationTypes(data.variation_types || []);
       } catch (err) {
-        console.error('Error fetching variation types:', err);
+        console.error('Error fetching form options:', err);
       }
     };
-    fetchVariationTypes();
-  }, []);
+    fetchFormOptions();
+  }, [formOptions]);
 
   // Sync initialImages/initialVariationImages when they change (edit mode)
   useEffect(() => {
@@ -482,6 +536,59 @@ export default function ProductForm({
     return base;
   };
 
+  // Handle create category (quick-add)
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    try {
+      const res = await apiFetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newCategoryName.trim(), parent_id: newCategoryParentId || null }),
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        // Refresh categories list
+        const catRes = await apiFetch('/api/categories');
+        if (catRes.ok) {
+          const catData = await catRes.json();
+          setCategories(catData.data || []);
+        }
+        setFormData(prev => ({ ...prev, category_id: data.id }));
+        setNewCategoryName('');
+        setNewCategoryParentId('');
+        setShowNewCategory(false);
+      }
+    } catch (e) {
+      console.error('Failed to create category:', e);
+    }
+  };
+
+  // Handle create brand (quick-add)
+  const handleCreateBrand = async () => {
+    if (!newBrandName.trim()) return;
+    try {
+      const res = await apiFetch('/api/brands', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newBrandName.trim() }),
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        // Refresh brands list
+        const brandRes = await apiFetch('/api/brands');
+        if (brandRes.ok) {
+          const brandData = await brandRes.json();
+          setBrands(brandData.data || []);
+        }
+        setFormData(prev => ({ ...prev, brand_id: data.id }));
+        setNewBrandName('');
+        setShowNewBrand(false);
+      }
+    } catch (e) {
+      console.error('Failed to create brand:', e);
+    }
+  };
+
   // Handle save
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -666,6 +773,92 @@ export default function ProductForm({
                 placeholder="รายละเอียดสินค้า (ไม่จำเป็น)"
               />
             </div>
+
+            {/* Category */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมวดหมู่</label>
+              <div className="flex gap-2">
+                <select
+                  value={formData.category_id}
+                  onChange={e => setFormData(prev => ({ ...prev, category_id: e.target.value }))}
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                >
+                  <option value="">ไม่ระบุ</option>
+                  {categories.map(parent => (
+                    parent.children && parent.children.length > 0 ? (
+                      <optgroup key={parent.id} label={parent.name}>
+                        <option value={parent.id}>{parent.name} (ทั้งหมด)</option>
+                        {parent.children.map(child => (
+                          <option key={child.id} value={child.id}>{child.name}</option>
+                        ))}
+                      </optgroup>
+                    ) : (
+                      <option key={parent.id} value={parent.id}>{parent.name}</option>
+                    )
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowNewCategory(!showNewCategory)}
+                  className="px-2 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 hover:text-[#F4511E] hover:border-[#F4511E] transition-colors"
+                  title="เพิ่มหมวดหมู่ใหม่"
+                >+</button>
+              </div>
+              {/* Quick-add category inline form */}
+              {showNewCategory && (
+                <div className="mt-2 flex gap-2">
+                  <select
+                    value={newCategoryParentId}
+                    onChange={e => setNewCategoryParentId(e.target.value)}
+                    className="px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">หมวดหมู่หลัก</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>ภายใต้: {c.name}</option>)}
+                  </select>
+                  <input
+                    value={newCategoryName}
+                    onChange={e => setNewCategoryName(e.target.value)}
+                    placeholder="ชื่อหมวดหมู่"
+                    className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                  />
+                  <button type="button" onClick={handleCreateCategory} className="px-2 py-1.5 bg-[#F4511E] text-white rounded text-xs">เพิ่ม</button>
+                </div>
+              )}
+            </div>
+
+            {/* Brand (feature-gated) */}
+            {features.product_brand && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">แบรนด์</label>
+                <div className="flex gap-2">
+                  <select
+                    value={formData.brand_id}
+                    onChange={e => setFormData(prev => ({ ...prev, brand_id: e.target.value }))}
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                  >
+                    <option value="">ไม่ระบุ</option>
+                    {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewBrand(!showNewBrand)}
+                    className="px-2 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 hover:text-[#F4511E] hover:border-[#F4511E] transition-colors"
+                    title="เพิ่มแบรนด์ใหม่"
+                  >+</button>
+                </div>
+                {showNewBrand && (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={newBrandName}
+                      onChange={e => setNewBrandName(e.target.value)}
+                      placeholder="ชื่อแบรนด์"
+                      className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                    />
+                    <button type="button" onClick={handleCreateBrand} className="px-2 py-1.5 bg-[#F4511E] text-white rounded text-xs">เพิ่ม</button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

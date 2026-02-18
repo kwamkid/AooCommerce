@@ -1,7 +1,8 @@
 // Path: app/customers/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
@@ -145,40 +146,6 @@ export default function CustomersPage() {
 
   const isCol = (key: ColumnKey) => visibleColumns.has(key);
 
-  // Fetch customers function - optimized with single API call
-  const fetchCustomers = useCallback(async () => {
-    if (dataFetched) return;
-
-    try {
-      setLoading(true);
-
-      // Fetch customers with stats in single API call
-      const customersResponse = await apiFetch('/api/customers?with_stats=true');
-
-      const customersResult = await customersResponse.json();
-
-      if (!customersResponse.ok) {
-        throw new Error(customersResult.error || 'Failed to fetch customers');
-      }
-
-      const data = customersResult.customers || [];
-
-      // Map customer_type from database
-      const customersWithType = data.map((customer: any) => ({
-        ...customer,
-        customer_type: customer.customer_type_new || customer.customer_type || 'retail'
-      }));
-
-      setCustomers(customersWithType as Customer[]);
-      setDataFetched(true);
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-      setError('ไม่สามารถโหลดข้อมูลลูกค้าได้');
-    } finally {
-      setLoading(false);
-    }
-  }, [dataFetched]);
-
   // Check auth
   useEffect(() => {
     if (authLoading) return;
@@ -194,12 +161,34 @@ export default function CustomersPage() {
     }
   }, [userProfile, authLoading, router]);
 
-  // Fetch customers
-  useEffect(() => {
-    if (!authLoading && userProfile && !dataFetched) {
-      fetchCustomers();
+  // Fetch customers - once when auth is ready
+  useFetchOnce(async () => {
+    try {
+      setLoading(true);
+
+      const customersResponse = await apiFetch('/api/customers?with_stats=true');
+      const customersResult = await customersResponse.json();
+
+      if (!customersResponse.ok) {
+        throw new Error(customersResult.error || 'Failed to fetch customers');
+      }
+
+      const data = customersResult.customers || [];
+
+      const customersWithType = data.map((customer: any) => ({
+        ...customer,
+        customer_type: customer.customer_type_new || customer.customer_type || 'retail'
+      }));
+
+      setCustomers(customersWithType as Customer[]);
+      setDataFetched(true);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      setError('ไม่สามารถโหลดข้อมูลลูกค้าได้');
+    } finally {
+      setLoading(false);
     }
-  }, [authLoading, userProfile, dataFetched, fetchCustomers]);
+  }, !authLoading && !!userProfile);
 
   // Reset page when search changes
   useEffect(() => {

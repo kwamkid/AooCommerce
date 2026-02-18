@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import Pagination from '@/app/components/Pagination';
@@ -50,12 +51,9 @@ export default function TransferListPage() {
   const [page, setPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState(20);
 
-  useEffect(() => {
-    if (!authLoading && userProfile) {
-      fetchTransfers();
-      fetchWarehouses();
-    }
-  }, [authLoading, userProfile]);
+  useFetchOnce(() => {
+    fetchWarehouses();
+  }, !authLoading && !!userProfile);
 
   const fetchWarehouses = async () => {
     try {
@@ -84,11 +82,11 @@ export default function TransferListPage() {
     }
   };
 
+  const isAuthReady = !authLoading && !!userProfile;
   useEffect(() => {
-    if (!authLoading && userProfile) {
-      fetchTransfers();
-    }
-  }, [statusFilter]);
+    if (!isAuthReady) return;
+    fetchTransfers();
+  }, [isAuthReady, statusFilter]);
 
   // Filter by warehouse and search
   const filtered = transfers.filter(t => {

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import {
   Users,
@@ -160,11 +161,9 @@ export default function UsersPage() {
   }, [userProfile, authLoading, router]);
 
   // Fetch users
-  useEffect(() => {
-    if (!authLoading && (userProfile?.role === 'admin' || userProfile?.role === 'owner') && !dataFetched) {
-      fetchUsers();
-    }
-  }, [authLoading, userProfile, dataFetched, fetchUsers]);
+  useFetchOnce(() => {
+    fetchUsers();
+  }, !authLoading && (userProfile?.role === 'admin' || userProfile?.role === 'owner') && !dataFetched);
 
   // Handle create/update user
   const handleSaveUser = async (e: React.FormEvent<HTMLFormElement>) => {

@@ -116,7 +116,7 @@ function NewProductContent() {
         </div>
 
         {/* Form */}
-        <ProductForm editingProduct={duplicateProduct} />
+        <ProductForm editingProduct={duplicateProduct} formOptions={null} />
       </div>
     </Layout>
   );

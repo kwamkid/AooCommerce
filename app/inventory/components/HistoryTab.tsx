@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
@@ -60,7 +60,7 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
     });
   };
 
-  const fetchTransactions = useCallback(async () => {
+  const fetchTransactions = async () => {
     setLoading(true);
     const t0 = Date.now();
     try {
@@ -88,12 +88,23 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
     } finally {
       setLoading(false);
     }
-  }, [page, recordsPerPage, warehouseFilter, variationId, type, search, dateRange]);
+  };
 
-  // Fetch on mount + on filter changes
+  // Fetch on mount + on filter changes (ref guard prevents double-mount)
+  const dateFrom = formatDateValue(dateRange?.startDate) || '';
+  const dateTo = formatDateValue(dateRange?.endDate) || '';
+  const fetchedRef = useRef(false);
+  const depsKey = `${page}-${recordsPerPage}-${warehouseFilter}-${variationId}-${type}-${search}-${dateFrom}-${dateTo}`;
+  const prevDepsRef = useRef(depsKey);
+
   useEffect(() => {
+    const depsChanged = prevDepsRef.current !== depsKey;
+    prevDepsRef.current = depsKey;
+
+    if (fetchedRef.current && !depsChanged) return;
+    fetchedRef.current = true;
     fetchTransactions();
-  }, [fetchTransactions]);
+  }, [depsKey]);
 
   const handleSearch = (val: string) => {
     setSearch(val);

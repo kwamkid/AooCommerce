@@ -449,11 +449,11 @@ export default function DeliverySummaryPage() {
     }
   };
 
+  const isAuthReady = !authLoading && !!session?.access_token;
   useEffect(() => {
-    if (session?.access_token && deliveryDate) {
-      fetchReport();
-    }
-  }, [deliveryDate, session?.access_token]);
+    if (!isAuthReady || !deliveryDate) return;
+    fetchReport();
+  }, [isAuthReady, deliveryDate]);
 
   // Initialize delivery order when reportData changes
   useEffect(() => {

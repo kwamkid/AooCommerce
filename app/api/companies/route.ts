@@ -160,6 +160,28 @@ export async function POST(request: NextRequest) {
     ];
     await supabaseAdmin.from('variation_types').insert(variationTypes);
 
+    // Seed default payment channels
+    await supabaseAdmin.from('payment_channels').insert([
+      {
+        company_id: company.id,
+        channel_group: 'bill_online',
+        type: 'cash',
+        name: 'เงินสด',
+        is_active: true,
+        sort_order: 0,
+        config: { description: 'รับเงินสดจากลูกค้า / จ่ายหน้าร้าน' },
+      },
+      {
+        company_id: company.id,
+        channel_group: 'bill_online',
+        type: 'payment_gateway',
+        name: 'ชำระออนไลน์',
+        is_active: false,
+        sort_order: 99,
+        config: {},
+      },
+    ]);
+
     return NextResponse.json({ success: true, company });
   } catch (error) {
     console.error('Create company error:', error);

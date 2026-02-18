@@ -624,3 +624,336 @@ export async function downloadShippingDocument(
     return { pdfBuffer: null, error: e instanceof Error ? e.message : 'Unknown error' };
   }
 }
+
+// ============================================
+// Product API Functions
+// ============================================
+
+/**
+ * Get paginated list of items from a Shopee shop.
+ * Returns only item_id + item_status — call getItemFullDetails() for full info.
+ */
+export async function getItemList(
+  creds: ShopeeCredentials,
+  options: {
+    offset?: number;
+    pageSize?: number;
+    itemStatus?: 'NORMAL' | 'BANNED' | 'DELETED' | 'UNLIST';
+  } = {}
+): Promise<{
+  items: { item_id: number; item_status: string; update_time: number }[];
+  totalCount: number;
+  hasMore: boolean;
+  nextOffset: number;
+}> {
+  const offset = options.offset ?? 0;
+  const pageSize = options.pageSize ?? 100;
+
+  const params: Record<string, unknown> = {
+    offset,
+    page_size: pageSize,
+    item_status: options.itemStatus ?? 'NORMAL',
+  };
+
+  const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/product/get_item_list', params);
+
+  if (error) {
+    console.error('[Shopee API] get_item_list error:', error);
+    return { items: [], totalCount: 0, hasMore: false, nextOffset: offset };
+  }
+
+  const response = data as {
+    item?: { item_id: number; item_status: string; update_time: number }[];
+    total_count?: number;
+    has_next_page?: boolean;
+    next_offset?: number;
+  };
+
+  return {
+    items: response.item || [],
+    totalCount: response.total_count || 0,
+    hasMore: response.has_next_page || false,
+    nextOffset: response.next_offset || offset + pageSize,
+  };
+}
+
+/**
+ * Full item details: name, SKU, images, price, stock, variations.
+ * Combines get_item_base_info (batch) + get_model_list (per item).
+ */
+export interface ShopeeItemFullDetail {
+  item_id: number;
+  item_name: string;
+  item_sku: string;
+  item_status: string;
+  images: string[];
+  has_model: boolean;
+  models: ShopeeModelDetail[];
+  tierVariations: string[];  // e.g. ["สี", "ขนาด"]
+}
+
+export interface ShopeeModelDetail {
+  model_id: number;
+  model_sku: string;
+  model_name: string;
+  tier_index: number[];
+  current_price: number;
+  original_price: number;
+  stock: number;
+  image_url?: string;
+}
+
+export async function getItemFullDetails(
+  creds: ShopeeCredentials,
+  itemIds: number[]
+): Promise<Map<number, ShopeeItemFullDetail>> {
+  const result = new Map<number, ShopeeItemFullDetail>();
+  if (itemIds.length === 0) return result;
+
+  // Step 1: get_item_base_info (batch of 50)
+  const itemsWithModels: number[] = [];
+
+  for (let i = 0; i < itemIds.length; i += 50) {
+    const batch = itemIds.slice(i, i + 50);
+    try {
+      const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/product/get_item_base_info', {
+        item_id_list: batch.join(','),
+      });
+
+      if (error) {
+        console.error('[Shopee API] get_item_base_info error:', error);
+        continue;
+      }
+
+      const items = (data as { item_list?: Array<{
+        item_id: number;
+        item_name: string;
+        item_sku: string;
+        item_status: string;
+        has_model?: boolean;
+        image?: { image_url_list?: string[] };
+        price_info?: Array<{ current_price?: number; original_price?: number }>;
+        stock_info_v2?: { summary_info?: { total_available_stock?: number } };
+      }> })?.item_list || [];
+
+      for (const item of items) {
+        const images = item.image?.image_url_list || [];
+        const detail: ShopeeItemFullDetail = {
+          item_id: item.item_id,
+          item_name: item.item_name || '',
+          item_sku: item.item_sku || '',
+          item_status: item.item_status || 'NORMAL',
+          images,
+          has_model: item.has_model || false,
+          models: [],
+          tierVariations: [],
+        };
+
+        // For simple items (no model), extract price/stock from base info
+        if (!item.has_model) {
+          const priceInfo = item.price_info?.[0];
+          const stock = item.stock_info_v2?.summary_info?.total_available_stock ?? 0;
+          detail.models = [{
+            model_id: 0,
+            model_sku: item.item_sku || '',
+            model_name: '',
+            tier_index: [],
+            current_price: priceInfo?.current_price ?? 0,
+            original_price: priceInfo?.original_price ?? 0,
+            stock,
+          }];
+        } else {
+          itemsWithModels.push(item.item_id);
+        }
+
+        result.set(item.item_id, detail);
+      }
+    } catch (e) {
+      console.error('[Shopee API] get_item_base_info batch error:', e);
+    }
+  }
+
+  // Step 2: get_model_list for variation items
+  for (const itemId of itemsWithModels) {
+    try {
+      const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/product/get_model_list', {
+        item_id: itemId,
+      });
+
+      if (error) {
+        console.error(`[Shopee API] get_model_list error for item ${itemId}:`, error);
+        continue;
+      }
+
+      const response = data as {
+        tier_variation?: Array<{
+          name: string;
+          option_list?: Array<{ option: string; image?: { image_url?: string } }>;
+        }>;
+        model?: Array<{
+          model_id: number;
+          model_sku: string;
+          tier_index?: number[];
+          price_info?: Array<{ current_price?: number; original_price?: number }>;
+          stock_info_v2?: { summary_info?: { total_available_stock?: number } };
+        }>;
+      };
+
+      const detail = result.get(itemId);
+      if (!detail) continue;
+
+      const tierVars = response.tier_variation || [];
+      detail.tierVariations = tierVars.map(tv => tv.name);
+
+      const models = response.model || [];
+      const firstTierOptions = tierVars[0]?.option_list || [];
+
+      detail.models = models.map(model => {
+        const priceInfo = model.price_info?.[0];
+        const tierIdx = model.tier_index?.[0];
+
+        // Build model name from tier options
+        const nameParts: string[] = [];
+        for (const tv of tierVars) {
+          const optIdx = model.tier_index?.[tierVars.indexOf(tv)];
+          if (optIdx !== undefined && tv.option_list?.[optIdx]) {
+            nameParts.push(tv.option_list[optIdx].option);
+          }
+        }
+
+        return {
+          model_id: model.model_id,
+          model_sku: model.model_sku || '',
+          model_name: nameParts.join(' / '),
+          tier_index: model.tier_index || [],
+          current_price: priceInfo?.current_price ?? 0,
+          original_price: priceInfo?.original_price ?? 0,
+          stock: model.stock_info_v2?.summary_info?.total_available_stock ?? 0,
+          image_url: tierIdx !== undefined ? firstTierOptions[tierIdx]?.image?.image_url : undefined,
+        };
+      });
+
+      console.log(`[Shopee API] getItemFullDetails item ${itemId}: tiers=[${detail.tierVariations.join(',')}], models=${detail.models.length}`);
+    } catch (e) {
+      console.error(`[Shopee API] get_model_list error for item ${itemId}:`, e);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Update item/model prices on Shopee.
+ * For simple items (no model): use model_id = 0.
+ */
+export async function updatePrice(
+  creds: ShopeeCredentials,
+  itemId: number,
+  priceList: { model_id: number; original_price: number }[]
+): Promise<{ data: unknown; error?: string }> {
+  return shopeeApiRequest(creds, 'POST', '/api/v2/product/update_price', {}, {
+    item_id: itemId,
+    price_list: priceList,
+  });
+}
+
+/**
+ * Update item/model stock on Shopee.
+ * seller_stock array supports multi-warehouse; we use single entry.
+ */
+export async function updateStock(
+  creds: ShopeeCredentials,
+  itemId: number,
+  stockList: { model_id: number; seller_stock: { stock: number }[] }[]
+): Promise<{ data: unknown; error?: string }> {
+  return shopeeApiRequest(creds, 'POST', '/api/v2/product/update_stock', {}, {
+    item_id: itemId,
+    stock_list: stockList,
+  });
+}
+
+// ============================================
+// Product Export API Functions (Phase 3)
+// ============================================
+
+export interface ShopeeCategory {
+  category_id: number;
+  parent_category_id: number;
+  original_category_name: string;
+  display_category_name: string;
+  has_children: boolean;
+}
+
+export interface ShopeeCategoryAttribute {
+  attribute_id: number;
+  original_attribute_name: string;
+  display_attribute_name: string;
+  is_mandatory: boolean;
+  input_validation_type: string;
+  format_type: string;
+  date_format_type?: string;
+  input_type: string;
+  attribute_value_list?: { value_id: number; original_value_name: string; display_value_name: string }[];
+}
+
+/**
+ * Get Shopee category tree.
+ * Returns all categories (flat list — use parent_category_id to build tree).
+ */
+export async function getShopeeCategories(
+  creds: ShopeeCredentials,
+  language: string = 'TH'
+): Promise<{ data: unknown; error?: string }> {
+  return shopeeApiRequest(creds, 'GET', '/api/v2/product/get_category', {
+    language,
+  });
+}
+
+/**
+ * Get attributes required for a Shopee category.
+ * Only leaf categories can be used when creating items.
+ */
+export async function getShopeeCategoryAttributes(
+  creds: ShopeeCredentials,
+  categoryId: number,
+  language: string = 'TH'
+): Promise<{ data: unknown; error?: string }> {
+  return shopeeApiRequest(creds, 'GET', '/api/v2/product/get_attributes', {
+    category_id: categoryId,
+    language,
+  });
+}
+
+/**
+ * Get available logistics channels for a shop.
+ * Needed when creating items to set logistics.
+ */
+export async function getShopeeLogistics(
+  creds: ShopeeCredentials
+): Promise<{ data: unknown; error?: string }> {
+  return shopeeApiRequest(creds, 'GET', '/api/v2/logistics/get_channel_list');
+}
+
+/**
+ * Upload an image to Shopee media space by URL.
+ * Returns image_info with image_id for use in add_item.
+ */
+export async function uploadImageByUrl(
+  creds: ShopeeCredentials,
+  imageUrl: string
+): Promise<{ data: unknown; error?: string }> {
+  return shopeeApiRequest(creds, 'POST', '/api/v2/media_space/upload_image', {}, {
+    image_url: imageUrl,
+  });
+}
+
+/**
+ * Create a new item on Shopee.
+ * itemData should follow Shopee's add_item request body format.
+ */
+export async function addItem(
+  creds: ShopeeCredentials,
+  itemData: Record<string, unknown>
+): Promise<{ data: unknown; error?: string }> {
+  return shopeeApiRequest(creds, 'POST', '/api/v2/product/add_item', {}, itemData);
+}

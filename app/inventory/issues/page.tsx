@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import Pagination from '@/app/components/Pagination';
@@ -37,12 +38,10 @@ export default function IssueListPage() {
   const [page, setPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState(20);
 
-  useEffect(() => {
-    if (!authLoading && userProfile) {
-      fetchData();
-      fetchWarehouses();
-    }
-  }, [authLoading, userProfile]);
+  useFetchOnce(() => {
+    fetchData();
+    fetchWarehouses();
+  }, !authLoading && !!userProfile);
 
   const fetchData = async () => {
     try {

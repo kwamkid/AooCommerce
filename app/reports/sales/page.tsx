@@ -164,11 +164,11 @@ export default function SalesReportPage() {
     }
   };
 
+  const isAuthReady = !authLoading && !!session?.access_token;
   useEffect(() => {
-    if (session?.access_token && startDate && endDate) {
-      fetchReport();
-    }
-  }, [session?.access_token, startDate, endDate, groupBy]);
+    if (!isAuthReady || !startDate || !endDate) return;
+    fetchReport();
+  }, [isAuthReady, startDate, endDate, groupBy]);
 
   // Auth check
   useEffect(() => {

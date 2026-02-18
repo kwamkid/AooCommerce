@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import Link from 'next/link';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import {
   Package2, Warehouse, ClipboardList,
@@ -13,23 +14,31 @@ import StockTab from './components/StockTab';
 import HistoryTab from './components/HistoryTab';
 
 export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>('stock');
+  const [activeTab, setActiveTabState] = useState<TabKey>('stock');
+
+  // Read hash on mount (client-only to avoid hydration mismatch)
+  useEffect(() => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash === 'history') setActiveTabState('history');
+  }, []);
+
+  const setActiveTab = (tab: TabKey) => {
+    setActiveTabState(tab);
+    window.location.hash = tab === 'stock' ? '' : tab;
+  };
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
   const [historyVariationId, setHistoryVariationId] = useState('');
   const [historyProductLabel, setHistoryProductLabel] = useState('');
 
-  useEffect(() => {
-    const fetchWarehouses = async () => {
-      try {
-        const res = await apiFetch('/api/warehouses');
-        if (res.ok) {
-          const data = await res.json();
-          setWarehouses(data.warehouses || []);
-        }
-      } catch { /* silent */ }
-    };
-    fetchWarehouses();
-  }, []);
+  useFetchOnce(async () => {
+    try {
+      const res = await apiFetch('/api/warehouses');
+      if (res.ok) {
+        const data = await res.json();
+        setWarehouses(data.warehouses || []);
+      }
+    } catch { /* silent */ }
+  }, true);
 
   const tabClass = (tab: TabKey) =>
     `flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${

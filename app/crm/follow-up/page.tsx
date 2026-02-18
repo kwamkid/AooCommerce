@@ -267,11 +267,11 @@ export default function CRMFollowUpPage() {
   }, [searchTerm]);
 
   // Fetch customers
+  const isAuthReady = !authLoading && !!userProfile;
   useEffect(() => {
-    if (!authLoading && userProfile) {
-      fetchCustomers();
-    }
-  }, [authLoading, userProfile, debouncedSearch, filterDays, sortBy, sortOrder, currentPage, rowsPerPage]);
+    if (!isAuthReady) return;
+    fetchCustomers();
+  }, [isAuthReady, debouncedSearch, filterDays, sortBy, sortOrder, currentPage, rowsPerPage]);
 
   const fetchCustomers = async () => {
     try {

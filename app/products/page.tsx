@@ -5,9 +5,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import { getImageUrl } from '@/lib/utils/image';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
+import { useFeatures } from '@/lib/features-context';
 import {
   Plus,
   Edit2,
@@ -18,6 +20,7 @@ import {
   Check,
   Package2,
   Wine,
+  Loader2,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
@@ -32,6 +35,8 @@ interface ProductItem {
   main_image_url?: string;
   product_type: 'simple' | 'variation';
   source?: string;
+  category_id?: string;
+  brand_id?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -59,6 +64,18 @@ interface ColumnConfig {
   label: string;
   defaultVisible: boolean;
   alwaysVisible?: boolean;
+}
+
+interface CategoryOption {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  children?: CategoryOption[];
+}
+
+interface BrandOption {
+  id: string;
+  name: string;
 }
 
 const COLUMN_CONFIGS: ColumnConfig[] = [
@@ -95,6 +112,7 @@ function ActiveBadge({ isActive }: { isActive: boolean }) {
 export default function ProductsPage() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
+  const { features } = useFeatures();
 
   const [productsList, setProductsList] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,6 +120,10 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'simple' | 'variation'>('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'shopee' | 'shopee_edited'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [brandFilter, setBrandFilter] = useState<string>('all');
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [brands, setBrands] = useState<BrandOption[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -127,6 +149,7 @@ export default function ProductsPage() {
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
 
   // Lightbox state
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -155,6 +178,7 @@ export default function ProductsPage() {
 
   const isCol = (key: ColumnKey) => visibleColumns.has(key);
 
+
   // Fetch products
   const fetchData = async () => {
     const t0 = Date.now();
@@ -173,10 +197,22 @@ export default function ProductsPage() {
     }
   };
 
-  useEffect(() => {
-    if (authLoading || !userProfile || dataFetched) return;
+  useFetchOnce(() => {
     fetchData();
-  }, [authLoading, userProfile, dataFetched]);
+    const fetchFilters = async () => {
+      try {
+        const res = await apiFetch('/api/products/form-options');
+        if (res.ok) {
+          const data = await res.json();
+          setCategories(data.categories || []);
+          setBrands(data.brands || []);
+        }
+      } catch (e) {
+        console.error('Failed to fetch filters:', e);
+      }
+    };
+    fetchFilters();
+  }, !authLoading && !!userProfile);
 
   // Handle delete
   const handleDelete = async (product: ProductItem) => {
@@ -228,7 +264,7 @@ export default function ProductsPage() {
   };
 
   // Clear selection when filters/page change
-  useEffect(() => { setSelectedIds(new Set()); }, [searchTerm, typeFilter, sourceFilter, currentPage]);
+  useEffect(() => { setSelectedIds(new Set()); }, [searchTerm, typeFilter, sourceFilter, categoryFilter, brandFilter, currentPage]);
 
   // Filter
   const filteredProducts = productsList.filter(product => {
@@ -237,6 +273,12 @@ export default function ProductsPage() {
     if (sourceFilter === 'shopee' && !(product.source === 'shopee' || product.source === 'shopee_edited')) return false;
     if (sourceFilter === 'shopee_edited' && product.source !== 'shopee_edited') return false;
     if (sourceFilter === 'manual' && product.source !== 'manual' && product.source !== undefined) return false;
+
+    // Category filter
+    if (categoryFilter !== 'all' && product.category_id !== categoryFilter) return false;
+
+    // Brand filter
+    if (brandFilter !== 'all' && product.brand_id !== brandFilter) return false;
 
     // Search filter — name, code, SKU, barcode
     if (searchTerm) {
@@ -274,7 +316,7 @@ export default function ProductsPage() {
     });
   };
 
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, typeFilter, sourceFilter]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, typeFilter, sourceFilter, categoryFilter, brandFilter]);
 
   // Clear alerts
   useEffect(() => {
@@ -317,6 +359,7 @@ export default function ProductsPage() {
           </button>
         </div>
 
+
         {/* Alerts */}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center justify-between">
@@ -331,275 +374,311 @@ export default function ProductsPage() {
           </div>
         )}
 
-        {/* Search + Type Filter + Column Settings */}
-        <div className="data-filter-card">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="ค้นหาชื่อ, รหัส, SKU, Barcode..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-              />
-            </div>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as 'all' | 'simple' | 'variation')}
-              className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-            >
-              <option value="all">ทั้งหมด</option>
-              <option value="simple">สินค้าปกติ</option>
-              <option value="variation">สินค้าย่อย</option>
-            </select>
-            <select
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value as 'all' | 'manual' | 'shopee' | 'shopee_edited')}
-              className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-            >
-              <option value="all">ทุกแหล่ง</option>
-              <option value="manual">สร้างเอง</option>
-              <option value="shopee">Shopee (ทั้งหมด)</option>
-              <option value="shopee_edited">Shopee (แก้ไขแล้ว)</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Bulk Action Bar */}
-        {selectedIds.size > 0 && (
-          <div className="flex items-center justify-between bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3">
-            <span className="text-sm text-red-700 dark:text-red-300 font-medium">
-              เลือก {selectedIds.size} รายการ
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSelectedIds(new Set())}
-                className="px-3 py-1.5 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 transition-colors"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                disabled={bulkDeleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm rounded-lg font-medium transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                {bulkDeleting ? 'กำลังลบ...' : `ลบ ${selectedIds.size} รายการ`}
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Products Table */}
-        <div className="data-table-wrap">
-          <div className="overflow-x-auto">
-          <table className="data-table-fixed">
-            <thead className="data-thead">
-              <tr>
-                <th className="w-[44px] px-3 py-3 text-center">
+            {/* Search + Type Filter + Column Settings */}
+            <div className="data-filter-card">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
-                    type="checkbox"
-                    checked={allPageSelected}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E] cursor-pointer"
+                    type="text"
+                    placeholder="ค้นหาชื่อ, รหัส, SKU, Barcode..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                   />
-                </th>
-                {isCol('image') && <th className={`${thClass} w-[88px]`}>รูปภาพ</th>}
-                {isCol('nameCode') && <th className={thClass}>ชื่อ/รหัส</th>}
-                {isCol('type') && <th className={thClass}>ประเภท</th>}
-                {isCol('price') && <th className={thClass}>ราคา</th>}
-                {isCol('status') && <th className={thClass}>สถานะ</th>}
-                {isCol('actions') && <th className={`${thClass} text-right`}>จัดการ</th>}
-              </tr>
-            </thead>
-            <tbody className="data-tbody">
-              {paginatedProducts.length === 0 ? (
-                <tr>
-                  <td colSpan={visibleColumns.size + 1} className="px-6 py-8 text-center text-gray-500 dark:text-slate-400">ไม่พบข้อมูลสินค้า</td>
-                </tr>
-              ) : (
-                paginatedProducts.map((product) => (
-                  <tr key={product.product_id} className="data-tr">
-                    {/* Checkbox */}
-                    <td className="w-[44px] px-3 py-3 text-center">
+                </div>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value as 'all' | 'simple' | 'variation')}
+                  className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                >
+                  <option value="all">ทั้งหมด</option>
+                  <option value="simple">สินค้าปกติ</option>
+                  <option value="variation">สินค้าย่อย</option>
+                </select>
+                <select
+                  value={sourceFilter}
+                  onChange={(e) => setSourceFilter(e.target.value as 'all' | 'manual' | 'shopee' | 'shopee_edited')}
+                  className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                >
+                  <option value="all">ทุกแหล่ง</option>
+                  <option value="manual">สร้างเอง</option>
+                  <option value="shopee">Shopee (ทั้งหมด)</option>
+                  <option value="shopee_edited">Shopee (แก้ไขแล้ว)</option>
+                </select>
+
+                {/* Category filter */}
+                <select
+                  value={categoryFilter}
+                  onChange={e => setCategoryFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                >
+                  <option value="all">ทุกหมวดหมู่</option>
+                  {categories.map(parent => (
+                    parent.children && parent.children.length > 0 ? (
+                      <optgroup key={parent.id} label={parent.name}>
+                        <option value={parent.id}>{parent.name} (ทั้งหมด)</option>
+                        {parent.children.map(child => (
+                          <option key={child.id} value={child.id}>{child.name}</option>
+                        ))}
+                      </optgroup>
+                    ) : (
+                      <option key={parent.id} value={parent.id}>{parent.name}</option>
+                    )
+                  ))}
+                </select>
+
+                {/* Brand filter — only when feature enabled */}
+                {features.product_brand && (
+                  <select
+                    value={brandFilter}
+                    onChange={e => setBrandFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                  >
+                    <option value="all">ทุกแบรนด์</option>
+                    {brands.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            {/* Bulk Action Bar */}
+            {selectedIds.size > 0 && (
+              <div className="flex items-center justify-between bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3">
+                <span className="text-sm text-red-700 dark:text-red-300 font-medium">
+                  เลือก {selectedIds.size} รายการ
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    className="px-3 py-1.5 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 transition-colors"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={bulkDeleting}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm rounded-lg font-medium transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    {bulkDeleting ? 'กำลังลบ...' : `ลบ ${selectedIds.size} รายการ`}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Products Table */}
+            <div className="data-table-wrap">
+              <div className="overflow-x-auto">
+              <table className="data-table-fixed">
+                <thead className="data-thead">
+                  <tr>
+                    <th className="w-[44px] px-3 py-3 text-center">
                       <input
                         type="checkbox"
-                        checked={selectedIds.has(product.product_id)}
-                        onChange={() => toggleSelect(product.product_id)}
+                        checked={allPageSelected}
+                        onChange={toggleSelectAll}
                         className="w-4 h-4 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E] cursor-pointer"
                       />
-                    </td>
-                    {/* Image */}
-                    {isCol('image') && (
-                      <td className="px-3 py-3 whitespace-nowrap w-[88px]">
-                        {(product.main_image_url || product.image) ? (
-                          <img
-                            src={product.main_image_url || getImageUrl(product.image)}
-                            alt={product.name}
-                            className="w-16 h-16 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={() => setLightboxImage(product.main_image_url || getImageUrl(product.image))}
+                    </th>
+                    {isCol('image') && <th className={`${thClass} w-[88px]`}>รูปภาพ</th>}
+                    {isCol('nameCode') && <th className={thClass}>ชื่อ/รหัส</th>}
+                    {isCol('type') && <th className={thClass}>ประเภท</th>}
+                    {isCol('price') && <th className={thClass}>ราคา</th>}
+                    {isCol('status') && <th className={thClass}>สถานะ</th>}
+                    {isCol('actions') && <th className={`${thClass} text-right`}>จัดการ</th>}
+                  </tr>
+                </thead>
+                <tbody className="data-tbody">
+                  {paginatedProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={visibleColumns.size + 1} className="px-6 py-8 text-center text-gray-500 dark:text-slate-400">ไม่พบข้อมูลสินค้า</td>
+                    </tr>
+                  ) : (
+                    paginatedProducts.map((product) => (
+                      <tr key={product.product_id} className="data-tr">
+                        {/* Checkbox */}
+                        <td className="w-[44px] px-3 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(product.product_id)}
+                            onChange={() => toggleSelect(product.product_id)}
+                            className="w-4 h-4 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E] cursor-pointer"
                           />
-                        ) : (
-                          <div className="w-16 h-16 bg-gray-200 dark:bg-slate-700 rounded flex items-center justify-center">
-                            <Package2 className="w-8 h-8 text-gray-400" />
-                          </div>
+                        </td>
+                        {/* Image */}
+                        {isCol('image') && (
+                          <td className="px-3 py-3 whitespace-nowrap w-[88px]">
+                            {(product.main_image_url || product.image) ? (
+                              <img
+                                src={product.main_image_url || getImageUrl(product.image)}
+                                alt={product.name}
+                                className="w-16 h-16 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => setLightboxImage(product.main_image_url || getImageUrl(product.image))}
+                              />
+                            ) : (
+                              <div className="w-16 h-16 bg-gray-200 dark:bg-slate-700 rounded flex items-center justify-center">
+                                <Package2 className="w-8 h-8 text-gray-400" />
+                              </div>
+                            )}
+                          </td>
                         )}
-                      </td>
-                    )}
 
-                    {/* Name / Code */}
-                    {isCol('nameCode') && (
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
-                          {product.name}
-                          {product.source === 'shopee' && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#EE4D2D]/10 text-[#EE4D2D]">
-                              <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3 h-3" />
-                              Shopee
-                            </span>
-                          )}
-                          {product.source === 'shopee_edited' && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                              <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3 h-3" />
-                              Shopee ✓
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-gray-400 dark:text-slate-500">{product.code}</div>
-                      </td>
-                    )}
-
-                    {/* Type */}
-                    {isCol('type') && (
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${
-                          product.product_type === 'simple'
-                            ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
-                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                        }`}>
-                          {product.product_type === 'simple' ? 'สินค้าปกติ' : 'สินค้าย่อย'}
-                        </span>
-                      </td>
-                    )}
-
-                    {/* Price (+ inline SKU/Barcode) */}
-                    {isCol('price') && (
-                      <td className="px-6 py-4">
-                        {product.product_type === 'simple' ? (
-                          <div>
-                            <div className="text-sm flex items-center space-x-1">
-                              <span className="text-gray-400 font-medium">฿</span>
-                              <span>{formatNumber(product.simple_default_price)}</span>
-                              {product.simple_discount_price != null && product.simple_discount_price > 0 && (
-                                <span className="text-red-600 dark:text-red-400">(฿{formatNumber(product.simple_discount_price)})</span>
+                        {/* Name / Code */}
+                        {isCol('nameCode') && (
+                          <td className="px-6 py-4">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
+                              {product.name}
+                              {product.source === 'shopee' && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#EE4D2D]/10 text-[#EE4D2D]">
+                                  <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3 h-3" />
+                                  Shopee
+                                </span>
+                              )}
+                              {product.source === 'shopee_edited' && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                  <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3 h-3" />
+                                  Shopee ✓
+                                </span>
                               )}
                             </div>
-                            {(isCol('sku') || isCol('barcode')) && (product.simple_sku || product.simple_barcode) && (
-                              <div className="flex items-center gap-2 mt-0.5">
-                                {isCol('sku') && product.simple_sku && (
-                                  <span className="text-xs text-gray-400 dark:text-slate-500">SKU: {product.simple_sku}</span>
+                            <div className="text-xs text-gray-400 dark:text-slate-500">{product.code}</div>
+                          </td>
+                        )}
+
+                        {/* Type */}
+                        {isCol('type') && (
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${
+                              product.product_type === 'simple'
+                                ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                            }`}>
+                              {product.product_type === 'simple' ? 'สินค้าปกติ' : 'สินค้าย่อย'}
+                            </span>
+                          </td>
+                        )}
+
+                        {/* Price (+ inline SKU/Barcode) */}
+                        {isCol('price') && (
+                          <td className="px-6 py-4">
+                            {product.product_type === 'simple' ? (
+                              <div>
+                                <div className="text-sm flex items-center space-x-1">
+                                  <span className="text-gray-400 font-medium">฿</span>
+                                  <span>{formatNumber(product.simple_default_price)}</span>
+                                  {product.simple_discount_price != null && product.simple_discount_price > 0 && (
+                                    <span className="text-red-600 dark:text-red-400">(฿{formatNumber(product.simple_discount_price)})</span>
+                                  )}
+                                </div>
+                                {(isCol('sku') || isCol('barcode')) && (product.simple_sku || product.simple_barcode) && (
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    {isCol('sku') && product.simple_sku && (
+                                      <span className="text-xs text-gray-400 dark:text-slate-500">SKU: {product.simple_sku}</span>
+                                    )}
+                                    {isCol('barcode') && product.simple_barcode && (
+                                      <span className="text-xs text-gray-400 dark:text-slate-500">BC: {product.simple_barcode}</span>
+                                    )}
+                                  </div>
                                 )}
-                                {isCol('barcode') && product.simple_barcode && (
-                                  <span className="text-xs text-gray-400 dark:text-slate-500">BC: {product.simple_barcode}</span>
+                              </div>
+                            ) : (
+                              <div className="space-y-1">
+                                {product.variations && product.variations.length > 0 ? (
+                                  product.variations.map((v) => (
+                                    <div key={v.variation_id || `${product.product_id}-${v.variation_label}`}>
+                                      <div className="text-sm flex items-center space-x-1">
+                                        <Wine className="w-3.5 h-3.5 text-gray-400" />
+                                        <span className="text-gray-500 dark:text-slate-400">{v.variation_label}</span>
+                                        <span className="text-gray-400 font-medium ml-1">฿</span>
+                                        <span>{formatNumber(v.default_price)}</span>
+                                        {v.discount_price > 0 && (
+                                          <span className="text-red-600 dark:text-red-400">(฿{formatNumber(v.discount_price)})</span>
+                                        )}
+                                      </div>
+                                      {(isCol('sku') || isCol('barcode')) && (v.sku || v.barcode) && (
+                                        <div className="flex items-center gap-2 ml-5">
+                                          {isCol('sku') && v.sku && (
+                                            <span className="text-xs text-gray-400 dark:text-slate-500">SKU: {v.sku}</span>
+                                          )}
+                                          {isCol('barcode') && v.barcode && (
+                                            <span className="text-xs text-gray-400 dark:text-slate-500">BC: {v.barcode}</span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <span className="text-sm text-gray-400 dark:text-slate-500">ไม่มีสินค้าย่อย</span>
                                 )}
                               </div>
                             )}
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                            {product.variations && product.variations.length > 0 ? (
-                              product.variations.map((v) => (
-                                <div key={v.variation_id || `${product.product_id}-${v.variation_label}`}>
-                                  <div className="text-sm flex items-center space-x-1">
-                                    <Wine className="w-3.5 h-3.5 text-gray-400" />
-                                    <span className="text-gray-500 dark:text-slate-400">{v.variation_label}</span>
-                                    <span className="text-gray-400 font-medium ml-1">฿</span>
-                                    <span>{formatNumber(v.default_price)}</span>
-                                    {v.discount_price > 0 && (
-                                      <span className="text-red-600 dark:text-red-400">(฿{formatNumber(v.discount_price)})</span>
-                                    )}
-                                  </div>
-                                  {(isCol('sku') || isCol('barcode')) && (v.sku || v.barcode) && (
-                                    <div className="flex items-center gap-2 ml-5">
-                                      {isCol('sku') && v.sku && (
-                                        <span className="text-xs text-gray-400 dark:text-slate-500">SKU: {v.sku}</span>
-                                      )}
-                                      {isCol('barcode') && v.barcode && (
-                                        <span className="text-xs text-gray-400 dark:text-slate-500">BC: {v.barcode}</span>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              ))
-                            ) : (
-                              <span className="text-sm text-gray-400 dark:text-slate-500">ไม่มีสินค้าย่อย</span>
-                            )}
-                          </div>
+                          </td>
                         )}
-                      </td>
-                    )}
 
-                    {/* Status */}
-                    {isCol('status') && (
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <ActiveBadge isActive={product.is_active} />
-                      </td>
-                    )}
+                        {/* Status */}
+                        {isCol('status') && (
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <ActiveBadge isActive={product.is_active} />
+                          </td>
+                        )}
 
-                    {/* Actions */}
-                    {isCol('actions') && (
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                        <button
-                          onClick={() => router.push(`/products/${product.product_id}/edit`)}
-                          className="text-[#F4511E] hover:text-[#D63B0E] inline-flex items-center"
-                          title="แก้ไข"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => router.push(`/products/new?duplicate=${product.product_id}`)}
-                          className="text-blue-500 hover:text-blue-600 inline-flex items-center"
-                          title="คัดลอกสินค้า"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(product)}
-                          className="text-red-600 hover:text-red-700 inline-flex items-center"
-                          title="ลบ"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-          </div>
+                        {/* Actions */}
+                        {isCol('actions') && (
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                            <button
+                              onClick={() => router.push(`/products/${product.product_id}/edit`)}
+                              className="text-[#F4511E] hover:text-[#D63B0E] inline-flex items-center"
+                              title="แก้ไข"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => router.push(`/products/new?duplicate=${product.product_id}`)}
+                              className="text-blue-500 hover:text-blue-600 inline-flex items-center"
+                              title="คัดลอกสินค้า"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(product)}
+                              className="text-red-600 hover:text-red-700 inline-flex items-center"
+                              title="ลบ"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+              </div>
 
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalRecords={totalFiltered}
-            startIdx={startIndex}
-            endIdx={Math.min(startIndex + rowsPerPage, totalFiltered)}
-            recordsPerPage={rowsPerPage}
-            setRecordsPerPage={setRowsPerPage}
-            setPage={setCurrentPage}
-            loadTime={loadTime}
-          >
-            <ColumnSettingsDropdown
-              configs={COLUMN_CONFIGS}
-              visible={visibleColumns}
-              toggle={toggleColumn}
-              buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
-              dropUp
-            />
-          </Pagination>
-        </div>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalRecords={totalFiltered}
+                startIdx={startIndex}
+                endIdx={Math.min(startIndex + rowsPerPage, totalFiltered)}
+                recordsPerPage={rowsPerPage}
+                setRecordsPerPage={setRowsPerPage}
+                setPage={setCurrentPage}
+                loadTime={loadTime}
+              >
+                <ColumnSettingsDropdown
+                  configs={COLUMN_CONFIGS}
+                  visible={visibleColumns}
+                  toggle={toggleColumn}
+                  buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+                  dropUp
+                />
+              </Pagination>
+            </div>
       </div>
 
       {/* Image Lightbox */}
@@ -623,6 +702,7 @@ export default function ProductsPage() {
           />
         </div>
       )}
+
     </Layout>
   );
 }

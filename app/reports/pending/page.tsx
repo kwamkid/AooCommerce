@@ -107,11 +107,11 @@ export default function PendingReportPage() {
     }
   };
 
+  const isAuthReady = !authLoading && !!userProfile;
   useEffect(() => {
-    if (!authLoading && userProfile) {
-      fetchReport();
-    }
-  }, [authLoading, userProfile, groupBy]);
+    if (!isAuthReady) return;
+    fetchReport();
+  }, [isAuthReady, groupBy]);
 
   // Toggle row expansion
   const toggleRow = (id: string) => {

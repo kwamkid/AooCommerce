@@ -31,47 +31,28 @@ const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 const STORAGE_KEY = 'aoo-current-company-id';
 
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
-  const { session, user } = useAuth();
-  const [companies, setCompanies] = useState<CompanyMembership[]>([]);
+  const { user, loading: authLoading, companies: authCompanies, refreshProfile } = useAuth();
   const [currentCompanyId, setCurrentCompanyId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
-  const fetchCompanies = useCallback(async () => {
-    if (!session?.access_token) {
-      setCompanies([]);
+  // Sync companies from AuthProvider (no duplicate /api/auth/me call)
+  const companies: CompanyMembership[] = authCompanies as CompanyMembership[];
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!user || companies.length === 0) {
       setCurrentCompanyId(null);
-      setLoading(false);
+      setInitialized(true);
       return;
     }
 
-    try {
-      const response = await fetch('/api/auth/me', {
-        headers: { 'Authorization': `Bearer ${session.access_token}` },
-      });
-      const data = await response.json();
-      const memberships: CompanyMembership[] = data.companies || [];
-      setCompanies(memberships);
-
-      // Restore from localStorage or use first company
-      const stored = localStorage.getItem(STORAGE_KEY);
-      const valid = memberships.find((m) => m.company_id === stored);
-      setCurrentCompanyId(valid ? stored : memberships[0]?.company_id || null);
-    } catch (error) {
-      console.error('Error fetching companies:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [session?.access_token]);
-
-  useEffect(() => {
-    if (user) {
-      fetchCompanies();
-    } else {
-      setCompanies([]);
-      setCurrentCompanyId(null);
-      setLoading(false);
-    }
-  }, [user, fetchCompanies]);
+    // Restore from localStorage or use first company
+    const stored = localStorage.getItem(STORAGE_KEY);
+    const valid = companies.find((m) => m.company_id === stored);
+    setCurrentCompanyId(valid ? stored : companies[0]?.company_id || null);
+    setInitialized(true);
+  }, [user, authLoading, companies]);
 
   const switchCompany = useCallback((companyId: string) => {
     setCurrentCompanyId(companyId);
@@ -81,8 +62,9 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshCompanies = useCallback(async () => {
-    await fetchCompanies();
-  }, [fetchCompanies]);
+    // Refresh via AuthProvider which re-fetches /api/auth/me
+    await refreshProfile();
+  }, [refreshProfile]);
 
   const currentMembership = companies.find((m) => m.company_id === currentCompanyId);
 
@@ -93,7 +75,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
         companyRole: currentMembership?.role || null,
         companies,
         switchCompany,
-        loading,
+        loading: !initialized,
         refreshCompanies,
       }}
     >

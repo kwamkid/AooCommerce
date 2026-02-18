@@ -131,17 +131,11 @@ export default function ShopeeLogsPage() {
   const endIdx = Math.min(startIdx + recordsPerPage, totalRecords);
 
   return (
-    <Layout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {/* Header */}
+    <Layout title="Shopee Logs" breadcrumbs={[{ label: 'Support' }, { label: 'Shopee Logs' }]}>
+      <div>
+        {/* Action bar */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <img src="/marketplace/shopee.svg" alt="Shopee" className="w-8 h-8" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Shopee Logs</h1>
-              <p className="text-sm text-gray-500 dark:text-slate-400">ประวัติการเชื่อมต่อกับ Shopee</p>
-            </div>
-          </div>
+          <p className="text-sm text-gray-500 dark:text-slate-400">ประวัติการเชื่อมต่อกับ Shopee</p>
           <button
             onClick={fetchLogs}
             disabled={loading}

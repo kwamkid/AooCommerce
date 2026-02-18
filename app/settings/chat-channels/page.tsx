@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
@@ -130,11 +131,9 @@ export default function ChatChannelsPage() {
   const [fbSearch, setFbSearch] = useState('');
   const fbSdkLoaded = useRef(false);
 
-  useEffect(() => {
-    if (userProfile?.role === 'admin' || userProfile?.role === 'owner') {
-      fetchAccounts();
-    }
-  }, [userProfile]);
+  useFetchOnce(() => {
+    fetchAccounts();
+  }, userProfile?.role === 'admin' || userProfile?.role === 'owner');
 
   // Load FB SDK when Facebook tab is active
   useEffect(() => {

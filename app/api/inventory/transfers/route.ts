@@ -31,9 +31,6 @@ export async function GET(request: NextRequest) {
           *,
           from_warehouse:warehouses!inventory_transfers_from_warehouse_id_fkey(id, name, code),
           to_warehouse:warehouses!inventory_transfers_to_warehouse_id_fkey(id, name, code),
-          created_by_user:user_profiles!inventory_transfers_created_by_fkey(id, name, email),
-          shipped_by_user:user_profiles!inventory_transfers_shipped_by_fkey(id, name, email),
-          received_by_user:user_profiles!inventory_transfers_received_by_fkey(id, name, email),
           items:inventory_transfer_items(
             id, variation_id, qty_sent, qty_received, notes,
             variation:product_variations!inventory_transfer_items_variation_id_fkey(
@@ -50,6 +47,18 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Transfer not found' }, { status: 404 });
       }
 
+      // Fetch user profiles for created_by, shipped_by, received_by
+      const profileIds = [transfer.created_by, transfer.shipped_by, transfer.received_by].filter(Boolean);
+      let profileMap: Record<string, { id: string; name: string; email: string }> = {};
+      if (profileIds.length > 0) {
+        const { data: profiles } = await supabaseAdmin.from('user_profiles').select('id, name, email').in('id', profileIds);
+        if (profiles) profileMap = Object.fromEntries(profiles.map(p => [p.id, p]));
+      }
+      const t = transfer as Record<string, unknown>;
+      t.created_by_user = transfer.created_by ? profileMap[transfer.created_by] || null : null;
+      t.shipped_by_user = transfer.shipped_by ? profileMap[transfer.shipped_by] || null : null;
+      t.received_by_user = transfer.received_by ? profileMap[transfer.received_by] || null : null;
+
       return NextResponse.json({ transfer });
     }
 
@@ -57,10 +66,9 @@ export async function GET(request: NextRequest) {
     let query = supabaseAdmin
       .from('inventory_transfers')
       .select(`
-        id, transfer_number, status, notes, created_at, shipped_at, received_at,
+        id, transfer_number, status, notes, created_at, shipped_at, received_at, created_by,
         from_warehouse:warehouses!inventory_transfers_from_warehouse_id_fkey(id, name, code),
         to_warehouse:warehouses!inventory_transfers_to_warehouse_id_fkey(id, name, code),
-        created_by_user:user_profiles!inventory_transfers_created_by_fkey(id, name),
         items:inventory_transfer_items(id)
       `)
       .eq('company_id', auth.companyId)
@@ -79,7 +87,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ transfers: transfers || [] });
+    const userIds = [...new Set((transfers || []).map(r => r.created_by).filter(Boolean))];
+    let userMap: Record<string, { id: string; name: string }> = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabaseAdmin.from('user_profiles').select('id, name').in('id', userIds);
+      if (profiles) userMap = Object.fromEntries(profiles.map(p => [p.id, p]));
+    }
+
+    const result = (transfers || []).map(r => ({
+      ...r,
+      created_by_user: r.created_by ? userMap[r.created_by] || null : null,
+    }));
+
+    return NextResponse.json({ transfers: result });
   } catch (error) {
     console.error('GET transfers error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

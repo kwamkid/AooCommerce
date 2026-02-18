@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const group = searchParams.get('group') || 'bill_online';
 
-    const { data, error } = await supabaseAdmin
+    let { data, error } = await supabaseAdmin
       .from('payment_channels')
       .select('*')
       .eq('company_id', companyId)
@@ -23,6 +23,47 @@ export async function GET(request: NextRequest) {
       .order('sort_order', { ascending: true });
 
     if (error) throw error;
+
+    // Auto-seed default channels if none exist for this company+group
+    if ((!data || data.length === 0) && group === 'bill_online') {
+      const seedRows = [
+        {
+          company_id: companyId,
+          channel_group: 'bill_online',
+          type: 'cash',
+          name: 'เงินสด',
+          is_active: true,
+          sort_order: 0,
+          config: { description: 'รับเงินสดจากลูกค้า / จ่ายหน้าร้าน' },
+        },
+        {
+          company_id: companyId,
+          channel_group: 'bill_online',
+          type: 'payment_gateway',
+          name: 'ชำระออนไลน์',
+          is_active: false,
+          sort_order: 99,
+          config: {},
+        },
+      ];
+
+      const { error: seedError } = await supabaseAdmin
+        .from('payment_channels')
+        .insert(seedRows);
+
+      if (seedError) {
+        console.error('Auto-seed payment channels error:', seedError);
+      } else {
+        // Re-fetch after seeding
+        const refetch = await supabaseAdmin
+          .from('payment_channels')
+          .select('*')
+          .eq('company_id', companyId)
+          .eq('channel_group', group)
+          .order('sort_order', { ascending: true });
+        data = refetch.data;
+      }
+    }
 
     return NextResponse.json({ data: data || [] });
   } catch (error) {

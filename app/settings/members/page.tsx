@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useCompany } from '@/lib/company-context';
 import { useAuth } from '@/lib/auth-context';
@@ -153,7 +154,7 @@ export default function MembersPage() {
     }
   }, [currentCompany?.id]);
 
-  useEffect(() => {
+  useFetchOnce(() => {
     fetchMembers();
     // Fetch warehouses for permission assignment
     const fetchWarehouses = async () => {
@@ -166,7 +167,7 @@ export default function MembersPage() {
       } catch { /* silent */ }
     };
     fetchWarehouses();
-  }, [fetchMembers]);
+  }, !!currentCompany?.id);
 
   // Clear alerts
   useEffect(() => {

@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
         .select(`
           *,
           warehouse:warehouses!inventory_issues_warehouse_id_fkey(id, name, code),
-          created_by_user:user_profiles!inventory_issues_created_by_fkey(id, name, email),
           items:inventory_issue_items(
             id, variation_id, quantity, reason, notes,
             variation:product_variations!inventory_issue_items_variation_id_fkey(
@@ -36,15 +35,21 @@ export async function GET(request: NextRequest) {
       if (error || !data) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
       }
+
+      if (data.created_by) {
+        const { data: profile } = await supabaseAdmin
+          .from('user_profiles').select('id, name, email').eq('id', data.created_by).single();
+        (data as Record<string, unknown>).created_by_user = profile || null;
+      }
+
       return NextResponse.json({ issue: data });
     }
 
     const { data, error } = await supabaseAdmin
       .from('inventory_issues')
       .select(`
-        id, issue_number, reason, status, notes, created_at,
+        id, issue_number, reason, status, notes, created_at, created_by,
         warehouse:warehouses!inventory_issues_warehouse_id_fkey(id, name, code),
-        created_by_user:user_profiles!inventory_issues_created_by_fkey(id, name),
         items:inventory_issue_items(id)
       `)
       .eq('company_id', auth.companyId)
@@ -54,7 +59,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ issues: data || [] });
+    const userIds = [...new Set((data || []).map(r => r.created_by).filter(Boolean))];
+    let userMap: Record<string, { id: string; name: string }> = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabaseAdmin.from('user_profiles').select('id, name').in('id', userIds);
+      if (profiles) userMap = Object.fromEntries(profiles.map(p => [p.id, p]));
+    }
+
+    const issues = (data || []).map(r => ({
+      ...r,
+      created_by_user: r.created_by ? userMap[r.created_by] || null : null,
+    }));
+
+    return NextResponse.json({ issues });
   } catch (error) {
     console.error('GET issues error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

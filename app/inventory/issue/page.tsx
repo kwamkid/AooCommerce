@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
@@ -98,11 +99,10 @@ export default function StockIssuePage() {
 
   // ─── Fetch Warehouses ────────────────────────────────────
 
-  useEffect(() => {
-    if (authLoading || !userProfile) return;
+  useFetchOnce(() => {
     fetchWarehouses();
     fetchProducts();
-  }, [authLoading, userProfile]);
+  }, !authLoading && !!userProfile);
 
   const fetchWarehouses = async () => {
     setLoadingWarehouses(true);
