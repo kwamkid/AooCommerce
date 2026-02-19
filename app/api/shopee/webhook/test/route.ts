@@ -4,6 +4,53 @@ import { ShopeeAccountRow } from '@/lib/shopee-api';
 import { logIntegration } from '@/lib/integration-logger';
 
 /**
+ * PATCH /api/shopee/webhook/test?account_id=xxx&webhook_shop_id=123
+ *
+ * Save the real webhook shop_id to metadata for accounts where
+ * Shopee uses a different shop_id in webhooks vs OAuth.
+ */
+export async function PATCH(request: NextRequest) {
+  const testKey = request.headers.get('x-test-key');
+  if (testKey !== process.env.SHOPEE_PARTNER_KEY) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const accountId = searchParams.get('account_id');
+  const webhookShopId = parseInt(searchParams.get('webhook_shop_id') || '0');
+
+  if (!accountId || !webhookShopId) {
+    return NextResponse.json({ error: 'Missing account_id or webhook_shop_id' }, { status: 400 });
+  }
+
+  // Get current account
+  const { data: account } = await supabaseAdmin
+    .from('shopee_accounts')
+    .select('*')
+    .eq('id', accountId)
+    .single();
+
+  if (!account) {
+    return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+  }
+
+  // Update metadata with webhook_shop_id
+  const metadata = { ...(account.metadata || {}), webhook_shop_id: webhookShopId };
+  await supabaseAdmin
+    .from('shopee_accounts')
+    .update({ metadata })
+    .eq('id', accountId);
+
+  return NextResponse.json({
+    success: true,
+    message: `Updated ${account.shop_name}: webhook_shop_id = ${webhookShopId}`,
+    account_id: accountId,
+    shop_id: account.shop_id,
+    webhook_shop_id: webhookShopId,
+  });
+}
+
+/**
  * POST /api/shopee/webhook/test
  *
  * Debug endpoint: runs the same logic as the real webhook handler
