@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
@@ -21,6 +21,7 @@ import {
   Copy,
   Check,
   ExternalLink,
+  ScrollText,
 } from 'lucide-react';
 
 interface IntegrationLog {
@@ -49,6 +50,7 @@ const ACTION_LABELS: Record<string, string> = {
   sync_orders_manual: 'ดึงออเดอร์ (Manual)',
   sync_orders_poll: 'ดึงออเดอร์ (Auto)',
   webhook_order_status: 'Webhook อัปเดตสถานะ',
+  sync_products: 'sync_products',
 };
 
 function getActionLabel(action: string): string {
@@ -67,6 +69,42 @@ function formatDuration(ms: number | null): string {
   if (ms == null) return '-';
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+// --- Extract Shopee status from webhook payload or reference_label ---
+const SHOPEE_STATUS_MAP: Record<string, { label: string; color: string }> = {
+  UNPAID:         { label: 'รอชำระ',       color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
+  READY_TO_SHIP:  { label: 'พร้อมส่ง',     color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  PROCESSED:      { label: 'กำลังดำเนินการ', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' },
+  SHIPPED:        { label: 'จัดส่งแล้ว',   color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
+  COMPLETED:      { label: 'สำเร็จ',       color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+  CANCELLED:      { label: 'ยกเลิก',       color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  IN_CANCEL:      { label: 'กำลังยกเลิก',  color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
+  INVOICE_PENDING:{ label: 'รอออกใบแจ้งหนี้', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400' },
+};
+
+function extractShopeeStatus(log: IntegrationLog): string | null {
+  // Try from request_body.data.status (webhook payload)
+  if (log.request_body && typeof log.request_body === 'object') {
+    const body = log.request_body as Record<string, unknown>;
+    const data = body.data as Record<string, unknown> | undefined;
+    if (data?.status && typeof data.status === 'string') {
+      return data.status;
+    }
+  }
+  // Try from reference_label "Order XXX → STATUS"
+  if (log.reference_label) {
+    const match = log.reference_label.match(/→\s*(\S+)$/);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+function getOrderSnFromLabel(label: string | null): string | null {
+  if (!label) return null;
+  // "Order 123 → SHIPPED" -> "Order 123"  or  "Order 123" -> "Order 123"
+  const match = label.match(/^(Order\s+\S+)/);
+  return match ? match[1] : label;
 }
 
 export default function ShopeeLogsPage() {
@@ -134,11 +172,17 @@ export default function ShopeeLogsPage() {
   const endIdx = Math.min(startIdx + recordsPerPage, totalRecords);
 
   return (
-    <Layout title="Shopee Logs" breadcrumbs={[{ label: 'Support' }, { label: 'Shopee Logs' }]}>
-      <div>
-        {/* Action bar */}
-        <div className="flex items-center justify-between mb-6">
-          <p className="text-sm text-gray-500 dark:text-slate-400">ประวัติการเชื่อมต่อกับ Shopee</p>
+    <Layout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+              <ScrollText className="w-8 h-8 text-[#F4511E]" />
+              Shopee Logs
+            </h1>
+            <p className="text-gray-600 dark:text-slate-400 mt-1">ประวัติการเชื่อมต่อกับ Shopee</p>
+          </div>
           <button
             onClick={fetchLogs}
             disabled={loading}
@@ -150,7 +194,7 @@ export default function ShopeeLogsPage() {
         </div>
 
         {/* Status Cards */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-3 gap-4">
           <button
             onClick={() => { setStatusFilter('all'); setPage(1); }}
             className={`p-4 rounded-xl border text-left transition-all ${
@@ -187,50 +231,52 @@ export default function ShopeeLogsPage() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="ค้นหา order, error, action..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              onBlur={handleSearch}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-            />
-          </div>
+        <div className="data-filter-card">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="ค้นหา order, error, action..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                onBlur={handleSearch}
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+              />
+            </div>
 
-          {/* Direction pills */}
-          <div className="flex rounded-lg border border-gray-300 dark:border-slate-600 overflow-hidden">
-            {[
-              { value: 'all', label: 'ทั้งหมด' },
-              { value: 'outgoing', label: 'ส่งออก' },
-              { value: 'incoming', label: 'รับเข้า' },
-            ].map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => { setDirectionFilter(opt.value); setPage(1); }}
-                className={`px-3 py-2 text-sm font-medium transition-colors ${
-                  directionFilter === opt.value
-                    ? 'bg-[#F4511E] text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+            {/* Direction pills */}
+            <div className="flex rounded-lg border border-gray-300 dark:border-slate-600 overflow-hidden">
+              {[
+                { value: 'all', label: 'ทั้งหมด' },
+                { value: 'outgoing', label: 'ส่งออก' },
+                { value: 'incoming', label: 'รับเข้า' },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setDirectionFilter(opt.value); setPage(1); }}
+                  className={`px-3 py-2 text-sm font-medium transition-colors ${
+                    directionFilter === opt.value
+                      ? 'bg-[#F4511E] text-white'
+                      : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
 
-          {/* Date range */}
-          <div className="w-64">
-            <DateRangePicker value={dateRange} onChange={(val) => { setDateRange(val); setPage(1); }} />
+            {/* Date range */}
+            <div className="w-64">
+              <DateRangePicker value={dateRange} onChange={(val) => { setDateRange(val); setPage(1); }} />
+            </div>
           </div>
         </div>
 
         {/* Table */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div className="data-table-wrap">
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-8 h-8 animate-spin text-[#F4511E]" />
@@ -245,20 +291,21 @@ export default function ShopeeLogsPage() {
             <>
               {/* Desktop table */}
               <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/50">
-                      <th className="text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase px-4 py-3 w-8"></th>
-                      <th className="text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase px-4 py-3">เวลา</th>
-                      <th className="text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase px-4 py-3">ทิศทาง</th>
-                      <th className="text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase px-4 py-3">Action</th>
-                      <th className="text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase px-4 py-3">ร้านค้า</th>
-                      <th className="text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase px-4 py-3">อ้างอิง</th>
-                      <th className="text-center text-xs font-medium text-gray-500 dark:text-slate-400 uppercase px-4 py-3">สถานะ</th>
-                      <th className="text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase px-4 py-3">เวลาใช้</th>
+                <table className="data-table-fixed">
+                  <thead className="data-thead">
+                    <tr>
+                      <th className="data-th w-8"></th>
+                      <th className="data-th">เวลา</th>
+                      <th className="data-th">ทิศทาง</th>
+                      <th className="data-th">Action</th>
+                      <th className="data-th">ร้านค้า</th>
+                      <th className="data-th">อ้างอิง</th>
+                      <th className="data-th">สถานะที่อัพเดท</th>
+                      <th className="data-th text-center">ผลลัพธ์</th>
+                      <th className="data-th text-right">เวลาใช้</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="data-tbody">
                     {logs.map((log) => {
                       const dt = formatDateTime(log.created_at);
                       const isExpanded = expandedRow === log.id;
@@ -294,11 +341,9 @@ export default function ShopeeLogsPage() {
               </div>
             </>
           )}
-        </div>
 
-        {/* Pagination */}
-        {totalRecords > 0 && (
-          <div className="mt-4">
+          {/* Pagination */}
+          {totalRecords > 0 && (
             <Pagination
               currentPage={page}
               totalPages={totalPages}
@@ -310,8 +355,8 @@ export default function ShopeeLogsPage() {
               setPage={setPage}
               loadTime={loadTime}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </Layout>
   );
@@ -329,51 +374,61 @@ function LogRow({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const shopeeStatus = extractShopeeStatus(log);
+  const statusInfo = shopeeStatus ? SHOPEE_STATUS_MAP[shopeeStatus] : null;
+  const orderLabel = getOrderSnFromLabel(log.reference_label);
+
   return (
     <>
-      <tr
-        className="border-b border-gray-100 dark:border-slate-700/50 hover:bg-gray-50 dark:hover:bg-slate-700/30 cursor-pointer transition-colors"
-        onClick={onToggle}
-      >
-        <td className="px-4 py-3">
+      <tr className="data-tr cursor-pointer" onClick={onToggle}>
+        <td className="px-6 py-4">
           {isExpanded ? (
             <ChevronDown className="w-4 h-4 text-gray-400" />
           ) : (
             <ChevronRight className="w-4 h-4 text-gray-400" />
           )}
         </td>
-        <td className="px-4 py-3">
-          <div className="text-sm text-gray-900 dark:text-white">{dt.date}</div>
+        <td className="px-6 py-4">
+          <div className="text-gray-900 dark:text-white">{dt.date}</div>
           <div className="text-xs text-gray-500 dark:text-slate-400">{dt.time}</div>
         </td>
-        <td className="px-4 py-3">
+        <td className="px-6 py-4">
           <DirectionBadge direction={log.direction} />
         </td>
-        <td className="px-4 py-3">
-          <span className="text-sm text-gray-900 dark:text-white">{getActionLabel(log.action)}</span>
+        <td className="px-6 py-4">
+          <span className="text-gray-900 dark:text-white">{getActionLabel(log.action)}</span>
         </td>
-        <td className="px-4 py-3">
-          <span className="text-sm text-gray-600 dark:text-slate-300">{log.account_name || '-'}</span>
+        <td className="px-6 py-4">
+          <span className="text-gray-600 dark:text-slate-300">{log.account_name || '-'}</span>
         </td>
-        <td className="px-4 py-3">
+        <td className="px-6 py-4">
           {log.reference_type === 'order' && log.reference_id ? (
-            <OrderLink referenceId={log.reference_id} label={log.reference_label || log.reference_id} />
+            <OrderLink referenceId={log.reference_id} label={orderLabel || log.reference_id} />
           ) : log.reference_label ? (
-            <span className="text-sm text-blue-600 dark:text-blue-400">{log.reference_label}</span>
+            <span className="text-blue-600 dark:text-blue-400">{log.reference_label}</span>
           ) : (
-            <span className="text-sm text-gray-400">-</span>
+            <span className="text-gray-400">-</span>
           )}
         </td>
-        <td className="px-4 py-3 text-center">
+        <td className="px-6 py-4">
+          {shopeeStatus ? (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo?.color || 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'}`}>
+              {statusInfo?.label || shopeeStatus}
+            </span>
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </td>
+        <td className="px-6 py-4 text-center">
           <StatusIcon status={log.status} />
         </td>
-        <td className="px-4 py-3 text-right">
-          <span className="text-sm text-gray-500 dark:text-slate-400">{formatDuration(log.duration_ms)}</span>
+        <td className="px-6 py-4 text-right">
+          <span className="text-gray-500 dark:text-slate-400">{formatDuration(log.duration_ms)}</span>
         </td>
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={8} className="px-4 py-4 bg-gray-50 dark:bg-slate-900/50">
+          <td colSpan={9} className="px-6 py-4 bg-gray-50 dark:bg-slate-900/50">
             <LogDetail log={log} />
           </td>
         </tr>
@@ -394,6 +449,10 @@ function MobileLogCard({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const shopeeStatus = extractShopeeStatus(log);
+  const statusInfo = shopeeStatus ? SHOPEE_STATUS_MAP[shopeeStatus] : null;
+  const orderLabel = getOrderSnFromLabel(log.reference_label);
+
   return (
     <div className="p-4">
       <div className="flex items-start justify-between cursor-pointer" onClick={onToggle}>
@@ -410,13 +469,18 @@ function MobileLogCard({
               <span className="text-xs text-gray-500 dark:text-slate-400">• {log.account_name}</span>
             )}
           </div>
-          {log.reference_type === 'order' && log.reference_id ? (
-            <div className="mt-1">
-              <OrderLink referenceId={log.reference_id} label={log.reference_label || log.reference_id} />
-            </div>
-          ) : log.reference_label ? (
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">{log.reference_label}</p>
-          ) : null}
+          <div className="flex items-center gap-2 mt-1.5">
+            {log.reference_type === 'order' && log.reference_id ? (
+              <OrderLink referenceId={log.reference_id} label={orderLabel || log.reference_id} />
+            ) : log.reference_label ? (
+              <span className="text-xs text-blue-600 dark:text-blue-400">{log.reference_label}</span>
+            ) : null}
+            {shopeeStatus && (
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo?.color || 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'}`}>
+                {statusInfo?.label || shopeeStatus}
+              </span>
+            )}
+          </div>
           {log.error_message && (
             <p className="text-xs text-red-500 mt-1 truncate">{log.error_message}</p>
           )}
@@ -472,6 +536,7 @@ function OrderLink({ referenceId, label }: { referenceId: string; label: string 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     try {
       const orderNumber = `SP-${referenceId}`;
@@ -483,19 +548,18 @@ function OrderLink({ referenceId, label }: { referenceId: string; label: string 
           return;
         }
       }
-      window.open(`/orders`, '_blank');
     } catch {
-      window.open(`/orders`, '_blank');
+      // fallback
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <button
+    <a
+      href="#"
       onClick={handleClick}
-      disabled={loading}
-      className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline disabled:opacity-50"
+      className={`inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline ${loading ? 'opacity-50' : ''}`}
     >
       {label}
       {loading ? (
@@ -503,7 +567,7 @@ function OrderLink({ referenceId, label }: { referenceId: string; label: string 
       ) : (
         <ExternalLink className="w-3 h-3" />
       )}
-    </button>
+    </a>
   );
 }
 

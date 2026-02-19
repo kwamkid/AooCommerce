@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
@@ -10,12 +11,10 @@ import { formatPrice } from '@/lib/utils/format';
 import { supabase } from '@/lib/supabase';
 import {
   MessageCircle,
-  Facebook,
   Search,
   Send,
   User,
   Loader2,
-  ChevronRight,
   ChevronLeft,
   Link as LinkIcon,
   X,
@@ -36,141 +35,19 @@ import {
   Bell,
   UserPlus,
   FileText,
-  Download,
   Play,
-  Images,
   ArrowUpDown
 } from 'lucide-react';
 import Image from 'next/image';
 import OrderForm from '@/components/orders/OrderForm';
 import CustomerForm, { CustomerFormData } from '@/components/customers/CustomerForm';
+import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact } from './lib/chatTypes';
+import { FbIcon, LineIcon, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
 
-interface UnifiedContact {
-  id: string;
-  platform: 'line' | 'facebook';
-  platform_user_id: string;
-  display_name: string;
-  picture_url?: string;
-  status: string;
-  customer_id?: string;
-  customer?: {
-    id: string;
-    name: string;
-    customer_code: string;
-    contact_person?: string;
-    phone?: string;
-    email?: string;
-    customer_type?: 'retail' | 'wholesale' | 'distributor';
-    address?: string;
-    district?: string;
-    amphoe?: string;
-    province?: string;
-    postal_code?: string;
-    tax_id?: string;
-    tax_company_name?: string;
-    tax_branch?: string;
-    credit_limit?: number;
-    credit_days?: number;
-    notes?: string;
-    is_active?: boolean;
-  };
-  unread_count: number;
-  last_message_at?: string;
-  last_message?: string;
-  last_order_date?: string;
-  last_order_created_at?: string;
-  avg_order_frequency?: number | null;
-  account_name?: string;
-  account_picture_url?: string;
-  chat_account_id?: string;
-}
-
-interface ChatMessage {
-  id: string;
-  contact_id: string;
-  direction: 'incoming' | 'outgoing';
-  message_type: string;
-  content: string;
-  sent_by?: string;
-  sent_by_user?: {
-    id: string;
-    name: string;
-  };
-  sender_user_id?: string;
-  sender_name?: string;
-  sender_picture_url?: string;
-  raw_message?: {
-    stickerId?: string;
-    packageId?: string;
-    stickerResourceType?: string;
-    latitude?: number;
-    longitude?: number;
-    address?: string;
-    lineMessageId?: string;
-    imageUrl?: string;
-    videoUrl?: string;
-    previewUrl?: string;
-    contentProvider?: {
-      originalContentUrl?: string;
-      previewImageUrl?: string;
-    };
-  };
-  created_at: string;
-  _status?: 'sending' | 'sent' | 'failed';
-  _tempId?: string;
-  // Allow platform-specific contact_id fields from realtime
-  line_contact_id?: string;
-  fb_contact_id?: string;
-}
-
-interface Customer {
-  id: string;
-  name: string;
-  customer_code: string;
-  phone?: string;
-}
-
-interface DayRange {
-  minDays: number;
-  maxDays: number | null;
-  label: string;
-  color: string;
-}
-
-interface ChatAccountInfo {
-  id: string;
-  platform: string;
-  account_name: string;
-  is_active: boolean;
-  credentials?: Record<string, unknown>;
-}
-
-// Helper: get account profile picture URL
-function getAccountPicture(account: ChatAccountInfo): string | null {
-  if (!account.credentials) return null;
-  if (account.platform === 'line') return (account.credentials.bot_picture_url as string) || null;
-  if (account.platform === 'facebook') {
-    const pageId = account.credentials.page_id as string;
-    if (pageId) return `https://graph.facebook.com/${pageId}/picture?type=small`;
-  }
-  return null;
-}
-
-// Helper: get avatar URL — fallback to FB Graph avatar for FB contacts without picture
-function getAvatarUrl(contact: UnifiedContact): string | null {
-  if (contact.picture_url) return contact.picture_url;
-  if (contact.platform === 'facebook' && contact.platform_user_id) {
-    return `https://graph.facebook.com/${contact.platform_user_id}/picture?type=large`;
-  }
-  return null;
-}
-
-// Helper: get initials from display name
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
+// Dynamic imports for components that are not needed on initial load
+const EmojiStickerPicker = dynamic(() => import('./components/EmojiStickerPicker'), { ssr: false });
+const LinkCustomerModal = dynamic(() => import('./components/LinkCustomerModal'), { ssr: false });
+const LightboxViewer = dynamic(() => import('./components/LightboxViewer'), { ssr: false });
 
 function UnifiedChatPageContent() {
   const router = useRouter();
@@ -202,7 +79,7 @@ function UnifiedChatPageContent() {
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   // Linked contacts for customer profile
-  const [linkedContacts, setLinkedContacts] = useState<{ id: string; platform: 'line' | 'facebook'; display_name: string; picture_url?: string; last_message_at?: string; account_name?: string }[]>([]);
+  const [linkedContacts, setLinkedContacts] = useState<LinkedContact[]>([]);
 
   // Message input
   const [newMessage, setNewMessage] = useState('');
@@ -211,11 +88,6 @@ function UnifiedChatPageContent() {
 
   // Link customer modal
   const [showLinkModal, setShowLinkModal] = useState(false);
-  const [confirmLinkCustomer, setConfirmLinkCustomer] = useState<Customer | null>(null);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
-  const customerSearchTimer = useRef<NodeJS.Timeout | null>(null);
-  const customerSearchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Image upload
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -223,7 +95,6 @@ function UnifiedChatPageContent() {
 
   // Sticker picker
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [emojiTab, setEmojiTab] = useState<'emoji' | 'sticker'>('emoji');
   const [emojiSearch, setEmojiSearch] = useState('');
 
   // Scroll to bottom button
@@ -231,7 +102,6 @@ function UnifiedChatPageContent() {
 
   // Lightbox for images/videos
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [showGallery, setShowGallery] = useState(false);
 
   // Right panel (split view) - desktop only
   const [rightPanel, setRightPanel] = useState<'order' | 'history' | 'profile' | 'create-customer' | 'edit-customer' | 'order-detail' | null>(null);
@@ -288,8 +158,6 @@ function UnifiedChatPageContent() {
     const idx = mediaList.findIndex(m => m.url === url);
     setLightboxIndex(idx >= 0 ? idx : null);
   }, [mediaList]);
-
-  const lightboxMedia = lightboxIndex !== null ? mediaList[lightboxIndex] : null;
 
   // Fetch chat accounts
   useEffect(() => {
@@ -666,38 +534,6 @@ function UnifiedChatPageContent() {
     })();
   };
 
-  const compressImage = (file: File, maxSizeKB = 500): Promise<Blob> => {
-    return new Promise((resolve) => {
-      if (file.size <= maxSizeKB * 1024) { resolve(file); return; }
-      const img = new window.Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        const canvas = document.createElement('canvas');
-        let { width, height } = img;
-        const maxDim = 1920;
-        if (width > maxDim || height > maxDim) {
-          if (width > height) { height = Math.round(height * (maxDim / width)); width = maxDim; }
-          else { width = Math.round(width * (maxDim / height)); height = maxDim; }
-        }
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0, width, height);
-        let quality = 0.8;
-        const tryCompress = () => {
-          canvas.toBlob((blob) => {
-            if (!blob) { resolve(file); return; }
-            if (blob.size <= maxSizeKB * 1024 || quality <= 0.3) { resolve(blob); }
-            else { quality -= 0.1; tryCompress(); }
-          }, 'image/jpeg', quality);
-        };
-        tryCompress();
-      };
-      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
-      img.src = url;
-    });
-  };
-
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedContact) return;
@@ -775,26 +611,6 @@ function UnifiedChatPageContent() {
     })();
   };
 
-  const officialStickers = [
-    { packageId: '1', stickers: ['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17'] },
-    { packageId: '2', stickers: ['18','19','20','21','22','23','24','25','26','27','28','29','30','31','32'] },
-    { packageId: '3', stickers: ['180','181','182','183','184','185','186','187','188','189','190','191','192','193','194','195'] },
-  ];
-
-  const fetchCustomers = async (search: string) => {
-    try {
-      setLoadingCustomers(true);
-      const response = await apiFetch(`/api/customers?search=${encodeURIComponent(search)}&limit=10`);
-      if (!response.ok) throw new Error('Failed');
-      const result = await response.json();
-      setCustomers(result.customers || result || []);
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-    } finally {
-      setLoadingCustomers(false);
-    }
-  };
-
   const linkCustomer = async (customerId: string | null) => {
     if (!selectedContact) return;
     try {
@@ -803,16 +619,23 @@ function UnifiedChatPageContent() {
         body: JSON.stringify({ id: selectedContact.id, platform: selectedContact.platform, customer_id: customerId })
       });
       if (!response.ok) throw new Error('Failed');
-      const linkedCustomer = customers.find(c => c.id === customerId);
-      setSelectedContact(prev => prev ? {
-        ...prev, customer_id: customerId || undefined,
-        customer: linkedCustomer ? { id: linkedCustomer.id, name: linkedCustomer.name, customer_code: linkedCustomer.customer_code } : undefined
-      } : null);
-      setContacts(prev => prev.map(c => c.id === selectedContact.id ? {
-        ...c, customer_id: customerId || undefined,
-        customer: linkedCustomer ? { id: linkedCustomer.id, name: linkedCustomer.name, customer_code: linkedCustomer.customer_code } : undefined
-      } : c));
-      setShowLinkModal(false);
+      if (customerId) {
+        // Fetch customer details for local state update
+        const custRes = await apiFetch(`/api/customers?search=${encodeURIComponent(customerId)}&limit=1`);
+        const custData = custRes.ok ? await custRes.json() : null;
+        const linkedCustomer = (custData?.customers || custData || []).find((c: Customer) => c.id === customerId);
+        setSelectedContact(prev => prev ? {
+          ...prev, customer_id: customerId,
+          customer: linkedCustomer ? { id: linkedCustomer.id, name: linkedCustomer.name, customer_code: linkedCustomer.customer_code } : undefined
+        } : null);
+        setContacts(prev => prev.map(c => c.id === selectedContact.id ? {
+          ...c, customer_id: customerId,
+          customer: linkedCustomer ? { id: linkedCustomer.id, name: linkedCustomer.name, customer_code: linkedCustomer.customer_code } : undefined
+        } : c));
+      } else {
+        setSelectedContact(prev => prev ? { ...prev, customer_id: undefined, customer: undefined } : null);
+        setContacts(prev => prev.map(c => c.id === selectedContact.id ? { ...c, customer_id: undefined, customer: undefined } : c));
+      }
     } catch (error) {
       console.error('Error linking customer:', error);
     }
@@ -951,29 +774,6 @@ function UnifiedChatPageContent() {
     }
   };
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    if (isToday) return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-    return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) + ' ' + date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatLastMessage = (dateString?: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    if (diffMins < 1) return 'เมื่อกี้';
-    if (diffMins < 60) return `${diffMins} นาที`;
-    if (diffHours < 24) return `${diffHours} ชม.`;
-    if (diffDays < 7) return `${diffDays} วัน`;
-    return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-  };
-
   const fetchOrderHistory = async (customerId: string) => {
     try {
       setLoadingHistory(true);
@@ -1072,7 +872,7 @@ function UnifiedChatPageContent() {
                           <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center"><User className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /></div>
                         )}
                         <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
-                          {lc.platform === 'line' ? <MessageCircle className="w-2 h-2 text-white" /> : <Facebook className="w-2 h-2 text-white" />}
+                          {lc.platform === 'line' ? <LineIcon size={8} /> : <FbIcon size={8} />}
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
@@ -1089,7 +889,7 @@ function UnifiedChatPageContent() {
             <div>
               <label className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}</label>
               <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1">
-                {selectedContact.platform === 'line' ? <MessageCircle className="w-3.5 h-3.5 text-[#06C755]" /> : <Facebook className="w-3.5 h-3.5 text-[#1877F2]" />}
+                {selectedContact.platform === 'line' ? <LineIcon size={14} /> : <FbIcon size={14} />}
                 {selectedContact.display_name}
               </p>
             </div>
@@ -1189,7 +989,7 @@ function UnifiedChatPageContent() {
                                 )}
                                 <span className="text-gray-900 dark:text-white truncate flex-1 text-left">{acc.account_name}</span>
                                 <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: pColor }}>
-                                  {acc.platform === 'line' ? <MessageCircle className="w-3 h-3 text-white" /> : <Facebook className="w-3 h-3 text-white" />}
+                                  {acc.platform === 'line' ? <LineIcon size={12} /> : <FbIcon size={12} />}
                                 </span>
                                 {isActive && <Check className="w-4 h-4 text-[#F4511E] flex-shrink-0" />}
                               </button>
@@ -1316,7 +1116,7 @@ function UnifiedChatPageContent() {
                         <Image src={contact.account_picture_url} alt={contact.account_name || ''} width={20} height={20} className="absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full object-cover shadow-sm border-2 border-white dark:border-slate-800" unoptimized />
                       ) : (
                         <span className={`absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-800 ${contact.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
-                          {contact.platform === 'line' ? <MessageCircle className="w-2.5 h-2.5 text-white" /> : <Facebook className="w-2.5 h-2.5 text-white" />}
+                          {contact.platform === 'line' ? <LineIcon size={10} /> : <FbIcon size={10} />}
                         </span>
                       )}
                       {/* Linked customer indicator */}
@@ -1327,14 +1127,14 @@ function UnifiedChatPageContent() {
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-gray-900 dark:text-white truncate">{contact.display_name}</span>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span className={`w-4 h-4 rounded-full flex items-center justify-center ${contact.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
-                            {contact.platform === 'line' ? <MessageCircle className="w-2.5 h-2.5 text-white" /> : <Facebook className="w-2.5 h-2.5 text-white" />}
-                          </span>
                           <span className="text-xs text-gray-400 dark:text-slate-500">{formatLastMessage(contact.last_message_at)}</span>
                           {contact.unread_count > 0 && (<span className="bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">{contact.unread_count > 99 ? '99+' : contact.unread_count}</span>)}
                         </div>
                       </div>
-                      {contact.account_name && (<span className="text-[10px] text-gray-400 dark:text-slate-500 truncate block">{contact.account_name}</span>)}
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {contact.platform === 'line' ? <LineIcon size={12} /> : <FbIcon size={12} />}
+                        {contact.account_name && (<span className="text-[10px] text-gray-400 dark:text-slate-500 truncate">{contact.account_name}</span>)}
+                      </div>
                       {contact.last_message ? (
                         <div className="text-xs text-gray-500 truncate">{contact.last_message}</div>
                       ) : contact.customer ? (
@@ -1376,7 +1176,7 @@ function UnifiedChatPageContent() {
                   )}
                   <div>
                     <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
-                      {selectedContact.platform === 'line' ? <MessageCircle className="w-4 h-4 text-[#06C755] flex-shrink-0" /> : <Facebook className="w-4 h-4 text-[#1877F2] flex-shrink-0" />}
+                      {selectedContact.platform === 'line' ? <LineIcon size={16} /> : <FbIcon size={16} />}
                       {selectedContact.display_name}
                     </h3>
                     {selectedContact.account_name && (<p className="text-[10px] text-gray-400">{selectedContact.account_name}</p>)}
@@ -1389,7 +1189,7 @@ function UnifiedChatPageContent() {
                         {selectedContact.avg_order_frequency != null && (<p className="text-[10px] text-gray-400 dark:text-slate-500">{selectedContact.avg_order_frequency <= 1 ? 'สั่งทุกวัน' : `~${selectedContact.avg_order_frequency} วัน/ออเดอร์`}</p>)}
                       </div>
                     ) : (
-                      <button onClick={() => { setShowLinkModal(true); setCustomers([]); setConfirmLinkCustomer(null); }} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"><LinkIcon className="w-3 h-3" />เชื่อมกับลูกค้าในระบบ</button>
+                      <button onClick={() => { setShowLinkModal(true); }} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"><LinkIcon className="w-3 h-3" />เชื่อมกับลูกค้าในระบบ</button>
                     )}
                   </div>
                 </div>
@@ -1403,7 +1203,7 @@ function UnifiedChatPageContent() {
                   ) : (
                     <>
                       <button onClick={handleOpenCreateCustomer} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'create-customer' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title="สร้างลูกค้าใหม่"><UserPlus className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">สร้างลูกค้า</span>}</button>
-                      <button onClick={() => { setShowLinkModal(true); setCustomers([]); setConfirmLinkCustomer(null); }} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600" title="เชื่อมลูกค้าที่มีอยู่"><LinkIcon className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">เชื่อมลูกค้า</span>}</button>
+                      <button onClick={() => { setShowLinkModal(true); }} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600" title="เชื่อมลูกค้าที่มีอยู่"><LinkIcon className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">เชื่อมลูกค้า</span>}</button>
                     </>
                   )}
                 </div>
@@ -1459,6 +1259,10 @@ function UnifiedChatPageContent() {
                                   <div className="flex items-center gap-2"><span className="text-xl">📍</span><span className="underline">{msg.content}</span></div>
                                   {msg.raw_message.address && (<p className="text-xs opacity-70 mt-1">{msg.raw_message.address}</p>)}
                                 </a>
+                              ) : (msg.message_type === 'fallback' || msg.message_type === 'template') && (msg.raw_message?.linkUrl || msg.raw_message?.templateUrl) ? (
+                                <a href={(msg.raw_message.linkUrl || msg.raw_message.templateUrl) as string} target="_blank" rel="noopener noreferrer" className="block">
+                                  <div className="flex items-center gap-2"><span className="text-xl">🔗</span><span className="underline break-all">{msg.content}</span></div>
+                                </a>
                               ) : (<p className="whitespace-pre-wrap break-words">{msg.content}</p>)}
                             </div>
                             {msg.direction === 'incoming' && (<span className="text-[10px] text-gray-400 self-end mb-0.5 whitespace-nowrap">{formatTime(msg.created_at)}</span>)}
@@ -1486,122 +1290,14 @@ function UnifiedChatPageContent() {
                     <button onClick={() => { setShowEmojiPicker(!showEmojiPicker); setEmojiSearch(''); }} className={`p-2 rounded-full transition-colors ${showEmojiPicker ? 'text-amber-500 bg-amber-50 dark:bg-amber-500/10' : 'text-gray-500 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-slate-700'}`} title="Emoji & Sticker">
                       <Smile className="w-5 h-5" />
                     </button>
-                {showEmojiPicker && (() => {
-                  type EmojiItem = { e: string; k: string };
-                  const emojiGroups: { label: string; key: string; items: EmojiItem[] }[] = [
-                    { label: 'ยิ้ม & คน', key: 'smile', items: [
-                      { e: '😀', k: 'smile ยิ้ม grin' }, { e: '😃', k: 'smile ยิ้ม happy สุข' }, { e: '😄', k: 'smile ยิ้ม happy สุข' }, { e: '😁', k: 'grin ยิ้มกว้าง' }, { e: '😆', k: 'laugh หัวเราะ' }, { e: '😅', k: 'sweat เหงื่อ หัวเราะ' }, { e: '🤣', k: 'rofl หัวเราะ ฮา' }, { e: '😂', k: 'joy หัวเราะ ร้องไห้ ดีใจ' }, { e: '🙂', k: 'smile ยิ้ม' }, { e: '😊', k: 'blush ยิ้ม อาย น่ารัก' }, { e: '😇', k: 'angel เทวดา ดี' }, { e: '😉', k: 'wink ขยิบตา' },
-                      { e: '😍', k: 'heart eyes love รัก หัวใจ ตาหัวใจ' }, { e: '🥰', k: 'love รัก หัวใจ hearts' }, { e: '😘', k: 'kiss จูบ รัก love' }, { e: '😗', k: 'kiss จูบ' }, { e: '😚', k: 'kiss จูบ อาย' }, { e: '😋', k: 'yummy อร่อย ลิ้น' }, { e: '😛', k: 'tongue ลิ้น' }, { e: '😜', k: 'wink tongue ลิ้น ขยิบ' }, { e: '🤪', k: 'crazy บ้า ลิ้น' }, { e: '😝', k: 'tongue ลิ้น' },
-                      { e: '🤑', k: 'money เงิน รวย' }, { e: '🤗', k: 'hug กอด' }, { e: '🤭', k: 'oops อุ๊ย ปิดปาก' }, { e: '🫢', k: 'oops ตกใจ' }, { e: '🤫', k: 'quiet เงียบ ชู่' }, { e: '🤔', k: 'think คิด' }, { e: '😐', k: 'neutral เฉย' }, { e: '😑', k: 'expressionless เฉย' }, { e: '😶', k: 'silent เงียบ ไม่พูด' },
-                      { e: '😏', k: 'smirk ยิ้มแกม' }, { e: '😒', k: 'unamused เบื่อ' }, { e: '🙄', k: 'eye roll กลอกตา' }, { e: '😬', k: 'grimace ยิ้มแหย' }, { e: '😌', k: 'relieved โล่งใจ' }, { e: '😔', k: 'sad เศร้า pensive' }, { e: '😪', k: 'sleepy ง่วง' }, { e: '🤤', k: 'drool น้ำลาย อยาก' }, { e: '😴', k: 'sleep นอน หลับ zzz' },
-                      { e: '😷', k: 'mask หน้ากาก ป่วย' }, { e: '🤒', k: 'sick ป่วย ไข้' }, { e: '🤕', k: 'hurt เจ็บ บาดเจ็บ' }, { e: '🤢', k: 'nauseous คลื่นไส้' }, { e: '🤮', k: 'vomit อ้วก' }, { e: '🥴', k: 'woozy เมา' }, { e: '😵', k: 'dizzy มึน เวียน' }, { e: '🤯', k: 'explode ระเบิด ตกใจ mind blown' },
-                      { e: '🥳', k: 'party ปาร์ตี้ ฉลอง celebrate' }, { e: '🥸', k: 'disguise ปลอมตัว' }, { e: '😎', k: 'cool เท่ แว่น sunglasses' }, { e: '🤓', k: 'nerd เนิร์ด แว่น' }, { e: '🧐', k: 'monocle สงสัย' },
-                      { e: '😕', k: 'confused สับสน งง' }, { e: '😟', k: 'worried กังวล' }, { e: '🙁', k: 'sad เศร้า' }, { e: '☹️', k: 'sad เศร้า' }, { e: '😮', k: 'open mouth อ้าปาก ตกใจ' }, { e: '😯', k: 'hushed เงียบ ตกใจ' }, { e: '😲', k: 'astonished ตกใจ wow' }, { e: '😳', k: 'flushed อาย แดง' },
-                      { e: '🥺', k: 'pleading ขอร้อง น่าสงสาร' }, { e: '🥹', k: 'holding tears น้ำตา ซึ้ง' }, { e: '😢', k: 'cry ร้องไห้ เศร้า sad' }, { e: '😭', k: 'sob ร้องไห้ เศร้า cry loud' }, { e: '😱', k: 'scream กรี๊ด ตกใจ' }, { e: '😤', k: 'angry โกรธ พ่นไฟ huff' }, { e: '😡', k: 'angry โกรธ แดง mad' }, { e: '😠', k: 'angry โกรธ' }, { e: '🤬', k: 'curse ด่า โกรธ swear' },
-                      { e: '💀', k: 'skull หัวกะโหลก ตาย dead' }, { e: '💩', k: 'poop อึ' }, { e: '👻', k: 'ghost ผี' }, { e: '👽', k: 'alien เอเลี่ยน' }, { e: '🤖', k: 'robot หุ่นยนต์' },
-                    ]},
-                    { label: 'มือ & หัวใจ', key: 'hands', items: [
-                      { e: '👍', k: 'thumbs up like ดี ไลค์ good' }, { e: '👎', k: 'thumbs down dislike ไม่ดี' }, { e: '👏', k: 'clap ปรบมือ bravo' }, { e: '🙌', k: 'raise hands ยกมือ celebrate' }, { e: '🤝', k: 'handshake จับมือ deal' }, { e: '🙏', k: 'pray ไหว้ ขอบคุณ please thank' }, { e: '💪', k: 'strong แข็งแรง muscle' }, { e: '👋', k: 'wave โบกมือ hi bye สวัสดี' },
-                      { e: '✋', k: 'hand หยุด stop มือ' }, { e: '👌', k: 'ok ได้ ดี' }, { e: '✌️', k: 'peace สอง victory' }, { e: '🤞', k: 'fingers crossed โชคดี luck' }, { e: '🫶', k: 'heart hands หัวใจ มือ love รัก' }, { e: '🤟', k: 'love you รักนะ' }, { e: '🤘', k: 'rock ร็อค' }, { e: '🤙', k: 'call โทร' },
-                      { e: '👈', k: 'point left ชี้ซ้าย' }, { e: '👉', k: 'point right ชี้ขวา' }, { e: '👆', k: 'point up ชี้ขึ้น' }, { e: '👇', k: 'point down ชี้ลง' }, { e: '👊', k: 'fist ชก ต่อย punch' }, { e: '✊', k: 'fist กำปั้น สู้ fight' },
-                      { e: '❤️', k: 'heart หัวใจ รัก love red แดง' }, { e: '🧡', k: 'heart หัวใจ orange ส้ม' }, { e: '💛', k: 'heart หัวใจ yellow เหลือง' }, { e: '💚', k: 'heart หัวใจ green เขียว' }, { e: '💙', k: 'heart หัวใจ blue น้ำเงิน' }, { e: '💜', k: 'heart หัวใจ purple ม่วง' }, { e: '🖤', k: 'heart หัวใจ black ดำ' }, { e: '🤍', k: 'heart หัวใจ white ขาว' }, { e: '🤎', k: 'heart หัวใจ brown น้ำตาล' },
-                      { e: '💔', k: 'broken heart หัวใจสลาย อกหัก' }, { e: '❤️‍🔥', k: 'heart fire หัวใจ ไฟ' }, { e: '💕', k: 'hearts หัวใจ คู่ love' }, { e: '💗', k: 'heart หัวใจ growing โต' }, { e: '💖', k: 'heart หัวใจ sparkle วิ้ง' }, { e: '💘', k: 'heart หัวใจ arrow ลูกศร cupid' }, { e: '💝', k: 'heart หัวใจ ribbon ริบบิ้น gift' },
-                      { e: '🔥', k: 'fire ไฟ hot ร้อน เผา' }, { e: '⭐', k: 'star ดาว' }, { e: '🌟', k: 'star ดาว เปล่งแสง glow' }, { e: '✨', k: 'sparkle วิ้ง แวววาว star' }, { e: '💫', k: 'dizzy star ดาว วิงเวียน' }, { e: '💯', k: '100 ร้อย perfect เต็ม' }, { e: '🎉', k: 'party ปาร์ตี้ ฉลอง celebrate tada' }, { e: '🎊', k: 'confetti ฉลอง celebrate' }, { e: '🏆', k: 'trophy ถ้วย แชมป์ winner' },
-                    ]},
-                    { label: 'อาหาร & เครื่องดื่ม', key: 'food', items: [
-                      { e: '🍎', k: 'apple แอปเปิ้ล ผลไม้ fruit' }, { e: '🍊', k: 'orange ส้ม ผลไม้ fruit' }, { e: '🍋', k: 'lemon เลมอน มะนาว fruit' }, { e: '🍌', k: 'banana กล้วย ผลไม้ fruit' }, { e: '🍉', k: 'watermelon แตงโม ผลไม้ fruit' }, { e: '🍇', k: 'grape องุ่น ผลไม้ fruit' }, { e: '🍓', k: 'strawberry สตรอเบอรี่ ผลไม้ fruit' }, { e: '🍑', k: 'peach พีช ลูกท้อ ผลไม้ fruit' }, { e: '🥭', k: 'mango มะม่วง ผลไม้ fruit' }, { e: '🍍', k: 'pineapple สับปะรด ผลไม้ fruit' },
-                      { e: '🥑', k: 'avocado อะโวคาโด' }, { e: '🍆', k: 'eggplant มะเขือ' }, { e: '🥦', k: 'broccoli บร็อคโคลี่ ผัก' }, { e: '🥕', k: 'carrot แครอท ผัก' }, { e: '🌽', k: 'corn ข้าวโพด' }, { e: '🌶️', k: 'chili พริก เผ็ด hot' },
-                      { e: '🍔', k: 'burger เบอร์เกอร์ แฮมเบอร์เกอร์' }, { e: '🍟', k: 'fries เฟรนช์ฟราย มันทอด' }, { e: '🍕', k: 'pizza พิซซ่า' }, { e: '🌭', k: 'hotdog ฮอทดอก' }, { e: '🥪', k: 'sandwich แซนด์วิช' }, { e: '🌮', k: 'taco ทาโก้' }, { e: '🍝', k: 'pasta พาสต้า สปาเก็ตตี้' }, { e: '🍜', k: 'noodle ก๋วยเตี๋ยว บะหมี่ ramen' }, { e: '🍲', k: 'stew แกง ต้ม soup' }, { e: '🍛', k: 'curry แกง ข้าวแกง' },
-                      { e: '🍣', k: 'sushi ซูชิ ญี่ปุ่น' }, { e: '🍱', k: 'bento เบนโตะ ข้าวกล่อง' }, { e: '🥟', k: 'dumpling เกี๊ยว' }, { e: '🍤', k: 'shrimp กุ้ง tempura' }, { e: '🍙', k: 'rice ball ข้าวปั้น โอนิกิริ' },
-                      { e: '🍦', k: 'ice cream ไอศกรีม ไอติม' }, { e: '🍩', k: 'donut โดนัท' }, { e: '🍪', k: 'cookie คุกกี้' }, { e: '🎂', k: 'cake เค้ก วันเกิด birthday' }, { e: '🍰', k: 'cake เค้ก ชีสเค้ก' }, { e: '🧁', k: 'cupcake คัพเค้ก' }, { e: '🍫', k: 'chocolate ช็อกโกแลต' }, { e: '🍬', k: 'candy ลูกอม' }, { e: '🍭', k: 'lollipop อมยิ้ม' },
-                      { e: '☕', k: 'coffee กาแฟ ร้อน hot' }, { e: '🍵', k: 'tea ชา' }, { e: '🧋', k: 'bubble tea ชานม บิวเบิ้ล โบบา boba' }, { e: '🥤', k: 'drink เครื่องดื่ม น้ำ' }, { e: '🍺', k: 'beer เบียร์' }, { e: '🍻', k: 'cheers ชน เบียร์ beer' }, { e: '🥂', k: 'champagne แชมเปญ ฉลอง toast' }, { e: '🍷', k: 'wine ไวน์' },
-                    ]},
-                    { label: 'สัตว์ & ธรรมชาติ', key: 'animal', items: [
-                      { e: '🐶', k: 'dog หมา สุนัข' }, { e: '🐱', k: 'cat แมว' }, { e: '🐭', k: 'mouse หนู' }, { e: '🐹', k: 'hamster แฮมสเตอร์' }, { e: '🐰', k: 'rabbit กระต่าย' }, { e: '🦊', k: 'fox จิ้งจอก สุนัขจิ้งจอก' }, { e: '🐻', k: 'bear หมี' }, { e: '🐼', k: 'panda แพนด้า หมี' }, { e: '🐨', k: 'koala โคอาล่า' }, { e: '🐯', k: 'tiger เสือ' }, { e: '🦁', k: 'lion สิงโต' }, { e: '🐮', k: 'cow วัว' }, { e: '🐷', k: 'pig หมู' }, { e: '🐸', k: 'frog กบ' }, { e: '🐵', k: 'monkey ลิง' },
-                      { e: '🐔', k: 'chicken ไก่' }, { e: '🐧', k: 'penguin เพนกวิน' }, { e: '🐦', k: 'bird นก' }, { e: '🦆', k: 'duck เป็ด' }, { e: '🦅', k: 'eagle อินทรี นกอินทรี' }, { e: '🦉', k: 'owl นกฮูก' }, { e: '🐝', k: 'bee ผึ้ง' }, { e: '🦋', k: 'butterfly ผีเสื้อ' }, { e: '🐌', k: 'snail หอยทาก' },
-                      { e: '🐙', k: 'octopus ปลาหมึก' }, { e: '🦐', k: 'shrimp กุ้ง' }, { e: '🦀', k: 'crab ปู' }, { e: '🐠', k: 'fish ปลา' }, { e: '🐬', k: 'dolphin โลมา' }, { e: '🐳', k: 'whale ปลาวาฬ วาฬ' }, { e: '🦈', k: 'shark ฉลาม' }, { e: '🐘', k: 'elephant ช้าง' },
-                      { e: '🌸', k: 'cherry blossom ซากุระ ดอกไม้ flower' }, { e: '🌷', k: 'tulip ทิวลิป ดอกไม้ flower' }, { e: '🌹', k: 'rose กุหลาบ ดอกไม้ flower' }, { e: '🌺', k: 'hibiscus ชบา ดอกไม้ flower' }, { e: '🌻', k: 'sunflower ทานตะวัน ดอกไม้ flower' }, { e: '💐', k: 'bouquet ช่อดอกไม้ flower' },
-                      { e: '🌳', k: 'tree ต้นไม้' }, { e: '🌴', k: 'palm tree มะพร้าว ปาล์ม' }, { e: '🍀', k: 'clover โชคดี luck four leaf' }, { e: '🌈', k: 'rainbow สายรุ้ง รุ้ง' }, { e: '☀️', k: 'sun แดด พระอาทิตย์' }, { e: '🌙', k: 'moon พระจันทร์ ดวงจันทร์' }, { e: '🌊', k: 'wave คลื่น ทะเล sea ocean' },
-                    ]},
-                    { label: 'สิ่งของ & สัญลักษณ์', key: 'objects', items: [
-                      { e: '💬', k: 'speech bubble แชท chat พูด' }, { e: '✅', k: 'check ถูก เสร็จ done yes' }, { e: '❌', k: 'cross ผิด ไม่ no wrong' }, { e: '❗', k: 'exclamation ตกใจ สำคัญ important' }, { e: '❓', k: 'question คำถาม ถาม' }, { e: '⚠️', k: 'warning เตือน ระวัง' },
-                      { e: '📌', k: 'pin ปักหมุด' }, { e: '🔗', k: 'link ลิงก์ เชื่อม' }, { e: '💡', k: 'idea ไอเดีย หลอดไฟ light bulb' }, { e: '🔔', k: 'bell แจ้งเตือน notification กระดิ่ง' }, { e: '📣', k: 'megaphone ประกาศ announce' },
-                      { e: '🛒', k: 'cart ตะกร้า shopping ช้อปปิ้ง' }, { e: '📦', k: 'package พัสดุ กล่อง box' }, { e: '🚚', k: 'truck รถ ส่งของ delivery' }, { e: '✈️', k: 'airplane เครื่องบิน บิน' }, { e: '🚗', k: 'car รถ รถยนต์' }, { e: '🏠', k: 'house บ้าน home' }, { e: '🏢', k: 'office ออฟฟิศ ตึก building' },
-                      { e: '🎁', k: 'gift ของขวัญ present' }, { e: '📱', k: 'phone โทรศัพท์ มือถือ mobile' }, { e: '💻', k: 'computer คอมพิวเตอร์ laptop โน้ตบุ๊ค' }, { e: '📷', k: 'camera กล้อง ถ่ายรูป photo' }, { e: '🎬', k: 'movie หนัง film clapper' },
-                      { e: '💰', k: 'money เงิน ถุงเงิน bag' }, { e: '💳', k: 'credit card บัตร จ่าย pay' }, { e: '💵', k: 'money เงิน ธนบัตร dollar cash' }, { e: '📝', k: 'memo จด โน้ต note write เขียน' }, { e: '📋', k: 'clipboard รายการ list' }, { e: '📊', k: 'chart กราฟ สถิติ' },
-                      { e: '🗓️', k: 'calendar ปฏิทิน วัน date' }, { e: '⏰', k: 'alarm clock นาฬิกา เวลา time' }, { e: '🔑', k: 'key กุญแจ' }, { e: '🎵', k: 'music เพลง ดนตรี note' }, { e: '🎶', k: 'music เพลง ดนตรี notes' },
-                      { e: '💤', k: 'sleep นอน หลับ zzz' }, { e: '💨', k: 'dash วิ่ง ลม wind' }, { e: '💦', k: 'sweat เหงื่อ น้ำ water' },
-                    ]},
-                  ];
-                  const searchLower = emojiSearch.toLowerCase();
-                  const filteredGroups = emojiSearch
-                    ? emojiGroups.map(g => ({
-                        ...g,
-                        items: g.items.filter(item => item.k.includes(searchLower))
-                      })).filter(g => g.items.length > 0)
-                    : emojiGroups;
-
-                  return (
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 w-[320px] md:w-[360px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-30 mb-2" style={{ height: '320px' }}>
-                      {/* Header: Tabs + Close */}
-                      <div className="flex items-center border-b border-gray-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 rounded-t-lg">
-                        <button onClick={() => { setEmojiTab('emoji'); setEmojiSearch(''); }} className={`flex-1 py-2.5 text-sm font-medium transition-colors ${emojiTab === 'emoji' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700 dark:text-slate-400'}`}>😊 Emoji</button>
-                        {selectedContact?.platform === 'line' && (
-                          <button onClick={() => { setEmojiTab('sticker'); setEmojiSearch(''); }} className={`flex-1 py-2.5 text-sm font-medium transition-colors ${emojiTab === 'sticker' ? 'text-[#06C755] border-b-2 border-[#06C755]' : 'text-gray-500 hover:text-gray-700 dark:text-slate-400'}`}>🎭 Sticker</button>
-                        )}
-                        <button onClick={() => { setShowEmojiPicker(false); setEmojiSearch(''); }} className="p-2 text-gray-400 hover:text-gray-600 mr-1"><X className="w-4 h-4" /></button>
-                      </div>
-
-                      {/* Emoji Tab */}
-                      {emojiTab === 'emoji' && (
-                        <div className="flex flex-col" style={{ height: 'calc(320px - 42px)' }}>
-                          {/* Search */}
-                          <div className="px-3 py-2 border-b border-gray-50 dark:border-slate-700/50">
-                            <div className="relative">
-                              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                              <input type="text" value={emojiSearch} onChange={(e) => setEmojiSearch(e.target.value)} placeholder="ค้นหา emoji..." className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-400 text-gray-700 dark:text-slate-200" />
-                            </div>
-                          </div>
-                          {/* Emoji grid */}
-                          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
-                            {filteredGroups.length === 0 ? (
-                              <div className="text-center text-gray-400 dark:text-slate-500 py-8 text-sm">ไม่พบ emoji</div>
-                            ) : filteredGroups.map((group) => (
-                              <div key={group.key}>
-                                <div className="text-xs text-gray-400 dark:text-slate-500 mb-1.5 font-medium">{group.label}</div>
-                                <div className="flex flex-wrap gap-0.5">
-                                  {group.items.map((item) => (
-                                    <button key={item.e} onClick={() => { setNewMessage(prev => prev + item.e); setShowEmojiPicker(false); setEmojiSearch(''); inputRef.current?.focus(); }} className="w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg text-2xl md:text-[28px] transition-colors" title={item.k}>
-                                      {item.e}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Sticker Tab - LINE only */}
-                      {emojiTab === 'sticker' && selectedContact?.platform === 'line' && (
-                        <div className="overflow-y-auto p-3" style={{ height: 'calc(320px - 42px)' }}>
-                          {officialStickers.map((pack) => (
-                            <div key={pack.packageId} className="mb-4">
-                              <div className="grid grid-cols-4 gap-2">
-                                {pack.stickers.map((stickerId) => (
-                                  <button key={stickerId} onClick={() => { sendSticker(pack.packageId, stickerId); setShowEmojiPicker(false); }} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                                    <img src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/iPhone/sticker@2x.png`} alt="sticker" className="w-14 h-14 md:w-16 md:h-16 object-contain mx-auto"
-                                      onError={(e) => { const img = e.target as HTMLImageElement; if (img.src.includes('@2x')) img.src = `https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/iPhone/sticker.png`; }} />
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+                {showEmojiPicker && (
+                    <EmojiStickerPicker
+                      platform={selectedContact?.platform || 'line'}
+                      onEmojiSelect={(emoji) => { setNewMessage(prev => prev + emoji); inputRef.current?.focus(); }}
+                      onStickerSelect={(packageId, stickerId) => sendSticker(packageId, stickerId)}
+                      onClose={() => { setShowEmojiPicker(false); setEmojiSearch(''); }}
+                    />
+                  )}
                   </div>
                   <input ref={inputRef} type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
@@ -1766,110 +1462,23 @@ function UnifiedChatPageContent() {
       </div>
 
       {/* Link Customer Modal */}
-      {showLinkModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowLinkModal(false); }}
-          onKeyDown={(e) => { if (e.key === 'Escape') setShowLinkModal(false); }}
-          tabIndex={0} ref={(el) => el?.focus()}>
-          <div className="bg-white dark:bg-slate-800 rounded-lg w-full max-w-md mx-4 shadow-xl">
-            <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 dark:text-white">เชื่อมกับลูกค้าในระบบ</h3>
-              <button onClick={() => setShowLinkModal(false)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="p-4">
-              {!confirmLinkCustomer && (
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input type="text" key={showLinkModal ? 'link-search' : ''} defaultValue="" ref={(el) => { customerSearchInputRef.current = el; if (el) { setTimeout(() => el.focus(), 50); } }} onChange={(e) => {
-                    const val = e.target.value.trim();
-                    if (customerSearchTimer.current) clearTimeout(customerSearchTimer.current);
-                    if (val.length >= 2) {
-                      customerSearchTimer.current = setTimeout(() => { setLoadingCustomers(true); fetchCustomers(val); }, 500);
-                    } else if (customers.length > 0 || loadingCustomers) {
-                      setCustomers([]);
-                      setLoadingCustomers(false);
-                    }
-                  }}
-                  placeholder="ค้นหาชื่อหรือรหัสลูกค้า..." className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
-              </div>
-              )}
-              {confirmLinkCustomer ? (
-                <div className="space-y-4">
-                  <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4 text-center">
-                    <p className="text-sm text-gray-500 dark:text-slate-400 mb-2">ต้องการเชื่อม</p>
-                    <p className="text-base font-semibold text-gray-900 dark:text-white">{selectedContact?.display_name}</p>
-                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">กับลูกค้า</p>
-                    <p className="text-base font-semibold mt-1" style={{ color: platformColor }}>{confirmLinkCustomer.name}</p>
-                    <p className="text-xs text-gray-400 dark:text-slate-500">{confirmLinkCustomer.customer_code}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => { setConfirmLinkCustomer(null); setCustomers([]); }} className="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">ย้อนกลับ</button>
-                    <button onClick={() => { linkCustomer(confirmLinkCustomer.id); setConfirmLinkCustomer(null); }} className="flex-1 px-4 py-2 rounded-lg text-sm text-white transition-colors bg-[#F4511E] hover:bg-[#D63B0E]">ยืนยันเชื่อม</button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="max-h-64 overflow-y-auto">
-                    {loadingCustomers ? (<div className="flex items-center justify-center py-4"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>) : customers.length === 0 ? (
-                      <div className="text-center py-4 text-gray-500 dark:text-slate-400 text-sm">{(customerSearchInputRef.current?.value?.length || 0) >= 2 ? 'ไม่พบลูกค้า' : 'พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหา'}</div>
-                    ) : (
-                      <div className="space-y-1">
-                        {customers.map((customer) => (
-                          <button key={customer.id} onClick={() => setConfirmLinkCustomer(customer)} className="w-full p-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors flex items-center justify-between">
-                            <div><div className="text-xs text-gray-400 dark:text-slate-500">{customer.customer_code}</div><div className="font-medium text-gray-900 dark:text-white">{customer.name}</div>{customer.phone && (<div className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Phone className="w-3 h-3" />{customer.phone}</div>)}</div>
-                            <Check className="w-5 h-5" style={{ color: platformColor }} />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {selectedContact?.customer && (
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700"><button onClick={() => linkCustomer(null)} className="w-full p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-sm transition-colors">ยกเลิกการเชื่อมกับลูกค้า</button></div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+      {showLinkModal && selectedContact && (
+        <LinkCustomerModal
+          contact={selectedContact}
+          platformColor={platformColor}
+          onLink={(customerId) => { linkCustomer(customerId); setShowLinkModal(false); }}
+          onClose={() => setShowLinkModal(false)}
+        />
       )}
 
       {/* Lightbox / Gallery Overlay */}
-      {(lightboxIndex !== null || showGallery) && (
-        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center"
-          onClick={() => { setLightboxIndex(null); setShowGallery(false); }}
-          onKeyDown={(e) => { if (e.key === 'Escape') { if (showGallery && lightboxIndex !== null) setShowGallery(false); else { setLightboxIndex(null); setShowGallery(false); } } if (!showGallery && lightboxIndex !== null) { if (e.key === 'ArrowLeft' && lightboxIndex > 0) setLightboxIndex(lightboxIndex - 1); if (e.key === 'ArrowRight' && lightboxIndex < mediaList.length - 1) setLightboxIndex(lightboxIndex + 1); } }}
-          tabIndex={0} ref={(el) => el?.focus()}>
-          <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 z-10">
-            <span className="text-white/70 text-sm">{showGallery ? `แกลเลอรี่ (${mediaList.length})` : lightboxIndex !== null ? `${lightboxIndex + 1} / ${mediaList.length}` : ''}</span>
-            <div className="flex items-center gap-2">
-              {!showGallery && lightboxMedia && (
-                <button onClick={async (e) => { e.stopPropagation(); try { const res = await fetch(lightboxMedia.url); const blob = await res.blob(); const blobUrl = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = blobUrl; const ext = lightboxMedia.type === 'video' ? 'mp4' : 'jpg'; a.download = `chat-${Date.now()}.${ext}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(blobUrl); } catch { window.open(lightboxMedia.url, '_blank'); } }}
-                  className="p-2.5 bg-white/20 hover:bg-white/30 rounded-full transition-colors text-white" title="บันทึก"><Download className="w-5 h-5" /></button>
-              )}
-              {mediaList.length > 1 && (<button onClick={(e) => { e.stopPropagation(); setShowGallery(!showGallery); }} className={`p-2.5 rounded-full transition-colors text-white ${showGallery ? 'bg-white/40' : 'bg-white/20 hover:bg-white/30'}`} title="แกลเลอรี่"><Images className="w-5 h-5" /></button>)}
-              <button onClick={() => { setLightboxIndex(null); setShowGallery(false); }} className="p-2.5 bg-white/20 hover:bg-white/30 rounded-full transition-colors text-white" title="ปิด"><X className="w-5 h-5" /></button>
-            </div>
-          </div>
-          {showGallery ? (
-            <div className="max-w-lg w-full max-h-[80vh] overflow-y-auto p-4 mt-14" onClick={(e) => e.stopPropagation()}>
-              <div className="grid grid-cols-3 gap-2">
-                {mediaList.map((media, idx) => (
-                  <button key={idx} onClick={() => { setShowGallery(false); setLightboxIndex(idx); }} className={`relative aspect-square rounded-lg overflow-hidden bg-gray-800 hover:opacity-80 transition-opacity ${lightboxIndex === idx ? 'ring-2 ring-white' : ''}`}>
-                    {media.type === 'image' ? (<img src={media.url} alt="" className="w-full h-full object-cover" />) : (<><div className="w-full h-full bg-gray-800 flex items-center justify-center"><Play className="w-8 h-8 text-white/80" /></div><div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">VDO</div></>)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : lightboxMedia && lightboxIndex !== null ? (
-            <>
-              <button onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1); }} disabled={lightboxIndex <= 0} className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 p-2 md:p-3 bg-white/20 hover:bg-white/30 disabled:opacity-20 disabled:cursor-not-allowed rounded-full transition-colors text-white z-10" title="รูปก่อนหน้า"><ChevronLeft className="w-6 h-6" /></button>
-              <button onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1); }} disabled={lightboxIndex >= mediaList.length - 1} className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 p-2 md:p-3 bg-white/20 hover:bg-white/30 disabled:opacity-20 disabled:cursor-not-allowed rounded-full transition-colors text-white z-10" title="รูปถัดไป"><ChevronRight className="w-6 h-6" /></button>
-              <div className="max-w-[90vw] max-h-[85vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-                {lightboxMedia.type === 'image' ? (<img src={lightboxMedia.url} alt="Full size" className="max-w-full max-h-[85vh] object-contain rounded-lg select-none" draggable={false} />) : (<video key={lightboxMedia.url} src={lightboxMedia.url} controls autoPlay className="max-w-full max-h-[85vh] rounded-lg">เบราว์เซอร์ไม่รองรับการเล่นวิดีโอ</video>)}
-              </div>
-            </>
-          ) : null}
-        </div>
+      {lightboxIndex !== null && (
+        <LightboxViewer
+          mediaList={mediaList}
+          currentIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onChangeIndex={(idx) => setLightboxIndex(idx)}
+        />
       )}
     </Layout>
   );

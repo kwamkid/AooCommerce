@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
     // Handle order_status_push (code=3)
     if (payload.code === 3) {
       const orderSn = payload.data?.ordersn as string;
+      const shopeeStatus = (payload.data?.status as string) || '';
       if (orderSn) {
         // Log incoming webhook
         logIntegration({
@@ -83,7 +84,9 @@ export async function POST(request: NextRequest) {
           status: 'success',
           reference_type: 'order',
           reference_id: orderSn,
-          reference_label: `Order ${orderSn}`,
+          reference_label: shopeeStatus
+            ? `Order ${orderSn} → ${shopeeStatus}`
+            : `Order ${orderSn}`,
         });
 
         // Sync this specific order asynchronously
