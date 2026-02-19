@@ -19,7 +19,7 @@ async function deleteTable(table: string, companyId: string) {
 // DELETE - Delete all data except users/settings (scoped to current company)
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
 
     if (!isAuth) {
       return NextResponse.json(
@@ -33,7 +33,7 @@ export async function DELETE(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!isAdminRole(companyRole)) {
+    if (!isAdminRole(companyRoles)) {
       return NextResponse.json(
         { error: 'Forbidden. Admin access required.' },
         { status: 403 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, isAdminRole, validateRoles } from '@/lib/supabase-admin';
 
 // GET - List company members
 export async function GET(request: NextRequest) {
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     // Get company members
     const { data: memberRows, error } = await supabaseAdmin
       .from('company_members')
-      .select('id, user_id, role, is_active, joined_at, created_at')
+      .select('id, user_id, roles, is_active, joined_at, created_at')
       .eq('company_id', auth.companyId)
       .order('joined_at', { ascending: true });
 
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     // Join members with user profiles
     const members = (memberRows || []).map(m => ({
       id: m.id,
-      role: m.role,
+      roles: m.roles,
       is_active: m.is_active,
       joined_at: m.joined_at,
       created_at: m.created_at,
@@ -71,14 +71,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Check permission (owner or admin)
-    if (!auth.companyRole || !['owner', 'admin'].includes(auth.companyRole)) {
+    if (!isAdminRole(auth.companyRoles)) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์เชิญสมาชิก' }, { status: 403 });
     }
 
-    const { email, role } = await request.json();
+    const { email, roles, warehouse_ids, terminal_ids } = await request.json();
 
-    if (!email || !role) {
-      return NextResponse.json({ error: 'กรุณาระบุอีเมลและตำแหน่ง' }, { status: 400 });
+    if (!email) {
+      return NextResponse.json({ error: 'กรุณาระบุอีเมล' }, { status: 400 });
+    }
+    const rolesError = validateRoles(roles);
+    if (rolesError) {
+      return NextResponse.json({ error: rolesError }, { status: 400 });
     }
 
     // Check package member limit
@@ -148,8 +152,10 @@ export async function POST(request: NextRequest) {
       .insert({
         company_id: auth.companyId,
         email,
-        role,
+        roles,
         invited_by: auth.userId,
+        ...(warehouse_ids && warehouse_ids.length > 0 ? { warehouse_ids } : {}),
+        ...(terminal_ids && terminal_ids.length > 0 ? { terminal_ids } : {}),
       })
       .select()
       .single();
@@ -165,7 +171,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Update member role
+// PUT - Update member roles
 export async function PUT(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
@@ -173,31 +179,35 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!auth.companyRole || !['owner', 'admin'].includes(auth.companyRole)) {
+    if (!isAdminRole(auth.companyRoles)) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขตำแหน่ง' }, { status: 403 });
     }
 
-    const { memberId, role } = await request.json();
+    const { memberId, roles } = await request.json();
 
-    if (!memberId || !role) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!memberId) {
+      return NextResponse.json({ error: 'Missing member ID' }, { status: 400 });
+    }
+    const rolesError = validateRoles(roles);
+    if (rolesError) {
+      return NextResponse.json({ error: rolesError }, { status: 400 });
     }
 
-    // Cannot change owner role unless you are the owner
+    // Cannot change owner roles unless you are the owner
     const { data: targetMember } = await supabaseAdmin
       .from('company_members')
-      .select('role')
+      .select('roles')
       .eq('id', memberId)
       .eq('company_id', auth.companyId)
       .single();
 
-    if (targetMember?.role === 'owner' && auth.companyRole !== 'owner') {
+    if (targetMember?.roles?.includes('owner') && !auth.companyRoles?.includes('owner')) {
       return NextResponse.json({ error: 'ไม่สามารถแก้ไขตำแหน่งเจ้าของได้' }, { status: 403 });
     }
 
     const { data, error } = await supabaseAdmin
       .from('company_members')
-      .update({ role })
+      .update({ roles })
       .eq('id', memberId)
       .eq('company_id', auth.companyId)
       .select()
@@ -222,7 +232,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!auth.companyRole || !['owner', 'admin'].includes(auth.companyRole)) {
+    if (!isAdminRole(auth.companyRoles)) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์ลบสมาชิก' }, { status: 403 });
     }
 
@@ -244,12 +254,12 @@ export async function DELETE(request: NextRequest) {
       // Cannot remove owner
       const { data: targetMember } = await supabaseAdmin
         .from('company_members')
-        .select('role')
+        .select('roles')
         .eq('id', memberId)
         .eq('company_id', auth.companyId)
         .single();
 
-      if (targetMember?.role === 'owner') {
+      if (targetMember?.roles?.includes('owner')) {
         return NextResponse.json({ error: 'ไม่สามารถลบเจ้าของบริษัทได้' }, { status: 403 });
       }
 

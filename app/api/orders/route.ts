@@ -559,7 +559,9 @@ export async function GET(request: NextRequest) {
     }
 
     const sourceFilter = searchParams.get('source');
-    if (sourceFilter && sourceFilter !== 'all') {
+    if (sourceFilter === 'exclude_pos') {
+      query = query.neq('source', 'pos');
+    } else if (sourceFilter && sourceFilter !== 'all') {
       query = query.eq('source', sourceFilter);
     }
 
@@ -581,6 +583,11 @@ export async function GET(request: NextRequest) {
       .select('order_status, payment_status')
       .eq('company_id', auth.companyId);
 
+    if (sourceFilter === 'exclude_pos') {
+      countQuery = countQuery.neq('source', 'pos');
+    } else if (sourceFilter && sourceFilter !== 'all') {
+      countQuery = countQuery.eq('source', sourceFilter);
+    }
     if (customerId) {
       countQuery = countQuery.eq('customer_id', customerId);
     }

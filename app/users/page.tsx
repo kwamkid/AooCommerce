@@ -29,15 +29,12 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'manager' | 'operation' | 'sales';
+  roles: string[];
   phone?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
 }
-
-// Type for role keys
-type UserRole = 'admin' | 'manager' | 'operation' | 'sales';
 
 // Role configuration type
 interface RoleConfig {
@@ -46,20 +43,30 @@ interface RoleConfig {
 }
 
 // Role configurations
-const roleConfigs: Record<UserRole, RoleConfig> = {
+const roleConfigs: Record<string, RoleConfig> = {
+  owner: { color: 'bg-yellow-100 text-yellow-800', label: 'เจ้าของ' },
   admin: { color: 'bg-red-100 text-red-800', label: 'ผู้ดูแลระบบ' },
   manager: { color: 'bg-blue-100 text-blue-800', label: 'ผู้จัดการ' },
+  warehouse: { color: 'bg-teal-100 text-teal-800', label: 'ฝ่ายคลังสินค้า' },
+  account: { color: 'bg-indigo-100 text-indigo-800', label: 'ฝ่ายบัญชี' },
+  sales: { color: 'bg-purple-100 text-purple-800', label: 'ฝ่ายขาย' },
+  cashier: { color: 'bg-orange-100 text-orange-800', label: 'แคชเชียร์' },
   operation: { color: 'bg-green-100 text-green-800', label: 'พนักงานผลิต' },
-  sales: { color: 'bg-purple-100 text-purple-800', label: 'ฝ่ายขาย' }
 };
 
-// Role badge component
-function RoleBadge({ role }: { role: UserRole }) {
-  const config = roleConfigs[role];
+// Role badges component (multi-role)
+function RoleBadges({ roles }: { roles: string[] }) {
   return (
-    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-      {config.label}
-    </span>
+    <div className="flex flex-wrap gap-1">
+      {roles.map(role => {
+        const config = roleConfigs[role] || { color: 'bg-gray-100 text-gray-800', label: role };
+        return (
+          <span key={role} className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+            {config.label}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
@@ -82,7 +89,7 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
 interface UserFormData {
   email: string;
   name: string;
-  role: UserRole;
+  roles: string[];
   phone: string;
   password: string;
   is_active: boolean;
@@ -110,7 +117,7 @@ export default function UsersPage() {
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
     name: '',
-    role: 'operation',
+    roles: ['sales'],
     phone: '',
     password: '',
     is_active: true
@@ -154,7 +161,7 @@ export default function UsersPage() {
       return;
     }
     
-    if (userProfile.role !== 'admin' && userProfile.role !== 'owner') {
+    if (!userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
       router.push('/dashboard');
       return;
     }
@@ -163,7 +170,7 @@ export default function UsersPage() {
   // Fetch users
   useFetchOnce(() => {
     fetchUsers();
-  }, !authLoading && (userProfile?.role === 'admin' || userProfile?.role === 'owner') && !dataFetched);
+  }, !authLoading && !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')) && !dataFetched);
 
   // Handle create/update user
   const handleSaveUser = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -191,7 +198,7 @@ export default function UsersPage() {
           body: JSON.stringify({
             id: editingUser.id,
             name: formData.name,
-            role: formData.role,
+            roles: formData.roles,
             phone: formData.phone,
             is_active: formData.is_active
           })
@@ -215,7 +222,7 @@ export default function UsersPage() {
             email: formData.email,
             password: formData.password,
             name: formData.name,
-            role: formData.role,
+            roles: formData.roles,
             phone: formData.phone,
             is_active: formData.is_active
           })
@@ -244,12 +251,12 @@ export default function UsersPage() {
       setFormData({
         email: '',
         name: '',
-        role: 'operation',
+        roles: ['sales'],
         phone: '',
         password: '',
         is_active: true
       });
-      
+
       // Refetch users
       setDataFetched(false);
       fetchUsers();
@@ -281,7 +288,7 @@ export default function UsersPage() {
         body: JSON.stringify({
           id: user.id,
           name: user.name,
-          role: user.role,
+          roles: user.roles,
           phone: user.phone,
           is_active: newStatus
         })
@@ -340,7 +347,7 @@ export default function UsersPage() {
     setFormData({
       email: user.email,
       name: user.name,
-      role: user.role,
+      roles: user.roles,
       phone: user.phone || '',
       password: '',
       is_active: user.is_active
@@ -350,8 +357,7 @@ export default function UsersPage() {
 
   // Handle role change
   const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newRole = e.target.value as UserRole;
-    setFormData({ ...formData, role: newRole });
+    setFormData({ ...formData, roles: [e.target.value] });
   };
 
   // Filter users based on search
@@ -395,7 +401,7 @@ export default function UsersPage() {
   }
 
   // Not authorized
-  if (!userProfile || (userProfile.role !== 'admin' && userProfile.role !== 'owner')) {
+  if (!userProfile || (!userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner'))) {
     return null;
   }
 
@@ -436,7 +442,7 @@ export default function UsersPage() {
             setFormData({
               email: '',
               name: '',
-              role: 'operation',
+              roles: ['sales'],
               phone: '',
               password: '',
               is_active: true
@@ -548,7 +554,7 @@ export default function UsersPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <RoleBadge role={user.role} />
+                    <RoleBadges roles={user.roles} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-slate-400">
                     {user.phone ? (
@@ -706,13 +712,15 @@ export default function UsersPage() {
                       ตำแหน่ง *
                     </label>
                     <select
-                      value={formData.role}
+                      value={formData.roles[0] || 'sales'}
                       onChange={handleRoleChange}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                       required
                     >
-                      <option value="operation">พนักงานผลิต</option>
                       <option value="sales">ฝ่ายขาย</option>
+                      <option value="cashier">แคชเชียร์</option>
+                      <option value="warehouse">ฝ่ายคลังสินค้า</option>
+                      <option value="account">ฝ่ายบัญชี</option>
                       <option value="manager">ผู้จัดการ</option>
                       <option value="admin">ผู้ดูแลระบบ</option>
                     </select>

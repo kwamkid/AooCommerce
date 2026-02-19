@@ -13,7 +13,7 @@ import {
 interface InvitationData {
   id: string;
   email: string;
-  role: string;
+  roles: string[];
   status: string;
   expires_at: string;
   created_at: string;
@@ -32,6 +32,12 @@ const ROLE_LABELS: Record<string, string> = {
   account: 'บัญชี',
   warehouse: 'คลังสินค้า',
   sales: 'ฝ่ายขาย',
+  cashier: 'แคชเชียร์',
+};
+
+const formatRoleLabels = (roles?: string[]) => {
+  if (!roles || roles.length === 0) return '-';
+  return roles.map(r => ROLE_LABELS[r] || r).join(', ');
 };
 
 export default function InvitePage({ params }: { params: Promise<{ token: string }> }) {
@@ -260,7 +266,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
                 <span className="text-sm">ตำแหน่ง</span>
               </div>
               <span className="text-[#F4511E] font-medium">
-                {ROLE_LABELS[invitation?.role || ''] || invitation?.role}
+                {formatRoleLabels(invitation?.roles)}
               </span>
             </div>
           </div>

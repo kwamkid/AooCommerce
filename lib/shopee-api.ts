@@ -432,7 +432,7 @@ export async function getItemEnrichment(
  * Fetch shop info from Shopee API.
  * Uses get_shop_info for name + get_profile for logo.
  */
-export async function getShopInfo(creds: ShopeeCredentials): Promise<{ shop_name: string; shop_logo: string; real_shop_id?: number } | null> {
+export async function getShopInfo(creds: ShopeeCredentials): Promise<{ shop_name: string; shop_logo: string } | null> {
   // Fetch both in parallel: get_shop_info (name/status) + get_profile (logo)
   const [infoResult, profileResult] = await Promise.all([
     shopeeApiRequest(creds, 'GET', '/api/v2/shop/get_shop_info'),
@@ -448,12 +448,10 @@ export async function getShopInfo(creds: ShopeeCredentials): Promise<{ shop_name
 
   const shopName = (infoData.shop_name as string) || (profileData.shop_name as string) || '';
   const shopLogo = (profileData.shop_logo as string) || '';
-  // Shopee may return the real shop_id which differs from the OAuth shop_id
-  const realShopId = (infoData.shop_id as number) || undefined;
 
   if (!shopName && !shopLogo) return null;
 
-  return { shop_name: shopName, shop_logo: shopLogo, real_shop_id: realShopId };
+  return { shop_name: shopName, shop_logo: shopLogo };
 }
 
 // ============================================

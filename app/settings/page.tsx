@@ -53,7 +53,7 @@ export default function SettingsPage() {
   useFetchOnce(() => {
     fetchCRMSettings();
     fetchVariationTypes();
-  }, userProfile?.role === 'admin' || userProfile?.role === 'owner');
+  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')));
 
   const fetchCRMSettings = async () => {
     try {
@@ -277,7 +277,7 @@ export default function SettingsPage() {
   };
 
   // Only allow admin to access this page
-  if (userProfile?.role !== 'admin' && userProfile?.role !== 'owner') {
+  if (!userProfile?.roles?.includes('admin') && !userProfile?.roles?.includes('owner')) {
     return (
       <Layout>
         <div className="min-h-screen flex items-center justify-center">

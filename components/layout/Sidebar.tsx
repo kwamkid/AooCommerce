@@ -96,17 +96,19 @@ const menuSections: MenuSection[] = [
   }
 ];
 
-const getRoleLabel = (role: string | null) => {
-  const labels: Record<string, string> = {
-    owner: 'เจ้าของ',
-    admin: 'ผู้ดูแลระบบ',
-    manager: 'ผู้จัดการ',
-    account: 'ฝ่ายบัญชี',
-    warehouse: 'ฝ่ายคลังสินค้า',
-    sales: 'ฝ่ายขาย',
-    cashier: 'แคชเชียร์',
-  };
-  return role ? labels[role] || role : '';
+const ROLE_LABELS: Record<string, string> = {
+  owner: 'เจ้าของ',
+  admin: 'ผู้ดูแลระบบ',
+  manager: 'ผู้จัดการ',
+  account: 'ฝ่ายบัญชี',
+  warehouse: 'ฝ่ายคลังสินค้า',
+  sales: 'ฝ่ายขาย',
+  cashier: 'แคชเชียร์',
+};
+
+const getRoleLabels = (roles: string[]) => {
+  if (!roles || roles.length === 0) return '';
+  return roles.map(r => ROLE_LABELS[r] || r).join(', ');
 };
 
 export default function Sidebar() {
@@ -121,17 +123,28 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { userProfile, loading: authLoading, signOut } = useAuth();
-  const { currentCompany, companies, switchCompany, companyRole, loading: companyLoading } = useCompany();
+  const { currentCompany, companies, switchCompany, companyRoles, loading: companyLoading } = useCompany();
   const { features, loading: featuresLoading } = useFeatures();
   const companyDropdownRef = useRef<HTMLDivElement>(null);
 
-  const effectiveRole = (() => {
-    if (companyRole === 'owner' || companyRole === 'admin') return 'admin';
-    if (companyRole === 'manager') return 'manager';
-    if (companyRole === 'warehouse') return 'warehouse';
-    if (companyRole === 'cashier') return 'cashier';
-    if (companyRole === 'account' || companyRole === 'sales') return 'sales';
-    return userProfile?.role || null;
+  const effectiveRoles = (() => {
+    const roles = new Set<string>();
+    for (const r of companyRoles) {
+      if (r === 'owner' || r === 'admin') {
+        roles.add('admin');
+      } else if (r === 'account') {
+        roles.add('sales');
+      } else {
+        roles.add(r);
+      }
+    }
+    if (roles.size === 0) {
+      // Fallback from userProfile
+      for (const r of (userProfile?.roles || ['sales'])) {
+        roles.add(r);
+      }
+    }
+    return roles;
   })();
 
   useEffect(() => {
@@ -192,7 +205,7 @@ export default function Sidebar() {
     .map(section => ({
       ...section,
       items: section.items.filter(item => {
-        if (!effectiveRole || !item.roles.includes(effectiveRole)) return false;
+        if (effectiveRoles.size === 0 || !item.roles.some(r => effectiveRoles.has(r))) return false;
         // Hide delivery-only menus when feature is off
         if (item.href === '/reports/delivery-summary' && !features.delivery_date.enabled) return false;
         if (item.href === '/crm/payment-followup' && !features.billing_cycle) return false;
@@ -283,7 +296,7 @@ export default function Sidebar() {
                       {currentCompany?.name || 'เลือกบริษัท'}
                     </p>
                     <p className="text-[#F4511E] text-xs">
-                      {getRoleLabel(companyRole)}
+                      {getRoleLabels(companyRoles)}
                     </p>
                   </div>
                   <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${companyDropdownOpen ? 'rotate-180' : ''}`} />
@@ -314,7 +327,7 @@ export default function Sidebar() {
                             )}
                             <div className="flex-1 text-left min-w-0">
                               <p className="text-gray-900 text-sm font-medium truncate">{m.company.name}</p>
-                              <p className="text-gray-400 text-xs">{getRoleLabel(m.role)}</p>
+                              <p className="text-gray-400 text-xs">{getRoleLabels(m.roles)}</p>
                             </div>
                             {m.company_id === currentCompany?.id && (
                               <Check className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
@@ -488,7 +501,7 @@ export default function Sidebar() {
             ))}
 
             {/* Admin Section */}
-            {!authLoading && !companyLoading && !featuresLoading && effectiveRole === 'admin' && (
+            {!authLoading && !companyLoading && !featuresLoading && effectiveRoles.has('admin') && (
               <div>
                 <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
                   ผู้ดูแลระบบ

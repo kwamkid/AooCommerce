@@ -10,7 +10,7 @@ import { Building2, FileText, Upload, X, AlertCircle, Loader2, Plus, ChevronRigh
 
 interface CompanyMembership {
   company_id: string;
-  role: string;
+  roles: string[];
   company: {
     id: string;
     name: string;
@@ -158,7 +158,7 @@ export default function OnboardingPage() {
   };
 
   // Role label mapping
-  const getRoleLabel = (role: string) => {
+  const getRoleLabels = (roles: string[]) => {
     const labels: Record<string, string> = {
       owner: 'เจ้าของ',
       admin: 'ผู้ดูแล',
@@ -166,8 +166,9 @@ export default function OnboardingPage() {
       account: 'บัญชี',
       warehouse: 'คลังสินค้า',
       sales: 'ฝ่ายขาย',
+      cashier: 'แคชเชียร์',
     };
-    return labels[role] || role;
+    return roles.map(r => labels[r] || r).join(', ');
   };
 
   // Show loading while checking auth
@@ -235,7 +236,7 @@ export default function OnboardingPage() {
                     <div className="flex items-center gap-2 mt-1">
                       <Users className="w-3.5 h-3.5 text-gray-400" />
                       <span className="text-sm text-gray-400 dark:text-slate-500">
-                        {getRoleLabel(membership.role)}
+                        {getRoleLabels(membership.roles)}
                       </span>
                     </div>
                   </div>

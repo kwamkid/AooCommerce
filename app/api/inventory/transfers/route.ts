@@ -1,11 +1,11 @@
 // Path: app/api/inventory/transfers/route.ts
 // Two-step transfer: create/ship → receive
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, isAdminRole, hasAnyRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 
-function canManageWarehouse(role: string | undefined, memberWarehouseIds: string[] | null, warehouseId: string): boolean {
-  if (isAdminRole(role)) return true;
+function canManageWarehouse(roles: string[] | undefined, memberWarehouseIds: string[] | null, warehouseId: string): boolean {
+  if (isAdminRole(roles)) return true;
   if (!memberWarehouseIds || memberWarehouseIds.length === 0) return true; // null = all
   return memberWarehouseIds.includes(warehouseId);
 }
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRole) && auth.companyRole !== 'warehouse' && auth.companyRole !== 'manager') {
+    if (!hasAnyRole(auth.companyRoles, ['owner','admin','warehouse','manager'])) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์สร้างใบโอนย้าย' }, { status: 403 });
     }
 
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
       .eq('user_id', auth.userId)
       .single();
 
-    if (!canManageWarehouse(auth.companyRole, membership?.warehouse_ids, from_warehouse_id)) {
+    if (!canManageWarehouse(auth.companyRoles, membership?.warehouse_ids, from_warehouse_id)) {
       return NextResponse.json({ error: 'คุณไม่มีสิทธิ์จัดการคลังต้นทางนี้' }, { status: 403 });
     }
 
@@ -316,7 +316,7 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'ใบโอนย้ายนี้ไม่อยู่ในสถานะพร้อมรับ' }, { status: 400 });
       }
 
-      if (!canManageWarehouse(auth.companyRole, membership?.warehouse_ids, transfer.to_warehouse_id)) {
+      if (!canManageWarehouse(auth.companyRoles, membership?.warehouse_ids, transfer.to_warehouse_id)) {
         return NextResponse.json({ error: 'คุณไม่มีสิทธิ์รับสินค้าที่คลังปลายทางนี้' }, { status: 403 });
       }
 
@@ -450,7 +450,7 @@ export async function PUT(request: NextRequest) {
       }
 
       // Only admin/owner or source warehouse user can cancel
-      if (!isAdminRole(auth.companyRole) && !canManageWarehouse(auth.companyRole, membership?.warehouse_ids, transfer.from_warehouse_id)) {
+      if (!isAdminRole(auth.companyRoles) && !canManageWarehouse(auth.companyRoles, membership?.warehouse_ids, transfer.from_warehouse_id)) {
         return NextResponse.json({ error: 'ไม่มีสิทธิ์ยกเลิกใบโอนย้ายนี้' }, { status: 403 });
       }
 

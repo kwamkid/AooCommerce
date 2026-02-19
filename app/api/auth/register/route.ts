@@ -68,8 +68,10 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin.from('company_members').insert({
           company_id: invitation.company_id,
           user_id: authData.user.id,
-          role: invitation.role,
+          roles: invitation.roles,
           invited_by: invitation.invited_by,
+          terminal_ids: invitation.terminal_ids || null,
+          warehouse_ids: invitation.warehouse_ids || null,
         });
 
         await supabaseAdmin

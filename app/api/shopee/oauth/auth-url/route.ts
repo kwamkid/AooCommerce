@@ -4,8 +4,8 @@ import { generateAuthUrl } from '@/lib/shopee-api';
 
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !isAdminRole(companyRole)) {
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    if (!isAuth || !companyId || !isAdminRole(companyRoles)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

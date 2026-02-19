@@ -15,7 +15,7 @@ export interface AuthResult {
   isAuth: boolean;
   userId?: string;
   companyId?: string;
-  companyRole?: string;
+  companyRoles?: string[];
 }
 
 /**
@@ -40,7 +40,7 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
     if (companyId) {
       const { data: membership } = await supabaseAdmin
         .from('company_members')
-        .select('role')
+        .select('roles')
         .eq('user_id', user.id)
         .eq('company_id', companyId)
         .eq('is_active', true)
@@ -54,14 +54,14 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
         isAuth: true,
         userId: user.id,
         companyId,
-        companyRole: membership.role,
+        companyRoles: membership.roles,
       };
     }
 
     // No company header — get user's default (first) company
     const { data: membership } = await supabaseAdmin
       .from('company_members')
-      .select('company_id, role')
+      .select('company_id, roles')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .order('joined_at', { ascending: true })
@@ -72,7 +72,7 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
       isAuth: true,
       userId: user.id,
       companyId: membership?.company_id || undefined,
-      companyRole: membership?.role || undefined,
+      companyRoles: membership?.roles || undefined,
     };
   } catch {
     return { isAuth: false };
@@ -80,10 +80,42 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
 }
 
 /**
- * Check if company role has admin-level access (owner or admin).
+ * Check if roles include admin-level access (owner or admin).
  */
-export function isAdminRole(role?: string): boolean {
-  return role === 'admin' || role === 'owner';
+export function isAdminRole(roles?: string[]): boolean {
+  if (!roles) return false;
+  return roles.includes('admin') || roles.includes('owner');
+}
+
+/**
+ * Check if user roles include any of the required roles.
+ */
+export function hasAnyRole(userRoles: string[] | undefined, requiredRoles: string[]): boolean {
+  if (!userRoles) return false;
+  return requiredRoles.some(r => userRoles.includes(r));
+}
+
+const VALID_ROLES = ['owner', 'admin', 'manager', 'account', 'warehouse', 'sales', 'cashier'];
+const EXCLUSIVE_ROLES = ['owner', 'admin'];
+
+/**
+ * Validate roles array: must be non-empty, contain valid values,
+ * and owner/admin must be exclusive (cannot combine with other roles).
+ * Returns error message or null if valid.
+ */
+export function validateRoles(roles: unknown): string | null {
+  if (!Array.isArray(roles) || roles.length === 0) {
+    return 'ต้องระบุตำแหน่งอย่างน้อย 1 ตำแหน่ง';
+  }
+  for (const r of roles) {
+    if (typeof r !== 'string' || !VALID_ROLES.includes(r)) {
+      return `ตำแหน่ง "${r}" ไม่ถูกต้อง`;
+    }
+  }
+  if (roles.some((r: string) => EXCLUSIVE_ROLES.includes(r)) && roles.length > 1) {
+    return 'ตำแหน่ง owner/admin ไม่สามารถรวมกับตำแหน่งอื่นได้';
+  }
+  return null;
 }
 
 /**

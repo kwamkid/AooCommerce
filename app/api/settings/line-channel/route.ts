@@ -4,10 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 // GET - Read LINE channel config
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!isAdminRole(companyRole)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!isAdminRole(companyRoles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const { data } = await supabaseAdmin
       .from('crm_settings')
@@ -46,10 +46,10 @@ export async function GET(request: NextRequest) {
 // PUT - Save LINE channel config
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!isAdminRole(companyRole)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!isAdminRole(companyRoles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
     const { is_active, channel_secret, channel_access_token } = body;
@@ -103,10 +103,10 @@ export async function PUT(request: NextRequest) {
 // POST - Test connection or other actions
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!isAdminRole(companyRole)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!isAdminRole(companyRoles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
     const { action, channel_access_token } = body;

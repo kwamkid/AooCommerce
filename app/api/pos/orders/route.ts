@@ -1,6 +1,6 @@
 // Path: app/api/pos/orders/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 
 interface PosItemInput {
@@ -34,17 +34,36 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('session_id');
     const date = searchParams.get('date');
+    const dateFrom = searchParams.get('date_from');
+    const dateTo = searchParams.get('date_to');
+    const search = searchParams.get('search')?.trim();
+    const warehouseId = searchParams.get('warehouse_id');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = (page - 1) * limit;
+
+    // Check warehouse permission for cashier role
+    let allowedWarehouseIds: string[] | null = null; // null = all
+    if (!isAdminRole(auth.companyRoles)) {
+      const { data: membership } = await supabaseAdmin
+        .from('company_members')
+        .select('warehouse_ids')
+        .eq('company_id', auth.companyId)
+        .eq('user_id', auth.userId!)
+        .single();
+
+      if (membership?.warehouse_ids && membership.warehouse_ids.length > 0) {
+        allowedWarehouseIds = membership.warehouse_ids;
+      }
+    }
 
     let query = supabaseAdmin
       .from('orders')
       .select(`
         id, order_number, receipt_number, customer_id, total_amount,
         payment_method, payment_status, order_status, source,
-        pos_session_id, created_by, created_at,
-        customer:customers(id, name, customer_code),
+        pos_session_id, warehouse_id, created_by, created_at,
+        customer:customers(id, name, customer_code, phone),
         items:order_items(id, product_name, variation_label, quantity, unit_price, total)
       `, { count: 'exact' })
       .eq('company_id', auth.companyId)
@@ -56,9 +75,46 @@ export async function GET(request: NextRequest) {
       query = query.eq('pos_session_id', sessionId);
     }
 
+    // Filter by warehouse (from user selection or permission restriction)
+    if (warehouseId) {
+      // If user selected a specific warehouse, verify they have access
+      if (allowedWarehouseIds && !allowedWarehouseIds.includes(warehouseId)) {
+        return NextResponse.json({ error: 'ไม่มีสิทธิ์เข้าถึงสาขานี้' }, { status: 403 });
+      }
+      query = query.eq('warehouse_id', warehouseId);
+    } else if (allowedWarehouseIds) {
+      // Restricted user without specific filter — show only allowed warehouses
+      query = query.in('warehouse_id', allowedWarehouseIds);
+    }
+
+    if (search) {
+      // Search by receipt_number, order_number, or customer (name/phone)
+      const { data: matchedCustomers } = await supabaseAdmin
+        .from('customers')
+        .select('id')
+        .eq('company_id', auth.companyId)
+        .or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
+
+      const customerIds = matchedCustomers?.map(c => c.id) || [];
+      if (customerIds.length > 0) {
+        query = query.or(`receipt_number.ilike.%${search}%,order_number.ilike.%${search}%,customer_id.in.(${customerIds.join(',')})`);
+      } else {
+        query = query.or(`receipt_number.ilike.%${search}%,order_number.ilike.%${search}%`);
+      }
+    }
+
     if (date) {
+      // Single date filter (legacy)
       query = query.gte('created_at', `${date}T00:00:00`)
                     .lt('created_at', `${date}T23:59:59.999`);
+    } else if (dateFrom || dateTo) {
+      // Date range filter
+      if (dateFrom) {
+        query = query.gte('created_at', `${dateFrom}T00:00:00`);
+      }
+      if (dateTo) {
+        query = query.lt('created_at', `${dateTo}T23:59:59.999`);
+      }
     }
 
     const { data, error, count } = await query;
@@ -72,6 +128,7 @@ export async function GET(request: NextRequest) {
       total: count || 0,
       page,
       limit,
+      allowed_warehouse_ids: allowedWarehouseIds,
     });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRole)) {
+    if (!isAdminRole(auth.companyRoles)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -21,18 +21,21 @@ export async function GET(request: NextRequest) {
       // Get specific user's warehouse permissions
       const { data: member } = await supabaseAdmin
         .from('company_members')
-        .select('warehouse_ids')
+        .select('warehouse_ids, terminal_ids')
         .eq('company_id', auth.companyId)
         .eq('user_id', userId)
         .single();
 
-      return NextResponse.json({ warehouse_ids: member?.warehouse_ids || [] });
+      return NextResponse.json({
+        warehouse_ids: member?.warehouse_ids || [],
+        terminal_ids: member?.terminal_ids || [],
+      });
     }
 
     // Get all members with their warehouse permissions
     const { data: members, error } = await supabaseAdmin
       .from('company_members')
-      .select('user_id, role, warehouse_ids')
+      .select('user_id, roles, warehouse_ids, terminal_ids')
       .eq('company_id', auth.companyId)
       .eq('is_active', true);
 
@@ -54,11 +57,11 @@ export async function PUT(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRole)) {
+    if (!isAdminRole(auth.companyRoles)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const { user_id, warehouse_ids } = await request.json();
+    const { user_id, warehouse_ids, terminal_ids } = await request.json();
     if (!user_id) {
       return NextResponse.json({ error: 'user_id is required' }, { status: 400 });
     }
@@ -88,11 +91,12 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Update warehouse_ids (null means all warehouses)
+    // Update warehouse_ids and terminal_ids (null means all)
     const { error } = await supabaseAdmin
       .from('company_members')
       .update({
         warehouse_ids: warehouse_ids && warehouse_ids.length > 0 ? warehouse_ids : null,
+        terminal_ids: terminal_ids && terminal_ids.length > 0 ? terminal_ids : null,
         updated_at: new Date().toISOString(),
       })
       .eq('company_id', auth.companyId)

@@ -43,10 +43,10 @@ export async function GET(request: NextRequest) {
 // POST - Create new chat account
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!isAdminRole(companyRole)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!isAdminRole(companyRoles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
     const { platform, account_name, credentials } = body;
@@ -162,10 +162,10 @@ export async function POST(request: NextRequest) {
 // PUT - Update chat account
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!isAdminRole(companyRole)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!isAdminRole(companyRoles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
     const { id, account_name, credentials, is_active } = body;
@@ -263,10 +263,10 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete chat account
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!isAdminRole(companyRole)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!isAdminRole(companyRoles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

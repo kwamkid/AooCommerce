@@ -62,7 +62,7 @@ export default function IntegrationsPage() {
 
   useFetchOnce(() => {
     fetchAccounts();
-  }, userProfile?.role === 'admin' || userProfile?.role === 'owner');
+  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')));
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -306,7 +306,7 @@ export default function IntegrationsPage() {
   };
 
   // Admin guard
-  if (userProfile && userProfile.role !== 'admin' && userProfile.role !== 'owner') {
+  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
     return (
       <Layout title="Marketplace">
         <div className="text-center py-16 text-gray-500 dark:text-slate-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>

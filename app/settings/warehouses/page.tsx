@@ -61,7 +61,7 @@ export default function WarehouseSettingsPage() {
 
   useFetchOnce(() => {
     fetchWarehouses();
-  }, userProfile?.role === 'admin' || userProfile?.role === 'owner');
+  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')));
 
   const fetchWarehouses = async () => {
     try {
@@ -202,7 +202,7 @@ export default function WarehouseSettingsPage() {
   };
 
   // Admin guard
-  if (userProfile && userProfile.role !== 'admin' && userProfile.role !== 'owner') {
+  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
     return (
       <Layout title="คลังสินค้า">
         <div className="text-center py-16 text-gray-500 dark:text-slate-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>

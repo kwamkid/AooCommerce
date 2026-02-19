@@ -64,7 +64,7 @@ function StatCard({
 
   return (
     <div
-      className={`bg-white dark:bg-slate-800 rounded-lg shadow p-6 ${onClick ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
+      className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm p-6 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between">
@@ -131,21 +131,14 @@ export default function DashboardPage() {
   }
 
   return (
-    <Layout
-      title="Dashboard"
-      breadcrumbs={[
-        { label: 'หน้าแรก' }
-      ]}
-    >
-      {/* Welcome Message */}
+    <Layout>
+      {/* Header */}
       <div className="mb-6">
-        <h2 className="text-xl text-gray-700 dark:text-slate-300">
-          สวัสดี, {userProfile.name || 'ผู้ใช้งาน'}
-        </h2>
-        <p className="text-gray-500 dark:text-slate-400">
-          {(userProfile.role === 'owner' || userProfile.role === 'admin') && 'ภาพรวมระบบทั้งหมด'}
-          {userProfile.role === 'manager' && 'ภาพรวมระบบ'}
-          {userProfile.role === 'sales' && 'ภาพรวมการขายและลูกค้า'}
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+        <p className="text-gray-600 dark:text-slate-400 mt-1">
+          สวัสดี, {userProfile.name || 'ผู้ใช้งาน'} — {(userProfile.roles?.includes('owner') || userProfile.roles?.includes('admin')) && 'ภาพรวมระบบทั้งหมด'}
+          {userProfile.roles?.includes('manager') && 'ภาพรวมระบบ'}
+          {userProfile.roles?.includes('sales') && 'ภาพรวมการขายและลูกค้า'}
         </p>
       </div>
 
@@ -178,7 +171,7 @@ export default function DashboardPage() {
       {/* Main Content Area */}
       <div className="grid grid-cols-1 gap-6">
         {/* Today's Deliveries */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               ลูกค้าที่ต้องส่งวันนี้

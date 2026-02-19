@@ -206,13 +206,13 @@ export async function PUT(request: NextRequest) {
     // Check permission (owner or admin)
     const { data: membership } = await supabaseAdmin
       .from('company_members')
-      .select('role')
+      .select('roles')
       .eq('company_id', id)
       .eq('user_id', auth.userId)
       .eq('is_active', true)
       .single();
 
-    if (!membership || !['owner', 'admin'].includes(membership.role)) {
+    if (!membership || !(membership.roles as string[])?.some((r: string) => ['owner', 'admin'].includes(r))) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขข้อมูลบริษัท' }, { status: 403 });
     }
 

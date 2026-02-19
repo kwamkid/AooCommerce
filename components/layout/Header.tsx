@@ -32,7 +32,7 @@ interface Notification {
 
 export default function Header() {
   const { userProfile, signOut } = useAuth();
-  const { currentCompany, companyRole } = useCompany();
+  const { currentCompany, companyRoles } = useCompany();
   const { features } = useFeatures();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -232,10 +232,10 @@ export default function Header() {
                 <div className="p-4 border-b border-gray-200 dark:border-slate-700">
                   <p className="font-medium text-gray-900 dark:text-white">{userProfile?.name}</p>
                   <p className="text-sm text-gray-500 dark:text-slate-400">{userProfile?.email}</p>
-                  {companyRole && (
+                  {companyRoles.length > 0 && (
                     <p className="text-xs text-[#F4511E] mt-1">
                       {currentCompany?.name} · {
-                        { owner: 'เจ้าของ', admin: 'ผู้ดูแลระบบ', manager: 'ผู้จัดการ', account: 'ฝ่ายบัญชี', warehouse: 'ฝ่ายคลังสินค้า', sales: 'ฝ่ายขาย' }[companyRole] || companyRole
+                        companyRoles.map(r => ({ owner: 'เจ้าของ', admin: 'ผู้ดูแลระบบ', manager: 'ผู้จัดการ', account: 'ฝ่ายบัญชี', warehouse: 'ฝ่ายคลังสินค้า', sales: 'ฝ่ายขาย', cashier: 'แคชเชียร์' } as Record<string, string>)[r] || r).join(', ')
                       }
                     </p>
                   )}
@@ -255,7 +255,7 @@ export default function Header() {
                     <span className="text-sm">โปรไฟล์</span>
                   </button>
 
-                  {(companyRole === 'owner' || companyRole === 'admin') && (
+                  {(companyRoles.includes('owner') || companyRoles.includes('admin')) && (
                     <button
                       className="w-full flex items-center space-x-3 px-3 py-2 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                     >
@@ -266,7 +266,7 @@ export default function Header() {
                 </div>
 
                 {/* Support / Logs */}
-                {(companyRole === 'owner' || companyRole === 'admin') && features.marketplace_sync && (
+                {(companyRoles.includes('owner') || companyRoles.includes('admin')) && features.marketplace_sync && (
                   <div className="border-t border-gray-200 dark:border-slate-700 p-2">
                     <p className="text-xs text-gray-400 dark:text-slate-500 px-3 mb-1">Support</p>
                     <Link

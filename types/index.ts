@@ -27,7 +27,7 @@ export interface Company {
 
 export interface CompanyMembership {
   companyId: string;
-  role: CompanyRole;
+  roles: CompanyRole[];
   company: Company;
 }
 
@@ -35,7 +35,7 @@ export interface CompanyInvitation {
   id: string;
   companyId: string;
   email: string;
-  role: CompanyRole;
+  roles: CompanyRole[];
   token: string;
   status: 'pending' | 'accepted' | 'expired' | 'cancelled';
   invitedBy: string;
@@ -70,7 +70,7 @@ export interface UserProfile {
   id: string;
   email: string;
   name: string;
-  role: CompanyRole;
+  roles: CompanyRole[];
   lineUserId?: string;
   phone?: string;
   avatar?: string;

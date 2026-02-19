@@ -146,7 +146,7 @@ export default function CustomerEditPage() {
   const customerId = params.id as string;
 
   // Permission: admin & manager can edit
-  const canEdit = userProfile?.role === 'owner' || userProfile?.role === 'admin' || userProfile?.role === 'manager';
+  const canEdit = userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('manager');
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [addresses, setAddresses] = useState<ShippingAddress[]>([]);

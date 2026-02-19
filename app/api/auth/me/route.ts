@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       .from('company_members')
       .select(`
         company_id,
-        role,
+        roles,
         company:companies (
           id, name, slug, logo_url, is_active
         )

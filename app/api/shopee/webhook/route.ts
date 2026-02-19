@@ -39,25 +39,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Look up account by shop_id
-    const { data: directMatch } = await supabaseAdmin
+    const { data: account } = await supabaseAdmin
       .from('shopee_accounts')
       .select('*')
       .eq('shop_id', shopId)
       .eq('is_active', true)
       .single();
-
-    let account = directMatch;
-
-    // If not found by shop_id, try matching via webhook_shop_id in metadata
-    if (!account) {
-      const { data: metaMatch } = await supabaseAdmin
-        .from('shopee_accounts')
-        .select('*')
-        .eq('is_active', true)
-        .contains('metadata', { webhook_shop_id: shopId })
-        .single();
-      account = metaMatch;
-    }
 
     if (!account) {
       console.error('Shopee webhook: no account for shop_id:', shopId);

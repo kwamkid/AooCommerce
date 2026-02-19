@@ -57,7 +57,7 @@ const FEATURE_CONFIGS: FeatureConfig[] = [
 ];
 
 export default function CompanySettingsPage() {
-  const { currentCompany, companyRole, refreshCompanies } = useCompany();
+  const { currentCompany, companyRoles, refreshCompanies } = useCompany();
   const { session } = useAuth();
   const { features: currentFeatures, fetched: featuresFetched, refreshFeatures } = useFeatures();
   const { showToast } = useToast();
@@ -245,7 +245,7 @@ export default function CompanySettingsPage() {
   };
 
   // Check permissions
-  const isOwnerOrAdmin = companyRole === 'owner' || companyRole === 'admin';
+  const isOwnerOrAdmin = companyRoles.includes('owner') || companyRoles.includes('admin');
 
   if (!isOwnerOrAdmin && !isLoading) {
     return (

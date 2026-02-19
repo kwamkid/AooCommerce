@@ -23,7 +23,7 @@ export default function NewCustomerPage() {
       router.push('/login');
       return;
     }
-    if (!['owner', 'admin', 'manager', 'sales'].includes(userProfile.role)) {
+    if (!userProfile.roles?.some((r: string) => ['owner', 'admin', 'manager', 'sales'].includes(r))) {
       router.push('/dashboard');
     }
   }, [userProfile, authLoading, router]);

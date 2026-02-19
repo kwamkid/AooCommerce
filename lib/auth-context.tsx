@@ -5,11 +5,11 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { User, Session } from '@supabase/supabase-js';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { UserProfile } from '@/types';
+import { UserProfile, CompanyRole } from '@/types';
 
 interface CompanyMembershipRaw {
   company_id: string;
-  role: string;
+  roles: string[];
   company: {
     id: string;
     name: string;
@@ -64,16 +64,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCompanies(companiesData);
       setHasCompany(companiesData.length > 0);
 
-      // Use company role directly as the user's effective role
+      // Use company roles directly as the user's effective roles
       const savedCompanyId = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
       const currentMembership = companiesData.find((m: { company_id: string }) => m.company_id === savedCompanyId) || companiesData[0];
-      const effectiveRole = currentMembership?.role || data.role || 'sales';
+      const effectiveRoles = (currentMembership?.roles || ['sales']) as CompanyRole[];
 
       return {
         id: data.id,
         email: data.email || authUser.email || '',
         name: data.name || authUser.email?.split('@')[0] || 'User',
-        role: effectiveRole,
+        roles: effectiveRoles,
         phone: data.phone || undefined,
         isActive: data.is_active ?? true,
         createdAt: new Date(data.created_at),
@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               id: currentSession.user.id,
               email: currentSession.user.email || '',
               name: currentSession.user.email?.split('@')[0] || 'User',
-              role: 'sales',
+              roles: ['sales'],
               isActive: true,
               createdAt: new Date(),
               updatedAt: new Date()

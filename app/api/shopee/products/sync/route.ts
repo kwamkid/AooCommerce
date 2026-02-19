@@ -6,8 +6,8 @@ import { logIntegration } from '@/lib/integration-logger';
 
 export async function POST(request: NextRequest) {
   // Auth + validation (must happen before streaming)
-  const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
-  if (!isAuth || !companyId || !isAdminRole(companyRole)) {
+  const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+  if (!isAuth || !companyId || !isAdminRole(companyRoles)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

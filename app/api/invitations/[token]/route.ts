@@ -12,7 +12,7 @@ export async function GET(
     const { data: invitation, error } = await supabaseAdmin
       .from('company_invitations')
       .select(`
-        id, email, role, status, expires_at, created_at,
+        id, email, roles, status, expires_at, created_at,
         company:companies (id, name, slug, logo_url)
       `)
       .eq('token', token)
@@ -97,8 +97,14 @@ export async function POST(
     await supabaseAdmin.from('company_members').insert({
       company_id: invitation.company_id,
       user_id: user.id,
-      role: invitation.role,
+      roles: invitation.roles,
       invited_by: invitation.invited_by,
+      ...(invitation.warehouse_ids && invitation.warehouse_ids.length > 0
+        ? { warehouse_ids: invitation.warehouse_ids }
+        : {}),
+      ...(invitation.terminal_ids && invitation.terminal_ids.length > 0
+        ? { terminal_ids: invitation.terminal_ids }
+        : {}),
     });
 
     // Mark invitation as accepted

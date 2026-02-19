@@ -35,7 +35,7 @@ export default function BrandsPage() {
   const [addName, setAddName] = useState('');
 
   useEffect(() => {
-    if (userProfile?.role === 'admin' || userProfile?.role === 'owner') {
+    if (userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')) {
       fetchBrands();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,7 +142,7 @@ export default function BrandsPage() {
   };
 
   // Admin guard
-  if (userProfile && userProfile.role !== 'admin' && userProfile.role !== 'owner') {
+  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
     return (
       <Layout title="แบรนด์">
         <div className="text-center py-16 text-gray-500 dark:text-slate-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>

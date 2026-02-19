@@ -1,5 +1,5 @@
 // Path: app/api/users/route.ts
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, isAdminRole, validateRoles } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Type definitions
@@ -7,15 +7,17 @@ interface UserData {
   email: string;
   password: string;
   name: string;
-  role: string; // company_role enum: owner, admin, manager, account, warehouse, sales
+  roles: string[];
   phone?: string;
   is_active?: boolean;
+  warehouse_ids?: string[];
+  terminal_ids?: string[];
 }
 
 // POST - สร้าง user ใหม่ (Admin only)
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
 
     if (!isAuth) {
       return NextResponse.json(
@@ -29,7 +31,7 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!isAdminRole(companyRole)) {
+    if (!isAdminRole(companyRoles)) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
         { status: 401 }
@@ -39,11 +41,16 @@ export async function POST(request: NextRequest) {
     const userData: UserData = await request.json();
 
     // Validate required fields
-    if (!userData.email || !userData.password || !userData.name || !userData.role) {
+    if (!userData.email || !userData.password || !userData.name) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
+    }
+
+    const rolesError = validateRoles(userData.roles);
+    if (rolesError) {
+      return NextResponse.json({ error: rolesError }, { status: 400 });
     }
 
     // Validate email format
@@ -84,7 +91,7 @@ export async function POST(request: NextRequest) {
       email_confirm: true, // Auto confirm email
       user_metadata: {
         name: userData.name,
-        role: userData.role,
+        roles: userData.roles,
         phone: userData.phone
       }
     });
@@ -134,9 +141,15 @@ export async function POST(request: NextRequest) {
       .insert({
         company_id: companyId,
         user_id: authData.user.id,
-        role: userData.role,
+        roles: userData.roles,
         is_active: true,
-        joined_at: new Date().toISOString()
+        joined_at: new Date().toISOString(),
+        warehouse_ids: userData.warehouse_ids && userData.warehouse_ids.length > 0
+          ? userData.warehouse_ids
+          : null,
+        terminal_ids: userData.terminal_ids && userData.terminal_ids.length > 0
+          ? userData.terminal_ids
+          : null,
       });
 
     if (memberError) {
@@ -150,7 +163,7 @@ export async function POST(request: NextRequest) {
         id: authData.user.id,
         email: userData.email,
         name: userData.name,
-        role: userData.role
+        roles: userData.roles
       }
     });
   } catch (error) {
@@ -165,7 +178,7 @@ export async function POST(request: NextRequest) {
 // GET - ดึงรายการ users (Admin only, scoped to company members)
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
 
     if (!isAuth) {
       return NextResponse.json(
@@ -179,7 +192,7 @@ export async function GET(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!isAdminRole(companyRole)) {
+    if (!isAdminRole(companyRoles)) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
         { status: 401 }
@@ -189,7 +202,7 @@ export async function GET(request: NextRequest) {
     // Get company members first, then join with user_profiles
     const { data: members, error: membersError } = await supabaseAdmin
       .from('company_members')
-      .select('user_id, role, is_active, joined_at')
+      .select('user_id, roles, is_active, joined_at')
       .eq('company_id', companyId)
       .eq('is_active', true);
 
@@ -205,6 +218,10 @@ export async function GET(request: NextRequest) {
     }
 
     const memberUserIds = members.map(m => m.user_id);
+    const memberMap: Record<string, { roles: string[] }> = {};
+    for (const m of members) {
+      memberMap[m.user_id] = { roles: m.roles };
+    }
 
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
@@ -219,7 +236,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ users: data });
+    // Merge roles from company_members into user profiles
+    const usersWithRoles = (data || []).map(u => ({
+      ...u,
+      roles: memberMap[u.id]?.roles || ['sales'],
+    }));
+
+    return NextResponse.json({ users: usersWithRoles });
   } catch (error) {
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -231,7 +254,7 @@ export async function GET(request: NextRequest) {
 // PUT - อัพเดท user (Admin only)
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
 
     if (!isAuth) {
       return NextResponse.json(
@@ -245,14 +268,14 @@ export async function PUT(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!isAdminRole(companyRole)) {
+    if (!isAdminRole(companyRoles)) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
         { status: 401 }
       );
     }
 
-    const { id, name, role, phone, is_active } = await request.json();
+    const { id, name, roles, phone, is_active } = await request.json();
 
     if (!id) {
       return NextResponse.json(
@@ -296,16 +319,22 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Update company_members role
-    if (role) {
+    // Update company_members roles
+    if (roles) {
+      const rolesErr = validateRoles(roles);
+      if (rolesErr) {
+        return NextResponse.json({ error: rolesErr }, { status: 400 });
+      }
+    }
+    if (roles && Array.isArray(roles) && roles.length > 0) {
       await supabaseAdmin
         .from('company_members')
-        .update({ role })
+        .update({ roles })
         .eq('company_id', companyId)
         .eq('user_id', id);
 
       await supabaseAdmin.auth.admin.updateUserById(id, {
-        user_metadata: { role }
+        user_metadata: { roles }
       });
     }
 
@@ -324,7 +353,7 @@ export async function PUT(request: NextRequest) {
 // DELETE - ลบ/ระงับ user (Admin only)
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
 
     if (!isAuth) {
       return NextResponse.json(
@@ -338,7 +367,7 @@ export async function DELETE(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!isAdminRole(companyRole)) {
+    if (!isAdminRole(companyRoles)) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
         { status: 401 }

@@ -13,13 +13,13 @@ interface Company {
 
 interface CompanyMembership {
   company_id: string;
-  role: string;
+  roles: string[];
   company: Company;
 }
 
 interface CompanyContextType {
   currentCompany: Company | null;
-  companyRole: string | null;
+  companyRoles: string[];
   companies: CompanyMembership[];
   switchCompany: (companyId: string) => void;
   loading: boolean;
@@ -72,7 +72,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     <CompanyContext.Provider
       value={{
         currentCompany: currentMembership?.company || null,
-        companyRole: currentMembership?.role || null,
+        companyRoles: currentMembership?.roles || [],
         companies,
         switchCompany,
         loading: !initialized,

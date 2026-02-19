@@ -4,8 +4,8 @@ import { ensureValidToken, getShopInfo, ShopeeAccountRow } from '@/lib/shopee-ap
 
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !isAdminRole(companyRole)) {
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    if (!isAuth || !companyId || !isAdminRole(companyRoles)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -37,8 +37,8 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !isAdminRole(companyRole)) {
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    if (!isAuth || !companyId || !isAdminRole(companyRoles)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -74,8 +74,8 @@ export async function DELETE(request: NextRequest) {
 // PATCH - Refresh shop profile (name + logo)
 export async function PATCH(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRole } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !isAdminRole(companyRole)) {
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    if (!isAuth || !companyId || !isAdminRole(companyRoles)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

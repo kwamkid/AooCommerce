@@ -173,7 +173,8 @@ export default function OrdersPage() {
   };
 
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);  // initial full-page load
+  const [fetching, setFetching] = useState(false);  // background fetch (no UI flash)
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -236,12 +237,12 @@ export default function OrdersPage() {
     return () => document.removeEventListener('keydown', handleEsc);
   }, [statusUpdateModal.show]);
 
-  // Debounce search term (300ms delay)
+  // Debounce search term (500ms delay)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
       setCurrentPage(1); // Reset to page 1 when search changes
-    }, 300);
+    }, 500);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
@@ -260,7 +261,9 @@ export default function OrdersPage() {
 
   const fetchOrders = async () => {
     try {
-      setLoading(true);
+      // Use fetching (no UI flash) for subsequent loads; loading for initial
+      if (orders.length === 0) setLoading(true);
+      setFetching(true);
 
       // Build query params for server-side filtering
       const params = new URLSearchParams();
@@ -268,6 +271,7 @@ export default function OrdersPage() {
       params.set('limit', recordsPerPage.toString());
       params.set('sort_by', sortBy);
       params.set('sort_dir', sortDir);
+      params.set('source', 'exclude_pos');
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (paymentFilter !== 'all') params.set('payment_status', paymentFilter);
       if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
@@ -289,6 +293,7 @@ export default function OrdersPage() {
       setError('ไม่สามารถโหลดข้อมูลคำสั่งซื้อได้');
     } finally {
       setLoading(false);
+      setFetching(false);
     }
   };
 
@@ -528,6 +533,7 @@ export default function OrdersPage() {
   const endIndex = Math.min(startIndex + displayedOrders.length, totalOrders);
   const totalRecords = totalOrders;
 
+  // Only show full-page spinner on very first load
   if (authLoading || loading) {
     return (
       <Layout>
@@ -569,7 +575,11 @@ export default function OrdersPage() {
             {/* Row 1: Search + Date Range */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                {fetching ? (
+                  <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#F4511E] w-4 h-4 animate-spin" />
+                ) : (
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                )}
                 <input
                   type="text"
                   placeholder="ค้นหาเลขที่, ชื่อลูกค้า..."
@@ -650,7 +660,7 @@ export default function OrdersPage() {
         </div>
 
         {/* Orders Table */}
-        <div className="data-table-wrap">
+        <div className={`data-table-wrap transition-opacity duration-150 ${fetching ? 'opacity-60' : 'opacity-100'}`}>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="data-thead">
@@ -848,7 +858,7 @@ export default function OrdersPage() {
                                 >
                                   <Edit2 className="w-4 h-4" />
                                 </button>
-                                {(userProfile?.role === 'owner' || userProfile?.role === 'admin') && (
+                                {(userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('admin')) && (
                                   <button
                                     onClick={(e) => handleDeleteOrder(e, order)}
                                     className="text-red-600 hover:text-red-900 p-1"

@@ -19,13 +19,13 @@ export async function POST(request: NextRequest) {
     // Check permission
     const { data: membership } = await supabaseAdmin
       .from('company_members')
-      .select('role')
+      .select('roles')
       .eq('company_id', companyId)
       .eq('user_id', auth.userId)
       .eq('is_active', true)
       .single();
 
-    if (!membership || !['owner', 'admin'].includes(membership.role)) {
+    if (!membership || !(membership.roles as string[])?.some((r: string) => ['owner', 'admin'].includes(r))) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์อัพโหลดโลโก้' }, { status: 403 });
     }
 

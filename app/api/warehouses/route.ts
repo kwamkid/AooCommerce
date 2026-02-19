@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRole)) {
+    if (!isAdminRole(auth.companyRoles)) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
@@ -128,7 +128,7 @@ export async function PUT(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRole)) {
+    if (!isAdminRole(auth.companyRoles)) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
@@ -206,7 +206,7 @@ export async function DELETE(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRole)) {
+    if (!isAdminRole(auth.companyRoles)) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
