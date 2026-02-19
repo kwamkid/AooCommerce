@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { X, Camera, SwitchCamera, Loader2 } from 'lucide-react';
+import { X, Camera, SwitchCamera, Loader2, CheckCircle } from 'lucide-react';
 
 interface CameraScannerProps {
   onScan: (code: string) => void;
@@ -88,12 +88,12 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanningRef = useRef(false);
+  const pausedRef = useRef(false);
   const onScanRef = useRef(onScan);
-  const lastScannedRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
-  const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
+  const [scanSuccess, setScanSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     onScanRef.current = onScan;
@@ -153,23 +153,27 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
           let animFrameId: number;
           const scanLoop = async () => {
             if (cancelled || !scanningRef.current) return;
+            if (pausedRef.current) {
+              animFrameId = requestAnimationFrame(scanLoop);
+              return;
+            }
             try {
-              // Crop to scan guide region before detecting
               const { sx, sy, sw, sh } = getCropRegion(video);
               canvas.width = sw;
               canvas.height = sh;
               ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
               const barcodes = await detector.detect(canvas);
-              if (barcodes.length > 0 && !cancelled) {
+              if (barcodes.length > 0 && !cancelled && !pausedRef.current) {
                 const code = barcodes[0].rawValue;
-                const now = Date.now();
-                const last = lastScannedRef.current;
-                if (code !== last.code || now - last.time > 2000) {
-                  lastScannedRef.current = { code, time: now };
-                  setLastScannedCode(code);
-                  onScanRef.current(code);
-                }
+                // Pause detection, show success, then resume
+                pausedRef.current = true;
+                setScanSuccess(code);
+                onScanRef.current(code);
+                setTimeout(() => {
+                  setScanSuccess(null);
+                  pausedRef.current = false;
+                }, 1500);
               }
             } catch {
               // detect can throw if video not ready yet
@@ -185,27 +189,30 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
 
           const decodeFrame = async () => {
             if (cancelled || !scanningRef.current) return;
+            if (pausedRef.current) {
+              if (!cancelled && scanningRef.current) timerId = setTimeout(decodeFrame, 100);
+              return;
+            }
             try {
-              // Crop to scan guide region
               const { sx, sy, sw, sh } = getCropRegion(video);
               canvas.width = sw;
               canvas.height = sh;
               ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
-              // Convert to blob and scan
               const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', 0.8));
-              if (blob && !cancelled) {
+              if (blob && !cancelled && !pausedRef.current) {
                 const file = new File([blob], 'frame.jpg', { type: 'image/jpeg' });
                 try {
                   const result = await decoder.scanFile(file, false);
-                  if (result && !cancelled) {
-                    const now = Date.now();
-                    const last = lastScannedRef.current;
-                    if (result !== last.code || now - last.time > 2000) {
-                      lastScannedRef.current = { code: result, time: now };
-                      setLastScannedCode(result);
-                      onScanRef.current(result);
-                    }
+                  if (result && !cancelled && !pausedRef.current) {
+                    // Pause detection, show success, then resume
+                    pausedRef.current = true;
+                    setScanSuccess(result);
+                    onScanRef.current(result);
+                    setTimeout(() => {
+                      setScanSuccess(null);
+                      pausedRef.current = false;
+                    }, 1500);
                   }
                 } catch {
                   // No barcode found in this frame — normal
@@ -214,7 +221,6 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
             } catch {
               // Canvas/blob error — ignore
             }
-            // Scan at ~10 fps for iOS (balance between speed and CPU)
             if (!cancelled && scanningRef.current) {
               timerId = setTimeout(decodeFrame, 100);
             }
@@ -307,15 +313,27 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
             {/* Scan guide overlay */}
             {!loading && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div style={{ width: SCAN_BOX_W, height: SCAN_BOX_H }} className="border-2 border-white/60 rounded-lg" />
+                <div
+                  style={{ width: SCAN_BOX_W, height: SCAN_BOX_H }}
+                  className={`rounded-lg border-2 transition-colors duration-200 ${scanSuccess ? 'border-green-400' : 'border-white/60'}`}
+                />
               </div>
             )}
 
-            {!loading && (
-              <p className={`absolute bottom-8 left-0 right-0 text-xs text-center transition-colors ${lastScannedCode ? 'text-green-400' : 'text-gray-400'}`}>
-                {lastScannedCode
-                  ? `สแกนได้: ${lastScannedCode}`
-                  : 'เล็งกล้องไปที่บาร์โค้ด'}
+            {/* Scan success popup */}
+            {scanSuccess && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+                <div className="bg-black/70 backdrop-blur-sm rounded-2xl px-6 py-4 flex flex-col items-center gap-2 animate-fade-in">
+                  <CheckCircle className="w-10 h-10 text-green-400" />
+                  <p className="text-green-400 font-bold text-sm">สแกนสำเร็จ</p>
+                  <p className="text-white text-xs font-mono">{scanSuccess}</p>
+                </div>
+              </div>
+            )}
+
+            {!loading && !scanSuccess && (
+              <p className="absolute bottom-8 left-0 right-0 text-gray-400 text-xs text-center">
+                เล็งกล้องไปที่บาร์โค้ด
               </p>
             )}
           </>
