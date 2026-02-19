@@ -141,6 +141,55 @@ async function findExistingLink(accountId: string, itemId: number, modelId: numb
   return data;
 }
 
+// --- Category Name Lookup ---
+
+// Cache: accountId → Map<categoryId, fullPath>
+const categoryNameCache: Record<string, Map<number, string>> = {};
+
+async function getCategoryName(accountId: string, categoryId: number): Promise<string> {
+  if (!categoryId) return '';
+
+  // Check memory cache
+  if (categoryNameCache[accountId]?.has(categoryId)) {
+    return categoryNameCache[accountId].get(categoryId)!;
+  }
+
+  // Load from DB cache if not loaded yet
+  if (!categoryNameCache[accountId]) {
+    categoryNameCache[accountId] = new Map();
+    const { data: cache } = await supabaseAdmin
+      .from('shopee_category_cache')
+      .select('category_data')
+      .eq('account_id', accountId)
+      .single();
+
+    if (cache?.category_data) {
+      const categories = cache.category_data as Array<{
+        category_id: number;
+        parent_category_id: number;
+        display_category_name: string;
+      }>;
+
+      // Build a lookup map
+      const catMap = new Map(categories.map(c => [c.category_id, c]));
+
+      // Build full path for each category
+      for (const cat of categories) {
+        const path: string[] = [];
+        let current: typeof cat | undefined = cat;
+        while (current) {
+          path.unshift(current.display_category_name);
+          if (current.parent_category_id === 0) break;
+          current = catMap.get(current.parent_category_id);
+        }
+        categoryNameCache[accountId].set(cat.category_id, path.join(' > '));
+      }
+    }
+  }
+
+  return categoryNameCache[accountId].get(categoryId) || '';
+}
+
 async function createLink(params: {
   companyId: string;
   accountId: string;
@@ -156,6 +205,11 @@ async function createLink(params: {
   categoryId?: number;
   weight?: number;
 }) {
+  // Lookup category name from cache
+  const categoryName = params.categoryId
+    ? await getCategoryName(params.accountId, params.categoryId)
+    : '';
+
   await supabaseAdmin.from('marketplace_product_links').upsert({
     company_id: params.companyId,
     platform: 'shopee',
@@ -170,6 +224,7 @@ async function createLink(params: {
     platform_price: params.price || null,
     platform_primary_image: params.primaryImage || null,
     shopee_category_id: params.categoryId ? String(params.categoryId) : null,
+    shopee_category_name: categoryName || null,
     weight: params.weight || null,
     last_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

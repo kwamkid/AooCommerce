@@ -17,7 +17,8 @@ interface FBInitParams {
 
 interface FB {
   init(params: FBInitParams): void;
-  login(callback: (response: FBLoginResponse) => void, options?: { scope: string }): void;
+  login(callback: (response: FBLoginResponse) => void, options?: { scope: string; auth_type?: string }): void;
+  logout(callback?: () => void): void;
   getLoginStatus(callback: (response: FBLoginResponse) => void): void;
 }
 

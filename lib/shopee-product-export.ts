@@ -3,7 +3,9 @@ import {
   ensureValidToken,
   uploadImageByUrl,
   addItem,
+  initTierVariation,
   getShopeeLogistics,
+  getShopeeCategoryAttributes,
   ShopeeAccountRow,
   ShopeeCredentials,
 } from '@/lib/shopee-api';
@@ -69,6 +71,76 @@ async function getEnabledLogistics(creds: ShopeeCredentials): Promise<number[]> 
   return channels.filter(ch => ch.enabled).map(ch => ch.logistics_channel_id);
 }
 
+// --- Mandatory Attributes ---
+
+interface ShopeeAttributeValue {
+  value_id: number;
+  original_value_name: string;
+  display_value_name: string;
+}
+
+interface ShopeeAttribute {
+  attribute_id: number;
+  original_attribute_name: string;
+  display_attribute_name: string;
+  is_mandatory: boolean;
+  input_validation_type: string;
+  format_type: string;
+  input_type: string;
+  attribute_value_list?: ShopeeAttributeValue[];
+}
+
+/**
+ * Fetch mandatory attributes for a Shopee category and return default attribute_list.
+ * For dropdown/combo: use first available value.
+ * For free-text: use "N/A" or "-".
+ */
+async function getMandatoryAttributes(
+  creds: ShopeeCredentials,
+  categoryId: number
+): Promise<Array<{ attribute_id: number; attribute_value_list: Array<{ value_id: number; original_value_name: string }> }>> {
+  try {
+    const { data, error } = await getShopeeCategoryAttributes(creds, categoryId);
+    if (error || !data) {
+      console.error('[Shopee Export] Failed to get category attributes:', error);
+      return [];
+    }
+
+    const response = data as { attribute_list?: ShopeeAttribute[] };
+    const attributes = response.attribute_list || [];
+    const mandatoryAttrs = attributes.filter(a => a.is_mandatory);
+
+    console.log(`[Shopee Export] Category ${categoryId}: ${attributes.length} attributes, ${mandatoryAttrs.length} mandatory`);
+
+    const result: Array<{ attribute_id: number; attribute_value_list: Array<{ value_id: number; original_value_name: string }> }> = [];
+
+    for (const attr of mandatoryAttrs) {
+      const values = attr.attribute_value_list || [];
+
+      if (values.length > 0) {
+        // Has predefined values — pick the first one (often "No Brand", "N/A", etc.)
+        result.push({
+          attribute_id: attr.attribute_id,
+          attribute_value_list: [{ value_id: values[0].value_id, original_value_name: values[0].original_value_name }],
+        });
+        console.log(`[Shopee Export] Mandatory attr "${attr.original_attribute_name}" → "${values[0].original_value_name}" (value_id=${values[0].value_id})`);
+      } else {
+        // Free-text — use "N/A"
+        result.push({
+          attribute_id: attr.attribute_id,
+          attribute_value_list: [{ value_id: 0, original_value_name: 'N/A' }],
+        });
+        console.log(`[Shopee Export] Mandatory attr "${attr.original_attribute_name}" → "N/A" (free-text)`);
+      }
+    }
+
+    return result;
+  } catch (e) {
+    console.error('[Shopee Export] getMandatoryAttributes error:', e);
+    return [];
+  }
+}
+
 // --- Image Upload ---
 
 async function uploadProductImages(
@@ -113,6 +185,7 @@ interface ProductForExport {
     default_price: number;
     stock: number;
     attributes: Record<string, string> | null;
+    _isVirtual?: boolean; // true when no real variation row exists
   }[];
   images: string[];
 }
@@ -128,13 +201,50 @@ async function fetchProductForExport(productId: string, companyId: string): Prom
 
   if (!product) return null;
 
-  const { data: variations } = await supabaseAdmin
+  // Try with company_id first, then without (some old records may not have company_id on variations)
+  let { data: variations } = await supabaseAdmin
     .from('product_variations')
     .select('id, variation_label, sku, default_price, stock, attributes')
     .eq('product_id', productId)
     .eq('company_id', companyId)
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
+
+  console.log(`[Shopee Export] fetchProduct "${product.name}" (${productId}): variations with company_id=${variations?.length || 0}`);
+
+  if (!variations || variations.length === 0) {
+    // Retry without company_id filter (fallback for old data)
+    const { data: fallbackVariations } = await supabaseAdmin
+      .from('product_variations')
+      .select('id, variation_label, sku, default_price, stock, attributes')
+      .eq('product_id', productId)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+    variations = fallbackVariations;
+    console.log(`[Shopee Export] fetchProduct fallback (no company_id filter): variations=${variations?.length || 0}`);
+  }
+
+  if (!variations || variations.length === 0) {
+    // Last resort: query only by product_id (no is_active, no company_id filter)
+    const { data: allVariations } = await supabaseAdmin
+      .from('product_variations')
+      .select('id, variation_label, sku, default_price, stock, attributes, is_active, company_id')
+      .eq('product_id', productId);
+    console.log(`[Shopee Export] fetchProduct ALL variations (no filter):`, JSON.stringify(allVariations));
+    // Use any active variation found, or any variation at all
+    if (allVariations && allVariations.length > 0) {
+      const activeOnes = allVariations.filter(v => v.is_active);
+      variations = (activeOnes.length > 0 ? activeOnes : allVariations).map(v => ({
+        id: v.id,
+        variation_label: v.variation_label,
+        sku: v.sku,
+        default_price: v.default_price,
+        stock: v.stock,
+        attributes: v.attributes,
+      }));
+      console.log(`[Shopee Export] fetchProduct using ALL fallback: ${variations.length} variations`);
+    }
+  }
 
   const { data: images } = await supabaseAdmin
     .from('product_images')
@@ -149,15 +259,54 @@ async function fetchProductForExport(productId: string, companyId: string): Prom
     imageUrls.push(product.image);
   }
 
+  // If still no variations, create a virtual one from product info (simple product without variation row)
+  let finalVariations;
+  if (variations && variations.length > 0) {
+    finalVariations = variations.map(v => ({
+      ...v,
+      attributes: v.attributes as Record<string, string> | null,
+    }));
+  } else {
+    // Try to get price from marketplace link (from order sync)
+    let fallbackPrice = 0;
+    const { data: link } = await supabaseAdmin
+      .from('marketplace_product_links')
+      .select('platform_price')
+      .eq('product_id', productId)
+      .not('platform_price', 'is', null)
+      .limit(1)
+      .single();
+    if (link?.platform_price) {
+      fallbackPrice = link.platform_price;
+    }
+
+    finalVariations = [{
+      id: product.id,
+      variation_label: product.variation_label || product.name,
+      sku: product.code || null,
+      default_price: fallbackPrice,
+      stock: 0,
+      attributes: null as Record<string, string> | null,
+      _isVirtual: true,
+    }];
+  }
+
   return {
     ...product,
     description: product.description || product.name,
-    variations: (variations || []).map(v => ({
-      ...v,
-      attributes: v.attributes as Record<string, string> | null,
-    })),
+    variations: finalVariations,
     images: imageUrls,
   };
+}
+
+// --- Determine product type ---
+
+function isSimpleProduct(product: ProductForExport): boolean {
+  // Simple: has variation_label set (single SKU) OR only 1 variation without attributes
+  if (product.variation_label !== null) return true;
+  if (product.variations.length <= 1) return true;
+  // If all variations have no attributes, treat as simple (use first variation)
+  return product.variations.every(v => !v.attributes || Object.keys(v.attributes).length === 0);
 }
 
 // --- Build Shopee Item Payload ---
@@ -166,18 +315,22 @@ function buildAddItemPayload(
   product: ProductForExport,
   options: ExportOptions,
   imageIds: string[],
-  logisticsIds: number[]
+  logisticsIds: number[],
+  simple: boolean,
+  attributeList?: Array<{ attribute_id: number; attribute_value_list: Array<{ value_id: number; original_value_name: string }> }>
 ): Record<string, unknown> {
-  const isSimple = product.variation_label !== null;
   const weight = options.weight || 0.5;
+  const firstVariation = product.variations[0];
+
+  const stock = simple ? (firstVariation?.stock || 0) : 0;
+
+  const price = Math.max(firstVariation?.default_price || 0, 1); // Shopee minimum price = 1
 
   const payload: Record<string, unknown> = {
-    original_price: isSimple
-      ? product.variations[0]?.default_price || 0
-      : product.variations[0]?.default_price || 0,
+    original_price: price,
     description: product.description || product.name,
     item_name: product.name.substring(0, 120), // Shopee limit 120 chars
-    normal_stock: isSimple ? (product.variations[0]?.stock || 0) : 0,
+    seller_stock: [{ stock }],   // Shopee API v2 format
     logistic_info: logisticsIds.map(id => ({
       logistic_id: id,
       enabled: true,
@@ -194,11 +347,20 @@ function buildAddItemPayload(
       package_height: 10,
     },
     condition: 'NEW',
+    brand: {
+      brand_id: 0,           // 0 = "No Brand" on Shopee
+      original_brand_name: '',
+    },
   };
 
+  // Add mandatory category attributes
+  if (attributeList && attributeList.length > 0) {
+    payload.attribute_list = attributeList;
+  }
+
   // Add item SKU if simple product
-  if (isSimple && product.variations[0]?.sku) {
-    payload.item_sku = product.variations[0].sku;
+  if (simple && firstVariation?.sku) {
+    payload.item_sku = firstVariation.sku;
   }
 
   return payload;
@@ -275,8 +437,15 @@ export async function exportProductToShopee(
       product_name: product.name,
     });
 
-    // 4. Build and send payload
-    const payload = buildAddItemPayload(product, options, imageIds, logisticsIds);
+    // 4. Determine simple vs variation
+    const simple = isSimpleProduct(product);
+    console.log(`[Shopee Export] "${product.name}" — ${simple ? 'simple' : 'variation'} product, ${product.variations.length} variations`);
+
+    // 4.5 Fetch mandatory attributes for the category
+    const attributeList = await getMandatoryAttributes(creds, options.shopee_category_id);
+
+    // 5. Build and send add_item payload
+    const payload = buildAddItemPayload(product, options, imageIds, logisticsIds, simple, attributeList);
     const { data, error } = await addItem(creds, payload);
 
     if (error) {
@@ -290,27 +459,123 @@ export async function exportProductToShopee(
       return { success: false, error: 'ไม่ได้รับ item_id จาก Shopee', product_name: product.name };
     }
 
-    // 5. Create marketplace link
-    await supabaseAdmin.from('marketplace_product_links').upsert({
-      company_id: companyId,
-      platform: 'shopee',
-      account_id: account.id,
-      account_name: account.shop_name || '',
-      product_id: product.id,
-      variation_id: product.variations[0]?.id || null,
-      external_item_id: String(itemId),
-      external_model_id: '0',
-      external_sku: product.variations[0]?.sku || '',
-      external_item_status: 'NORMAL',
-      platform_price: product.variations[0]?.default_price || null,
-      shopee_category_id: options.shopee_category_id,
-      shopee_category_name: options.shopee_category_name || null,
-      weight: options.weight || 0.5,
-      last_synced_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'account_id,external_item_id,external_model_id' });
+    // 6. For variation products: call init_tier_variation
+    if (!simple && product.variations.length > 1) {
+      // Build tier variations from variation attributes
+      // e.g. variations with attributes { "สี": "แดง", "ขนาด": "S" } → tier_variation: [{ name: "สี", ... }, { name: "ขนาด", ... }]
+      const tierNames: string[] = [];
+      const tierOptionsMap: Map<string, string[]> = new Map();
 
-    console.log(`[Shopee Export] Successfully exported "${product.name}" → item_id=${itemId}`);
+      for (const v of product.variations) {
+        if (v.attributes) {
+          for (const [key, value] of Object.entries(v.attributes)) {
+            if (!tierOptionsMap.has(key)) {
+              tierNames.push(key);
+              tierOptionsMap.set(key, []);
+            }
+            const options = tierOptionsMap.get(key)!;
+            if (!options.includes(value)) {
+              options.push(value);
+            }
+          }
+        }
+      }
+
+      if (tierNames.length > 0) {
+        const tierVariation = tierNames.map(name => ({
+          name,
+          option_list: (tierOptionsMap.get(name) || []).map(opt => ({ option: opt })),
+        }));
+
+        // Build model list — each model maps to a combination of tier options
+        const models = product.variations.map(v => {
+          const tierIndex = tierNames.map(name => {
+            const value = v.attributes?.[name] || '';
+            const options = tierOptionsMap.get(name) || [];
+            return options.indexOf(value);
+          });
+          return {
+            tier_index: tierIndex,
+            normal_stock: v.stock || 0,
+            original_price: v.default_price || 0,
+            model_sku: v.sku || undefined,
+          };
+        });
+
+        const { error: tierError } = await initTierVariation(creds, itemId, tierVariation, models);
+        if (tierError) {
+          console.error(`[Shopee Export] init_tier_variation error:`, tierError);
+          // Don't fail the whole export — item is already created, just without variations
+        } else {
+          console.log(`[Shopee Export] init_tier_variation success for item ${itemId}: ${tierNames.join(', ')}`);
+        }
+      }
+    }
+
+    // 7. Create marketplace link(s)
+    if (simple) {
+      const firstVar = product.variations[0];
+      // Use null for variation_id if virtual (no real row in product_variations)
+      const variationId = firstVar?._isVirtual ? null : (firstVar?.id || null);
+      const linkData = {
+        company_id: companyId,
+        platform: 'shopee',
+        account_id: account.id,
+        account_name: account.shop_name || '',
+        product_id: product.id,
+        variation_id: variationId,
+        external_item_id: String(itemId),
+        external_model_id: '0',
+        external_sku: firstVar?.sku || '',
+        external_item_status: 'NORMAL',
+        platform_price: firstVar?.default_price || null,
+        shopee_category_id: options.shopee_category_id,
+        shopee_category_name: options.shopee_category_name || null,
+        weight: options.weight || 0.5,
+        last_synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      console.log(`[Shopee Export] Creating marketplace link:`, JSON.stringify(linkData));
+      const { error: linkError } = await supabaseAdmin
+        .from('marketplace_product_links')
+        .upsert(linkData, { onConflict: 'account_id,external_item_id,external_model_id' });
+      if (linkError) {
+        console.error(`[Shopee Export] Failed to create marketplace link:`, linkError);
+      }
+    } else {
+      // Variation product: one link per variation (model_id=0 for now, will be updated on next sync)
+      for (let i = 0; i < product.variations.length; i++) {
+        const v = product.variations[i];
+        const variationId = v._isVirtual ? null : (v.id || null);
+        const linkData = {
+          company_id: companyId,
+          platform: 'shopee',
+          account_id: account.id,
+          account_name: account.shop_name || '',
+          product_id: product.id,
+          variation_id: variationId,
+          external_item_id: String(itemId),
+          external_model_id: String(i), // temporary index, updated on next product sync
+          external_sku: v.sku || '',
+          external_item_status: 'NORMAL',
+          platform_price: v.default_price || null,
+          shopee_category_id: options.shopee_category_id,
+          shopee_category_name: options.shopee_category_name || null,
+          weight: options.weight || 0.5,
+          last_synced_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        console.log(`[Shopee Export] Creating marketplace link (var ${i}):`, JSON.stringify(linkData));
+        const { error: linkError } = await supabaseAdmin
+          .from('marketplace_product_links')
+          .upsert(linkData, { onConflict: 'account_id,external_item_id,external_model_id' });
+        if (linkError) {
+          console.error(`[Shopee Export] Failed to create marketplace link (var ${i}):`, linkError);
+        }
+      }
+    }
+
+    console.log(`[Shopee Export] Successfully exported "${product.name}" → item_id=${itemId} (${simple ? 'simple' : 'variation'})`);
 
     return { success: true, item_id: itemId, product_name: product.name };
   } catch (e) {

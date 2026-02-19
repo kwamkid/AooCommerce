@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
         };
 
+        console.log(`[Shopee Export API] Starting export: ${product_ids.length} products to account ${shopee_account_id}`);
         send({ type: 'started', total: product_ids.length });
 
         try {
@@ -105,10 +106,14 @@ export async function POST(request: NextRequest) {
             product_ids,
             companyId,
             sharedOptions,
-            (event) => send({ type: 'progress', ...event }),
+            (event) => {
+              console.log(`[Shopee Export API] Progress:`, JSON.stringify(event).substring(0, 500));
+              send({ type: 'progress', ...event });
+            },
             perProductOpts
           );
 
+          console.log(`[Shopee Export API] Done: success=${result.success_count} error=${result.error_count}`, result.results.map(r => ({ success: r.success, error: r.error, name: r.product_name })));
           send({
             type: 'done',
             success: true,

@@ -9,10 +9,18 @@ import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Eye, EyeOff, ExternalLink, Copy, Check, X,
   ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap, Plus,
-  MessageCircle, Trash2, Edit2, Facebook, LogIn, Search
+  Trash2, Edit2, LogIn, Search
 } from 'lucide-react';
+import Image from 'next/image';
 
 const FB_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '';
+
+function FbIcon({ size = 16 }: { size?: number }) {
+  return <Image src="/social/facebook.svg" alt="Facebook" width={size} height={size} />;
+}
+function LineIcon({ size = 16 }: { size?: number }) {
+  return <Image src="/social/line_oa.svg" alt="LINE" width={size} height={size} />;
+}
 
 interface FbPage {
   id: string;
@@ -69,7 +77,6 @@ const PLATFORM_CONFIG = {
   line: {
     label: 'LINE',
     color: '#06C755',
-    icon: MessageCircle,
     fields: [
       { key: 'channel_secret', label: 'Channel Secret', placeholder: 'วาง Channel Secret ที่นี่' },
       { key: 'channel_access_token', label: 'Channel Access Token', placeholder: 'วาง Channel Access Token ที่นี่' },
@@ -78,7 +85,6 @@ const PLATFORM_CONFIG = {
   facebook: {
     label: 'Facebook / IG',
     color: '#1877F2',
-    icon: Facebook,
     fields: [
       { key: 'page_access_token', label: 'Page Access Token', placeholder: 'วาง Page Access Token ที่นี่' },
     ],
@@ -91,7 +97,18 @@ export default function ChatChannelsPage() {
 
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<ChatAccount[]>([]);
-  const [activeTab, setActiveTab] = useState<'line' | 'facebook'>('line');
+  const [activeTab, setActiveTabState] = useState<'line' | 'facebook'>('line');
+
+  // Read hash on mount
+  useEffect(() => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash === 'facebook') setActiveTabState('facebook');
+  }, []);
+
+  const setActiveTab = (tab: 'line' | 'facebook') => {
+    setActiveTabState(tab);
+    window.location.hash = tab === 'line' ? '' : tab;
+  };
 
   // Inline form state
   const [showForm, setShowForm] = useState(false);
@@ -124,7 +141,7 @@ export default function ChatChannelsPage() {
   // FB OAuth state
   const [fbMode, setFbMode] = useState<'oauth' | 'manual'>(FB_APP_ID ? 'oauth' : 'manual');
   const [fbPages, setFbPages] = useState<FbPage[]>([]);
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
   const [fbLoading, setFbLoading] = useState(false);
   const [fbSdkReady, setFbSdkReady] = useState(false);
   const [fbSavingPage, setFbSavingPage] = useState(false);
@@ -189,20 +206,34 @@ export default function ChatChannelsPage() {
       return;
     }
 
-    window.FB.login((response) => {
-      if (response.status !== 'connected' || !response.authResponse) {
-        showToast('ไม่ได้รับสิทธิ์จาก Facebook', 'error');
-        return;
+    const doLogin = () => {
+      window.FB.login((response) => {
+        if (response.status !== 'connected' || !response.authResponse) {
+          showToast('ไม่ได้รับสิทธิ์จาก Facebook', 'error');
+          return;
+        }
+        exchangeFbToken(response.authResponse.accessToken);
+      }, {
+        scope: 'pages_show_list,pages_messaging,pages_read_engagement,instagram_manage_messages',
+        auth_type: 'reauthorize',
+      });
+    };
+
+    // Logout first to avoid "overriding current access token" warning
+    window.FB.getLoginStatus((statusResponse) => {
+      if (statusResponse.status === 'connected') {
+        window.FB.logout(() => doLogin());
+      } else {
+        doLogin();
       }
-      exchangeFbToken(response.authResponse.accessToken);
-    }, { scope: 'pages_show_list,pages_messaging,pages_read_engagement,instagram_manage_messages' });
+    });
   }, [fbSdkReady, showToast]);
 
   // Exchange FB token and fetch pages
   const exchangeFbToken = async (accessToken: string) => {
     setFbLoading(true);
     setFbPages([]);
-    setSelectedPageId(null);
+    setSelectedPageIds(new Set());
 
     try {
       const res = await apiFetch('/api/fb/oauth/exchange-token', {
@@ -226,59 +257,68 @@ export default function ChatChannelsPage() {
     }
   };
 
-  // Save selected FB page as a chat account
-  const handleSaveFbPage = async (page: FbPage) => {
+  // Save selected FB pages as chat accounts
+  const handleSaveFbPages = async (pages: FbPage[]) => {
     setFbSavingPage(true);
-    try {
-      const response = await apiFetch('/api/chat-accounts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform: 'facebook',
-          account_name: page.name,
-          credentials: {
-            page_access_token: page.access_token,
-            page_id: page.id,
-            page_name: page.name,
-            ...(page.picture_url ? { page_picture_url: page.picture_url } : {}),
-            ...(page.instagram ? {
-              ig_account_id: page.instagram.id,
-              ig_username: page.instagram.name,
-              ig_profile_picture_url: page.instagram.profile_picture_url,
-            } : {}),
-          },
-        }),
-      });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to create');
-      }
+    let successCount = 0;
+    let failCount = 0;
 
-      // Auto-subscribe webhook for this page
+    for (const page of pages) {
       try {
-        await apiFetch('/api/fb/oauth/subscribe-webhook', {
+        const response = await apiFetch('/api/chat-accounts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            pageId: page.id,
-            pageAccessToken: page.access_token,
+            platform: 'facebook',
+            account_name: page.name,
+            credentials: {
+              page_access_token: page.access_token,
+              page_id: page.id,
+              page_name: page.name,
+              ...(page.picture_url ? { page_picture_url: page.picture_url } : {}),
+              ...(page.instagram ? {
+                ig_account_id: page.instagram.id,
+                ig_username: page.instagram.name,
+                ig_profile_picture_url: page.instagram.profile_picture_url,
+              } : {}),
+            },
           }),
         });
-      } catch {
-        // Non-critical: webhook can be set up manually later
-        console.warn('Auto webhook subscribe failed, can be set up manually');
-      }
+        if (!response.ok) {
+          failCount++;
+          continue;
+        }
 
-      showToast(`เชื่อมต่อ ${page.name} สำเร็จ`);
-      setFbPages([]);
-      setSelectedPageId(null);
-      await fetchAccounts();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ';
-      showToast(msg, 'error');
-    } finally {
-      setFbSavingPage(false);
+        // Auto-subscribe webhook for this page
+        try {
+          await apiFetch('/api/fb/oauth/subscribe-webhook', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              pageId: page.id,
+              pageAccessToken: page.access_token,
+            }),
+          });
+        } catch {
+          console.warn(`Auto webhook subscribe failed for ${page.name}`);
+        }
+
+        successCount++;
+      } catch {
+        failCount++;
+      }
     }
+
+    if (successCount > 0) {
+      showToast(`เชื่อมต่อสำเร็จ ${successCount} Page${failCount > 0 ? `, ไม่สำเร็จ ${failCount}` : ''}`);
+    } else {
+      showToast('เชื่อมต่อไม่สำเร็จ', 'error');
+    }
+
+    setFbPages([]);
+    setSelectedPageIds(new Set());
+    await fetchAccounts();
+    setFbSavingPage(false);
   };
 
   // Reset form
@@ -290,7 +330,7 @@ export default function ChatChannelsPage() {
     setEditingId(null);
     setFormGuideOpen(false);
     setFbPages([]);
-    setSelectedPageId(null);
+    setSelectedPageIds(new Set());
     setFbSearch('');
     setFbMode(FB_APP_ID ? 'oauth' : 'manual');
   };
@@ -471,7 +511,7 @@ export default function ChatChannelsPage() {
     return (
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-4">
         <div className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
-          <Facebook className="w-4 h-4" style={{ color: '#1877F2' }} />
+          <FbIcon size={16} />
           เพิ่ม Facebook / IG Account
         </div>
 
@@ -496,62 +536,87 @@ export default function ChatChannelsPage() {
 
             {/* Page list */}
             <div className="max-h-80 overflow-y-auto space-y-1">
-              {fbPages
-                .filter(p => !fbSearch || p.name.toLowerCase().includes(fbSearch.toLowerCase()) || p.id.includes(fbSearch))
-                .map(page => (
+              {(() => {
+                const connectedPageIds = new Set(
+                  fbAccounts.map(a => a.credentials.page_id as string).filter(Boolean)
+                );
+                return fbPages
+                  .filter(p => !fbSearch || p.name.toLowerCase().includes(fbSearch.toLowerCase()) || p.id.includes(fbSearch))
+                  .map(page => {
+                    const isConnected = connectedPageIds.has(page.id);
+                    return (
                 <button
                   key={page.id}
-                  onClick={() => setSelectedPageId(page.id)}
+                  onClick={() => {
+                    if (isConnected) return;
+                    setSelectedPageIds(prev => {
+                      const next = new Set(prev);
+                      if (next.has(page.id)) next.delete(page.id);
+                      else next.add(page.id);
+                      return next;
+                    });
+                  }}
+                  disabled={isConnected}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${
-                    selectedPageId === page.id
-                      ? 'bg-[#1877F2]/10'
-                      : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
+                    isConnected
+                      ? 'opacity-50 cursor-not-allowed'
+                      : selectedPageIds.has(page.id)
+                        ? 'bg-orange-50 dark:bg-orange-900/30'
+                        : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
                   }`}
                 >
                   <div className="relative flex-shrink-0">
                     {page.picture_url ? (
-                      <img src={page.picture_url} alt={page.name} className="w-9 h-9 rounded-full" />
+                      <img src={page.picture_url} alt={page.name} className={`w-9 h-9 rounded-full ${isConnected ? 'grayscale' : ''}`} />
                     ) : (
                       <div className="w-9 h-9 rounded-full bg-[#1877F2]/10 flex items-center justify-center">
-                        <Facebook className="w-4 h-4 text-[#1877F2]" />
+                        <FbIcon size={16} />
                       </div>
                     )}
                     {page.instagram && (
                       <img
                         src={page.instagram.profile_picture_url}
                         alt={page.instagram.name}
-                        className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white dark:border-slate-800"
+                        className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white dark:border-slate-800 ${isConnected ? 'grayscale' : ''}`}
                       />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{page.name}</p>
+                    <p className={`text-sm font-medium truncate ${isConnected ? 'text-gray-400 dark:text-slate-500' : 'text-gray-900 dark:text-white'}`}>{page.name}</p>
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs text-gray-400 dark:text-slate-500">{page.id}</span>
                       {page.instagram && (
-                        <span className="text-xs text-pink-500">• IG @{page.instagram.name}</span>
+                        <span className={`text-xs ${isConnected ? 'text-gray-400 dark:text-slate-500' : 'text-pink-500'}`}>• IG @{page.instagram.name}</span>
                       )}
                     </div>
                   </div>
-                  {selectedPageId === page.id && (
-                    <CheckCircle2 className="w-5 h-5 text-[#1877F2] flex-shrink-0" />
+                  {isConnected ? (
+                    <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0 whitespace-nowrap">เชื่อมต่อแล้ว</span>
+                  ) : selectedPageIds.has(page.id) ? (
+                    <div className="w-6 h-6 rounded-full bg-[#F4511E] flex items-center justify-center flex-shrink-0">
+                      <Check className="w-4 h-4 text-white" />
+                    </div>
+                  ) : (
+                    <div className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-slate-600 flex-shrink-0" />
                   )}
                 </button>
-              ))}
+                    );
+                  });
+              })()}
             </div>
 
             {/* Connect / Cancel */}
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => {
-                  const page = fbPages.find(p => p.id === selectedPageId);
-                  if (page) handleSaveFbPage(page);
+                  const pages = fbPages.filter(p => selectedPageIds.has(p.id));
+                  if (pages.length > 0) handleSaveFbPages(pages);
                 }}
-                disabled={!selectedPageId || fbSavingPage}
+                disabled={selectedPageIds.size === 0 || fbSavingPage}
                 className="px-4 py-2 bg-[#1877F2] hover:bg-[#1565C0] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {fbSavingPage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                เชื่อมต่อ Page นี้
+                {fbSavingPage ? 'กำลังเชื่อมต่อ...' : `เชื่อมต่อ ${selectedPageIds.size > 0 ? selectedPageIds.size + ' ' : ''}Page`}
               </button>
               <button
                 onClick={resetForm}
@@ -611,9 +676,9 @@ export default function ChatChannelsPage() {
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
         <div className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
           {formPlatform === 'line' ? (
-            <MessageCircle className="w-4 h-4" style={{ color: formConfig.color }} />
+            <LineIcon size={16} />
           ) : (
-            <Facebook className="w-4 h-4" style={{ color: formConfig.color }} />
+            <FbIcon size={16} />
           )}
           {editingId ? 'แก้ไข' : 'เพิ่ม'} {formConfig.label} Account
         </div>
@@ -761,7 +826,7 @@ export default function ChatChannelsPage() {
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
-            <MessageCircle className="w-4 h-4" />
+            <LineIcon size={16} />
             LINE
             {lineAccounts.length > 0 && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full ${
@@ -777,7 +842,7 @@ export default function ChatChannelsPage() {
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
-            <Facebook className="w-4 h-4" />
+            <FbIcon size={16} />
             FB / IG
             {fbAccounts.length > 0 && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full ${
@@ -880,9 +945,9 @@ export default function ChatChannelsPage() {
             ) : (
               <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${config.color}15` }}>
                 {account.platform === 'line' ? (
-                  <MessageCircle className="w-5 h-5" style={{ color: config.color }} />
+                  <LineIcon size={20} />
                 ) : (
-                  <Facebook className="w-5 h-5" style={{ color: config.color }} />
+                  <FbIcon size={20} />
                 )}
               </div>
             )}

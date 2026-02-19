@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
@@ -12,6 +12,7 @@ import {
   Plus, Trash2, Upload
 } from 'lucide-react';
 import ShopeeBulkExportModal from '@/components/shopee/ShopeeBulkExportModal';
+import LoadingOverlay from '@/components/ui/LoadingOverlay';
 
 interface ShopeeAccount {
   id: string;
@@ -45,6 +46,7 @@ export default function IntegrationsPage() {
   const [productSyncPhaseLabel, setProductSyncPhaseLabel] = useState('');
   const [bulkExportAccountId, setBulkExportAccountId] = useState<string | null>(null);
   const [bulkExportAccountName, setBulkExportAccountName] = useState<string>('');
+  const syncAbortRef = useRef<AbortController | null>(null);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -102,32 +104,49 @@ export default function IntegrationsPage() {
   // Helper: read SSE stream from fetch response
   const readSSEStream = async (
     response: Response,
-    onEvent: (event: Record<string, unknown>) => void
+    onEvent: (event: Record<string, unknown>) => void,
+    signal?: AbortSignal
   ) => {
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            onEvent(JSON.parse(line.slice(6)));
-          } catch { /* skip malformed */ }
+    try {
+      while (true) {
+        if (signal?.aborted) {
+          await reader.cancel();
+          break;
+        }
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              onEvent(JSON.parse(line.slice(6)));
+            } catch { /* skip malformed */ }
+          }
         }
       }
+    } catch (e) {
+      if (signal?.aborted) return; // cancelled by user
+      throw e;
     }
+  };
+
+  const handleCancelSync = () => {
+    if (!confirm('ต้องการยกเลิกการ sync?')) return;
+    syncAbortRef.current?.abort();
   };
 
   const handleSync = async (accountId: string) => {
     setSyncingId(accountId);
     setSyncProgress(0);
     setSyncPhaseLabel('กำลังเชื่อมต่อ...');
+    const controller = new AbortController();
+    syncAbortRef.current = controller;
 
     const days = syncRange[accountId] || 1;
     const now = Math.floor(Date.now() / 1000);
@@ -156,7 +175,6 @@ export default function IntegrationsPage() {
           setSyncPhaseLabel(label);
 
           if (phase === 'collecting') {
-            // Indeterminate: oscillate 5-15%
             setSyncProgress(Math.min(5 + (current % 10), 15));
           } else if (phase === 'processing' && total) {
             setSyncProgress(Math.round((current / total) * 80) + 15);
@@ -168,7 +186,12 @@ export default function IntegrationsPage() {
         } else if (event.type === 'error') {
           showToast((event.message as string) || 'Sync ไม่สำเร็จ', 'error');
         }
-      });
+      }, controller.signal);
+
+      if (controller.signal.aborted) {
+        showToast('ยกเลิกการ sync แล้ว', 'error');
+        return;
+      }
 
       // Brief pause to show 100%
       await new Promise(r => setTimeout(r, 500));
@@ -182,8 +205,11 @@ export default function IntegrationsPage() {
         fetchAccounts();
       }
     } catch {
-      showToast('เกิดข้อผิดพลาดในการ sync', 'error');
+      if (!controller.signal.aborted) {
+        showToast('เกิดข้อผิดพลาดในการ sync', 'error');
+      }
     } finally {
+      syncAbortRef.current = null;
       setSyncingId(null);
       setSyncProgress(0);
       setSyncPhaseLabel('');
@@ -235,6 +261,8 @@ export default function IntegrationsPage() {
     setProductSyncingId(accountId);
     setProductSyncProgress(0);
     setProductSyncPhaseLabel('กำลังเชื่อมต่อ...');
+    const controller = new AbortController();
+    syncAbortRef.current = controller;
 
     try {
       const res = await apiFetch('/api/shopee/products/sync', {
@@ -245,7 +273,7 @@ export default function IntegrationsPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        showToast(data.error || 'Sync สินค้าไม่สำเร็จ', 'error');
+        showToast(data.error || 'ดูดสินค้าจาก Shopee ไม่สำเร็จ', 'error');
         return;
       }
 
@@ -269,9 +297,14 @@ export default function IntegrationsPage() {
           setProductSyncProgress(100);
           setProductSyncPhaseLabel('เสร็จสิ้น');
         } else if (event.type === 'error') {
-          showToast((event.message as string) || 'Sync สินค้าไม่สำเร็จ', 'error');
+          showToast((event.message as string) || 'ดูดสินค้าจาก Shopee ไม่สำเร็จ', 'error');
         }
-      });
+      }, controller.signal);
+
+      if (controller.signal.aborted) {
+        showToast('ยกเลิกการดูดสินค้าแล้ว', 'error');
+        return;
+      }
 
       await new Promise(r => setTimeout(r, 500));
 
@@ -282,12 +315,15 @@ export default function IntegrationsPage() {
         if ((result.links_created as number) > 0) parts.push(`เชื่อมโยง ${result.links_created}`);
         if ((result.products_skipped as number) > 0) parts.push(`ข้าม ${result.products_skipped}`);
         const summary = parts.length > 0 ? parts.join(', ') : 'ไม่มีข้อมูลใหม่';
-        showToast(`Sync สินค้าสำเร็จ: ${summary}`, 'success');
+        showToast(`ดูดสินค้าจาก Shopee สำเร็จ: ${summary}`, 'success');
         fetchAccounts();
       }
     } catch {
-      showToast('เกิดข้อผิดพลาดในการ sync สินค้า', 'error');
+      if (!controller.signal.aborted) {
+        showToast('เกิดข้อผิดพลาดในการดูดสินค้าจาก Shopee', 'error');
+      }
     } finally {
+      syncAbortRef.current = null;
       setProductSyncingId(null);
       setProductSyncProgress(0);
       setProductSyncPhaseLabel('');
@@ -441,46 +477,6 @@ export default function IntegrationsPage() {
                     </div>
                   </div>
 
-                  {/* Sync Progress Bar */}
-                  {isSyncing && (
-                    <div className="px-4 pb-2 space-y-1.5">
-                      <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md px-2.5 py-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>กรุณาอย่าเปลี่ยนหน้า หรือ refresh ขณะกำลัง sync</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400">
-                        <span>{syncPhaseLabel || 'กำลัง Sync ออเดอร์...'}</span>
-                        <span>{syncProgress}%</span>
-                      </div>
-                      <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-[#EE4D2D] rounded-full transition-all duration-300 ease-out"
-                          style={{ width: `${syncProgress}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Product Sync Progress Bar */}
-                  {isProductSyncing && (
-                    <div className="px-4 pb-2 space-y-1.5">
-                      <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md px-2.5 py-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>กรุณาอย่าเปลี่ยนหน้า หรือ refresh ขณะกำลัง sync</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400">
-                        <span>{productSyncPhaseLabel || 'กำลัง Sync สินค้า...'}</span>
-                        <span>{productSyncProgress}%</span>
-                      </div>
-                      <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-green-500 rounded-full transition-all duration-300 ease-out"
-                          style={{ width: `${productSyncProgress}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
                   {/* Expanded Section */}
                   {isExpanded && (
                     <div className="px-4 pb-4 space-y-3 border-t border-gray-100 dark:border-slate-700 pt-3">
@@ -491,7 +487,7 @@ export default function IntegrationsPage() {
                           <Clock className="w-3 h-3" />
                           Sync ล่าสุด: {formatDate(account.last_sync_at)}
                         </span>
-                        <span>Sync สินค้าล่าสุด: {formatDate(account.last_product_sync_at)}</span>
+                        <span>ดูดสินค้าล่าสุด: {formatDate(account.last_product_sync_at)}</span>
                         <span>เชื่อมต่อเมื่อ: {formatDate(account.created_at)}</span>
                       </div>
 
@@ -522,7 +518,7 @@ export default function IntegrationsPage() {
                           className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
                         >
                           <ShoppingBag className={`w-4 h-4 ${isProductSyncing ? 'animate-pulse' : ''}`} />
-                          {isProductSyncing ? 'กำลัง Sync...' : 'Sync สินค้า'}
+                          {isProductSyncing ? 'กำลังดูด...' : 'ดูดสินค้า'}
                         </button>
                         <button
                           onClick={() => {
@@ -573,6 +569,15 @@ export default function IntegrationsPage() {
         onClose={() => { setBulkExportAccountId(null); setBulkExportAccountName(''); }}
         accountId={bulkExportAccountId || ''}
         accountName={bulkExportAccountName}
+      />
+
+      {/* Loading Overlay for sync operations */}
+      <LoadingOverlay
+        isOpen={!!syncingId || !!productSyncingId}
+        title={productSyncingId ? 'กำลังดูดสินค้าจาก Shopee...' : 'กำลัง Sync คำสั่งซื้อ...'}
+        message={productSyncingId ? productSyncPhaseLabel : syncPhaseLabel}
+        progress={productSyncingId ? productSyncProgress : syncProgress}
+        onCancel={handleCancelSync}
       />
     </Layout>
   );

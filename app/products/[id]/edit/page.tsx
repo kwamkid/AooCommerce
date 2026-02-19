@@ -347,27 +347,7 @@ export default function EditProductPage() {
 
   // Cancel all changes — reset to original values from marketplaceLinks
   const handleCancelChanges = () => {
-    const prices: Record<string, string> = {};
-    const discounts: Record<string, string> = {};
-    const barcodes: Record<string, string> = {};
-    const catIds: Record<string, number | null> = {};
-    const catNames: Record<string, string> = {};
-    const weights: Record<string, string> = {};
-    marketplaceLinks.forEach((l) => {
-      prices[l.id] = l.platform_price?.toString() || '';
-      discounts[l.id] = l.platform_discount_price?.toString() || '';
-      barcodes[l.id] = l.platform_barcode || '';
-      catIds[l.id] = l.shopee_category_id;
-      catNames[l.id] = l.shopee_category_name || '';
-      weights[l.id] = l.weight?.toString() || '';
-    });
-    setPriceValues(prices);
-    setDiscountValues(discounts);
-    setBarcodeValues(barcodes);
-    setCategoryIdValues(catIds);
-    setCategoryNameValues(catNames);
-    setWeightValues(weights);
-    setDirtyLinks(new Set());
+    router.push('/products');
   };
 
   // Save all dirty links
@@ -746,6 +726,7 @@ export default function EditProductPage() {
             <ShopeeCategoryPicker
               accountId={link.account_id}
               value={categoryIdValues[link.id] ?? null}
+              categoryName={categoryNameValues[link.id] || ''}
               onChange={(catId, catName) => {
                 setCategoryIdValues(prev => ({ ...prev, [link.id]: catId }));
                 setCategoryNameValues(prev => ({ ...prev, [link.id]: catName }));
@@ -863,6 +844,7 @@ export default function EditProductPage() {
               <ShopeeCategoryPicker
                 accountId={firstLink.account_id}
                 value={categoryIdValues[firstLink.id] ?? null}
+                categoryName={categoryNameValues[firstLink.id] || ''}
                 onChange={(catId, catName) => {
                   setCategoryIdValues(prev => ({ ...prev, [firstLink.id]: catId }));
                   setCategoryNameValues(prev => ({ ...prev, [firstLink.id]: catName }));

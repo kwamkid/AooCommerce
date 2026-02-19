@@ -953,15 +953,59 @@ export async function getShopeeLogistics(
 
 /**
  * Upload an image to Shopee media space by URL.
+ * Shopee requires multipart/form-data for this endpoint.
  * Returns image_info with image_id for use in add_item.
  */
 export async function uploadImageByUrl(
   creds: ShopeeCredentials,
   imageUrl: string
 ): Promise<{ data: unknown; error?: string }> {
-  return shopeeApiRequest(creds, 'POST', '/api/v2/media_space/upload_image', {}, {
-    image_url: imageUrl,
+  const timestamp = getTimestamp();
+  const sign = generateSign('/api/v2/media_space/upload_image', timestamp, creds.access_token, creds.shop_id);
+
+  const queryParams = new URLSearchParams({
+    partner_id: String(creds.partner_id),
+    timestamp: String(timestamp),
+    sign,
+    access_token: creds.access_token,
+    shop_id: String(creds.shop_id),
   });
+
+  const url = `${getBaseUrl()}/api/v2/media_space/upload_image?${queryParams.toString()}`;
+
+  // Download the image first, then upload as multipart form data
+  try {
+    const imageRes = await fetch(imageUrl);
+    if (!imageRes.ok) {
+      return { data: null, error: `Failed to download image: HTTP ${imageRes.status}` };
+    }
+    const imageBuffer = await imageRes.arrayBuffer();
+    const contentType = imageRes.headers.get('content-type') || 'image/jpeg';
+    const ext = contentType.includes('png') ? 'png' : 'jpg';
+
+    const formData = new FormData();
+    formData.append('image', new Blob([imageBuffer], { type: contentType }), `image.${ext}`);
+
+    console.log(`[Shopee API] POST /api/v2/media_space/upload_image (multipart, ${imageBuffer.byteLength} bytes)`);
+    const res = await fetch(url, { method: 'POST', body: formData });
+
+    let data: Record<string, unknown>;
+    const text = await res.text();
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return { data: null, error: `Shopee API returned non-JSON (HTTP ${res.status})` };
+    }
+
+    console.log(`[Shopee API] upload_image response:`, JSON.stringify(data).substring(0, 500));
+
+    if (data.error) {
+      return { data: null, error: (data.message as string) || (data.error as string) };
+    }
+    return { data: data.response || data };
+  } catch (e) {
+    return { data: null, error: e instanceof Error ? e.message : 'Upload failed' };
+  }
 }
 
 /**
@@ -973,4 +1017,23 @@ export async function addItem(
   itemData: Record<string, unknown>
 ): Promise<{ data: unknown; error?: string }> {
   return shopeeApiRequest(creds, 'POST', '/api/v2/product/add_item', {}, itemData);
+}
+
+/**
+ * Initialize tier variation for a product on Shopee.
+ * Must be called after add_item for variation products.
+ * tier_variation: [{ name: "สี", option_list: [{ option: "แดง" }, ...] }, ...]
+ * model: [{ tier_index: [0, 0], normal_stock: 10, original_price: 100, model_sku: "SKU-001" }, ...]
+ */
+export async function initTierVariation(
+  creds: ShopeeCredentials,
+  itemId: number,
+  tierVariation: Array<{ name: string; option_list: Array<{ option: string; image?: { image_id: string } }> }>,
+  model: Array<{ tier_index: number[]; normal_stock: number; original_price: number; model_sku?: string }>
+): Promise<{ data: unknown; error?: string }> {
+  return shopeeApiRequest(creds, 'POST', '/api/v2/product/init_tier_variation', {}, {
+    item_id: itemId,
+    tier_variation: tierVariation,
+    model: model,
+  });
 }

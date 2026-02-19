@@ -15,10 +15,11 @@ interface ShopeeCategory {
 interface ShopeeCategoryPickerProps {
   accountId: string;
   value: number | null;
+  categoryName?: string; // Pre-loaded name to display before categories are fetched
   onChange: (categoryId: number | null, categoryName: string) => void;
 }
 
-export default function ShopeeCategoryPicker({ accountId, value, onChange }: ShopeeCategoryPickerProps) {
+export default function ShopeeCategoryPicker({ accountId, value, categoryName, onChange }: ShopeeCategoryPickerProps) {
   const [categories, setCategories] = useState<ShopeeCategory[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetched, setFetched] = useState(false);
@@ -26,13 +27,14 @@ export default function ShopeeCategoryPicker({ accountId, value, onChange }: Sho
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
-  // Cascading selection state: [level0_id, level1_id, level2_id]
+  // Cascading selection state: [level0_id, level1_id, level2_id, ...]
   const [selectedPath, setSelectedPath] = useState<number[]>([]);
 
-  // Mobile drill-down: which level is currently visible (0, 1, 2)
+  // Mobile drill-down: which level is currently visible
   const [mobileLevel, setMobileLevel] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const columnsRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
   useEffect(() => {
@@ -70,17 +72,26 @@ export default function ShopeeCategoryPicker({ accountId, value, onChange }: Sho
   const handleOpen = () => {
     setOpen(true);
     setSearch('');
-    setMobileLevel(0);
     if (!fetched) {
       fetchCategories();
     }
     // Restore selectedPath from current value
     if (value && categories.length > 0) {
-      restorePathFromValue(value);
+      const path = restorePathFromValue(value);
+      // Mobile: navigate to the deepest level that has the selected leaf
+      setMobileLevel(path.length > 0 ? path.length - 1 : 0);
+      // Desktop: scroll to rightmost column after render
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          columnsRef.current?.scrollTo({ left: columnsRef.current.scrollWidth, behavior: 'auto' });
+        });
+      });
+    } else {
+      setMobileLevel(0);
     }
   };
 
-  const restorePathFromValue = (catId: number) => {
+  const restorePathFromValue = (catId: number): number[] => {
     const path: number[] = [];
     let current = categories.find(c => c.category_id === catId);
     while (current) {
@@ -89,12 +100,22 @@ export default function ShopeeCategoryPicker({ accountId, value, onChange }: Sho
       current = categories.find(c => c.category_id === current!.parent_category_id);
     }
     setSelectedPath(path);
+    return path;
   };
 
   // Restore path when categories load and value exists
   useEffect(() => {
     if (value && categories.length > 0 && selectedPath.length === 0) {
-      restorePathFromValue(value);
+      const path = restorePathFromValue(value);
+      // If picker is open, scroll to last level
+      if (open) {
+        setMobileLevel(path.length > 0 ? path.length - 1 : 0);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            columnsRef.current?.scrollTo({ left: columnsRef.current.scrollWidth, behavior: 'auto' });
+          });
+        });
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories, value]);
@@ -120,6 +141,10 @@ export default function ShopeeCategoryPicker({ accountId, value, onChange }: Sho
       onChange(null, '');
       // On mobile, advance to next level
       setMobileLevel(level + 1);
+      // Desktop: scroll to show new column
+      requestAnimationFrame(() => {
+        columnsRef.current?.scrollTo({ left: columnsRef.current.scrollWidth, behavior: 'smooth' });
+      });
     }
   };
 
@@ -136,7 +161,13 @@ export default function ShopeeCategoryPicker({ accountId, value, onChange }: Sho
 
   const getSelectedName = (): string => {
     if (!value) return '';
-    return buildFullPath(value);
+    // If categories are loaded, build full path from tree
+    if (categories.length > 0) {
+      const path = buildFullPath(value);
+      if (path) return path;
+    }
+    // Fallback: use pre-loaded categoryName prop, or show category ID
+    return categoryName || `Category #${value}`;
   };
 
   const handleClear = (e: React.MouseEvent) => {
@@ -162,10 +193,18 @@ export default function ShopeeCategoryPicker({ accountId, value, onChange }: Sho
     }
   };
 
-  // Build 3 column levels
-  const level0 = rootCategories;
-  const level1 = selectedPath.length >= 1 ? getChildren(selectedPath[0]) : [];
-  const level2 = selectedPath.length >= 2 ? getChildren(selectedPath[1]) : [];
+  // Build dynamic column levels based on selectedPath
+  // Always show: root + children of each selected node
+  const columnLevels: { parentId: number; cats: ShopeeCategory[]; level: number }[] = [];
+  // Level 0 = root
+  columnLevels.push({ parentId: 0, cats: rootCategories, level: 0 });
+  // Add child columns for each selected path node
+  for (let i = 0; i < selectedPath.length; i++) {
+    const children = getChildren(selectedPath[i]);
+    if (children.length > 0) {
+      columnLevels.push({ parentId: selectedPath[i], cats: children, level: i + 1 });
+    }
+  }
 
   // Get parent name for mobile breadcrumb
   const getMobileBreadcrumb = (level: number): string => {
@@ -176,10 +215,20 @@ export default function ShopeeCategoryPicker({ accountId, value, onChange }: Sho
 
   // Get categories for current mobile level
   const getMobileLevelData = (level: number): ShopeeCategory[] => {
-    if (level === 0) return level0;
-    if (level === 1) return level1;
-    if (level === 2) return level2;
+    if (level === 0) return rootCategories;
+    if (level <= selectedPath.length) {
+      return getChildren(selectedPath[level - 1]);
+    }
     return [];
+  };
+
+  // Scroll selected item into view within its column
+  const scrollSelectedIntoView = (el: HTMLButtonElement | null) => {
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ block: 'center', behavior: 'auto' });
+      });
+    }
   };
 
   // Render a single column of categories (shared between desktop columns and mobile)
@@ -189,27 +238,32 @@ export default function ShopeeCategoryPicker({ accountId, value, onChange }: Sho
         {emptyText}
       </p>
     ) : (
-      cats.map(cat => (
-        <button
-          key={cat.category_id}
-          type="button"
-          onClick={() => handleSelect(level, cat)}
-          className={`w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-1.5 ${
-            selectedPath[level] === cat.category_id
-              ? 'bg-orange-50 dark:bg-orange-900/20 text-[#EE4D2D] font-medium'
-              : value === cat.category_id
-                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-medium'
-                : 'text-gray-700 dark:text-slate-300'
-          }`}
-        >
-          <span className="truncate flex-1">{cat.display_category_name}</span>
-          {cat.has_children ? (
-            <ChevronRight className="w-4 h-4 flex-shrink-0 opacity-40" />
-          ) : (
-            value === cat.category_id && <Check className="w-4 h-4 flex-shrink-0 text-green-500" />
-          )}
-        </button>
-      ))
+      cats.map(cat => {
+        const isInPath = selectedPath[level] === cat.category_id;
+        const isSelected = value === cat.category_id;
+        return (
+          <button
+            key={cat.category_id}
+            type="button"
+            ref={(isInPath || isSelected) ? scrollSelectedIntoView : undefined}
+            onClick={() => handleSelect(level, cat)}
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-1.5 ${
+              isInPath
+                ? 'bg-orange-50 dark:bg-orange-900/20 text-[#EE4D2D] font-medium'
+                : isSelected
+                  ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-medium'
+                  : 'text-gray-700 dark:text-slate-300'
+            }`}
+          >
+            <span className="truncate flex-1">{cat.display_category_name}</span>
+            {cat.has_children ? (
+              <ChevronRight className="w-4 h-4 flex-shrink-0 opacity-40" />
+            ) : (
+              isSelected && <Check className="w-4 h-4 flex-shrink-0 text-green-500" />
+            )}
+          </button>
+        );
+      })
     )
   );
 
@@ -243,13 +297,21 @@ export default function ShopeeCategoryPicker({ accountId, value, onChange }: Sho
 
       {/* Floating panel */}
       {open && (
-        <div className="fixed inset-0 z-50 sm:absolute sm:inset-auto sm:left-0 sm:right-auto sm:mt-1 bg-white dark:bg-slate-800 sm:border border-gray-200 dark:border-slate-700 sm:rounded-xl shadow-xl sm:w-[min(780px,calc(100vw-2rem))] sm:max-h-[440px] flex flex-col h-full sm:h-auto">
-          {/* Mobile header */}
-          <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-slate-700 sm:hidden">
-            <h3 className="text-sm font-medium text-gray-900 dark:text-white">เลือกหมวดหมู่ Shopee</h3>
-            <button type="button" onClick={() => setOpen(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded">
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
+        <>
+        {/* Mobile backdrop */}
+        <div className="fixed inset-0 z-40 bg-black/30 sm:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed inset-x-0 bottom-0 top-auto z-50 max-h-[70vh] rounded-t-2xl sm:absolute sm:inset-auto sm:left-0 sm:right-auto sm:mt-1 sm:rounded-xl sm:max-h-[440px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-xl sm:w-[min(780px,calc(100vw-2rem))] flex flex-col">
+          {/* Mobile header with drag handle */}
+          <div className="sm:hidden">
+            <div className="flex justify-center pt-2 pb-1">
+              <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-slate-600" />
+            </div>
+            <div className="flex items-center justify-between px-3 pb-2 border-b border-gray-200 dark:border-slate-700">
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white">เลือกหมวดหมู่ Shopee</h3>
+              <button type="button" onClick={() => setOpen(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
           </div>
 
           {/* Search bar */}
@@ -308,22 +370,25 @@ export default function ShopeeCategoryPicker({ accountId, value, onChange }: Sho
 
           {!loading && !error && search.trim().length < 2 && (
             <>
-              {/* Desktop: 3-column browser */}
-              <div className="hidden sm:flex divide-x divide-gray-200 dark:divide-slate-700 overflow-hidden flex-1 min-h-0">
-                {/* Level 0 */}
-                <div className="w-1/3 overflow-y-auto max-h-[340px] p-1.5">
-                  {renderCategoryList(level0, 0, 'ไม่มีหมวดหมู่')}
-                </div>
-
-                {/* Level 1 */}
-                <div className="w-1/3 overflow-y-auto max-h-[340px] p-1.5">
-                  {renderCategoryList(level1, 1, selectedPath.length === 0 ? 'เลือกหมวดหมู่หลัก' : 'ไม่มีหมวดย่อย')}
-                </div>
-
-                {/* Level 2 */}
-                <div className="w-1/3 overflow-y-auto max-h-[340px] p-1.5">
-                  {renderCategoryList(level2, 2, selectedPath.length < 2 ? 'เลือกหมวดย่อย' : 'ไม่มีหมวดย่อย')}
-                </div>
+              {/* Desktop: dynamic columns with horizontal scroll */}
+              <div
+                ref={columnsRef}
+                className="hidden sm:flex overflow-x-auto overflow-y-hidden flex-1 min-h-0"
+              >
+                {columnLevels.map((col, idx) => (
+                  <div
+                    key={`${col.parentId}-${col.level}`}
+                    className={`flex-shrink-0 w-[260px] overflow-y-auto max-h-[340px] p-1.5 ${
+                      idx > 0 ? 'border-l border-gray-200 dark:border-slate-700' : ''
+                    }`}
+                  >
+                    {renderCategoryList(
+                      col.cats,
+                      col.level,
+                      col.level === 0 ? 'ไม่มีหมวดหมู่' : 'ไม่มีหมวดย่อย'
+                    )}
+                  </div>
+                ))}
               </div>
 
               {/* Mobile: single-column drill-down */}
@@ -374,6 +439,7 @@ export default function ShopeeCategoryPicker({ accountId, value, onChange }: Sho
             </>
           )}
         </div>
+        </>
       )}
     </div>
   );
