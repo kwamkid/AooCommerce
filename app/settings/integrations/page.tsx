@@ -327,9 +327,9 @@ export default function IntegrationsPage() {
       <div className="max-w-3xl">
         {/* Shopee Tab Header */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex border-b border-gray-200 dark:border-slate-700">
+          <div className="flex">
             <button
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-[#EE4D2D] text-[#EE4D2D]"
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-[#EE4D2D]"
             >
               <ShoppingBag className="w-4 h-4" />
               Shopee
@@ -341,7 +341,7 @@ export default function IntegrationsPage() {
             </button>
             <button
               disabled
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-400 dark:text-slate-500 cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-400 dark:text-slate-500 cursor-not-allowed"
             >
               <ShoppingBag className="w-4 h-4" />
               TikTok Shop
