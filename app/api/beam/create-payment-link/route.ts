@@ -83,12 +83,18 @@ export async function POST(request: NextRequest) {
     const customerType = customer?.customer_type_new || 'retail';
 
     // 4. Build Beam linkSettings from enabled channels
-    const linkSettings: Record<string, { isEnabled: boolean }> = {
+    const linkSettings: Record<string, unknown> = {
       card: { isEnabled: false },
       qrPromptPay: { isEnabled: false },
       eWallets: { isEnabled: false },
       mobileBanking: { isEnabled: false },
-      cardInstallments: { isEnabled: false },
+      cardInstallments: {
+        isEnabled: false,
+        installments3m: { isEnabled: false },
+        installments4m: { isEnabled: false },
+        installments6m: { isEnabled: false },
+        installments10m: { isEnabled: false },
+      },
     };
 
     for (const [code, conf] of Object.entries(channels)) {
@@ -99,13 +105,23 @@ export async function POST(request: NextRequest) {
       }
 
       const beamKey = BEAM_LINK_SETTINGS_MAP[code];
-      if (beamKey) {
+      if (beamKey === 'cardInstallments') {
+        // Enable only the installment months selected in settings
+        const plans = (conf.installment_plans as string[]) || ['installments3m', 'installments4m', 'installments6m', 'installments10m'];
+        linkSettings.cardInstallments = {
+          isEnabled: true,
+          installments3m: { isEnabled: plans.includes('installments3m') },
+          installments4m: { isEnabled: plans.includes('installments4m') },
+          installments6m: { isEnabled: plans.includes('installments6m') },
+          installments10m: { isEnabled: plans.includes('installments10m') },
+        };
+      } else if (beamKey) {
         linkSettings[beamKey] = { isEnabled: true };
       }
     }
 
     // Check at least one channel is enabled
-    const hasEnabledChannel = Object.values(linkSettings).some(s => s.isEnabled);
+    const hasEnabledChannel = Object.values(linkSettings).some(s => (s as { isEnabled: boolean }).isEnabled);
     if (!hasEnabledChannel) {
       return NextResponse.json({ error: 'No payment channels available for this order' }, { status: 400 });
     }
@@ -119,31 +135,83 @@ export async function POST(request: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || request.headers.get('origin') || '';
     const redirectUrl = `${appUrl}/bills/${order.id}?payment=success`;
 
-    // 7. Call Beam API to create payment link
+    // 7. Call Beam API to create payment link (with retry if installments not supported)
     const amountInSatang = Math.round((order.total_amount as number) * 100);
 
-    const beamResponse = await fetch(`${baseUrl}/api/v1/payment-links`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Basic ' + Buffer.from(`${merchantId}:${apiKey}`).toString('base64'),
-      },
-      body: JSON.stringify({
-        order: {
-          currency: 'THB',
-          netAmount: amountInSatang,
-          description: `Order #${order.order_number}`,
-          referenceId: order.id,
+    const callBeamApi = async (settings: Record<string, unknown>) => {
+      return fetch(`${baseUrl}/api/v1/payment-links`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Basic ' + Buffer.from(`${merchantId}:${apiKey}`).toString('base64'),
         },
-        linkSettings,
-        redirectUrl,
-      }),
-    });
+        body: JSON.stringify({
+          order: {
+            currency: 'THB',
+            netAmount: amountInSatang,
+            description: `Order #${order.order_number}`,
+            referenceId: order.id,
+          },
+          linkSettings: settings,
+          redirectUrl,
+        }),
+      });
+    };
 
+    console.log('Beam linkSettings being sent:', JSON.stringify(linkSettings));
+
+    let beamResponse = await callBeamApi(linkSettings);
+
+    // If Beam rejects due to unsupported channel, retry without it
     if (!beamResponse.ok) {
       const errBody = await beamResponse.text();
-      console.error('Beam API error:', beamResponse.status, errBody);
-      return NextResponse.json({ error: 'Failed to create payment link' }, { status: 500 });
+      const errLower = errBody.toLowerCase();
+
+      // Retry without cardInstallments if that's the problem
+      if (errLower.includes('credit_card_installments') || errLower.includes('cardinstallments')) {
+        console.warn('Beam: cardInstallments not supported by merchant, retrying without it');
+        linkSettings.cardInstallments = {
+          isEnabled: false,
+          installments3m: { isEnabled: false },
+          installments4m: { isEnabled: false },
+          installments6m: { isEnabled: false },
+          installments10m: { isEnabled: false },
+        };
+
+        // Check we still have at least one enabled channel after removing installments
+        const stillHasChannel = Object.entries(linkSettings)
+          .filter(([k]) => k !== 'cardInstallments')
+          .some(([, v]) => (v as { isEnabled: boolean }).isEnabled);
+
+        if (!stillHasChannel) {
+          return NextResponse.json({ error: 'No payment channels available (installments not supported by merchant)' }, { status: 400 });
+        }
+
+        beamResponse = await callBeamApi(linkSettings);
+      }
+
+      // If still failing after retry (or non-installments error)
+      if (!beamResponse.ok) {
+        // For retry failures, read the new response body; for non-retry, use original errBody
+        const finalErrBody = errLower.includes('credit_card_installments') || errLower.includes('cardinstallments')
+          ? await beamResponse.text()
+          : errBody;
+        console.error('Beam API error:', beamResponse.status, finalErrBody);
+        console.error('Beam request linkSettings:', JSON.stringify(linkSettings));
+        console.error('Beam request amount (satang):', amountInSatang);
+
+        let beamError = 'Failed to create payment link';
+        try {
+          const parsed = JSON.parse(finalErrBody);
+          if (parsed.message) beamError = parsed.message;
+          else if (parsed.error?.message) beamError = parsed.error.message;
+          else if (parsed.error) beamError = typeof parsed.error === 'string' ? parsed.error : JSON.stringify(parsed.error);
+        } catch {
+          if (finalErrBody) beamError = finalErrBody.slice(0, 200);
+        }
+
+        return NextResponse.json({ error: `Beam: ${beamError}` }, { status: 500 });
+      }
     }
 
     const beamResult = await beamResponse.json();

@@ -31,6 +31,7 @@ interface GatewayChannelConfig {
   min_amount: number;
   customer_types: string[];
   fee_payer: string;
+  installment_plans?: string[];
 }
 
 // Toggle component
@@ -696,7 +697,7 @@ export default function PaymentChannelsPage() {
                                             {ch.logo && (
                                               <img src={ch.logo} alt={ch.name_th} className="w-6 h-6 object-contain flex-shrink-0" />
                                             )}
-                                            <span className="text-sm text-gray-900 dark:text-white flex-1">{ch.name_th}</span>
+                                            <span className="text-base text-gray-900 dark:text-white flex-1">{ch.name_th}</span>
                                             {isEnabled && (
                                               <button type="button" onClick={() => setExpandedChannel(isExpanded ? null : ch.code)} className="p-1 text-gray-400 hover:text-gray-600 dark:text-slate-400">
                                                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -706,17 +707,17 @@ export default function PaymentChannelsPage() {
                                           {isEnabled && isExpanded && (
                                             <div className="px-3 pb-3 pt-1 border-t border-gray-100 dark:border-slate-700 space-y-3">
                                               <div>
-                                                <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ยอดสั่งซื้อขั้นต่ำ (บาท)</label>
+                                                <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ยอดสั่งซื้อขั้นต่ำ (บาท)</label>
                                                 <input type="number" min="0" value={chConfig?.min_amount || 0} onChange={e => handleUpdateBeamChannel(ch.code, 'min_amount', Number(e.target.value))} className="w-40 px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]" />
                                               </div>
                                               <div>
-                                                <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ประเภทลูกค้าที่ใช้ได้</label>
+                                                <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ประเภทลูกค้าที่ใช้ได้</label>
                                                 <div className="flex gap-3">
                                                   {CUSTOMER_TYPES.map(ct => {
                                                     const types = chConfig?.customer_types || ['retail', 'wholesale', 'distributor'];
                                                     const checked = types.includes(ct.value);
                                                     return (
-                                                      <label key={ct.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                                                      <label key={ct.value} className="flex items-center gap-1.5 text-base cursor-pointer">
                                                         <input type="checkbox" checked={checked} onChange={() => { const newTypes = checked ? types.filter((t: string) => t !== ct.value) : [...types, ct.value]; handleUpdateBeamChannel(ch.code, 'customer_types', newTypes); }} className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]" />
                                                         {ct.label}
                                                       </label>
@@ -725,16 +726,39 @@ export default function PaymentChannelsPage() {
                                                 </div>
                                               </div>
                                               <div>
-                                                <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ผู้รับผิดชอบค่าธรรมเนียม</label>
+                                                <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ผู้รับผิดชอบค่าธรรมเนียม</label>
                                                 <div className="flex gap-3">
                                                   {FEE_PAYERS.map(fp => (
-                                                    <label key={fp.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                                                    <label key={fp.value} className="flex items-center gap-1.5 text-base cursor-pointer">
                                                       <input type="radio" name={`fee_payer_${ch.code}`} checked={(chConfig?.fee_payer || 'merchant') === fp.value} onChange={() => handleUpdateBeamChannel(ch.code, 'fee_payer', fp.value)} className="border-gray-300 text-[#F4511E] focus:ring-[#F4511E]" />
                                                       {fp.label}
                                                     </label>
                                                   ))}
                                                 </div>
                                               </div>
+                                              {/* Installment month options — only for CARD_INSTALLMENTS */}
+                                              {ch.code === 'CARD_INSTALLMENTS' && (
+                                                <div>
+                                                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">จำนวนเดือนที่รับผ่อน</label>
+                                                  <div className="flex flex-wrap gap-3">
+                                                    {[
+                                                      { key: 'installments3m', label: '3 เดือน' },
+                                                      { key: 'installments4m', label: '4 เดือน' },
+                                                      { key: 'installments6m', label: '6 เดือน' },
+                                                      { key: 'installments10m', label: '10 เดือน' },
+                                                    ].map(opt => {
+                                                      const plans = chConfig?.installment_plans || ['installments3m', 'installments4m', 'installments6m', 'installments10m'];
+                                                      const checked = plans.includes(opt.key);
+                                                      return (
+                                                        <label key={opt.key} className="flex items-center gap-1.5 text-base cursor-pointer">
+                                                          <input type="checkbox" checked={checked} onChange={() => { const newPlans = checked ? plans.filter((p: string) => p !== opt.key) : [...plans, opt.key]; handleUpdateBeamChannel(ch.code, 'installment_plans', newPlans); }} className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]" />
+                                                          {opt.label}
+                                                        </label>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                </div>
+                                              )}
                                             </div>
                                           )}
                                         </div>
