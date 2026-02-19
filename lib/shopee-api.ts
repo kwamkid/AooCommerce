@@ -119,21 +119,15 @@ export async function shopeeApiRequest(
   console.log(`[Shopee API] ${method} ${apiPath}`, { params: Object.fromEntries(Object.entries(params).filter(([k]) => k !== 'access_token')) });
   const res = await fetch(url, options);
 
-  // Handle non-JSON responses gracefully
-  const contentType = res.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    const text = await res.text();
+  // Try to parse response as JSON regardless of content-type
+  // Shopee sometimes returns JSON with non-JSON content-type headers
+  let data: any;
+  const text = await res.text();
+  try {
+    data = JSON.parse(text);
+  } catch {
     console.error(`[Shopee API] ${apiPath} returned non-JSON (${res.status}):`, text.substring(0, 500));
     return { data: null, error: `Shopee API returned non-JSON response (HTTP ${res.status})` };
-  }
-
-  let data: any;
-  try {
-    data = await res.json();
-  } catch (e) {
-    const text = await res.text().catch(() => '');
-    console.error(`[Shopee API] ${apiPath} JSON parse failed:`, text.substring(0, 500));
-    return { data: null, error: `Failed to parse Shopee API response (HTTP ${res.status})` };
   }
   console.log(`[Shopee API] ${apiPath} response:`, JSON.stringify(data).substring(0, 1000));
 
