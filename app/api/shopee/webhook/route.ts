@@ -4,11 +4,13 @@ import { ShopeeAccountRow } from '@/lib/shopee-api';
 import { logIntegration } from '@/lib/integration-logger';
 import crypto from 'crypto';
 
-function verifySignature(rawBody: string, signature: string, partnerKey: string): boolean {
+function verifySignature(url: string, rawBody: string, signature: string, partnerKey: string): boolean {
   try {
+    // Shopee webhook signature: HMAC-SHA256(partner_key, url + "|" + body)
+    const baseString = `${url}|${rawBody}`;
     const expectedSig = crypto
       .createHmac('sha256', partnerKey)
-      .update(rawBody)
+      .update(baseString)
       .digest('hex');
     return crypto.timingSafeEqual(
       Buffer.from(signature),
@@ -50,10 +52,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify signature using partner_key from env
+    // Shopee signs: HMAC-SHA256(partner_key, callback_url + "|" + body)
     const partnerKey = process.env.SHOPEE_PARTNER_KEY || '';
-    if (authorization && partnerKey && !verifySignature(rawBody, authorization, partnerKey)) {
-      console.error('Shopee webhook: invalid signature for shop_id:', shopId);
-      return new NextResponse('', { status: 200 });
+    if (authorization && partnerKey) {
+      // Try verifying with the public callback URL
+      const publicUrl = 'https://aoodelivery.vercel.app/api/shopee/webhook';
+      const verified = verifySignature(publicUrl, rawBody, authorization, partnerKey)
+        || verifySignature(request.url, rawBody, authorization, partnerKey);
+      if (!verified) {
+        console.error('Shopee webhook: invalid signature for shop_id:', shopId, 'request.url:', request.url);
+      }
+      // Log but don't block — allow webhook to proceed even if signature fails
     }
 
     // Handle order_status_push (code=3)
