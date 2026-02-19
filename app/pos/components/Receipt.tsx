@@ -10,6 +10,8 @@ interface ReceiptItem {
   quantity: number;
   unit_price: number;
   total: number;
+  sku?: string | null;
+  barcode?: string | null;
 }
 
 interface ReceiptPayment {
@@ -26,6 +28,7 @@ interface ReceiptData {
     phone: string;
     tax_id: string;
     tax_company_name: string;
+    logo_url?: string;
   };
   order: {
     receipt_number: string;
@@ -64,9 +67,9 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 print:bg-white print:static print:block" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl w-full max-w-sm mx-4 max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-2xl w-full max-w-sm mx-4 max-h-[90vh] overflow-y-auto print:rounded-none print:max-w-none print:mx-0 print:max-h-none print:shadow-none print:overflow-visible"
         onClick={e => e.stopPropagation()}
       >
         {/* Screen-only controls */}
@@ -87,8 +90,15 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
         </div>
 
         {/* Receipt content — thermal-friendly */}
-        <div className="p-6 text-center text-sm font-mono text-gray-900 print:p-2 print:text-xs" id="receipt-content">
+        <div className="p-6 text-center text-sm text-gray-900 print:p-2 print:text-xs" id="receipt-content">
           {/* Company header */}
+          {data.company.logo_url && (
+            <img
+              src={data.company.logo_url}
+              alt={data.company.name}
+              className="w-14 h-14 rounded-full object-cover mx-auto mb-2"
+            />
+          )}
           <p className="font-bold text-base">{data.company.name}</p>
           {data.company.address && <p className="text-xs text-gray-600">{data.company.address}</p>}
           {data.company.phone && <p className="text-xs text-gray-600">โทร: {data.company.phone}</p>}
@@ -114,17 +124,21 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
           {/* Items */}
           <div className="text-left">
             {data.items.map((item, i) => (
-              <div key={i} className="flex justify-between py-0.5">
-                <div className="flex-1 min-w-0">
-                  <span className="truncate block">
-                    {item.product_name}
-                    {item.variation_label ? ` (${item.variation_label})` : ''}
-                  </span>
-                  <span className="text-gray-500 text-xs">
-                    {item.quantity} x ฿{formatPrice(item.unit_price)}
-                  </span>
+              <div key={i} className="py-0.5">
+                <div className="flex justify-between">
+                  <div className="flex-1 min-w-0">
+                    <span className="truncate block">
+                      {item.product_name}
+                      {item.variation_label ? ` (${item.variation_label})` : ''}
+                    </span>
+                  </div>
+                  <span className="ml-2 whitespace-nowrap">฿{formatPrice(item.total)}</span>
                 </div>
-                <span className="ml-2 whitespace-nowrap">฿{formatPrice(item.total)}</span>
+                <div className="text-gray-500 text-xs">
+                  {item.quantity} x ฿{formatPrice(item.unit_price)}
+                  {item.sku && <span className="ml-2">SKU: {item.sku}</span>}
+                  {item.barcode && <span className="ml-2">BC: {item.barcode}</span>}
+                </div>
               </div>
             ))}
           </div>

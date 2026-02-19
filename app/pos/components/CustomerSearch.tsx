@@ -45,12 +45,12 @@ export default function CustomerSearch({ selectedCustomer, onSelect, onClose }: 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="bg-[#1E293B] rounded-2xl p-6 w-full max-w-md mx-4 max-h-[80vh] flex flex-col"
+        className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 w-full max-w-md mx-4 max-h-[80vh] flex flex-col shadow-xl dark:shadow-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white">เลือกลูกค้า</h3>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-white">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">เลือกลูกค้า</h3>
+          <button onClick={onClose} className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -59,11 +59,11 @@ export default function CustomerSearch({ selectedCustomer, onSelect, onClose }: 
         <button
           onClick={() => { onSelect(null); onClose(); }}
           className={`w-full p-3 rounded-lg mb-3 text-left flex items-center gap-3 transition-colors ${
-            !selectedCustomer ? 'bg-[#F4511E]/20 border border-[#F4511E]' : 'bg-white/10 hover:bg-white/20'
+            !selectedCustomer ? 'bg-[#F4511E]/10 dark:bg-[#F4511E]/20 border border-[#F4511E]' : 'bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20'
           }`}
         >
-          <User className="w-5 h-5 text-gray-400" />
-          <span className="text-white">ลูกค้าทั่วไป (Walk-in)</span>
+          <User className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+          <span className="text-gray-900 dark:text-white">ลูกค้าทั่วไป (Walk-in)</span>
         </button>
 
         {/* Search input */}
@@ -74,16 +74,16 @@ export default function CustomerSearch({ selectedCustomer, onSelect, onClose }: 
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร..."
-            className="w-full pl-9 pr-4 py-2.5 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+            className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
             autoFocus
           />
         </div>
 
         {/* Results */}
         <div className="flex-1 overflow-y-auto space-y-2">
-          {loading && <p className="text-gray-400 text-sm text-center py-4">กำลังค้นหา...</p>}
+          {loading && <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-4">กำลังค้นหา...</p>}
           {!loading && search.length >= 2 && results.length === 0 && (
-            <p className="text-gray-400 text-sm text-center py-4">ไม่พบลูกค้า</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-4">ไม่พบลูกค้า</p>
           )}
           {results.map(c => (
             <button
@@ -91,16 +91,16 @@ export default function CustomerSearch({ selectedCustomer, onSelect, onClose }: 
               onClick={() => { onSelect(c); onClose(); }}
               className={`w-full p-3 rounded-lg text-left flex items-center gap-3 transition-colors ${
                 selectedCustomer?.id === c.id
-                  ? 'bg-[#F4511E]/20 border border-[#F4511E]'
-                  : 'bg-white/10 hover:bg-white/20'
+                  ? 'bg-[#F4511E]/10 dark:bg-[#F4511E]/20 border border-[#F4511E]'
+                  : 'bg-gray-50 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/20'
               }`}
             >
-              <div className="w-8 h-8 rounded-full bg-[#F4511E]/20 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-full bg-[#F4511E]/10 dark:bg-[#F4511E]/20 flex items-center justify-center">
                 <User className="w-4 h-4 text-[#F4511E]" />
               </div>
               <div>
-                <p className="text-white text-sm font-medium">{c.name}</p>
-                <p className="text-gray-400 text-xs">{c.customer_code}{c.phone ? ` • ${c.phone}` : ''}</p>
+                <p className="text-gray-900 dark:text-white text-sm font-medium">{c.name}</p>
+                <p className="text-gray-500 dark:text-gray-400 text-xs">{c.customer_code}{c.phone ? ` • ${c.phone}` : ''}</p>
               </div>
             </button>
           ))}

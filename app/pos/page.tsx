@@ -4,8 +4,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { useCompany } from '@/lib/company-context';
 import { apiFetch } from '@/lib/api-client';
 import { ArrowLeft, Clock, ListOrdered, Loader2, ShoppingCart, Package, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 import SessionModal from './components/SessionModal';
 import ProductGrid, { PosProduct } from './components/ProductGrid';
@@ -46,6 +48,7 @@ interface Customer {
 export default function PosPage() {
   const router = useRouter();
   const { loading: authLoading, userProfile } = useAuth();
+  const { currentCompany } = useCompany();
 
   // Session state
   const [session, setSession] = useState<PosSession | null>(null);
@@ -64,6 +67,7 @@ export default function PosPage() {
   // Cart
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [orderDiscount, setOrderDiscount] = useState(0);
+  const [orderDiscountType, setOrderDiscountType] = useState<'percent' | 'amount'>('amount');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
 
@@ -307,7 +311,10 @@ export default function PosPage() {
     return sub - sub * ((item.discount_value || 0) / 100);
   };
   const itemsSubtotal = cartItems.reduce((s, i) => s + getLineTotal(i), 0);
-  const totalAmount = itemsSubtotal - orderDiscount;
+  const orderDiscountAmount = orderDiscountType === 'percent'
+    ? Math.round(itemsSubtotal * (orderDiscount / 100) * 100) / 100
+    : orderDiscount;
+  const totalAmount = itemsSubtotal - orderDiscountAmount;
 
   // Open/Close shift handlers
   const handleOpenShift = async (terminalId: string, openingFloat: number) => {
@@ -368,7 +375,7 @@ export default function PosPage() {
             discount_value: i.discount_value,
           })),
           payments: tenders,
-          discount_amount: orderDiscount,
+          discount_amount: orderDiscountAmount,
         }),
       });
 
@@ -402,13 +409,14 @@ export default function PosPage() {
     setReceiptData(null);
     setCartItems([]);
     setOrderDiscount(0);
+    setOrderDiscountType('amount');
     setSelectedCustomer(null);
   };
 
   // Loading state
   if (authLoading || loadingSession) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0F172A]">
+      <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-[#0F172A]">
         <Loader2 className="w-8 h-8 animate-spin text-[#F4511E]" />
       </div>
     );
@@ -417,7 +425,7 @@ export default function PosPage() {
   // No session — show session modal
   if (!session) {
     return (
-      <div className="min-h-screen bg-[#0F172A]">
+      <div className="min-h-screen bg-gray-100 dark:bg-[#0F172A]">
         <SessionModal
           mode="open"
           onOpenShift={handleOpenShift}
@@ -430,28 +438,39 @@ export default function PosPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#0F172A] overflow-hidden">
+    <div className="flex flex-col h-screen bg-gray-100 dark:bg-[#0F172A] overflow-hidden">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#1E293B] border-b border-gray-700/50 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-white dark:bg-[#1E293B] border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0 shadow-sm dark:shadow-none">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push('/dashboard')}
-            className="p-2 text-gray-400 hover:text-white transition-colors"
+            className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
+          {currentCompany?.logo_url && (
+            <img
+              src={currentCompany.logo_url}
+              alt={currentCompany.name}
+              className="w-9 h-9 rounded-full object-cover border border-gray-200 dark:border-gray-600"
+            />
+          )}
           <div>
-            <h1 className="text-white font-bold text-lg">POS</h1>
-            <p className="text-gray-400 text-xs">
-              {(session.terminal?.name || session.warehouse?.name) ? `${session.terminal?.name || session.warehouse?.name} • ` : ''}{session.cashier_name}
+            <p className="text-gray-900 dark:text-white font-bold text-lg leading-tight">
+              {session.terminal?.name || session.warehouse?.name || 'POS'}
+            </p>
+            <p className="text-gray-500 dark:text-gray-400 text-xs">
+              {currentCompany?.name ? `${currentCompany.name} • ` : ''}{session.cashier_name}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Theme toggle */}
+          <ThemeToggle iconClassName="w-3.5 h-3.5" className="hidden sm:block" />
           <button
             onClick={() => router.push('/pos/orders')}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white/10 rounded-lg text-gray-300 text-sm hover:bg-white/20 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 dark:bg-white/10 rounded-lg text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
           >
             <ListOrdered className="w-4 h-4" />
             <span className="hidden sm:inline">รายการขาย</span>
@@ -467,13 +486,13 @@ export default function PosPage() {
       </div>
 
       {/* Mobile tab bar */}
-      <div className="flex md:hidden border-b border-gray-700/50 flex-shrink-0">
+      <div className="flex md:hidden border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0 bg-white dark:bg-transparent">
         <button
           onClick={() => setMobileTab('products')}
           className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
             mobileTab === 'products'
               ? 'text-[#F4511E] border-b-2 border-[#F4511E]'
-              : 'text-gray-400'
+              : 'text-gray-500 dark:text-gray-400'
           }`}
         >
           <Package className="w-4 h-4" />
@@ -484,7 +503,7 @@ export default function PosPage() {
           className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative ${
             mobileTab === 'cart'
               ? 'text-[#F4511E] border-b-2 border-[#F4511E]'
-              : 'text-gray-400'
+              : 'text-gray-500 dark:text-gray-400'
           }`}
         >
           <ShoppingCart className="w-4 h-4" />
@@ -526,15 +545,17 @@ export default function PosPage() {
         </div>
 
         {/* Right — Cart */}
-        <div className={`md:w-[32%] md:min-w-[320px] md:max-w-[420px] md:border-l border-gray-700/50 p-4 flex flex-col bg-[#1E293B]/50 ${mobileTab !== 'cart' ? 'hidden md:flex' : 'flex-1'}`}>
+        <div className={`md:w-[32%] md:min-w-[320px] md:max-w-[420px] md:border-l border-gray-200 dark:border-gray-700/50 p-4 flex flex-col bg-gray-50 dark:bg-[#1E293B]/50 ${mobileTab !== 'cart' ? 'hidden md:flex' : 'flex-1'}`}>
           <CartPanel
             items={cartItems}
             orderDiscount={orderDiscount}
+            orderDiscountType={orderDiscountType}
             customerName={selectedCustomer?.name || null}
             onUpdateQuantity={updateQuantity}
             onRemoveItem={removeItem}
             onUpdateItemDiscount={updateItemDiscount}
             onUpdateOrderDiscount={setOrderDiscount}
+            onUpdateOrderDiscountType={setOrderDiscountType}
             onOpenCustomerSearch={() => setShowCustomerSearch(true)}
             onCheckout={() => setShowPayment(true)}
             allowOversell={allowOversell}
@@ -599,13 +620,13 @@ export default function PosPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setScanAlert(null)}>
           <div
             className={`relative mx-4 w-full max-w-sm rounded-2xl p-6 shadow-2xl ${
-              scanAlert.type === 'success' ? 'bg-[#1E293B] border border-green-500/30' : 'bg-[#1E293B] border border-red-500/30'
+              scanAlert.type === 'success' ? 'bg-white dark:bg-[#1E293B] border border-green-500/30' : 'bg-white dark:bg-[#1E293B] border border-red-500/30'
             }`}
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setScanAlert(null)}
-              className="absolute top-3 right-3 p-1 text-gray-500 hover:text-white"
+              className="absolute top-3 right-3 p-1 text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white"
             >
               <X className="w-4 h-4" />
             </button>
@@ -623,12 +644,12 @@ export default function PosPage() {
               <p className={`text-lg font-semibold ${scanAlert.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
                 {scanAlert.type === 'success' ? 'เพิ่มสินค้าแล้ว' : 'ไม่พบสินค้า'}
               </p>
-              <p className="text-gray-300 text-sm">{scanAlert.message}</p>
-              <p className="text-gray-500 text-xs font-mono">{scanAlert.code}</p>
+              <p className="text-gray-600 dark:text-gray-300 text-sm">{scanAlert.message}</p>
+              <p className="text-gray-400 dark:text-gray-500 text-xs font-mono">{scanAlert.code}</p>
               {scanAlert.type === 'error' && (
                 <button
                   onClick={() => setScanAlert(null)}
-                  className="mt-2 px-6 py-2 bg-white/10 rounded-lg text-white text-sm hover:bg-white/20 transition-colors"
+                  className="mt-2 px-6 py-2 bg-gray-100 dark:bg-white/10 rounded-lg text-gray-700 dark:text-white text-sm hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
                 >
                   ตกลง
                 </button>

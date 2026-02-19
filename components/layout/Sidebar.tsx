@@ -534,7 +534,7 @@ export default function Sidebar() {
                     {features.pos && (
                     <Link href="/settings/pos-terminals" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/pos-terminals' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                       <Monitor className="w-4 h-4" />
-                      <span className="text-[16px] font-medium">จุดขาย POS</span>
+                      <span className="text-[16px] font-medium">เครื่อง POS</span>
                     </Link>
                     )}
                     {features.marketplace_sync && (

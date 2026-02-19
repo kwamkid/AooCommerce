@@ -6,7 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
-import { useTheme } from '@/lib/theme-context';
+import ThemeToggle from '@/components/ThemeToggle';
 import { useFeatures } from '@/lib/features-context';
 import {
   Bell,
@@ -17,9 +17,6 @@ import {
   AlertCircle,
   Clock,
   CheckCircle,
-  Sun,
-  Moon,
-  Monitor,
   ScrollText,
 } from 'lucide-react';
 
@@ -36,7 +33,6 @@ interface Notification {
 export default function Header() {
   const { userProfile, signOut } = useAuth();
   const { currentCompany, companyRole } = useCompany();
-  const { theme, setTheme } = useTheme();
   const { features } = useFeatures();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -124,13 +120,6 @@ export default function Header() {
   // Count unread notifications
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  // Theme options
-  const themeOptions = [
-    { value: 'light' as const, icon: Sun, label: 'สว่าง' },
-    { value: 'dark' as const, icon: Moon, label: 'มืด' },
-    { value: 'system' as const, icon: Monitor, label: 'ตามระบบ' },
-  ];
-
   return (
     <header className="bg-[#1A1A2E] lg:bg-white lg:dark:bg-slate-900 border-b border-[#F4511E]/20 lg:border-gray-200 lg:dark:border-slate-700 sticky top-0 z-30">
       <div className="relative flex items-center justify-end h-16 px-4 lg:px-6">
@@ -147,22 +136,7 @@ export default function Header() {
           </div>
 
           {/* Theme Switcher */}
-          <div className="hidden lg:flex items-center bg-gray-100 dark:bg-slate-800 rounded-lg p-0.5">
-            {themeOptions.map(({ value, icon: Icon }) => (
-              <button
-                key={value}
-                onClick={() => setTheme(value)}
-                className={`p-1.5 rounded-md transition-colors ${
-                  theme === value
-                    ? 'bg-white dark:bg-slate-600 text-[#F4511E] shadow-sm'
-                    : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
-                }`}
-                title={themeOptions.find(o => o.value === value)?.label}
-              >
-                <Icon className="w-4 h-4" />
-              </button>
-            ))}
-          </div>
+          <ThemeToggle className="hidden lg:block" />
 
           {/* Notifications */}
           <div className="relative notification-menu">
@@ -268,24 +242,9 @@ export default function Header() {
                 </div>
 
                 {/* Mobile Theme Switcher */}
-                <div className="lg:hidden p-2 border-b border-gray-200 dark:border-slate-700">
-                  <p className="text-xs text-gray-500 dark:text-slate-400 px-3 mb-1">ธีม</p>
-                  <div className="flex gap-1 px-2">
-                    {themeOptions.map(({ value, icon: Icon, label }) => (
-                      <button
-                        key={value}
-                        onClick={() => setTheme(value)}
-                        className={`flex-1 flex items-center justify-center py-1.5 rounded-md transition-colors ${
-                          theme === value
-                            ? 'bg-[#F4511E]/10 text-[#F4511E]'
-                            : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
-                        }`}
-                        title={label}
-                      >
-                        <Icon className="w-4 h-4" />
-                      </button>
-                    ))}
-                  </div>
+                <div className="lg:hidden p-2 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2 px-3">
+                  <span className="text-xs text-gray-500 dark:text-slate-400">ธีม</span>
+                  <ThemeToggle />
                 </div>
 
                 <div className="p-2">

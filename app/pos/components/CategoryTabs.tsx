@@ -20,7 +20,7 @@ export default function CategoryTabs({ categories, selectedId, onSelect }: Categ
         className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
           selectedId === null
             ? 'bg-[#F4511E] text-white'
-            : 'bg-white/10 text-gray-300 hover:bg-white/20'
+            : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-white/20'
         }`}
       >
         ทั้งหมด
@@ -32,7 +32,7 @@ export default function CategoryTabs({ categories, selectedId, onSelect }: Categ
           className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
             selectedId === cat.id
               ? 'bg-[#F4511E] text-white'
-              : 'bg-white/10 text-gray-300 hover:bg-white/20'
+              : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-white/20'
           }`}
         >
           {cat.name}

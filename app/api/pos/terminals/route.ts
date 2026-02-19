@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
       .from('pos_terminals')
       .select('*, warehouse:warehouses(id, name, code)')
       .eq('company_id', auth.companyId)
+      .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true });
 
     if (activeOnly) {
@@ -153,6 +154,39 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('PUT pos/terminals error:', error);
     return NextResponse.json({ error: 'Failed to update terminal' }, { status: 500 });
+  }
+}
+
+// PATCH — Batch reorder terminals
+export async function PATCH(request: NextRequest) {
+  try {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!isAdminRole(auth.companyRole)) {
+      return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { orders } = body as { orders: { id: string; sort_order: number }[] };
+
+    if (!orders || !Array.isArray(orders)) {
+      return NextResponse.json({ error: 'orders array is required' }, { status: 400 });
+    }
+
+    for (const item of orders) {
+      await supabaseAdmin
+        .from('pos_terminals')
+        .update({ sort_order: item.sort_order, updated_at: new Date().toISOString() })
+        .eq('id', item.id)
+        .eq('company_id', auth.companyId);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('PATCH pos/terminals error:', error);
+    return NextResponse.json({ error: 'Failed to reorder terminals' }, { status: 500 });
   }
 }
 

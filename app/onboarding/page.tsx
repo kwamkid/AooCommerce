@@ -5,6 +5,7 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
+import Image from 'next/image';
 import { Building2, FileText, Upload, X, AlertCircle, Loader2, Plus, ChevronRight, Users } from 'lucide-react';
 
 interface CompanyMembership {
@@ -182,11 +183,13 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] to-[#16213E] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] to-[#16213E] flex items-start sm:items-center justify-center pt-8 sm:pt-0 p-4">
       <div className="w-full max-w-lg">
         {/* Branding */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-[#F4511E] mb-2">AooDelivery</h1>
+          <div className="flex justify-center mb-2">
+            <Image src="/logo.svg" alt="AooCommerce" width={150} height={98} className="w-[120px] h-[78px] sm:w-[150px] sm:h-[98px]" priority />
+          </div>
           {companies.length > 0 && !showCreateForm ? (
             <>
               <h2 className="text-xl font-semibold text-white mb-2">เลือกบริษัท</h2>

@@ -232,3 +232,46 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
+/* ── Print: show only receipt content ── */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 2mm;
+  }
+
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-family: 'IBM Plex Sans Thai', 'Sarabun', sans-serif !important;
+  }
+
+  /* Hide everything */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only #receipt-content and its children */
+  #receipt-content,
+  #receipt-content * {
+    visibility: visible;
+  }
+
+  /* Position receipt at top-left, full width */
+  #receipt-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 11px !important;
+    color: #000 !important;
+  }
+
+  /* Hide print:hidden elements (buttons, controls) */
+  .print\:hidden {
+    display: none !important;
+  }
+}
+

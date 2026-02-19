@@ -60,6 +60,15 @@ export default function BarcodeInput({ onBarcodeScan, onSearchChange, searchValu
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (inputRef.current && !disabled && document.activeElement !== inputRef.current) {
+        // Don't steal focus from modals (inputs/textareas/selects inside overlays)
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+          return;
+        }
+        // Don't steal focus if a modal overlay is open (z-50 fixed elements)
+        const modal = document.querySelector('.fixed.inset-0.z-50');
+        if (modal) return;
+
         // Only refocus for printable characters or Enter (barcode scanner)
         if (e.key.length === 1 || e.key === 'Enter') {
           inputRef.current.focus();
@@ -79,7 +88,7 @@ export default function BarcodeInput({ onBarcodeScan, onSearchChange, searchValu
     <>
       <div className="relative flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-400" />
           <input
             ref={inputRef}
             type="text"
@@ -88,13 +97,13 @@ export default function BarcodeInput({ onBarcodeScan, onSearchChange, searchValu
             onKeyDown={handleKeyDown}
             placeholder="ค้นหาชื่อ, รหัส, SKU หรือสแกนบาร์โค้ด..."
             disabled={disabled}
-            className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent text-base"
+            className="w-full pl-10 pr-4 py-3 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent text-base"
           />
         </div>
         <button
           onClick={() => setShowCamera(true)}
           disabled={disabled}
-          className="px-3 bg-white/10 border border-gray-600 rounded-lg text-gray-400 hover:text-white hover:bg-white/20 transition-colors disabled:opacity-30 flex-shrink-0"
+          className="px-3 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/20 transition-colors disabled:opacity-30 flex-shrink-0"
           title="สแกนด้วยกล้อง"
         >
           <Camera className="w-5 h-5" />

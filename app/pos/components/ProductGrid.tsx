@@ -30,10 +30,10 @@ export default function ProductGrid({ products, onAddToCart, loading, allowOvers
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="bg-white/5 rounded-xl p-3 animate-pulse">
-            <div className="aspect-square bg-white/10 rounded-lg mb-2" />
-            <div className="h-4 bg-white/10 rounded w-3/4 mb-1" />
-            <div className="h-4 bg-white/10 rounded w-1/2" />
+          <div key={i} className="bg-gray-100 dark:bg-white/5 rounded-xl p-3 animate-pulse">
+            <div className="aspect-square bg-gray-200 dark:bg-white/10 rounded-lg mb-2" />
+            <div className="h-4 bg-gray-200 dark:bg-white/10 rounded w-3/4 mb-1" />
+            <div className="h-4 bg-gray-200 dark:bg-white/10 rounded w-1/2" />
           </div>
         ))}
       </div>
@@ -42,7 +42,7 @@ export default function ProductGrid({ products, onAddToCart, loading, allowOvers
 
   if (products.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+      <div className="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-gray-400">
         <Package2 className="w-12 h-12 mb-3 opacity-50" />
         <p className="text-sm">ไม่พบสินค้า</p>
       </div>
@@ -59,14 +59,14 @@ export default function ProductGrid({ products, onAddToCart, loading, allowOvers
             key={product.variation_id}
             onClick={() => !outOfStock && onAddToCart(product)}
             disabled={outOfStock}
-            className={`relative bg-white/5 rounded-xl p-3 text-left transition-all ${
+            className={`relative bg-white dark:bg-white/5 rounded-xl p-3 text-left transition-all shadow-sm dark:shadow-none ${
               outOfStock
                 ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-white/10 active:scale-[0.97]'
+                : 'hover:bg-gray-50 dark:hover:bg-white/10 active:scale-[0.97]'
             }`}
           >
             {/* Image */}
-            <div className="aspect-square bg-white/10 rounded-lg mb-2 overflow-hidden flex items-center justify-center">
+            <div className="aspect-square bg-gray-100 dark:bg-white/10 rounded-lg mb-2 overflow-hidden flex items-center justify-center">
               {product.image_url ? (
                 <img
                   src={product.image_url}
@@ -74,16 +74,16 @@ export default function ProductGrid({ products, onAddToCart, loading, allowOvers
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <Package2 className="w-8 h-8 text-gray-500" />
+                <Package2 className="w-8 h-8 text-gray-400 dark:text-gray-500" />
               )}
             </div>
 
             {/* Name */}
-            <p className="text-white text-sm font-medium truncate">
+            <p className="text-gray-900 dark:text-white text-sm font-medium truncate">
               {product.product_name}
             </p>
             {product.variation_label && (
-              <p className="text-gray-400 text-xs truncate">{product.variation_label}</p>
+              <p className="text-gray-500 dark:text-gray-400 text-xs truncate">{product.variation_label}</p>
             )}
 
             {/* Price */}
@@ -93,7 +93,7 @@ export default function ProductGrid({ products, onAddToCart, loading, allowOvers
 
             {/* Stock badge */}
             {noStockTracking ? null : (
-              <p className={`text-xs mt-0.5 ${outOfStock ? 'text-red-400' : 'text-gray-500'}`}>
+              <p className={`text-xs mt-0.5 ${outOfStock ? 'text-red-500 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>
                 {outOfStock ? 'หมด' : `คงเหลือ ${product.stock}`}
               </p>
             )}

@@ -80,33 +80,33 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] to-[#16213E] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] to-[#16213E] flex items-start sm:items-center justify-center pt-12 sm:pt-0 p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-3">
-            <Image src="/logo.svg" alt="JOOLZ Factory" width={150} height={98} priority />
+        <div className="text-center mb-5 sm:mb-8">
+          <div className="flex justify-center mb-2 sm:mb-3">
+            <Image src="/logo.svg" alt="AooCommerce" width={150} height={98} className="w-[120px] h-[78px] sm:w-[150px] sm:h-[98px]" priority />
           </div>
           <p className="text-gray-400 text-sm">
-            ระบบจัดการโรงงานผลิตน้ำผลไม้
+            AooCommerce - จุดเริ่มต้นของการอู้ คือระบบหลังบ้านที่ดี
           </p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-[#F4511E]/20">
+        <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-5 sm:p-8 border border-[#F4511E]/20">
           {/* Error Alert */}
           {error && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start space-x-3">
+            <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start space-x-3">
               <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-300">{error}</p>
             </div>
           )}
 
           {/* Email Login Form */}
-          <form onSubmit={handleEmailLogin} className="space-y-5">
+          <form onSubmit={handleEmailLogin} className="space-y-4 sm:space-y-5">
             {/* Email Input */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-base font-medium text-gray-300 mb-2">
                 อีเมล
               </label>
               <div className="relative">
@@ -115,7 +115,7 @@ export default function LoginPage() {
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all"
                   placeholder="your@email.com"
                   required
                   disabled={isLoading}
@@ -125,7 +125,7 @@ export default function LoginPage() {
 
             {/* Password Input */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-base font-medium text-gray-300 mb-2">
                 รหัสผ่าน
               </label>
               <div className="relative">
@@ -134,7 +134,7 @@ export default function LoginPage() {
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all"
                   placeholder="••••••••"
                   required
                   disabled={isLoading}
@@ -160,7 +160,7 @@ export default function LoginPage() {
           </form>
 
           {/* Divider */}
-          <div className="relative my-6">
+          <div className="relative my-4 sm:my-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-600"></div>
             </div>
@@ -191,23 +191,11 @@ export default function LoginPage() {
           </button>
 
           {/* Footer Note */}
-          <p className="text-center text-xs text-gray-500 mt-6">
+          <p className="text-center text-xs text-gray-500 mt-4 sm:mt-6">
             สำหรับพนักงานที่ได้รับอนุญาตเท่านั้น
           </p>
         </div>
 
-        {/* Test Account Info */}
-        <div className="mt-6 p-4 bg-white/5 rounded-lg border border-white/10">
-          <p className="text-xs text-gray-400 mb-2">🔐 Test Account:</p>
-          <div className="space-y-1">
-            <p className="text-xs text-gray-300">
-              Email: kwamkid@gmail.com
-            </p>
-            <p className="text-xs text-gray-300">
-              Password: 1234
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -16,17 +16,17 @@ export default function VariationPicker({ productName, variations, onSelect, onC
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="bg-[#1E293B] rounded-2xl p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto"
+        className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto shadow-xl dark:shadow-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white">{productName}</h3>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-white">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{productName}</h3>
+          <button onClick={onClose} className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <p className="text-sm text-gray-400 mb-4">เลือกตัวเลือก</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">เลือกตัวเลือก</p>
 
         <div className="grid grid-cols-2 gap-3">
           {variations.map(v => {
@@ -39,14 +39,14 @@ export default function VariationPicker({ productName, variations, onSelect, onC
                 disabled={outOfStock}
                 className={`p-4 rounded-xl text-left transition-all ${
                   outOfStock
-                    ? 'bg-white/5 opacity-50 cursor-not-allowed'
-                    : 'bg-white/10 hover:bg-white/20 active:scale-95'
+                    ? 'bg-gray-50 dark:bg-white/5 opacity-50 cursor-not-allowed'
+                    : 'bg-gray-50 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/20 active:scale-95'
                 }`}
               >
-                <p className="text-white font-medium text-sm">{v.variation_label}</p>
+                <p className="text-gray-900 dark:text-white font-medium text-sm">{v.variation_label}</p>
                 <p className="text-[#F4511E] font-bold mt-1">฿{formatPrice(v.price)}</p>
                 {noStockTracking ? null : (
-                  <p className={`text-xs mt-1 ${outOfStock ? 'text-red-400' : 'text-gray-400'}`}>
+                  <p className={`text-xs mt-1 ${outOfStock ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
                     {outOfStock ? 'หมด' : `คงเหลือ ${v.stock}`}
                   </p>
                 )}

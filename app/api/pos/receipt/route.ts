@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
         customer:customers(name, customer_code),
         items:order_items(
           product_name, variation_label, quantity, unit_price,
-          discount_amount, total
+          discount_amount, total,
+          variation:product_variations(sku, barcode)
         ),
         session:pos_sessions(cashier_name, terminal:pos_terminals(name), warehouse:warehouses(name))
       `)
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
     // Get company info for receipt header
     const { data: company } = await supabaseAdmin
       .from('companies')
-      .select('name, address, phone, tax_id, tax_company_name, tax_branch')
+      .select('name, address, phone, tax_id, tax_company_name, tax_branch, logo_url')
       .eq('id', auth.companyId)
       .single();
 
@@ -63,6 +64,7 @@ export async function GET(request: NextRequest) {
           tax_id: company?.tax_id || '',
           tax_company_name: company?.tax_company_name || '',
           tax_branch: company?.tax_branch || '',
+          logo_url: company?.logo_url || '',
         },
         order: {
           receipt_number: order.receipt_number,
@@ -78,7 +80,16 @@ export async function GET(request: NextRequest) {
         },
         cashier_name: (order.session as any)?.cashier_name || '',
         branch_name: (order.session as any)?.terminal?.name || (order.session as any)?.warehouse?.name || '',
-        items: order.items || [],
+        items: (order.items || []).map((item: any) => ({
+          product_name: item.product_name,
+          variation_label: item.variation_label,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          discount_amount: item.discount_amount,
+          total: item.total,
+          sku: item.variation?.sku || null,
+          barcode: item.variation?.barcode || null,
+        })),
         payments: (payments || []).map(p => ({
           method: p.payment_method,
           amount: p.amount,

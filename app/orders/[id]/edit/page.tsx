@@ -890,25 +890,31 @@ export default function EditOrderPage() {
                             />
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={product.unit_price}
-                              onChange={(e) => handleUpdateProductPrice(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
-                              className="w-full px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                            />
+                            <div className="inline-flex items-stretch">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={product.unit_price}
+                                onChange={(e) => handleUpdateProductPrice(branchIndex, productIndex, Math.max(0, parseFloat(e.target.value) || 0))}
+                                className="w-20 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                              />
+                              <span className="px-1.5 border border-l-0 border-gray-300 dark:border-slate-600 rounded-r bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 text-sm font-bold flex items-center">฿</span>
+                            </div>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="0.01"
-                              value={product.discount_percent}
-                              onChange={(e) => handleUpdateProductDiscount(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
-                              className="w-20 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                            />
+                            <div className="inline-flex items-stretch">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={product.discount_percent}
+                                onChange={(e) => handleUpdateProductDiscount(branchIndex, productIndex, Math.max(0, parseFloat(e.target.value) || 0))}
+                                className="w-16 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                              />
+                              <span className="px-2 border border-l-0 border-gray-300 dark:border-slate-600 rounded-r bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 text-sm font-bold flex items-center">%</span>
+                            </div>
                           </td>
                           <td className="px-4 py-3 text-right font-medium">
                             ฿{formatPrice(calculateProductTotal(product))}
@@ -1081,14 +1087,17 @@ export default function EditOrderPage() {
                   )}
                   <div className="flex justify-between items-center">
                     <span>ส่วนลดรวม</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={orderDiscount}
-                      onChange={(e) => setOrderDiscount(parseFloat(e.target.value) || 0)}
-                      className="w-32 px-3 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                    />
+                    <div className="flex">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={orderDiscount}
+                        onChange={(e) => setOrderDiscount(Math.min(itemsTotal, Math.max(0, parseFloat(e.target.value) || 0)))}
+                        className="w-24 px-3 py-1 border border-gray-300 dark:border-slate-600 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                      />
+                      <span className="px-2 py-1 border border-l-0 border-gray-300 dark:border-slate-600 rounded-r bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 text-sm font-bold flex items-center">฿</span>
+                    </div>
                   </div>
                   <div className="flex justify-between text-sm text-gray-600 pt-2 border-t">
                     <span>ยอดก่อน VAT</span>

@@ -25,43 +25,70 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
 
     // Auto-seed default channels if none exist for this company+group
-    if ((!data || data.length === 0) && group === 'bill_online') {
-      const seedRows = [
-        {
-          company_id: companyId,
-          channel_group: 'bill_online',
-          type: 'cash',
-          name: 'เงินสด',
-          is_active: true,
-          sort_order: 0,
-          config: { description: 'รับเงินสดจากลูกค้า / จ่ายหน้าร้าน' },
-        },
-        {
-          company_id: companyId,
-          channel_group: 'bill_online',
-          type: 'payment_gateway',
-          name: 'ชำระออนไลน์',
-          is_active: false,
-          sort_order: 99,
-          config: {},
-        },
-      ];
+    if (!data || data.length === 0) {
+      let seedRows: Array<Record<string, unknown>> = [];
 
-      const { error: seedError } = await supabaseAdmin
-        .from('payment_channels')
-        .insert(seedRows);
+      if (group === 'bill_online') {
+        seedRows = [
+          {
+            company_id: companyId,
+            channel_group: 'bill_online',
+            type: 'cash',
+            name: 'เงินสด',
+            is_active: true,
+            sort_order: 0,
+            config: { description: 'รับเงินสดจากลูกค้า / จ่ายหน้าร้าน' },
+          },
+          {
+            company_id: companyId,
+            channel_group: 'bill_online',
+            type: 'payment_gateway',
+            name: 'ชำระออนไลน์',
+            is_active: false,
+            sort_order: 99,
+            config: {},
+          },
+        ];
+      } else if (group === 'pos') {
+        seedRows = [
+          {
+            company_id: companyId,
+            channel_group: 'pos',
+            type: 'cash',
+            name: 'เงินสด',
+            is_active: true,
+            sort_order: 0,
+            config: {},
+          },
+          {
+            company_id: companyId,
+            channel_group: 'pos',
+            type: 'bank_transfer',
+            name: 'โอนเงิน',
+            is_active: true,
+            sort_order: 1,
+            config: {},
+          },
+        ];
+      }
 
-      if (seedError) {
-        console.error('Auto-seed payment channels error:', seedError);
-      } else {
-        // Re-fetch after seeding
-        const refetch = await supabaseAdmin
+      if (seedRows.length > 0) {
+        const { error: seedError } = await supabaseAdmin
           .from('payment_channels')
-          .select('*')
-          .eq('company_id', companyId)
-          .eq('channel_group', group)
-          .order('sort_order', { ascending: true });
-        data = refetch.data;
+          .insert(seedRows);
+
+        if (seedError) {
+          console.error('Auto-seed payment channels error:', seedError);
+        } else {
+          // Re-fetch after seeding
+          const refetch = await supabaseAdmin
+            .from('payment_channels')
+            .select('*')
+            .eq('company_id', companyId)
+            .eq('channel_group', group)
+            .order('sort_order', { ascending: true });
+          data = refetch.data;
+        }
       }
     }
 
@@ -89,9 +116,12 @@ export async function POST(request: NextRequest) {
 
     // Validate based on type
     if (type === 'bank_transfer') {
-      if (!config?.bank_code || !config?.account_number || !config?.account_name) {
+      // POS group doesn't require bank details
+      if (channel_group !== 'pos' && (!config?.bank_code || !config?.account_number || !config?.account_name)) {
         return NextResponse.json({ error: 'bank_code, account_number, account_name are required' }, { status: 400 });
       }
+    } else if (type === 'card_terminal' || type === 'other') {
+      // POS-specific types — just need a name
     } else if (type === 'payment_gateway') {
       // Check singleton
       const { data: existing } = await supabaseAdmin
@@ -242,8 +272,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
     }
 
-    if (channel.type !== 'bank_transfer') {
-      return NextResponse.json({ error: 'Only bank accounts can be deleted. Use toggle for other types.' }, { status: 400 });
+    if (channel.type === 'cash' || channel.type === 'payment_gateway') {
+      return NextResponse.json({ error: 'ช่องทางนี้ไม่สามารถลบได้ ให้ใช้ toggle เปิด/ปิดแทน' }, { status: 400 });
     }
 
     const { error } = await supabaseAdmin
