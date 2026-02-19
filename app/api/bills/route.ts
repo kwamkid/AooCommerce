@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
       supabaseAdmin
         .from('payment_channels')
         .select('id, type, name, is_active, config, sort_order')
+        .eq('company_id', order.company_id)
         .eq('channel_group', 'bill_online')
         .eq('is_active', true)
         .order('sort_order', { ascending: true }),
