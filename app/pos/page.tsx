@@ -545,7 +545,7 @@ export default function PosPage() {
         </div>
 
         {/* Right — Cart */}
-        <div className={`md:w-[32%] md:min-w-[320px] md:max-w-[420px] md:border-l border-gray-200 dark:border-gray-700/50 p-4 flex flex-col bg-gray-50 dark:bg-[#1E293B]/50 ${mobileTab !== 'cart' ? 'hidden md:flex' : 'flex-1'}`}>
+        <div className={`md:w-[32%] md:min-w-[320px] md:max-w-[420px] md:border-l border-gray-200 dark:border-gray-700/50 p-4 flex flex-col overflow-hidden bg-gray-50 dark:bg-[#1E293B]/50 ${mobileTab !== 'cart' ? 'hidden md:flex' : 'flex-1'}`}>
           <CartPanel
             items={cartItems}
             orderDiscount={orderDiscount}
