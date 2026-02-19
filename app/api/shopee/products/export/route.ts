@@ -11,10 +11,8 @@ import { exportProductToShopee, exportBulkToShopee, ExportOptions } from '@/lib/
  *   shopee_category_id?: number,       // shared fallback (used for single export)
  *   weight?: number,                   // shared fallback
  *   per_product_options?: Record<string, { shopee_category_id: number, shopee_category_name?: string, weight?: number }>
+ *   mode?: 'json' | 'stream'          // default: 'stream' (SSE) for bulk modal, 'json' for single modal
  * }
- *
- * Single product (1 id) → JSON response
- * Bulk products (multiple ids) → SSE stream
  */
 export async function POST(request: NextRequest) {
   try {
@@ -24,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { product_ids, shopee_account_id, shopee_category_id, shopee_category_name, weight, per_product_options } = body;
+    const { product_ids, shopee_account_id, shopee_category_id, shopee_category_name, weight, per_product_options, mode } = body;
 
     if (!product_ids || !Array.isArray(product_ids) || product_ids.length === 0) {
       return NextResponse.json({ error: 'product_ids is required' }, { status: 400 });
@@ -58,9 +56,8 @@ export async function POST(request: NextRequest) {
     };
     const companyId = auth.companyId!;
 
-    // Single product → JSON response
-    if (product_ids.length === 1) {
-      // Use per-product options if available
+    // JSON mode — used by ShopeeExportModal (single product page)
+    if (mode === 'json' && product_ids.length === 1) {
       const productOptions: ExportOptions = per_product_options?.[product_ids[0]]
         ? {
             shopee_category_id: per_product_options[product_ids[0]].shopee_category_id,
@@ -92,7 +89,7 @@ export async function POST(request: NextRequest) {
         )
       : undefined;
 
-    // Bulk products → SSE stream
+    // SSE stream — used by ShopeeBulkExportModal (works for 1 or many products)
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {

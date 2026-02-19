@@ -121,6 +121,7 @@ export default function ShopeeExportModal({
           shopee_category_id: selectedCategoryId,
           shopee_category_name: selectedCategoryName,
           weight: parseFloat(weight) || 0.5,
+          mode: 'json',
         }),
       });
 

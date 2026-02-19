@@ -216,19 +216,18 @@ export async function exportProductToShopee(
   try {
     const creds = await ensureValidToken(account);
 
-    // 0. Check if product is already linked to this account
-    const { data: existingLink } = await supabaseAdmin
+    // 0. Check if product is already linked to this specific account
+    const { data: existingLinks } = await supabaseAdmin
       .from('marketplace_product_links')
-      .select('id, external_item_id')
+      .select('id, external_item_id, account_id')
       .eq('account_id', account.id)
-      .eq('product_id', productId)
-      .limit(1)
-      .single();
+      .eq('product_id', productId);
 
-    if (existingLink) {
+    if (existingLinks && existingLinks.length > 0) {
+      console.log(`[Shopee Export] Product ${productId} already linked to account ${account.id}:`, existingLinks);
       return {
         success: false,
-        error: `สินค้านี้เชื่อมกับ Shopee อยู่แล้ว (Item ID: ${existingLink.external_item_id})`,
+        error: `สินค้านี้เชื่อมกับ Shopee อยู่แล้ว (Item ID: ${existingLinks[0].external_item_id})`,
         product_name: '',
       };
     }
