@@ -108,17 +108,22 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      // Fetch shop name + logo (best effort)
+      // Fetch shop name, logo, and real shop_id for webhook matching (best effort)
       try {
         const creds = await ensureValidToken(account);
         const shopInfo = await getShopInfo(creds);
         console.log('[Shopee Callback] Shop info for', sid, ':', shopInfo);
         if (shopInfo) {
-          const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
-          if (shopInfo.shop_name) updateData.shop_name = shopInfo.shop_name;
-          if (shopInfo.shop_logo) {
-            updateData.metadata = { ...(account.metadata || {}), shop_logo: shopInfo.shop_logo };
+          const meta = { ...(account.metadata || {}) } as Record<string, unknown>;
+          if (shopInfo.shop_logo) meta.shop_logo = shopInfo.shop_logo;
+          // Store real shop_id from API for webhook matching
+          // Shopee may use a different shop_id in webhook pushes than in OAuth
+          if (shopInfo.real_shop_id && shopInfo.real_shop_id !== sid) {
+            meta.webhook_shop_id = shopInfo.real_shop_id;
+            console.log('[Shopee Callback] Webhook shop_id differs:', { oauth_shop_id: sid, webhook_shop_id: shopInfo.real_shop_id });
           }
+          const updateData: Record<string, unknown> = { updated_at: new Date().toISOString(), metadata: meta };
+          if (shopInfo.shop_name) updateData.shop_name = shopInfo.shop_name;
           await supabaseAdmin
             .from('shopee_accounts')
             .update(updateData)

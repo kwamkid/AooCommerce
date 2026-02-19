@@ -39,7 +39,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Look up account by shop_id
-    let account: Record<string, unknown> | null = null;
     const { data: directMatch } = await supabaseAdmin
       .from('shopee_accounts')
       .select('*')
@@ -47,7 +46,7 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true)
       .single();
 
-    account = directMatch;
+    let account = directMatch;
 
     // If not found by shop_id, try matching via webhook_shop_id in metadata
     if (!account) {
