@@ -383,6 +383,13 @@ export default function PosPage() {
       if (res.ok && data.order) {
         setShowPayment(false);
 
+        // Clear cart immediately after successful payment
+        setCartItems([]);
+        setOrderDiscount(0);
+        setOrderDiscountType('amount');
+        setSelectedCustomer(null);
+        setMobileTab('products');
+
         // Fetch receipt data
         const receiptRes = await apiFetch(`/api/pos/receipt?order_id=${data.order.id}`);
         const receiptJson = await receiptRes.json();
@@ -411,6 +418,7 @@ export default function PosPage() {
     setOrderDiscount(0);
     setOrderDiscountType('amount');
     setSelectedCustomer(null);
+    setMobileTab('products');
   };
 
   // Loading state
@@ -610,7 +618,7 @@ export default function PosPage() {
       {receiptData && (
         <Receipt
           data={receiptData}
-          onClose={() => setReceiptData(null)}
+          onClose={handleNewSale}
           onNewSale={handleNewSale}
         />
       )}
