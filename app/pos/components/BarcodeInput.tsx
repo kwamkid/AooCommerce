@@ -80,7 +80,6 @@ export default function BarcodeInput({ onBarcodeScan, onSearchChange, searchValu
   }, [disabled]);
 
   const handleCameraScan = (code: string) => {
-    setShowCamera(false);
     onBarcodeScan(code);
   };
 

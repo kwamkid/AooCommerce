@@ -14,20 +14,91 @@ function hasNativeBarcodeDetector(): boolean {
   return typeof globalThis !== 'undefined' && 'BarcodeDetector' in globalThis;
 }
 
+// Apply continuous autofocus + close-range focus if supported
+async function applyFocusConstraints(stream: MediaStream) {
+  const track = stream.getVideoTracks()[0];
+  if (!track) return;
+  try {
+    const caps = track.getCapabilities() as Record<string, unknown>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adv: any = {};
+    if (Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+      adv.focusMode = 'continuous';
+    }
+    // Set focus distance to close range if supported (for macro/barcode scanning)
+    if (typeof caps.focusDistance === 'object' && caps.focusDistance !== null) {
+      const fd = caps.focusDistance as { min?: number; max?: number };
+      if (fd.min !== undefined) {
+        // Use a near-focus distance — roughly 20% from minimum
+        adv.focusDistance = fd.min + (((fd.max || 1) - fd.min) * 0.2);
+      }
+    }
+    if (Object.keys(adv).length > 0) {
+      await track.applyConstraints({ advanced: [adv] });
+    }
+  } catch {
+    // Not all devices support advanced constraints
+  }
+}
+
+// Scan guide box size in CSS pixels (must match the overlay div below)
+const SCAN_BOX_W = 300;
+const SCAN_BOX_H = 150;
+
+// Compute the crop region in video pixels that corresponds to the scan guide box
+function getCropRegion(video: HTMLVideoElement) {
+  const vw = video.videoWidth || 640;
+  const vh = video.videoHeight || 480;
+  const el = video.getBoundingClientRect();
+  if (!el.width || !el.height) return { sx: 0, sy: 0, sw: vw, sh: vh };
+
+  // video uses object-cover — compute the visible portion
+  const videoAspect = vw / vh;
+  const elAspect = el.width / el.height;
+
+  let scaleX: number, scaleY: number, offsetX: number, offsetY: number;
+  if (videoAspect > elAspect) {
+    // Video is wider — height fits, width is cropped
+    scaleY = vh / el.height;
+    scaleX = scaleY;
+    offsetX = (vw - el.width * scaleX) / 2;
+    offsetY = 0;
+  } else {
+    // Video is taller — width fits, height is cropped
+    scaleX = vw / el.width;
+    scaleY = scaleX;
+    offsetX = 0;
+    offsetY = (vh - el.height * scaleY) / 2;
+  }
+
+  // Scan box is centered in the element
+  const boxLeft = (el.width - SCAN_BOX_W) / 2;
+  const boxTop = (el.height - SCAN_BOX_H) / 2;
+
+  const sx = Math.max(0, Math.round(offsetX + boxLeft * scaleX));
+  const sy = Math.max(0, Math.round(offsetY + boxTop * scaleY));
+  const sw = Math.min(vw - sx, Math.round(SCAN_BOX_W * scaleX));
+  const sh = Math.min(vh - sy, Math.round(SCAN_BOX_H * scaleY));
+
+  return { sx, sy, sw, sh };
+}
+
 export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanningRef = useRef(false);
   const onScanRef = useRef(onScan);
+  const lastScannedRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
 
   useEffect(() => {
     onScanRef.current = onScan;
   }, [onScan]);
 
-  // Cleanup stream helper
   const stopStream = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
@@ -37,9 +108,7 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
 
   useEffect(() => {
     let cancelled = false;
-    let animFrameId: number;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let html5Scanner: any = null;
+    let timerId: ReturnType<typeof setTimeout>;
 
     const startCamera = async () => {
       setLoading(true);
@@ -61,62 +130,97 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
         }
 
         streamRef.current = stream;
+        await applyFocusConstraints(stream);
+
+        const video = videoRef.current!;
+        video.srcObject = stream;
+        await video.play();
+        setLoading(false);
+
+        scanningRef.current = true;
+
+        // Shared canvas for cropping scan region
+        const canvas = canvasRef.current!;
+        const ctx = canvas.getContext('2d')!;
 
         if (hasNativeBarcodeDetector()) {
           // ===== NATIVE PATH (Chrome / Android) =====
-          const video = videoRef.current!;
-          video.srcObject = stream;
-          await video.play();
-          setLoading(false);
-
           // @ts-expect-error — BarcodeDetector is not in TS lib yet
           const detector = new globalThis.BarcodeDetector({
             formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'code_93', 'itf', 'qr_code'],
           });
 
-          scanningRef.current = true;
-
+          let animFrameId: number;
           const scanLoop = async () => {
             if (cancelled || !scanningRef.current) return;
             try {
-              const barcodes = await detector.detect(video);
+              // Crop to scan guide region before detecting
+              const { sx, sy, sw, sh } = getCropRegion(video);
+              canvas.width = sw;
+              canvas.height = sh;
+              ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+
+              const barcodes = await detector.detect(canvas);
               if (barcodes.length > 0 && !cancelled) {
-                scanningRef.current = false;
-                stopStream();
-                onScanRef.current(barcodes[0].rawValue);
-                return;
+                const code = barcodes[0].rawValue;
+                const now = Date.now();
+                const last = lastScannedRef.current;
+                if (code !== last.code || now - last.time > 2000) {
+                  lastScannedRef.current = { code, time: now };
+                  setLastScannedCode(code);
+                  onScanRef.current(code);
+                }
               }
             } catch {
-              // detect can throw if video not ready yet, ignore
+              // detect can throw if video not ready yet
             }
             animFrameId = requestAnimationFrame(scanLoop);
           };
-
           animFrameId = requestAnimationFrame(scanLoop);
         } else {
-          // ===== FALLBACK PATH (iOS / Safari) — use html5-qrcode =====
-          // Stop our direct stream since html5-qrcode manages its own
-          stream.getTracks().forEach(t => t.stop());
-          streamRef.current = null;
-
+          // ===== FALLBACK PATH (iOS / Safari) =====
+          // We manage the stream ourselves and decode frames via html5-qrcode scanFile
           const { Html5Qrcode } = await import('html5-qrcode');
-          const scanner = new Html5Qrcode('pos-camera-scanner-fallback', { verbose: false });
-          html5Scanner = scanner;
+          const decoder = new Html5Qrcode('pos-camera-scanner-decode', { verbose: false });
 
-          await scanner.start(
-            { facingMode },
-            { fps: 20, qrbox: { width: 300, height: 150 }, disableFlip: false },
-            (decodedText: string) => {
-              if (!cancelled) {
-                cancelled = true;
-                scanner.stop().catch(() => {});
-                onScanRef.current(decodedText);
+          const decodeFrame = async () => {
+            if (cancelled || !scanningRef.current) return;
+            try {
+              // Crop to scan guide region
+              const { sx, sy, sw, sh } = getCropRegion(video);
+              canvas.width = sw;
+              canvas.height = sh;
+              ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+
+              // Convert to blob and scan
+              const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', 0.8));
+              if (blob && !cancelled) {
+                const file = new File([blob], 'frame.jpg', { type: 'image/jpeg' });
+                try {
+                  const result = await decoder.scanFile(file, false);
+                  if (result && !cancelled) {
+                    const now = Date.now();
+                    const last = lastScannedRef.current;
+                    if (result !== last.code || now - last.time > 2000) {
+                      lastScannedRef.current = { code: result, time: now };
+                      setLastScannedCode(result);
+                      onScanRef.current(result);
+                    }
+                  }
+                } catch {
+                  // No barcode found in this frame — normal
+                }
               }
-            },
-            () => {}
-          );
+            } catch {
+              // Canvas/blob error — ignore
+            }
+            // Scan at ~10 fps for iOS (balance between speed and CPU)
+            if (!cancelled && scanningRef.current) {
+              timerId = setTimeout(decodeFrame, 100);
+            }
+          };
 
-          if (!cancelled) setLoading(false);
+          timerId = setTimeout(decodeFrame, 200);
         }
       } catch (err: unknown) {
         if (cancelled) return;
@@ -137,14 +241,8 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
     return () => {
       cancelled = true;
       scanningRef.current = false;
-      if (animFrameId) cancelAnimationFrame(animFrameId);
+      if (timerId) clearTimeout(timerId);
       stopStream();
-      if (html5Scanner) {
-        try {
-          const state = html5Scanner.getState();
-          if (state === 2 || state === 3) html5Scanner.stop().catch(() => {});
-        } catch {}
-      }
     };
   }, [facingMode, stopStream]);
 
@@ -153,8 +251,6 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
     stopStream();
     setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
   }, [stopStream]);
-
-  const useNative = hasNativeBarcodeDetector();
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
@@ -196,49 +292,30 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
               </div>
             )}
 
-            {useNative ? (
-              /* Native BarcodeDetector — direct video element */
-              <>
-                <video
-                  ref={videoRef}
-                  className="w-full h-full object-cover"
-                  playsInline
-                  muted
-                  autoPlay
-                />
-                {/* Scan guide overlay */}
-                {!loading && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-[300px] h-[150px] border-2 border-white/60 rounded-lg" />
-                  </div>
-                )}
-              </>
-            ) : (
-              /* Fallback html5-qrcode */
-              <>
-                <style jsx>{`
-                  #pos-camera-scanner-fallback {
-                    width: 100% !important;
-                    flex: 1;
-                  }
-                  #pos-camera-scanner-fallback video {
-                    width: 100% !important;
-                    height: 100% !important;
-                    object-fit: cover;
-                  }
-                  #pos-camera-scanner-fallback > div > img,
-                  #pos-camera-scanner-fallback__header_message,
-                  #pos-camera-scanner-fallback__dashboard {
-                    display: none !important;
-                  }
-                `}</style>
-                <div id="pos-camera-scanner-fallback" className="w-full flex-1" />
-              </>
+            <video
+              ref={videoRef}
+              className="w-full h-full object-cover"
+              playsInline
+              muted
+              autoPlay
+            />
+            {/* Hidden canvas for iOS fallback frame decoding */}
+            <canvas ref={canvasRef} className="hidden" />
+            {/* Hidden div for html5-qrcode decoder instance */}
+            <div id="pos-camera-scanner-decode" className="hidden" />
+
+            {/* Scan guide overlay */}
+            {!loading && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div style={{ width: SCAN_BOX_W, height: SCAN_BOX_H }} className="border-2 border-white/60 rounded-lg" />
+              </div>
             )}
 
             {!loading && (
-              <p className="absolute bottom-8 left-0 right-0 text-gray-400 text-xs text-center">
-                เล็งกล้องไปที่บาร์โค้ด
+              <p className={`absolute bottom-8 left-0 right-0 text-xs text-center transition-colors ${lastScannedCode ? 'text-green-400' : 'text-gray-400'}`}>
+                {lastScannedCode
+                  ? `สแกนได้: ${lastScannedCode}`
+                  : 'เล็งกล้องไปที่บาร์โค้ด'}
               </p>
             )}
           </>
