@@ -384,8 +384,9 @@ export default function IntegrationsPage() {
                           className="w-10 h-10 rounded-lg object-cover"
                         />
                       ) : (
-                        <div className="w-10 h-10 rounded-lg bg-[#EE4D2D]/10 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-lg bg-[#EE4D2D]/10 flex items-center justify-center relative">
                           <ShoppingBag className="w-5 h-5 text-[#EE4D2D]" />
+                          <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] text-gray-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">กดเพื่ออัพเดท</span>
                         </div>
                       )}
                       <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
