@@ -528,7 +528,7 @@ export async function getShippingParameter(
   creds: ShopeeCredentials,
   orderSn: string
 ): Promise<{ data: unknown; error?: string }> {
-  return shopeeApiRequest(creds, 'POST', '/api/v2/logistics/get_shipping_parameter', {}, {
+  return shopeeApiRequest(creds, 'GET', '/api/v2/logistics/get_shipping_parameter', {
     order_sn: orderSn,
   });
 }

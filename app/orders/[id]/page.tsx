@@ -627,7 +627,7 @@ export default function OrderDetailPage() {
 
         {/* Shopee Order Info Block (hidden on print) */}
         {isShopeeOrder && externalStatus && (
-          <div className="bg-orange-50 dark:bg-slate-800 border border-orange-200 dark:border-orange-700/40 rounded-xl p-4 space-y-3 print:hidden">
+          <div className="bg-orange-50 dark:bg-slate-800 rounded-xl p-4 space-y-3 print:hidden">
             <div className="flex items-center gap-3">
               <img src="/marketplace/shopee.svg" alt="Shopee" className="w-5 h-5" />
               <div className="flex-1">

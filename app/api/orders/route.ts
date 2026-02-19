@@ -538,7 +538,7 @@ export async function GET(request: NextRequest) {
         subtotal, discount_amount, vat_amount, shipping_fee, total_amount,
         order_status, payment_status, payment_method,
         source, external_status, external_order_sn,
-        customer_id,
+        customer_id, shopee_account_id,
         customer:customers (
           customer_code, name, contact_person, phone
         )
@@ -650,24 +650,59 @@ export async function GET(request: NextRequest) {
     // Get all order IDs for batch fetching branch names
     const orderIds = orders.map(o => o.id);
 
-    // Single optimized query: Get branch names directly via JOIN
-    // This replaces 2 separate queries with 1 query
-    const { data: branchData } = await supabaseAdmin
-      .from('order_items')
-      .select(`
-        order_id,
-        order_shipments!inner (
-          shipping_address:shipping_addresses!inner (
-            address_name
-          )
-        )
-      `)
-      .in('order_id', orderIds)
-      .eq('company_id', auth.companyId);
+    // Collect customer IDs and shopee account IDs for channel info
+    const customerIds = [...new Set(orders.map((o: any) => o.customer_id).filter(Boolean))];
+    const shopeeAccountIds = [...new Set(orders.map((o: any) => o.shopee_account_id).filter(Boolean))];
 
-    // Build branch names map from joined data
+    // Batch fetch: branch names + channel info in parallel
+    const [branchResult, lineResult, fbResult, shopeeResult, chatAccountsResult] = await Promise.all([
+      // Branch names
+      supabaseAdmin
+        .from('order_items')
+        .select(`
+          order_id,
+          order_shipments!inner (
+            shipping_address:shipping_addresses!inner (
+              address_name
+            )
+          )
+        `)
+        .in('order_id', orderIds)
+        .eq('company_id', auth.companyId),
+      // LINE contacts → chat_accounts for customers
+      customerIds.length > 0
+        ? supabaseAdmin
+            .from('line_contacts')
+            .select('customer_id, display_name, picture_url, chat_account_id, chat_account:chat_accounts(id, account_name, platform)')
+            .eq('company_id', auth.companyId)
+            .in('customer_id', customerIds)
+        : Promise.resolve({ data: [] as any[] }),
+      // FB contacts → chat_accounts for customers
+      customerIds.length > 0
+        ? supabaseAdmin
+            .from('fb_contacts')
+            .select('customer_id, display_name, picture_url, chat_account_id, chat_account:chat_accounts(id, account_name, platform)')
+            .eq('company_id', auth.companyId)
+            .in('customer_id', customerIds)
+        : Promise.resolve({ data: [] as any[] }),
+      // Shopee accounts
+      shopeeAccountIds.length > 0
+        ? supabaseAdmin
+            .from('shopee_accounts')
+            .select('id, shop_name, metadata')
+            .in('id', shopeeAccountIds)
+        : Promise.resolve({ data: [] as any[] }),
+      // All chat accounts for this company (for filter options with profile pics)
+      supabaseAdmin
+        .from('chat_accounts')
+        .select('id, platform, account_name, credentials')
+        .eq('company_id', auth.companyId)
+        .eq('is_active', true),
+    ]);
+
+    // Build branch names map
     const orderBranchesMap = new Map<string, Set<string>>();
-    (branchData || []).forEach((item: any) => {
+    (branchResult.data || []).forEach((item: any) => {
       const orderId = item.order_id;
       if (!orderBranchesMap.has(orderId)) {
         orderBranchesMap.set(orderId, new Set());
@@ -679,14 +714,105 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    // Map orders with their branch names
-    const ordersWithBranches = orders.map(order => ({
-      ...order,
-      branch_names: Array.from(orderBranchesMap.get(order.id) || [])
-    }));
+    // Build channel map: customer_id → channel info (prefer LINE, then FB)
+    const customerChannelMap = new Map<string, { platform: string; account_name: string; account_id: string; picture_url: string | null }>();
+    for (const lc of (lineResult.data || [])) {
+      if (lc.customer_id && !customerChannelMap.has(lc.customer_id)) {
+        const acc = lc.chat_account as any;
+        customerChannelMap.set(lc.customer_id, {
+          platform: 'line',
+          account_name: acc?.account_name || 'LINE',
+          account_id: acc?.id || lc.chat_account_id || '',
+          picture_url: lc.picture_url || null,
+        });
+      }
+    }
+    for (const fc of (fbResult.data || [])) {
+      if (fc.customer_id && !customerChannelMap.has(fc.customer_id)) {
+        const acc = fc.chat_account as any;
+        customerChannelMap.set(fc.customer_id, {
+          platform: 'facebook',
+          account_name: acc?.account_name || 'Facebook',
+          account_id: acc?.id || fc.chat_account_id || '',
+          picture_url: fc.picture_url || null,
+        });
+      }
+    }
+
+    // Build shopee account map
+    const shopeeAccountMap = new Map<string, { shop_name: string; shop_logo: string | null }>();
+    for (const sa of (shopeeResult.data || [])) {
+      shopeeAccountMap.set(sa.id, {
+        shop_name: sa.shop_name || 'Shopee',
+        shop_logo: (sa.metadata as any)?.shop_logo || null,
+      });
+    }
+
+    // Build chat account picture map from credentials
+    const chatAccountPicMap = new Map<string, string>();
+    for (const ca of (chatAccountsResult.data || [])) {
+      const creds = ca.credentials as any;
+      const pic = ca.platform === 'line'
+        ? creds?.bot_picture_url
+        : creds?.page_picture_url || creds?.ig_profile_picture_url;
+      if (pic) chatAccountPicMap.set(ca.id, pic);
+    }
+
+    // Build channel filter options with profile pics
+    const channelOptions: { id: string; platform: string; name: string; picture_url: string | null }[] = [];
+    const seenChannelIds = new Set<string>();
+
+    // Add all active chat accounts (LINE/FB)
+    for (const ca of (chatAccountsResult.data || [])) {
+      if (!seenChannelIds.has(ca.id)) {
+        seenChannelIds.add(ca.id);
+        channelOptions.push({
+          id: ca.id,
+          platform: ca.platform,
+          name: ca.account_name,
+          picture_url: chatAccountPicMap.get(ca.id) || null,
+        });
+      }
+    }
+
+    // Add all active shopee accounts
+    const { data: allShopeeAccounts } = await supabaseAdmin
+      .from('shopee_accounts')
+      .select('id, shop_name, metadata')
+      .eq('company_id', auth.companyId)
+      .eq('is_active', true);
+    for (const sa of (allShopeeAccounts || [])) {
+      if (!seenChannelIds.has(sa.id)) {
+        seenChannelIds.add(sa.id);
+        channelOptions.push({
+          id: sa.id,
+          platform: 'shopee',
+          name: sa.shop_name || 'Shopee',
+          picture_url: (sa.metadata as any)?.shop_logo || null,
+        });
+      }
+    }
+
+    // Map orders with branch names + channel info
+    const ordersWithDetails = orders.map((order: any) => {
+      let channel = null;
+      if (order.source === 'shopee' && order.shopee_account_id) {
+        const sa = shopeeAccountMap.get(order.shopee_account_id);
+        if (sa) {
+          channel = { platform: 'shopee', account_name: sa.shop_name, account_id: order.shopee_account_id, picture_url: sa.shop_logo };
+        }
+      } else if (order.customer_id) {
+        channel = customerChannelMap.get(order.customer_id) || null;
+      }
+      return {
+        ...order,
+        branch_names: Array.from(orderBranchesMap.get(order.id) || []),
+        channel,
+      };
+    });
 
     return NextResponse.json({
-      orders: ordersWithBranches,
+      orders: ordersWithDetails,
       pagination: {
         page,
         limit,
@@ -694,7 +820,8 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil((count || 0) / limit)
       },
       statusCounts,
-      paymentCounts
+      paymentCounts,
+      channelOptions,
     });
   } catch (error) {
     return NextResponse.json(

@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       .from('company_members')
       .select(`
         company_id,
-        role,
+        roles,
         company:companies (
           id, name, slug, logo_url, description, phone, email, address,
           tax_id, tax_company_name, tax_branch, website, is_active,
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       .from('company_members')
       .select('company_id')
       .eq('user_id', auth.userId)
-      .eq('role', 'owner')
+      .contains('roles', ['owner'])
       .eq('is_active', true);
 
     const ownedCount = ownedCompanies?.length || 0;
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
     await supabaseAdmin.from('company_members').insert({
       company_id: company.id,
       user_id: auth.userId,
-      role: 'owner',
+      roles: ['owner'],
     });
 
     // Assign Free package to the new company

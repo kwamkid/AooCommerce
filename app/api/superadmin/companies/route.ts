@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
         .from('company_members')
         .select('company_id, user:user_profiles(name, email)')
         .in('company_id', companyIds)
-        .eq('role', 'owner');
+        .contains('roles', ['owner']);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (owners || []).forEach((o: any) => {

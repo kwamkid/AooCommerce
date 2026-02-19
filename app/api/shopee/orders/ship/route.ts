@@ -89,8 +89,11 @@ export async function POST(request: NextRequest) {
         non_integrated?: string[];
       };
       pickup?: {
-        address_list?: Array<{ address_id: number; address_flag?: string[] }>;
-        time_slot_list?: Array<{ pickup_time_id: string; date: number }>;
+        address_list?: Array<{
+          address_id: number;
+          address_flag?: string[];
+          time_slot_list?: Array<{ pickup_time_id: string; date: number; flags?: string[] }>;
+        }>;
       };
       dropoff?: {
         branch_list?: Array<{ branch_id: number }>;
@@ -109,11 +112,15 @@ export async function POST(request: NextRequest) {
     } else {
       // Pickup mode (default)
       const pickupAddress = params.pickup?.address_list?.[0];
-      const pickupTimeSlot = params.pickup?.time_slot_list?.[0];
 
       if (!pickupAddress) {
         return NextResponse.json({ error: 'ไม่พบที่อยู่รับพัสดุ กรุณาตั้งค่าใน Shopee Seller Center' }, { status: 400 });
       }
+
+      // time_slot_list is nested inside each address — pick recommended slot first, else first available
+      const timeSlots = pickupAddress.time_slot_list || [];
+      const recommendedSlot = timeSlots.find(s => s.flags?.includes('recommended'));
+      const pickupTimeSlot = recommendedSlot || timeSlots[0];
 
       const pickupParams = {
         address_id: pickupAddress.address_id,

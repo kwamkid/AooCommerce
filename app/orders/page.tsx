@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
@@ -26,6 +26,8 @@ import {
   ArrowUp,
   ArrowDown,
   X,
+  ChevronDown,
+  Filter,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
@@ -52,19 +54,32 @@ interface Order {
   source?: string;
   external_status?: string;
   external_order_sn?: string;
+  channel?: {
+    platform: string;
+    account_name: string;
+    account_id: string;
+    picture_url: string | null;
+  } | null;
 }
+
+interface ChannelOption {
+  id: string;
+  platform: string;
+  name: string;
+  picture_url: string | null;
+}
+
+// Platform icon SVG map
+const PLATFORM_ICONS: Record<string, string> = {
+  line: '/social/line_oa.svg',
+  facebook: '/social/facebook.svg',
+  instagram: '/social/instagram.svg',
+  shopee: '/marketplace/shopee.svg',
+};
 
 // Source badge component
 function SourceBadge({ source }: { source?: string }) {
-  if (!source || source === 'manual') return null;
-  if (source === 'shopee') {
-    return (
-      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
-        <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3.5 h-3.5" />
-        Shopee
-      </span>
-    );
-  }
+  if (!source || source === 'manual' || source === 'shopee') return null;
   if (source === 'pos') {
     return (
       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
@@ -75,8 +90,46 @@ function SourceBadge({ source }: { source?: string }) {
   return null;
 }
 
+// Channel badge: profile pic with platform icon overlay at bottom-left + shop name
+function ChannelBadge({ channel }: { channel: Order['channel'] }) {
+  if (!channel) {
+    return <span className="text-xs text-gray-400 dark:text-slate-500">-</span>;
+  }
+
+  const platformIcon = PLATFORM_ICONS[channel.platform];
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative flex-shrink-0">
+        {channel.picture_url ? (
+          <img
+            src={channel.picture_url}
+            alt={channel.account_name}
+            className="w-7 h-7 rounded-full object-cover"
+          />
+        ) : (
+          <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center">
+            {platformIcon && <img src={platformIcon} alt={channel.platform} className="w-4 h-4" />}
+          </div>
+        )}
+        {/* Platform icon overlay (bottom-left) */}
+        {channel.picture_url && platformIcon && (
+          <img
+            src={platformIcon}
+            alt={channel.platform}
+            className="absolute -bottom-0.5 -left-0.5 w-3.5 h-3.5 rounded bg-white dark:bg-slate-800 p-[1px]"
+          />
+        )}
+      </div>
+      <span className="text-xs text-gray-700 dark:text-slate-300 truncate max-w-[100px]">
+        {channel.account_name}
+      </span>
+    </div>
+  );
+}
+
 // Column toggle system
-type ColumnKey = 'orderInfo' | 'deliveryDate' | 'customer' | 'branches' | 'total' | 'status' | 'payment' | 'actions';
+type ColumnKey = 'orderInfo' | 'channel' | 'deliveryDate' | 'customer' | 'branches' | 'total' | 'status' | 'payment' | 'actions';
 
 interface ColumnConfig {
   key: ColumnKey;
@@ -87,6 +140,7 @@ interface ColumnConfig {
 
 const COLUMN_CONFIGS: ColumnConfig[] = [
   { key: 'orderInfo', label: 'คำสั่งซื้อ', defaultVisible: true, alwaysVisible: true },
+  { key: 'channel', label: 'ช่องทาง', defaultVisible: true },
   { key: 'deliveryDate', label: 'วันจัดส่ง', defaultVisible: true },
   { key: 'customer', label: 'ลูกค้า', defaultVisible: true },
   { key: 'branches', label: 'สาขา', defaultVisible: true },
@@ -145,11 +199,14 @@ export default function OrdersPage() {
   const { showToast } = useToast();
   const { features } = useFeatures();
 
-  const activeColumnConfigs = COLUMN_CONFIGS.filter(col => {
-    if (col.key === 'deliveryDate' && !features.delivery_date.enabled) return false;
-    if (col.key === 'branches' && !features.customer_branches) return false;
-    return true;
-  });
+  const disabledColumns = new Set<ColumnKey>();
+  if (!features.delivery_date.enabled) disabledColumns.add('deliveryDate');
+  if (!features.customer_branches) disabledColumns.add('branches');
+
+  const activeColumnConfigs = COLUMN_CONFIGS.filter(col => !disabledColumns.has(col.key));
+
+  // Check if a column should render: must be enabled by feature AND toggled on by user
+  const isColVisible = (key: ColumnKey) => !disabledColumns.has(key) && visibleColumns.has(key);
 
   // Column visibility
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
@@ -179,6 +236,10 @@ export default function OrdersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
+  const [channelFilter, setChannelFilter] = useState('all');
+  const [channelOptions, setChannelOptions] = useState<ChannelOption[]>([]);
+  const [channelDropdownOpen, setChannelDropdownOpen] = useState(false);
+  const channelDropdownRef = useRef<HTMLDivElement>(null);
   const [deliveryDateRange, setDeliveryDateRange] = useState<DateValueType>({
     startDate: null,
     endDate: null,
@@ -225,6 +286,18 @@ export default function OrdersPage() {
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({ all: 0, new: 0, shipping: 0, completed: 0, cancelled: 0 });
   const [paymentCounts, setPaymentCounts] = useState<Record<string, number>>({ all: 0, pending: 0, verifying: 0, paid: 0, cancelled: 0 });
 
+  // Close channel dropdown on click outside
+  useEffect(() => {
+    if (!channelDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (channelDropdownRef.current && !channelDropdownRef.current.contains(e.target as Node)) {
+        setChannelDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [channelDropdownOpen]);
+
   // Close modal on ESC key
   useEffect(() => {
     if (!statusUpdateModal.show) return;
@@ -249,7 +322,7 @@ export default function OrdersPage() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, paymentFilter, recordsPerPage]);
+  }, [statusFilter, paymentFilter, channelFilter, recordsPerPage]);
 
   // Fetch orders with server-side filtering and pagination
   // isAuthReady is a boolean (false→true once), so it won't re-trigger from object reference changes
@@ -257,7 +330,7 @@ export default function OrdersPage() {
   useEffect(() => {
     if (!isAuthReady) return;
     fetchOrders();
-  }, [isAuthReady, currentPage, recordsPerPage, statusFilter, paymentFilter, debouncedSearch, sortBy, sortDir]);
+  }, [isAuthReady, currentPage, recordsPerPage, statusFilter, paymentFilter, channelFilter, debouncedSearch, sortBy, sortDir]);
 
   const fetchOrders = async () => {
     try {
@@ -288,6 +361,7 @@ export default function OrdersPage() {
       setTotalPages(result.pagination?.totalPages || 0);
       if (result.statusCounts) setStatusCounts(result.statusCounts);
       if (result.paymentCounts) setPaymentCounts(result.paymentCounts);
+      if (result.channelOptions) setChannelOptions(result.channelOptions);
     } catch (error) {
       console.error('Error fetching orders:', error);
       setError('ไม่สามารถโหลดข้อมูลคำสั่งซื้อได้');
@@ -522,10 +596,16 @@ export default function OrdersPage() {
       : <ArrowDown className="w-3 h-3 text-[#F4511E]" />;
   };
 
-  // Client-side date filter only (server doesn't support date range yet)
-  const filteredOrders = orders.filter(order => checkDateFilter(order));
+  // Client-side filters: date range + channel
+  const filteredOrders = orders.filter(order => {
+    if (!checkDateFilter(order)) return false;
+    if (channelFilter !== 'all') {
+      if (channelFilter === 'none') return !order.channel;
+      return order.channel?.account_id === channelFilter;
+    }
+    return true;
+  });
 
-  // Pagination is now handled by server, but we still filter by date client-side
   const displayedOrders = filteredOrders;
 
   // Calculate display indices for pagination info
@@ -572,7 +652,7 @@ export default function OrdersPage() {
         {/* Filters Section */}
         <div className="data-filter-card">
           <div className="space-y-3">
-            {/* Row 1: Search + Date Range */}
+            {/* Row 1: Search + Date Range + Channel filter */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
                 {fetching ? (
@@ -595,6 +675,98 @@ export default function OrdersPage() {
                     onChange={(val) => setDeliveryDateRange(val)}
                     placeholder="วันที่ส่ง - ทั้งหมด"
                   />
+                </div>
+              )}
+              {channelOptions.length > 0 && (
+                <div className="relative flex-shrink-0" ref={channelDropdownRef}>
+                  <button
+                    onClick={() => setChannelDropdownOpen(!channelDropdownOpen)}
+                    className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                      channelFilter !== 'all'
+                        ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 text-[#F4511E]'
+                        : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:border-gray-400 dark:hover:border-slate-500'
+                    }`}
+                  >
+                    {channelFilter !== 'all' && channelFilter !== 'none' ? (
+                      (() => {
+                        const selected = channelOptions.find(ch => ch.id === channelFilter);
+                        if (!selected) return <Filter className="w-4 h-4" />;
+                        return (
+                          <div className="relative flex-shrink-0">
+                            {selected.picture_url ? (
+                              <img src={selected.picture_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                            ) : (
+                              <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center">
+                                {PLATFORM_ICONS[selected.platform] && (
+                                  <img src={PLATFORM_ICONS[selected.platform]} alt="" className="w-3 h-3" />
+                                )}
+                              </div>
+                            )}
+                            {selected.picture_url && PLATFORM_ICONS[selected.platform] && (
+                              <img src={PLATFORM_ICONS[selected.platform]} alt="" className="absolute -bottom-0.5 -left-0.5 w-2.5 h-2.5 rounded bg-white dark:bg-slate-800 p-[0.5px]" />
+                            )}
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <Filter className="w-4 h-4" />
+                    )}
+                    <span className="whitespace-nowrap">
+                      {channelFilter === 'all' ? 'ช่องทาง' : channelFilter === 'none' ? 'เปิดบิลตรง' : (channelOptions.find(ch => ch.id === channelFilter)?.name || 'ช่องทาง')}
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${channelDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {channelDropdownOpen && (
+                    <div className="absolute top-full mt-1 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg z-30 min-w-[220px] max-h-[320px] overflow-y-auto py-1">
+                      {/* All */}
+                      <button
+                        onClick={() => { setChannelFilter('all'); setChannelDropdownOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${channelFilter === 'all' ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'}`}
+                      >
+                        <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
+                          <Filter className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" />
+                        </div>
+                        <span>ทั้งหมด</span>
+                      </button>
+                      {/* No channel */}
+                      <button
+                        onClick={() => { setChannelFilter('none'); setChannelDropdownOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${channelFilter === 'none' ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'}`}
+                      >
+                        <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
+                          <X className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" />
+                        </div>
+                        <span>เปิดบิลตรง</span>
+                      </button>
+                      {/* Divider */}
+                      <div className="h-px bg-gray-200 dark:bg-slate-600 my-1" />
+                      {/* Channel options */}
+                      {channelOptions.map(ch => (
+                        <button
+                          key={ch.id}
+                          onClick={() => { setChannelFilter(ch.id); setChannelDropdownOpen(false); }}
+                          className={`w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${channelFilter === ch.id ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'}`}
+                        >
+                          <div className="relative flex-shrink-0">
+                            {ch.picture_url ? (
+                              <img src={ch.picture_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center">
+                                {PLATFORM_ICONS[ch.platform] && (
+                                  <img src={PLATFORM_ICONS[ch.platform]} alt="" className="w-3.5 h-3.5" />
+                                )}
+                              </div>
+                            )}
+                            {ch.picture_url && PLATFORM_ICONS[ch.platform] && (
+                              <img src={PLATFORM_ICONS[ch.platform]} alt="" className="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded bg-white dark:bg-slate-800 p-[0.5px]" />
+                            )}
+                          </div>
+                          <span className="truncate">{ch.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -665,33 +837,34 @@ export default function OrdersPage() {
             <table className="w-full">
               <thead className="data-thead">
                 <tr>
-                  {visibleColumns.has('orderInfo') && (
+                  {isColVisible('orderInfo') && (
                     <th className="data-th cursor-pointer select-none" onClick={() => handleSort('created_at')}>
                       <div className="flex items-center gap-1">คำสั่งซื้อ <SortIcon column="created_at" /></div>
                     </th>
                   )}
-                  {visibleColumns.has('deliveryDate') && (
+                  {isColVisible('channel') && <th className="data-th">ช่องทาง</th>}
+                  {isColVisible('deliveryDate') && (
                     <th className="data-th whitespace-nowrap cursor-pointer select-none" onClick={() => handleSort('delivery_date')}>
                       <div className="flex items-center gap-1">วันจัดส่ง <SortIcon column="delivery_date" /></div>
                     </th>
                   )}
-                  {visibleColumns.has('customer') && <th className="data-th">ลูกค้า</th>}
-                  {visibleColumns.has('branches') && <th className="data-th">สาขา</th>}
-                  {visibleColumns.has('total') && (
+                  {isColVisible('customer') && <th className="data-th">ลูกค้า</th>}
+                  {isColVisible('branches') && <th className="data-th">สาขา</th>}
+                  {isColVisible('total') && (
                     <th className="data-th text-right cursor-pointer select-none" onClick={() => handleSort('total_amount')}>
                       <div className="flex items-center gap-1 justify-end">ยอดรวม <SortIcon column="total_amount" /></div>
                     </th>
                   )}
-                  {visibleColumns.has('status') && <th className="data-th">สถานะ</th>}
-                  {visibleColumns.has('payment') && <th className="data-th whitespace-nowrap">การชำระ</th>}
-                  {visibleColumns.has('actions') && <th className="data-th text-center">จัดการ</th>}
+                  {isColVisible('status') && <th className="data-th">สถานะ</th>}
+                  {isColVisible('payment') && <th className="data-th whitespace-nowrap">การชำระ</th>}
+                  {isColVisible('actions') && <th className="data-th text-center">จัดการ</th>}
                 </tr>
               </thead>
               <tbody className="data-tbody">
                 {displayedOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={visibleColumns.size} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
-                      {searchTerm || statusFilter !== 'all' || paymentFilter !== 'all' || deliveryDateRange?.startDate ? 'ไม่พบคำสั่งซื้อที่ค้นหา' : 'ยังไม่มีคำสั่งซื้อ'}
+                    <td colSpan={activeColumnConfigs.filter(c => visibleColumns.has(c.key)).length} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
+                      {searchTerm || statusFilter !== 'all' || paymentFilter !== 'all' || channelFilter !== 'all' || deliveryDateRange?.startDate ? 'ไม่พบคำสั่งซื้อที่ค้นหา' : 'ยังไม่มีคำสั่งซื้อ'}
                     </td>
                   </tr>
                 ) : (
@@ -702,7 +875,7 @@ export default function OrdersPage() {
                       className="data-tr cursor-pointer"
                     >
                       {/* คำสั่งซื้อ: order_number + วันเปิดบิล + เวลา */}
-                      {visibleColumns.has('orderInfo') && (
+                      {isColVisible('orderInfo') && (
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
                             <span className="text-sm font-medium text-gray-900 dark:text-white">{order.order_number}</span>
@@ -716,8 +889,15 @@ export default function OrdersPage() {
                         </td>
                       )}
 
+                      {/* ช่องทาง */}
+                      {isColVisible('channel') && (
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <ChannelBadge channel={order.channel} />
+                        </td>
+                      )}
+
                       {/* วันจัดส่ง */}
-                      {visibleColumns.has('deliveryDate') && (
+                      {isColVisible('deliveryDate') && (
                         <td className="px-6 py-4 whitespace-nowrap">
                           {order.delivery_date ? (
                             <div className="text-sm text-gray-900 dark:text-white">
@@ -730,7 +910,7 @@ export default function OrdersPage() {
                       )}
 
                       {/* ลูกค้า: ชื่อ (กดไปหน้า detail) + เบอร์โทร (กดโทร) */}
-                      {visibleColumns.has('customer') && (
+                      {isColVisible('customer') && (
                         <td className="px-6 py-4">
                           <div>
                             {order.customer_id ? (
@@ -760,7 +940,7 @@ export default function OrdersPage() {
                       )}
 
                       {/* สาขา */}
-                      {visibleColumns.has('branches') && (
+                      {isColVisible('branches') && (
                         <td className="px-6 py-4">
                           <div className="flex flex-wrap gap-1.5">
                             {order.branch_names && order.branch_names.length > 0 ? (
@@ -777,7 +957,7 @@ export default function OrdersPage() {
                       )}
 
                       {/* ยอดรวม */}
-                      {visibleColumns.has('total') && (
+                      {isColVisible('total') && (
                         <td className="px-6 py-4 text-right">
                           <div className="text-sm text-gray-900 dark:text-white">
                             ฿{formatPrice(order.total_amount)}
@@ -786,7 +966,7 @@ export default function OrdersPage() {
                       )}
 
                       {/* สถานะ */}
-                      {visibleColumns.has('status') && (
+                      {isColVisible('status') && (
                         <td className="px-6 py-4">
                           {order.source !== 'shopee' && getNextOrderStatus(order.order_status) ? (
                             <button
@@ -802,7 +982,7 @@ export default function OrdersPage() {
                       )}
 
                       {/* การชำระ */}
-                      {visibleColumns.has('payment') && (
+                      {isColVisible('payment') && (
                         <td className="px-6 py-4 whitespace-nowrap">
                           {order.order_status === 'cancelled' ? (
                             <span className="text-gray-400 dark:text-slate-500">-</span>
@@ -822,7 +1002,7 @@ export default function OrdersPage() {
                       )}
 
                       {/* จัดการ: edit (ทุก role) + delete (admin only) */}
-                      {visibleColumns.has('actions') && (
+                      {isColVisible('actions') && (
                         <td className="px-6 py-4">
                           <div className="flex justify-center gap-1">
                             {(!order.source || order.source === 'manual') && (
