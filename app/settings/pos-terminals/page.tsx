@@ -621,9 +621,9 @@ export default function PosTerminalsPage() {
                                   ) : (
                                     <span className="text-gray-400">ปิดใช้งาน</span>
                                   )}
-                                  {ch.type === 'bank_transfer' && ch.config?.promptpay_id && (
+                                  {ch.type === 'bank_transfer' && ch.config?.promptpay_id ? (
                                     <span className="text-blue-500">QR: {String(ch.config.promptpay_id)}</span>
-                                  )}
+                                  ) : null}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
