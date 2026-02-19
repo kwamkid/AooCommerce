@@ -241,18 +241,18 @@ export default function Sidebar() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-40 w-64 lg:h-full bg-[#1A1A2E] border-r border-[#F4511E]/20 transform transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static inset-y-0 left-0 z-40 w-64 lg:h-full bg-[#1A1A2E] border-r border-white/10 transform transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-center h-16 border-b border-[#F4511E]/20 px-4">
+          <div className="flex items-center justify-center h-16 border-b border-white/10 px-4">
             <Image src="/logo.svg" alt="AooDelivery" width={100} height={65} className="h-10 w-auto" priority />
           </div>
 
           {/* Company Profile (clickable for company list) */}
-          <div className="relative border-b border-[#F4511E]/20" ref={companyDropdownRef}>
+          <div className="relative border-b border-white/10" ref={companyDropdownRef}>
             {(authLoading || companyLoading) ? (
               <div className="w-full px-4 py-3 flex items-center gap-3 animate-pulse">
                 <div className="w-9 h-9 rounded-full bg-white/10 flex-shrink-0" />
@@ -397,7 +397,7 @@ export default function Sidebar() {
                           <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${productsOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {productsOpen && (
-                          <div className="ml-3 border-l border-[#F4511E]/20">
+                          <div className="ml-3 border-l border-white/10">
                             <Link href="/products" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/products' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                               <Package2 className="w-4 h-4" />
                               <span className="text-[16px] font-medium">รายการสินค้า</span>
@@ -441,7 +441,7 @@ export default function Sidebar() {
                           <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${inventoryOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {inventoryOpen && (
-                          <div className="ml-3 border-l border-[#F4511E]/20">
+                          <div className="ml-3 border-l border-white/10">
                             <Link href="/inventory" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                               <Warehouse className="w-4 h-4" />
                               <span className="text-[16px] font-medium">สต๊อกสินค้า</span>
@@ -506,7 +506,7 @@ export default function Sidebar() {
                   <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {settingsOpen && (
-                  <div className="ml-3 border-l border-[#F4511E]/20">
+                  <div className="ml-3 border-l border-white/10">
                     <Link href="/settings" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                       <Settings className="w-4 h-4" />
                       <span className="text-[16px] font-medium">ทั่วไป</span>
@@ -550,7 +550,7 @@ export default function Sidebar() {
           </nav>
 
           {/* Logout Button */}
-          <div className="p-4 border-t border-[#F4511E]/20">
+          <div className="p-4 border-t border-white/10">
             <button
               onClick={() => signOut()}
               className="flex items-center space-x-3 w-full px-3 py-2 text-gray-300 hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors"
