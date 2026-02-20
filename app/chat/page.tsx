@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Layout from '@/components/layout/Layout';
+import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
@@ -940,7 +941,7 @@ function UnifiedChatPageContent() {
                 {(() => {
                   const selectedAccount = filterAccountId ? chatAccounts.find(a => a.id === filterAccountId) : null;
                   const selectedPic = selectedAccount ? getAccountPicture(selectedAccount) : null;
-                  const selectedColor = selectedAccount ? (selectedAccount.platform === 'line' ? '#06C755' : '#1877F2') : undefined;
+
                   return (
                     <>
                       <button onClick={() => setShowAccountPicker(!showAccountPicker)}
@@ -950,9 +951,7 @@ function UnifiedChatPageContent() {
                             {selectedPic ? (
                               <Image src={selectedPic} alt={selectedAccount.account_name} width={20} height={20} className="w-5 h-5 rounded-full object-cover flex-shrink-0" unoptimized />
                             ) : (
-                              <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style={{ backgroundColor: selectedColor }}>
-                                {selectedAccount.platform === 'line' ? 'L' : 'F'}
-                              </span>
+                              <span className="flex-shrink-0">{selectedAccount.platform === 'line' ? <LineIcon size={20} /> : <FbIcon size={20} />}</span>
                             )}
                             <span className="flex-1 text-left text-gray-900 dark:text-white truncate text-sm">{selectedAccount.account_name}</span>
                           </>
@@ -975,7 +974,6 @@ function UnifiedChatPageContent() {
                           </button>
                           {chatAccounts.map(acc => {
                             const pic = getAccountPicture(acc);
-                            const pColor = acc.platform === 'line' ? '#06C755' : '#1877F2';
                             const isActive = filterAccountId === acc.id;
                             return (
                               <button key={acc.id} onClick={() => { setFilterAccountId(acc.id); setFilterPlatform('all'); setShowAccountPicker(false); }}
@@ -983,14 +981,10 @@ function UnifiedChatPageContent() {
                                 {pic ? (
                                   <Image src={pic} alt={acc.account_name} width={20} height={20} className="w-5 h-5 rounded-full object-cover" unoptimized />
                                 ) : (
-                                  <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ backgroundColor: pColor }}>
-                                    {acc.platform === 'line' ? 'L' : 'F'}
-                                  </span>
+                                  acc.platform === 'line' ? <LineIcon size={20} /> : <FbIcon size={20} />
                                 )}
                                 <span className="text-gray-900 dark:text-white truncate flex-1 text-left">{acc.account_name}</span>
-                                <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: pColor }}>
-                                  {acc.platform === 'line' ? <LineIcon size={12} /> : <FbIcon size={12} />}
-                                </span>
+                                {acc.platform === 'line' ? <LineIcon size={20} /> : <FbIcon size={20} />}
                                 {isActive && <Check className="w-4 h-4 text-[#F4511E] flex-shrink-0" />}
                               </button>
                             );
@@ -1065,11 +1059,7 @@ function UnifiedChatPageContent() {
               </div>
             </div>
             {/* Row 2: Search (full width) */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="ค้นหาชื่อ..."
-                className="w-full h-[38px] pl-9 pr-4 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
-            </div>
+            <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ..." className="h-[38px]" />
             {/* Active filters display */}
             {hasActiveFilter && (
               <div className="flex flex-wrap gap-1 mt-2">
@@ -1263,6 +1253,23 @@ function UnifiedChatPageContent() {
                                 <a href={(msg.raw_message.linkUrl || msg.raw_message.templateUrl) as string} target="_blank" rel="noopener noreferrer" className="block">
                                   <div className="flex items-center gap-2"><span className="text-xl">🔗</span><span className="underline break-all">{msg.content}</span></div>
                                 </a>
+                              ) : msg.message_type === 'template' && msg.raw_message?.buttons ? (
+                                <div>
+                                  <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                                  <div className="mt-2 space-y-1">
+                                    {(msg.raw_message.buttons as Array<{ title: string; url?: string; type: string }>).map((btn, bi) => (
+                                      btn.url ? (
+                                        <a key={bi} href={btn.url} target="_blank" rel="noopener noreferrer" className={`block text-center text-sm px-3 py-1.5 rounded-lg border ${msg.direction === 'incoming' ? 'border-gray-300 text-blue-600 hover:bg-gray-50' : 'border-white/30 text-white/90 hover:bg-white/10'}`}>
+                                          {btn.title}
+                                        </a>
+                                      ) : (
+                                        <span key={bi} className={`block text-center text-sm px-3 py-1.5 rounded-lg border ${msg.direction === 'incoming' ? 'border-gray-200 text-gray-500' : 'border-white/20 text-white/70'}`}>
+                                          {btn.title}
+                                        </span>
+                                      )
+                                    ))}
+                                  </div>
+                                </div>
                               ) : (<p className="whitespace-pre-wrap break-words">{msg.content}</p>)}
                             </div>
                             {msg.direction === 'incoming' && (<span className="text-[10px] text-gray-400 self-end mb-0.5 whitespace-nowrap">{formatTime(msg.created_at)}</span>)}

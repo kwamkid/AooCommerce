@@ -69,6 +69,8 @@ export interface ChatMessage {
     linkTitle?: string;
     templateUrl?: string;
     template_type?: string;
+    buttons?: Array<{ type: string; title: string; url?: string; payload?: string }>;
+    elements?: Array<{ title?: string; subtitle?: string; image_url?: string; buttons?: Array<{ type: string; title: string; url?: string }> }>;
     contentProvider?: {
       originalContentUrl?: string;
       previewImageUrl?: string;

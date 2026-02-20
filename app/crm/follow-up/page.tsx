@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import {
   Users,
-  Search,
   Loader2,
   Phone,
   Calendar,
@@ -449,15 +449,8 @@ export default function CRMFollowUpPage() {
         <div className="data-filter-card">
           <div className="flex flex-col md:flex-row gap-4">
             {/* Search */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="ค้นหาชื่อลูกค้า, รหัส, เบอร์โทร..."
-                className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm"
-              />
+            <div className="flex-1">
+              <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อลูกค้า, รหัส, เบอร์โทร..." className="py-2" />
             </div>
 
             {/* Filter by days */}

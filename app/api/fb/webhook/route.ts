@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Receive Facebook webhook events
+// POST - Receive Facebook + Instagram webhook events
 export async function POST(request: NextRequest) {
   try {
     const body = await request.text();
@@ -41,24 +41,38 @@ export async function POST(request: NextRequest) {
 
     const webhookBody: FbWebhookBody = JSON.parse(body);
 
-    if (webhookBody.object !== 'page') {
+    const isPage = webhookBody.object === 'page';
+    const isInstagram = webhookBody.object === 'instagram';
+
+    if (!isPage && !isInstagram) {
+      console.log('Webhook: unknown object type:', webhookBody.object);
       return NextResponse.json({ status: 'ok' });
     }
 
+    console.log('Webhook received:', webhookBody.object, 'entries:', webhookBody.entry.length);
+
     for (const entry of webhookBody.entry) {
-      if (!entry.messaging) continue;
+      if (!entry.messaging) {
+        console.log('Webhook: entry has no messaging field, keys:', Object.keys(entry));
+        continue;
+      }
 
-      const pageId = entry.id;
+      const entryId = entry.id; // Page ID for FB, IG Account ID for Instagram
+      console.log('Webhook: entry messaging events:', entry.messaging.length, isInstagram ? 'igAccountId:' : 'pageId:', entryId);
 
-      const account = await fbService.findAccountByPageId(pageId);
+      // Find the chat_account for this entry
+      const account = isInstagram
+        ? await fbService.findAccountByIgAccountId(entryId)
+        : await fbService.findAccountByPageId(entryId);
+
       if (!account) {
-        console.error('FB webhook: no chat_account found for page_id:', pageId);
+        console.error(`Webhook: no chat_account found for ${isInstagram ? 'ig_account_id' : 'page_id'}:`, entryId);
         continue;
       }
 
       const creds = getFbCredsFromAccount(account);
       if (!creds) {
-        console.error('FB webhook: invalid credentials for account:', account.id);
+        console.error('Webhook: invalid credentials for account:', account.id);
         continue;
       }
 
@@ -66,10 +80,11 @@ export async function POST(request: NextRequest) {
       const pageAccessToken = creds.page_access_token;
       const companyId = account.company_id;
       const chatAccountId = account.id;
+      const pageId = creds.page_id; // Always use actual page_id for API calls
 
       // Verify signature
       if (appSecret && !fbService.verifySignature(body, signature, appSecret)) {
-        console.error('FB webhook: invalid signature for page_id:', pageId);
+        console.error('Webhook: invalid signature for account:', account.id);
         continue;
       }
 
@@ -77,24 +92,29 @@ export async function POST(request: NextRequest) {
         if (!event.message && !event.postback) continue;
         if (!event.message) continue; // postback handling can be added later
 
-        const senderPsid = event.sender.id;
+        const senderId = event.sender.id;
         const recipientId = event.recipient.id;
         const isEcho = event.message.is_echo === true;
 
+        console.log('Webhook event:', { platform: isInstagram ? 'instagram' : 'facebook', isEcho, senderId, recipientId, hasMessage: !!event.message, mid: event.message?.mid });
+
         if (isEcho) {
-          // Echo: message sent FROM our page (via Messenger or our API)
-          // recipient.id = the user's PSID, sender.id = page
-          const userPsid = recipientId;
-          const contact = await fbService.getOrCreateContact(userPsid, pageId, pageAccessToken, companyId, chatAccountId);
+          // Echo: message sent FROM our page/IG account
+          // For IG: sender.id = IG account ID, recipient.id = IG user ID (IGSID)
+          // For FB: sender.id = page ID, recipient.id = user PSID
+          const userId = recipientId;
+          const contact = await fbService.getOrCreateContact(userId, pageId, pageAccessToken, companyId, chatAccountId, isInstagram);
           if (!contact) continue;
 
           await fbService.saveEchoMessage(contact, event, companyId);
         } else {
-          // Incoming: message FROM user TO our page
-          // Skip if sender is page itself (shouldn't happen without is_echo, but safety check)
-          if (senderPsid === pageId) continue;
+          // Incoming: message FROM user TO our page/IG account
+          // For IG: sender.id = IG user ID (IGSID), recipient.id = IG account ID
+          // For FB: sender.id = user PSID, recipient.id = page ID
+          if (isInstagram && senderId === entryId) continue;
+          if (!isInstagram && senderId === pageId) continue;
 
-          const contact = await fbService.getOrCreateContact(senderPsid, pageId, pageAccessToken, companyId, chatAccountId);
+          const contact = await fbService.getOrCreateContact(senderId, pageId, pageAccessToken, companyId, chatAccountId, isInstagram);
           if (!contact) continue;
 
           await fbService.saveIncomingMessage(contact, event, companyId);
@@ -104,7 +124,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ status: 'ok' });
   } catch (error) {
-    console.error('FB webhook error:', error);
+    console.error('Webhook error:', error);
     return NextResponse.json({ status: 'ok' });
   }
 }

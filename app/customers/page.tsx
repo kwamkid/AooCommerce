@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
@@ -261,15 +262,8 @@ export default function CustomersPage() {
         <div className="data-filter-card">
           <div className="flex flex-col md:flex-row gap-4">
             {/* Search */}
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-              />
+            <div className="flex-1">
+              <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร..." className="py-2" />
             </div>
 
             {/* Type Filter */}

@@ -23,6 +23,15 @@ export interface FbMessagingEvent {
         sticker_id?: number;
         title?: string;
         template_type?: string;
+        // Template payload fields
+        text?: string;
+        buttons?: Array<{ type: string; title: string; url?: string; payload?: string }>;
+        elements?: Array<{
+          title?: string;
+          subtitle?: string;
+          image_url?: string;
+          buttons?: Array<{ type: string; title: string; url?: string; payload?: string }>;
+        }>;
       };
     }>;
     sticker_id?: number;
@@ -218,6 +227,23 @@ export class FacebookChatService {
     return null;
   }
 
+  // ─── Webhook: Find Account by IG Account ID ──────────────────────────
+
+  async findAccountByIgAccountId(igAccountId: string) {
+    const { data } = await supabaseAdmin
+      .from('chat_accounts')
+      .select('*')
+      .eq('platform', 'facebook')
+      .eq('is_active', true);
+
+    if (!data) return null;
+    for (const account of data) {
+      const creds = account.credentials as Record<string, string>;
+      if (creds?.ig_account_id === igAccountId) return account;
+    }
+    return null;
+  }
+
   // ─── Webhook: Verify Token for Subscription ────────────────────────
 
   async verifySubscription(token: string): Promise<boolean> {
@@ -237,7 +263,7 @@ export class FacebookChatService {
 
   // ─── Webhook: Get or Create Contact ─────────────────────────────────
 
-  async getOrCreateContact(psid: string, pageId: string, accessToken: string, companyId: string, chatAccountId: string | null) {
+  async getOrCreateContact(psid: string, pageId: string, accessToken: string, companyId: string, chatAccountId: string | null, isInstagram: boolean = false) {
     const { data: existing } = await supabaseAdmin
       .from('fb_contacts')
       .select('*')
@@ -246,12 +272,15 @@ export class FacebookChatService {
       .single();
 
     if (existing) {
-      // Retry profile fetch if still "Facebook User" or no picture
-      if (existing.display_name === 'Facebook User' || !existing.picture_url) {
-        const profile = await this.fetchProfile(psid, accessToken);
-        if (profile && (profile.displayName !== 'Facebook User' || profile.pictureUrl)) {
+      // Retry profile fetch if still default name or no picture
+      const defaultName = isInstagram ? 'Instagram User' : 'Facebook User';
+      if (existing.display_name === defaultName || existing.display_name === 'Facebook User' || existing.display_name === 'Instagram User' || !existing.picture_url) {
+        const profile = isInstagram
+          ? await this.fetchIgProfile(psid, accessToken)
+          : await this.fetchProfile(psid, accessToken);
+        if (profile && (profile.displayName !== defaultName || profile.pictureUrl)) {
           const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-          if (profile.displayName !== 'Facebook User') updates.display_name = profile.displayName;
+          if (profile.displayName !== defaultName) updates.display_name = profile.displayName;
           if (profile.pictureUrl) updates.picture_url = profile.pictureUrl;
           await supabaseAdmin.from('fb_contacts').update(updates).eq('id', existing.id);
           return { ...existing, ...updates };
@@ -261,22 +290,31 @@ export class FacebookChatService {
     }
 
     // Get user profile from Graph API
-    let displayName = 'Facebook User';
+    let displayName = isInstagram ? 'Instagram User' : 'Facebook User';
     let pictureUrl: string | null = null;
 
-    try {
-      const response = await fetch(
-        `https://graph.facebook.com/v21.0/${psid}?fields=first_name,last_name,profile_pic&access_token=${accessToken}`
-      );
-      if (response.ok) {
-        const profile = await response.json();
-        const firstName = profile.first_name || '';
-        const lastName = profile.last_name || '';
-        displayName = `${firstName} ${lastName}`.trim() || 'Facebook User';
-        pictureUrl = profile.profile_pic || null;
+    if (isInstagram) {
+      // IG: Use /IGSID endpoint to get IG user profile
+      const profile = await this.fetchIgProfile(psid, accessToken);
+      if (profile) {
+        displayName = profile.displayName || displayName;
+        pictureUrl = profile.pictureUrl || null;
       }
-    } catch (error) {
-      console.error('Error fetching FB profile:', error);
+    } else {
+      try {
+        const response = await fetch(
+          `https://graph.facebook.com/v21.0/${psid}?fields=first_name,last_name,profile_pic&access_token=${accessToken}`
+        );
+        if (response.ok) {
+          const profile = await response.json();
+          const firstName = profile.first_name || '';
+          const lastName = profile.last_name || '';
+          displayName = `${firstName} ${lastName}`.trim() || 'Facebook User';
+          pictureUrl = profile.profile_pic || null;
+        }
+      } catch (error) {
+        console.error('Error fetching FB profile:', error);
+      }
     }
 
     const insertData: Record<string, unknown> = {
@@ -295,7 +333,7 @@ export class FacebookChatService {
     const { data: newContact, error } = await supabaseAdmin
       .from('fb_contacts').insert(insertData).select().single();
 
-    if (error) { console.error('Failed to create FB contact:', error); return null; }
+    if (error) { console.error('Failed to create FB/IG contact:', error); return null; }
     return newContact;
   }
 
@@ -407,6 +445,30 @@ export class FacebookChatService {
     }
   }
 
+  // ─── IG Profile Fetching ────────────────────────────────────────────
+
+  async fetchIgProfile(igsid: string, accessToken: string): Promise<PlatformProfile | null> {
+    try {
+      // For IG messaging, use the IGSID to get user profile
+      const response = await fetch(
+        `https://graph.facebook.com/v21.0/${igsid}?fields=name,username,profile_pic&access_token=${accessToken}`
+      );
+      if (!response.ok) {
+        console.log('IG profile fetch failed:', response.status, await response.text().catch(() => ''));
+        return null;
+      }
+      const profile = await response.json();
+      const displayName = profile.name || profile.username || 'Instagram User';
+      return {
+        displayName,
+        pictureUrl: profile.profile_pic || undefined,
+      };
+    } catch (error) {
+      console.error('Error fetching IG profile:', error);
+      return null;
+    }
+  }
+
   // ─── Helpers ────────────────────────────────────────────────────────
 
   private buildMessageContent(type: string, text?: string, imageUrl?: string) {
@@ -456,11 +518,26 @@ export class FacebookChatService {
         if (attachment.payload?.url) metadata.fileUrl = attachment.payload.url;
       } else if (attachment.type === 'template') {
         // Rich messages: receipts, buttons, generic templates
-        messageContent = attachment.title || attachment.payload?.title || '[เทมเพลต]';
         messageType = 'template';
-        if (attachment.payload?.url) metadata.templateUrl = attachment.payload.url;
+        const payload = attachment.payload;
+        // Extract meaningful text from template
+        if (payload?.text) {
+          messageContent = payload.text;
+        } else if (payload?.elements && payload.elements.length > 0) {
+          // Generic template — use first element's title + subtitle
+          const el = payload.elements[0];
+          messageContent = el.title || '';
+          if (el.subtitle) messageContent += (messageContent ? ' — ' : '') + el.subtitle;
+          if (!messageContent) messageContent = '[เทมเพลต]';
+        } else {
+          messageContent = attachment.title || payload?.title || '[เทมเพลต]';
+        }
+        // Store buttons info
+        if (payload?.buttons) metadata.buttons = payload.buttons;
+        if (payload?.elements) metadata.elements = payload.elements;
+        if (payload?.url) metadata.templateUrl = payload.url;
         if (attachment.url) metadata.templateUrl = attachment.url;
-        metadata.template_type = attachment.payload?.template_type;
+        metadata.template_type = payload?.template_type;
       } else if (attachment.type === 'fallback') {
         // URL shares, link previews, rich content from Facebook
         messageContent = attachment.title || attachment.url || '[ลิงก์]';

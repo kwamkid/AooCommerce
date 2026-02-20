@@ -191,6 +191,24 @@ export default function ChatChannelsPage() {
       if (!response.ok) throw new Error('Failed to fetch');
       const data = await response.json();
       setAccounts(data.accounts || []);
+
+      // Re-subscribe all FB pages to ensure message_echoes is enabled
+      const hasFb = (data.accounts || []).some((a: { platform: string }) => a.platform === 'facebook');
+      if (hasFb) {
+        try {
+          const subRes = await apiFetch('/api/fb/oauth/subscribe-webhook', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resubscribeAll: true }),
+          });
+          if (subRes.ok) {
+            const subData = await subRes.json();
+            if (subData.updated > 0) {
+              console.log(`FB webhook re-subscribed: ${subData.updated}/${subData.total} pages`);
+            }
+          }
+        } catch { /* non-critical */ }
+      }
     } catch (error) {
       console.error('Error fetching chat accounts:', error);
       showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
@@ -938,12 +956,18 @@ export default function ChatChannelsPage() {
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
         {/* Account Header */}
         <div className="flex items-center gap-3 p-4">
-          {/* Avatar / Platform Icon */}
-          <div className="relative flex-shrink-0">
+          {/* Avatar / Platform Icon — clickable to refresh picture */}
+          <button
+            type="button"
+            onClick={() => handleTest(account)}
+            disabled={isTesting}
+            className="relative flex-shrink-0 group cursor-pointer"
+            title="กดเพื่ออัพเดตรูปโปรไฟล์"
+          >
             {botPicture ? (
-              <img src={botPicture} alt={botName || ''} className="w-10 h-10 rounded-full" />
+              <img src={botPicture} alt={botName || ''} className="w-10 h-10 rounded-full group-hover:opacity-75 transition-opacity" />
             ) : (
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${config.color}15` }}>
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center group-hover:opacity-75 transition-opacity" style={{ backgroundColor: `${config.color}15` }}>
                 {account.platform === 'line' ? (
                   <LineIcon size={20} />
                 ) : (
@@ -958,7 +982,12 @@ export default function ChatChannelsPage() {
                 className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white dark:border-slate-800"
               />
             )}
-          </div>
+            {isTesting && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-full">
+                <Loader2 className="w-4 h-4 text-white animate-spin" />
+              </div>
+            )}
+          </button>
 
           {/* Info */}
           <div className="flex-1 min-w-0">
@@ -1095,7 +1124,7 @@ export default function ChatChannelsPage() {
                 style={{ border: `1px solid ${config.color}`, color: config.color }}
               >
                 {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                ทดสอบ
+                ทดสอบเชื่อมต่อ
               </button>
               <button
                 onClick={() => {

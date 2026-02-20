@@ -92,7 +92,7 @@ async function testFbConnection(creds: Record<string, unknown>, accountId: strin
     return NextResponse.json({ error: 'Page Access Token is required' }, { status: 400 });
   }
 
-  const response = await fetch(`https://graph.facebook.com/v21.0/me?access_token=${token}`);
+  const response = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name,picture&access_token=${token}`);
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
@@ -103,8 +103,26 @@ async function testFbConnection(creds: Record<string, unknown>, accountId: strin
   }
 
   const pageInfo = await response.json();
+  const pictureUrl = pageInfo.picture?.data?.url || null;
 
-  // Save page info to credentials
+  // Also fetch IG profile picture if ig_account_id exists
+  const igAccountId = creds.ig_account_id as string | undefined;
+  let igPictureUrl: string | null = null;
+  let igUsername: string | null = null;
+  if (igAccountId && token) {
+    try {
+      const igRes = await fetch(
+        `https://graph.facebook.com/v21.0/${igAccountId}?fields=id,username,profile_picture_url&access_token=${token}`
+      );
+      if (igRes.ok) {
+        const igData = await igRes.json();
+        igPictureUrl = igData.profile_picture_url || null;
+        igUsername = igData.username || null;
+      }
+    } catch { /* non-critical */ }
+  }
+
+  // Save page info to credentials (including pictures)
   await supabaseAdmin
     .from('chat_accounts')
     .update({
@@ -112,6 +130,9 @@ async function testFbConnection(creds: Record<string, unknown>, accountId: strin
         ...creds,
         page_name: pageInfo.name,
         page_id: pageInfo.id,
+        ...(pictureUrl ? { page_picture_url: pictureUrl } : {}),
+        ...(igPictureUrl ? { ig_profile_picture_url: igPictureUrl } : {}),
+        ...(igUsername ? { ig_username: igUsername } : {}),
       },
       updated_at: new Date().toISOString(),
     })
@@ -123,6 +144,8 @@ async function testFbConnection(creds: Record<string, unknown>, accountId: strin
     info: {
       name: pageInfo.name,
       page_id: pageInfo.id,
+      picture_url: pictureUrl,
+      ig_picture_url: igPictureUrl,
     },
   });
 }

@@ -1,7 +1,7 @@
 // Path: components/layout/Sidebar.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
+import { supabase } from '@/lib/supabase';
 import {
   Home,
   Users,
@@ -118,6 +119,7 @@ export default function Sidebar() {
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [productsOpen, setProductsOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
   // Default เป็น true เพื่อไม่ให้เมนูกระพริบ → ถ้า API บอกปิดค่อยซ่อน
   const [stockEnabled, setStockEnabled] = useState(true);
   const pathname = usePathname();
@@ -194,6 +196,57 @@ export default function Sidebar() {
     }
   }, !!userProfile);
 
+  // Fetch chat unread count via API
+  const fetchChatUnread = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/chat/unread-count');
+      if (res.ok) {
+        const data = await res.json();
+        setChatUnreadCount(data.unread || 0);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Initial fetch + Supabase Realtime subscription for unread changes
+  useEffect(() => {
+    if (!userProfile) return;
+
+    fetchChatUnread();
+
+    // Subscribe to unread_count changes on both contact tables
+    const channel = supabase
+      .channel('sidebar-unread')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'line_contacts',
+        filter: `company_id=eq.${currentCompany?.id}`,
+      }, () => { fetchChatUnread(); })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'line_contacts',
+        filter: `company_id=eq.${currentCompany?.id}`,
+      }, () => { fetchChatUnread(); })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'fb_contacts',
+        filter: `company_id=eq.${currentCompany?.id}`,
+      }, () => { fetchChatUnread(); })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'fb_contacts',
+        filter: `company_id=eq.${currentCompany?.id}`,
+      }, () => { fetchChatUnread(); })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userProfile, currentCompany?.id, fetchChatUnread]);
+
   const filteredSections = menuSections
     .filter(section => {
       // Hide "คลังสินค้า" section when stock feature is not enabled
@@ -220,6 +273,17 @@ export default function Sidebar() {
       section.items.forEach(item => {
         if (item.href === '/inventory') {
           item.badge = lowStockCount;
+        }
+      });
+    });
+  }
+
+  // Inject chat unread badge
+  if (chatUnreadCount > 0) {
+    filteredSections.forEach(section => {
+      section.items.forEach(item => {
+        if (item.href === '/chat') {
+          item.badge = chatUnreadCount;
         }
       });
     });
@@ -447,7 +511,7 @@ export default function Sidebar() {
                           {item.icon}
                           <span className="text-[16px] font-medium ml-3">{item.label}</span>
                           {item.badge && (
-                            <span className="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                            <span className="ml-2 bg-red-500 text-white text-xs font-medium px-2 py-0.5 rounded-full">
                               {item.badge}
                             </span>
                           )}
@@ -481,7 +545,7 @@ export default function Sidebar() {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`flex items-center space-x-3 px-3 py-2 rounded-lg mb-1 transition-colors ${
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg mb-1 transition-colors ${
                         isActive
                           ? 'bg-[#F4511E] text-white'
                           : 'text-gray-300 hover:bg-[#F4511E]/10 hover:text-[#F4511E]'
@@ -490,7 +554,11 @@ export default function Sidebar() {
                       {item.icon}
                       <span className="text-[16px] font-medium">{item.label}</span>
                       {item.badge && (
-                        <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                        <span className={`ml-auto text-xs font-medium px-2 py-0.5 rounded-full ${
+                          isActive
+                            ? 'bg-white/90 text-[#F4511E]'
+                            : 'bg-red-500 text-white'
+                        }`}>
                           {item.badge}
                         </span>
                       )}

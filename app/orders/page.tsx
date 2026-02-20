@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
@@ -654,19 +655,8 @@ export default function OrdersPage() {
           <div className="space-y-3">
             {/* Row 1: Search + Date Range + Channel filter */}
             <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                {fetching ? (
-                  <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#F4511E] w-4 h-4 animate-spin" />
-                ) : (
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                )}
-                <input
-                  type="text"
-                  placeholder="ค้นหาเลขที่, ชื่อลูกค้า..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                />
+              <div className="flex-1">
+                <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาเลขที่, ชื่อลูกค้า..." className="py-2.5" />
               </div>
               {features.delivery_date.enabled && (
                 <div className="w-64 flex-shrink-0">

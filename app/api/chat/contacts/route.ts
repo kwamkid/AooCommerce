@@ -287,7 +287,9 @@ async function fetchLineContacts(companyId: string, filters: {
       query = query.eq('chat_account_id', filters.accountId);
     }
   }
-  if (filters.search) query = query.ilike('display_name', `%${filters.search}%`);
+  if (filters.search) {
+    query = query.ilike('display_name', `%${filters.search}%`);
+  }
   if (filters.unreadOnly) query = query.gt('unread_count', 0);
   if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
   if (filters.unlinkedOnly) query = query.is('customer_id', null);
@@ -295,7 +297,45 @@ async function fetchLineContacts(companyId: string, filters: {
   const { data, error } = await query;
   if (error) throw error;
 
-  const contacts = data || [];
+  let contacts = data || [];
+
+  // Also search by linked customer name (Supabase .or() doesn't support foreign table fields)
+  if (filters.search) {
+    let customerQuery = supabaseAdmin
+      .from('line_contacts')
+      .select(`
+        *,
+        customer:customers!inner(
+          id, name, customer_code, contact_person, phone, email,
+          customer_type_new, address, district, amphoe, province, postal_code,
+          tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active
+        )
+      `)
+      .eq('company_id', companyId)
+      .eq('status', 'active')
+      .ilike('customer.name', `%${filters.search}%`)
+      .order('last_message_at', { ascending: false, nullsFirst: false });
+
+    if (filters.accountId) {
+      if (filters.includeNullAccountId) {
+        customerQuery = customerQuery.or(`chat_account_id.eq.${filters.accountId},chat_account_id.is.null`);
+      } else {
+        customerQuery = customerQuery.eq('chat_account_id', filters.accountId);
+      }
+    }
+    if (filters.unreadOnly) customerQuery = customerQuery.gt('unread_count', 0);
+    if (filters.linkedOnly) customerQuery = customerQuery.not('customer_id', 'is', null);
+    if (filters.unlinkedOnly) customerQuery = customerQuery.is('customer_id', null);
+
+    const { data: customerResults } = await customerQuery;
+    if (customerResults && customerResults.length > 0) {
+      const existingIds = new Set(contacts.map(c => c.id));
+      for (const c of customerResults) {
+        if (!existingIds.has(c.id)) contacts.push(c);
+      }
+    }
+  }
+
   const contactIds = contacts.map(c => c.id);
 
   // Get last message preview
@@ -355,7 +395,9 @@ async function fetchFbContacts(companyId: string, filters: {
       query = query.eq('chat_account_id', filters.accountId);
     }
   }
-  if (filters.search) query = query.ilike('display_name', `%${filters.search}%`);
+  if (filters.search) {
+    query = query.ilike('display_name', `%${filters.search}%`);
+  }
   if (filters.unreadOnly) query = query.gt('unread_count', 0);
   if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
   if (filters.unlinkedOnly) query = query.is('customer_id', null);
@@ -363,7 +405,45 @@ async function fetchFbContacts(companyId: string, filters: {
   const { data, error } = await query;
   if (error) throw error;
 
-  const contacts = data || [];
+  let contacts = data || [];
+
+  // Also search by linked customer name (Supabase .or() doesn't support foreign table fields)
+  if (filters.search) {
+    let customerQuery = supabaseAdmin
+      .from('fb_contacts')
+      .select(`
+        *,
+        customer:customers!inner(
+          id, name, customer_code, contact_person, phone, email,
+          customer_type_new, address, district, amphoe, province, postal_code,
+          tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active
+        )
+      `)
+      .eq('company_id', companyId)
+      .eq('status', 'active')
+      .ilike('customer.name', `%${filters.search}%`)
+      .order('last_message_at', { ascending: false, nullsFirst: false });
+
+    if (filters.accountId) {
+      if (filters.includeNullAccountId) {
+        customerQuery = customerQuery.or(`chat_account_id.eq.${filters.accountId},chat_account_id.is.null`);
+      } else {
+        customerQuery = customerQuery.eq('chat_account_id', filters.accountId);
+      }
+    }
+    if (filters.unreadOnly) customerQuery = customerQuery.gt('unread_count', 0);
+    if (filters.linkedOnly) customerQuery = customerQuery.not('customer_id', 'is', null);
+    if (filters.unlinkedOnly) customerQuery = customerQuery.is('customer_id', null);
+
+    const { data: customerResults } = await customerQuery;
+    if (customerResults && customerResults.length > 0) {
+      const existingIds = new Set(contacts.map(c => c.id));
+      for (const c of customerResults) {
+        if (!existingIds.has(c.id)) contacts.push(c);
+      }
+    }
+  }
+
   const contactIds = contacts.map(c => c.id);
 
   // Get last message preview

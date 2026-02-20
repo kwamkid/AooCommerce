@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
+import SearchInput from '@/components/ui/SearchInput';
 import { useCompany } from '@/lib/company-context';
 import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
@@ -11,7 +12,7 @@ import { apiFetch } from '@/lib/api-client';
 import {
   Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check,
   AlertCircle, Loader2, CheckCircle, Clock, Copy, Phone,
-  Search, Plus,
+  Plus,
   Warehouse, Monitor,
 } from 'lucide-react';
 
@@ -647,15 +648,8 @@ export default function MembersPage() {
                 </h3>
                 <div className="flex items-center gap-3">
                   {activeMembers.length > 5 && (
-                    <div className="relative flex-1 sm:w-64">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        placeholder="ค้นหาชื่อหรืออีเมล..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700"
-                      />
+                    <div className="flex-1 sm:w-64">
+                      <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อหรืออีเมล..." className="py-2" />
                     </div>
                   )}
                   {isOwnerOrAdmin && (

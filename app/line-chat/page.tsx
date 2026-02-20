@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
@@ -1344,15 +1345,8 @@ function LineChatPageContent() {
             </div>
 
             <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="ค้นหาชื่อ..."
-                  className="w-full h-[42px] pl-9 pr-4 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#06C755]"
-                />
+              <div className="flex-1">
+                <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ..." className="h-[42px]" ringColor="focus:ring-[#06C755]" />
               </div>
               {/* Filter button */}
               <div className="relative h-[42px]" data-filter-popover>
