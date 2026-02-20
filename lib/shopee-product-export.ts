@@ -326,9 +326,21 @@ function buildAddItemPayload(
 
   const price = Math.max(firstVariation?.default_price || 0, 1); // Shopee minimum price = 1
 
+  // Ensure description meets Shopee 60-5000 char requirement
+  let description = product.description || product.name;
+  if (description.length < 60) {
+    // Pad with product details to reach 60 chars
+    const padding = `\n\nรายละเอียดสินค้า: ${product.name} (${product.code || 'N/A'})`;
+    description = description + padding;
+    // If still short, pad with spaces
+    if (description.length < 60) {
+      description = description.padEnd(60, ' ');
+    }
+  }
+
   const payload: Record<string, unknown> = {
     original_price: price,
-    description: product.description || product.name,
+    description,
     item_name: product.name.substring(0, 120), // Shopee limit 120 chars
     seller_stock: [{ stock }],   // Shopee API v2 format
     logistic_info: logisticsIds.map(id => ({
@@ -442,11 +454,49 @@ export async function exportProductToShopee(
     console.log(`[Shopee Export] "${product.name}" — ${simple ? 'simple' : 'variation'} product, ${product.variations.length} variations`);
 
     // 4.5 Fetch mandatory attributes for the category
-    const attributeList = await getMandatoryAttributes(creds, options.shopee_category_id);
+    let attributeList = await getMandatoryAttributes(creds, options.shopee_category_id);
 
-    // 5. Build and send add_item payload
-    const payload = buildAddItemPayload(product, options, imageIds, logisticsIds, simple, attributeList);
-    const { data, error } = await addItem(creds, payload);
+    // 5. Build and send add_item payload (with retry on mandatory attribute errors)
+    let payload = buildAddItemPayload(product, options, imageIds, logisticsIds, simple, attributeList);
+    let addResult = await addItem(creds, payload);
+
+    // Retry loop: if add_item fails with mandatory attribute error, parse attribute_id from debug_message and retry
+    let retryCount = 0;
+    const maxRetries = 10;
+    while (addResult.error && retryCount < maxRetries) {
+      const debugMsg = addResult.debug_message || '';
+      // Parse attribute_id from debug_message, e.g.:
+      // "Attribute is mandatory: id: 100963, name: FDA Registration No."
+      const attrIdMatch = debugMsg.match(/Attribute is mandatory:\s*id:\s*(\d+),\s*name:\s*([^"}\]]+)/i);
+      if (!attrIdMatch) break; // Not an attribute error, stop retrying
+
+      const missingAttrId = parseInt(attrIdMatch[1]);
+      const missingAttrName = attrIdMatch[2].trim();
+
+      // Check if we already added this attribute (prevent infinite loop)
+      if (attributeList.some(a => a.attribute_id === missingAttrId)) {
+        console.error(`[Shopee Export] Attribute ${missingAttrId} ("${missingAttrName}") already in payload but still rejected`);
+        break;
+      }
+
+      console.log(`[Shopee Export] Adding missing mandatory attribute: id=${missingAttrId} name="${missingAttrName}" (retry ${retryCount + 1})`);
+
+      // Add the missing attribute with N/A fallback
+      attributeList = [
+        ...attributeList,
+        {
+          attribute_id: missingAttrId,
+          attribute_value_list: [{ value_id: 0, original_value_name: 'N/A' }],
+        },
+      ];
+
+      // Rebuild payload with updated attributes and retry
+      payload = buildAddItemPayload(product, options, imageIds, logisticsIds, simple, attributeList);
+      addResult = await addItem(creds, payload);
+      retryCount++;
+    }
+
+    const { data, error } = addResult;
 
     if (error) {
       return { success: false, error: `Shopee error: ${error}`, product_name: product.name };

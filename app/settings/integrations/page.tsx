@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
@@ -11,7 +12,6 @@ import {
   XCircle, Clock, ExternalLink, AlertTriangle, ChevronDown, ChevronUp,
   Plus, Trash2, Upload
 } from 'lucide-react';
-import ShopeeBulkExportModal from '@/components/shopee/ShopeeBulkExportModal';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 
 interface ShopeeAccount {
@@ -29,6 +29,7 @@ interface ShopeeAccount {
 }
 
 export default function IntegrationsPage() {
+  const router = useRouter();
   const { userProfile } = useAuth();
   const { showToast } = useToast();
   const [accounts, setAccounts] = useState<ShopeeAccount[]>([]);
@@ -44,8 +45,6 @@ export default function IntegrationsPage() {
   const [productSyncingId, setProductSyncingId] = useState<string | null>(null);
   const [productSyncProgress, setProductSyncProgress] = useState<number>(0);
   const [productSyncPhaseLabel, setProductSyncPhaseLabel] = useState('');
-  const [bulkExportAccountId, setBulkExportAccountId] = useState<string | null>(null);
-  const [bulkExportAccountName, setBulkExportAccountName] = useState<string>('');
   const syncAbortRef = useRef<AbortController | null>(null);
 
   const fetchAccounts = useCallback(async () => {
@@ -522,8 +521,8 @@ export default function IntegrationsPage() {
                         </button>
                         <button
                           onClick={() => {
-                            setBulkExportAccountId(account.id);
-                            setBulkExportAccountName(account.shop_name || `Shop #${account.shop_id}`);
+                            const name = account.shop_name || `Shop #${account.shop_id}`;
+                            router.push(`/shopee/export?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
                           }}
                           disabled={account.connection_status === 'expired'}
                           className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-[#EE4D2D] text-[#EE4D2D] hover:bg-[#EE4D2D]/5"
@@ -562,14 +561,6 @@ export default function IntegrationsPage() {
           </div>
         )}
       </div>
-
-      {/* Bulk Export Modal */}
-      <ShopeeBulkExportModal
-        isOpen={!!bulkExportAccountId}
-        onClose={() => { setBulkExportAccountId(null); setBulkExportAccountName(''); }}
-        accountId={bulkExportAccountId || ''}
-        accountName={bulkExportAccountName}
-      />
 
       {/* Loading Overlay for sync operations */}
       <LoadingOverlay

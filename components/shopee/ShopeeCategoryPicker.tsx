@@ -35,12 +35,19 @@ export default function ShopeeCategoryPicker({ accountId, value, categoryName, o
 
   const containerRef = useRef<HTMLDivElement>(null);
   const columnsRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
 
   // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        panelRef.current && !panelRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -68,8 +75,37 @@ export default function ShopeeCategoryPicker({ accountId, value, categoryName, o
     }
   };
 
+  const updatePanelPosition = () => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const spaceBelow = viewportH - rect.bottom;
+    const panelH = 440;
+    const panelW = Math.min(Math.max(rect.width, 780), viewportW - 16);
+    const openBelow = spaceBelow >= panelH || spaceBelow >= rect.top;
+
+    // Keep panel within viewport horizontally
+    let left = rect.left;
+    if (left + panelW > viewportW - 8) {
+      left = viewportW - panelW - 8;
+    }
+    if (left < 8) left = 8;
+
+    setPanelStyle({
+      position: 'fixed',
+      left,
+      width: panelW,
+      ...(openBelow
+        ? { top: rect.bottom + 4 }
+        : { bottom: viewportH - rect.top + 4 }),
+      zIndex: 50,
+    });
+  };
+
   // When opening, fetch if not yet fetched + restore path from value
   const handleOpen = () => {
+    updatePanelPosition();
     setOpen(true);
     setSearch('');
     if (!fetched) {
@@ -272,6 +308,7 @@ export default function ShopeeCategoryPicker({ accountId, value, categoryName, o
       {/* Trigger button */}
       <button
         type="button"
+        ref={triggerRef}
         onClick={handleOpen}
         className={`w-full flex items-center justify-between gap-2 px-3 h-[42px] border rounded-lg text-sm text-left transition-colors ${
           value
@@ -300,7 +337,11 @@ export default function ShopeeCategoryPicker({ accountId, value, categoryName, o
         <>
         {/* Mobile backdrop */}
         <div className="fixed inset-0 z-40 bg-black/30 sm:hidden" onClick={() => setOpen(false)} />
-        <div className="fixed inset-x-0 bottom-0 top-auto z-50 max-h-[70vh] rounded-t-2xl sm:absolute sm:inset-auto sm:left-0 sm:right-auto sm:mt-1 sm:rounded-xl sm:max-h-[440px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-xl sm:w-[min(780px,calc(100vw-2rem))] flex flex-col">
+        <div
+          ref={panelRef}
+          className="fixed inset-x-0 bottom-0 top-auto z-50 max-h-[70vh] rounded-t-2xl sm:inset-auto sm:rounded-xl sm:max-h-[440px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-xl flex flex-col"
+          style={panelStyle}
+        >
           {/* Mobile header with drag handle */}
           <div className="sm:hidden">
             <div className="flex justify-center pt-2 pb-1">

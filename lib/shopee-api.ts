@@ -87,7 +87,7 @@ export async function shopeeApiRequest(
   apiPath: string,
   params: Record<string, unknown> = {},
   body?: Record<string, unknown>
-): Promise<{ data: unknown; error?: string }> {
+): Promise<{ data: unknown; error?: string; debug_message?: string }> {
   const timestamp = getTimestamp();
   const sign = generateSign(apiPath, timestamp, creds.access_token, creds.shop_id);
 
@@ -132,7 +132,7 @@ export async function shopeeApiRequest(
   console.log(`[Shopee API] ${apiPath} response:`, JSON.stringify(data).substring(0, 1000));
 
   if (data.error) {
-    return { data: null, error: data.message || data.error };
+    return { data: null, error: data.message || data.error, debug_message: data.debug_message || undefined };
   }
   return { data: data.response || data };
 }
@@ -929,12 +929,27 @@ export async function getShopeeCategories(
 /**
  * Get attributes required for a Shopee category.
  * Only leaf categories can be used when creating items.
+ * Tries get_attribute_tree first (newer API), falls back to get_attributes.
  */
 export async function getShopeeCategoryAttributes(
   creds: ShopeeCredentials,
   categoryId: number,
   language: string = 'TH'
 ): Promise<{ data: unknown; error?: string }> {
+  // Try get_attribute_tree first (may still be active when get_attributes is suspended)
+  const treeResult = await shopeeApiRequest(creds, 'GET', '/api/v2/product/get_attribute_tree', {
+    category_id: categoryId,
+    language,
+  });
+
+  if (!treeResult.error) {
+    console.log(`[Shopee API] get_attribute_tree succeeded for category ${categoryId}`);
+    return treeResult;
+  }
+
+  console.log(`[Shopee API] get_attribute_tree failed: ${treeResult.error}, trying get_attributes...`);
+
+  // Fallback to original get_attributes
   return shopeeApiRequest(creds, 'GET', '/api/v2/product/get_attributes', {
     category_id: categoryId,
     language,
@@ -1015,7 +1030,7 @@ export async function uploadImageByUrl(
 export async function addItem(
   creds: ShopeeCredentials,
   itemData: Record<string, unknown>
-): Promise<{ data: unknown; error?: string }> {
+): Promise<{ data: unknown; error?: string; debug_message?: string }> {
   return shopeeApiRequest(creds, 'POST', '/api/v2/product/add_item', {}, itemData);
 }
 
