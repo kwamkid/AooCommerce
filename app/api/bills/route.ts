@@ -239,7 +239,7 @@ export async function GET(request: NextRequest) {
         return {
           type: ch.type,
           name: ch.name,
-          config: { bank_code: cfg.bank_code, account_number: cfg.account_number, account_name: cfg.account_name },
+          config: { bank_code: cfg.bank_code, account_number: cfg.account_number, account_name: cfg.account_name, promptpay_id: cfg.promptpay_id },
         };
       }
 
@@ -312,6 +312,16 @@ export async function POST(request: NextRequest) {
     // Upload slip image if provided
     let slipImageUrl: string | null = null;
     if (slipImage) {
+      // Validate file size (max 5MB)
+      if (slipImage.size > 5 * 1024 * 1024) {
+        return NextResponse.json({ error: 'ไฟล์สลิปใหญ่เกินไป (สูงสุด 5MB)' }, { status: 400 });
+      }
+
+      // Validate MIME type
+      if (!slipImage.type.startsWith('image/')) {
+        return NextResponse.json({ error: 'ไฟล์สลิปต้องเป็นรูปภาพเท่านั้น' }, { status: 400 });
+      }
+
       const timestamp = Date.now();
       const ext = slipImage.name.split('.').pop() || 'jpg';
       const filePath = `${orderId}/${timestamp}.${ext}`;

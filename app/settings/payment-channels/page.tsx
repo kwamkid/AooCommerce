@@ -10,7 +10,7 @@ import { THAI_BANKS, getBankByCode } from '@/lib/constants/banks';
 import { BEAM_CHANNELS, BEAM_CHANNEL_CATEGORIES, CUSTOMER_TYPES, FEE_PAYERS } from '@/lib/constants/payment-gateway';
 import {
   CreditCard, Banknote, Building2, Globe, Loader2, Plus, Edit2, Trash2, Check, X,
-  Eye, EyeOff, ChevronDown, ChevronUp, Save, ArrowUp, ArrowDown
+  Eye, EyeOff, ChevronDown, ChevronUp, Save, ArrowUp, ArrowDown, QrCode
 } from 'lucide-react';
 
 // Types
@@ -61,7 +61,8 @@ export default function PaymentChannelsPage() {
 
   // Derived
   const cashChannel = channels.find(c => c.type === 'cash');
-  const bankAccounts = channels.filter(c => c.type === 'bank_transfer');
+  const bankAccounts = channels.filter(c => c.type === 'bank_transfer' && !(c.config as Record<string, unknown>)?.promptpay_id);
+  const promptPayChannels = channels.filter(c => c.type === 'bank_transfer' && !!(c.config as Record<string, unknown>)?.promptpay_id);
   const gatewayChannel = channels.find(c => c.type === 'payment_gateway');
 
   // Bank form state
@@ -71,6 +72,11 @@ export default function PaymentChannelsPage() {
   const [savingBank, setSavingBank] = useState(false);
   const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
   const bankDropdownRef = useRef<HTMLDivElement>(null);
+
+  // PromptPay form state
+  const [showPromptPayForm, setShowPromptPayForm] = useState(false);
+  const [promptPayId, setPromptPayId] = useState('');
+  const [savingPromptPay, setSavingPromptPay] = useState(false);
 
   // Gateway form state
   const [gatewayForm, setGatewayForm] = useState({ merchant_id: '', api_key: '', environment: 'sandbox' as 'sandbox' | 'production' });
@@ -222,6 +228,46 @@ export default function PaymentChannelsPage() {
     }
   };
 
+  // === PROMPTPAY CRUD ===
+  const resetPromptPayForm = () => {
+    setPromptPayId('');
+    setShowPromptPayForm(false);
+  };
+
+  const handleSavePromptPay = async () => {
+    const cleaned = promptPayId.replace(/[^0-9]/g, '');
+    if (cleaned.length !== 10 && cleaned.length !== 13) {
+      showToast('PromptPay ID ต้องเป็นเบอร์โทร 10 หลัก หรือ เลขบัตร/Tax ID 13 หลัก', 'error');
+      return;
+    }
+    setSavingPromptPay(true);
+    try {
+      await apiCall('POST', {
+        type: 'bank_transfer',
+        name: 'PromptPay QR',
+        config: { promptpay_id: cleaned },
+      });
+      showToast('เพิ่ม PromptPay QR สำเร็จ');
+      resetPromptPayForm();
+      fetchChannels();
+    } catch (err) {
+      showToast((err as Error).message || 'บันทึกไม่สำเร็จ', 'error');
+    } finally {
+      setSavingPromptPay(false);
+    }
+  };
+
+  const handleDeletePromptPay = async (id: string) => {
+    if (!confirm('ลบ PromptPay QR นี้หรือไม่?')) return;
+    try {
+      await apiCall('DELETE', undefined, `?id=${id}`);
+      showToast('ลบ PromptPay QR สำเร็จ');
+      fetchChannels();
+    } catch {
+      showToast('ลบไม่สำเร็จ', 'error');
+    }
+  };
+
   // === GATEWAY CONFIG ===
   const handleSaveGateway = async () => {
     if (!gatewayForm.merchant_id.trim() || !gatewayForm.api_key.trim()) {
@@ -256,10 +302,11 @@ export default function PaymentChannelsPage() {
   };
 
   const handleToggleBeamChannel = (code: string, enabled: boolean) => {
+    const defaultMinAmount = code === 'CARD_INSTALLMENTS' ? 3000 : 0;
     setGatewayChannels(prev => ({
       ...prev,
       [code]: {
-        ...(prev[code] || { min_amount: 0, customer_types: ['retail', 'wholesale', 'distributor'], fee_payer: 'merchant' }),
+        ...(prev[code] || { min_amount: defaultMinAmount, customer_types: ['retail', 'wholesale', 'distributor'], fee_payer: 'merchant' }),
         enabled,
       },
     }));
@@ -359,9 +406,10 @@ export default function PaymentChannelsPage() {
               const isCollapsed = collapsedSections.has(channel.id);
               const isFirst = idx === 0;
               const isLast = idx === channels.length - 1;
-              // Check if this is the last bank_transfer card (to render add-bank button after it)
+              // Check if this is the last non-promptpay bank_transfer card (to render add-bank button after it)
               const isLastBank = channel.type === 'bank_transfer' &&
-                !channels.slice(idx + 1).some(c => c.type === 'bank_transfer');
+                !(channel.config as Record<string, string>)?.promptpay_id &&
+                !channels.slice(idx + 1).some(c => c.type === 'bank_transfer' && !(c.config as Record<string, string>)?.promptpay_id);
 
               // === CASH CARD ===
               if (channel.type === 'cash') {
@@ -400,6 +448,102 @@ export default function PaymentChannelsPage() {
                         </div>
                       </div>
                     </div>
+                  </div>
+                );
+              }
+
+              // === PROMPTPAY CARD ===
+              if (channel.type === 'bank_transfer' && (channel.config as Record<string, string>)?.promptpay_id) {
+                const cfg = channel.config as Record<string, string>;
+                const ppId = cfg.promptpay_id;
+                const formatted = ppId.length === 10
+                  ? `${ppId.slice(0, 3)}-${ppId.slice(3, 6)}-${ppId.slice(6)}`
+                  : `${ppId.slice(0, 1)}-${ppId.slice(1, 5)}-${ppId.slice(5, 10)}-${ppId.slice(10, 12)}-${ppId.slice(12)}`;
+
+                const isLastPromptPay = !channels.slice(idx + 1).some(c =>
+                  c.type === 'bank_transfer' && !!(c.config as Record<string, string>)?.promptpay_id
+                );
+
+                const ppCard = (
+                  <div key={channel.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <QrCode className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-gray-900 dark:text-white">PromptPay QR</h3>
+                          <p className="text-sm text-gray-500 dark:text-slate-400">{formatted}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-2">
+                        <button
+                          onClick={() => handleDeletePromptPay(channel.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        <div className="flex flex-col">
+                          <button
+                            onClick={() => handleMoveChannel(channel.id, 'up')}
+                            disabled={isFirst || reordering}
+                            className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <ArrowUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleMoveChannel(channel.id, 'down')}
+                            disabled={isLast || reordering}
+                            className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <ArrowDown className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+
+                // If last PromptPay card, show add button after it
+                if (!isLastPromptPay) return ppCard;
+
+                return (
+                  <div key={channel.id} className="space-y-4">
+                    {ppCard}
+                    {showPromptPayForm ? (
+                      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
+                        <div className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เพิ่ม PromptPay QR ใหม่</div>
+                        <div>
+                          <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">PromptPay ID</label>
+                          <input
+                            type="text"
+                            value={promptPayId}
+                            onChange={e => setPromptPayId(e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="เบอร์โทร 10 หลัก หรือ เลขบัตร 13 หลัก"
+                            maxLength={13}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                          />
+                          <p className="text-xs text-gray-400 mt-1">เบอร์โทรศัพท์ 10 หลัก หรือ เลขประจำตัว/Tax ID 13 หลัก</p>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={handleSavePromptPay} disabled={savingPromptPay} className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                            {savingPromptPay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            บันทึก
+                          </button>
+                          <button onClick={resetPromptPayForm} className="px-4 py-2 border border-gray-300 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2">
+                            <X className="w-4 h-4" /> ยกเลิก
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { resetPromptPayForm(); setShowPromptPayForm(true); }}
+                        className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        เพิ่ม PromptPay QR
+                      </button>
+                    )}
                   </div>
                 );
               }
@@ -671,6 +815,56 @@ export default function PaymentChannelsPage() {
                             </div>
                           </div>
 
+                          {/* Webhook Info */}
+                          {gatewayForm.merchant_id && (() => {
+                            const webhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/beam/webhook` : '/api/beam/webhook';
+                            return (
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2">
+                              <h5 className="text-sm font-medium text-blue-800 dark:text-blue-300">Webhook URL (ตั้งค่าที่ Beam Lighthouse)</h5>
+                              <div className="flex items-center gap-2">
+                                <code className="flex-1 text-xs bg-white dark:bg-slate-800 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-700 text-blue-900 dark:text-blue-200 break-all select-all">
+                                  {webhookUrl}
+                                </code>
+                                <button type="button" onClick={() => { navigator.clipboard.writeText(webhookUrl); showToast('คัดลอกแล้ว'); }} className="px-2 py-1.5 text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-700 flex-shrink-0">
+                                  คัดลอก
+                                </button>
+                                <button type="button" onClick={async () => {
+                                  try {
+                                    showToast('กำลังทดสอบ...');
+                                    const res = await fetch('/api/beam/test-connection', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        merchant_id: gatewayForm.merchant_id,
+                                        api_key: gatewayForm.api_key,
+                                        environment: gatewayForm.environment,
+                                        webhook_url: webhookUrl,
+                                      }),
+                                    });
+                                    const data = await res.json();
+                                    if (data.error) {
+                                      showToast(data.error, 'error');
+                                    } else if (data.credentials && data.webhook) {
+                                      showToast('API credentials ถูกต้อง + Webhook พร้อมรับข้อมูล');
+                                    } else if (data.credentials && !data.webhook) {
+                                      showToast('API credentials ถูกต้อง แต่ Webhook เข้าถึงไม่ได้ — กรุณาตรวจสอบ URL', 'error');
+                                    } else {
+                                      showToast('API credentials ไม่ถูกต้อง', 'error');
+                                    }
+                                  } catch {
+                                    showToast('ไม่สามารถทดสอบการเชื่อมต่อได้', 'error');
+                                  }
+                                }} className="px-2 py-1.5 text-xs bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200 rounded hover:bg-green-200 dark:hover:bg-green-700 flex-shrink-0">
+                                  ทดสอบ
+                                </button>
+                              </div>
+                              <p className="text-xs text-blue-600 dark:text-blue-400">
+                                Events: <span className="font-mono">payment_link.paid</span>, <span className="font-mono">charge.succeeded</span>
+                              </p>
+                            </div>
+                            );
+                          })()}
+
                         </div>
 
                         {/* Payment Channels */}
@@ -717,8 +911,10 @@ export default function PaymentChannelsPage() {
                                                     const types = chConfig?.customer_types || ['retail', 'wholesale', 'distributor'];
                                                     const checked = types.includes(ct.value);
                                                     return (
-                                                      <label key={ct.value} className="flex items-center gap-1.5 text-base cursor-pointer">
-                                                        <input type="checkbox" checked={checked} onChange={() => { const newTypes = checked ? types.filter((t: string) => t !== ct.value) : [...types, ct.value]; handleUpdateBeamChannel(ch.code, 'customer_types', newTypes); }} className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]" />
+                                                      <label key={ct.value} className="flex items-center gap-2 text-base cursor-pointer select-none" onClick={() => { const newTypes = checked ? types.filter((t: string) => t !== ct.value) : [...types, ct.value]; handleUpdateBeamChannel(ch.code, 'customer_types', newTypes); }}>
+                                                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#F4511E]' : 'border-2 border-gray-300 dark:border-slate-500'}`}>
+                                                          {checked && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                                                        </div>
                                                         {ct.label}
                                                       </label>
                                                     );
@@ -728,12 +924,15 @@ export default function PaymentChannelsPage() {
                                               <div>
                                                 <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ผู้รับผิดชอบค่าธรรมเนียม</label>
                                                 <div className="flex gap-3">
-                                                  {FEE_PAYERS.map(fp => (
-                                                    <label key={fp.value} className="flex items-center gap-1.5 text-base cursor-pointer">
-                                                      <input type="radio" name={`fee_payer_${ch.code}`} checked={(chConfig?.fee_payer || 'merchant') === fp.value} onChange={() => handleUpdateBeamChannel(ch.code, 'fee_payer', fp.value)} className="border-gray-300 text-[#F4511E] focus:ring-[#F4511E]" />
-                                                      {fp.label}
-                                                    </label>
-                                                  ))}
+                                                  {FEE_PAYERS.map(fp => {
+                                                    const selected = (chConfig?.fee_payer || 'merchant') === fp.value;
+                                                    return (
+                                                      <label key={fp.value} className="flex items-center gap-2 text-base cursor-pointer select-none" onClick={() => handleUpdateBeamChannel(ch.code, 'fee_payer', fp.value)}>
+                                                        <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${selected ? 'border-[5px] border-[#F4511E]' : 'border-2 border-gray-300 dark:border-slate-500'}`} />
+                                                        {fp.label}
+                                                      </label>
+                                                    );
+                                                  })}
                                                 </div>
                                               </div>
                                               {/* Installment month options — only for CARD_INSTALLMENTS */}
@@ -750,8 +949,10 @@ export default function PaymentChannelsPage() {
                                                       const plans = chConfig?.installment_plans || ['installments3m', 'installments4m', 'installments6m', 'installments10m'];
                                                       const checked = plans.includes(opt.key);
                                                       return (
-                                                        <label key={opt.key} className="flex items-center gap-1.5 text-base cursor-pointer">
-                                                          <input type="checkbox" checked={checked} onChange={() => { const newPlans = checked ? plans.filter((p: string) => p !== opt.key) : [...plans, opt.key]; handleUpdateBeamChannel(ch.code, 'installment_plans', newPlans); }} className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]" />
+                                                        <label key={opt.key} className="flex items-center gap-2 text-base cursor-pointer select-none" onClick={() => { const newPlans = checked ? plans.filter((p: string) => p !== opt.key) : [...plans, opt.key]; handleUpdateBeamChannel(ch.code, 'installment_plans', newPlans); }}>
+                                                          <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#F4511E]' : 'border-2 border-gray-300 dark:border-slate-500'}`}>
+                                                            {checked && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                                                          </div>
                                                           {opt.label}
                                                         </label>
                                                       );
@@ -786,6 +987,44 @@ export default function PaymentChannelsPage() {
             })}
 
             {/* Add bank account button — only show here if there are NO bank accounts at all */}
+            {/* Add PromptPay button — only show here if there are NO promptpay channels at all */}
+            {promptPayChannels.length === 0 && (
+              showPromptPayForm ? (
+                <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
+                  <div className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เพิ่ม PromptPay QR ใหม่</div>
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">PromptPay ID</label>
+                    <input
+                      type="text"
+                      value={promptPayId}
+                      onChange={e => setPromptPayId(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="เบอร์โทร 10 หลัก หรือ เลขบัตร 13 หลัก"
+                      maxLength={13}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">เบอร์โทรศัพท์ 10 หลัก หรือ เลขประจำตัว/Tax ID 13 หลัก</p>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={handleSavePromptPay} disabled={savingPromptPay} className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                      {savingPromptPay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                      บันทึก
+                    </button>
+                    <button onClick={resetPromptPayForm} className="px-4 py-2 border border-gray-300 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2">
+                      <X className="w-4 h-4" /> ยกเลิก
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { resetPromptPayForm(); setShowPromptPayForm(true); }}
+                  className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  เพิ่ม PromptPay QR
+                </button>
+              )
+            )}
+
             {bankAccounts.length === 0 && (
               showBankForm && !editingBankId ? (
                 <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">

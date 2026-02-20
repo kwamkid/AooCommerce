@@ -2,10 +2,11 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { X, Loader2, Plus, Trash2 } from 'lucide-react';
+import { X, Loader2, Plus, Trash2, Download } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import generatePayload from 'promptpay-qr';
 import { formatPrice } from '@/lib/utils/format';
+import { saveQrImage } from '@/lib/utils/save-qr-image';
 import { CASH_DENOMINATIONS } from '@/lib/pos-utils';
 import { apiFetch } from '@/lib/api-client';
 
@@ -40,9 +41,10 @@ interface PaymentModalProps {
   onConfirm: (tenders: Tender[]) => void;
   onClose: () => void;
   loading?: boolean;
+  companyLogo?: string | null;
 }
 
-export default function PaymentModal({ totalAmount, onConfirm, onClose, loading }: PaymentModalProps) {
+export default function PaymentModal({ totalAmount, onConfirm, onClose, loading, companyLogo }: PaymentModalProps) {
   const [channels, setChannels] = useState<PaymentChannel[]>([]);
   const [loadingChannels, setLoadingChannels] = useState(true);
   const [tenders, setTenders] = useState<Tender[]>([]);
@@ -270,11 +272,33 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading 
             {!isCash && selectedChannel && (
               <div className="space-y-4">
                 {/* QR PromptPay */}
-                {qrPayload && (
+                {qrPayload && promptPayId && (
                   <div className="bg-white rounded-xl p-4 flex flex-col items-center gap-3 border border-gray-200 dark:border-transparent">
-                    <QRCodeSVG value={qrPayload} size={200} level="M" />
+                    <QRCodeSVG
+                      value={qrPayload}
+                      size={200}
+                      level="H"
+                      id="pos-pp-qr"
+                      imageSettings={companyLogo ? {
+                        src: companyLogo,
+                        height: 40,
+                        width: 40,
+                        excavate: true,
+                      } : undefined}
+                    />
                     <p className="text-gray-600 text-sm font-medium">สแกน QR PromptPay</p>
                     <p className="text-gray-400 text-xs">PromptPay: {promptPayId}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const svg = document.getElementById('pos-pp-qr') as unknown as SVGSVGElement;
+                        if (svg) saveQrImage(svg, totalAmount, promptPayId, undefined, companyLogo || undefined);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      บันทึก QR เป็นรูป
+                    </button>
                   </div>
                 )}
 

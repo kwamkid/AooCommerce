@@ -1,14 +1,17 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
-import { Loader2, Printer, FileText, MapPin, Package, Camera, Upload, Clock, CheckCircle2, CreditCard, Banknote, Globe, Copy, Check, Sun, Moon } from 'lucide-react';
+import { Loader2, Printer, FileText, MapPin, Package, Camera, Upload, Clock, CheckCircle2, CreditCard, Banknote, Globe, Copy, Check, Sun, Moon, QrCode, Download } from 'lucide-react';
 import { getBankByCode } from '@/lib/constants/banks';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
 import { BEAM_CHANNELS } from '@/lib/constants/payment-gateway';
+import { saveQrImage } from '@/lib/utils/save-qr-image';
+import generatePayload from 'promptpay-qr';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface BillItem {
   product_code?: string;
@@ -56,6 +59,7 @@ interface PaymentChannelData {
     account_number?: string;
     account_name?: string;
     description?: string;
+    promptpay_id?: string;
   };
   available_channels?: Array<{ code: string; fee_payer: string }>;
 }
@@ -132,7 +136,7 @@ export default function BillOnlinePage() {
 
   // Payment form state
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank_transfer' | 'payment_gateway'>('bank_transfer');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank_transfer' | 'payment_gateway' | 'promptpay'>('bank_transfer');
   const [transferDate, setTransferDate] = useState('');
   const [transferTime, setTransferTime] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
@@ -142,6 +146,7 @@ export default function BillOnlinePage() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [gatewayLoading, setGatewayLoading] = useState(false);
   const [copiedAccount, setCopiedAccount] = useState<string | null>(null);
+  const [compressingSlip, setCompressingSlip] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCopyAccount = async (accountNumber: string) => {
@@ -201,24 +206,39 @@ export default function BillOnlinePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Clear input value so same file can be re-selected
+    e.target.value = '';
+
+    // Revoke old preview URL to prevent memory leak
+    if (slipPreview) URL.revokeObjectURL(slipPreview);
+
+    setCompressingSlip(true);
     try {
       const compressed = await imageCompression(file, {
-        maxSizeMB: 1,
+        maxSizeMB: 0.5,
         maxWidthOrHeight: 1920,
         useWebWorker: true,
       });
       setSlipFile(compressed);
       setSlipPreview(URL.createObjectURL(compressed));
     } catch {
+      // Compression failed — still use original but warn if too large
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('ไฟล์ใหญ่เกินไป กรุณาเลือกรูปขนาดเล็กกว่านี้', 'error');
+        setCompressingSlip(false);
+        return;
+      }
       setSlipFile(file);
       setSlipPreview(URL.createObjectURL(file));
+    } finally {
+      setCompressingSlip(false);
     }
   };
 
   const handleSubmitPayment = async () => {
     if (!bill) return;
 
-    if (paymentMethod === 'bank_transfer' && !transferDate) {
+    if ((paymentMethod === 'bank_transfer' || paymentMethod === 'promptpay') && !transferDate) {
       showToast('กรุณาระบุวันที่โอนเงิน', 'error');
       return;
     }
@@ -228,8 +248,9 @@ export default function BillOnlinePage() {
 
       const formData = new FormData();
       formData.append('order_id', bill.id);
-      formData.append('payment_method', paymentMethod);
-      if (paymentMethod === 'bank_transfer') {
+      // Send promptpay as bank_transfer to the API
+      formData.append('payment_method', paymentMethod === 'promptpay' ? 'bank_transfer' : paymentMethod);
+      if (paymentMethod === 'bank_transfer' || paymentMethod === 'promptpay') {
         if (transferDate) formData.append('transfer_date', transferDate);
         if (transferTime) formData.append('transfer_time', transferTime);
       }
@@ -463,7 +484,7 @@ export default function BillOnlinePage() {
 
       {/* Bill Content */}
       <div className="max-w-2xl lg:max-w-5xl mx-auto my-4 md:my-6 print:my-0 print:max-w-none px-3 md:px-0">
-        <div className="lg:grid lg:grid-cols-[1fr,380px] lg:gap-6 print:block">
+        <div className="lg:grid lg:grid-cols-[1fr,440px] lg:gap-6 print:block">
         <div className={`rounded-xl shadow-sm print:shadow-none print:rounded-none p-5 md:p-8 transition-colors ${dark ? 'bg-[#16213E] shadow-black/20' : 'bg-white'}`}>
 
           {/* Header — Company logo + Order details right */}
@@ -664,7 +685,12 @@ export default function BillOnlinePage() {
                     onClick={() => {
                       // Set default payment method to first available channel type
                       if (bill.payment_channels && bill.payment_channels.length > 0) {
-                        setPaymentMethod(bill.payment_channels[0].type);
+                        const first = bill.payment_channels[0];
+                        if (first.type === 'bank_transfer' && first.config?.promptpay_id) {
+                          setPaymentMethod('promptpay');
+                        } else {
+                          setPaymentMethod(first.type);
+                        }
                       }
                       setShowPaymentForm(true);
                     }}
@@ -675,6 +701,14 @@ export default function BillOnlinePage() {
                   </button>
                 ) : (
                   <div className={`border-2 border-[#F4511E] rounded-xl p-5 space-y-4`}>
+                    {/* Single shared file input — outside conditional sections */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleSlipSelect}
+                      className="hidden"
+                    />
                     <h3 className={`font-bold text-lg flex items-center gap-2 ${dark ? 'text-white' : 'text-gray-900'}`}>
                       <Upload className="w-5 h-5 text-[#F4511E]" />
                       ชำระเงิน
@@ -685,38 +719,37 @@ export default function BillOnlinePage() {
                       <label className={`block text-base font-medium mb-2 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>วิธีชำระ</label>
                       {bill.payment_channels && bill.payment_channels.length > 0 ? (
                         <div className="grid grid-cols-1 gap-2">
-                          {/* Render buttons in sort_order — deduplicate by type */}
-                          {bill.payment_channels
-                            .filter((ch, i, arr) => arr.findIndex(c => c.type === ch.type) === i)
-                            .map(ch => {
-                              const iconMap = {
-                                bank_transfer: <CreditCard className="w-5 h-5" />,
-                                payment_gateway: <Globe className="w-5 h-5" />,
-                                cash: <Banknote className="w-5 h-5" />,
-                              };
-                              const labelMap = {
-                                bank_transfer: 'โอนธนาคาร',
-                                payment_gateway: 'ชำระออนไลน์',
-                                cash: 'เงินสด',
-                              };
-                              return (
-                                <button
-                                  key={ch.type}
-                                  type="button"
-                                  onClick={() => setPaymentMethod(ch.type)}
-                                  className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 text-base font-medium transition-colors ${
-                                    paymentMethod === ch.type
-                                      ? 'border-[#F4511E] bg-[#F4511E]/10 text-[#F4511E]'
-                                      : dark
-                                        ? 'border-slate-600 text-slate-300 hover:border-slate-500'
-                                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                                  }`}
-                                >
-                                  {iconMap[ch.type]}
-                                  {labelMap[ch.type]}
-                                </button>
-                              );
-                            })}
+                          {/* Build unique method buttons: separate promptpay from bank_transfer */}
+                          {(() => {
+                            const hasPromptPay = bill.payment_channels!.some(ch => ch.type === 'bank_transfer' && ch.config?.promptpay_id);
+                            const hasBankAccounts = bill.payment_channels!.some(ch => ch.type === 'bank_transfer' && ch.config?.bank_code);
+                            const hasGateway = bill.payment_channels!.some(ch => ch.type === 'payment_gateway');
+                            const hasCash = bill.payment_channels!.some(ch => ch.type === 'cash');
+
+                            const methods: { key: string; icon: React.ReactNode; label: string }[] = [];
+                            if (hasPromptPay) methods.push({ key: 'promptpay', icon: <QrCode className="w-5 h-5" />, label: 'PromptPay QR' });
+                            if (hasBankAccounts) methods.push({ key: 'bank_transfer', icon: <CreditCard className="w-5 h-5" />, label: 'โอนธนาคาร' });
+                            if (hasGateway) methods.push({ key: 'payment_gateway', icon: <Globe className="w-5 h-5" />, label: 'ชำระออนไลน์' });
+                            if (hasCash) methods.push({ key: 'cash', icon: <Banknote className="w-5 h-5" />, label: 'เงินสด' });
+
+                            return methods.map(m => (
+                              <button
+                                key={m.key}
+                                type="button"
+                                onClick={() => setPaymentMethod(m.key as typeof paymentMethod)}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 text-base font-medium transition-colors ${
+                                  paymentMethod === m.key
+                                    ? 'border-[#F4511E] bg-[#F4511E]/10 text-[#F4511E]'
+                                    : dark
+                                      ? 'border-slate-600 text-slate-300 hover:border-slate-500'
+                                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                                }`}
+                              >
+                                {m.icon}
+                                {m.label}
+                              </button>
+                            ));
+                          })()}
                         </div>
                       ) : (
                         /* Fallback: original 2 buttons if no channels configured */
@@ -733,15 +766,127 @@ export default function BillOnlinePage() {
                       )}
                     </div>
 
+                    {/* PromptPay QR section */}
+                    {paymentMethod === 'promptpay' && (
+                      <>
+                        {bill.payment_channels && bill.payment_channels
+                          .filter(ch => ch.type === 'bank_transfer' && ch.config?.promptpay_id)
+                          .map((ch, idx) => {
+                            const ppId = ch.config!.promptpay_id!;
+                            let qrValue: string | null = null;
+                            try { qrValue = generatePayload(ppId, { amount: bill.total_amount }); } catch { /* ignore */ }
+                            if (!qrValue) return null;
+                            return (
+                              <div key={`pp-${idx}`} className={`rounded-xl p-4 flex flex-col items-center gap-3 border ${dark ? 'bg-[#1A1A2E] border-slate-600' : 'bg-white border-gray-200'}`}>
+                                <div className={`text-base font-medium ${dark ? 'text-white' : 'text-gray-900'}`}>สแกน QR PromptPay</div>
+                                <div className="bg-white rounded-lg p-3 relative">
+                                  <QRCodeSVG
+                                    value={qrValue}
+                                    size={200}
+                                    level="H"
+                                    id={`pp-qr-${idx}`}
+                                    imageSettings={bill.company_logo ? {
+                                      src: bill.company_logo,
+                                      height: 40,
+                                      width: 40,
+                                      excavate: true,
+                                    } : undefined}
+                                  />
+                                  {bill.company_logo && (
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                      <img
+                                        src={bill.company_logo}
+                                        alt=""
+                                        className="w-10 h-10 rounded-lg object-cover border-2 border-white shadow-sm"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className={`text-2xl font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{formatPrice(bill.total_amount)} บาท</div>
+                                <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                                  PromptPay: {ppId.length === 13 ? ppId.replace(/(\d{1})(\d{4})(\d{5})(\d{2})(\d{1})/, '$1-$2-$3-$4-$5') : ppId.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const svg = document.getElementById(`pp-qr-${idx}`) as unknown as SVGSVGElement;
+                                    if (svg) saveQrImage(svg, bill.total_amount, ppId, undefined, bill.company_logo || undefined);
+                                  }}
+                                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${dark ? 'bg-slate-600 hover:bg-slate-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                                >
+                                  <Download className="w-4 h-4" />
+                                  บันทึก QR เป็นรูป
+                                </button>
+                              </div>
+                            );
+                          })}
+
+                        {/* Slip upload + transfer date for PromptPay too */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className={`block text-base font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>
+                              วันที่โอน <span className="text-red-400">*</span>
+                            </label>
+                            <input
+                              type="date"
+                              value={transferDate}
+                              onChange={(e) => setTransferDate(e.target.value)}
+                              className={`w-full px-3 py-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent ${dark ? 'bg-[#1A1A2E] border-slate-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                            />
+                          </div>
+                          <div>
+                            <label className={`block text-base font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>เวลาโอน</label>
+                            <input
+                              type="time"
+                              value={transferTime}
+                              onChange={(e) => setTransferTime(e.target.value)}
+                              className={`w-full px-3 py-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent ${dark ? 'bg-[#1A1A2E] border-slate-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Slip Upload */}
+                        <div>
+                          <label className={`block text-base font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>อัพโหลดสลิป</label>
+                          {compressingSlip ? (
+                            <div className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}>
+                              <Loader2 className="w-10 h-10 animate-spin" />
+                              <span className="text-base">กำลังย่อรูป...</span>
+                            </div>
+                          ) : slipPreview ? (
+                            <div className="relative">
+                              <img src={slipPreview} alt="สลิป" className={`w-full max-h-64 object-contain rounded-lg border ${dark ? 'border-slate-600' : 'border-gray-200'}`} />
+                              <button
+                                type="button"
+                                onClick={() => { if (slipPreview) URL.revokeObjectURL(slipPreview); setSlipFile(null); setSlipPreview(null); }}
+                                className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}
+                            >
+                              <Camera className="w-10 h-10" />
+                              <span className="text-base">เลือกรูป / ถ่ายรูปสลิป</span>
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+
                     {/* Bank Transfer section */}
                     {paymentMethod === 'bank_transfer' && (
                       <>
                         {/* Bank accounts from settings */}
-                        {bill.payment_channels && bill.payment_channels.filter(ch => ch.type === 'bank_transfer').length > 0 && (
+                        {bill.payment_channels && bill.payment_channels.filter(ch => ch.type === 'bank_transfer' && ch.config?.bank_code).length > 0 && (
                           <div className="space-y-2">
                             <label className={`block text-base font-medium ${dark ? 'text-slate-400' : 'text-gray-600'}`}>โอนเข้าบัญชี</label>
                             {bill.payment_channels
-                              .filter(ch => ch.type === 'bank_transfer')
+                              .filter(ch => ch.type === 'bank_transfer' && ch.config?.bank_code)
                               .map((ch, idx) => {
                                 const bank = getBankByCode(ch.config?.bank_code || '');
                                 return (
@@ -812,19 +957,17 @@ export default function BillOnlinePage() {
                         {/* Slip Upload */}
                         <div>
                           <label className={`block text-base font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>อัพโหลดสลิป</label>
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={handleSlipSelect}
-                            className="hidden"
-                          />
-                          {slipPreview ? (
+                          {compressingSlip ? (
+                            <div className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}>
+                              <Loader2 className="w-10 h-10 animate-spin" />
+                              <span className="text-base">กำลังย่อรูป...</span>
+                            </div>
+                          ) : slipPreview ? (
                             <div className="relative">
                               <img src={slipPreview} alt="สลิป" className={`w-full max-h-64 object-contain rounded-lg border ${dark ? 'border-slate-600' : 'border-gray-200'}`} />
                               <button
                                 type="button"
-                                onClick={() => { setSlipFile(null); setSlipPreview(null); }}
+                                onClick={() => { if (slipPreview) URL.revokeObjectURL(slipPreview); setSlipFile(null); setSlipPreview(null); }}
                                 className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm"
                               >
                                 ✕
@@ -886,7 +1029,7 @@ export default function BillOnlinePage() {
                       </div>
                     )}
 
-                    {/* Notes — show for cash and bank_transfer */}
+                    {/* Notes — show for cash, bank_transfer, promptpay */}
                     {paymentMethod !== 'payment_gateway' && (
                       <div>
                         <label className={`block text-base font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>หมายเหตุ</label>
@@ -913,7 +1056,7 @@ export default function BillOnlinePage() {
                         <button
                           type="button"
                           onClick={handleSubmitPayment}
-                          disabled={submitting}
+                          disabled={submitting || compressingSlip}
                           className="flex-1 bg-[#F4511E] text-white py-3 rounded-lg font-bold text-base hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                           {submitting ? (

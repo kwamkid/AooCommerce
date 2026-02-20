@@ -106,15 +106,29 @@ export async function POST(request: NextRequest) {
 
       const beamKey = BEAM_LINK_SETTINGS_MAP[code];
       if (beamKey === 'cardInstallments') {
-        // Enable only the installment months selected in settings
+        // Enable only the installment months selected in settings AND meeting Beam minimum thresholds
+        const amount = order.total_amount as number;
         const plans = (conf.installment_plans as string[]) || ['installments3m', 'installments4m', 'installments6m', 'installments10m'];
-        linkSettings.cardInstallments = {
-          isEnabled: true,
-          installments3m: { isEnabled: plans.includes('installments3m') },
-          installments4m: { isEnabled: plans.includes('installments4m') },
-          installments6m: { isEnabled: plans.includes('installments6m') },
-          installments10m: { isEnabled: plans.includes('installments10m') },
+        const BEAM_INSTALLMENT_MIN: Record<string, number> = {
+          installments3m: 3000,
+          installments4m: 3000,
+          installments6m: 4000,
+          installments10m: 5000,
         };
+        const i3 = plans.includes('installments3m') && amount >= BEAM_INSTALLMENT_MIN.installments3m;
+        const i4 = plans.includes('installments4m') && amount >= BEAM_INSTALLMENT_MIN.installments4m;
+        const i6 = plans.includes('installments6m') && amount >= BEAM_INSTALLMENT_MIN.installments6m;
+        const i10 = plans.includes('installments10m') && amount >= BEAM_INSTALLMENT_MIN.installments10m;
+        // Only enable installments if at least one plan qualifies
+        if (i3 || i4 || i6 || i10) {
+          linkSettings.cardInstallments = {
+            isEnabled: true,
+            installments3m: { isEnabled: i3 },
+            installments4m: { isEnabled: i4 },
+            installments6m: { isEnabled: i6 },
+            installments10m: { isEnabled: i10 },
+          };
+        }
       } else if (beamKey) {
         linkSettings[beamKey] = { isEnabled: true };
       }
@@ -162,14 +176,16 @@ export async function POST(request: NextRequest) {
 
     let beamResponse = await callBeamApi(linkSettings);
 
-    // If Beam rejects due to unsupported channel, retry without it
+    // If Beam rejects due to installments issue, retry without it
     if (!beamResponse.ok) {
       const errBody = await beamResponse.text();
       const errLower = errBody.toLowerCase();
 
-      // Retry without cardInstallments if that's the problem
-      if (errLower.includes('credit_card_installments') || errLower.includes('cardinstallments')) {
-        console.warn('Beam: cardInstallments not supported by merchant, retrying without it');
+      // Detect any installments-related error (not supported, minimum amount, etc.)
+      const isInstallmentsError = errLower.includes('installment');
+
+      if (isInstallmentsError && (linkSettings.cardInstallments as { isEnabled: boolean })?.isEnabled) {
+        console.warn('Beam: installments error, retrying without it. Error:', errBody);
         linkSettings.cardInstallments = {
           isEnabled: false,
           installments3m: { isEnabled: false },
@@ -184,7 +200,7 @@ export async function POST(request: NextRequest) {
           .some(([, v]) => (v as { isEnabled: boolean }).isEnabled);
 
         if (!stillHasChannel) {
-          return NextResponse.json({ error: 'No payment channels available (installments not supported by merchant)' }, { status: 400 });
+          return NextResponse.json({ error: 'No payment channels available (installments not supported for this order)' }, { status: 400 });
         }
 
         beamResponse = await callBeamApi(linkSettings);
@@ -192,10 +208,7 @@ export async function POST(request: NextRequest) {
 
       // If still failing after retry (or non-installments error)
       if (!beamResponse.ok) {
-        // For retry failures, read the new response body; for non-retry, use original errBody
-        const finalErrBody = errLower.includes('credit_card_installments') || errLower.includes('cardinstallments')
-          ? await beamResponse.text()
-          : errBody;
+        const finalErrBody = isInstallmentsError ? await beamResponse.text() : errBody;
         console.error('Beam API error:', beamResponse.status, finalErrBody);
         console.error('Beam request linkSettings:', JSON.stringify(linkSettings));
         console.error('Beam request amount (satang):', amountInSatang);

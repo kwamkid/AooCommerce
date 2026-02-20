@@ -612,6 +612,7 @@ export default function PosPage() {
           onConfirm={handlePayment}
           onClose={() => setShowPayment(false)}
           loading={paymentLoading}
+          companyLogo={currentCompany?.logo_url}
         />
       )}
 

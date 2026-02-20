@@ -116,8 +116,10 @@ export async function POST(request: NextRequest) {
 
     // Validate based on type
     if (type === 'bank_transfer') {
-      // POS group doesn't require bank details
-      if (channel_group !== 'pos' && (!config?.bank_code || !config?.account_number || !config?.account_name)) {
+      // POS group doesn't require bank details; PromptPay only needs promptpay_id
+      const hasPromptPay = !!config?.promptpay_id;
+      const hasBankDetails = config?.bank_code && config?.account_number && config?.account_name;
+      if (channel_group !== 'pos' && !hasPromptPay && !hasBankDetails) {
         return NextResponse.json({ error: 'bank_code, account_number, account_name are required' }, { status: 400 });
       }
     } else if (type === 'card_terminal' || type === 'other') {
