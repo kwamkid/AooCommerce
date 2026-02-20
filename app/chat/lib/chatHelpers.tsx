@@ -5,8 +5,19 @@ export function FbIcon({ size = 16 }: { size?: number }) {
   return <Image src="/social/facebook.svg" alt="Facebook" width={size} height={size} className="flex-shrink-0" />;
 }
 
+export function IgIcon({ size = 16 }: { size?: number }) {
+  return <Image src="/social/instagram.svg" alt="Instagram" width={size} height={size} className="flex-shrink-0" />;
+}
+
 export function LineIcon({ size = 16 }: { size?: number }) {
   return <Image src="/social/line_oa.svg" alt="LINE" width={size} height={size} className="flex-shrink-0" />;
+}
+
+/** Returns the correct platform icon for a contact based on source */
+export function PlatformIcon({ contact, size = 16 }: { contact: { platform: string; source?: string }; size?: number }) {
+  if (contact.source === 'instagram') return <IgIcon size={size} />;
+  if (contact.platform === 'line') return <LineIcon size={size} />;
+  return <FbIcon size={size} />;
 }
 
 export function getAccountPicture(account: ChatAccountInfo): string | null {

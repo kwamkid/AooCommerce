@@ -301,19 +301,10 @@ export class FacebookChatService {
         pictureUrl = profile.pictureUrl || null;
       }
     } else {
-      try {
-        const response = await fetch(
-          `https://graph.facebook.com/v21.0/${psid}?fields=first_name,last_name,profile_pic&access_token=${accessToken}`
-        );
-        if (response.ok) {
-          const profile = await response.json();
-          const firstName = profile.first_name || '';
-          const lastName = profile.last_name || '';
-          displayName = `${firstName} ${lastName}`.trim() || 'Facebook User';
-          pictureUrl = profile.profile_pic || null;
-        }
-      } catch (error) {
-        console.error('Error fetching FB profile:', error);
+      const profile = await this.fetchProfile(psid, accessToken);
+      if (profile) {
+        displayName = profile.displayName || displayName;
+        pictureUrl = profile.pictureUrl || null;
       }
     }
 
@@ -323,6 +314,7 @@ export class FacebookChatService {
       fb_page_id: pageId,
       display_name: displayName,
       picture_url: pictureUrl,
+      source: isInstagram ? 'instagram' : 'facebook',
       status: 'active',
       unread_count: 0,
       created_at: new Date().toISOString(),
@@ -428,15 +420,28 @@ export class FacebookChatService {
 
   async fetchProfile(psid: string, accessToken: string): Promise<PlatformProfile | null> {
     try {
+      // Try with name field first (works with pages_messaging permission)
       const response = await fetch(
-        `https://graph.facebook.com/v21.0/${psid}?fields=first_name,last_name,profile_pic&access_token=${accessToken}`
+        `https://graph.facebook.com/v21.0/${psid}?fields=name,first_name,last_name,profile_pic&access_token=${accessToken}`
       );
-      if (!response.ok) return null;
+      if (!response.ok) {
+        console.log('FB profile fetch failed:', response.status);
+        // Fallback: try with just profile_pic (pic usually works even without name permission)
+        const picResponse = await fetch(
+          `https://graph.facebook.com/v21.0/${psid}/picture?redirect=false&type=large&access_token=${accessToken}`
+        );
+        if (picResponse.ok) {
+          const picData = await picResponse.json();
+          if (picData.data?.url) {
+            return { displayName: 'Facebook User', pictureUrl: picData.data.url };
+          }
+        }
+        return null;
+      }
       const profile = await response.json();
-      const firstName = profile.first_name || '';
-      const lastName = profile.last_name || '';
+      const displayName = profile.name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Facebook User';
       return {
-        displayName: `${firstName} ${lastName}`.trim() || 'Facebook User',
+        displayName,
         pictureUrl: profile.profile_pic || undefined,
       };
     } catch (error) {

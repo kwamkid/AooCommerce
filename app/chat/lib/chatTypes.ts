@@ -1,6 +1,7 @@
 export interface UnifiedContact {
   id: string;
   platform: 'line' | 'facebook';
+  source?: 'line' | 'facebook' | 'instagram';
   platform_user_id: string;
   display_name: string;
   picture_url?: string;

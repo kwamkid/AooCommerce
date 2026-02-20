@@ -79,6 +79,7 @@ export async function GET(request: NextRequest) {
     type UnifiedContact = {
       id: string;
       platform: 'line' | 'facebook';
+      source?: 'line' | 'facebook' | 'instagram';
       platform_user_id: string;
       display_name: string;
       picture_url?: string;
@@ -126,6 +127,7 @@ export async function GET(request: NextRequest) {
       unified.push({
         id: c.id,
         platform: 'facebook',
+        source: c.source === 'instagram' ? 'instagram' : 'facebook',
         platform_user_id: c.fb_psid,
         display_name: c.display_name,
         picture_url: c.picture_url,

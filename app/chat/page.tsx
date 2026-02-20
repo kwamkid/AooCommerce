@@ -43,7 +43,7 @@ import Image from 'next/image';
 import OrderForm from '@/components/orders/OrderForm';
 import CustomerForm, { CustomerFormData } from '@/components/customers/CustomerForm';
 import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact } from './lib/chatTypes';
-import { FbIcon, LineIcon, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
+import { FbIcon, IgIcon, LineIcon, PlatformIcon, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
 
 // Dynamic imports for components that are not needed on initial load
 const EmojiStickerPicker = dynamic(() => import('./components/EmojiStickerPicker'), { ssr: false });
@@ -139,7 +139,7 @@ function UnifiedChatPageContent() {
   const hasActiveFilter = filterLinked !== 'all' || filterUnread || filterOrderDaysRange !== null;
 
   // Platform color
-  const platformColor = selectedContact?.platform === 'line' ? '#06C755' : '#1877F2';
+  const platformColor = selectedContact?.source === 'instagram' ? '#E4405F' : selectedContact?.platform === 'line' ? '#06C755' : '#1877F2';
 
   // Build media list from messages for lightbox navigation
   const mediaList = useMemo(() => {
@@ -325,6 +325,13 @@ function UnifiedChatPageContent() {
 
   // Supabase Realtime - dual subscriptions for LINE + FB
   useEffect(() => {
+    // Debounce fetchContacts to prevent multiple rapid calls from cascading realtime events
+    let debounceTimer: NodeJS.Timeout | null = null;
+    const debouncedFetchContacts = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchContacts(), 500);
+    };
+
     const handleNewMessage = (payload: any, contactIdField: string) => {
       const newMsg = payload.new as ChatMessage;
       const msgContactId = (newMsg as any)[contactIdField];
@@ -340,11 +347,12 @@ function UnifiedChatPageContent() {
           return [...prev, { ...newMsg, contact_id: msgContactId }];
         });
 
+        // Mark as read if viewing this contact (lightweight PATCH instead of re-fetching messages)
         if (newMsg.direction === 'incoming') {
-          apiFetch(`/api/chat/messages?contact_id=${selectedContact.id}&platform=${selectedContact.platform}&limit=1`).catch(() => {});
+          apiFetch(`/api/chat/contacts/${selectedContact.id}/read`, { method: 'POST', body: JSON.stringify({ platform: selectedContact.platform }) }).catch(() => {});
         }
       }
-      fetchContacts();
+      debouncedFetchContacts();
     };
 
     const lineMessagesChannel = supabase
@@ -361,15 +369,16 @@ function UnifiedChatPageContent() {
 
     const lineContactsChannel = supabase
       .channel('line_contacts_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'line_contacts' }, () => fetchContacts())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'line_contacts' }, debouncedFetchContacts)
       .subscribe();
 
     const fbContactsChannel = supabase
       .channel('fb_contacts_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'fb_contacts' }, () => fetchContacts())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fb_contacts' }, debouncedFetchContacts)
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(lineMessagesChannel);
       supabase.removeChannel(fbMessagesChannel);
       supabase.removeChannel(lineContactsChannel);
@@ -377,7 +386,12 @@ function UnifiedChatPageContent() {
     };
   }, [selectedContact]);
 
+  const fetchContactsRef = useRef<AbortController | null>(null);
   const fetchContacts = async (loadMore = false) => {
+    // Abort any in-flight request to prevent duplicate calls
+    if (fetchContactsRef.current) fetchContactsRef.current.abort();
+    const controller = new AbortController();
+    fetchContactsRef.current = controller;
     try {
       if (loadMore) setLoadingMoreContacts(true);
       const params = new URLSearchParams();
@@ -394,7 +408,7 @@ function UnifiedChatPageContent() {
       params.set('limit', '30');
       params.set('offset', loadMore ? contacts.length.toString() : '0');
 
-      const response = await apiFetch(`/api/chat/contacts?${params.toString()}`);
+      const response = await apiFetch(`/api/chat/contacts?${params.toString()}`, { signal: controller.signal });
       if (!response.ok) throw new Error('Failed to fetch contacts');
 
       const result = await response.json();
@@ -418,7 +432,8 @@ function UnifiedChatPageContent() {
       if (!loadMore) {
         setTotalUnread(result.summary?.totalUnread || 0);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return; // Ignore aborted requests
       console.error('Error fetching contacts:', error);
     } finally {
       setLoadingContacts(false);
@@ -888,9 +903,9 @@ function UnifiedChatPageContent() {
             </div>
           ) : (
             <div>
-              <label className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}</label>
+              <label className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.source === 'instagram' ? 'Instagram' : selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}</label>
               <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1">
-                {selectedContact.platform === 'line' ? <LineIcon size={14} /> : <FbIcon size={14} />}
+                <PlatformIcon contact={selectedContact} size={14} />
                 {selectedContact.display_name}
               </p>
             </div>
@@ -1097,7 +1112,7 @@ function UnifiedChatPageContent() {
                       {getAvatarUrl(contact) ? (
                         <Image src={getAvatarUrl(contact)!} alt={contact.display_name} width={48} height={48} className="w-12 h-12 rounded-full object-cover" unoptimized />
                       ) : (
-                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: contact.platform === 'line' ? '#06C755' : '#1877F2' }}>
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: contact.source === 'instagram' ? '#E4405F' : contact.platform === 'line' ? '#06C755' : '#1877F2' }}>
                           {getInitials(contact.display_name)}
                         </div>
                       )}
@@ -1105,8 +1120,8 @@ function UnifiedChatPageContent() {
                       {contact.account_picture_url ? (
                         <Image src={contact.account_picture_url} alt={contact.account_name || ''} width={20} height={20} className="absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full object-cover shadow-sm border-2 border-white dark:border-slate-800" unoptimized />
                       ) : (
-                        <span className={`absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-800 ${contact.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
-                          {contact.platform === 'line' ? <LineIcon size={10} /> : <FbIcon size={10} />}
+                        <span className={`absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-800 ${contact.source === 'instagram' ? 'bg-[#E4405F]' : contact.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
+                          <PlatformIcon contact={contact} size={10} />
                         </span>
                       )}
                       {/* Linked customer indicator */}
@@ -1122,13 +1137,13 @@ function UnifiedChatPageContent() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1 mt-0.5">
-                        {contact.platform === 'line' ? <LineIcon size={12} /> : <FbIcon size={12} />}
+                        <PlatformIcon contact={contact} size={12} />
                         {contact.account_name && (<span className="text-[10px] text-gray-400 dark:text-slate-500 truncate">{contact.account_name}</span>)}
                       </div>
                       {contact.last_message ? (
                         <div className="text-xs text-gray-500 truncate">{contact.last_message}</div>
                       ) : contact.customer ? (
-                        <div className="text-xs truncate flex items-center gap-1" style={{ color: contact.platform === 'line' ? '#06C755' : '#1877F2' }}>
+                        <div className="text-xs truncate flex items-center gap-1" style={{ color: contact.source === 'instagram' ? '#E4405F' : contact.platform === 'line' ? '#06C755' : '#1877F2' }}>
                           <LinkIcon className="w-3 h-3" />{contact.customer.customer_code} - {contact.customer.name}
                         </div>
                       ) : (
@@ -1166,7 +1181,7 @@ function UnifiedChatPageContent() {
                   )}
                   <div>
                     <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
-                      {selectedContact.platform === 'line' ? <LineIcon size={16} /> : <FbIcon size={16} />}
+                      <PlatformIcon contact={selectedContact} size={16} />
                       {selectedContact.display_name}
                     </h3>
                     {selectedContact.account_name && (<p className="text-[10px] text-gray-400">{selectedContact.account_name}</p>)}
