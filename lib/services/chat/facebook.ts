@@ -126,20 +126,41 @@ export class FacebookChatService {
       return { success: false, error: 'Unsupported message type for Facebook' };
     }
 
-    // Send via FB API
-    const fbRes = await fetch(
-      `https://graph.facebook.com/v21.0/${creds.pageId}/messages?access_token=${creds.accessToken}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipient: { id: contact.fb_psid }, message: fbMessage, messaging_type: 'RESPONSE' }),
-      }
-    );
+    // Send via FB API — try RESPONSE first, fallback to HUMAN_AGENT tag if outside 24h window
+    const sendUrl = `https://graph.facebook.com/v21.0/${creds.pageId}/messages?access_token=${creds.accessToken}`;
+    const sendPayload = { recipient: { id: contact.fb_psid }, message: fbMessage, messaging_type: 'RESPONSE' };
+
+    let fbRes = await fetch(sendUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sendPayload),
+    });
 
     if (!fbRes.ok) {
       const err = await fbRes.json();
-      console.error('Facebook Send API error:', err);
-      return { success: false, error: err.error?.message || 'Facebook API error' };
+      // Error subcode 2018278 = outside 24h window — retry with HUMAN_AGENT tag (7-day window)
+      if (err.error?.error_subcode === 2018278) {
+        console.log('Outside 24h window, retrying with HUMAN_AGENT tag');
+        fbRes = await fetch(sendUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipient: { id: contact.fb_psid },
+            message: fbMessage,
+            messaging_type: 'MESSAGE_TAG',
+            tag: 'HUMAN_AGENT',
+          }),
+        });
+
+        if (!fbRes.ok) {
+          const retryErr = await fbRes.json();
+          console.error('Facebook Send API error (HUMAN_AGENT):', retryErr);
+          return { success: false, error: retryErr.error?.message || 'Facebook API error' };
+        }
+      } else {
+        console.error('Facebook Send API error:', err);
+        return { success: false, error: err.error?.message || 'Facebook API error' };
+      }
     }
 
     const fbResult = await fbRes.json();

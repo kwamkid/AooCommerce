@@ -125,7 +125,7 @@ export default function Header() {
       <div className="relative flex items-center justify-end h-16 px-4 lg:px-6">
         {/* Mobile Logo (absolute center) */}
         <div className="lg:hidden absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <Image src="/logo.svg" alt="AooDelivery" width={100} height={65} className="h-10 w-auto" />
+          <Image src="/logo.svg" alt="AooCommerce" width={100} height={65} className="h-10 w-auto" />
         </div>
 
         {/* Right section */}

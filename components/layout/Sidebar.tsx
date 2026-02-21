@@ -321,7 +321,7 @@ export default function Sidebar() {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center justify-center h-16 border-b border-white/10 px-4">
-            <Image src="/logo.svg" alt="AooDelivery" width={100} height={65} className="h-10 w-auto" priority />
+            <Image src="/logo.svg" alt="AooCommerce" width={100} height={65} className="h-10 w-auto" priority />
           </div>
 
           {/* Company Profile (clickable for company list) */}

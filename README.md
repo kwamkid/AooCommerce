@@ -459,4 +459,4 @@ INSERT INTO raw_materials (name, unit, min_stock) VALUES
 -- รัน SQL นี้ใน Supabase SQL Editor
 -- ============================================
 $$
-# aoodelivery
+# aoocommerce

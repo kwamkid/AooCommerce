@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     const partnerKey = process.env.SHOPEE_PARTNER_KEY || '';
     if (authorization && partnerKey) {
       // Try verifying with the public callback URL
-      const publicUrl = 'https://aoodelivery.vercel.app/api/shopee/webhook';
+      const publicUrl = 'https://aoocommerce.vercel.app/api/shopee/webhook';
       const verified = verifySignature(publicUrl, rawBody, authorization, partnerKey)
         || verifySignature(request.url, rawBody, authorization, partnerKey);
       if (!verified) {

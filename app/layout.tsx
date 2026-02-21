@@ -15,7 +15,7 @@ const ibmPlexSansThai = IBM_Plex_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: 'AooDelivery - ระบบจัดการธุรกิจ',
+  title: 'AooCommerce - ระบบจัดการธุรกิจ',
   description: 'ระบบจัดการธุรกิจครบวงจร สั่งซื้อ จัดส่ง และติดตามลูกค้า',
   icons: {
     icon: '/logo.svg',
