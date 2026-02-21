@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get('account_id');
     const productId = searchParams.get('product_id');
+    const productIds = searchParams.get('product_ids'); // comma-separated
     const platform = searchParams.get('platform');
 
     let query = supabaseAdmin
@@ -39,6 +40,9 @@ export async function GET(request: NextRequest) {
         shopee_category_name,
         weight,
         sync_enabled,
+        shopee_attributes,
+        shopee_brand_id,
+        shopee_brand_name,
         products!inner (
           id,
           code,
@@ -62,6 +66,7 @@ export async function GET(request: NextRequest) {
 
     if (accountId) query = query.eq('account_id', accountId);
     if (productId) query = query.eq('product_id', productId);
+    if (productIds) query = query.in('product_id', productIds.split(','));
     if (platform) query = query.eq('platform', platform);
 
     query = query.order('created_at', { ascending: false });

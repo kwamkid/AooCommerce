@@ -603,6 +603,25 @@ function ShopeeImportContent() {
             </div>
           )}
 
+          {/* Done step actions (inline, not in sticky footer) */}
+          {importDone && (
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                onClick={() => router.push('/settings/integrations')}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                กลับหน้า Marketplace
+              </button>
+              <button
+                onClick={() => router.push('/products')}
+                className="px-4 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors flex items-center gap-2"
+              >
+                ดูสินค้าทั้งหมด
+              </button>
+            </div>
+          )}
+
           {/* Progress list */}
           <div className="space-y-1">
             {progressItems.map((item, idx) => (
@@ -628,73 +647,55 @@ function ShopeeImportContent() {
         </div>
       )}
 
-      {/* Footer navigation */}
-      <div className="sticky bottom-0 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-700 mt-6 -mx-4 px-4 py-3 flex items-center justify-between">
-        <div>
-          {step === 'select' && (
-            <button
-              onClick={() => router.push('/settings/integrations')}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              กลับ
-            </button>
-          )}
-          {step === 'configure' && (
-            <button
-              onClick={() => setStep('select')}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              กลับ
-            </button>
-          )}
-          {step === 'done' && (
-            <button
-              onClick={() => router.push('/settings/integrations')}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              กลับหน้าเชื่อมต่อ
-            </button>
-          )}
+      {/* Sticky Footer — only for select & configure steps */}
+      {(step === 'select' || step === 'configure') && (
+        <div className="sticky bottom-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-3 -mx-4 lg:-mx-6 -mb-24 lg:-mb-6 z-30 flex items-center justify-between">
+          <div>
+            {step === 'select' && (
+              <button
+                onClick={() => router.push('/settings/integrations')}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                กลับ
+              </button>
+            )}
+            {step === 'configure' && (
+              <button
+                onClick={() => setStep('select')}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
+              >
+                ย้อนกลับ
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {step === 'select' && (
+              <button
+                onClick={goToConfigure}
+                disabled={selectedItems.length === 0}
+                className="px-5 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                ถัดไป
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
+            {step === 'configure' && (
+              <button
+                onClick={executeImport}
+                disabled={selectedItems.some(item => {
+                  const config = configs[item.item_id];
+                  return config?.action === 'link' && !config.link_to_product_id;
+                })}
+                className="px-5 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                นำเข้า {selectedItems.length} รายการ
+              </button>
+            )}
+          </div>
         </div>
-
-        <div>
-          {step === 'select' && (
-            <button
-              onClick={goToConfigure}
-              disabled={selectedItems.length === 0}
-              className="flex items-center gap-2 px-5 py-2 bg-[#EE4D2D] text-white rounded-lg text-sm font-medium hover:bg-[#d4442a] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              ถัดไป
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          )}
-          {step === 'configure' && (
-            <button
-              onClick={executeImport}
-              disabled={selectedItems.some(item => {
-                const config = configs[item.item_id];
-                return config?.action === 'link' && !config.link_to_product_id;
-              })}
-              className="flex items-center gap-2 px-5 py-2 bg-[#EE4D2D] text-white rounded-lg text-sm font-medium hover:bg-[#d4442a] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download className="w-4 h-4" />
-              นำเข้า {selectedItems.length} รายการ
-            </button>
-          )}
-          {step === 'done' && (
-            <button
-              onClick={() => router.push('/products')}
-              className="flex items-center gap-2 px-5 py-2 bg-[#EE4D2D] text-white rounded-lg text-sm font-medium hover:bg-[#d4442a]"
-            >
-              ดูสินค้าทั้งหมด
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Product picker modal */}
       {pickerForItemId !== null && (

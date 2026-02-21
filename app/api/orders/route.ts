@@ -564,7 +564,7 @@ export async function GET(request: NextRequest) {
         subtotal, discount_amount, vat_amount, shipping_fee, total_amount,
         order_status, payment_status, payment_method,
         source, external_status, external_order_sn,
-        customer_id, shopee_account_id,
+        customer_id, shopee_account_id, created_by,
         delivery_name, delivery_phone,
         customer:customers (
           customer_code, name, contact_person, phone
@@ -592,6 +592,11 @@ export async function GET(request: NextRequest) {
       query = query.eq('source', sourceFilter);
     }
 
+    const createdByFilter = searchParams.get('created_by');
+    if (createdByFilter && createdByFilter !== 'all') {
+      query = query.eq('created_by', createdByFilter);
+    }
+
     if (search) {
       if (searchCustomerIds && searchCustomerIds.length > 0) {
         query = query.or(`order_number.ilike.%${search}%,customer_id.in.(${searchCustomerIds.join(',')}),delivery_name.ilike.%${search}%`);
@@ -617,6 +622,9 @@ export async function GET(request: NextRequest) {
     }
     if (customerId) {
       countQuery = countQuery.eq('customer_id', customerId);
+    }
+    if (createdByFilter && createdByFilter !== 'all') {
+      countQuery = countQuery.eq('created_by', createdByFilter);
     }
     if (search) {
       if (searchCustomerIds && searchCustomerIds.length > 0) {
@@ -680,6 +688,26 @@ export async function GET(request: NextRequest) {
     // Collect customer IDs and shopee account IDs for channel info
     const customerIds = [...new Set(orders.map((o: any) => o.customer_id).filter(Boolean))];
     const shopeeAccountIds = [...new Set(orders.map((o: any) => o.shopee_account_id).filter(Boolean))];
+
+    // Fetch company members for "created by" filter options
+    const { data: memberRows } = await supabaseAdmin
+      .from('company_members')
+      .select('user_id')
+      .eq('company_id', auth.companyId)
+      .eq('is_active', true);
+
+    const memberUserIds = (memberRows || []).map(m => m.user_id).filter(Boolean);
+    let createdByOptions: { id: string; name: string }[] = [];
+    if (memberUserIds.length > 0) {
+      const { data: profiles } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, name, email')
+        .in('id', memberUserIds);
+      createdByOptions = (profiles || []).map(p => ({
+        id: p.id,
+        name: p.name || p.email || 'Unknown',
+      }));
+    }
 
     // Batch fetch: branch names + channel info in parallel
     const [branchResult, lineResult, fbResult, shopeeResult, chatAccountsResult] = await Promise.all([
@@ -820,7 +848,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Map orders with branch names + channel info
+    // Build created_by name map
+    const createdByNameMap = new Map<string, string>();
+    for (const opt of createdByOptions) {
+      createdByNameMap.set(opt.id, opt.name);
+    }
+
+    // Map orders with branch names + channel info + created_by_name
     const ordersWithDetails = orders.map((order: any) => {
       let channel = null;
       if (order.source === 'shopee' && order.shopee_account_id) {
@@ -835,6 +869,7 @@ export async function GET(request: NextRequest) {
         ...order,
         branch_names: Array.from(orderBranchesMap.get(order.id) || []),
         channel,
+        created_by_name: order.created_by ? createdByNameMap.get(order.created_by) || null : null,
       };
     });
 
@@ -849,6 +884,7 @@ export async function GET(request: NextRequest) {
       statusCounts,
       paymentCounts,
       channelOptions,
+      createdByOptions,
     });
   } catch (error) {
     return NextResponse.json(

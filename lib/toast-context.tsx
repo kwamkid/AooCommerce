@@ -49,10 +49,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map(toast => (
           <div
             key={toast.id}
-            className={`pointer-events-auto px-5 py-3 rounded-lg shadow-lg flex items-center gap-2.5 text-base font-medium transition-all animate-in fade-in slide-in-from-bottom-4 ${
+            className={`pointer-events-auto px-5 py-3 rounded-xl shadow-lg border flex items-center gap-2.5 text-sm font-medium transition-all animate-in fade-in slide-in-from-bottom-4 ${
               toast.type === 'success'
-                ? 'bg-green-600 text-white'
-                : 'bg-red-600 text-white'
+                ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800 text-green-800 dark:text-green-300'
+                : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300'
             }`}
           >
             {toast.type === 'success' ? (
@@ -63,7 +63,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <span>{toast.message}</span>
             <button
               onClick={() => dismiss(toast.id)}
-              className="ml-1 p-0.5 hover:bg-white/20 rounded"
+              className={`ml-1 p-0.5 rounded ${
+                toast.type === 'success'
+                  ? 'hover:bg-green-200/50 dark:hover:bg-green-800/50'
+                  : 'hover:bg-red-200/50 dark:hover:bg-red-800/50'
+              }`}
             >
               <X className="w-4 h-4" />
             </button>

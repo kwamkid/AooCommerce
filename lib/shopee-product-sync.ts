@@ -5,8 +5,10 @@ import {
   getItemFullDetails,
   updatePrice,
   updateStock,
+  updateItemInfo,
   ShopeeAccountRow,
   ShopeeItemFullDetail,
+  ShopeeItemAttribute,
 } from '@/lib/shopee-api';
 import { SyncProgressCallback } from '@/lib/shopee-sync';
 
@@ -211,13 +213,16 @@ async function createLink(params: {
   categoryId?: number;
   weight?: number;
   platformProductName?: string;
+  brand?: { brand_id: number; original_brand_name: string; display_brand_name?: string };
+  attributes?: ShopeeItemAttribute[];
 }) {
   // Lookup category name from cache
   const categoryName = params.categoryId
     ? await getCategoryName(params.accountId, params.categoryId)
     : '';
 
-  await supabaseAdmin.from('marketplace_product_links').upsert({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const upsertData: Record<string, any> = {
     company_id: params.companyId,
     platform: 'shopee',
     account_id: params.accountId,
@@ -236,7 +241,21 @@ async function createLink(params: {
     weight: params.weight || null,
     last_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  }, { onConflict: 'account_id,external_item_id,external_model_id' });
+  };
+
+  // Store attributes from get_item_base_info directly (includes filled values)
+  if (params.attributes && params.attributes.length > 0) {
+    upsertData.shopee_attributes = params.attributes;
+  }
+  if (params.brand) {
+    upsertData.shopee_brand_id = params.brand.brand_id;
+    upsertData.shopee_brand_name = params.brand.display_brand_name || params.brand.original_brand_name;
+  }
+
+  await supabaseAdmin.from('marketplace_product_links').upsert(
+    upsertData,
+    { onConflict: 'account_id,external_item_id,external_model_id' }
+  );
 }
 
 // --- Auto-match by SKU ---
@@ -244,6 +263,7 @@ async function createLink(params: {
 async function tryAutoMatchBySku(companyId: string, sku: string): Promise<{ product_id: string; variation_id: string } | null> {
   if (!sku) return null;
 
+  // First try active products
   const { data } = await supabaseAdmin
     .from('product_variations')
     .select('id, product_id')
@@ -256,12 +276,33 @@ async function tryAutoMatchBySku(companyId: string, sku: string): Promise<{ prod
   if (data) {
     return { product_id: data.product_id, variation_id: data.id };
   }
+
+  // Then try inactive products (previously deleted) — reactivate them
+  const { data: inactive } = await supabaseAdmin
+    .from('product_variations')
+    .select('id, product_id')
+    .eq('company_id', companyId)
+    .eq('sku', sku)
+    .eq('is_active', false)
+    .limit(1)
+    .single();
+
+  if (inactive) {
+    const now = new Date().toISOString();
+    await supabaseAdmin.from('products').update({ is_active: true, source: 'shopee', updated_at: now }).eq('id', inactive.product_id);
+    await supabaseAdmin.from('product_variations').update({ is_active: true, updated_at: now }).eq('product_id', inactive.product_id);
+    console.log(`[Product Sync] Reactivated inactive product ${inactive.product_id} matched by SKU "${sku}"`);
+    return { product_id: inactive.product_id, variation_id: inactive.id };
+  }
+
   return null;
 }
 
 // Also try matching by product code (for order-sync created products: SP-{item_id})
 async function tryMatchByProductCode(companyId: string, itemId: number): Promise<string | null> {
   const codes = [`SP-${itemId}`];
+
+  // First try active products
   const { data } = await supabaseAdmin
     .from('products')
     .select('id')
@@ -271,7 +312,27 @@ async function tryMatchByProductCode(companyId: string, itemId: number): Promise
     .limit(1)
     .single();
 
-  return data?.id || null;
+  if (data?.id) return data.id;
+
+  // Then try inactive (previously deleted) — reactivate
+  const { data: inactive } = await supabaseAdmin
+    .from('products')
+    .select('id')
+    .eq('company_id', companyId)
+    .in('code', codes)
+    .eq('is_active', false)
+    .limit(1)
+    .single();
+
+  if (inactive?.id) {
+    const now = new Date().toISOString();
+    await supabaseAdmin.from('products').update({ is_active: true, source: 'shopee', updated_at: now }).eq('id', inactive.id);
+    await supabaseAdmin.from('product_variations').update({ is_active: true, updated_at: now }).eq('product_id', inactive.id);
+    console.log(`[Product Sync] Reactivated inactive product ${inactive.id} matched by code SP-${itemId}`);
+    return inactive.id;
+  }
+
+  return null;
 }
 
 // ============================================
@@ -393,6 +454,8 @@ async function processShopeeItem(
           categoryId: item.category_id,
           weight: item.weight,
           platformProductName: item.item_name,
+          brand: item.brand,
+          attributes: item.attribute_list,
         });
         // Don't count as updated — counted at parent level
       } else {
@@ -408,6 +471,9 @@ async function processShopeeItem(
             primaryImage: model.image_url || primaryImage,
             categoryId: item.category_id,
             weight: item.weight,
+            platformProductName: item.item_name,
+            brand: item.brand,
+            attributes: item.attribute_list,
           });
           result.links_created++;
         } else {
@@ -423,6 +489,9 @@ async function processShopeeItem(
               primaryImage: model.image_url || primaryImage,
               categoryId: item.category_id,
               weight: item.weight,
+              platformProductName: item.item_name,
+              brand: item.brand,
+              attributes: item.attribute_list,
             });
             result.links_created++;
           }
@@ -447,6 +516,9 @@ async function processShopeeItem(
         primaryImage,
         categoryId: item.category_id,
         weight: item.weight,
+        platformProductName: item.item_name,
+        brand: item.brand,
+        attributes: item.attribute_list,
       });
       result.products_updated++;
     } else {
@@ -463,6 +535,8 @@ async function processShopeeItem(
           categoryId: item.category_id,
           weight: item.weight,
           platformProductName: item.item_name,
+          brand: item.brand,
+          attributes: item.attribute_list,
         });
         result.links_created++;
         result.products_updated++;
@@ -488,6 +562,9 @@ async function processShopeeItem(
             primaryImage,
             categoryId: item.category_id,
             weight: item.weight,
+            platformProductName: item.item_name,
+            brand: item.brand,
+            attributes: item.attribute_list,
           });
           result.links_created++;
           result.products_updated++;
@@ -512,6 +589,9 @@ async function processShopeeItem(
               primaryImage,
               categoryId: item.category_id,
               weight: item.weight,
+              platformProductName: item.item_name,
+              brand: item.brand,
+              attributes: item.attribute_list,
             });
             result.products_created++;
             result.links_created++;
@@ -548,7 +628,7 @@ async function ensureParentProduct(
     return existingLink.product_id;
   }
 
-  // Check if parent exists by code
+  // Check if parent exists by code (active)
   const { data: existingParent } = await supabaseAdmin
     .from('products')
     .select('id, source')
@@ -562,6 +642,27 @@ async function ensureParentProduct(
     await updateLinkedProduct(companyId, existingParent.id, item);
     result.products_updated++;
     return existingParent.id;
+  }
+
+  // Check if parent exists but is inactive (previously deleted) — reactivate
+  const { data: inactiveParent } = await supabaseAdmin
+    .from('products')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('code', parentCode)
+    .eq('is_active', false)
+    .limit(1)
+    .single();
+
+  if (inactiveParent) {
+    const now = new Date().toISOString();
+    await supabaseAdmin.from('products').update({
+      name: item.item_name, image: item.images[0] || null, source: 'shopee', is_active: true, updated_at: now,
+    }).eq('id', inactiveParent.id);
+    await supabaseAdmin.from('product_variations').update({ is_active: true, updated_at: now }).eq('product_id', inactiveParent.id);
+    console.log(`[Product Sync] Reactivated inactive parent product "${item.item_name}" (${parentCode})`);
+    result.products_updated++;
+    return inactiveParent.id;
   }
 
   // Create new parent product
@@ -651,6 +752,30 @@ async function createSimpleProduct(
   const productCode = sku || `SP-${item.item_id}`;
   const simpleLabel = sku || item.item_name;
   const img = item.images[0] || null;
+
+  // Check for inactive product with same code (previously deleted) — reactivate instead of creating
+  const { data: inactiveProduct } = await supabaseAdmin
+    .from('products')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('code', productCode)
+    .eq('is_active', false)
+    .limit(1)
+    .single();
+
+  if (inactiveProduct) {
+    const now = new Date().toISOString();
+    await supabaseAdmin.from('products').update({
+      name: item.item_name, image: img, source: 'shopee', is_active: true, updated_at: now,
+    }).eq('id', inactiveProduct.id);
+    await supabaseAdmin.from('product_variations').update({ is_active: true, updated_at: now }).eq('product_id', inactiveProduct.id);
+    console.log(`[Product Sync] Reactivated inactive simple product "${item.item_name}" (${productCode})`);
+    // Update images
+    for (let i = 0; i < item.images.length; i++) {
+      await upsertProductImage(companyId, inactiveProduct.id, null, item.images[i], i);
+    }
+    return inactiveProduct.id;
+  }
 
   const { data: product, error: productError } = await supabaseAdmin
     .from('products')
@@ -927,4 +1052,23 @@ export async function pushStockToShopee(
   }
 
   return { success: errors.length === 0, updated_models: updatedModels, errors };
+}
+
+// ============================================
+// Export: Push Product Info (name) to Shopee
+// ============================================
+
+export async function pushInfoToShopee(
+  account: ShopeeAccountRow,
+  itemId: number,
+  itemName: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const creds = await ensureValidToken(account);
+    const { error } = await updateItemInfo(creds, itemId, { item_name: itemName });
+    if (error) return { success: false, error };
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
+  }
 }

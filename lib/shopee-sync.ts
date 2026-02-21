@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemEnrichment, ShopeeItemEnrichment, getEscrowDetail } from '@/lib/shopee-api';
+import { getCategoryName } from '@/lib/shopee-product-sync';
 
 // --- Sync Progress Types ---
 
@@ -435,8 +436,16 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
     if (matched.isNewVariation) newlyCreatedVariationIds.push(matched.variation_id);
 
     // Upsert marketplace link so product is linked to Shopee item/model
+    // Include enrichment data from get_item_base_info (category, weight, name, status, image)
+    const categoryId = enrichment?.category_id;
+    let categoryName = '';
+    if (categoryId) {
+      try { categoryName = await getCategoryName(account.id, categoryId); } catch { /* ignore */ }
+    }
+
     try {
-      await supabaseAdmin.from('marketplace_product_links').upsert({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const upsertData: Record<string, any> = {
         company_id: companyId,
         platform: 'shopee',
         account_id: account.id,
@@ -446,11 +455,30 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
         external_item_id: String(item.item_id),
         external_model_id: String(item.model_id || 0),
         external_sku: item.model_sku || item.item_sku || '',
-        // Note: do NOT set external_item_status from order_status — they are different fields
         platform_price: price || null,
+        platform_product_name: enrichment?.item_name || null,
+        platform_primary_image: enrichment?.images?.[0] || null,
+        external_item_status: enrichment?.item_status || null,
+        shopee_category_id: categoryId ? String(categoryId) : null,
+        shopee_category_name: categoryName || null,
+        weight: enrichment?.weight || null,
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'account_id,external_item_id,external_model_id' });
+      };
+
+      // Store attributes and brand from get_item_base_info directly (includes filled values)
+      if (enrichment?.attribute_list && enrichment.attribute_list.length > 0) {
+        upsertData.shopee_attributes = enrichment.attribute_list;
+      }
+      if (enrichment?.brand) {
+        upsertData.shopee_brand_id = enrichment.brand.brand_id;
+        upsertData.shopee_brand_name = enrichment.brand.display_brand_name || enrichment.brand.original_brand_name;
+      }
+
+      await supabaseAdmin.from('marketplace_product_links').upsert(
+        upsertData,
+        { onConflict: 'account_id,external_item_id,external_model_id' }
+      );
     } catch (linkErr) {
       console.error(`[Shopee Sync] Failed to upsert marketplace link for item ${item.item_id}:`, linkErr);
     }
@@ -1615,3 +1643,4 @@ async function findOrCreateShopeeCustomer(
 
   return { customerId: newCustomer.id, isNewCustomer: true, shippingAddressId };
 }
+

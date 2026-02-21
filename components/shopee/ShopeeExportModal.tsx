@@ -50,9 +50,34 @@ export default function ShopeeExportModal({
       setSelectedCategoryName('');
       setWeight('0.5');
       setLinkedItemId(null);
+      // Pre-fill from existing marketplace link data
+      prefillFromExistingLink();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  const prefillFromExistingLink = async () => {
+    if (!productId) return;
+    try {
+      const res = await apiFetch(`/api/marketplace/links?product_id=${productId}&platform=shopee`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const links = data.links || [];
+      // Find the best link with category info
+      const linkWithCategory = links.find((l: { shopee_category_id?: string | number }) => l.shopee_category_id);
+      if (linkWithCategory) {
+        if (linkWithCategory.shopee_category_id) {
+          setSelectedCategoryId(Number(linkWithCategory.shopee_category_id));
+          setSelectedCategoryName(linkWithCategory.shopee_category_name || '');
+        }
+        if (linkWithCategory.weight) {
+          setWeight(String(linkWithCategory.weight));
+        }
+      }
+    } catch {
+      // ignore - prefill is best-effort
+    }
+  };
 
   // Check if product is already linked when account changes
   useEffect(() => {
@@ -225,8 +250,7 @@ export default function ShopeeExportModal({
                 value={selectedAccountId}
                 onChange={e => {
                   setSelectedAccountId(e.target.value);
-                  setSelectedCategoryId(null);
-                  setSelectedCategoryName('');
+                  // Don't reset category if pre-filled from existing link
                 }}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EE4D2D]/50"
               >
@@ -249,6 +273,7 @@ export default function ShopeeExportModal({
               <ShopeeCategoryPicker
                 accountId={selectedAccountId}
                 value={selectedCategoryId}
+                categoryName={selectedCategoryName}
                 onChange={(id, name) => {
                   setSelectedCategoryId(id);
                   setSelectedCategoryName(name);

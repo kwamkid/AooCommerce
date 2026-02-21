@@ -10,7 +10,7 @@ import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, ShoppingBag, RefreshCw, Unlink, CheckCircle2,
   XCircle, Clock, ExternalLink, AlertTriangle, ChevronDown, ChevronUp,
-  Plus, Trash2, Upload, Download
+  Plus, Trash2, Upload, Download, Package
 } from 'lucide-react';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 
@@ -23,7 +23,10 @@ interface ShopeeAccount {
   last_product_sync_at: string | null;
   access_token_expires_at: string | null;
   refresh_token_expires_at: string | null;
+  auto_sync_stock: boolean;
+  auto_sync_product_info: boolean;
   connection_status: 'connected' | 'expired' | 'disconnected';
+  linked_product_count: number;
   metadata: Record<string, unknown>;
   created_at: string;
 }
@@ -253,6 +256,25 @@ export default function IntegrationsPage() {
     }
   };
 
+  const handleToggleSync = async (accountId: string, field: 'auto_sync_stock' | 'auto_sync_product_info', value: boolean) => {
+    // Optimistic update
+    setAccounts(prev => prev.map(a => a.id === accountId ? { ...a, [field]: value } : a));
+    try {
+      const res = await apiFetch('/api/shopee/accounts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: accountId, [field]: value }),
+      });
+      if (!res.ok) {
+        setAccounts(prev => prev.map(a => a.id === accountId ? { ...a, [field]: !value } : a));
+        showToast('ไม่สามารถอัพเดทได้', 'error');
+      }
+    } catch {
+      setAccounts(prev => prev.map(a => a.id === accountId ? { ...a, [field]: !value } : a));
+      showToast('เกิดข้อผิดพลาด', 'error');
+    }
+  };
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleString('th-TH', {
@@ -293,7 +315,7 @@ export default function IntegrationsPage() {
               <ShoppingBag className="w-4 h-4" />
               Shopee
               {activeAccounts.length > 0 && (
-                <span className="text-xs px-1.5 py-0.5 rounded-full bg-[#EE4D2D]/10 text-[#EE4D2D]">
+                <span className="text-xs px-1.5 py-0.5 rounded-lg bg-[#EE4D2D]/10 text-[#EE4D2D]">
                   {activeAccounts.length}
                 </span>
               )}
@@ -304,7 +326,7 @@ export default function IntegrationsPage() {
             >
               <ShoppingBag className="w-4 h-4" />
               TikTok Shop
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500">
                 Soon
               </span>
             </button>
@@ -342,7 +364,7 @@ export default function IntegrationsPage() {
                           className="w-10 h-10 rounded-lg object-cover"
                         />
                       ) : (
-                        <div className="w-10 h-10 rounded-lg bg-[#EE4D2D]/10 flex items-center justify-center relative">
+                        <div className="w-10 h-10 rounded-lg bg-transparent flex items-center justify-center relative">
                           <ShoppingBag className="w-5 h-5 text-[#EE4D2D]" />
                           <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] text-gray-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">กดเพื่ออัพเดท</span>
                         </div>
@@ -377,19 +399,20 @@ export default function IntegrationsPage() {
                           </span>
                         )}
                         <span className="ml-1">#{account.shop_id}</span>
+                        {account.linked_product_count > 0 && (
+                          <>
+                            <span className="mx-1">·</span>
+                            <span className="flex items-center gap-1">
+                              <Package className="w-3 h-3" />
+                              {account.linked_product_count} สินค้าเชื่อมต่อ
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => handleSync(account.id)}
-                        disabled={isSyncing || account.connection_status === 'expired'}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors disabled:opacity-50"
-                        title="Sync Now"
-                      >
-                        <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                      </button>
                       <button
                         onClick={() => setExpandedId(isExpanded ? null : account.id)}
                         className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
@@ -410,6 +433,36 @@ export default function IntegrationsPage() {
                           Sync ล่าสุด: {formatDate(account.last_sync_at)}
                         </span>
                         <span>เชื่อมต่อเมื่อ: {formatDate(account.created_at)}</span>
+                      </div>
+
+                      {/* Auto-Sync Toggles */}
+                      <div className="flex flex-wrap gap-x-6 gap-y-2 pt-1">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={account.auto_sync_stock !== false}
+                              onChange={e => handleToggleSync(account.id, 'auto_sync_stock', e.target.checked)}
+                            />
+                            <div className="w-9 h-5 bg-gray-300 dark:bg-slate-600 rounded-full peer-checked:bg-[#EE4D2D] transition-colors" />
+                            <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform" />
+                          </div>
+                          <span className="text-xs text-gray-700 dark:text-slate-300">Sync Stock อัตโนมัติ</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={account.auto_sync_product_info !== false}
+                              onChange={e => handleToggleSync(account.id, 'auto_sync_product_info', e.target.checked)}
+                            />
+                            <div className="w-9 h-5 bg-gray-300 dark:bg-slate-600 rounded-full peer-checked:bg-[#EE4D2D] transition-colors" />
+                            <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform" />
+                          </div>
+                          <span className="text-xs text-gray-700 dark:text-slate-300">Sync ชื่อ/ราคา อัตโนมัติ</span>
+                        </label>
                       </div>
 
                       {/* Sync Controls */}
@@ -439,7 +492,7 @@ export default function IntegrationsPage() {
                             router.push(`/shopee/import?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
                           }}
                           disabled={account.connection_status === 'expired'}
-                          className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
                         >
                           <Download className="w-4 h-4" />
                           นำเข้าสินค้าจาก Shopee

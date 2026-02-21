@@ -54,11 +54,12 @@ export async function GET(request: NextRequest) {
     const itemIds = page.items.map(i => i.item_id);
     const details = await getItemFullDetails(creds, itemIds);
 
-    // Check which items are already linked
+    // Check which items are already linked (only count active products)
     const { data: existingLinks } = await supabaseAdmin
       .from('marketplace_product_links')
-      .select('external_item_id, product_id, products!inner(name)')
+      .select('external_item_id, product_id, products!inner(name, is_active)')
       .eq('account_id', accountId)
+      .eq('products.is_active', true)
       .in('external_item_id', itemIds.map(String));
 
     const linkedMap = new Map<string, { product_id: string; product_name: string }>();
@@ -305,7 +306,7 @@ async function importCreateProduct(
     // Variation product
     const parentCode = item.item_sku || `SP-${item.item_id}`;
 
-    // Check if product already exists
+    // Check if product already exists (active)
     const { data: existing } = await supabaseAdmin
       .from('products')
       .select('id')
@@ -314,10 +315,32 @@ async function importCreateProduct(
       .eq('is_active', true)
       .single();
 
+    // Also check for inactive product (previously deleted) — reactivate
+    let reactivatedParent: string | null = null;
+    if (!existing) {
+      const { data: inactive } = await supabaseAdmin
+        .from('products')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('code', parentCode)
+        .eq('is_active', false)
+        .single();
+      if (inactive) {
+        const now = new Date().toISOString();
+        await supabaseAdmin.from('products').update({
+          name: item.item_name, image: primaryImage, source: 'shopee', is_active: true, updated_at: now,
+        }).eq('id', inactive.id);
+        await supabaseAdmin.from('product_variations').update({ is_active: true, updated_at: now }).eq('product_id', inactive.id);
+        reactivatedParent = inactive.id;
+      }
+    }
+
     let parentProductId: string;
 
     if (existing) {
       parentProductId = existing.id;
+    } else if (reactivatedParent) {
+      parentProductId = reactivatedParent;
     } else {
       // Create variation type IDs
       const tierNames = item.tierVariations.length > 0 ? item.tierVariations : ['ตัวเลือกสินค้า'];
@@ -425,7 +448,7 @@ async function importCreateProduct(
     const productCode = sku || `SP-${item.item_id}`;
     const simpleLabel = sku || item.item_name;
 
-    // Check if product exists
+    // Check if product exists (active)
     const { data: existing } = await supabaseAdmin
       .from('products')
       .select('id')
@@ -433,6 +456,33 @@ async function importCreateProduct(
       .eq('code', productCode)
       .eq('is_active', true)
       .single();
+
+    // Also check for inactive product (previously deleted) — reactivate
+    let reactivatedProduct: { id: string; variationId: string | null } | null = null;
+    if (!existing) {
+      const { data: inactive } = await supabaseAdmin
+        .from('products')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('code', productCode)
+        .eq('is_active', false)
+        .single();
+      if (inactive) {
+        const now = new Date().toISOString();
+        await supabaseAdmin.from('products').update({
+          name: item.item_name, image: primaryImage, source: 'shopee', is_active: true, updated_at: now,
+        }).eq('id', inactive.id);
+        await supabaseAdmin.from('product_variations').update({ is_active: true, updated_at: now }).eq('product_id', inactive.id);
+        const { data: reactivatedVar } = await supabaseAdmin
+          .from('product_variations')
+          .select('id')
+          .eq('product_id', inactive.id)
+          .eq('is_active', true)
+          .limit(1)
+          .single();
+        reactivatedProduct = { id: inactive.id, variationId: reactivatedVar?.id || null };
+      }
+    }
 
     let productId: string;
     let variationId: string | null = null;
@@ -447,6 +497,9 @@ async function importCreateProduct(
         .limit(1)
         .single();
       variationId = existingVar?.id || null;
+    } else if (reactivatedProduct) {
+      productId = reactivatedProduct.id;
+      variationId = reactivatedProduct.variationId;
     } else {
       const { data: product, error: prodErr } = await supabaseAdmin
         .from('products')
@@ -568,6 +621,9 @@ async function createImportLink(
     shopee_category_id: item.category_id ? String(item.category_id) : null,
     shopee_category_name: categoryName || null,
     weight: item.weight || null,
+    shopee_attributes: item.attribute_list || null,
+    shopee_brand_id: item.brand?.brand_id || null,
+    shopee_brand_name: item.brand?.display_brand_name || item.brand?.original_brand_name || null,
     sync_enabled: true,
     last_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

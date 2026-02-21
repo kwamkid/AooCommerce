@@ -341,6 +341,7 @@ export async function GET(request: NextRequest) {
     const categoryFilter = searchParams.get('category_id');
     const brandFilter = searchParams.get('brand_id');
     const searchQuery = searchParams.get('search');
+    const shopAccountFilter = searchParams.get('shop_account_id');
 
     // Pagination params
     const page = parseInt(searchParams.get('page') || '1', 10);
@@ -369,6 +370,24 @@ export async function GET(request: NextRequest) {
     }
     if (searchQuery) {
       productsBaseQuery = productsBaseQuery.or(`name.ilike.%${searchQuery}%,code.ilike.%${searchQuery}%`);
+    }
+
+    // Shop account filter — find product IDs linked to this shop
+    if (shopAccountFilter) {
+      const { data: linkedProducts } = await supabaseAdmin
+        .from('marketplace_product_links')
+        .select('product_id')
+        .eq('account_id', shopAccountFilter);
+      const linkedProductIds = [...new Set((linkedProducts || []).map(lp => lp.product_id).filter(Boolean))];
+      if (linkedProductIds.length === 0) {
+        // No products linked to this shop
+        return NextResponse.json({
+          products: [],
+          ...(paginate ? { total: 0, page, limit } : {}),
+          shopOptions: [],
+        });
+      }
+      productsBaseQuery = productsBaseQuery.in('id', linkedProductIds);
     }
 
     productsBaseQuery = productsBaseQuery.order('name', { ascending: true });
@@ -511,9 +530,48 @@ export async function GET(request: NextRequest) {
       .map(id => productMap.get(id))
       .filter(Boolean);
 
+    // Fetch shop options for filter dropdown (shops that have linked products)
+    let shopOptions: { id: string; name: string; platform: string; icon?: string }[] = [];
+    if (searchParams.has('include_shop_options')) {
+      const { data: linkedAccounts } = await supabaseAdmin
+        .from('marketplace_product_links')
+        .select('account_id, account_name, platform')
+        .eq('company_id', auth.companyId);
+
+      const shopMap = new Map<string, { id: string; name: string; platform: string }>();
+      for (const link of (linkedAccounts || [])) {
+        if (link.account_id && !shopMap.has(link.account_id)) {
+          shopMap.set(link.account_id, {
+            id: link.account_id,
+            name: link.account_name || link.platform || 'Unknown',
+            platform: link.platform || 'shopee',
+          });
+        }
+      }
+
+      // Enrich with shop logos from shopee_accounts
+      const accountIds = [...shopMap.keys()];
+      if (accountIds.length > 0) {
+        const { data: accounts } = await supabaseAdmin
+          .from('shopee_accounts')
+          .select('id, shop_name, metadata')
+          .in('id', accountIds);
+        for (const acc of (accounts || [])) {
+          const existing = shopMap.get(acc.id);
+          if (existing) {
+            if (acc.shop_name) existing.name = acc.shop_name;
+            (existing as any).icon = (acc.metadata as any)?.shop_logo || undefined;
+          }
+        }
+      }
+
+      shopOptions = [...shopMap.values()];
+    }
+
     return NextResponse.json({
       products: groupedProducts,
-      ...(paginate ? { total: totalCount || 0, page, limit } : {})
+      ...(paginate ? { total: totalCount || 0, page, limit } : {}),
+      ...(searchParams.has('include_shop_options') ? { shopOptions } : {}),
     });
   } catch (error) {
     return NextResponse.json(
@@ -754,6 +812,11 @@ export async function PUT(request: NextRequest) {
     // Auto-sync price to Shopee if default_price changed
     if (body.default_price !== undefined || (variations && Array.isArray(variations))) {
       import('@/lib/shopee-auto-sync').then(m => m.triggerShopeePriceSync(id)).catch(() => {});
+    }
+
+    // Auto-sync product name to Shopee if name changed
+    if (body.name) {
+      import('@/lib/shopee-auto-sync').then(m => m.triggerShopeeInfoSync(id, body.name)).catch(() => {});
     }
 
     // Fetch complete product with variations

@@ -115,6 +115,9 @@ BEGIN
           'shopee_category_id', mpl.shopee_category_id,
           'shopee_category_name', mpl.shopee_category_name,
           'weight', mpl.weight,
+          'shopee_attributes', mpl.shopee_attributes,
+          'shopee_brand_id', mpl.shopee_brand_id,
+          'shopee_brand_name', mpl.shopee_brand_name,
           'sync_enabled', mpl.sync_enabled,
           'products', json_build_object(
             'id', p.id,

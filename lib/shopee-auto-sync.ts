@@ -1,13 +1,11 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeAccountRow } from '@/lib/shopee-api';
-import { pushStockToShopee, pushPriceToShopee } from '@/lib/shopee-product-sync';
+import { pushStockToShopee, pushPriceToShopee, pushInfoToShopee } from '@/lib/shopee-product-sync';
 import { logIntegration } from '@/lib/integration-logger';
 
 /**
  * Fire-and-forget: trigger stock sync to Shopee for variation(s).
- * Looks up marketplace_product_links for these variation_ids where sync_enabled=true.
- * For each linked account, calls pushStockToShopee.
- * Does NOT block the caller — errors are logged silently.
+ * Checks account-level auto_sync_stock flag before pushing.
  */
 export function triggerShopeeStockSync(variationIds: string[]): void {
   if (!variationIds || variationIds.length === 0) return;
@@ -17,7 +15,6 @@ export function triggerShopeeStockSync(variationIds: string[]): void {
 }
 
 async function _doStockSync(variationIds: string[]): Promise<void> {
-  // Find all marketplace links for these variations with sync enabled
   const { data: links } = await supabaseAdmin
     .from('marketplace_product_links')
     .select('product_id, account_id')
@@ -27,7 +24,6 @@ async function _doStockSync(variationIds: string[]): Promise<void> {
 
   if (!links || links.length === 0) return;
 
-  // Deduplicate by (product_id, account_id)
   const seen = new Set<string>();
   const uniquePairs: { product_id: string; account_id: string }[] = [];
   for (const link of links) {
@@ -48,6 +44,8 @@ async function _doStockSync(variationIds: string[]): Promise<void> {
         .single();
 
       if (!account) continue;
+      // Check account-level toggle
+      if (account.auto_sync_stock === false) continue;
 
       const startMs = Date.now();
       const result = await pushStockToShopee(account as ShopeeAccountRow, product_id);
@@ -78,7 +76,7 @@ async function _doStockSync(variationIds: string[]): Promise<void> {
 
 /**
  * Fire-and-forget: trigger price sync to Shopee for a product.
- * Called when platform_price or default_price changes.
+ * Checks account-level auto_sync_product_info flag before pushing.
  */
 export function triggerShopeePriceSync(productId: string): void {
   if (!productId) return;
@@ -109,6 +107,8 @@ async function _doPriceSync(productId: string): Promise<void> {
         .single();
 
       if (!account) continue;
+      // Check account-level toggle
+      if (account.auto_sync_product_info === false) continue;
 
       const startMs = Date.now();
       const result = await pushPriceToShopee(account as ShopeeAccountRow, productId);
@@ -133,6 +133,77 @@ async function _doPriceSync(productId: string): Promise<void> {
       console.log(`[Shopee Auto-Sync] Price pushed for product ${productId} to account ${accountId}: success=${result.success}`);
     } catch (err) {
       console.error(`[Shopee Auto-Sync] Price push failed for product ${productId}:`, err);
+    }
+  }
+}
+
+/**
+ * Fire-and-forget: trigger product info (name) sync to Shopee for a product.
+ * Checks account-level auto_sync_product_info flag before pushing.
+ */
+export function triggerShopeeInfoSync(productId: string, productName: string): void {
+  if (!productId || !productName) return;
+  _doInfoSync(productId, productName).catch(err => {
+    console.error('[Shopee Auto-Sync] Info sync error:', err);
+  });
+}
+
+async function _doInfoSync(productId: string, productName: string): Promise<void> {
+  const { data: links } = await supabaseAdmin
+    .from('marketplace_product_links')
+    .select('account_id, external_item_id')
+    .eq('product_id', productId)
+    .eq('sync_enabled', true)
+    .eq('platform', 'shopee');
+
+  if (!links || links.length === 0) return;
+
+  // Deduplicate by (account_id, external_item_id)
+  const seen = new Set<string>();
+  const uniqueItems: { account_id: string; external_item_id: string }[] = [];
+  for (const link of links) {
+    const key = `${link.account_id}:${link.external_item_id}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueItems.push({ account_id: link.account_id, external_item_id: link.external_item_id });
+    }
+  }
+
+  for (const { account_id, external_item_id } of uniqueItems) {
+    try {
+      const { data: account } = await supabaseAdmin
+        .from('shopee_accounts')
+        .select('*')
+        .eq('id', account_id)
+        .eq('is_active', true)
+        .single();
+
+      if (!account) continue;
+      if (account.auto_sync_product_info === false) continue;
+
+      const startMs = Date.now();
+      const result = await pushInfoToShopee(account as ShopeeAccountRow, parseInt(external_item_id), productName);
+      const durationMs = Date.now() - startMs;
+
+      logIntegration({
+        company_id: account.company_id,
+        integration: 'shopee',
+        account_id: account.id,
+        account_name: account.shop_name,
+        direction: 'outgoing',
+        action: 'auto_push_info',
+        method: 'POST',
+        api_path: '/api/v2/product/update_item',
+        request_body: { product_id: productId, item_name: productName, trigger: 'auto_sync' },
+        response_body: result,
+        status: result.success ? 'success' : 'error',
+        error_message: result.error || undefined,
+        duration_ms: durationMs,
+      });
+
+      console.log(`[Shopee Auto-Sync] Info pushed for item ${external_item_id} to account ${account_id}: success=${result.success}`);
+    } catch (err) {
+      console.error(`[Shopee Auto-Sync] Info push failed for product ${productId}:`, err);
     }
   }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
@@ -14,7 +14,6 @@ import { DateValueType } from 'react-tailwindcss-datepicker';
 import {
   ShoppingCart,
   Plus,
-  Search,
   Loader2,
   Trash2,
   Edit2,
@@ -27,11 +26,10 @@ import {
   ArrowUp,
   ArrowDown,
   X,
-  ChevronDown,
-  Filter,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import SearchableDropdown, { DropdownOption } from '@/components/ui/SearchableDropdown';
 
 // Order interface
 interface Order {
@@ -55,6 +53,8 @@ interface Order {
   source?: string;
   external_status?: string;
   external_order_sn?: string;
+  created_by?: string;
+  created_by_name?: string | null;
   channel?: {
     platform: string;
     account_name: string;
@@ -68,6 +68,11 @@ interface ChannelOption {
   platform: string;
   name: string;
   picture_url: string | null;
+}
+
+interface CreatedByOption {
+  id: string;
+  name: string;
 }
 
 // Platform icon SVG map
@@ -238,9 +243,9 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [channelFilter, setChannelFilter] = useState('all');
-  const [channelOptions, setChannelOptions] = useState<ChannelOption[]>([]);
-  const [channelDropdownOpen, setChannelDropdownOpen] = useState(false);
-  const channelDropdownRef = useRef<HTMLDivElement>(null);
+  const [channelDropdownOptions, setChannelDropdownOptions] = useState<DropdownOption[]>([]);
+  const [createdByFilter, setCreatedByFilter] = useState('all');
+  const [createdByDropdownOptions, setCreatedByDropdownOptions] = useState<DropdownOption[]>([]);
   const [deliveryDateRange, setDeliveryDateRange] = useState<DateValueType>({
     startDate: null,
     endDate: null,
@@ -287,18 +292,6 @@ export default function OrdersPage() {
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({ all: 0, new: 0, shipping: 0, completed: 0, cancelled: 0 });
   const [paymentCounts, setPaymentCounts] = useState<Record<string, number>>({ all: 0, pending: 0, verifying: 0, paid: 0, cancelled: 0 });
 
-  // Close channel dropdown on click outside
-  useEffect(() => {
-    if (!channelDropdownOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (channelDropdownRef.current && !channelDropdownRef.current.contains(e.target as Node)) {
-        setChannelDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [channelDropdownOpen]);
-
   // Close modal on ESC key
   useEffect(() => {
     if (!statusUpdateModal.show) return;
@@ -323,7 +316,7 @@ export default function OrdersPage() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, paymentFilter, channelFilter, recordsPerPage]);
+  }, [statusFilter, paymentFilter, channelFilter, createdByFilter, recordsPerPage]);
 
   // Fetch orders with server-side filtering and pagination
   // isAuthReady is a boolean (false→true once), so it won't re-trigger from object reference changes
@@ -331,7 +324,7 @@ export default function OrdersPage() {
   useEffect(() => {
     if (!isAuthReady) return;
     fetchOrders();
-  }, [isAuthReady, currentPage, recordsPerPage, statusFilter, paymentFilter, channelFilter, debouncedSearch, sortBy, sortDir]);
+  }, [isAuthReady, currentPage, recordsPerPage, statusFilter, paymentFilter, channelFilter, createdByFilter, debouncedSearch, sortBy, sortDir]);
 
   const fetchOrders = async () => {
     try {
@@ -348,6 +341,7 @@ export default function OrdersPage() {
       params.set('source', 'exclude_pos');
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (paymentFilter !== 'all') params.set('payment_status', paymentFilter);
+      if (createdByFilter !== 'all') params.set('created_by', createdByFilter);
       if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
 
       const response = await apiFetch(`/api/orders?${params.toString()}`);
@@ -362,7 +356,20 @@ export default function OrdersPage() {
       setTotalPages(result.pagination?.totalPages || 0);
       if (result.statusCounts) setStatusCounts(result.statusCounts);
       if (result.paymentCounts) setPaymentCounts(result.paymentCounts);
-      if (result.channelOptions) setChannelOptions(result.channelOptions);
+      if (result.channelOptions) {
+        setChannelDropdownOptions(result.channelOptions.map((ch: ChannelOption) => ({
+          id: ch.id,
+          label: ch.name,
+          icon: ch.picture_url || undefined,
+          platformIcon: PLATFORM_ICONS[ch.platform] || undefined,
+        })));
+      }
+      if (result.createdByOptions) {
+        setCreatedByDropdownOptions(result.createdByOptions.map((u: CreatedByOption) => ({
+          id: u.id,
+          label: u.name,
+        })));
+      }
     } catch (error) {
       console.error('Error fetching orders:', error);
       setError('ไม่สามารถโหลดข้อมูลคำสั่งซื้อได้');
@@ -667,97 +674,29 @@ export default function OrdersPage() {
                   />
                 </div>
               )}
-              {channelOptions.length > 0 && (
-                <div className="relative flex-shrink-0" ref={channelDropdownRef}>
-                  <button
-                    onClick={() => setChannelDropdownOpen(!channelDropdownOpen)}
-                    className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 text-sm transition-colors ${
-                      channelFilter !== 'all'
-                        ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 text-[#F4511E]'
-                        : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:border-gray-400 dark:hover:border-slate-500'
-                    }`}
-                  >
-                    {channelFilter !== 'all' && channelFilter !== 'none' ? (
-                      (() => {
-                        const selected = channelOptions.find(ch => ch.id === channelFilter);
-                        if (!selected) return <Filter className="w-4 h-4" />;
-                        return (
-                          <div className="relative flex-shrink-0">
-                            {selected.picture_url ? (
-                              <img src={selected.picture_url} alt="" className="w-5 h-5 rounded-full object-cover" />
-                            ) : (
-                              <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center">
-                                {PLATFORM_ICONS[selected.platform] && (
-                                  <img src={PLATFORM_ICONS[selected.platform]} alt="" className="w-3 h-3" />
-                                )}
-                              </div>
-                            )}
-                            {selected.picture_url && PLATFORM_ICONS[selected.platform] && (
-                              <img src={PLATFORM_ICONS[selected.platform]} alt="" className="absolute -bottom-0.5 -left-0.5 w-2.5 h-2.5 rounded bg-white dark:bg-slate-800 p-[0.5px]" />
-                            )}
-                          </div>
-                        );
-                      })()
-                    ) : (
-                      <Filter className="w-4 h-4" />
-                    )}
-                    <span className="whitespace-nowrap">
-                      {channelFilter === 'all' ? 'ช่องทาง' : channelFilter === 'none' ? 'เปิดบิลตรง' : (channelOptions.find(ch => ch.id === channelFilter)?.name || 'ช่องทาง')}
-                    </span>
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${channelDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
+              {/* Channel filter */}
+              {channelDropdownOptions.length > 0 && (
+                <SearchableDropdown
+                  value={channelFilter}
+                  onChange={setChannelFilter}
+                  options={channelDropdownOptions}
+                  placeholder="ช่องทาง"
+                  searchPlaceholder="ค้นหาช่องทาง..."
+                  extraOptions={[
+                    { id: 'none', label: 'เปิดบิลตรง', icon: <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0"><X className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" /></div> },
+                  ]}
+                />
+              )}
 
-                  {channelDropdownOpen && (
-                    <div className="absolute top-full mt-1 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg z-30 min-w-[220px] max-h-[320px] overflow-y-auto py-1">
-                      {/* All */}
-                      <button
-                        onClick={() => { setChannelFilter('all'); setChannelDropdownOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${channelFilter === 'all' ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'}`}
-                      >
-                        <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
-                          <Filter className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" />
-                        </div>
-                        <span>ทั้งหมด</span>
-                      </button>
-                      {/* No channel */}
-                      <button
-                        onClick={() => { setChannelFilter('none'); setChannelDropdownOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${channelFilter === 'none' ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'}`}
-                      >
-                        <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
-                          <X className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" />
-                        </div>
-                        <span>เปิดบิลตรง</span>
-                      </button>
-                      {/* Divider */}
-                      <div className="h-px bg-gray-200 dark:bg-slate-600 my-1" />
-                      {/* Channel options */}
-                      {channelOptions.map(ch => (
-                        <button
-                          key={ch.id}
-                          onClick={() => { setChannelFilter(ch.id); setChannelDropdownOpen(false); }}
-                          className={`w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${channelFilter === ch.id ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'}`}
-                        >
-                          <div className="relative flex-shrink-0">
-                            {ch.picture_url ? (
-                              <img src={ch.picture_url} alt="" className="w-6 h-6 rounded-full object-cover" />
-                            ) : (
-                              <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center">
-                                {PLATFORM_ICONS[ch.platform] && (
-                                  <img src={PLATFORM_ICONS[ch.platform]} alt="" className="w-3.5 h-3.5" />
-                                )}
-                              </div>
-                            )}
-                            {ch.picture_url && PLATFORM_ICONS[ch.platform] && (
-                              <img src={PLATFORM_ICONS[ch.platform]} alt="" className="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded bg-white dark:bg-slate-800 p-[0.5px]" />
-                            )}
-                          </div>
-                          <span className="truncate">{ch.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              {/* Created By filter */}
+              {createdByDropdownOptions.length > 0 && (
+                <SearchableDropdown
+                  value={createdByFilter}
+                  onChange={setCreatedByFilter}
+                  options={createdByDropdownOptions}
+                  placeholder="ผู้เปิดบิล"
+                  searchPlaceholder="ค้นหาชื่อ..."
+                />
               )}
             </div>
 
@@ -854,7 +793,7 @@ export default function OrdersPage() {
                 {displayedOrders.length === 0 ? (
                   <tr>
                     <td colSpan={activeColumnConfigs.filter(c => visibleColumns.has(c.key)).length} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
-                      {searchTerm || statusFilter !== 'all' || paymentFilter !== 'all' || channelFilter !== 'all' || deliveryDateRange?.startDate ? 'ไม่พบคำสั่งซื้อที่ค้นหา' : 'ยังไม่มีคำสั่งซื้อ'}
+                      {searchTerm || statusFilter !== 'all' || paymentFilter !== 'all' || channelFilter !== 'all' || createdByFilter !== 'all' || deliveryDateRange?.startDate ? 'ไม่พบคำสั่งซื้อที่ค้นหา' : 'ยังไม่มีคำสั่งซื้อ'}
                     </td>
                   </tr>
                 ) : (

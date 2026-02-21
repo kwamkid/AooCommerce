@@ -320,10 +320,27 @@ export async function ensureValidToken(account: ShopeeAccountRow): Promise<Shope
  * Item enrichment data from Shopee Product APIs.
  * Combines data from get_item_base_info (images) and get_model_list (tier_variation).
  */
+export interface ShopeeItemAttribute {
+  attribute_id: number;
+  original_attribute_name: string;
+  is_mandatory: boolean;
+  attribute_value_list: Array<{
+    value_id: number;
+    original_value_name: string;
+    value_unit?: string;
+  }>;
+}
+
 export interface ShopeeItemEnrichment {
   images: string[];  // Product images from get_item_base_info
   tierVariations: string[];  // e.g. ["สี", "ขนาด"] from get_model_list
   modelImageMap: Map<string, string>;  // model_sku → image_url from tier_variation option_list
+  item_name?: string;       // Product name from get_item_base_info
+  item_status?: string;     // e.g. "NORMAL", "BANNED" from get_item_base_info
+  category_id?: number;     // Shopee category ID from get_item_base_info
+  weight?: number;          // Weight in kg from get_item_base_info
+  brand?: { brand_id: number; original_brand_name: string; display_brand_name?: string };  // Brand from get_item_base_info
+  attribute_list?: ShopeeItemAttribute[];  // Attributes with filled values from get_item_base_info
 }
 
 /**
@@ -355,8 +372,14 @@ export async function getItemEnrichment(
 
       const items = (data as { item_list?: Array<{
         item_id: number;
+        item_name?: string;
+        item_status?: string;
+        category_id?: number;
+        weight?: number;
         has_model?: boolean;
         image?: { image_url_list?: string[] };
+        brand?: { brand_id: number; original_brand_name: string; display_brand_name?: string };
+        attribute_list?: ShopeeItemAttribute[];
       }> })?.item_list || [];
 
       for (const item of items) {
@@ -365,6 +388,12 @@ export async function getItemEnrichment(
           images,
           tierVariations: [],
           modelImageMap: new Map(),
+          item_name: item.item_name,
+          item_status: item.item_status,
+          category_id: item.category_id,
+          weight: item.weight,
+          brand: item.brand,
+          attribute_list: item.attribute_list,
         });
         if (item.has_model) {
           itemsWithModels.push(item.item_id);
@@ -703,6 +732,8 @@ export interface ShopeeItemFullDetail {
   tierVariations: string[];  // e.g. ["สี", "ขนาด"]
   category_id?: number;
   weight?: number; // in kg
+  brand?: { brand_id: number; original_brand_name: string; display_brand_name?: string };
+  attribute_list?: ShopeeItemAttribute[];  // Attributes with filled values
 }
 
 export interface ShopeeModelDetail {
@@ -749,6 +780,8 @@ export async function getItemFullDetails(
         image?: { image_url_list?: string[] };
         price_info?: Array<{ current_price?: number; original_price?: number }>;
         stock_info_v2?: { summary_info?: { total_available_stock?: number } };
+        brand?: { brand_id: number; original_brand_name: string; display_brand_name?: string };
+        attribute_list?: ShopeeItemAttribute[];
       }> })?.item_list || [];
 
       for (const item of items) {
@@ -764,6 +797,8 @@ export async function getItemFullDetails(
           tierVariations: [],
           category_id: item.category_id,
           weight: item.weight,
+          brand: item.brand,
+          attribute_list: item.attribute_list,
         };
 
         // For simple items (no model), extract price/stock from base info
@@ -886,6 +921,21 @@ export async function updateStock(
   return shopeeApiRequest(creds, 'POST', '/api/v2/product/update_stock', {}, {
     item_id: itemId,
     stock_list: stockList,
+  });
+}
+
+/**
+ * Update item base info on Shopee (name, description, etc.).
+ * Only sends fields that are provided.
+ */
+export async function updateItemInfo(
+  creds: ShopeeCredentials,
+  itemId: number,
+  updates: { item_name?: string; description?: string }
+): Promise<{ data: unknown; error?: string }> {
+  return shopeeApiRequest(creds, 'POST', '/api/v2/product/update_item', {}, {
+    item_id: itemId,
+    ...updates,
   });
 }
 

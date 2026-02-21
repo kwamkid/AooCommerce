@@ -113,6 +113,46 @@ export default function ShopeeBulkExportModal({
     }
   }, [isOpen, fetchProducts, fetchLinkedProducts]);
 
+  // Pre-fill configs from existing marketplace link data
+  const prefillFromExistingLinks = useCallback(async () => {
+    const productIds = [...selectedProducts.keys()];
+    if (productIds.length === 0) return;
+    try {
+      const res = await apiFetch(`/api/marketplace/links?product_ids=${productIds.join(',')}&platform=shopee`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const links = data.links || [];
+      if (links.length === 0) return;
+
+      const linkMap: Record<string, { shopee_category_id?: string | number; shopee_category_name?: string; weight?: number }> = {};
+      for (const link of links) {
+        const pid = link.product_id;
+        if (!linkMap[pid] || (link.shopee_category_id && !linkMap[pid].shopee_category_id)) {
+          linkMap[pid] = link;
+        }
+      }
+
+      setProductConfigs(prev => {
+        const next = { ...prev };
+        for (const pid of productIds) {
+          const existing = linkMap[pid];
+          if (existing) {
+            next[pid] = {
+              categoryId: existing.shopee_category_id ? Number(existing.shopee_category_id) : (next[pid]?.categoryId || null),
+              categoryName: existing.shopee_category_name || next[pid]?.categoryName || '',
+              weight: existing.weight ? String(existing.weight) : (next[pid]?.weight || '0.5'),
+            };
+          } else if (!next[pid]) {
+            next[pid] = { categoryId: null, categoryName: '', weight: '0.5' };
+          }
+        }
+        return next;
+      });
+    } catch (e) {
+      console.error('Failed to prefill from existing links:', e);
+    }
+  }, [selectedProducts]);
+
   // Filter products
   const filteredProducts = products.filter(p => {
     if (searchTerm) {
@@ -492,6 +532,7 @@ export default function ShopeeBulkExportModal({
                           <ShopeeCategoryPicker
                             accountId={accountId}
                             value={cfg.categoryId}
+                            categoryName={cfg.categoryName}
                             onChange={(id, name) => {
                               setProductConfigs(prev => ({
                                 ...prev,
@@ -611,7 +652,10 @@ export default function ShopeeBulkExportModal({
 
             {step === 'select' && (
               <button
-                onClick={() => setStep('configure')}
+                onClick={() => {
+                  prefillFromExistingLinks();
+                  setStep('configure');
+                }}
                 disabled={selectedCount === 0}
                 className="px-4 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
               >

@@ -6,6 +6,7 @@ import {
   initTierVariation,
   getShopeeLogistics,
   getShopeeCategoryAttributes,
+  shopeeApiRequest,
   ShopeeAccountRow,
   ShopeeCredentials,
 } from '@/lib/shopee-api';
@@ -341,6 +342,29 @@ async function fetchProductForExport(productId: string, companyId: string): Prom
     }];
   }
 
+  // Enrich stock from inventory table (same logic as pushStockToShopee)
+  const variationIds = finalVariations.filter(v => !(v as { _isVirtual?: boolean })._isVirtual).map(v => v.id);
+  if (variationIds.length > 0) {
+    const { data: inventoryRows } = await supabaseAdmin
+      .from('inventory')
+      .select('variation_id, quantity, reserved_quantity')
+      .in('variation_id', variationIds);
+
+    if (inventoryRows && inventoryRows.length > 0) {
+      const stockMap = new Map<string, number>();
+      for (const inv of inventoryRows) {
+        const current = stockMap.get(inv.variation_id) || 0;
+        stockMap.set(inv.variation_id, current + (inv.quantity || 0) - (inv.reserved_quantity || 0));
+      }
+      for (const v of finalVariations) {
+        if (stockMap.has(v.id)) {
+          v.stock = Math.max(0, stockMap.get(v.id)!);
+        }
+      }
+      console.log(`[Shopee Export] Enriched stock from inventory: ${stockMap.size} variations`);
+    }
+  }
+
   return {
     ...product,
     description: product.description || product.name,
@@ -571,6 +595,9 @@ export async function exportProductToShopee(
     }
 
     // 6. For variation products: call init_tier_variation
+    // Map: variation index → real Shopee model_id (populated after init_tier_variation + get_model_list)
+    const modelIdMap = new Map<number, number>();
+
     if (!simple && product.variations.length > 1) {
       // Build tier variations from variation attributes
       // e.g. variations with attributes { "สี": "แดง", "ขนาด": "S" } → tier_variation: [{ name: "สี", ... }, { name: "ขนาด", ... }]
@@ -584,9 +611,9 @@ export async function exportProductToShopee(
               tierNames.push(key);
               tierOptionsMap.set(key, []);
             }
-            const options = tierOptionsMap.get(key)!;
-            if (!options.includes(value)) {
-              options.push(value);
+            const opts = tierOptionsMap.get(key)!;
+            if (!opts.includes(value)) {
+              opts.push(value);
             }
           }
         }
@@ -602,8 +629,8 @@ export async function exportProductToShopee(
         const models = product.variations.map(v => {
           const tierIndex = tierNames.map(name => {
             const value = v.attributes?.[name] || '';
-            const options = tierOptionsMap.get(name) || [];
-            return options.indexOf(value);
+            const opts = tierOptionsMap.get(name) || [];
+            return opts.indexOf(value);
           });
           // Use discount_price (current selling price) if set, otherwise default_price
           const modelPrice = (v.discount_price && v.discount_price > 0) ? v.discount_price : (v.default_price || 0);
@@ -621,6 +648,33 @@ export async function exportProductToShopee(
           // Don't fail the whole export — item is already created, just without variations
         } else {
           console.log(`[Shopee Export] init_tier_variation success for item ${itemId}: ${tierNames.join(', ')}`);
+
+          // Fetch real model_ids from Shopee via get_model_list
+          try {
+            const { data: modelData } = await shopeeApiRequest(creds, 'GET', '/api/v2/product/get_model_list', { item_id: itemId });
+            const modelResponse = modelData as { model?: Array<{ model_id: number; model_sku: string; tier_index: number[] }> };
+            const shopeeModels = modelResponse?.model || [];
+
+            // Match by SKU or tier_index order
+            for (let i = 0; i < product.variations.length; i++) {
+              const v = product.variations[i];
+              // Try SKU match first
+              if (v.sku) {
+                const matched = shopeeModels.find(m => m.model_sku === v.sku);
+                if (matched) {
+                  modelIdMap.set(i, matched.model_id);
+                  continue;
+                }
+              }
+              // Fallback: match by tier_index order (models sent in same order)
+              if (i < shopeeModels.length) {
+                modelIdMap.set(i, shopeeModels[i].model_id);
+              }
+            }
+            console.log(`[Shopee Export] Resolved ${modelIdMap.size} real model_ids for item ${itemId}`);
+          } catch (e) {
+            console.error(`[Shopee Export] get_model_list error (will use temp ids):`, e);
+          }
         }
       }
     }
@@ -646,6 +700,7 @@ export async function exportProductToShopee(
         shopee_category_name: options.shopee_category_name || null,
         weight: options.weight || 0.5,
         shopee_attributes: attributeList.length > 0 ? attributeList : null,
+        sync_enabled: true,
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -657,10 +712,11 @@ export async function exportProductToShopee(
         console.error(`[Shopee Export] Failed to create marketplace link:`, linkError);
       }
     } else {
-      // Variation product: one link per variation (model_id=0 for now, will be updated on next sync)
+      // Variation product: one link per variation, use real model_id if available
       for (let i = 0; i < product.variations.length; i++) {
         const v = product.variations[i];
         const variationId = v._isVirtual ? null : (v.id || null);
+        const realModelId = modelIdMap.get(i);
         const linkData = {
           company_id: companyId,
           platform: 'shopee',
@@ -669,7 +725,7 @@ export async function exportProductToShopee(
           product_id: product.id,
           variation_id: variationId,
           external_item_id: String(itemId),
-          external_model_id: String(i), // temporary index, updated on next product sync
+          external_model_id: realModelId !== undefined ? String(realModelId) : String(i),
           external_sku: v.sku || '',
           external_item_status: 'NORMAL',
           platform_price: (v.discount_price && v.discount_price > 0) ? v.discount_price : (v.default_price || null),
@@ -677,10 +733,11 @@ export async function exportProductToShopee(
           shopee_category_name: options.shopee_category_name || null,
           weight: options.weight || 0.5,
           shopee_attributes: attributeList.length > 0 ? attributeList : null,
+          sync_enabled: true,
           last_synced_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
-        console.log(`[Shopee Export] Creating marketplace link (var ${i}):`, JSON.stringify(linkData));
+        console.log(`[Shopee Export] Creating marketplace link (var ${i}, model_id=${realModelId ?? 'temp:' + i}):`, JSON.stringify(linkData));
         const { error: linkError } = await supabaseAdmin
           .from('marketplace_product_links')
           .upsert(linkData, { onConflict: 'account_id,external_item_id,external_model_id' });

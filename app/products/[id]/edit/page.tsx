@@ -12,8 +12,7 @@ import { apiFetch } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
-import { ArrowLeft, Loader2, ArrowUpFromLine, ExternalLink, Unlink2, Package2, Camera, Merge, Search, X, ChevronRight, Upload } from 'lucide-react';
-import ShopeeExportModal from '@/components/shopee/ShopeeExportModal';
+import { ArrowLeft, Loader2, ExternalLink, Unlink2, Package2, Camera, Merge, Search, X, ChevronRight, Trash2 } from 'lucide-react';
 import ShopeeCategoryPicker from '@/components/shopee/ShopeeCategoryPicker';
 
 interface MarketplaceLink {
@@ -40,6 +39,20 @@ interface MarketplaceLink {
   shopee_category_name: string | null;
   weight: number | null;
   sync_enabled: boolean;
+  shopee_attributes: Array<{
+    attribute_id: number;
+    original_attribute_name: string;
+    display_attribute_name?: string;
+    is_mandatory: boolean;
+    input_validation_type?: string;
+    attribute_value_list?: Array<{
+      value_id: number;
+      original_value_name: string;
+      display_value_name?: string;
+    }>;
+  }> | null;
+  shopee_brand_id: number | null;
+  shopee_brand_name: string | null;
   products: {
     id: string;
     code: string;
@@ -100,7 +113,6 @@ export default function EditProductPage() {
     setActiveTabState(tab);
     window.history.replaceState(null, '', `#${tab}`);
   };
-  const [pushingAction, setPushingAction] = useState<string | null>(null);
   const { showToast } = useToast();
 
   // Platform fields local state — track edited values per link
@@ -127,8 +139,6 @@ export default function EditProductPage() {
   const [merging, setMerging] = useState(false);
 
   // Shopee export
-  const [exportModalOpen, setExportModalOpen] = useState(false);
-  const [hasShopeeAccounts, setHasShopeeAccounts] = useState(false);
 
   // Image upload
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -226,26 +236,6 @@ export default function EditProductPage() {
     loadFormOptions();
   }, [authLoading, userProfile, productId]);
 
-  // Check if Shopee accounts exist (for export button) — only when product has no marketplace links
-  const shopeeCheckedRef = useRef(false);
-  useEffect(() => {
-    if (shopeeCheckedRef.current) return;
-    if (loading) return; // wait until product loaded
-    if (marketplaceLinks.length > 0) return; // already has links, no need to check
-    if (!features?.marketplace_sync) return; // feature not enabled
-    shopeeCheckedRef.current = true;
-    const checkShopee = async () => {
-      try {
-        const res = await apiFetch('/api/shopee/accounts');
-        if (res.ok) {
-          const data = await res.json();
-          setHasShopeeAccounts(Array.isArray(data) && data.some((a: { is_active: boolean }) => a.is_active));
-        }
-      } catch { /* ignore */ }
-    };
-    checkShopee();
-  }, [loading, marketplaceLinks.length, features?.marketplace_sync]);
-
   // Refresh marketplace links
   const refreshLinks = async () => {
     try {
@@ -302,65 +292,36 @@ export default function EditProductPage() {
   const isSimpleProduct = product?.product_type === 'simple';
 
   // Actions
-  const handlePushPrice = async (accountId: string) => {
-    setPushingAction(`price-${accountId}`);
-    try {
-      const res = await apiFetch('/api/shopee/products/push-price', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product_id: productId, shopee_account_id: accountId }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        showToast('Push ราคาสำเร็จ');
-        await refreshLinks();
-      } else {
-        showToast(data.error || data.errors?.join('; ') || 'Push ราคาไม่สำเร็จ', 'error');
-      }
-    } catch {
-      showToast('เกิดข้อผิดพลาดในการ push ราคา', 'error');
-    } finally {
-      setPushingAction(null);
-    }
-  };
-
-  const handlePushStock = async (accountId: string) => {
-    setPushingAction(`stock-${accountId}`);
-    try {
-      const res = await apiFetch('/api/shopee/products/push-stock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product_id: productId, shopee_account_id: accountId }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        showToast('Push สต็อกสำเร็จ');
-        await refreshLinks();
-      } else {
-        showToast(data.error || data.errors?.join('; ') || 'Push สต็อกไม่สำเร็จ', 'error');
-      }
-    } catch {
-      showToast('เกิดข้อผิดพลาดในการ push สต็อก', 'error');
-    } finally {
-      setPushingAction(null);
-    }
-  };
-
   const handleUnlink = async (linkId: string) => {
     if (!confirm('ต้องการยกเลิกการเชื่อมโยงสินค้านี้?')) return;
-    setPushingAction(`unlink-${linkId}`);
     try {
       const res = await apiFetch(`/api/shopee/products/link?link_id=${linkId}`, { method: 'DELETE' });
       if (res.ok) {
         showToast('ยกเลิกการเชื่อมโยงสำเร็จ');
         await refreshLinks();
+        // If no more links for the current tab's account, switch back to info tab
+        setActiveTab('info');
       } else {
         showToast('ไม่สามารถยกเลิกได้', 'error');
       }
     } catch {
       showToast('เกิดข้อผิดพลาด', 'error');
-    } finally {
-      setPushingAction(null);
+    }
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!confirm('ต้องการลบสินค้านี้? สินค้าจะถูกปิดใช้งานและไม่แสดงในรายการ')) return;
+    try {
+      const res = await apiFetch(`/api/products?id=${productId}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast('ลบสินค้าสำเร็จ');
+        router.push('/products');
+      } else {
+        const data = await res.json();
+        showToast(data.error || 'ไม่สามารถลบสินค้าได้', 'error');
+      }
+    } catch {
+      showToast('เกิดข้อผิดพลาดในการลบสินค้า', 'error');
     }
   };
 
@@ -755,8 +716,7 @@ export default function EditProductPage() {
             )}
             <button
               onClick={() => handleUnlink(link.id)}
-              disabled={pushingAction !== null}
-              className="p-2 text-gray-500 hover:text-red-500 transition-colors disabled:opacity-50 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+              className="p-2 text-gray-500 hover:text-red-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
               title="ยกเลิกเชื่อมโยง"
             >
               <Unlink2 className="w-4 h-4" />
@@ -796,6 +756,7 @@ export default function EditProductPage() {
             />
           </div>
         </div>
+
         {/* Barcode + Price + Discount — same row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
@@ -848,6 +809,38 @@ export default function EditProductPage() {
             </p>
           </div>
         </div>
+
+        {/* Shopee Attributes card */}
+        {(link.shopee_brand_name || (link.shopee_attributes && link.shopee_attributes.length > 0)) && (
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <h4 className="text-sm font-semibold text-gray-800 dark:text-slate-200 mb-3">Shopee Attributes</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {link.shopee_brand_name && (
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                    Brand<span className="text-red-500 ml-0.5">*</span>
+                  </label>
+                  <div className="px-3 py-2 text-sm bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
+                    {link.shopee_brand_name}
+                  </div>
+                </div>
+              )}
+              {link.shopee_attributes?.map((attr) => (
+                <div key={attr.attribute_id}>
+                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                    {attr.display_attribute_name || attr.original_attribute_name}
+                    {attr.is_mandatory && <span className="text-red-500 ml-0.5">*</span>}
+                  </label>
+                  <div className="px-3 py-2 text-sm bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
+                    {attr.attribute_value_list && attr.attribute_value_list.length > 0
+                      ? attr.attribute_value_list.map(v => v.display_value_name || v.original_value_name).join(', ')
+                      : <span className="text-gray-400 dark:text-slate-500 italic">ยังไม่ได้ตั้งค่า</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -942,7 +935,40 @@ export default function EditProductPage() {
               />
             </div>
           </div>
+
         </div>
+
+        {/* Shopee Attributes card */}
+        {(firstLink.shopee_brand_name || (firstLink.shopee_attributes && firstLink.shopee_attributes.length > 0)) && (
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <h4 className="text-sm font-semibold text-gray-800 dark:text-slate-200 mb-3">Shopee Attributes</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {firstLink.shopee_brand_name && (
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                    Brand<span className="text-red-500 ml-0.5">*</span>
+                  </label>
+                  <div className="px-3 py-2 text-sm bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
+                    {firstLink.shopee_brand_name}
+                  </div>
+                </div>
+              )}
+              {firstLink.shopee_attributes?.map((attr) => (
+                <div key={attr.attribute_id}>
+                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                    {attr.display_attribute_name || attr.original_attribute_name}
+                    {attr.is_mandatory && <span className="text-red-500 ml-0.5">*</span>}
+                  </label>
+                  <div className="px-3 py-2 text-sm bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
+                    {attr.attribute_value_list && attr.attribute_value_list.length > 0
+                      ? attr.attribute_value_list.map(v => v.display_value_name || v.original_value_name).join(', ')
+                      : <span className="text-gray-400 dark:text-slate-500 italic">ยังไม่ได้ตั้งค่า</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Variations table */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
@@ -1043,8 +1069,7 @@ export default function EditProductPage() {
                           )}
                           <button
                             onClick={() => handleUnlink(link.id)}
-                            disabled={pushingAction !== null}
-                            className="p-1.5 text-gray-500 hover:text-red-500 transition-colors disabled:opacity-50"
+                            className="p-1.5 text-gray-500 hover:text-red-500 transition-colors"
                             title="ยกเลิกเชื่อมโยง"
                           >
                             <Unlink2 className="w-3.5 h-3.5" />
@@ -1095,17 +1120,6 @@ export default function EditProductPage() {
             <span className="text-sm text-gray-400 font-mono">{product.code}</span>
           </div>
           <div className="flex items-center gap-2">
-            {/* Shopee export — only when product has no marketplace link yet */}
-            {!hasTabs && hasShopeeAccounts && (
-              <button
-                type="button"
-                onClick={() => setExportModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[#EE4D2D] border border-[#EE4D2D] rounded-lg hover:bg-[#EE4D2D]/10 transition-colors"
-              >
-                <Upload className="w-4 h-4" />
-                ส่งไป Shopee
-              </button>
-            )}
             <button
               type="button"
               onClick={openMergeModal}
@@ -1113,6 +1127,14 @@ export default function EditProductPage() {
             >
               <Merge className="w-4 h-4" />
               รวมกับสินค้าอื่น
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteProduct}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              ลบสินค้า
             </button>
           </div>
         </div>
@@ -1179,27 +1201,9 @@ export default function EditProductPage() {
                       {links.length} รายการ
                     </span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400 dark:text-slate-500">
-                      Sync: {formatTimestamp(links[0]?.last_synced_at)}
-                    </span>
-                    <button
-                      onClick={() => handlePushPrice(activeTab)}
-                      disabled={pushingAction !== null}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#EE4D2D] text-[#EE4D2D] rounded-lg hover:bg-[#EE4D2D]/10 disabled:opacity-50 transition-colors"
-                    >
-                      {pushingAction === `price-${activeTab}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpFromLine className="w-3.5 h-3.5" />}
-                      Push ราคา
-                    </button>
-                    <button
-                      onClick={() => handlePushStock(activeTab)}
-                      disabled={pushingAction !== null}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#EE4D2D] text-[#EE4D2D] rounded-lg hover:bg-[#EE4D2D]/10 disabled:opacity-50 transition-colors"
-                    >
-                      {pushingAction === `stock-${activeTab}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpFromLine className="w-3.5 h-3.5" />}
-                      Push สต็อก
-                    </button>
-                  </div>
+                  <span className="text-xs text-gray-400 dark:text-slate-500">
+                    Sync: {formatTimestamp(links[0]?.last_synced_at)}
+                  </span>
                 </div>
 
                 {/* Content: simple vs variation */}
@@ -1480,17 +1484,6 @@ export default function EditProductPage() {
         </div>
       )}
 
-      {/* Shopee Export Modal */}
-      <ShopeeExportModal
-        isOpen={exportModalOpen}
-        onClose={() => {
-          setExportModalOpen(false);
-          refreshLinks();
-        }}
-        productId={productId}
-        productName={product.name}
-        productCode={product.code}
-      />
     </Layout>
   );
 }

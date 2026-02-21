@@ -8,6 +8,7 @@ import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
+import { useToast } from '@/lib/toast-context';
 import { getImageUrl } from '@/lib/utils/image';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
 import { useFeatures } from '@/lib/features-context';
@@ -16,7 +17,6 @@ import {
   Edit2,
   Trash2,
   Copy,
-  Search,
   X,
   Check,
   Package2,
@@ -26,6 +26,7 @@ import {
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Checkbox from '@/components/ui/Checkbox';
+import SearchableDropdown, { DropdownOption } from '@/components/ui/SearchableDropdown';
 
 // Product interface (from API view)
 interface ProductItem {
@@ -36,7 +37,6 @@ interface ProductItem {
   image?: string;
   main_image_url?: string;
   product_type: 'simple' | 'variation';
-  source?: string;
   category_id?: string;
   brand_id?: string;
   is_active: boolean;
@@ -115,6 +115,7 @@ export default function ProductsPage() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
   const { features } = useFeatures();
+  const { showToast } = useToast();
 
   const [productsList, setProductsList] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,13 +123,13 @@ export default function ProductsPage() {
   const [dataFetched, setDataFetched] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'simple' | 'variation'>('all');
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'shopee' | 'shopee_edited'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [brandFilter, setBrandFilter] = useState<string>('all');
+  const [shopAccountFilter, setShopAccountFilter] = useState<string>('all');
+  const [shopOptions, setShopOptions] = useState<DropdownOption[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [brands, setBrands] = useState<BrandOption[]>([]);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -192,16 +193,25 @@ export default function ProductsPage() {
     try {
       const p = pageNum ?? currentPage;
       const l = perPage ?? rowsPerPage;
-      const params = new URLSearchParams({ page: String(p), limit: String(l) });
+      const params = new URLSearchParams({ page: String(p), limit: String(l), include_shop_options: '1' });
       if (searchTerm) params.set('search', searchTerm);
-      if (sourceFilter !== 'all') params.set('source', sourceFilter);
       if (categoryFilter !== 'all') params.set('category_id', categoryFilter);
       if (brandFilter !== 'all') params.set('brand_id', brandFilter);
+      if (shopAccountFilter !== 'all') params.set('shop_account_id', shopAccountFilter);
 
       const response = await apiFetch(`/api/products?${params.toString()}`);
       const data = await response.json();
       setProductsList(data.products || []);
       setTotalProducts(data.total ?? data.products?.length ?? 0);
+      // Update shop options on first load
+      if (data.shopOptions) {
+        setShopOptions(data.shopOptions.map((s: any) => ({
+          id: s.id,
+          label: s.name,
+          icon: s.icon || undefined,
+          platformIcon: s.platform === 'shopee' ? '/marketplace/shopee.svg' : undefined,
+        })));
+      }
       setDataFetched(true);
       setLoadTime((Date.now() - t0) / 1000);
     } catch (err) {
@@ -248,7 +258,7 @@ export default function ProductsPage() {
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, sourceFilter, categoryFilter, brandFilter]);
+  }, [searchTerm, categoryFilter, brandFilter, shopAccountFilter]);
 
   // Handle delete
   const handleDelete = async (product: ProductItem) => {
@@ -259,12 +269,12 @@ export default function ProductsPage() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'ไม่สามารถลบได้');
-      setSuccess('ลบสินค้าสำเร็จ');
+      showToast('ลบสินค้าสำเร็จ');
       setDataFetched(false);
       fetchData();
     } catch (err) {
       console.error('Error deleting:', err);
-      setError(err instanceof Error ? err.message : 'ไม่สามารถลบได้');
+      showToast(err instanceof Error ? err.message : 'ไม่สามารถลบได้', 'error');
     }
   };
 
@@ -278,13 +288,13 @@ export default function ProductsPage() {
       const response = await apiFetch(`/api/products?ids=${ids}`, { method: 'DELETE' });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'ไม่สามารถลบได้');
-      setSuccess(`ลบสินค้า ${selectedIds.size} รายการสำเร็จ`);
+      showToast(`ลบสินค้า ${selectedIds.size} รายการสำเร็จ`);
       setSelectedIds(new Set());
       setDataFetched(false);
       fetchData();
     } catch (err) {
       console.error('Bulk delete error:', err);
-      setError(err instanceof Error ? err.message : 'ไม่สามารถลบได้');
+      showToast(err instanceof Error ? err.message : 'ไม่สามารถลบได้', 'error');
     } finally {
       setBulkDeleting(false);
     }
@@ -300,7 +310,7 @@ export default function ProductsPage() {
   };
 
   // Clear selection when filters/page change
-  useEffect(() => { setSelectedIds(new Set()); }, [searchTerm, typeFilter, sourceFilter, categoryFilter, brandFilter, currentPage]);
+  useEffect(() => { setSelectedIds(new Set()); }, [searchTerm, typeFilter, categoryFilter, brandFilter, shopAccountFilter, currentPage]);
 
   // Client-side filter (only type filter — rest is server-side)
   const filteredProducts = productsList.filter(product => {
@@ -332,13 +342,13 @@ export default function ProductsPage() {
 
   useEffect(() => { setCurrentPage(1); }, [typeFilter]);
 
-  // Clear alerts
+  // Clear error alert
   useEffect(() => {
-    if (error || success) {
-      const timer = setTimeout(() => { setError(''); setSuccess(''); }, 5000);
+    if (error) {
+      const timer = setTimeout(() => { setError(''); }, 5000);
       return () => clearTimeout(timer);
     }
-  }, [error, success]);
+  }, [error]);
 
   if (authLoading || loading) {
     return (
@@ -381,12 +391,6 @@ export default function ProductsPage() {
             <button onClick={() => setError('')}><X className="w-5 h-5" /></button>
           </div>
         )}
-        {success && (
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center justify-between">
-            <span>{success}</span>
-            <button onClick={() => setSuccess('')}><X className="w-5 h-5" /></button>
-          </div>
-        )}
 
         {/* Products Table */}
             {/* Search + Type Filter + Column Settings */}
@@ -404,17 +408,6 @@ export default function ProductsPage() {
                   <option value="simple">สินค้าปกติ</option>
                   <option value="variation">สินค้าย่อย</option>
                 </select>
-                <select
-                  value={sourceFilter}
-                  onChange={(e) => setSourceFilter(e.target.value as 'all' | 'manual' | 'shopee' | 'shopee_edited')}
-                  className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                >
-                  <option value="all">ทุกแหล่ง</option>
-                  <option value="manual">สร้างเอง</option>
-                  <option value="shopee">Shopee (ทั้งหมด)</option>
-                  <option value="shopee_edited">Shopee (แก้ไขแล้ว)</option>
-                </select>
-
                 {/* Category filter */}
                 <select
                   value={categoryFilter}
@@ -448,6 +441,18 @@ export default function ProductsPage() {
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
+                )}
+
+                {/* Shop account filter */}
+                {shopOptions.length > 0 && (
+                  <SearchableDropdown
+                    value={shopAccountFilter}
+                    onChange={setShopAccountFilter}
+                    options={shopOptions}
+                    placeholder="ร้านค้า"
+                    searchPlaceholder="ค้นหาร้านค้า..."
+                    allLabel="ทุกร้านค้า"
+                  />
                 )}
               </div>
             </div>
@@ -533,20 +538,8 @@ export default function ProductsPage() {
                         {/* Name / Code */}
                         {isCol('nameCode') && (
                           <td className="px-6 py-4">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
                               {product.name}
-                              {product.source === 'shopee' && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#EE4D2D]/10 text-[#EE4D2D]">
-                                  <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3 h-3" />
-                                  Shopee
-                                </span>
-                              )}
-                              {product.source === 'shopee_edited' && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                  <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3 h-3" />
-                                  Shopee ✓
-                                </span>
-                              )}
                             </div>
                             <div className="text-xs text-gray-400 dark:text-slate-500">{product.code}</div>
                           </td>

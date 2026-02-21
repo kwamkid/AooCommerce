@@ -160,6 +160,48 @@ function ShopeeExportContent() {
     fetchFormOptions();
   }, [accountId, fetchProducts, fetchLinkedProducts, fetchAccountInfo, fetchFormOptions]);
 
+  // When entering configure step, pre-fill configs from existing marketplace link data
+  const prefillFromExistingLinks = useCallback(async () => {
+    const productIds = [...selectedProducts.keys()];
+    if (productIds.length === 0) return;
+    try {
+      const res = await apiFetch(`/api/marketplace/links?product_ids=${productIds.join(',')}&platform=shopee`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const links = data.links || [];
+      if (links.length === 0) return;
+
+      // Build a map: product_id → best link data (prefer links with most info)
+      const linkMap: Record<string, { shopee_category_id?: string | number; shopee_category_name?: string; weight?: number }> = {};
+      for (const link of links) {
+        const pid = link.product_id;
+        // Keep the link with the most data (category + weight)
+        if (!linkMap[pid] || (link.shopee_category_id && !linkMap[pid].shopee_category_id)) {
+          linkMap[pid] = link;
+        }
+      }
+
+      setProductConfigs(prev => {
+        const next = { ...prev };
+        for (const pid of productIds) {
+          const existing = linkMap[pid];
+          if (existing) {
+            next[pid] = {
+              categoryId: existing.shopee_category_id ? Number(existing.shopee_category_id) : (next[pid]?.categoryId || null),
+              categoryName: existing.shopee_category_name || next[pid]?.categoryName || '',
+              weight: existing.weight ? String(existing.weight) : (next[pid]?.weight || '0.5'),
+            };
+          } else if (!next[pid]) {
+            next[pid] = { categoryId: null, categoryName: '', weight: '0.5' };
+          }
+        }
+        return next;
+      });
+    } catch (e) {
+      console.error('Failed to prefill from existing links:', e);
+    }
+  }, [selectedProducts]);
+
   // Warn before leaving during export
   useEffect(() => {
     if (step === 'exporting') {
@@ -949,66 +991,88 @@ function ShopeeExportContent() {
               ))}
             </div>
           )}
+
+          {/* Done actions */}
+          {step === 'done' && (
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                onClick={() => router.push('/settings/integrations')}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                กลับหน้า Marketplace
+              </button>
+              <button
+                onClick={() => {
+                  setStep('select');
+                  setSelectedProducts(new Map());
+                  setProductConfigs({});
+                  setExportResults([]);
+                  setExportDone(false);
+                  fetchLinkedProducts();
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors flex items-center gap-2"
+              >
+                ส่งสินค้าเพิ่ม
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Sticky Footer */}
-      <div className="sticky bottom-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-3 -mx-4 lg:-mx-6 -mb-24 lg:-mb-6 z-30 flex items-center justify-between">
-        <div>
-          {step === 'select' && (
-            <button
-              onClick={() => router.push('/settings/integrations')}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              กลับ
-            </button>
-          )}
-          {step === 'configure' && (
-            <button
-              onClick={() => setStep('select')}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
-            >
-              ย้อนกลับ
-            </button>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {step === 'select' && (
-            <button
-              onClick={() => setStep('configure')}
-              disabled={selectedCount === 0}
-              className="px-5 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              ถัดไป ({selectedCount})
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          )}
-
-          {step === 'configure' && (() => {
-            const allConfigured = [...selectedProducts.keys()].every(pid => productConfigs[pid]?.categoryId);
-            return (
+      {/* Sticky Footer — only for select & configure steps */}
+      {(step === 'select' || step === 'configure') && (
+        <div className="sticky bottom-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-3 -mx-4 lg:-mx-6 -mb-24 lg:-mb-6 z-30 flex items-center justify-between">
+          <div>
+            {step === 'select' && (
               <button
-                onClick={handleExport}
-                disabled={!allConfigured}
+                onClick={() => router.push('/settings/integrations')}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                กลับ
+              </button>
+            )}
+            {step === 'configure' && (
+              <button
+                onClick={() => setStep('select')}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
+              >
+                ย้อนกลับ
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {step === 'select' && (
+              <button
+                onClick={() => {
+                  prefillFromExistingLinks();
+                  setStep('configure');
+                }}
+                disabled={selectedCount === 0}
                 className="px-5 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
               >
-                <ShoppingBag className="w-4 h-4" />
-                ส่งไป Shopee ({selectedCount})
+                ถัดไป ({selectedCount})
+                <ChevronRight className="w-4 h-4" />
               </button>
-            );
-          })()}
+            )}
 
-          {step === 'done' && (
-            <button
-              onClick={() => router.push('/settings/integrations')}
-              className="px-5 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors flex items-center gap-2"
-            >
-              เสร็จสิ้น
-            </button>
-          )}
+            {step === 'configure' && (() => {
+              const allConfigured = [...selectedProducts.keys()].every(pid => productConfigs[pid]?.categoryId);
+              return (
+                <button
+                  onClick={handleExport}
+                  disabled={!allConfigured}
+                  className="px-5 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  <ShoppingBag className="w-4 h-4" />
+                  ส่งไป Shopee ({selectedCount})
+                </button>
+              );
+            })()}
+          </div>
         </div>
-      </div>
+      )}
     </Layout>
   );
 }
