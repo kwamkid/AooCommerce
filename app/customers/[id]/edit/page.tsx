@@ -43,7 +43,6 @@ export default function EditCustomerPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     if (authLoading) return;
@@ -51,7 +50,7 @@ export default function EditCustomerPage() {
       router.push('/login');
       return;
     }
-    if (!userProfile.roles?.some((r: string) => ['owner', 'admin', 'manager', 'sales'].includes(r))) {
+    if (!userProfile.roles?.some((r: string) => ['owner', 'admin', 'sales', 'account'].includes(r))) {
       router.push('/dashboard');
     }
   }, [userProfile, authLoading, router]);
@@ -90,7 +89,6 @@ export default function EditCustomerPage() {
     if (!customer) return;
 
     setSaving(true);
-    setFormError('');
 
     try {
       const billingAddress = data.billing_same_as_shipping ? data.shipping_address : data.billing_address;
@@ -136,7 +134,7 @@ export default function EditCustomerPage() {
       router.push(`/customers/${customer.id}`);
     } catch (error) {
       console.error('Error updating customer:', error);
-      setFormError(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      showToast(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
       throw error;
     } finally {
       setSaving(false);
@@ -218,7 +216,6 @@ export default function EditCustomerPage() {
           onCancel={() => router.push(`/customers/${customer.id}`)}
           isEditing={true}
           isLoading={saving}
-          error={formError}
         />
       </div>
     </Layout>

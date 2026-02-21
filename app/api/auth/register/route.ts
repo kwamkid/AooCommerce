@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       id: authData.user.id,
       email,
       name,
-      role: 'operation',
+      role: 'sales',
       is_active: true,
     });
 
@@ -70,8 +70,8 @@ export async function POST(request: NextRequest) {
           user_id: authData.user.id,
           roles: invitation.roles,
           invited_by: invitation.invited_by,
-          terminal_ids: invitation.terminal_ids || null,
-          warehouse_ids: invitation.warehouse_ids || null,
+          terminal_ids: invitation.terminal_ids ?? null,
+          warehouse_ids: invitation.warehouse_ids ?? null,
         });
 
         await supabaseAdmin

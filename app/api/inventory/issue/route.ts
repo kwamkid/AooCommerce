@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!hasAnyRole(auth.companyRoles, ['owner','admin','warehouse','manager'])) {
+    if (!hasAnyRole(auth.companyRoles, ['owner','admin','warehouse'])) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์เบิกสินค้า' }, { status: 403 });
     }
 
@@ -94,6 +94,13 @@ export async function POST(request: NextRequest) {
         });
 
       results.push({ variation_id, quantity, new_balance: newQuantity });
+    }
+
+    // Auto-sync stock to Shopee if linked
+    const syncVarIds = results.map((r: { variation_id: string }) => r.variation_id);
+    if (syncVarIds.length > 0) {
+      const { triggerShopeeStockSync } = await import('@/lib/shopee-auto-sync');
+      triggerShopeeStockSync(syncVarIds);
     }
 
     if (errors.length > 0 && results.length === 0) {

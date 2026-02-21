@@ -29,7 +29,9 @@ export async function GET(request: NextRequest) {
       .select(`
         id, order_number, order_date, delivery_date,
         subtotal, discount_amount, vat_amount, shipping_fee, total_amount,
-        order_status, payment_status, notes, company_id,
+        order_status, payment_status, notes, company_id, customer_id,
+        delivery_name, delivery_phone, delivery_address,
+        delivery_district, delivery_amphoe, delivery_province, delivery_postal_code, delivery_email,
         customer:customers (
           name, contact_person, phone, email,
           address, district, amphoe, province, postal_code,
@@ -247,6 +249,18 @@ export async function GET(request: NextRequest) {
       return { type: ch.type, name: ch.name, config: { description: cfg.description } };
     }).filter(Boolean);
 
+    // Build customer info: from joined customer or from inline delivery fields
+    const deliveryCustomer = !customerData && order.delivery_name ? {
+      name: order.delivery_name,
+      phone: order.delivery_phone,
+      address: order.delivery_address,
+      district: order.delivery_district,
+      amphoe: order.delivery_amphoe,
+      province: order.delivery_province,
+      postal_code: order.delivery_postal_code,
+      email: order.delivery_email,
+    } : null;
+
     return NextResponse.json({
       bill: {
         ...order,
@@ -257,6 +271,9 @@ export async function GET(request: NextRequest) {
         payment_record: paymentRecord,
         payment_channels: sanitizedChannels,
         customer_type: customerType,
+        // Override customer with delivery info if no linked customer
+        customer: customerData || deliveryCustomer || null,
+        needs_delivery_info: !order.customer_id && !order.delivery_name,
         shipping_addresses: branches.map(b => ({
           address_name: b.address_name,
           contact_person: b.contact_person,
@@ -382,6 +399,67 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error in bills POST:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// PUT - Customer fills in delivery info (public, no auth required)
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { order_id, delivery_name, delivery_phone, delivery_address,
+            delivery_district, delivery_amphoe, delivery_province, delivery_postal_code, delivery_email } = body;
+
+    if (!order_id || !delivery_name || !delivery_phone || !delivery_address) {
+      return NextResponse.json(
+        { error: 'กรุณากรอกชื่อ เบอร์โทร และที่อยู่' },
+        { status: 400 }
+      );
+    }
+
+    // Verify order exists and has no customer_id
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .select('id, customer_id, order_status')
+      .eq('id', order_id)
+      .single();
+
+    if (orderError || !order) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    }
+
+    if (order.order_status === 'cancelled') {
+      return NextResponse.json({ error: 'คำสั่งซื้อถูกยกเลิกแล้ว' }, { status: 400 });
+    }
+
+    // Only allow for orders without a linked customer
+    if (order.customer_id) {
+      return NextResponse.json({ error: 'ออเดอร์นี้มีข้อมูลลูกค้าแล้ว' }, { status: 400 });
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from('orders')
+      .update({
+        delivery_name,
+        delivery_phone,
+        delivery_address,
+        delivery_district: delivery_district || null,
+        delivery_amphoe: delivery_amphoe || null,
+        delivery_province: delivery_province || null,
+        delivery_postal_code: delivery_postal_code || null,
+        delivery_email: delivery_email || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', order_id);
+
+    if (updateError) {
+      console.error('Delivery info update error:', updateError);
+      return NextResponse.json({ error: 'ไม่สามารถบันทึกข้อมูลได้' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error in bills PUT:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -26,9 +26,10 @@ export async function GET(request: NextRequest) {
         .eq('user_id', userId)
         .single();
 
+      // null = all access, [] = no access, ['id',...] = specific access
       return NextResponse.json({
-        warehouse_ids: member?.warehouse_ids || [],
-        terminal_ids: member?.terminal_ids || [],
+        warehouse_ids: member?.warehouse_ids ?? null,
+        terminal_ids: member?.terminal_ids ?? null,
       });
     }
 
@@ -91,12 +92,13 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Update warehouse_ids and terminal_ids (null means all)
+    // Update warehouse_ids and terminal_ids
+    // null = access all, [] = no access, ['id',...] = specific access
     const { error } = await supabaseAdmin
       .from('company_members')
       .update({
-        warehouse_ids: warehouse_ids && warehouse_ids.length > 0 ? warehouse_ids : null,
-        terminal_ids: terminal_ids && terminal_ids.length > 0 ? terminal_ids : null,
+        warehouse_ids: warehouse_ids === null || warehouse_ids === undefined ? null : warehouse_ids,
+        terminal_ids: terminal_ids === null || terminal_ids === undefined ? null : terminal_ids,
         updated_at: new Date().toISOString(),
       })
       .eq('company_id', auth.companyId)

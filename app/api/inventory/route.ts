@@ -231,7 +231,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!hasAnyRole(auth.companyRoles, ['owner','admin','warehouse','manager'])) {
+    if (!hasAnyRole(auth.companyRoles, ['owner','admin','warehouse'])) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์ปรับ stock' }, { status: 403 });
     }
 
@@ -317,6 +317,10 @@ export async function POST(request: NextRequest) {
         created_by: auth.userId,
         created_at: new Date().toISOString(),
       });
+
+    // Auto-sync stock to Shopee if linked
+    const { triggerShopeeStockSync } = await import('@/lib/shopee-auto-sync');
+    triggerShopeeStockSync([variation_id]);
 
     return NextResponse.json({ success: true });
   } catch (error) {

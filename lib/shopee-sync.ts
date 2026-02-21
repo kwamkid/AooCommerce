@@ -1233,6 +1233,7 @@ async function findOrCreateVariationBySku(
     }
 
     // Create variation child with attributes from tier_variation names
+    // price here is model_discounted_price from order — use as discount_price if original is higher
     const attributes = buildVariationAttributes(shopeeInfo.tierVariationNames, shopeeInfo.shopeeModelName);
     const { data: newVariation, error: variationError } = await supabaseAdmin
       .from('product_variations')

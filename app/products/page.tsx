@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import Checkbox from '@/components/ui/Checkbox';
 
 // Product interface (from API view)
 interface ProductItem {
@@ -117,6 +118,7 @@ export default function ProductsPage() {
 
   const [productsList, setProductsList] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false); // loading indicator for page changes
   const [dataFetched, setDataFetched] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'simple' | 'variation'>('all');
@@ -180,13 +182,26 @@ export default function ProductsPage() {
   const isCol = (key: ColumnKey) => visibleColumns.has(key);
 
 
-  // Fetch products
-  const fetchData = async () => {
+  // Total count from server
+  const [totalProducts, setTotalProducts] = useState(0);
+
+  // Fetch products with server-side pagination
+  const fetchData = async (pageNum?: number, perPage?: number) => {
     const t0 = Date.now();
+    setFetching(true);
     try {
-      const response = await apiFetch('/api/products');
+      const p = pageNum ?? currentPage;
+      const l = perPage ?? rowsPerPage;
+      const params = new URLSearchParams({ page: String(p), limit: String(l) });
+      if (searchTerm) params.set('search', searchTerm);
+      if (sourceFilter !== 'all') params.set('source', sourceFilter);
+      if (categoryFilter !== 'all') params.set('category_id', categoryFilter);
+      if (brandFilter !== 'all') params.set('brand_id', brandFilter);
+
+      const response = await apiFetch(`/api/products?${params.toString()}`);
       const data = await response.json();
       setProductsList(data.products || []);
+      setTotalProducts(data.total ?? data.products?.length ?? 0);
       setDataFetched(true);
       setLoadTime((Date.now() - t0) / 1000);
     } catch (err) {
@@ -195,6 +210,7 @@ export default function ProductsPage() {
       setLoadTime(null);
     } finally {
       setLoading(false);
+      setFetching(false);
     }
   };
 
@@ -214,6 +230,25 @@ export default function ProductsPage() {
     };
     fetchFilters();
   }, !authLoading && !!userProfile);
+
+  // Re-fetch when pagination/filters change (after initial load)
+  useEffect(() => {
+    if (dataFetched) {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, rowsPerPage]);
+
+  // Debounced re-fetch when server-side filters change
+  useEffect(() => {
+    if (!dataFetched) return;
+    const timer = setTimeout(() => {
+      setCurrentPage(1);
+      fetchData(1);
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, sourceFilter, categoryFilter, brandFilter]);
 
   // Handle delete
   const handleDelete = async (product: ProductItem) => {
@@ -267,40 +302,18 @@ export default function ProductsPage() {
   // Clear selection when filters/page change
   useEffect(() => { setSelectedIds(new Set()); }, [searchTerm, typeFilter, sourceFilter, categoryFilter, brandFilter, currentPage]);
 
-  // Filter
+  // Client-side filter (only type filter — rest is server-side)
   const filteredProducts = productsList.filter(product => {
-    // Type filter
     if (typeFilter !== 'all' && product.product_type !== typeFilter) return false;
-    if (sourceFilter === 'shopee' && !(product.source === 'shopee' || product.source === 'shopee_edited')) return false;
-    if (sourceFilter === 'shopee_edited' && product.source !== 'shopee_edited') return false;
-    if (sourceFilter === 'manual' && product.source !== 'manual' && product.source !== undefined) return false;
-
-    // Category filter
-    if (categoryFilter !== 'all' && product.category_id !== categoryFilter) return false;
-
-    // Brand filter
-    if (brandFilter !== 'all' && product.brand_id !== brandFilter) return false;
-
-    // Search filter — name, code, SKU, barcode
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      const matchName = product.name.toLowerCase().includes(term);
-      const matchCode = product.code.toLowerCase().includes(term);
-      const matchSimpleSku = (product.simple_sku || '').toLowerCase().includes(term);
-      const matchSimpleBarcode = (product.simple_barcode || '').toLowerCase().includes(term);
-      const matchVariationSku = product.variations?.some(v => (v.sku || '').toLowerCase().includes(term));
-      const matchVariationBarcode = product.variations?.some(v => (v.barcode || '').toLowerCase().includes(term));
-      if (!matchName && !matchCode && !matchSimpleSku && !matchSimpleBarcode && !matchVariationSku && !matchVariationBarcode) return false;
-    }
-
     return true;
   });
 
-  // Pagination
-  const totalFiltered = filteredProducts.length;
+  // Pagination — server provides total count, products are already paginated
+  const totalFiltered = typeFilter === 'all' ? totalProducts : filteredProducts.length;
   const totalPages = Math.ceil(totalFiltered / rowsPerPage);
   const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + rowsPerPage);
+  // Products are already paginated from server — no need to slice again
+  const paginatedProducts = filteredProducts;
 
   // Select all on current page
   const allPageSelected = paginatedProducts.length > 0 && paginatedProducts.every(p => selectedIds.has(p.product_id));
@@ -317,7 +330,7 @@ export default function ProductsPage() {
     });
   };
 
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, typeFilter, sourceFilter, categoryFilter, brandFilter]);
+  useEffect(() => { setCurrentPage(1); }, [typeFilter]);
 
   // Clear alerts
   useEffect(() => {
@@ -465,18 +478,19 @@ export default function ProductsPage() {
             )}
 
             {/* Products Table */}
-            <div className="data-table-wrap">
+            <div className="data-table-wrap relative">
+              {/* Loading overlay for page/filter changes */}
+              {fetching && !loading && (
+                <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 z-10 flex items-center justify-center rounded-xl">
+                  <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+                </div>
+              )}
               <div className="overflow-x-auto">
               <table className="data-table-fixed">
                 <thead className="data-thead">
                   <tr>
                     <th className="w-[44px] px-3 py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={allPageSelected}
-                        onChange={toggleSelectAll}
-                        className="w-4 h-4 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E] cursor-pointer"
-                      />
+                      <Checkbox checked={allPageSelected} onChange={() => toggleSelectAll()} />
                     </th>
                     {isCol('image') && <th className={`${thClass} w-[88px]`}>รูปภาพ</th>}
                     {isCol('nameCode') && <th className={thClass}>ชื่อ/รหัส</th>}
@@ -496,12 +510,7 @@ export default function ProductsPage() {
                       <tr key={product.product_id} className="data-tr">
                         {/* Checkbox */}
                         <td className="w-[44px] px-3 py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(product.product_id)}
-                            onChange={() => toggleSelect(product.product_id)}
-                            className="w-4 h-4 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E] cursor-pointer"
-                          />
+                          <Checkbox checked={selectedIds.has(product.product_id)} onChange={() => toggleSelect(product.product_id)} />
                         </td>
                         {/* Image */}
                         {isCol('image') && (

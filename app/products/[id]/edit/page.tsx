@@ -28,6 +28,7 @@ interface MarketplaceLink {
   external_model_id: string;
   external_sku: string | null;
   external_item_status: string | null;
+  platform_product_name: string | null;
   platform_price: number | null;
   platform_discount_price: number | null;
   platform_barcode: string | null;
@@ -103,6 +104,7 @@ export default function EditProductPage() {
   const { showToast } = useToast();
 
   // Platform fields local state — track edited values per link
+  const [platformNameValues, setPlatformNameValues] = useState<Record<string, string>>({});
   const [priceValues, setPriceValues] = useState<Record<string, string>>({});
   const [discountValues, setDiscountValues] = useState<Record<string, string>>({});
   const [barcodeValues, setBarcodeValues] = useState<Record<string, string>>({});
@@ -161,6 +163,7 @@ export default function EditProductPage() {
         const links = data.marketplace_links || [];
         setMarketplaceLinks(links);
         if (links.length > 0) {
+          const platNames: Record<string, string> = {};
           const prices: Record<string, string> = {};
           const discounts: Record<string, string> = {};
           const barcodes: Record<string, string> = {};
@@ -168,6 +171,7 @@ export default function EditProductPage() {
           const catNames: Record<string, string> = {};
           const weights: Record<string, string> = {};
           links.forEach((l: MarketplaceLink) => {
+            platNames[l.id] = l.platform_product_name || product?.name || '';
             prices[l.id] = l.platform_price?.toString() || '';
             discounts[l.id] = l.platform_discount_price?.toString() || '';
             barcodes[l.id] = l.platform_barcode || '';
@@ -175,12 +179,29 @@ export default function EditProductPage() {
             catNames[l.id] = l.shopee_category_name || '';
             weights[l.id] = l.weight?.toString() || '';
           });
+          setPlatformNameValues(platNames);
           setPriceValues(prices);
           setDiscountValues(discounts);
           setBarcodeValues(barcodes);
           setCategoryIdValues(catIds);
           setCategoryNameValues(catNames);
           setWeightValues(weights);
+
+          // If any link has category_id but no category_name, refresh via API to trigger backfill
+          const needsBackfill = links.some((l: MarketplaceLink) => l.shopee_category_id && !l.shopee_category_name);
+          if (needsBackfill) {
+            apiFetch(`/api/marketplace/links?product_id=${productId}`).then(async (r) => {
+              if (!r.ok) return;
+              const d = await r.json();
+              const backfilledLinks = d.links || [];
+              setMarketplaceLinks(backfilledLinks);
+              const newCatNames: Record<string, string> = {};
+              backfilledLinks.forEach((l: MarketplaceLink) => {
+                newCatNames[l.id] = l.shopee_category_name || '';
+              });
+              setCategoryNameValues(prev => ({ ...prev, ...newCatNames }));
+            }).catch(() => {});
+          }
         }
       } catch (err) {
         console.error('Error loading product:', err);
@@ -232,6 +253,7 @@ export default function EditProductPage() {
       if (res.ok) {
         const data = await res.json();
         setMarketplaceLinks(data.links || []);
+        const platNames: Record<string, string> = {};
         const prices: Record<string, string> = {};
         const discounts: Record<string, string> = {};
         const barcodes: Record<string, string> = {};
@@ -239,6 +261,7 @@ export default function EditProductPage() {
         const catNames: Record<string, string> = {};
         const weights: Record<string, string> = {};
         (data.links || []).forEach((l: MarketplaceLink) => {
+          platNames[l.id] = l.platform_product_name || product?.name || '';
           prices[l.id] = l.platform_price?.toString() || '';
           discounts[l.id] = l.platform_discount_price?.toString() || '';
           barcodes[l.id] = l.platform_barcode || '';
@@ -246,6 +269,7 @@ export default function EditProductPage() {
           catNames[l.id] = l.shopee_category_name || '';
           weights[l.id] = l.weight?.toString() || '';
         });
+        setPlatformNameValues(platNames);
         setPriceValues(prices);
         setDiscountValues(discounts);
         setBarcodeValues(barcodes);
@@ -363,12 +387,14 @@ export default function EditProductPage() {
     try {
       const results = await Promise.all(
         linkIds.map(async (linkId) => {
+          const platNameVal = platformNameValues[linkId];
           const priceVal = priceValues[linkId];
           const discountVal = discountValues[linkId];
           const barcodeVal = barcodeValues[linkId];
           const catIdVal = categoryIdValues[linkId];
           const catNameVal = categoryNameValues[linkId];
           const weightVal = weightValues[linkId];
+          const platName = platNameVal?.trim() || null;
           const numPrice = priceVal?.trim() === '' ? null : parseFloat(priceVal);
           const numDiscount = discountVal?.trim() === '' ? null : parseFloat(discountVal);
           const barcode = barcodeVal?.trim() || null;
@@ -380,6 +406,7 @@ export default function EditProductPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               link_id: linkId,
+              platform_product_name: platName,
               platform_price: numPrice,
               platform_discount_price: numDiscount,
               platform_barcode: barcode,
@@ -684,8 +711,28 @@ export default function EditProductPage() {
         <div className="flex items-start gap-4">
           {renderPrimaryImage(link)}
           <div className="flex-1 min-w-0">
-            <p className="text-base font-medium text-gray-900 dark:text-white">{product.name}</p>
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 font-mono">
+            <div className="relative">
+              <textarea
+                value={platformNameValues[link.id] || ''}
+                onChange={e => { if (e.target.value.length <= 120) { setPlatformNameValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); } }}
+                maxLength={120}
+                rows={2}
+                className={`w-full px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E] resize-none ${
+                  (platformNameValues[link.id] || '').length > 0 && (platformNameValues[link.id] || '').length < 20
+                    ? 'border-red-400 dark:border-red-500'
+                    : 'border-gray-300 dark:border-slate-600'
+                }`}
+              />
+              <span className={`absolute right-2 bottom-2.5 text-[11px] pointer-events-none ${
+                (platformNameValues[link.id] || '').length < 20 ? 'text-red-500' : 'text-gray-400 dark:text-slate-500'
+              }`}>
+                {(platformNameValues[link.id] || '').length}/120
+              </span>
+            </div>
+            {(platformNameValues[link.id] || '').length > 0 && (platformNameValues[link.id] || '').length < 20 && (
+              <p className="text-[11px] text-red-500 mt-0.5">ชื่อสินค้าต้องมีอย่างน้อย 20 ตัวอักษร</p>
+            )}
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 font-mono">
               Item ID: {link.external_item_id}
             </p>
             {link.external_sku && (
@@ -817,8 +864,38 @@ export default function EditProductPage() {
           <div className="flex items-start gap-4">
             {renderPrimaryImage(firstLink)}
             <div className="flex-1 min-w-0">
-              <p className="text-base font-medium text-gray-900 dark:text-white">{product.name}</p>
-              <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 font-mono">
+              <div className="relative">
+                <textarea
+                  value={platformNameValues[firstLink.id] || ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val.length <= 120) {
+                      setPlatformNameValues(prev => {
+                        const next = { ...prev };
+                        links.forEach(l => { next[l.id] = val; });
+                        return next;
+                      });
+                      links.forEach(l => markDirty(l.id));
+                    }
+                  }}
+                  maxLength={120}
+                  rows={2}
+                  className={`w-full px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E] resize-none ${
+                    (platformNameValues[firstLink.id] || '').length > 0 && (platformNameValues[firstLink.id] || '').length < 20
+                      ? 'border-red-400 dark:border-red-500'
+                      : 'border-gray-300 dark:border-slate-600'
+                  }`}
+                />
+                <span className={`absolute right-2 bottom-2.5 text-[11px] pointer-events-none ${
+                  (platformNameValues[firstLink.id] || '').length < 20 ? 'text-red-500' : 'text-gray-400 dark:text-slate-500'
+                }`}>
+                  {(platformNameValues[firstLink.id] || '').length}/120
+                </span>
+              </div>
+              {(platformNameValues[firstLink.id] || '').length > 0 && (platformNameValues[firstLink.id] || '').length < 20 && (
+                <p className="text-[11px] text-red-500 mt-0.5">ชื่อสินค้าต้องมีอย่างน้อย 20 ตัวอักษร</p>
+              )}
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 font-mono">
                 Item ID: {firstLink.external_item_id}
               </p>
             </div>

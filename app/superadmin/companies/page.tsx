@@ -319,19 +319,12 @@ export default function SuperAdminCompanies() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เลือก Package ใหม่</label>
                 <div className="space-y-2">
                   {packages.filter(p => p.is_active).map(p => (
-                    <label key={p.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    <label key={p.id} onClick={() => setSelectedPackageId(p.id)} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                       selectedPackageId === p.id
                         ? 'border-[#F4511E] bg-[#F4511E]/5'
                         : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
                     }`}>
-                      <input
-                        type="radio"
-                        name="package"
-                        value={p.id}
-                        checked={selectedPackageId === p.id}
-                        onChange={() => setSelectedPackageId(p.id)}
-                        className="accent-[#F4511E]"
-                      />
+                      <div className={`w-5 h-5 rounded-full flex-shrink-0 transition-colors ${selectedPackageId === p.id ? 'border-[5px] border-[#F4511E]' : 'border-2 border-gray-300 dark:border-slate-500'}`} />
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white">{p.name}</p>
                         <p className="text-xs text-gray-500 dark:text-slate-400">{p.slug}</p>

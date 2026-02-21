@@ -105,14 +105,20 @@ function buildVariationAttributes(tierVariationNames: string[], modelName: strin
   return attributes;
 }
 
-async function upsertProductImage(companyId: string, productId: string | null, variationId: string | null, imageUrl: string): Promise<void> {
+async function upsertProductImage(companyId: string, productId: string | null, variationId: string | null, imageUrl: string, sortOrder: number = 0): Promise<void> {
   if (!imageUrl) return;
   try {
-    let query = supabaseAdmin.from('product_images').select('id').eq('image_url', imageUrl).eq('company_id', companyId);
+    let query = supabaseAdmin.from('product_images').select('id, sort_order').eq('image_url', imageUrl).eq('company_id', companyId);
     if (productId) query = query.eq('product_id', productId);
     if (variationId) query = query.eq('variation_id', variationId);
     const { data: existing } = await query.limit(1).single();
-    if (existing) return;
+    if (existing) {
+      // Update sort_order if it changed
+      if (existing.sort_order !== sortOrder) {
+        await supabaseAdmin.from('product_images').update({ sort_order: sortOrder }).eq('id', existing.id);
+      }
+      return;
+    }
 
     await supabaseAdmin.from('product_images').insert({
       company_id: companyId,
@@ -120,7 +126,7 @@ async function upsertProductImage(companyId: string, productId: string | null, v
       variation_id: variationId,
       image_url: imageUrl,
       storage_path: 'shopee-external',
-      sort_order: 0,
+      sort_order: sortOrder,
     });
   } catch (e) {
     console.error('[Product Sync] Failed to insert product image:', e);
@@ -146,7 +152,7 @@ async function findExistingLink(accountId: string, itemId: number, modelId: numb
 // Cache: accountId → Map<categoryId, fullPath>
 const categoryNameCache: Record<string, Map<number, string>> = {};
 
-async function getCategoryName(accountId: string, categoryId: number): Promise<string> {
+export async function getCategoryName(accountId: string, categoryId: number): Promise<string> {
   if (!categoryId) return '';
 
   // Check memory cache
@@ -204,6 +210,7 @@ async function createLink(params: {
   primaryImage?: string;
   categoryId?: number;
   weight?: number;
+  platformProductName?: string;
 }) {
   // Lookup category name from cache
   const categoryName = params.categoryId
@@ -221,6 +228,7 @@ async function createLink(params: {
     external_model_id: String(params.modelId),
     external_sku: params.sku,
     external_item_status: params.status,
+    platform_product_name: params.platformProductName || null,
     platform_price: params.price || null,
     platform_primary_image: params.primaryImage || null,
     shopee_category_id: params.categoryId ? String(params.categoryId) : null,
@@ -384,6 +392,7 @@ async function processShopeeItem(
           primaryImage: model.image_url || primaryImage,
           categoryId: item.category_id,
           weight: item.weight,
+          platformProductName: item.item_name,
         });
         // Don't count as updated — counted at parent level
       } else {
@@ -453,6 +462,7 @@ async function processShopeeItem(
           primaryImage,
           categoryId: item.category_id,
           weight: item.weight,
+          platformProductName: item.item_name,
         });
         result.links_created++;
         result.products_updated++;
@@ -579,9 +589,9 @@ async function ensureParentProduct(
     return null;
   }
 
-  // Insert images
-  for (const img of item.images) {
-    await upsertProductImage(companyId, newParent.id, null, img);
+  // Insert images (preserve Shopee order)
+  for (let i = 0; i < item.images.length; i++) {
+    await upsertProductImage(companyId, newParent.id, null, item.images[i], i);
   }
 
   result.products_created++;
@@ -593,10 +603,15 @@ async function createVariation(
   companyId: string,
   parentProductId: string,
   item: ShopeeItemFullDetail,
-  model: { model_id: number; model_sku: string; model_name: string; current_price: number; image_url?: string }
+  model: { model_id: number; model_sku: string; model_name: string; current_price: number; original_price: number; stock?: number; image_url?: string }
 ): Promise<string | null> {
   const sku = model.model_sku || `SP-${item.item_id}-${model.model_id}`;
   const attributes = buildVariationAttributes(item.tierVariations, model.model_name);
+
+  // Use original_price as default_price, current_price as discount_price (if discounted)
+  const defaultPrice = model.original_price > 0 ? model.original_price : model.current_price;
+  const discountPrice = (model.original_price > 0 && model.current_price < model.original_price)
+    ? model.current_price : 0;
 
   const { data, error } = await supabaseAdmin
     .from('product_variations')
@@ -606,9 +621,9 @@ async function createVariation(
       variation_label: model.model_name || sku,
       sku,
       attributes,
-      default_price: model.current_price,
-      discount_price: 0,
-      stock: 0,
+      default_price: defaultPrice,
+      discount_price: discountPrice,
+      stock: model.stock ?? 0,
       min_stock: 0,
       is_active: true,
     })
@@ -630,7 +645,7 @@ async function createVariation(
 async function createSimpleProduct(
   companyId: string,
   item: ShopeeItemFullDetail,
-  model?: { model_sku: string; current_price: number }
+  model?: { model_sku: string; current_price: number; original_price: number; stock?: number }
 ): Promise<string | null> {
   const sku = model?.model_sku || item.item_sku || '';
   const productCode = sku || `SP-${item.item_id}`;
@@ -656,20 +671,24 @@ async function createSimpleProduct(
     return null;
   }
 
-  // Images
-  for (const imgUrl of item.images) {
-    await upsertProductImage(companyId, product.id, null, imgUrl);
+  // Images (preserve Shopee order)
+  for (let i = 0; i < item.images.length; i++) {
+    await upsertProductImage(companyId, product.id, null, item.images[i], i);
   }
 
-  // Variation row
+  // Variation row — use original_price as default_price, current_price as discount if discounted
+  const simpleDefaultPrice = (model?.original_price && model.original_price > 0) ? model.original_price : (model?.current_price || 0);
+  const simpleDiscountPrice = (model?.original_price && model.original_price > 0 && model.current_price < model.original_price)
+    ? model.current_price : 0;
+
   await supabaseAdmin.from('product_variations').insert({
     company_id: companyId,
     product_id: product.id,
     variation_label: simpleLabel,
     sku: sku || null,
-    default_price: model?.current_price || 0,
-    discount_price: 0,
-    stock: 0,
+    default_price: simpleDefaultPrice,
+    discount_price: simpleDiscountPrice,
+    stock: model?.stock ?? 0,
     min_stock: 0,
     is_active: true,
   });
@@ -697,13 +716,13 @@ async function updateLinkedProduct(companyId: string, productId: string, item: S
     updated_at: new Date().toISOString(),
   }).eq('id', productId);
 
-  // Update images
-  for (const img of item.images) {
-    await upsertProductImage(companyId, productId, null, img);
+  // Update images (preserve Shopee order)
+  for (let i = 0; i < item.images.length; i++) {
+    await upsertProductImage(companyId, productId, null, item.images[i], i);
   }
 }
 
-async function updateLinkedVariation(companyId: string, variationId: string | null, model: { model_sku: string; current_price: number; stock: number; image_url?: string }, item: ShopeeItemFullDetail) {
+async function updateLinkedVariation(companyId: string, variationId: string | null, model: { model_sku: string; current_price: number; original_price: number; stock: number; image_url?: string }, item: ShopeeItemFullDetail) {
   if (!variationId) return;
 
   // Check product source
@@ -726,8 +745,13 @@ async function updateLinkedVariation(companyId: string, variationId: string | nu
   }
 
   // Update variation price (stock managed locally)
+  const updDefaultPrice = model.original_price > 0 ? model.original_price : model.current_price;
+  const updDiscountPrice = (model.original_price > 0 && model.current_price < model.original_price)
+    ? model.current_price : 0;
+
   await supabaseAdmin.from('product_variations').update({
-    default_price: model.current_price,
+    default_price: updDefaultPrice,
+    discount_price: updDiscountPrice,
     updated_at: new Date().toISOString(),
   }).eq('id', variationId);
 
@@ -857,13 +881,25 @@ export async function pushStockToShopee(
         let stock = 0;
 
         if (link.variation_id) {
-          const { data: variation } = await supabaseAdmin
-            .from('product_variations')
-            .select('stock')
-            .eq('id', link.variation_id)
-            .single();
+          // Read actual stock from inventory table (sum across all warehouses)
+          const { data: inventoryRows } = await supabaseAdmin
+            .from('inventory')
+            .select('quantity, reserved_quantity')
+            .eq('variation_id', link.variation_id);
 
-          stock = variation?.stock ?? 0;
+          if (inventoryRows && inventoryRows.length > 0) {
+            const totalQty = inventoryRows.reduce((sum, inv) => sum + (inv.quantity || 0), 0);
+            const totalReserved = inventoryRows.reduce((sum, inv) => sum + (inv.reserved_quantity || 0), 0);
+            stock = totalQty - totalReserved;
+          } else {
+            // Fallback to legacy product_variations.stock if no inventory rows
+            const { data: variation } = await supabaseAdmin
+              .from('product_variations')
+              .select('stock')
+              .eq('id', link.variation_id)
+              .single();
+            stock = variation?.stock ?? 0;
+          }
         }
 
         stockList.push({

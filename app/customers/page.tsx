@@ -157,7 +157,7 @@ export default function CustomersPage() {
     }
 
     // Check role permission
-    if (!userProfile.roles?.some((r: string) => ['owner', 'admin', 'manager', 'sales'].includes(r))) {
+    if (!userProfile.roles?.some((r: string) => ['owner', 'admin', 'sales', 'account'].includes(r))) {
       router.push('/dashboard');
     }
   }, [userProfile, authLoading, router]);

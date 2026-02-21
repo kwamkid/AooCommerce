@@ -5,8 +5,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useFeatures } from '@/lib/features-context';
+import { useToast } from '@/lib/toast-context';
 import { getImageUrl } from '@/lib/utils/image';
 import ImageUploader, { type ProductImage, uploadStagedImages } from '@/components/ui/ImageUploader';
+import Checkbox from '@/components/ui/Checkbox';
 import {
   Plus,
   Trash2,
@@ -136,11 +138,11 @@ export default function ProductForm({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const { features } = useFeatures();
+  const { showToast } = useToast();
 
   const [variationTypes, setVariationTypes] = useState<VariationTypeItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [serverError, setServerError] = useState('');
 
   // Category & Brand state
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -277,14 +279,6 @@ export default function ProductForm({
   useEffect(() => {
     if (initialVariationImages) setVariationImages(initialVariationImages);
   }, [initialVariationImages]);
-
-  // Clear server error after 5s
-  useEffect(() => {
-    if (serverError) {
-      const timer = setTimeout(() => setServerError(''), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [serverError]);
 
   // Clear field error when user types
   const clearFieldError = (key: string) => {
@@ -592,8 +586,6 @@ export default function ProductForm({
   // Handle save
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setServerError('');
-
     if (!validate()) return;
 
     setSaving(true);
@@ -619,11 +611,7 @@ export default function ProductForm({
       const result = await response.json();
 
       if (!response.ok) {
-        setServerError(result.error || 'ไม่สามารถบันทึกข้อมูลได้');
-        setTimeout(() => {
-          const el = document.querySelector('[data-field="server-error"]');
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 100);
+        showToast(result.error || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
         setSaving(false);
         return;
       }
@@ -671,16 +659,7 @@ export default function ProductForm({
       router.push('/products');
     } catch (err) {
       console.error('Error saving:', err);
-      if (err instanceof Error) {
-        setServerError(err.message);
-      } else {
-        setServerError('เกิดข้อผิดพลาดในการบันทึก');
-      }
-      // Scroll to server error at bottom
-      setTimeout(() => {
-        const el = document.querySelector('[data-field="server-error"]');
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึก', 'error');
     } finally {
       setSaving(false);
     }
@@ -1089,15 +1068,7 @@ export default function ProductForm({
                             })}
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">
-                            <label className="flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={variation.is_active}
-                                onChange={(e) => updateVariation(index, 'is_active', e.target.checked)}
-                                className="w-3.5 h-3.5 text-[#F4511E] border-gray-300 rounded focus:ring-[#F4511E]"
-                              />
-                              <span className="text-sm text-gray-500 dark:text-slate-400">ใช้งาน</span>
-                            </label>
+                            <Checkbox checked={variation.is_active} onChange={(v) => updateVariation(index, 'is_active', v)} label="ใช้งาน" />
                             <button
                               type="button"
                               onClick={() => duplicateVariation(index)}
@@ -1204,13 +1175,6 @@ export default function ProductForm({
               )}
             </div>
           )}
-        </div>
-      )}
-
-      {/* Server Error — shown near save button */}
-      {serverError && (
-        <div data-field="server-error" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-          {serverError}
         </div>
       )}
 

@@ -6,6 +6,7 @@ import Image from 'next/image';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
 import { Loader2, Printer, FileText, MapPin, Package, Camera, Upload, Clock, CheckCircle2, CreditCard, Banknote, Globe, Copy, Check, Sun, Moon, QrCode, Download } from 'lucide-react';
+import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import { getBankByCode } from '@/lib/constants/banks';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
 import { BEAM_CHANNELS } from '@/lib/constants/payment-gateway';
@@ -82,7 +83,7 @@ interface BillData {
   payment_record?: PaymentRecord | null;
   payment_channels?: PaymentChannelData[];
   customer_type?: string;
-  customer: {
+  customer?: {
     name: string;
     contact_person?: string;
     phone?: string;
@@ -95,7 +96,8 @@ interface BillData {
     tax_company_name?: string;
     tax_id?: string;
     tax_branch?: string;
-  };
+  } | null;
+  needs_delivery_info?: boolean;
   items: BillItem[];
   branches: BillBranch[];
 }
@@ -148,6 +150,17 @@ export default function BillOnlinePage() {
   const [copiedAccount, setCopiedAccount] = useState<string | null>(null);
   const [compressingSlip, setCompressingSlip] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Delivery info form state (for orders without customer)
+  const [deliveryName, setDeliveryName] = useState('');
+  const [deliveryPhone, setDeliveryPhone] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryDistrict, setDeliveryDistrict] = useState('');
+  const [deliveryAmphoe, setDeliveryAmphoe] = useState('');
+  const [deliveryProvince, setDeliveryProvince] = useState('');
+  const [deliveryPostalCode, setDeliveryPostalCode] = useState('');
+  const [deliveryEmail, setDeliveryEmail] = useState('');
+  const [savingDelivery, setSavingDelivery] = useState(false);
 
   const handleCopyAccount = async (accountNumber: string) => {
     try {
@@ -519,22 +532,123 @@ export default function BillOnlinePage() {
             </div>
           </div>
 
+          {/* Delivery Info Form — shown when no customer and no delivery info yet */}
+          {bill.needs_delivery_info && (
+            <div className={`rounded-lg p-4 mb-5 border-2 border-dashed ${dark ? 'border-orange-500/50 bg-orange-900/10' : 'border-orange-300 bg-orange-50'}`}>
+              <div className={`text-sm font-medium mb-3 ${dark ? 'text-orange-400' : 'text-orange-700'}`}>
+                กรุณากรอกข้อมูลจัดส่ง
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className={`block text-sm mb-1 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>ชื่อผู้รับ *</label>
+                  <input type="text" value={deliveryName} onChange={(e) => setDeliveryName(e.target.value)}
+                    placeholder="ชื่อ-นามสกุล"
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900'}`} />
+                </div>
+                <div>
+                  <label className={`block text-sm mb-1 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>เบอร์โทรศัพท์ *</label>
+                  <input type="tel" value={deliveryPhone} onChange={(e) => setDeliveryPhone(e.target.value)}
+                    placeholder="0xx-xxx-xxxx"
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900'}`} />
+                </div>
+                <div>
+                  <label className={`block text-sm mb-1 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>อีเมล</label>
+                  <input type="email" value={deliveryEmail} onChange={(e) => setDeliveryEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900'}`} />
+                </div>
+                <div>
+                  <label className={`block text-sm mb-1 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>ที่อยู่จัดส่ง *</label>
+                  <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)}
+                    placeholder="บ้านเลขที่ ซอย ถนน"
+                    rows={2}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900'}`} />
+                </div>
+                <ThaiAddressInput
+                  district={deliveryDistrict}
+                  amphoe={deliveryAmphoe}
+                  province={deliveryProvince}
+                  postalCode={deliveryPostalCode}
+                  onAddressChange={(addr) => {
+                    if (addr.district !== undefined) setDeliveryDistrict(addr.district);
+                    if (addr.amphoe !== undefined) setDeliveryAmphoe(addr.amphoe);
+                    if (addr.province !== undefined) setDeliveryProvince(addr.province);
+                    if (addr.postalCode !== undefined) setDeliveryPostalCode(addr.postalCode);
+                  }}
+                  showLabels={false}
+                  inputClassName={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900'}`}
+                  dropdownClassName={`absolute z-50 left-0 right-0 mt-1 border rounded-lg shadow-lg max-h-60 overflow-y-auto ${dark ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!deliveryName || !deliveryPhone || !deliveryAddress) {
+                      showToast('กรุณากรอกชื่อ เบอร์โทร และที่อยู่', 'error');
+                      return;
+                    }
+                    setSavingDelivery(true);
+                    try {
+                      const response = await fetch('/api/bills', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          order_id: bill.id,
+                          delivery_name: deliveryName,
+                          delivery_phone: deliveryPhone,
+                          delivery_address: deliveryAddress,
+                          delivery_district: deliveryDistrict,
+                          delivery_amphoe: deliveryAmphoe,
+                          delivery_province: deliveryProvince,
+                          delivery_postal_code: deliveryPostalCode,
+                          delivery_email: deliveryEmail,
+                        }),
+                      });
+                      if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.error || 'เกิดข้อผิดพลาด');
+                      }
+                      showToast('บันทึกข้อมูลจัดส่งสำเร็จ');
+                      await fetchBill();
+                    } catch (err) {
+                      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+                    } finally {
+                      setSavingDelivery(false);
+                    }
+                  }}
+                  disabled={savingDelivery || !deliveryName || !deliveryPhone || !deliveryAddress}
+                  className="w-full bg-[#F4511E] text-white py-2.5 rounded-lg font-medium text-sm hover:bg-[#E64A19] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {savingDelivery ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {savingDelivery ? 'กำลังบันทึก...' : 'บันทึกข้อมูลจัดส่ง'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Customer Info + Delivery/Notes — 2 column */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5 print:grid-cols-2 print:gap-4">
             {/* Left: Customer */}
             <div className={`print:bg-transparent rounded-lg p-4 print:p-0 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
               <div className={`text-sm font-medium mb-1 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>ลูกค้า</div>
-              <div className={`text-lg font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{bill.customer.name}</div>
-              <div className={`text-sm space-y-0.5 mt-1 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
-                {bill.customer.contact_person && <div>ผู้ติดต่อ: {bill.customer.contact_person}</div>}
-                {bill.customer.phone && <div>โทร: {bill.customer.phone}</div>}
-                {bill.customer.tax_id && (
-                  <div>
-                    เลขผู้เสียภาษี: {bill.customer.tax_id}
-                    {bill.customer.tax_branch && ` สาขา: ${bill.customer.tax_branch}`}
+              {bill.customer?.name ? (
+                <>
+                  <div className={`text-lg font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{bill.customer.name}</div>
+                  <div className={`text-sm space-y-0.5 mt-1 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                    {bill.customer.contact_person && <div>ผู้ติดต่อ: {bill.customer.contact_person}</div>}
+                    {bill.customer.phone && <div>โทร: {bill.customer.phone}</div>}
+                    {bill.customer.tax_id && (
+                      <div>
+                        เลขผู้เสียภาษี: {bill.customer.tax_id}
+                        {bill.customer.tax_branch && ` สาขา: ${bill.customer.tax_branch}`}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              ) : (
+                <div className={`text-sm italic ${dark ? 'text-orange-400' : 'text-orange-500'}`}>
+                  {bill.needs_delivery_info ? 'รอข้อมูลจัดส่งจากลูกค้า' : 'ไม่ระบุลูกค้า'}
+                </div>
+              )}
             </div>
 
             {/* Right: Delivery date + Notes */}

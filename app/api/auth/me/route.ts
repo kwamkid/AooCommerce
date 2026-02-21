@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (profileError || !profile) {
+      console.error('Profile query failed for user:', user.id, 'error:', profileError?.message, 'profile:', profile);
       return NextResponse.json({
         profile: {
           id: user.id,
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get company memberships
-    const { data: memberships } = await supabaseAdmin
+    const { data: memberships, error: memberError } = await supabaseAdmin
       .from('company_members')
       .select(`
         company_id,

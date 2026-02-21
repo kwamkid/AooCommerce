@@ -10,7 +10,7 @@ import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, ShoppingBag, RefreshCw, Unlink, CheckCircle2,
   XCircle, Clock, ExternalLink, AlertTriangle, ChevronDown, ChevronUp,
-  Plus, Trash2, Upload
+  Plus, Trash2, Upload, Download
 } from 'lucide-react';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 
@@ -42,9 +42,6 @@ export default function IntegrationsPage() {
   const [refreshingLogoId, setRefreshingLogoId] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<number>(0); // 0-100
   const [syncPhaseLabel, setSyncPhaseLabel] = useState('');
-  const [productSyncingId, setProductSyncingId] = useState<string | null>(null);
-  const [productSyncProgress, setProductSyncProgress] = useState<number>(0);
-  const [productSyncPhaseLabel, setProductSyncPhaseLabel] = useState('');
   const syncAbortRef = useRef<AbortController | null>(null);
 
   const fetchAccounts = useCallback(async () => {
@@ -256,79 +253,6 @@ export default function IntegrationsPage() {
     }
   };
 
-  const handleProductSync = async (accountId: string) => {
-    setProductSyncingId(accountId);
-    setProductSyncProgress(0);
-    setProductSyncPhaseLabel('กำลังเชื่อมต่อ...');
-    const controller = new AbortController();
-    syncAbortRef.current = controller;
-
-    try {
-      const res = await apiFetch('/api/shopee/products/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopee_account_id: accountId }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        showToast(data.error || 'ดูดสินค้าจาก Shopee ไม่สำเร็จ', 'error');
-        return;
-      }
-
-      let result: Record<string, unknown> = {};
-
-      await readSSEStream(res, (event) => {
-        if (event.type === 'progress') {
-          const phase = event.phase as string;
-          const current = event.current as number;
-          const total = event.total as number | null;
-          const label = event.label as string;
-          setProductSyncPhaseLabel(label);
-
-          if (phase === 'collecting') {
-            setProductSyncProgress(Math.min(5 + (current % 10), 15));
-          } else if (phase === 'processing' && total) {
-            setProductSyncProgress(Math.round((current / total) * 80) + 15);
-          }
-        } else if (event.type === 'done') {
-          result = event;
-          setProductSyncProgress(100);
-          setProductSyncPhaseLabel('เสร็จสิ้น');
-        } else if (event.type === 'error') {
-          showToast((event.message as string) || 'ดูดสินค้าจาก Shopee ไม่สำเร็จ', 'error');
-        }
-      }, controller.signal);
-
-      if (controller.signal.aborted) {
-        showToast('ยกเลิกการดูดสินค้าแล้ว', 'error');
-        return;
-      }
-
-      await new Promise(r => setTimeout(r, 500));
-
-      if (result.success) {
-        const parts: string[] = [];
-        if ((result.products_created as number) > 0) parts.push(`สินค้าใหม่ ${result.products_created}`);
-        if ((result.products_updated as number) > 0) parts.push(`อัพเดท ${result.products_updated}`);
-        if ((result.links_created as number) > 0) parts.push(`เชื่อมโยง ${result.links_created}`);
-        if ((result.products_skipped as number) > 0) parts.push(`ข้าม ${result.products_skipped}`);
-        const summary = parts.length > 0 ? parts.join(', ') : 'ไม่มีข้อมูลใหม่';
-        showToast(`ดูดสินค้าจาก Shopee สำเร็จ: ${summary}`, 'success');
-        fetchAccounts();
-      }
-    } catch {
-      if (!controller.signal.aborted) {
-        showToast('เกิดข้อผิดพลาดในการดูดสินค้าจาก Shopee', 'error');
-      }
-    } finally {
-      syncAbortRef.current = null;
-      setProductSyncingId(null);
-      setProductSyncProgress(0);
-      setProductSyncPhaseLabel('');
-    }
-  };
-
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleString('th-TH', {
@@ -399,7 +323,6 @@ export default function IntegrationsPage() {
               const isSyncing = syncingId === account.id;
               const isDisconnecting = disconnectingId === account.id;
               const isRefreshingLogo = refreshingLogoId === account.id;
-              const isProductSyncing = productSyncingId === account.id;
 
               return (
                 <div key={account.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
@@ -486,7 +409,6 @@ export default function IntegrationsPage() {
                           <Clock className="w-3 h-3" />
                           Sync ล่าสุด: {formatDate(account.last_sync_at)}
                         </span>
-                        <span>ดูดสินค้าล่าสุด: {formatDate(account.last_product_sync_at)}</span>
                         <span>เชื่อมต่อเมื่อ: {formatDate(account.created_at)}</span>
                       </div>
 
@@ -512,12 +434,15 @@ export default function IntegrationsPage() {
                           {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
                         </button>
                         <button
-                          onClick={() => handleProductSync(account.id)}
-                          disabled={isProductSyncing || account.connection_status === 'expired'}
-                          className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
+                          onClick={() => {
+                            const name = account.shop_name || `Shop #${account.shop_id}`;
+                            router.push(`/shopee/import?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
+                          }}
+                          disabled={account.connection_status === 'expired'}
+                          className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                         >
-                          <ShoppingBag className={`w-4 h-4 ${isProductSyncing ? 'animate-pulse' : ''}`} />
-                          {isProductSyncing ? 'กำลังดูด...' : 'ดูดสินค้า'}
+                          <Download className="w-4 h-4" />
+                          นำเข้าสินค้าจาก Shopee
                         </button>
                         <button
                           onClick={() => {
@@ -533,10 +458,9 @@ export default function IntegrationsPage() {
                         <button
                           onClick={() => handleDisconnect(account.id)}
                           disabled={isDisconnecting}
-                          className="px-3 py-2 border border-red-300 dark:border-red-800 text-red-500 text-sm rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2 disabled:opacity-50"
+                          className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center disabled:opacity-50"
                         >
                           {isDisconnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                          ยกเลิกการเชื่อมต่อ
                         </button>
                       </div>
                     </div>
@@ -564,10 +488,10 @@ export default function IntegrationsPage() {
 
       {/* Loading Overlay for sync operations */}
       <LoadingOverlay
-        isOpen={!!syncingId || !!productSyncingId}
-        title={productSyncingId ? 'กำลังดูดสินค้าจาก Shopee...' : 'กำลัง Sync คำสั่งซื้อ...'}
-        message={productSyncingId ? productSyncPhaseLabel : syncPhaseLabel}
-        progress={productSyncingId ? productSyncProgress : syncProgress}
+        isOpen={!!syncingId}
+        title="กำลัง Sync คำสั่งซื้อ..."
+        message={syncPhaseLabel}
+        progress={syncProgress}
         onCancel={handleCancelSync}
       />
     </Layout>

@@ -2380,7 +2380,6 @@ function LineChatPageContent() {
                 onCancel={() => setMobileView('profile')}
                 isEditing={true}
                 isLoading={editingCustomer}
-                error={editCustomerError}
               />
             </div>
           </div>
@@ -2414,7 +2413,6 @@ function LineChatPageContent() {
                 onSubmit={handleCreateCustomer}
                 onCancel={() => setMobileView('chat')}
                 isLoading={savingCustomer}
-                error={customerError}
               />
             </div>
           </div>
@@ -2811,7 +2809,6 @@ function LineChatPageContent() {
                 onCancel={() => setRightPanel('profile')}
                 isEditing={true}
                 isLoading={editingCustomer}
-                error={editCustomerError}
               />
             </div>
           </div>
@@ -2846,7 +2843,6 @@ function LineChatPageContent() {
                 onSubmit={handleCreateCustomer}
                 onCancel={() => setRightPanel(null)}
                 isLoading={savingCustomer}
-                error={customerError}
               />
             </div>
           </div>

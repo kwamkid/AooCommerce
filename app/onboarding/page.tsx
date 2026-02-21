@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Image from 'next/image';
-import { Building2, FileText, Upload, X, AlertCircle, Loader2, Plus, ChevronRight, Users } from 'lucide-react';
+import { Building2, FileText, Upload, X, AlertCircle, Loader2, Plus, ChevronRight, Users, User, LogOut } from 'lucide-react';
 
 interface CompanyMembership {
   company_id: string;
@@ -22,13 +22,17 @@ interface CompanyMembership {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { session, user, loading } = useAuth();
+  const { session, user, loading, signOut } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [companies, setCompanies] = useState<CompanyMembership[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(true);
+  const [needsName, setNeedsName] = useState(false);
+  const [profileName, setProfileName] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const [skipped, setSkipped] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -54,6 +58,19 @@ export default function OnboardingPage() {
       const data = await response.json();
       const memberships: CompanyMembership[] = data.companies || [];
       setCompanies(memberships);
+
+      // Check if profile name is missing or is just a placeholder
+      const name = data.profile?.name || '';
+      const email = data.profile?.email || user?.email || '';
+      const emailPrefix = email.split('@')[0];
+      const isPlaceholder = !name
+        || name === 'User'
+        || name === emailPrefix
+        || name.startsWith('line_');
+      if (isPlaceholder) {
+        setNeedsName(true);
+        setProfileName('');
+      }
 
       if (memberships.length === 0) {
         setShowCreateForm(true);
@@ -92,6 +109,36 @@ export default function OnboardingPage() {
     localStorage.setItem('aoo-current-company-id', companyId);
     // Full page navigation to reinitialize all contexts with new company
     window.location.href = '/dashboard';
+  };
+
+  // Handle save profile name
+  const handleSaveName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profileName.trim() || !session?.access_token) return;
+
+    setSavingName(true);
+    setError('');
+    try {
+      const response = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ name: profileName.trim() }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.error || 'เกิดข้อผิดพลาด');
+        setSavingName(false);
+        return;
+      }
+      setNeedsName(false);
+    } catch {
+      setError('เกิดข้อผิดพลาดในการบันทึกชื่อ');
+    } finally {
+      setSavingName(false);
+    }
   };
 
   // Handle form submission
@@ -161,11 +208,10 @@ export default function OnboardingPage() {
   const getRoleLabels = (roles: string[]) => {
     const labels: Record<string, string> = {
       owner: 'เจ้าของ',
-      admin: 'ผู้ดูแล',
-      manager: 'ผู้จัดการ',
+      admin: 'ผู้ดูแลระบบ',
       account: 'บัญชี',
       warehouse: 'คลังสินค้า',
-      sales: 'ฝ่ายขาย',
+      sales: 'แอดมินออนไลน์',
       cashier: 'แคชเชียร์',
     };
     return roles.map(r => labels[r] || r).join(', ');
@@ -184,14 +230,33 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] to-[#16213E] flex items-start sm:items-center justify-center pt-8 sm:pt-0 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] to-[#16213E] flex items-start sm:items-center justify-center pt-8 sm:pt-0 p-4 relative">
+      {/* Logout button */}
+      <button
+        onClick={signOut}
+        className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors flex items-center gap-2 text-sm"
+      >
+        <LogOut className="w-4 h-4" />
+        ออกจากระบบ
+      </button>
+
       <div className="w-full max-w-lg">
         {/* Branding */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-2">
             <Image src="/logo.svg" alt="AooCommerce" width={150} height={98} className="w-[120px] h-[78px] sm:w-[150px] sm:h-[98px]" priority />
           </div>
-          {companies.length > 0 && !showCreateForm ? (
+          {needsName ? (
+            <>
+              <h2 className="text-xl font-semibold text-white mb-2">ยินดีต้อนรับ!</h2>
+              <p className="text-gray-400 text-sm">กรุณาระบุชื่อของคุณเพื่อดำเนินการต่อ</p>
+            </>
+          ) : skipped ? (
+            <>
+              <h2 className="text-xl font-semibold text-white mb-2">ยินดีต้อนรับ!</h2>
+              <p className="text-gray-400 text-sm">คุณสามารถสร้างบริษัทได้ทุกเมื่อ หรือรอรับคำเชิญจากผู้อื่น</p>
+            </>
+          ) : companies.length > 0 && !showCreateForm ? (
             <>
               <h2 className="text-xl font-semibold text-white mb-2">เลือกบริษัท</h2>
               <p className="text-gray-400 text-sm">เลือกบริษัทที่ต้องการเข้าใช้งาน หรือสร้างบริษัทใหม่</p>
@@ -204,8 +269,53 @@ export default function OnboardingPage() {
           )}
         </div>
 
+        {/* Name completion form (for OAuth users without name) */}
+        {needsName && (
+          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-white/10">
+            {error && (
+              <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start space-x-3">
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-300">{error}</p>
+              </div>
+            )}
+            <form onSubmit={handleSaveName} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  ชื่อ-นามสกุล <span className="text-red-400">*</span>
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <input
+                    type="text"
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all"
+                    placeholder="ชื่อ-นามสกุลของคุณ"
+                    required
+                    disabled={savingName}
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={savingName || !profileName.trim()}
+                className="w-full py-3 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {savingName ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    กำลังบันทึก...
+                  </>
+                ) : (
+                  'ดำเนินการต่อ'
+                )}
+              </button>
+            </form>
+          </div>
+        )}
+
         {/* Company List (if has companies and not showing create form) */}
-        {companies.length > 0 && !showCreateForm && (
+        {!needsName && companies.length > 0 && !showCreateForm && (
           <div className="space-y-4 mb-6">
             {/* Existing Companies */}
             <div className="space-y-3">
@@ -265,8 +375,25 @@ export default function OnboardingPage() {
           </div>
         )}
 
+        {/* Skipped state — show button to create company */}
+        {!needsName && skipped && (
+          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-white/10 text-center">
+            <Building2 className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+            <p className="text-gray-400 mb-6">
+              คุณยังไม่มีบริษัท สร้างบริษัทใหม่หรือรอรับคำเชิญจากทีมของคุณ
+            </p>
+            <button
+              onClick={() => { setSkipped(false); setShowCreateForm(true); }}
+              className="w-full py-3 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors flex items-center justify-center"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              สร้างบริษัทใหม่
+            </button>
+          </div>
+        )}
+
         {/* Create Company Form */}
-        {showCreateForm && (
+        {!needsName && !skipped && showCreateForm && (
           <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-[#F4511E]/20">
             {/* Back button if has existing companies */}
             {companies.length > 0 && (
@@ -386,6 +513,16 @@ export default function OnboardingPage() {
                 )}
               </button>
             </form>
+
+            {/* Skip button — only show when user has no companies */}
+            {companies.length === 0 && (
+              <button
+                onClick={() => { setSkipped(true); setShowCreateForm(false); }}
+                className="w-full mt-4 text-sm text-gray-400 hover:text-white transition-colors"
+              >
+                ข้ามไปก่อน
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
         .eq('is_active', true)
         .single();
 
-      if (membership?.warehouse_ids && membership.warehouse_ids.length > 0) {
+      if (Array.isArray(membership?.warehouse_ids)) {
         if (!membership.warehouse_ids.includes(direct_warehouse_id)) {
           return NextResponse.json(
             { error: 'คุณไม่มีสิทธิ์เข้าถึงคลังสินค้านี้' },

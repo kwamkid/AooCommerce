@@ -28,7 +28,8 @@ interface AuthContextType {
   companies: CompanyMembershipRaw[];
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, name: string, inviteToken?: string) => Promise<{ error: string | null }>;
-  signInWithLine: () => Promise<{ error: string | null }>;
+  signInWithGoogle: (inviteToken?: string) => Promise<{ error: string | null }>;
+  signInWithLINE: (inviteToken?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -129,9 +130,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Listen for sign-out only (sign-in is handled by login page redirect)
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
-      if (event === 'TOKEN_REFRESHED' && currentSession) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && currentSession) {
         setSession(currentSession);
+        setUser(currentSession.user);
+
+        // Fetch profile if not already loaded
+        if (!userProfile || event === 'SIGNED_IN') {
+          const profile = await fetchUserProfile(currentSession.user, currentSession.access_token);
+          if (profile) {
+            setUserProfile(profile);
+          }
+          setLoading(false);
+        }
       }
       if (event === 'SIGNED_OUT') {
         setUser(null);
@@ -143,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [fetchUserProfile]);
 
   // Routing — only runs after loading is done
   useEffect(() => {
@@ -238,8 +249,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signInWithLine = async () => {
+  const signInWithGoogle = async (inviteToken?: string) => {
     try {
+      if (inviteToken) {
+        document.cookie = `invite_token=${inviteToken}; path=/; max-age=3600; SameSite=Lax`;
+      }
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: `${window.location.origin}/auth/callback` },
@@ -248,6 +262,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: null };
     } catch {
       return { error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google' };
+    }
+  };
+
+  const signInWithLINE = async (inviteToken?: string) => {
+    try {
+      if (inviteToken) {
+        document.cookie = `invite_token=${inviteToken}; path=/; max-age=3600; SameSite=Lax`;
+      }
+      const channelId = process.env.NEXT_PUBLIC_LINE_LOGIN_CHANNEL_ID;
+      if (!channelId) {
+        return { error: 'LINE Login ยังไม่ได้ตั้งค่า' };
+      }
+      const redirectUri = `${window.location.origin}/line-callback`;
+      const state = Math.random().toString(36).substring(2);
+      const lineAuthUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${channelId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=profile%20openid`;
+      window.location.href = lineAuthUrl;
+      return { error: null };
+    } catch {
+      return { error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย LINE' };
     }
   };
 
@@ -276,7 +309,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, userProfile, session, loading, hasCompany, companies,
-      signIn, signUp, signInWithLine, signOut, refreshProfile,
+      signIn, signUp, signInWithGoogle, signInWithLINE, signOut, refreshProfile,
     }}>
       {children}
     </AuthContext.Provider>

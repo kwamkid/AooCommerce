@@ -340,43 +340,83 @@ export async function GET(request: NextRequest) {
     const sourceFilter = searchParams.get('source');
     const categoryFilter = searchParams.get('category_id');
     const brandFilter = searchParams.get('brand_id');
+    const searchQuery = searchParams.get('search');
 
-    // Run products + images queries in parallel
-    let productsQuery = supabaseAdmin
-      .from('products_with_variations')
-      .select('*')
+    // Pagination params
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const paginate = searchParams.has('page'); // Only paginate if page param is provided
+
+    // Step 1: Get paginated product IDs from the products table directly
+    let productsBaseQuery = supabaseAdmin
+      .from('products')
+      .select('id', { count: 'exact' })
       .eq('company_id', auth.companyId)
       .eq('is_active', true);
+
     if (sourceFilter) {
-      productsQuery = productsQuery.eq('source', sourceFilter);
+      if (sourceFilter === 'shopee') {
+        productsBaseQuery = productsBaseQuery.in('source', ['shopee', 'shopee_edited']);
+      } else {
+        productsBaseQuery = productsBaseQuery.eq('source', sourceFilter);
+      }
     }
     if (categoryFilter) {
-      productsQuery = productsQuery.eq('category_id', categoryFilter);
+      productsBaseQuery = productsBaseQuery.eq('category_id', categoryFilter);
     }
     if (brandFilter) {
-      productsQuery = productsQuery.eq('brand_id', brandFilter);
+      productsBaseQuery = productsBaseQuery.eq('brand_id', brandFilter);
     }
-    productsQuery = productsQuery.order('name', { ascending: true });
+    if (searchQuery) {
+      productsBaseQuery = productsBaseQuery.or(`name.ilike.%${searchQuery}%,code.ilike.%${searchQuery}%`);
+    }
 
-    const imagesQuery = supabaseAdmin
-      .from('product_images')
-      .select('product_id, variation_id, image_url, sort_order')
-      .eq('company_id', auth.companyId)
-      .order('sort_order', { ascending: true });
+    productsBaseQuery = productsBaseQuery.order('name', { ascending: true });
 
-    const [productsResult, imagesResult] = await Promise.all([
-      productsQuery,
-      imagesQuery,
-    ]);
+    if (paginate) {
+      const offset = (page - 1) * limit;
+      productsBaseQuery = productsBaseQuery.range(offset, offset + limit - 1);
+    }
 
-    if (productsResult.error) {
+    const { data: productRows, error: productError, count: totalCount } = await productsBaseQuery;
+
+    if (productError) {
       return NextResponse.json(
-        { error: productsResult.error.message },
+        { error: productError.message },
         { status: 500 }
       );
     }
 
-    // Build image maps from single query
+    if (!productRows || productRows.length === 0) {
+      return NextResponse.json({
+        products: [],
+        ...(paginate ? { total: totalCount || 0, page, limit } : {})
+      });
+    }
+
+    const productIds = productRows.map(p => p.id);
+
+    // Step 2: Fetch variations + images only for these product IDs (in parallel)
+    const [viewResult, imagesResult] = await Promise.all([
+      supabaseAdmin
+        .from('products_with_variations')
+        .select('*')
+        .in('product_id', productIds),
+      supabaseAdmin
+        .from('product_images')
+        .select('product_id, variation_id, image_url, sort_order')
+        .in('product_id', productIds)
+        .order('sort_order', { ascending: true }),
+    ]);
+
+    if (viewResult.error) {
+      return NextResponse.json(
+        { error: viewResult.error.message },
+        { status: 500 }
+      );
+    }
+
+    // Build image maps
     const productImageMap = new Map<string, string>();
     const variationImageMap = new Map<string, string>();
     if (imagesResult.data) {
@@ -391,7 +431,7 @@ export async function GET(request: NextRequest) {
 
     // Group by product_id and aggregate variations
     const productMap = new Map<string, any>();
-    for (const row of productsResult.data || []) {
+    for (const row of viewResult.data || []) {
       const existing = productMap.get(row.product_id);
 
       if (existing) {
@@ -466,9 +506,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const groupedProducts = Array.from(productMap.values());
+    // Maintain the same order as the original query
+    const groupedProducts = productIds
+      .map(id => productMap.get(id))
+      .filter(Boolean);
 
-    return NextResponse.json({ products: groupedProducts });
+    return NextResponse.json({
+      products: groupedProducts,
+      ...(paginate ? { total: totalCount || 0, page, limit } : {})
+    });
   } catch (error) {
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -703,6 +749,11 @@ export async function PUT(request: NextRequest) {
           }
         }
       }
+    }
+
+    // Auto-sync price to Shopee if default_price changed
+    if (body.default_price !== undefined || (variations && Array.isArray(variations))) {
+      import('@/lib/shopee-auto-sync').then(m => m.triggerShopeePriceSync(id)).catch(() => {});
     }
 
     // Fetch complete product with variations

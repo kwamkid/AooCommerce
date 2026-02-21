@@ -235,7 +235,7 @@ export default function Header() {
                   {companyRoles.length > 0 && (
                     <p className="text-xs text-[#F4511E] mt-1">
                       {currentCompany?.name} · {
-                        companyRoles.map(r => ({ owner: 'เจ้าของ', admin: 'ผู้ดูแลระบบ', manager: 'ผู้จัดการ', account: 'ฝ่ายบัญชี', warehouse: 'ฝ่ายคลังสินค้า', sales: 'ฝ่ายขาย', cashier: 'แคชเชียร์' } as Record<string, string>)[r] || r).join(', ')
+                        companyRoles.map(r => ({ owner: 'เจ้าของ', admin: 'ผู้ดูแลระบบ', account: 'บัญชี', warehouse: 'คลังสินค้า', sales: 'แอดมินออนไลน์', cashier: 'แคชเชียร์' } as Record<string, string>)[r] || r).join(', ')
                       }
                     </p>
                   )}

@@ -77,9 +77,6 @@ export async function POST(request: NextRequest) {
 
     const { email, roles, warehouse_ids, terminal_ids } = await request.json();
 
-    if (!email) {
-      return NextResponse.json({ error: 'กรุณาระบุอีเมล' }, { status: 400 });
-    }
     const rolesError = validateRoles(roles);
     if (rolesError) {
       return NextResponse.json({ error: rolesError }, { status: 400 });
@@ -113,37 +110,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check if user is already a member
-    const { data: existingUser } = await supabaseAdmin
-      .from('user_profiles')
-      .select('id')
-      .eq('email', email)
-      .single();
-
-    if (existingUser) {
-      const { data: existingMember } = await supabaseAdmin
-        .from('company_members')
+    // Only check existing member/invite if email is provided
+    if (email) {
+      const { data: existingUser } = await supabaseAdmin
+        .from('user_profiles')
         .select('id')
-        .eq('company_id', auth.companyId)
-        .eq('user_id', existingUser.id)
+        .eq('email', email)
         .single();
 
-      if (existingMember) {
-        return NextResponse.json({ error: 'ผู้ใช้นี้เป็นสมาชิกอยู่แล้ว' }, { status: 400 });
+      if (existingUser) {
+        const { data: existingMember } = await supabaseAdmin
+          .from('company_members')
+          .select('id')
+          .eq('company_id', auth.companyId)
+          .eq('user_id', existingUser.id)
+          .single();
+
+        if (existingMember) {
+          return NextResponse.json({ error: 'ผู้ใช้นี้เป็นสมาชิกอยู่แล้ว' }, { status: 400 });
+        }
       }
-    }
 
-    // Check if invitation already exists
-    const { data: existingInvite } = await supabaseAdmin
-      .from('company_invitations')
-      .select('id')
-      .eq('company_id', auth.companyId)
-      .eq('email', email)
-      .eq('status', 'pending')
-      .single();
+      const { data: existingInvite } = await supabaseAdmin
+        .from('company_invitations')
+        .select('id')
+        .eq('company_id', auth.companyId)
+        .eq('email', email)
+        .eq('status', 'pending')
+        .single();
 
-    if (existingInvite) {
-      return NextResponse.json({ error: 'มีคำเชิญที่ยังรอการตอบรับอยู่แล้ว' }, { status: 400 });
+      if (existingInvite) {
+        return NextResponse.json({ error: 'มีคำเชิญที่ยังรอการตอบรับอยู่แล้ว' }, { status: 400 });
+      }
     }
 
     // Create invitation
@@ -151,11 +149,11 @@ export async function POST(request: NextRequest) {
       .from('company_invitations')
       .insert({
         company_id: auth.companyId,
-        email,
+        ...(email ? { email } : {}),
         roles,
         invited_by: auth.userId,
-        ...(warehouse_ids && warehouse_ids.length > 0 ? { warehouse_ids } : {}),
-        ...(terminal_ids && terminal_ids.length > 0 ? { terminal_ids } : {}),
+        ...(Array.isArray(warehouse_ids) ? { warehouse_ids } : {}),
+        ...(Array.isArray(terminal_ids) ? { terminal_ids } : {}),
       })
       .select()
       .single();

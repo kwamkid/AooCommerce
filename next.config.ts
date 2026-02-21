@@ -33,6 +33,11 @@ const nextConfig: NextConfig = {
         hostname: '*.fbcdn.net',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'cf.shopee.co.th',
+        pathname: '/file/**',
+      },
     ],
   },
 };

@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
+import { parseThaiAddress } from '@/lib/address-parser';
 import {
   ArrowLeft,
   Edit2,
@@ -26,6 +27,7 @@ import {
   Facebook,
   User
 } from 'lucide-react';
+import Checkbox from '@/components/ui/Checkbox';
 
 // Customer interface
 interface Customer {
@@ -90,54 +92,7 @@ const normalizePhone = (phone: string): string => {
   return cleaned;
 };
 
-// Parse address (Thai + English): extract district, amphoe, province, postal_code
-const parseThaiAddress = (text: string) => {
-  const result = { address: '', district: '', amphoe: '', province: '', postal_code: '' };
-
-  // Normalize whitespace
-  let s = text.replace(/\s+/g, ' ').trim();
-
-  // Extract postal code (5 digits)
-  const postalMatch = s.match(/\b(\d{5})\b/);
-  if (postalMatch) {
-    result.postal_code = postalMatch[1];
-    s = s.replace(postalMatch[0], '').trim();
-  }
-
-  // Extract province — Thai: จ./จังหวัด, English: "X Province" or "Province X"
-  const provinceSuffixMatch = s.match(/([A-Za-z][A-Za-z ]+?)\s+[Pp]rovince/);
-  const provincePrefixMatch = s.match(/(?:จ\.|จังหวัด|[Pp]rovince|[Pp]rov\.|[Cc]hangwat)\s+([^\s,]+(?:\s+[^\s,]+)?)/);
-  const provinceMatch = provinceSuffixMatch || provincePrefixMatch;
-  if (provinceMatch) {
-    result.province = provinceMatch[1].trim();
-    s = s.replace(provinceMatch[0], '').trim();
-  }
-
-  // Extract amphoe — Thai: อ./อำเภอ/เขต, English: "X District" or "District X"
-  const amphoeSuffixMatch = s.match(/([A-Za-z][A-Za-z ]+?)\s+[Dd]istrict/);
-  const amphoePrefixMatch = s.match(/(?:อ\.|อำเภอ|เขต|[Dd]istrict|[Dd]ist\.|[Aa]mphoe|[Kk]het)\s+([^\s,]+(?:\s+[^\s,]+)?)/);
-  const amphoeMatch = amphoeSuffixMatch || amphoePrefixMatch;
-  if (amphoeMatch) {
-    result.amphoe = amphoeMatch[1].trim();
-    s = s.replace(amphoeMatch[0], '').trim();
-  }
-
-  // Extract district (sub-district) — Thai: ต./ตำบล/แขวง, English: "X Sub-district" or "Sub-district X"
-  const districtSuffixMatch = s.match(/([A-Za-z][A-Za-z ]+?)\s+[Ss]ub-?[Dd]istrict/);
-  const districtPrefixMatch = s.match(/(?:ต\.|ตำบล|แขวง|[Ss]ub-?[Dd]istrict|[Tt]ambon|[Kk]hwaeng)\s+([^\s,]+(?:\s+[^\s,]+)?)/);
-  const districtMatch = districtSuffixMatch || districtPrefixMatch;
-  if (districtMatch) {
-    result.district = districtMatch[1].trim();
-    s = s.replace(districtMatch[0], '').trim();
-  }
-
-  // Clean up remaining separators
-  result.address = s.replace(/[,\s]+$/, '').replace(/^[,\s]+/, '').replace(/,{2,}/g, ',').trim();
-
-  // Only return parsed result if we found at least one field beyond address
-  const hasParsed = result.district || result.amphoe || result.province || result.postal_code;
-  return hasParsed ? result : null;
-};
+// parseThaiAddress is now imported from @/lib/address-parser
 
 export default function CustomerEditPage() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -145,8 +100,8 @@ export default function CustomerEditPage() {
   const params = useParams();
   const customerId = params.id as string;
 
-  // Permission: admin & manager can edit
-  const canEdit = userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('manager');
+  // Permission: admin & sales can edit
+  const canEdit = userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('sales');
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [addresses, setAddresses] = useState<ShippingAddress[]>([]);
@@ -993,19 +948,17 @@ export default function CustomerEditPage() {
 
         {/* Section 3: Tax Invoice (Optional) */}
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
-          <label className="flex items-center gap-2 cursor-pointer mb-4">
-            <input
-              type="checkbox"
+          <div className="flex items-center gap-2 mb-4">
+            <Checkbox
               checked={form.needs_tax_invoice}
-              onChange={(e) => setForm(prev => ({ ...prev, needs_tax_invoice: e.target.checked }))}
-              className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
+              onChange={(v) => setForm(prev => ({ ...prev, needs_tax_invoice: v }))}
               disabled={!canEdit}
             />
             <span className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Building2 className="w-5 h-5" />
               ใบกำกับภาษี
             </span>
-          </label>
+          </div>
 
           {form.needs_tax_invoice && (
             <div className="pl-6 border-l-2 border-[#F4511E] space-y-4">
@@ -1049,16 +1002,14 @@ export default function CustomerEditPage() {
 
               {/* Billing Address */}
               <div>
-                <label className="flex items-center gap-2 text-sm mb-3">
-                  <input
-                    type="checkbox"
+                <div className="mb-3">
+                  <Checkbox
                     checked={form.billing_same_as_shipping}
-                    onChange={(e) => setForm(prev => ({ ...prev, billing_same_as_shipping: e.target.checked }))}
-                    className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
+                    onChange={(v) => setForm(prev => ({ ...prev, billing_same_as_shipping: v }))}
+                    label="ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง"
                     disabled={!canEdit}
                   />
-                  <span className="text-gray-700 dark:text-slate-300">ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง</span>
-                </label>
+                </div>
 
                 {!form.billing_same_as_shipping && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1166,16 +1117,12 @@ export default function CustomerEditPage() {
                 rows={3}
               />
             </div>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={form.is_active}
-                onChange={(e) => setForm(prev => ({ ...prev, is_active: e.target.checked }))}
-                className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
-                disabled={!canEdit}
-              />
-              <span className="text-sm font-medium text-gray-700 dark:text-slate-300">ใช้งาน</span>
-            </label>
+            <Checkbox
+              checked={form.is_active}
+              onChange={(v) => setForm(prev => ({ ...prev, is_active: v }))}
+              label="ใช้งาน"
+              disabled={!canEdit}
+            />
           </div>
         </div>
 

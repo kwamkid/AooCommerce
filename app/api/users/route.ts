@@ -144,12 +144,8 @@ export async function POST(request: NextRequest) {
         roles: userData.roles,
         is_active: true,
         joined_at: new Date().toISOString(),
-        warehouse_ids: userData.warehouse_ids && userData.warehouse_ids.length > 0
-          ? userData.warehouse_ids
-          : null,
-        terminal_ids: userData.terminal_ids && userData.terminal_ids.length > 0
-          ? userData.terminal_ids
-          : null,
+        warehouse_ids: Array.isArray(userData.warehouse_ids) ? userData.warehouse_ids : null,
+        terminal_ids: Array.isArray(userData.terminal_ids) ? userData.terminal_ids : null,
       });
 
     if (memberError) {

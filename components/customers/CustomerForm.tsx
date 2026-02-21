@@ -4,12 +4,13 @@ import { useState, useEffect } from 'react';
 import {
   Loader2,
   Check,
-  AlertCircle,
   MapPin,
   ExternalLink,
   Building2,
   Truck
 } from 'lucide-react';
+import Checkbox from '@/components/ui/Checkbox';
+import { useToast } from '@/lib/toast-context';
 
 // Form data interface
 export interface CustomerFormData {
@@ -55,7 +56,6 @@ interface CustomerFormProps {
   onCancel: () => void;
   isEditing?: boolean;
   isLoading?: boolean;
-  error?: string;
   // Compact mode for embedded use (LINE Chat)
   compact?: boolean;
   // Pre-fill LINE display name
@@ -140,17 +140,16 @@ export default function CustomerForm({
   onCancel,
   isEditing = false,
   isLoading = false,
-  error: externalError,
   compact = false,
   lineDisplayName
 }: CustomerFormProps) {
+  const { showToast } = useToast();
   const [formData, setFormData] = useState<CustomerFormData>({
     ...defaultFormData,
     ...initialData,
     name: initialData?.name || lineDisplayName || '',
     contact_person: initialData?.contact_person || lineDisplayName || ''
   });
-  const [error, setError] = useState('');
   const [phoneDisplay, setPhoneDisplay] = useState('');
   const [shippingPhoneDisplay, setShippingPhoneDisplay] = useState('');
   const [showPhoneError, setShowPhoneError] = useState(false);
@@ -197,32 +196,29 @@ export default function CustomerForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
 
     // Validation
     if (!formData.name.trim()) {
-      setError('กรุณากรอกชื่อร้าน/ชื่อลูกค้า');
+      showToast('กรุณากรอกชื่อร้าน/ชื่อลูกค้า', 'error');
       return;
     }
 
     if (formData.phone && !validatePhone(formData.phone)) {
-      setError('รูปแบบเบอร์โทรไม่ถูกต้อง (ต้องเป็นเบอร์ไทย 9-10 หลัก)');
+      showToast('รูปแบบเบอร์โทรไม่ถูกต้อง (ต้องเป็นเบอร์ไทย 9-10 หลัก)', 'error');
       return;
     }
 
     if (formData.shipping_phone && !validatePhone(formData.shipping_phone)) {
-      setError('รูปแบบเบอร์โทรที่อยู่จัดส่งไม่ถูกต้อง');
+      showToast('รูปแบบเบอร์โทรที่อยู่จัดส่งไม่ถูกต้อง', 'error');
       return;
     }
 
     try {
       await onSubmit(formData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     }
   };
-
-  const displayError = externalError || error;
 
   // Extract Google Maps coordinates from link
   const extractCoordsFromLink = (link: string): { lat?: number; lng?: number } => {
@@ -247,13 +243,6 @@ export default function CustomerForm({
   if (compact) {
     return (
       <form onSubmit={handleSubmit} className="space-y-4">
-        {displayError && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            {displayError}
-          </div>
-        )}
-
         {/* Basic Info */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -317,19 +306,15 @@ export default function CustomerForm({
 
           <div className="space-y-3">
             {/* Multiple branches checkbox */}
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.has_multiple_branches}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  has_multiple_branches: e.target.checked,
-                  shipping_address_name: e.target.checked ? prev.shipping_address_name : 'สาขาหลัก'
-                }))}
-                className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
-              />
-              <span className="text-xs text-gray-600 dark:text-slate-400">มีหลายสาขา</span>
-            </label>
+            <Checkbox
+              checked={formData.has_multiple_branches}
+              onChange={(v) => setFormData(prev => ({
+                ...prev,
+                has_multiple_branches: v,
+                shipping_address_name: v ? prev.shipping_address_name : 'สาขาหลัก'
+              }))}
+              label="มีหลายสาขา"
+            />
 
             {/* Branch name - only show if has multiple branches */}
             {formData.has_multiple_branches && (
@@ -409,18 +394,16 @@ export default function CustomerForm({
 
         {/* Tax Invoice Section (Optional) */}
         <div className="border-t pt-4">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
+          <div className="flex items-center gap-2">
+            <Checkbox
               checked={formData.needs_tax_invoice}
-              onChange={(e) => setFormData(prev => ({ ...prev, needs_tax_invoice: e.target.checked }))}
-              className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+              onChange={(v) => setFormData(prev => ({ ...prev, needs_tax_invoice: v }))}
             />
             <span className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
               <Building2 className="w-4 h-4" />
               ต้องการออกใบกำกับภาษี
             </span>
-          </label>
+          </div>
 
           {formData.needs_tax_invoice && (
             <div className="mt-3 space-y-3 pl-6 border-l-2 border-blue-200">
@@ -459,15 +442,13 @@ export default function CustomerForm({
               </div>
 
               <div>
-                <label className="flex items-center gap-2 text-xs mb-2">
-                  <input
-                    type="checkbox"
+                <div className="mb-2">
+                  <Checkbox
                     checked={formData.billing_same_as_shipping}
-                    onChange={(e) => setFormData(prev => ({ ...prev, billing_same_as_shipping: e.target.checked }))}
-                    className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+                    onChange={(v) => setFormData(prev => ({ ...prev, billing_same_as_shipping: v }))}
+                    label="ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง"
                   />
-                  <span className="text-gray-600 dark:text-slate-400">ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง</span>
-                </label>
+                </div>
 
                 {!formData.billing_same_as_shipping && (
                   <div className="space-y-2">
@@ -545,13 +526,6 @@ export default function CustomerForm({
   // Full form for customers page
   return (
     <form onSubmit={handleSubmit}>
-      {displayError && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start">
-          <AlertCircle className="w-5 h-5 text-red-600 mr-2 flex-shrink-0 mt-0.5" />
-          <span className="text-red-800">{displayError}</span>
-        </div>
-      )}
-
       {/* Basic Information */}
       <div className="mb-6">
         <h3 className="text-lg font-semibold mb-3 text-gray-700 dark:text-slate-300">ข้อมูลพื้นฐาน</h3>
@@ -630,20 +604,16 @@ export default function CustomerForm({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Multiple branches checkbox */}
           <div className="md:col-span-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.has_multiple_branches}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  has_multiple_branches: e.target.checked,
-                  // Reset to default if unchecking
-                  shipping_address_name: e.target.checked ? prev.shipping_address_name : 'สาขาหลัก'
-                }))}
-                className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
-              />
-              <span className="text-sm text-gray-700 dark:text-slate-300">มีหลายสาขา</span>
-            </label>
+            <Checkbox
+              checked={formData.has_multiple_branches}
+              onChange={(v) => setFormData(prev => ({
+                ...prev,
+                has_multiple_branches: v,
+                // Reset to default if unchecking
+                shipping_address_name: v ? prev.shipping_address_name : 'สาขาหลัก'
+              }))}
+              label="มีหลายสาขา"
+            />
           </div>
 
           {/* Branch name - only show if has multiple branches */}
@@ -782,18 +752,16 @@ export default function CustomerForm({
 
       {/* Tax Invoice Section (Optional) */}
       <div className="mb-6">
-        <label className="flex items-center gap-2 cursor-pointer mb-3">
-          <input
-            type="checkbox"
+        <div className="flex items-center gap-2 mb-3">
+          <Checkbox
             checked={formData.needs_tax_invoice}
-            onChange={(e) => setFormData(prev => ({ ...prev, needs_tax_invoice: e.target.checked }))}
-            className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
+            onChange={(v) => setFormData(prev => ({ ...prev, needs_tax_invoice: v }))}
           />
           <span className="text-lg font-semibold text-gray-700 dark:text-slate-300 flex items-center gap-2">
             <Building2 className="w-5 h-5" />
             ต้องการออกใบกำกับภาษี
           </span>
-        </label>
+        </div>
 
         {formData.needs_tax_invoice && (
           <div className="pl-6 border-l-2 border-[#F4511E] space-y-4">
@@ -834,15 +802,13 @@ export default function CustomerForm({
 
             {/* Billing Address */}
             <div>
-              <label className="flex items-center gap-2 text-sm mb-3">
-                <input
-                  type="checkbox"
+              <div className="mb-3">
+                <Checkbox
                   checked={formData.billing_same_as_shipping}
-                  onChange={(e) => setFormData(prev => ({ ...prev, billing_same_as_shipping: e.target.checked }))}
-                  className="rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
+                  onChange={(v) => setFormData(prev => ({ ...prev, billing_same_as_shipping: v }))}
+                  label="ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง"
                 />
-                <span className="text-gray-700 dark:text-slate-300">ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง</span>
-              </label>
+              </div>
 
               {!formData.billing_same_as_shipping && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -945,15 +911,11 @@ export default function CustomerForm({
 
       {/* Status */}
       <div className="mb-6">
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            checked={formData.is_active}
-            onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
-            className="mr-2 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
-          />
-          <span className="text-sm font-medium text-gray-700 dark:text-slate-300">ใช้งาน</span>
-        </label>
+        <Checkbox
+          checked={formData.is_active}
+          onChange={(v) => setFormData(prev => ({ ...prev, is_active: v }))}
+          label="ใช้งาน"
+        />
       </div>
 
       {/* Action Buttons */}

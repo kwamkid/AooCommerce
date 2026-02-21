@@ -28,7 +28,6 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .rpc('get_customer_last_prices_by_variation', {
         p_customer_id: customerId,
-        p_company_id: auth.companyId
       });
 
     if (error) {

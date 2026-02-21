@@ -95,7 +95,7 @@ export function hasAnyRole(userRoles: string[] | undefined, requiredRoles: strin
   return requiredRoles.some(r => userRoles.includes(r));
 }
 
-const VALID_ROLES = ['owner', 'admin', 'manager', 'account', 'warehouse', 'sales', 'cashier'];
+const VALID_ROLES = ['owner', 'admin', 'account', 'warehouse', 'sales', 'cashier'];
 const EXCLUSIVE_ROLES = ['owner', 'admin'];
 
 /**

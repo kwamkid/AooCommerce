@@ -415,37 +415,35 @@ export default function PaymentChannelsPage() {
               if (channel.type === 'cash') {
                 return (
                   <div key={channel.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
-                    <div className="flex items-center justify-between p-4">
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <Banknote className="w-5 h-5 text-green-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-gray-900 dark:text-white">เงินสด</h3>
-                          <p className="text-sm text-gray-500 dark:text-slate-400">รับเงินสดจากลูกค้า / จ่ายหน้าร้าน</p>
-                        </div>
+                    <div className="flex items-center gap-3 p-4">
+                      <div className="flex flex-col flex-shrink-0">
+                        <button
+                          onClick={() => handleMoveChannel(channel.id, 'up')}
+                          disabled={isFirst || reordering}
+                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <ArrowUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleMoveChannel(channel.id, 'down')}
+                          disabled={isLast || reordering}
+                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <ArrowDown className="w-4 h-4" />
+                        </button>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Banknote className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-gray-900 dark:text-white">เงินสด</h3>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">รับเงินสดจากลูกค้า / จ่ายหน้าร้าน</p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <Toggle
                           checked={channel.is_active}
                           onChange={handleCashToggle}
                         />
-                        <div className="flex flex-col">
-                          <button
-                            onClick={() => handleMoveChannel(channel.id, 'up')}
-                            disabled={isFirst || reordering}
-                            className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                          >
-                            <ArrowUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleMoveChannel(channel.id, 'down')}
-                            disabled={isLast || reordering}
-                            className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                          >
-                            <ArrowDown className="w-4 h-4" />
-                          </button>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -466,39 +464,37 @@ export default function PaymentChannelsPage() {
 
                 const ppCard = (
                   <div key={channel.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
-                    <div className="flex items-center justify-between p-4">
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <QrCode className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-gray-900 dark:text-white">PromptPay QR</h3>
-                          <p className="text-sm text-gray-500 dark:text-slate-400">{formatted}</p>
-                        </div>
+                    <div className="flex items-center gap-3 p-4">
+                      <div className="flex flex-col flex-shrink-0">
+                        <button
+                          onClick={() => handleMoveChannel(channel.id, 'up')}
+                          disabled={isFirst || reordering}
+                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <ArrowUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleMoveChannel(channel.id, 'down')}
+                          disabled={isLast || reordering}
+                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <ArrowDown className="w-4 h-4" />
+                        </button>
                       </div>
-                      <div className="flex items-center gap-2 ml-2">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <QrCode className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-gray-900 dark:text-white">PromptPay QR</h3>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">{formatted}</p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <button
                           onClick={() => handleDeletePromptPay(channel.id)}
                           className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                        <div className="flex flex-col">
-                          <button
-                            onClick={() => handleMoveChannel(channel.id, 'up')}
-                            disabled={isFirst || reordering}
-                            className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                          >
-                            <ArrowUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleMoveChannel(channel.id, 'down')}
-                            disabled={isLast || reordering}
-                            className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                          >
-                            <ArrowDown className="w-4 h-4" />
-                          </button>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -557,24 +553,38 @@ export default function PaymentChannelsPage() {
                 const bankCard = (
                   <div key={channel.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
                     {/* Header */}
-                    <div className="flex items-center justify-between p-4">
-                      <div className="flex items-center gap-3 flex-1">
-                        {bank?.logo ? (
-                          <img src={bank.logo} alt={bank.name_th} className="w-10 h-10 rounded-full flex-shrink-0 object-contain" />
-                        ) : (
-                          <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold"
-                            style={{ backgroundColor: bank?.color || '#999' }}
-                          >
-                            {bank?.code?.slice(0, 2) || '?'}
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-gray-900 dark:text-white">{bank?.name_th || cfg.bank_code}</h3>
-                          <p className="text-sm text-gray-500 dark:text-slate-400">{cfg.account_number} • {cfg.account_name}</p>
-                        </div>
+                    <div className="flex items-center gap-3 p-4">
+                      <div className="flex flex-col flex-shrink-0">
+                        <button
+                          onClick={() => handleMoveChannel(channel.id, 'up')}
+                          disabled={isFirst || reordering}
+                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <ArrowUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleMoveChannel(channel.id, 'down')}
+                          disabled={isLast || reordering}
+                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <ArrowDown className="w-4 h-4" />
+                        </button>
                       </div>
-                      <div className="flex items-center gap-2 ml-2">
+                      {bank?.logo ? (
+                        <img src={bank.logo} alt={bank.name_th} className="w-10 h-10 rounded-full flex-shrink-0 object-contain" />
+                      ) : (
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold"
+                          style={{ backgroundColor: bank?.color || '#999' }}
+                        >
+                          {bank?.code?.slice(0, 2) || '?'}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-gray-900 dark:text-white">{bank?.name_th || cfg.bank_code}</h3>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">{cfg.account_number} • {cfg.account_name}</p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <button
                           onClick={() => handleEditBank(channel)}
                           className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
@@ -587,22 +597,6 @@ export default function PaymentChannelsPage() {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                        <div className="flex flex-col">
-                          <button
-                            onClick={() => handleMoveChannel(channel.id, 'up')}
-                            disabled={isFirst || reordering}
-                            className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                          >
-                            <ArrowUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleMoveChannel(channel.id, 'down')}
-                            disabled={isLast || reordering}
-                            className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                          >
-                            <ArrowDown className="w-4 h-4" />
-                          </button>
-                        </div>
                       </div>
                     </div>
 
@@ -740,7 +734,23 @@ export default function PaymentChannelsPage() {
                 return (
                   <div key={channel.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
                     {/* Header */}
-                    <div className="flex items-center justify-between p-4">
+                    <div className="flex items-center gap-3 p-4">
+                      <div className="flex flex-col flex-shrink-0">
+                        <button
+                          onClick={() => handleMoveChannel(channel.id, 'up')}
+                          disabled={isFirst || reordering}
+                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <ArrowUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleMoveChannel(channel.id, 'down')}
+                          disabled={isLast || reordering}
+                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <ArrowDown className="w-4 h-4" />
+                        </button>
+                      </div>
                       <button
                         type="button"
                         onClick={() => toggleCollapse(channel.id)}
@@ -760,24 +770,6 @@ export default function PaymentChannelsPage() {
                           <ChevronUp className="w-5 h-5 text-gray-400 flex-shrink-0" />
                         )}
                       </button>
-                      <div className="flex items-center gap-2 ml-2">
-                        <div className="flex flex-col">
-                          <button
-                            onClick={() => handleMoveChannel(channel.id, 'up')}
-                            disabled={isFirst || reordering}
-                            className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                          >
-                            <ArrowUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleMoveChannel(channel.id, 'down')}
-                            disabled={isLast || reordering}
-                            className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                          >
-                            <ArrowDown className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
                     </div>
 
                     {/* Expandable content */}

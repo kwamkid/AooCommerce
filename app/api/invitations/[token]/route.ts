@@ -99,10 +99,10 @@ export async function POST(
       user_id: user.id,
       roles: invitation.roles,
       invited_by: invitation.invited_by,
-      ...(invitation.warehouse_ids && invitation.warehouse_ids.length > 0
+      ...(Array.isArray(invitation.warehouse_ids)
         ? { warehouse_ids: invitation.warehouse_ids }
         : {}),
-      ...(invitation.terminal_ids && invitation.terminal_ids.length > 0
+      ...(Array.isArray(invitation.terminal_ids)
         ? { terminal_ids: invitation.terminal_ids }
         : {}),
     });

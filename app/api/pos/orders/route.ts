@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         .eq('user_id', auth.userId!)
         .single();
 
-      if (membership?.warehouse_ids && membership.warehouse_ids.length > 0) {
+      if (Array.isArray(membership?.warehouse_ids)) {
         allowedWarehouseIds = membership.warehouse_ids;
       }
     }
@@ -374,6 +374,14 @@ export async function POST(request: NextRequest) {
         } catch (stockErr) {
           console.error('[POS] Stock deduction error:', stockErr);
         }
+      }
+
+      // Auto-sync stock to Shopee if linked
+      const posVariationIds = itemsWithTotals
+        .map((i: { variation_id?: string }) => i.variation_id)
+        .filter(Boolean) as string[];
+      if (posVariationIds.length > 0) {
+        import('@/lib/shopee-auto-sync').then(m => m.triggerShopeeStockSync(posVariationIds)).catch(() => {});
       }
     }
 

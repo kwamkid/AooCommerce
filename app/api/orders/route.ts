@@ -23,13 +23,21 @@ interface OrderItemInput {
 }
 
 interface OrderData {
-  customer_id: string;
+  customer_id?: string;
   delivery_date?: string;
   payment_method?: string;
   discount_amount?: number;
   notes?: string;
   internal_notes?: string;
   warehouse_id?: string;
+  delivery_name?: string;
+  delivery_phone?: string;
+  delivery_address?: string;
+  delivery_district?: string;
+  delivery_amphoe?: string;
+  delivery_province?: string;
+  delivery_postal_code?: string;
+  delivery_email?: string;
   items: OrderItemInput[];
 }
 
@@ -49,29 +57,31 @@ export async function POST(request: NextRequest) {
     const orderData: OrderData = await request.json();
 
     // Validate required fields
-    if (!orderData.customer_id || !orderData.items || orderData.items.length === 0) {
+    if (!orderData.items || orderData.items.length === 0) {
       return NextResponse.json(
-        { error: 'Missing required fields: customer_id and items' },
+        { error: 'Missing required fields: items' },
         { status: 400 }
       );
     }
 
-    // Validate shipments for each item
-    for (const item of orderData.items) {
-      if (!item.shipments || item.shipments.length === 0) {
-        return NextResponse.json(
-          { error: 'Each item must have at least one shipment' },
-          { status: 400 }
-        );
-      }
+    // Validate shipments for each item (only when customer is provided)
+    if (orderData.customer_id) {
+      for (const item of orderData.items) {
+        if (!item.shipments || item.shipments.length === 0) {
+          return NextResponse.json(
+            { error: 'Each item must have at least one shipment' },
+            { status: 400 }
+          );
+        }
 
-      // Validate total shipment quantity matches item quantity
-      const totalShipmentQty = item.shipments.reduce((sum, s) => sum + s.quantity, 0);
-      if (totalShipmentQty !== item.quantity) {
-        return NextResponse.json(
-          { error: `Total shipment quantity (${totalShipmentQty}) does not match item quantity (${item.quantity})` },
-          { status: 400 }
-        );
+        // Validate total shipment quantity matches item quantity
+        const totalShipmentQty = item.shipments.reduce((sum, s) => sum + s.quantity, 0);
+        if (totalShipmentQty !== item.quantity) {
+          return NextResponse.json(
+            { error: `Total shipment quantity (${totalShipmentQty}) does not match item quantity (${item.quantity})` },
+            { status: 400 }
+          );
+        }
       }
     }
 
@@ -106,15 +116,21 @@ export async function POST(request: NextRequest) {
     console.log('[CREATE ORDER] items count:', orderData.items.length, 'subtotal:', subtotal, 'items:', orderData.items.map((i: any) => ({ name: i.product_name, qty: i.quantity, price: i.unit_price, address: i.shipments?.[0]?.shipping_address_id })));
 
     // Calculate total shipping fee (deduplicated by address)
-    const shippingFeeByAddress = new Map<string, number>();
-    orderData.items.forEach(item => {
-      item.shipments.forEach(s => {
-        if (s.shipping_fee && !shippingFeeByAddress.has(s.shipping_address_id)) {
-          shippingFeeByAddress.set(s.shipping_address_id, s.shipping_fee);
-        }
+    let totalShippingFee = 0;
+    if (orderData.customer_id) {
+      const shippingFeeByAddress = new Map<string, number>();
+      orderData.items.forEach(item => {
+        (item.shipments || []).forEach(s => {
+          if (s.shipping_fee && !shippingFeeByAddress.has(s.shipping_address_id)) {
+            shippingFeeByAddress.set(s.shipping_address_id, s.shipping_fee);
+          }
+        });
       });
-    });
-    const totalShippingFee = Array.from(shippingFeeByAddress.values()).reduce((sum, f) => sum + f, 0);
+      totalShippingFee = Array.from(shippingFeeByAddress.values()).reduce((sum, f) => sum + f, 0);
+    } else if ((orderData as any).shipping_fee) {
+      // Non-customer orders: shipping fee sent directly
+      totalShippingFee = (orderData as any).shipping_fee;
+    }
 
     const discountAmount = orderData.discount_amount || 0;
     // Prices are VAT-inclusive, so we reverse-calculate VAT from the total
@@ -142,7 +158,7 @@ export async function POST(request: NextRequest) {
       .insert({
         company_id: auth.companyId,
         order_number: orderNumber,
-        customer_id: orderData.customer_id,
+        customer_id: orderData.customer_id || null,
         delivery_date: orderData.delivery_date || null,
         subtotal: subtotalBeforeVAT,
         vat_amount: vatAmount,
@@ -154,6 +170,14 @@ export async function POST(request: NextRequest) {
         order_status: 'new',
         notes: orderData.notes || null,
         internal_notes: orderData.internal_notes || null,
+        delivery_name: orderData.delivery_name || null,
+        delivery_phone: orderData.delivery_phone || null,
+        delivery_address: orderData.delivery_address || null,
+        delivery_district: orderData.delivery_district || null,
+        delivery_amphoe: orderData.delivery_amphoe || null,
+        delivery_province: orderData.delivery_province || null,
+        delivery_postal_code: orderData.delivery_postal_code || null,
+        delivery_email: orderData.delivery_email || null,
         created_by: auth.userId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -206,31 +230,33 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Create shipments for this item
-      const shipmentsToInsert = item.shipments.map((shipment: any) => ({
-        company_id: auth.companyId,
-        order_item_id: orderItem.id,
-        shipping_address_id: shipment.shipping_address_id,
-        quantity: shipment.quantity,
-        shipping_fee: shipment.shipping_fee || 0,
-        delivery_status: 'pending',
-        delivery_notes: shipment.delivery_notes || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }));
+      // Create shipments for this item (skip for orders without customer)
+      if (orderData.customer_id && item.shipments && item.shipments.length > 0) {
+        const shipmentsToInsert = item.shipments.map((shipment: any) => ({
+          company_id: auth.companyId,
+          order_item_id: orderItem.id,
+          shipping_address_id: shipment.shipping_address_id,
+          quantity: shipment.quantity,
+          shipping_fee: shipment.shipping_fee || 0,
+          delivery_status: 'pending',
+          delivery_notes: shipment.delivery_notes || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
 
-      const { error: shipmentError } = await supabaseAdmin
-        .from('order_shipments')
-        .insert(shipmentsToInsert);
+        const { error: shipmentError } = await supabaseAdmin
+          .from('order_shipments')
+          .insert(shipmentsToInsert);
 
-      if (shipmentError) {
-        console.error('Shipment creation error:', shipmentError);
-        // Rollback: delete the order
-        await supabaseAdmin.from('orders').delete().eq('id', order.id).eq('company_id', auth.companyId);
-        return NextResponse.json(
-          { error: shipmentError.message },
-          { status: 400 }
-        );
+        if (shipmentError) {
+          console.error('Shipment creation error:', shipmentError);
+          // Rollback: delete the order
+          await supabaseAdmin.from('orders').delete().eq('id', order.id).eq('company_id', auth.companyId);
+          return NextResponse.json(
+            { error: shipmentError.message },
+            { status: 400 }
+          );
+        }
       }
     }
 
@@ -539,6 +565,7 @@ export async function GET(request: NextRequest) {
         order_status, payment_status, payment_method,
         source, external_status, external_order_sn,
         customer_id, shopee_account_id,
+        delivery_name, delivery_phone,
         customer:customers (
           customer_code, name, contact_person, phone
         )
@@ -567,9 +594,9 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       if (searchCustomerIds && searchCustomerIds.length > 0) {
-        query = query.or(`order_number.ilike.%${search}%,customer_id.in.(${searchCustomerIds.join(',')})`);
+        query = query.or(`order_number.ilike.%${search}%,customer_id.in.(${searchCustomerIds.join(',')}),delivery_name.ilike.%${search}%`);
       } else {
-        query = query.ilike('order_number', `%${search}%`);
+        query = query.or(`order_number.ilike.%${search}%,delivery_name.ilike.%${search}%`);
       }
     }
 
@@ -593,9 +620,9 @@ export async function GET(request: NextRequest) {
     }
     if (search) {
       if (searchCustomerIds && searchCustomerIds.length > 0) {
-        countQuery = countQuery.or(`order_number.ilike.%${search}%,customer_id.in.(${searchCustomerIds.join(',')})`);
+        countQuery = countQuery.or(`order_number.ilike.%${search}%,customer_id.in.(${searchCustomerIds.join(',')}),delivery_name.ilike.%${search}%`);
       } else {
-        countQuery = countQuery.ilike('order_number', `%${search}%`);
+        countQuery = countQuery.or(`order_number.ilike.%${search}%,delivery_name.ilike.%${search}%`);
       }
     }
 
@@ -620,10 +647,10 @@ export async function GET(request: NextRequest) {
     // Flatten customer data for backward compatibility
     const orders = (rawOrders || []).map((o: any) => ({
       ...o,
-      customer_code: o.customer?.customer_code,
-      customer_name: o.customer?.name,
-      contact_person: o.customer?.contact_person,
-      customer_phone: o.customer?.phone,
+      customer_code: o.customer?.customer_code || null,
+      customer_name: o.customer?.name || o.delivery_name || null,
+      contact_person: o.customer?.contact_person || null,
+      customer_phone: o.customer?.phone || o.delivery_phone || null,
       customer: undefined
     }));
 
@@ -1158,6 +1185,12 @@ export async function PUT(request: NextRequest) {
                     console.error(`[STOCK OUT] Error deducting stock for variation ${oi.variation_id}:`, itemErr);
                   }
                 }
+
+                // Auto-sync stock to Shopee after shipping deduction
+                const shippingVarIds = (orderItems || []).map((oi: { variation_id?: string }) => oi.variation_id).filter(Boolean) as string[];
+                if (shippingVarIds.length > 0) {
+                  import('@/lib/shopee-auto-sync').then(m => m.triggerShopeeStockSync(shippingVarIds)).catch(() => {});
+                }
               } else if (newStatus === 'cancelled') {
                 if (oldStatus === 'new') {
                   // Unreserve: reserved_quantity -= qty, create 'unreserve' tx
@@ -1244,6 +1277,12 @@ export async function PUT(request: NextRequest) {
                     } catch (itemErr) {
                       console.error(`[STOCK RETURN] Error returning stock for variation ${oi.variation_id}:`, itemErr);
                     }
+                  }
+
+                  // Auto-sync stock to Shopee after cancel return
+                  const cancelVarIds = (orderItems || []).map((oi: { variation_id?: string }) => oi.variation_id).filter(Boolean) as string[];
+                  if (cancelVarIds.length > 0) {
+                    import('@/lib/shopee-auto-sync').then(m => m.triggerShopeeStockSync(cancelVarIds)).catch(() => {});
                   }
                 }
               }
@@ -1417,6 +1456,12 @@ export async function DELETE(request: NextRequest) {
               } catch (itemErr) {
                 console.error(`[STOCK RETURN DELETE] Error returning stock for variation ${oi.variation_id}:`, itemErr);
               }
+            }
+
+            // Auto-sync stock to Shopee after delete cancel return
+            const deleteVarIds = (orderItems || []).map((oi: { variation_id?: string }) => oi.variation_id).filter(Boolean) as string[];
+            if (deleteVarIds.length > 0) {
+              import('@/lib/shopee-auto-sync').then(m => m.triggerShopeeStockSync(deleteVarIds)).catch(() => {});
             }
           }
         }

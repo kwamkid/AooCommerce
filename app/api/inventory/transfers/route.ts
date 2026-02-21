@@ -6,8 +6,8 @@ import { getStockConfig } from '@/lib/stock-utils';
 
 function canManageWarehouse(roles: string[] | undefined, memberWarehouseIds: string[] | null, warehouseId: string): boolean {
   if (isAdminRole(roles)) return true;
-  if (!memberWarehouseIds || memberWarehouseIds.length === 0) return true; // null = all
-  return memberWarehouseIds.includes(warehouseId);
+  if (!Array.isArray(memberWarehouseIds)) return true; // null/undefined = all access
+  return memberWarehouseIds.includes(warehouseId); // [] = no access, ['id'] = specific
 }
 
 // GET - List transfers
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!hasAnyRole(auth.companyRoles, ['owner','admin','warehouse','manager'])) {
+    if (!hasAnyRole(auth.companyRoles, ['owner','admin','warehouse'])) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์สร้างใบโอนย้าย' }, { status: 403 });
     }
 

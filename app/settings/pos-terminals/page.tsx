@@ -219,34 +219,6 @@ export default function PosTerminalsPage() {
     }
   };
 
-  // ── Terminal Reorder ──
-
-  const handleMoveTerminal = async (terminalId: string, direction: 'up' | 'down') => {
-    const idx = terminals.findIndex(t => t.id === terminalId);
-    if (idx === -1) return;
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= terminals.length) return;
-
-    const newList = [...terminals];
-    [newList[idx], newList[swapIdx]] = [newList[swapIdx], newList[idx]];
-    const orders = newList.map((t, i) => ({ id: t.id, sort_order: i }));
-    setTerminals(newList);
-
-    setReordering(true);
-    try {
-      await apiFetch('/api/pos/terminals', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orders }),
-      });
-    } catch {
-      showToast('บันทึกลำดับไม่สำเร็จ', 'error');
-      fetchTerminals();
-    } finally {
-      setReordering(false);
-    }
-  };
-
   // ── Payment Channel CRUD ──
 
   const fetchChannels = async () => {
@@ -479,30 +451,11 @@ export default function PosTerminalsPage() {
                 </p>
 
                 <div className="space-y-3">
-                  {terminals.map((t, idx) => {
-                    const isFirst = idx === 0;
-                    const isLast = idx === terminals.length - 1;
+                  {terminals.map((t) => {
                     return (
                       <div key={t.id} className="space-y-3">
                         <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden ${!t.is_active ? 'opacity-60' : ''}`}>
                           <div className="flex items-center gap-3 p-4">
-                            {/* Reorder arrows */}
-                            <div className="flex flex-col gap-0.5 flex-shrink-0">
-                              <button
-                                onClick={() => handleMoveTerminal(t.id, 'up')}
-                                disabled={isFirst || reordering}
-                                className="p-0.5 text-gray-400 hover:text-gray-700 dark:hover:text-white disabled:opacity-20 transition-colors"
-                              >
-                                <ArrowUp className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleMoveTerminal(t.id, 'down')}
-                                disabled={isLast || reordering}
-                                className="p-0.5 text-gray-400 hover:text-gray-700 dark:hover:text-white disabled:opacity-20 transition-colors"
-                              >
-                                <ArrowDown className="w-4 h-4" />
-                              </button>
-                            </div>
                             <div className="w-10 h-10 rounded-lg bg-[#F4511E]/10 flex items-center justify-center flex-shrink-0">
                               <Monitor className="w-5 h-5 text-[#F4511E]" />
                             </div>
@@ -577,6 +530,12 @@ export default function PosTerminalsPage() {
                   เปิด/ปิดช่องทางที่ต้องการใช้ในหน้า POS
                 </p>
 
+                <div className="text-xs text-gray-400 dark:text-slate-500 flex items-center gap-1.5 mb-3">
+                  <ArrowUp className="w-3.5 h-3.5" />
+                  <ArrowDown className="w-3.5 h-3.5" />
+                  <span>ใช้ปุ่มลูกศรเพื่อจัดลำดับการแสดงผลในหน้า POS</span>
+                </div>
+
                 {loadingChannels ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-5 h-5 text-[#F4511E] animate-spin" />
@@ -593,19 +552,18 @@ export default function PosTerminalsPage() {
                         <div key={ch.id} className="space-y-3">
                           <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden ${!ch.is_active ? 'opacity-60' : ''}`}>
                             <div className="flex items-center gap-3 p-4">
-                              {/* Reorder arrows */}
-                              <div className="flex flex-col gap-0.5 flex-shrink-0">
+                              <div className="flex flex-col flex-shrink-0">
                                 <button
                                   onClick={() => handleMoveChannel(ch.id, 'up')}
                                   disabled={isFirst || reordering}
-                                  className="p-0.5 text-gray-400 hover:text-gray-700 dark:hover:text-white disabled:opacity-20 transition-colors"
+                                  className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                   <ArrowUp className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => handleMoveChannel(ch.id, 'down')}
                                   disabled={isLast || reordering}
-                                  className="p-0.5 text-gray-400 hover:text-gray-700 dark:hover:text-white disabled:opacity-20 transition-colors"
+                                  className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                   <ArrowDown className="w-4 h-4" />
                                 </button>

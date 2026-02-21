@@ -931,6 +931,39 @@ export default function OrderDetailPage() {
           </div>
         )}
 
+        {/* Delivery Info — for orders without customer */}
+        {fullOrderData && !fullOrderData.customer_id && !isShopeeOrder && !isPosOrder && (
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
+            <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">ข้อมูลจัดส่ง</div>
+            {fullOrderData.delivery_name ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs text-gray-400 dark:text-slate-500">ชื่อผู้รับ</div>
+                  <div className="text-sm font-medium text-gray-900 dark:text-white">{fullOrderData.delivery_name}</div>
+                </div>
+                {fullOrderData.delivery_phone && (
+                  <div>
+                    <div className="text-xs text-gray-400 dark:text-slate-500">เบอร์โทร</div>
+                    <div className="text-sm text-gray-700 dark:text-slate-300">{fullOrderData.delivery_phone}</div>
+                  </div>
+                )}
+                {fullOrderData.delivery_address && (
+                  <div className="sm:col-span-2">
+                    <div className="text-xs text-gray-400 dark:text-slate-500">ที่อยู่</div>
+                    <div className="text-sm text-gray-700 dark:text-slate-300">
+                      {[fullOrderData.delivery_address, fullOrderData.delivery_district, fullOrderData.delivery_amphoe, fullOrderData.delivery_province, fullOrderData.delivery_postal_code].filter(Boolean).join(' ')}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm text-orange-500 dark:text-orange-400 italic">
+                รอข้อมูลจัดส่งจากลูกค้า — ส่ง Bill Online ให้ลูกค้ากรอก
+              </div>
+            )}
+          </div>
+        )}
+
         {/* OrderForm - Edit or Read-only */}
         <OrderForm
           editOrderId={orderId}

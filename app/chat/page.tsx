@@ -1385,7 +1385,7 @@ function UnifiedChatPageContent() {
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               <div className="flex items-center gap-3"><button onClick={() => setMobileView('profile')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">แก้ไขข้อมูลลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p></div></div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} initialData={editCustomerInitialData} onSubmit={handleUpdateCustomerInChat} onCancel={() => setMobileView('profile')} isEditing={true} isLoading={editingCustomer} error={editCustomerError} /></div>
+            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} initialData={editCustomerInitialData} onSubmit={handleUpdateCustomerInChat} onCancel={() => setMobileView('profile')} isEditing={true} isLoading={editingCustomer}/></div>
           </div>
         )}
 
@@ -1395,7 +1395,7 @@ function UnifiedChatPageContent() {
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><UserPlus className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">สร้างลูกค้าใหม่</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}: {selectedContact.display_name}</p></div></div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} lineDisplayName={selectedContact.display_name} onSubmit={handleCreateCustomer} onCancel={() => setMobileView('chat')} isLoading={savingCustomer} error={customerError} /></div>
+            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} lineDisplayName={selectedContact.display_name} onSubmit={handleCreateCustomer} onCancel={() => setMobileView('chat')} isLoading={savingCustomer}/></div>
           </div>
         )}
 
@@ -1458,7 +1458,7 @@ function UnifiedChatPageContent() {
               <div className="flex items-center gap-3"><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">แก้ไขข้อมูลลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p></div></div>
               <button onClick={() => setRightPanel('profile')} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} initialData={editCustomerInitialData} onSubmit={handleUpdateCustomerInChat} onCancel={() => setRightPanel('profile')} isEditing={true} isLoading={editingCustomer} error={editCustomerError} /></div>
+            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} initialData={editCustomerInitialData} onSubmit={handleUpdateCustomerInChat} onCancel={() => setRightPanel('profile')} isEditing={true} isLoading={editingCustomer}/></div>
           </div>
         )}
 
@@ -1468,7 +1468,7 @@ function UnifiedChatPageContent() {
               <div className="flex items-center gap-3"><UserPlus className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">สร้างลูกค้าใหม่</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}: {selectedContact.display_name}</p></div></div>
               <button onClick={() => setRightPanel(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} lineDisplayName={selectedContact.display_name} onSubmit={handleCreateCustomer} onCancel={() => setRightPanel(null)} isLoading={savingCustomer} error={customerError} /></div>
+            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} lineDisplayName={selectedContact.display_name} onSubmit={handleCreateCustomer} onCancel={() => setRightPanel(null)} isLoading={savingCustomer}/></div>
           </div>
         )}
 

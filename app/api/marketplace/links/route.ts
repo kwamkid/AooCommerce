@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, supabaseAdmin } from '@/lib/supabase-admin';
+import { ensureValidToken, getShopeeCategories, ShopeeAccountRow } from '@/lib/shopee-api';
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
         external_model_id,
         external_sku,
         external_item_status,
+        platform_product_name,
         platform_price,
         platform_discount_price,
         platform_barcode,
@@ -83,6 +85,100 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Backfill shopee_category_name for links that have category_id but no name
+    const linksNeedingCategoryName = (links || []).filter(
+      (l: { shopee_category_id: string | null; shopee_category_name: string | null }) =>
+        l.shopee_category_id && !l.shopee_category_name
+    );
+
+    if (linksNeedingCategoryName.length > 0) {
+      const backfillAccountIds = [...new Set(linksNeedingCategoryName.map((l: { account_id: string }) => l.account_id))];
+
+      // Load category caches for all relevant accounts
+      let { data: caches } = await supabaseAdmin
+        .from('shopee_category_cache')
+        .select('account_id, category_data')
+        .in('account_id', backfillAccountIds);
+
+      // If cache is missing for some accounts, fetch from Shopee API and create cache
+      const cachedAccountIds = new Set((caches || []).map(c => c.account_id));
+      const missingAccountIds = backfillAccountIds.filter(id => !cachedAccountIds.has(id));
+      if (missingAccountIds.length > 0) {
+        const { data: shopeeAccounts } = await supabaseAdmin
+          .from('shopee_accounts')
+          .select('*')
+          .in('id', missingAccountIds)
+          .eq('is_active', true);
+
+        if (shopeeAccounts) {
+          for (const acc of shopeeAccounts) {
+            try {
+              const creds = await ensureValidToken(acc as ShopeeAccountRow);
+              const { data: catData } = await getShopeeCategories(creds);
+              const catResponse = catData as { category_list?: unknown[] };
+              const categoryList = catResponse?.category_list || [];
+              if (categoryList.length > 0) {
+                await supabaseAdmin
+                  .from('shopee_category_cache')
+                  .upsert({
+                    account_id: acc.id,
+                    company_id: companyId,
+                    category_data: categoryList,
+                    fetched_at: new Date().toISOString(),
+                  }, { onConflict: 'account_id' });
+
+                // Add to caches array
+                if (!caches) caches = [];
+                caches.push({ account_id: acc.id, category_data: categoryList });
+              }
+            } catch (e) {
+              console.error('[backfill] error fetching categories for', acc.id, e);
+            }
+          }
+        }
+      }
+
+      if (caches && caches.length > 0) {
+        // Build lookup: accountId → categoryId → full path name
+        const catLookup: Record<string, Map<string, string>> = {};
+        for (const cache of caches) {
+          const categories = (cache.category_data || []) as Array<{
+            category_id: number;
+            parent_category_id: number;
+            display_category_name: string;
+          }>;
+          const catMap = new Map(categories.map(c => [c.category_id, c]));
+          const nameMap = new Map<string, string>();
+
+          for (const cat of categories) {
+            const path: string[] = [];
+            let current: typeof cat | undefined = cat;
+            while (current) {
+              path.unshift(current.display_category_name);
+              if (current.parent_category_id === 0) break;
+              current = catMap.get(current.parent_category_id);
+            }
+            nameMap.set(String(cat.category_id), path.join(' > '));
+          }
+          catLookup[cache.account_id] = nameMap;
+        }
+
+        // Update each link with the resolved name
+        for (const link of linksNeedingCategoryName as Array<{ id: string; account_id: string; shopee_category_id: string; shopee_category_name: string | null }>) {
+          const name = catLookup[link.account_id]?.get(String(link.shopee_category_id));
+          if (name) {
+            link.shopee_category_name = name;
+            // Fire-and-forget DB update
+            supabaseAdmin
+              .from('marketplace_product_links')
+              .update({ shopee_category_name: name })
+              .eq('id', link.id)
+              .then();
+          }
+        }
+      }
+    }
+
     const enrichedLinks = (links || []).map((link: { account_id: string }) => ({
       ...link,
       shop_id: shopIdMap[link.account_id] || null,
@@ -103,12 +199,13 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { link_id, platform_price, platform_discount_price, platform_barcode, platform_primary_image, shopee_category_id, shopee_category_name, weight } = await request.json();
+    const { link_id, platform_product_name, platform_price, platform_discount_price, platform_barcode, platform_primary_image, shopee_category_id, shopee_category_name, weight } = await request.json();
     if (!link_id) {
       return NextResponse.json({ error: 'Missing link_id' }, { status: 400 });
     }
 
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (platform_product_name !== undefined) updateData.platform_product_name = platform_product_name ?? null;
     if (platform_price !== undefined) updateData.platform_price = platform_price ?? null;
     if (platform_discount_price !== undefined) updateData.platform_discount_price = platform_discount_price ?? null;
     if (platform_barcode !== undefined) updateData.platform_barcode = platform_barcode ?? null;
@@ -127,6 +224,12 @@ export async function PATCH(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Auto-sync price to Shopee if platform_price changed
+    if (platform_price !== undefined && data?.product_id) {
+      const { triggerShopeePriceSync } = await import('@/lib/shopee-auto-sync');
+      triggerShopeePriceSync(data.product_id);
     }
 
     return NextResponse.json({ success: true, link: data });

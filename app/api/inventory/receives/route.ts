@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!hasAnyRole(auth.companyRoles, ['owner','admin','warehouse','manager'])) {
+    if (!hasAnyRole(auth.companyRoles, ['owner','admin','warehouse'])) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์รับเข้าสินค้า' }, { status: 403 });
     }
 

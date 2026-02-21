@@ -104,6 +104,7 @@ BEGIN
           'external_model_id', mpl.external_model_id,
           'external_sku', mpl.external_sku,
           'external_item_status', mpl.external_item_status,
+          'platform_product_name', mpl.platform_product_name,
           'platform_price', mpl.platform_price,
           'platform_discount_price', mpl.platform_discount_price,
           'platform_barcode', mpl.platform_barcode,

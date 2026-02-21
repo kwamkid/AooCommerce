@@ -1,7 +1,7 @@
 // Path: app/settings/members/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
@@ -9,12 +9,14 @@ import { useCompany } from '@/lib/company-context';
 import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
+import { useToast } from '@/lib/toast-context';
 import {
   Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check,
-  AlertCircle, Loader2, CheckCircle, Clock, Copy, Phone,
-  Plus,
-  Warehouse, Monitor,
+  Loader2, CheckCircle, Clock, Copy, Phone,
+  Plus, Link2, Monitor,
+  Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package,
 } from 'lucide-react';
+import Checkbox from '@/components/ui/Checkbox';
 
 interface Member {
   id: string;
@@ -33,7 +35,7 @@ interface Member {
 
 interface Invitation {
   id: string;
-  email: string;
+  email: string | null;
   roles: string[];
   status: string;
   token: string;
@@ -41,15 +43,12 @@ interface Invitation {
   created_at: string;
 }
 
-type AddMode = 'invite' | 'create';
-
-const ROLE_OPTIONS = [
-  { value: 'admin', label: 'ผู้ดูแลระบบ' },
-  { value: 'manager', label: 'ผู้จัดการ' },
-  { value: 'account', label: 'บัญชี' },
-  { value: 'warehouse', label: 'คลังสินค้า' },
-  { value: 'sales', label: 'ฝ่ายขาย' },
-  { value: 'cashier', label: 'แคชเชียร์' },
+const ROLE_OPTIONS: { value: string; label: string; icon: React.ElementType; desc: string }[] = [
+  { value: 'admin', label: 'ผู้ดูแลระบบ', icon: ShieldCheck, desc: 'จัดการระบบทั้งหมด' },
+  { value: 'sales', label: 'แอดมินออนไลน์', icon: Headset, desc: 'ออเดอร์ แชท CRM รายงาน' },
+  { value: 'cashier', label: 'แคชเชียร์', icon: CreditCard, desc: 'POS + สต็อกสาขา' },
+  { value: 'account', label: 'บัญชี', icon: Calculator, desc: 'บัญชี รายงาน ดูคำสั่งซื้อ' },
+  { value: 'warehouse', label: 'คลังสินค้า', icon: Package, desc: 'จัดส่ง จัดการคลัง' },
 ];
 
 // Roles that are exclusive (cannot combine with others)
@@ -58,34 +57,20 @@ const EXCLUSIVE_ROLES = ['owner', 'admin'];
 const ROLE_LABELS: Record<string, string> = {
   owner: 'เจ้าของ',
   admin: 'ผู้ดูแลระบบ',
-  manager: 'ผู้จัดการ',
   account: 'บัญชี',
   warehouse: 'คลังสินค้า',
-  sales: 'ฝ่ายขาย',
+  sales: 'แอดมินออนไลน์',
   cashier: 'แคชเชียร์',
-  operation: 'พนักงานผลิต',
 };
 
 const ROLE_COLORS: Record<string, string> = {
   owner: 'bg-purple-100 text-purple-800 border-purple-200',
   admin: 'bg-red-100 text-red-800 border-red-200',
-  manager: 'bg-blue-100 text-blue-800 border-blue-200',
   account: 'bg-green-100 text-green-800 border-green-200',
   warehouse: 'bg-orange-100 text-orange-800 border-orange-200',
   sales: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   cashier: 'bg-amber-100 text-amber-800 border-amber-200',
-  operation: 'bg-green-100 text-green-800 border-green-200',
 };
-
-interface CreateUserForm {
-  email: string;
-  name: string;
-  password: string;
-  roles: string[];
-  phone: string;
-  warehouse_ids: string[];
-  terminal_ids: string[];
-}
 
 interface EditMemberForm {
   memberId: string;
@@ -94,6 +79,7 @@ interface EditMemberForm {
   roles: string[];
   phone: string;
   is_active: boolean;
+  warehouseAccess: boolean;
   warehouse_ids: string[];
   terminal_ids: string[];
 }
@@ -132,30 +118,22 @@ export default function MembersPage() {
   const { currentCompany, companyRoles } = useCompany();
   const { userProfile } = useAuth();
   const { features } = useFeatures();
+  const { showToast } = useToast();
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [stockEnabled, setStockEnabled] = useState(false);
 
   // Add member modal
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addMode, setAddMode] = useState<AddMode>('invite');
 
-  // Invite form state
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRoles, setInviteRoles] = useState<string[]>(['sales']);
-  const [inviteWarehouseIds, setInviteWarehouseIds] = useState<string[]>([]);
-  const [inviteTerminalIds, setInviteTerminalIds] = useState<string[]>([]);
-  const [isInviting, setIsInviting] = useState(false);
-
-  // Create user form state
-  const [createForm, setCreateForm] = useState<CreateUserForm>({
-    email: '', name: '', password: '', roles: ['sales'], phone: '', warehouse_ids: [], terminal_ids: [],
-  });
-  const [isCreating, setIsCreating] = useState(false);
+  // Invite link state
+  const [linkRoles, setLinkRoles] = useState<string[]>(['sales']);
+  const [linkWarehouseAccess, setLinkWarehouseAccess] = useState(true);
+  const [linkWarehouseIds, setLinkWarehouseIds] = useState<string[]>([]);
+  const [generatedLink, setGeneratedLink] = useState('');
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
 
   // Edit member state
   const [editingMember, setEditingMember] = useState<EditMemberForm | null>(null);
@@ -184,10 +162,10 @@ export default function MembersPage() {
         setMembers(data.members || []);
         setInvitations(data.invitations || []);
       } else {
-        setError(data.error || 'ไม่สามารถโหลดข้อมูลสมาชิกได้');
+        showToast(data.error || 'ไม่สามารถโหลดข้อมูลสมาชิกได้', 'error');
       }
     } catch {
-      setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      showToast('เกิดข้อผิดพลาดในการโหลดข้อมูล', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -217,132 +195,104 @@ export default function MembersPage() {
       } catch { /* silent */ }
     };
     fetchWarehouses();
-    if (features.pos) fetchTerminals();
+    fetchTerminals();
   }, !!currentCompany?.id);
 
-  // Clear alerts
-  useEffect(() => {
-    if (error || success) {
-      const timer = setTimeout(() => { setError(''); setSuccess(''); }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [error, success]);
+  // Derive terminal_ids from warehouse_ids
+  const deriveTerminalIds = (warehouseIds: string[]): string[] => {
+    if (warehouseIds.length === 0) return [];
+    return terminals
+      .filter(t => t.warehouse_id && warehouseIds.includes(t.warehouse_id))
+      .map(t => t.id);
+  };
 
   // Reset add modal state
+  // Role preset helper — auto-set warehouse permissions when role changes
+  const getRolePreset = (roles: string[]): { warehouseAccess: boolean; warehouseIds: string[] } => {
+    if (roles.includes('owner') || roles.includes('admin')) {
+      return { warehouseAccess: true, warehouseIds: [] }; // all warehouses
+    }
+    if (roles.includes('sales')) {
+      const defaultWh = warehouses.find(w => w.is_default);
+      return { warehouseAccess: true, warehouseIds: defaultWh ? [defaultWh.id] : [] };
+    }
+    // cashier, account, warehouse = ON + choose
+    return { warehouseAccess: true, warehouseIds: [] };
+  };
+
+  const isExclusiveRole = (roles: string[]) => roles.includes('owner') || roles.includes('admin');
+
   const openAddModal = () => {
-    setAddMode('invite');
-    setInviteEmail('');
-    setInviteRoles(['sales']);
-    setInviteWarehouseIds([]);
-    setInviteTerminalIds([]);
-    setCreateForm({ email: '', name: '', password: '', roles: ['sales'], phone: '', warehouse_ids: [], terminal_ids: [] });
+    setLinkRoles(['sales']);
+    const preset = getRolePreset(['sales']);
+    setLinkWarehouseAccess(preset.warehouseAccess);
+    setLinkWarehouseIds(preset.warehouseIds);
+    setGeneratedLink('');
     setShowAddModal(true);
   };
 
-  // Handle invite member
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
+  // Handle role change with preset
+  const handleLinkRoleChange = (newRoles: string[]) => {
+    setLinkRoles(newRoles);
+    const preset = getRolePreset(newRoles);
+    setLinkWarehouseAccess(preset.warehouseAccess);
+    setLinkWarehouseIds(preset.warehouseIds);
+  };
 
-    if (!inviteEmail.trim()) {
-      setError('กรุณาระบุอีเมล');
-      return;
-    }
+  const handleEditRoleChange = (newRoles: string[]) => {
+    if (!editingMember) return;
+    const preset = getRolePreset(newRoles);
+    setEditingMember({
+      ...editingMember,
+      roles: newRoles,
+      warehouseAccess: preset.warehouseAccess,
+      warehouse_ids: preset.warehouseIds,
+    });
+  };
 
-    setIsInviting(true);
+  // Handle create invite link
+  const handleCreateLink = async () => {
+    setIsGeneratingLink(true);
 
     try {
+      // warehouseAccess=false → [] (no access), true + empty → undefined (all), specific → ['id']
+      const warehouseIdsToSend = !linkWarehouseAccess
+        ? []
+        : linkWarehouseIds.length > 0
+          ? linkWarehouseIds
+          : undefined;
+      const terminalIdsToSend = !linkWarehouseAccess
+        ? []
+        : deriveTerminalIds(linkWarehouseIds).length > 0
+          ? deriveTerminalIds(linkWarehouseIds)
+          : undefined;
       const response = await apiFetch('/api/companies/members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: inviteEmail,
-          roles: inviteRoles,
-          warehouse_ids: inviteWarehouseIds.length > 0 ? inviteWarehouseIds : undefined,
-          terminal_ids: inviteTerminalIds.length > 0 ? inviteTerminalIds : undefined,
+          roles: linkRoles,
+          warehouse_ids: warehouseIdsToSend,
+          terminal_ids: terminalIdsToSend,
         }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        setSuccess('ส่งคำเชิญสำเร็จ');
-        setShowAddModal(false);
-        setInviteEmail('');
-        setInviteRoles(['sales']);
-        setInviteWarehouseIds([]);
-        setInviteTerminalIds([]);
+        setGeneratedLink(`${window.location.origin}/invite/${data.invitation.token}`);
         await fetchMembers();
       } else {
-        setError(data.error || 'ไม่สามารถส่งคำเชิญได้');
+        showToast(data.error || 'ไม่สามารถสร้างลิงก์ได้', 'error');
       }
     } catch {
-      setError('เกิดข้อผิดพลาดในการส่งคำเชิญ');
+      showToast('เกิดข้อผิดพลาดในการสร้างลิงก์', 'error');
     } finally {
-      setIsInviting(false);
-    }
-  };
-
-  // Handle create user directly
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(createForm.email)) {
-      setError('รูปแบบอีเมลไม่ถูกต้อง');
-      return;
-    }
-
-    if (createForm.password.length < 6) {
-      setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
-      return;
-    }
-
-    setIsCreating(true);
-
-    try {
-      const response = await apiFetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: createForm.email,
-          password: createForm.password,
-          name: createForm.name,
-          roles: createForm.roles,
-          phone: createForm.phone || undefined,
-          warehouse_ids: createForm.warehouse_ids.length > 0 ? createForm.warehouse_ids : undefined,
-          terminal_ids: createForm.terminal_ids.length > 0 ? createForm.terminal_ids : undefined,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        setSuccess('เพิ่มสมาชิกใหม่สำเร็จ');
-        setShowAddModal(false);
-        setCreateForm({ email: '', name: '', password: '', roles: ['sales'], phone: '', warehouse_ids: [], terminal_ids: [] });
-        await fetchMembers();
-      } else {
-        if (result.error?.includes('already registered')) {
-          setError('อีเมลนี้มีในระบบแล้ว');
-        } else {
-          setError(result.error || 'ไม่สามารถสร้างผู้ใช้ได้');
-        }
-      }
-    } catch {
-      setError('เกิดข้อผิดพลาดในการสร้างผู้ใช้');
-    } finally {
-      setIsCreating(false);
+      setIsGeneratingLink(false);
     }
   };
 
   // Handle inline role change
   const handleChangeRole = async (memberId: string) => {
-    setError('');
-    setSuccess('');
 
     try {
       const response = await apiFetch('/api/companies/members', {
@@ -354,14 +304,14 @@ export default function MembersPage() {
       const data = await response.json();
 
       if (response.ok) {
-        setSuccess('เปลี่ยนตำแหน่งสำเร็จ');
+        showToast('เปลี่ยนตำแหน่งสำเร็จ');
         setEditingRoleMemberId(null);
         await fetchMembers();
       } else {
-        setError(data.error || 'ไม่สามารถเปลี่ยนตำแหน่งได้');
+        showToast(data.error || 'ไม่สามารถเปลี่ยนตำแหน่งได้', 'error');
       }
     } catch {
-      setError('เกิดข้อผิดพลาดในการเปลี่ยนตำแหน่ง');
+      showToast('เกิดข้อผิดพลาดในการเปลี่ยนตำแหน่ง', 'error');
     }
   };
 
@@ -374,6 +324,7 @@ export default function MembersPage() {
       roles: member.roles,
       phone: member.user.phone || '',
       is_active: member.is_active,
+      warehouseAccess: true,
       warehouse_ids: [],
       terminal_ids: [],
     });
@@ -384,10 +335,13 @@ export default function MembersPage() {
       const res = await apiFetch(`/api/users/warehouse-permissions?user_id=${member.user.id}`);
       if (res.ok) {
         const data = await res.json();
+        // null = all access (toggle on, no specific), [] = no access (toggle off), ['id'] = specific
+        const whIds = data.warehouse_ids;
         setEditingMember(prev => prev ? {
           ...prev,
-          warehouse_ids: data.warehouse_ids || [],
-          terminal_ids: data.terminal_ids || [],
+          warehouseAccess: whIds === null || (Array.isArray(whIds) && whIds.length > 0),
+          warehouse_ids: Array.isArray(whIds) ? whIds : [],
+          terminal_ids: Array.isArray(data.terminal_ids) ? data.terminal_ids : [],
         } : prev);
       }
     } catch { /* silent */ }
@@ -396,8 +350,6 @@ export default function MembersPage() {
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMember) return;
-    setError('');
-    setSuccess('');
     setIsSaving(true);
 
     try {
@@ -421,25 +373,36 @@ export default function MembersPage() {
       }
 
       // Save warehouse + terminal permissions
+      // warehouseAccess=false → [] (no access), warehouseAccess=true + empty → null (all), specific → ['id']
+      const warehouseIdsToSave = !editingMember.warehouseAccess
+        ? []
+        : editingMember.warehouse_ids.length > 0
+          ? editingMember.warehouse_ids
+          : null;
+      const terminalIdsToSave = !editingMember.warehouseAccess
+        ? []
+        : deriveTerminalIds(editingMember.warehouse_ids).length > 0
+          ? deriveTerminalIds(editingMember.warehouse_ids)
+          : null;
       await apiFetch('/api/users/warehouse-permissions', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: editingMember.userId,
-          warehouse_ids: editingMember.warehouse_ids,
-          terminal_ids: editingMember.terminal_ids,
+          warehouse_ids: warehouseIdsToSave,
+          terminal_ids: terminalIdsToSave,
         }),
       });
 
-      setSuccess('อัพเดทข้อมูลสมาชิกสำเร็จ');
+      showToast('อัพเดทข้อมูลสมาชิกสำเร็จ');
       setShowEditModal(false);
       setEditingMember(null);
       await fetchMembers();
     } catch (err) {
       if (err instanceof Error) {
-        setError(err.message);
+        showToast(err.message, 'error');
       } else {
-        setError('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+        showToast('เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
       }
     } finally {
       setIsSaving(false);
@@ -450,9 +413,6 @@ export default function MembersPage() {
   const handleRemoveMember = async (memberId: string) => {
     if (!confirm('คุณต้องการลบสมาชิกคนนี้หรือไม่?')) return;
 
-    setError('');
-    setSuccess('');
-
     try {
       const response = await apiFetch(`/api/companies/members?id=${memberId}&type=member`, {
         method: 'DELETE',
@@ -461,22 +421,19 @@ export default function MembersPage() {
       const data = await response.json();
 
       if (response.ok) {
-        setSuccess('ลบสมาชิกสำเร็จ');
+        showToast('ลบสมาชิกสำเร็จ');
         await fetchMembers();
       } else {
-        setError(data.error || 'ไม่สามารถลบสมาชิกได้');
+        showToast(data.error || 'ไม่สามารถลบสมาชิกได้', 'error');
       }
     } catch {
-      setError('เกิดข้อผิดพลาดในการลบสมาชิก');
+      showToast('เกิดข้อผิดพลาดในการลบสมาชิก', 'error');
     }
   };
 
   // Handle cancel invitation
   const handleCancelInvitation = async (invitationId: string) => {
     if (!confirm('คุณต้องการยกเลิกคำเชิญนี้หรือไม่?')) return;
-
-    setError('');
-    setSuccess('');
 
     try {
       const response = await apiFetch(`/api/companies/members?id=${invitationId}&type=invitation`, {
@@ -486,13 +443,13 @@ export default function MembersPage() {
       const data = await response.json();
 
       if (response.ok) {
-        setSuccess('ยกเลิกคำเชิญสำเร็จ');
+        showToast('ยกเลิกคำเชิญสำเร็จ');
         await fetchMembers();
       } else {
-        setError(data.error || 'ไม่สามารถยกเลิกคำเชิญได้');
+        showToast(data.error || 'ไม่สามารถยกเลิกคำเชิญได้', 'error');
       }
     } catch {
-      setError('เกิดข้อผิดพลาดในการยกเลิกคำเชิญ');
+      showToast('เกิดข้อผิดพลาดในการยกเลิกคำเชิญ', 'error');
     }
   };
 
@@ -500,7 +457,7 @@ export default function MembersPage() {
   const copyInviteLink = (token: string) => {
     const link = `${window.location.origin}/invite/${token}`;
     navigator.clipboard.writeText(link);
-    setSuccess('คัดลอกลิงก์คำเชิญแล้ว');
+    showToast('คัดลอกลิงก์คำเชิญแล้ว');
   };
 
   // Filter members
@@ -521,88 +478,150 @@ export default function MembersPage() {
     </div>
   );
 
-  // Role checkboxes component
+  // Role checkboxes component — vertical list with icons
   const RoleCheckboxes = ({ selectedRoles, onChange, disabled }: { selectedRoles: string[]; onChange: (roles: string[]) => void; disabled?: boolean }) => (
-    <div className="flex flex-wrap gap-2">
-      {ROLE_OPTIONS.map((option) => (
-        <label key={option.value} className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-slate-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors">
-          <input
-            type="checkbox"
-            checked={selectedRoles.includes(option.value)}
-            onChange={() => onChange(toggleRole(selectedRoles, option.value))}
-            className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E]"
-            disabled={disabled}
-          />
-          <span className="text-sm text-gray-700 dark:text-slate-300">{option.label}</span>
-        </label>
-      ))}
+    <div className="space-y-1.5">
+      {ROLE_OPTIONS.map((option) => {
+        const Icon = option.icon;
+        const isSelected = selectedRoles.includes(option.value);
+        return (
+          <label
+            key={option.value}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors border ${
+              isSelected
+                ? 'bg-[#F4511E]/5 border-[#F4511E]/30 dark:bg-[#F4511E]/10 dark:border-[#F4511E]/40'
+                : 'bg-gray-50 dark:bg-slate-700 border-transparent hover:bg-gray-100 dark:hover:bg-slate-600'
+            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => !disabled && onChange(toggleRole(selectedRoles, option.value))}
+              className="sr-only"
+              disabled={disabled}
+            />
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+              isSelected
+                ? 'bg-[#F4511E] text-white'
+                : 'bg-gray-200 dark:bg-slate-600 text-gray-500 dark:text-slate-400'
+            }`}>
+              <Icon className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium ${isSelected ? 'text-[#F4511E] dark:text-[#FF7043]' : 'text-gray-700 dark:text-slate-300'}`}>
+                {option.label}
+              </p>
+              <p className="text-xs text-gray-400 dark:text-slate-500">{option.desc}</p>
+            </div>
+            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+              isSelected
+                ? 'bg-[#F4511E] border-[#F4511E]'
+                : 'border-gray-300 dark:border-slate-500'
+            }`}>
+              {isSelected && <Check className="w-3 h-3 text-white" />}
+            </div>
+          </label>
+        );
+      })}
     </div>
   );
 
-  // Terminal checkboxes component
-  const TerminalCheckboxes = ({ selectedIds, onChange, disabled }: { selectedIds: string[]; onChange: (ids: string[]) => void; disabled?: boolean }) => {
-    if (!features.pos || terminals.length === 0) return null;
-    return (
-      <div>
-        <p className="text-sm text-gray-500 dark:text-slate-400 mb-2">
-          <Monitor className="w-4 h-4 inline mr-1 -mt-0.5" />
-          สิทธิ์ POS <span className="text-gray-400">(ไม่เลือก = เข้าถึงทุก POS/คลัง)</span>
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {terminals.map(t => (
-            <label key={t.id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-slate-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors">
-              <input
-                type="checkbox"
-                checked={selectedIds.includes(t.id)}
-                onChange={(e) => {
-                  const ids = e.target.checked
-                    ? [...selectedIds, t.id]
-                    : selectedIds.filter(id => id !== t.id);
-                  onChange(ids);
-                }}
-                className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E]"
-                disabled={disabled}
-              />
-              <span className="text-sm text-gray-700 dark:text-slate-300">
-                {t.name}{t.code ? ` (${t.code})` : ''}
-              </span>
-            </label>
-          ))}
-        </div>
-      </div>
-    );
-  };
+  // Build terminal lookup by warehouse_id
+  const terminalsByWarehouse: Record<string, TerminalItem[]> = {};
+  for (const t of terminals) {
+    if (t.warehouse_id) {
+      if (!terminalsByWarehouse[t.warehouse_id]) terminalsByWarehouse[t.warehouse_id] = [];
+      terminalsByWarehouse[t.warehouse_id].push(t);
+    }
+  }
 
-  // Warehouse checkboxes component
-  const WarehouseCheckboxes = ({ selectedIds, onChange, disabled }: { selectedIds: string[]; onChange: (ids: string[]) => void; disabled?: boolean }) => {
+  // Warehouse permissions component (merged POS + warehouse)
+  // accessEnabled: true = has warehouse access, false = no access at all
+  // selectedIds: specific warehouse IDs (empty = all warehouses when accessEnabled is true)
+  const WarehousePermissions = ({ accessEnabled, onAccessChange, selectedIds, onChange, disabled }: {
+    accessEnabled: boolean;
+    onAccessChange: (enabled: boolean) => void;
+    selectedIds: string[];
+    onChange: (ids: string[]) => void;
+    disabled?: boolean;
+  }) => {
     if (warehouses.length === 0 || (!stockEnabled && !features.pos)) return null;
     return (
       <div>
-        <p className="text-sm text-gray-500 dark:text-slate-400 mb-2">
-          <Warehouse className="w-4 h-4 inline mr-1 -mt-0.5" />
-          สิทธิ์ POS/คลัง <span className="text-gray-400">(ไม่เลือก = เข้าถึงทุก POS/คลัง)</span>
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {warehouses.map(wh => (
-            <label key={wh.id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-slate-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors">
-              <input
-                type="checkbox"
-                checked={selectedIds.includes(wh.id)}
-                onChange={(e) => {
-                  const ids = e.target.checked
-                    ? [...selectedIds, wh.id]
-                    : selectedIds.filter(id => id !== wh.id);
-                  onChange(ids);
-                }}
-                className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E]"
-                disabled={disabled}
-              />
-              <span className="text-sm text-gray-700 dark:text-slate-300">
-                {wh.name}
-              </span>
-            </label>
-          ))}
+        {/* Toggle switch */}
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm text-gray-600 dark:text-slate-400">เปิดการเข้าถึง</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={accessEnabled}
+            onClick={() => !disabled && onAccessChange(!accessEnabled)}
+            disabled={disabled}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 ${
+              accessEnabled ? 'bg-[#F4511E]' : 'bg-gray-300 dark:bg-slate-600'
+            } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+              accessEnabled ? 'translate-x-6' : 'translate-x-1'
+            }`} />
+          </button>
         </div>
+        {accessEnabled && (
+          <>
+            <p className="text-xs text-gray-400 dark:text-slate-500 mb-2">ไม่เลือก = เข้าถึงทุกคลัง</p>
+            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              {warehouses.map(wh => {
+                const whTerminals = terminalsByWarehouse[wh.id] || [];
+                const isChecked = selectedIds.includes(wh.id);
+                return (
+                  <label
+                    key={wh.id}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                      isChecked
+                        ? 'bg-[#F4511E]/5 dark:bg-[#F4511E]/10'
+                        : 'bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600'
+                    } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {
+                        if (disabled) return;
+                        const ids = isChecked
+                          ? selectedIds.filter(id => id !== wh.id)
+                          : [...selectedIds, wh.id];
+                        onChange(ids);
+                      }}
+                      className="sr-only"
+                      disabled={disabled}
+                    />
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                      isChecked
+                        ? 'bg-[#F4511E] border-[#F4511E]'
+                        : 'border-gray-300 dark:border-slate-500'
+                    }`}>
+                      {isChecked && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-sm text-gray-700 dark:text-slate-300">{wh.name}</span>
+                      {whTerminals.length > 0 && (
+                        <span className="text-xs text-gray-400 dark:text-slate-500 ml-1">
+                          ({whTerminals.map((t, i) => (
+                            <span key={t.id}>
+                              {i > 0 && ', '}
+                              <Monitor className="w-3 h-3 inline -mt-0.5 mr-0.5" />
+                              {t.name}
+                            </span>
+                          ))})
+                        </span>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     );
   };
@@ -622,22 +641,6 @@ export default function MembersPage() {
         </div>
       ) : (
         <div className="space-y-6 max-w-5xl">
-          {/* Alerts */}
-          {error && (
-            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start space-x-3">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700 dark:text-red-300 flex-1">{error}</p>
-              <button onClick={() => setError('')} className="text-red-500 hover:text-red-700"><X className="w-4 h-4" /></button>
-            </div>
-          )}
-          {success && (
-            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-start space-x-3">
-              <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-green-700 dark:text-green-300 flex-1">{success}</p>
-              <button onClick={() => setSuccess('')} className="text-green-500 hover:text-green-700"><X className="w-4 h-4" /></button>
-            </div>
-          )}
-
           {/* Members List */}
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm">
             <div className="p-5 sm:p-6 border-b border-gray-200 dark:border-slate-700">
@@ -786,10 +789,12 @@ export default function MembersPage() {
                     <div className="flex items-start sm:items-center justify-between gap-3">
                       <div className="flex items-center space-x-3 sm:space-x-4">
                         <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center text-gray-500 dark:text-slate-400">
-                          <Mail className="w-5 h-5" />
+                          {invitation.email ? <Mail className="w-5 h-5" /> : <Link2 className="w-5 h-5" />}
                         </div>
                         <div>
-                          <p className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">{invitation.email}</p>
+                          <p className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">
+                            {invitation.email || 'ลิงก์เชิญ'}
+                          </p>
                           <p className="text-sm text-gray-500 dark:text-slate-400">
                             หมดอายุ: {new Date(invitation.expires_at).toLocaleDateString('th-TH', {
                               year: 'numeric',
@@ -821,7 +826,7 @@ export default function MembersPage() {
                               className="p-2 text-gray-400 hover:text-[#F4511E] hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                               title="คัดลอกลิงก์คำเชิญ"
                             >
-                              <Copy className="w-4 h-4" />
+                              <Link2 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleCancelInvitation(invitation.id)}
@@ -850,7 +855,7 @@ export default function MembersPage() {
               className="fixed inset-0 bg-black/50 transition-opacity"
               onClick={() => setShowAddModal(false)}
             />
-            <div className="relative bg-white dark:bg-slate-800 rounded-xl max-w-lg w-full shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-white dark:bg-slate-800 rounded-xl max-w-2xl w-full shadow-xl max-h-[90vh] overflow-y-auto">
               {/* Modal header */}
               <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 rounded-t-xl z-10">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
@@ -865,70 +870,49 @@ export default function MembersPage() {
                 </button>
               </div>
 
-              {/* Mode toggle tabs */}
-              <div className="px-5 pt-4">
-                <div className="flex bg-gray-100 dark:bg-slate-700 rounded-lg p-1">
-                  <button
-                    onClick={() => setAddMode('invite')}
-                    className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                      addMode === 'invite'
-                        ? 'bg-white dark:bg-slate-600 text-[#F4511E] shadow-sm'
-                        : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'
-                    }`}
-                  >
-                    <Mail className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-                    ส่งคำเชิญ
-                  </button>
-                  <button
-                    onClick={() => setAddMode('create')}
-                    className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                      addMode === 'create'
-                        ? 'bg-white dark:bg-slate-600 text-[#F4511E] shadow-sm'
-                        : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'
-                    }`}
-                  >
-                    <UserPlus className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-                    สร้างบัญชีโดยตรง
-                  </button>
-                </div>
-              </div>
-
-              {/* Invite Form */}
-              {addMode === 'invite' && (
-                <form onSubmit={handleInvite} className="p-5 space-y-4">
-                  <p className="text-sm text-gray-500 dark:text-slate-400">
-                    ส่งคำเชิญทางอีเมลเพื่อให้ผู้ใช้ลงทะเบียนและเข้าร่วมบริษัท
+              {!generatedLink ? (
+                <>
+                  <p className="text-sm text-gray-500 dark:text-slate-400 px-5 pt-4">
+                    สร้างลิงก์เชิญเพื่อให้ผู้ใช้สมัครและเข้าร่วมบริษัท
                   </p>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      อีเมล *
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        type="email"
-                        value={inviteEmail}
-                        onChange={(e) => setInviteEmail(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700"
-                        placeholder="user@company.com"
-                        required
-                        disabled={isInviting}
-                      />
+                  {/* 2-column layout */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5">
+                    {/* Left: Roles */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                        <Shield className="w-4 h-4 inline mr-1 -mt-0.5" />
+                        ตำแหน่ง *
+                      </label>
+                      <RoleCheckboxes selectedRoles={linkRoles} onChange={handleLinkRoleChange} disabled={isGeneratingLink} />
+                    </div>
+
+                    {/* Right: Warehouse Permissions */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                        <Warehouse className="w-4 h-4 inline mr-1 -mt-0.5" />
+                        สิทธิ์คลัง / POS
+                      </label>
+                      {isExclusiveRole(linkRoles) ? (
+                        <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                          <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                            <Check className="w-4 h-4" />
+                            เข้าถึงทุกคลังอัตโนมัติ
+                          </p>
+                        </div>
+                      ) : (
+                        <WarehousePermissions
+                          accessEnabled={linkWarehouseAccess}
+                          onAccessChange={setLinkWarehouseAccess}
+                          selectedIds={linkWarehouseIds}
+                          onChange={setLinkWarehouseIds}
+                          disabled={isGeneratingLink}
+                        />
+                      )}
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      ตำแหน่ง * <span className="text-gray-400 font-normal">(เลือกได้หลายตำแหน่ง)</span>
-                    </label>
-                    <RoleCheckboxes selectedRoles={inviteRoles} onChange={setInviteRoles} disabled={isInviting} />
-                  </div>
-
-                  <WarehouseCheckboxes selectedIds={inviteWarehouseIds} onChange={setInviteWarehouseIds} disabled={isInviting} />
-                  <TerminalCheckboxes selectedIds={inviteTerminalIds} onChange={setInviteTerminalIds} disabled={isInviting} />
-
-                  <div className="flex justify-end space-x-3 pt-2">
+                  <div className="flex justify-end space-x-3 px-5 pb-5">
                     <button
                       type="button"
                       onClick={() => setShowAddModal(false)}
@@ -937,103 +921,48 @@ export default function MembersPage() {
                       ยกเลิก
                     </button>
                     <button
-                      type="submit"
-                      disabled={isInviting}
+                      type="button"
+                      onClick={handleCreateLink}
+                      disabled={isGeneratingLink}
                       className="px-5 py-2.5 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                     >
-                      {isInviting ? (
+                      {isGeneratingLink ? (
                         <Loader2 className="w-5 h-5 animate-spin mr-2" />
                       ) : (
-                        <Mail className="w-4 h-4 mr-2" />
+                        <Link2 className="w-4 h-4 mr-2" />
                       )}
-                      ส่งคำเชิญ
+                      สร้างลิงก์
                     </button>
                   </div>
-                </form>
-              )}
-
-              {/* Create Account Form */}
-              {addMode === 'create' && (
-                <form onSubmit={handleCreateUser} className="p-5 space-y-4">
-                  <p className="text-sm text-gray-500 dark:text-slate-400">
-                    สร้างบัญชีผู้ใช้พร้อมรหัสผ่านโดยตรง (ไม่ต้องรอตอบรับคำเชิญ)
-                  </p>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      อีเมล *
-                    </label>
-                    <input
-                      type="email"
-                      value={createForm.email}
-                      onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700"
-                      required
-                      placeholder="user@company.com"
-                    />
+                </>
+              ) : (
+                <div className="p-5 space-y-4">
+                  <div className="text-center py-2">
+                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                    <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">สร้างลิงก์เชิญสำเร็จ</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">คัดลอกลิงก์ด้านล่างเพื่อส่งให้สมาชิก</p>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      ชื่อ-นามสกุล *
-                    </label>
+                  <div className="flex gap-2">
                     <input
                       type="text"
-                      value={createForm.name}
-                      onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700"
-                      required
+                      value={generatedLink}
+                      readOnly
+                      className="flex-1 px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white bg-gray-50 dark:bg-slate-700 text-sm"
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
                     />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedLink);
+                        showToast('คัดลอกลิงก์แล้ว');
+                      }}
+                      className="px-4 py-2.5 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors flex items-center whitespace-nowrap"
+                    >
+                      <Copy className="w-4 h-4 mr-1.5" />
+                      คัดลอก
+                    </button>
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      รหัสผ่าน *
-                    </label>
-                    <input
-                      type="password"
-                      value={createForm.password}
-                      onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700"
-                      required
-                      minLength={6}
-                    />
-                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                      อย่างน้อย 6 ตัวอักษร
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      ตำแหน่ง * <span className="text-gray-400 font-normal">(เลือกได้หลายตำแหน่ง)</span>
-                    </label>
-                    <RoleCheckboxes
-                      selectedRoles={createForm.roles}
-                      onChange={(roles) => setCreateForm({ ...createForm, roles })}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      เบอร์โทร
-                    </label>
-                    <input
-                      type="tel"
-                      value={createForm.phone}
-                      onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
-                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700"
-                      placeholder="0812345678"
-                    />
-                  </div>
-
-                  <WarehouseCheckboxes
-                    selectedIds={createForm.warehouse_ids}
-                    onChange={(ids) => setCreateForm({ ...createForm, warehouse_ids: ids })}
-                  />
-                  <TerminalCheckboxes
-                    selectedIds={createForm.terminal_ids}
-                    onChange={(ids) => setCreateForm({ ...createForm, terminal_ids: ids })}
-                  />
 
                   <div className="flex justify-end space-x-3 pt-2">
                     <button
@@ -1041,18 +970,21 @@ export default function MembersPage() {
                       onClick={() => setShowAddModal(false)}
                       className="px-4 py-2.5 text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg font-medium transition-colors"
                     >
-                      ยกเลิก
+                      ปิด
                     </button>
                     <button
-                      type="submit"
-                      disabled={isCreating}
-                      className="px-5 py-2.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#F4511E]/90 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                      type="button"
+                      onClick={() => {
+                        setGeneratedLink('');
+                        handleLinkRoleChange(['sales']);
+                      }}
+                      className="px-4 py-2.5 text-[#F4511E] bg-[#F4511E]/10 hover:bg-[#F4511E]/20 rounded-lg font-medium transition-colors flex items-center"
                     >
-                      {isCreating && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                      สร้างบัญชี
+                      <Plus className="w-4 h-4 mr-1.5" />
+                      สร้างลิงก์ใหม่
                     </button>
                   </div>
-                </form>
+                </div>
               )}
             </div>
           </div>
@@ -1067,7 +999,7 @@ export default function MembersPage() {
               className="fixed inset-0 bg-black/50 transition-opacity"
               onClick={() => { setShowEditModal(false); setEditingMember(null); }}
             />
-            <div className="relative bg-white dark:bg-slate-800 rounded-xl max-w-lg w-full shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-white dark:bg-slate-800 rounded-xl max-w-2xl w-full shadow-xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 rounded-t-xl z-10">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
                   แก้ไขข้อมูลสมาชิก
@@ -1080,67 +1012,83 @@ export default function MembersPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveEdit} className="p-5">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      ชื่อ-นามสกุล
-                    </label>
-                    <input
-                      type="text"
-                      value={editingMember.name}
-                      onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
-                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700"
-                      required
-                    />
+              <form onSubmit={handleSaveEdit}>
+                {/* 2-column layout */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5">
+                  {/* Left: Profile + Roles */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                        ชื่อ-นามสกุล
+                      </label>
+                      <input
+                        type="text"
+                        value={editingMember.name}
+                        onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                        <Shield className="w-4 h-4 inline mr-1 -mt-0.5" />
+                        ตำแหน่ง
+                      </label>
+                      <RoleCheckboxes
+                        selectedRoles={editingMember.roles}
+                        onChange={handleEditRoleChange}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                        <Phone className="w-4 h-4 inline mr-1 -mt-0.5" />
+                        เบอร์โทร
+                      </label>
+                      <input
+                        type="tel"
+                        value={editingMember.phone}
+                        onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
+                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700"
+                        placeholder="0812345678"
+                      />
+                    </div>
+
+                    <div>
+                      <Checkbox
+                        checked={editingMember.is_active}
+                        onChange={(v) => setEditingMember({ ...editingMember, is_active: v })}
+                        label="เปิดใช้งาน"
+                      />
+                    </div>
                   </div>
 
+                  {/* Right: Warehouse Permissions */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      ตำแหน่ง <span className="text-gray-400 font-normal">(เลือกได้หลายตำแหน่ง)</span>
+                      <Warehouse className="w-4 h-4 inline mr-1 -mt-0.5" />
+                      สิทธิ์คลัง / POS
                     </label>
-                    <RoleCheckboxes
-                      selectedRoles={editingMember.roles}
-                      onChange={(roles) => setEditingMember({ ...editingMember, roles })}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      เบอร์โทร
-                    </label>
-                    <input
-                      type="tel"
-                      value={editingMember.phone}
-                      onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
-                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700"
-                      placeholder="0812345678"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={editingMember.is_active}
-                        onChange={(e) => setEditingMember({ ...editingMember, is_active: e.target.checked })}
-                        className="mr-2 w-4 h-4 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
+                    {isExclusiveRole(editingMember.roles) ? (
+                      <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                        <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                          <Check className="w-4 h-4" />
+                          เข้าถึงทุกคลังอัตโนมัติ
+                        </p>
+                      </div>
+                    ) : (
+                      <WarehousePermissions
+                        accessEnabled={editingMember.warehouseAccess}
+                        onAccessChange={(v) => setEditingMember({ ...editingMember, warehouseAccess: v })}
+                        selectedIds={editingMember.warehouse_ids}
+                        onChange={(ids) => setEditingMember({ ...editingMember, warehouse_ids: ids })}
                       />
-                      <span className="text-sm text-gray-700 dark:text-slate-300">เปิดใช้งาน</span>
-                    </label>
+                    )}
                   </div>
-
-                  <WarehouseCheckboxes
-                    selectedIds={editingMember.warehouse_ids}
-                    onChange={(ids) => setEditingMember({ ...editingMember, warehouse_ids: ids })}
-                  />
-                  <TerminalCheckboxes
-                    selectedIds={editingMember.terminal_ids}
-                    onChange={(ids) => setEditingMember({ ...editingMember, terminal_ids: ids })}
-                  />
                 </div>
 
-                <div className="flex justify-end space-x-3 mt-6">
+                <div className="flex justify-end space-x-3 px-5 pb-5">
                   <button
                     type="button"
                     onClick={() => { setShowEditModal(false); setEditingMember(null); }}

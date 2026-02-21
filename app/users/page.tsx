@@ -24,6 +24,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
+import Checkbox from '@/components/ui/Checkbox';
 
 // User interface
 interface User {
@@ -47,12 +48,10 @@ interface RoleConfig {
 const roleConfigs: Record<string, RoleConfig> = {
   owner: { color: 'bg-yellow-100 text-yellow-800', label: 'เจ้าของ' },
   admin: { color: 'bg-red-100 text-red-800', label: 'ผู้ดูแลระบบ' },
-  manager: { color: 'bg-blue-100 text-blue-800', label: 'ผู้จัดการ' },
-  warehouse: { color: 'bg-teal-100 text-teal-800', label: 'ฝ่ายคลังสินค้า' },
-  account: { color: 'bg-indigo-100 text-indigo-800', label: 'ฝ่ายบัญชี' },
-  sales: { color: 'bg-purple-100 text-purple-800', label: 'ฝ่ายขาย' },
+  warehouse: { color: 'bg-teal-100 text-teal-800', label: 'คลังสินค้า' },
+  account: { color: 'bg-indigo-100 text-indigo-800', label: 'บัญชี' },
+  sales: { color: 'bg-purple-100 text-purple-800', label: 'แอดมินออนไลน์' },
   cashier: { color: 'bg-orange-100 text-orange-800', label: 'แคชเชียร์' },
-  operation: { color: 'bg-green-100 text-green-800', label: 'พนักงานผลิต' },
 };
 
 // Role badges component (multi-role)
@@ -709,11 +708,10 @@ export default function UsersPage() {
                       className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                       required
                     >
-                      <option value="sales">ฝ่ายขาย</option>
+                      <option value="sales">แอดมินออนไลน์</option>
                       <option value="cashier">แคชเชียร์</option>
-                      <option value="warehouse">ฝ่ายคลังสินค้า</option>
-                      <option value="account">ฝ่ายบัญชี</option>
-                      <option value="manager">ผู้จัดการ</option>
+                      <option value="warehouse">คลังสินค้า</option>
+                      <option value="account">บัญชี</option>
                       <option value="admin">ผู้ดูแลระบบ</option>
                     </select>
                   </div>
@@ -732,15 +730,7 @@ export default function UsersPage() {
                   </div>
 
                   <div>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.is_active}
-                        onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                        className="mr-2 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-slate-300">เปิดใช้งาน</span>
-                    </label>
+                    <Checkbox checked={formData.is_active} onChange={(v) => setFormData({ ...formData, is_active: v })} label="เปิดใช้งาน" />
                   </div>
                 </div>
 

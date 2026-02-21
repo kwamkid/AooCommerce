@@ -9,7 +9,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Search, Package2, Plus, X, Trash2,
-  Warehouse, AlertTriangle, CheckCircle, PackageMinus
+  Warehouse, AlertTriangle, PackageMinus
 } from 'lucide-react';
 
 // ─── Interfaces ──────────────────────────────────────────────
@@ -93,9 +93,6 @@ export default function StockIssuePage() {
 
   // Submitting
   const [submitting, setSubmitting] = useState(false);
-
-  // Success state
-  const [showSuccess, setShowSuccess] = useState(false);
 
   // ─── Fetch Warehouses ────────────────────────────────────
 
@@ -366,14 +363,6 @@ export default function StockIssuePage() {
       breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการเบิกออก', href: '/inventory/issues' }, { label: 'เบิกออกสินค้า' }]}
     >
       <div className="space-y-4 max-w-5xl">
-        {/* Success Message */}
-        {showSuccess && (
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
-            <p className="text-sm font-medium text-green-700 dark:text-green-300">เบิกออกสินค้าสำเร็จ</p>
-          </div>
-        )}
-
         {/* Warehouse Selection */}
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">

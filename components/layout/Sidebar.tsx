@@ -61,38 +61,38 @@ const menuSections: MenuSection[] = [
   {
     title: 'POS',
     items: [
-      { label: 'POS', href: '/pos', icon: <Monitor className="w-5 h-5" />, roles: ['admin', 'manager', 'sales', 'cashier'] },
-      { label: 'รายการขาย POS', href: '/pos/orders', icon: <Receipt className="w-5 h-5" />, roles: ['admin', 'manager', 'cashier'] },
+      { label: 'POS', href: '/pos', icon: <Monitor className="w-5 h-5" />, roles: ['admin', 'cashier'] },
+      { label: 'รายการขาย POS', href: '/pos/orders', icon: <Receipt className="w-5 h-5" />, roles: ['admin', 'cashier', 'account'] },
     ]
   },
   {
     title: 'ระบบการขาย',
     items: [
-      { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-5 h-5" />, roles: ['admin', 'manager', 'sales', 'warehouse'] },
-      { label: 'Chat', href: '/chat', icon: <MessageCircle className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
-      { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-5 h-5" />, roles: ['admin', 'manager', 'sales', 'warehouse'] },
-      { label: 'สินค้า', href: '/products', icon: <Package2 className="w-5 h-5" />, roles: ['admin', 'manager', 'sales', 'warehouse'] }
+      { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-5 h-5" />, roles: ['admin', 'sales', 'account', 'warehouse'] },
+      { label: 'Chat', href: '/chat', icon: <MessageCircle className="w-5 h-5" />, roles: ['admin', 'sales'] },
+      { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-5 h-5" />, roles: ['admin', 'sales', 'warehouse'] },
+      { label: 'สินค้า', href: '/products', icon: <Package2 className="w-5 h-5" />, roles: ['admin', 'sales', 'warehouse'] }
     ]
   },
   {
     title: 'คลังสินค้า',
     items: [
-      { label: 'สินค้าคงคลัง', href: '/inventory', icon: <Warehouse className="w-5 h-5" />, roles: ['admin', 'manager', 'warehouse'] },
+      { label: 'สินค้าคงคลัง', href: '/inventory', icon: <Warehouse className="w-5 h-5" />, roles: ['admin', 'warehouse', 'cashier', 'sales'] },
     ]
   },
   {
     title: 'ลูกค้า',
     items: [
-      { label: 'ลูกค้า', href: '/customers', icon: <UserCircle className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
-      { label: 'ติดตามลูกค้า', href: '/crm/follow-up', icon: <UserCheck className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
-      { label: 'ติดตามหนี้', href: '/crm/payment-followup', icon: <DollarSign className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
+      { label: 'ลูกค้า', href: '/customers', icon: <UserCircle className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
+      { label: 'ติดตามลูกค้า', href: '/crm/follow-up', icon: <UserCheck className="w-5 h-5" />, roles: ['admin', 'sales'] },
+      { label: 'ติดตามหนี้', href: '/crm/payment-followup', icon: <DollarSign className="w-5 h-5" />, roles: ['admin', 'sales'] },
     ]
   },
   {
     title: 'รายงาน',
     items: [
-      { label: 'รายงานยอดขาย', href: '/reports/sales', icon: <BarChart3 className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] },
-      { label: 'รายงานยอดค้าง', href: '/reports/pending', icon: <FileText className="w-5 h-5" />, roles: ['admin', 'manager', 'sales'] }
+      { label: 'รายงานยอดขาย', href: '/reports/sales', icon: <BarChart3 className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
+      { label: 'รายงานยอดค้าง', href: '/reports/pending', icon: <FileText className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] }
     ]
   }
 ];
@@ -100,10 +100,9 @@ const menuSections: MenuSection[] = [
 const ROLE_LABELS: Record<string, string> = {
   owner: 'เจ้าของ',
   admin: 'ผู้ดูแลระบบ',
-  manager: 'ผู้จัดการ',
-  account: 'ฝ่ายบัญชี',
-  warehouse: 'ฝ่ายคลังสินค้า',
-  sales: 'ฝ่ายขาย',
+  account: 'บัญชี',
+  warehouse: 'คลังสินค้า',
+  sales: 'แอดมินออนไลน์',
   cashier: 'แคชเชียร์',
 };
 
@@ -134,14 +133,11 @@ export default function Sidebar() {
     for (const r of companyRoles) {
       if (r === 'owner' || r === 'admin') {
         roles.add('admin');
-      } else if (r === 'account') {
-        roles.add('sales');
       } else {
         roles.add(r);
       }
     }
     if (roles.size === 0) {
-      // Fallback from userProfile
       for (const r of (userProfile?.roles || ['sales'])) {
         roles.add(r);
       }

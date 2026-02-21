@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { Columns3 } from 'lucide-react';
+import Checkbox from '@/components/ui/Checkbox';
 
 interface ColumnSettingsDropdownProps<T extends string> {
   configs: { key: T; label: string; alwaysVisible?: boolean }[];
@@ -45,15 +46,9 @@ export default function ColumnSettingsDropdown<T extends string>({
             แสดงคอลัมน์
           </div>
           {configs.filter(c => !c.alwaysVisible).map(col => (
-            <label key={col.key} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={visible.has(col.key)}
-                onChange={() => toggle(col.key)}
-                className="w-3.5 h-3.5 text-[#F4511E] border-gray-300 dark:border-slate-500 rounded focus:ring-[#F4511E]"
-              />
-              <span className="text-sm text-gray-700 dark:text-slate-300">{col.label}</span>
-            </label>
+            <div key={col.key} className="px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700/50">
+              <Checkbox checked={visible.has(col.key)} onChange={() => toggle(col.key)} label={col.label} />
+            </div>
           ))}
         </div>
       )}

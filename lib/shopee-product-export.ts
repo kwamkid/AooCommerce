@@ -73,6 +73,11 @@ async function getEnabledLogistics(creds: ShopeeCredentials): Promise<number[]> 
 
 // --- Mandatory Attributes ---
 
+type AttributeEntry = { attribute_id: number; attribute_value_list: Array<{ value_id: number; original_value_name: string }> };
+
+// Memory cache: categoryId → attribute_list that was successfully used in export
+const categoryAttributeCache = new Map<number, AttributeEntry[]>();
+
 interface ShopeeAttributeValue {
   value_id: number;
   original_value_name: string;
@@ -91,14 +96,56 @@ interface ShopeeAttribute {
 }
 
 /**
+ * Look up stored shopee_attributes from marketplace_product_links for the same category.
+ * Returns cached attributes if another product in the same category was previously imported/exported.
+ */
+async function getStoredCategoryAttributes(
+  companyId: string,
+  categoryId: number
+): Promise<AttributeEntry[] | null> {
+  try {
+    const { data } = await supabaseAdmin
+      .from('marketplace_product_links')
+      .select('shopee_attributes')
+      .eq('company_id', companyId)
+      .eq('shopee_category_id', categoryId)
+      .not('shopee_attributes', 'is', null)
+      .limit(1)
+      .single();
+
+    if (data?.shopee_attributes && Array.isArray(data.shopee_attributes)) {
+      console.log(`[Shopee Export] Found stored attributes for category ${categoryId} (${data.shopee_attributes.length} attrs)`);
+      return data.shopee_attributes as AttributeEntry[];
+    }
+  } catch {
+    // No stored attributes found
+  }
+  return null;
+}
+
+/**
  * Fetch mandatory attributes for a Shopee category and return default attribute_list.
- * For dropdown/combo: use first available value.
- * For free-text: use "N/A" or "-".
+ * Priority: 1) stored shopee_attributes, 2) memory cache, 3) API call
  */
 async function getMandatoryAttributes(
   creds: ShopeeCredentials,
-  categoryId: number
-): Promise<Array<{ attribute_id: number; attribute_value_list: Array<{ value_id: number; original_value_name: string }> }>> {
+  categoryId: number,
+  companyId?: string
+): Promise<AttributeEntry[]> {
+  // Priority 1: Check stored attributes from DB
+  if (companyId) {
+    const stored = await getStoredCategoryAttributes(companyId, categoryId);
+    if (stored && stored.length > 0) return stored;
+  }
+
+  // Priority 2: Check memory cache
+  const cached = categoryAttributeCache.get(categoryId);
+  if (cached) {
+    console.log(`[Shopee Export] Using cached attributes for category ${categoryId} (${cached.length} attrs)`);
+    return cached;
+  }
+
+  // Priority 3: Fetch from API
   try {
     const { data, error } = await getShopeeCategoryAttributes(creds, categoryId);
     if (error || !data) {
@@ -112,7 +159,7 @@ async function getMandatoryAttributes(
 
     console.log(`[Shopee Export] Category ${categoryId}: ${attributes.length} attributes, ${mandatoryAttrs.length} mandatory`);
 
-    const result: Array<{ attribute_id: number; attribute_value_list: Array<{ value_id: number; original_value_name: string }> }> = [];
+    const result: AttributeEntry[] = [];
 
     for (const attr of mandatoryAttrs) {
       const values = attr.attribute_value_list || [];
@@ -183,6 +230,7 @@ interface ProductForExport {
     variation_label: string;
     sku: string | null;
     default_price: number;
+    discount_price: number;
     stock: number;
     attributes: Record<string, string> | null;
     _isVirtual?: boolean; // true when no real variation row exists
@@ -204,7 +252,7 @@ async function fetchProductForExport(productId: string, companyId: string): Prom
   // Try with company_id first, then without (some old records may not have company_id on variations)
   let { data: variations } = await supabaseAdmin
     .from('product_variations')
-    .select('id, variation_label, sku, default_price, stock, attributes')
+    .select('id, variation_label, sku, default_price, discount_price, stock, attributes')
     .eq('product_id', productId)
     .eq('company_id', companyId)
     .eq('is_active', true)
@@ -216,7 +264,7 @@ async function fetchProductForExport(productId: string, companyId: string): Prom
     // Retry without company_id filter (fallback for old data)
     const { data: fallbackVariations } = await supabaseAdmin
       .from('product_variations')
-      .select('id, variation_label, sku, default_price, stock, attributes')
+      .select('id, variation_label, sku, default_price, discount_price, stock, attributes')
       .eq('product_id', productId)
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
@@ -228,7 +276,7 @@ async function fetchProductForExport(productId: string, companyId: string): Prom
     // Last resort: query only by product_id (no is_active, no company_id filter)
     const { data: allVariations } = await supabaseAdmin
       .from('product_variations')
-      .select('id, variation_label, sku, default_price, stock, attributes, is_active, company_id')
+      .select('id, variation_label, sku, default_price, discount_price, stock, attributes, is_active, company_id')
       .eq('product_id', productId);
     console.log(`[Shopee Export] fetchProduct ALL variations (no filter):`, JSON.stringify(allVariations));
     // Use any active variation found, or any variation at all
@@ -239,6 +287,7 @@ async function fetchProductForExport(productId: string, companyId: string): Prom
         variation_label: v.variation_label,
         sku: v.sku,
         default_price: v.default_price,
+        discount_price: v.discount_price || 0,
         stock: v.stock,
         attributes: v.attributes,
       }));
@@ -285,6 +334,7 @@ async function fetchProductForExport(productId: string, companyId: string): Prom
       variation_label: product.variation_label || product.name,
       sku: product.code || null,
       default_price: fallbackPrice,
+      discount_price: 0,
       stock: 0,
       attributes: null as Record<string, string> | null,
       _isVirtual: true,
@@ -324,7 +374,13 @@ function buildAddItemPayload(
 
   const stock = simple ? (firstVariation?.stock || 0) : 0;
 
-  const price = Math.max(firstVariation?.default_price || 0, 1); // Shopee minimum price = 1
+  // Use discount_price (current selling price) if set, otherwise default_price
+  const price = Math.max(
+    (firstVariation?.discount_price && firstVariation.discount_price > 0)
+      ? firstVariation.discount_price
+      : (firstVariation?.default_price || 0),
+    1 // Shopee minimum price = 1
+  );
 
   // Ensure description meets Shopee 60-5000 char requirement
   let description = product.description || product.name;
@@ -453,8 +509,8 @@ export async function exportProductToShopee(
     const simple = isSimpleProduct(product);
     console.log(`[Shopee Export] "${product.name}" — ${simple ? 'simple' : 'variation'} product, ${product.variations.length} variations`);
 
-    // 4.5 Fetch mandatory attributes for the category
-    let attributeList = await getMandatoryAttributes(creds, options.shopee_category_id);
+    // 4.5 Fetch mandatory attributes for the category (checks stored → cache → API)
+    let attributeList = await getMandatoryAttributes(creds, options.shopee_category_id, companyId);
 
     // 5. Build and send add_item payload (with retry on mandatory attribute errors)
     let payload = buildAddItemPayload(product, options, imageIds, logisticsIds, simple, attributeList);
@@ -502,6 +558,11 @@ export async function exportProductToShopee(
       return { success: false, error: `Shopee error: ${error}`, product_name: product.name };
     }
 
+    // Cache successful attributes for this category (for subsequent exports)
+    if (attributeList.length > 0) {
+      categoryAttributeCache.set(options.shopee_category_id, attributeList);
+    }
+
     const response = data as { item_id?: number };
     const itemId = response.item_id;
 
@@ -544,10 +605,12 @@ export async function exportProductToShopee(
             const options = tierOptionsMap.get(name) || [];
             return options.indexOf(value);
           });
+          // Use discount_price (current selling price) if set, otherwise default_price
+          const modelPrice = (v.discount_price && v.discount_price > 0) ? v.discount_price : (v.default_price || 0);
           return {
             tier_index: tierIndex,
             normal_stock: v.stock || 0,
-            original_price: v.default_price || 0,
+            original_price: modelPrice,
             model_sku: v.sku || undefined,
           };
         });
@@ -578,10 +641,11 @@ export async function exportProductToShopee(
         external_model_id: '0',
         external_sku: firstVar?.sku || '',
         external_item_status: 'NORMAL',
-        platform_price: firstVar?.default_price || null,
+        platform_price: (firstVar?.discount_price && firstVar.discount_price > 0) ? firstVar.discount_price : (firstVar?.default_price || null),
         shopee_category_id: options.shopee_category_id,
         shopee_category_name: options.shopee_category_name || null,
         weight: options.weight || 0.5,
+        shopee_attributes: attributeList.length > 0 ? attributeList : null,
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -608,10 +672,11 @@ export async function exportProductToShopee(
           external_model_id: String(i), // temporary index, updated on next product sync
           external_sku: v.sku || '',
           external_item_status: 'NORMAL',
-          platform_price: v.default_price || null,
+          platform_price: (v.discount_price && v.discount_price > 0) ? v.discount_price : (v.default_price || null),
           shopee_category_id: options.shopee_category_id,
           shopee_category_name: options.shopee_category_name || null,
           weight: options.weight || 0.5,
+          shopee_attributes: attributeList.length > 0 ? attributeList : null,
           last_synced_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };

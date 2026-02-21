@@ -60,7 +60,7 @@ function getActionLabel(action: string): string {
 function formatDateTime(dateStr: string): { date: string; time: string } {
   const d = new Date(dateStr);
   return {
-    date: d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }),
+    date: d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }),
     time: d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
   };
 }
@@ -294,9 +294,9 @@ export default function ShopeeLogsPage() {
                 <table className="data-table-fixed">
                   <thead className="data-thead">
                     <tr>
-                      <th className="data-th w-8"></th>
-                      <th className="data-th">เวลา</th>
-                      <th className="data-th">ทิศทาง</th>
+                      <th className="data-th w-6 pl-3 pr-1"></th>
+                      <th className="data-th px-3">เวลา</th>
+                      <th className="data-th px-3">ทิศทาง</th>
                       <th className="data-th">Action</th>
                       <th className="data-th">ร้านค้า</th>
                       <th className="data-th">อ้างอิง</th>
@@ -381,18 +381,18 @@ function LogRow({
   return (
     <>
       <tr className="data-tr cursor-pointer" onClick={onToggle}>
-        <td className="px-6 py-4">
+        <td className="pl-3 pr-1 py-3">
           {isExpanded ? (
             <ChevronDown className="w-4 h-4 text-gray-400" />
           ) : (
             <ChevronRight className="w-4 h-4 text-gray-400" />
           )}
         </td>
-        <td className="px-6 py-4">
-          <div className="text-gray-900 dark:text-white">{dt.date}</div>
+        <td className="px-3 py-3 whitespace-nowrap">
+          <div className="text-sm text-gray-900 dark:text-white">{dt.date}</div>
           <div className="text-xs text-gray-500 dark:text-slate-400">{dt.time}</div>
         </td>
-        <td className="px-6 py-4">
+        <td className="px-3 py-3 whitespace-nowrap">
           <DirectionBadge direction={log.direction} />
         </td>
         <td className="px-6 py-4">
@@ -506,15 +506,15 @@ function MobileLogCard({
 function DirectionBadge({ direction }: { direction: 'outgoing' | 'incoming' }) {
   if (direction === 'outgoing') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-        <ArrowUpRight className="w-3 h-3" />
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+        <ArrowUpRight className="w-3 h-3 flex-shrink-0" />
         ส่งออก
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-      <ArrowDownLeft className="w-3 h-3" />
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+      <ArrowDownLeft className="w-3 h-3 flex-shrink-0" />
       รับเข้า
     </span>
   );

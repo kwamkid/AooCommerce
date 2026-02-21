@@ -22,6 +22,7 @@ function verifySignature(url: string, rawBody: string, signature: string, partne
 }
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
   try {
     const rawBody = await request.text();
     const authorization = request.headers.get('authorization') || '';
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest) {
           reference_label: shopeeStatus
             ? `Order ${orderSn} → ${shopeeStatus}`
             : `Order ${orderSn}`,
+          duration_ms: Date.now() - startTime,
         });
 
         // Sync this specific order asynchronously
