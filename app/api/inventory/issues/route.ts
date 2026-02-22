@@ -19,12 +19,12 @@ export async function GET(request: NextRequest) {
         .from('inventory_issues')
         .select(`
           *,
-          warehouse:warehouses!inventory_issues_warehouse_id_fkey(id, name, code),
+          warehouse:warehouses(id, name, code),
           items:inventory_issue_items(
             id, variation_id, quantity, reason, notes,
-            variation:product_variations!inventory_issue_items_variation_id_fkey(
-              id, variation_label, sku, attributes,
-              product:products!product_variations_product_id_fkey(id, code, name, image)
+            variation:product_variations(
+              id, variation_label, sku, barcode, attributes,
+              product:products(id, code, name, image)
             )
           )
         `)
@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
         .single();
 
       if (error || !data) {
+        console.error('GET issue by id error:', { issueId, error: error?.message, code: error?.code });
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
       }
 

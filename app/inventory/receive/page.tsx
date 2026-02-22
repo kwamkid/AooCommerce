@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Search, Package, Package2, Plus, Trash2, X,
-  Save, Warehouse, ChevronDown, FileText
+  Loader2, Package, Package2, Trash2,
+  Save, Warehouse, ChevronDown, FileText, CheckCircle2,
 } from 'lucide-react';
+import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 // Interfaces
 interface WarehouseItem {
@@ -28,6 +30,7 @@ interface Product {
   variation_label?: string;
   product_type: 'simple' | 'variation';
   default_price: number;
+  cost_price: number;
   sku?: string;
 }
 
@@ -40,8 +43,22 @@ interface ReceiveItem {
   variation_label?: string;
   sku?: string;
   quantity: number;
-  notes: string;
+  unit_cost: number;
 }
+
+// Hide variation_label if it's a barcode/number or same as code/sku
+const getCleanVarLabel = (item: ReceiveItem) => {
+  const raw = item.variation_label || '';
+  if (!raw || raw === item.code || raw === item.sku || /^\d+$/.test(raw)) return '';
+  return raw;
+};
+
+const buildReceiveSubtitle = (item: ReceiveItem) => {
+  const parts: string[] = [];
+  if (item.code) parts.push(item.code);
+  if (item.sku && item.sku !== item.code) parts.push(`SKU: ${item.sku}`);
+  return parts.join(' | ');
+};
 
 export default function StockReceivePage() {
   const router = useRouter();
@@ -60,16 +77,17 @@ export default function StockReceivePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
 
-  // Product search
-  const [productSearch, setProductSearch] = useState('');
-  const [showProductDropdown, setShowProductDropdown] = useState(false);
-  const productSearchRef = useRef<HTMLInputElement>(null);
+  // Stock data for current warehouse
+  const [stockMap, setStockMap] = useState<Record<string, number>>({});
 
   // Receive items
   const [receiveItems, setReceiveItems] = useState<ReceiveItem[]>([]);
 
   // Batch notes
   const [batchNotes, setBatchNotes] = useState('');
+
+  // Confirm dialog
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Fetch warehouses and products on mount
   useEffect(() => {
@@ -78,6 +96,31 @@ export default function StockReceivePage() {
       fetchProducts();
     }
   }, [authLoading, userProfile]);
+
+  // Fetch stock when warehouse changes
+  useEffect(() => {
+    if (selectedWarehouseId) {
+      fetchStock(selectedWarehouseId);
+    } else {
+      setStockMap({});
+    }
+  }, [selectedWarehouseId]);
+
+  const fetchStock = async (warehouseId: string) => {
+    try {
+      const res = await apiFetch(`/api/inventory?warehouse_id=${warehouseId}&limit=9999`);
+      if (res.ok) {
+        const data = await res.json();
+        const map: Record<string, number> = {};
+        for (const item of (data.items || [])) {
+          map[item.variation_id] = item.quantity ?? 0;
+        }
+        setStockMap(map);
+      }
+    } catch {
+      // silently fail — stock badge is non-critical
+    }
+  };
 
   const fetchWarehouses = async () => {
     try {
@@ -124,6 +167,7 @@ export default function StockReceivePage() {
             variation_label: sp.simple_variation_label,
             product_type: 'simple',
             default_price: sp.simple_default_price || 0,
+            cost_price: sp.variations?.[0]?.cost_price || 0,
             sku: sp.variations?.[0]?.sku || '',
           });
         } else {
@@ -137,6 +181,7 @@ export default function StockReceivePage() {
               variation_label: v.variation_label,
               product_type: 'variation',
               default_price: v.default_price || 0,
+              cost_price: v.cost_price || 0,
               sku: v.sku || '',
             });
           });
@@ -174,19 +219,12 @@ export default function StockReceivePage() {
           variation_label: product.variation_label,
           sku: product.sku,
           quantity: 1,
-          notes: '',
+          unit_cost: product.cost_price || 0,
         },
       ]);
     }
 
-    // Clear search and close dropdown
-    setProductSearch('');
-    setShowProductDropdown(false);
-
-    // Refocus search input
-    setTimeout(() => {
-      productSearchRef.current?.focus();
-    }, 100);
+    // Note: search clearing and re-focus handled by ProductSearchInput
   };
 
   // Remove item from list
@@ -201,24 +239,22 @@ export default function StockReceivePage() {
     setReceiveItems(updated);
   };
 
-  // Update item notes
-  const handleUpdateNotes = (index: number, notes: string) => {
+  // Update item unit cost
+  const handleUpdateUnitCost = (index: number, cost: number) => {
     const updated = [...receiveItems];
-    updated[index].notes = notes;
+    updated[index].unit_cost = Math.max(0, cost);
     setReceiveItems(updated);
   };
 
-  // Filter products based on search
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    p.code.toLowerCase().includes(productSearch.toLowerCase()) ||
-    (p.sku && p.sku.toLowerCase().includes(productSearch.toLowerCase()))
-  );
-
-  // Submit
-  const handleSubmit = async () => {
+  // Show confirm dialog
+  const handleSubmit = () => {
     if (!selectedWarehouseId || receiveItems.length === 0) return;
+    setShowConfirm(true);
+  };
 
+  // Actual submit after confirmation
+  const handleConfirmSubmit = async () => {
+    setShowConfirm(false);
     try {
       setSubmitting(true);
 
@@ -227,7 +263,7 @@ export default function StockReceivePage() {
         items: receiveItems.map(item => ({
           variation_id: item.variation_id,
           quantity: item.quantity,
-          notes: item.notes || undefined,
+          unit_cost: item.unit_cost || undefined,
         })),
         notes: batchNotes || undefined,
       };
@@ -245,13 +281,7 @@ export default function StockReceivePage() {
       }
 
       showToast(`สร้างใบรับเข้า ${result.receive_number || ''} สำเร็จ`, 'success');
-
-      // Redirect to detail or list
-      if (result.receive_id) {
-        router.push(`/inventory/receives/${result.receive_id}`);
-      } else {
-        router.push('/inventory/receives');
-      }
+      router.push('/inventory/receives');
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการรับเข้าสินค้า',
@@ -296,11 +326,11 @@ export default function StockReceivePage() {
             <Warehouse className="w-4 h-4 inline mr-1.5 -mt-0.5" />
             คลังสินค้า <span className="text-red-500">*</span>
           </label>
-          <div className="relative">
+          <div className="relative inline-block w-full sm:w-72">
             <select
               value={selectedWarehouseId}
               onChange={e => setSelectedWarehouseId(e.target.value)}
-              className="w-full sm:w-72 px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none pr-8"
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none pr-8"
             >
               <option value="">-- เลือกคลังสินค้า --</option>
               {warehouses.map(wh => (
@@ -318,101 +348,10 @@ export default function StockReceivePage() {
           )}
         </div>
 
-        {/* Product Search */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-            เพิ่มสินค้า
-          </label>
-          <div className="relative">
-            <div className="flex items-center gap-2 px-3 py-2.5 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-[#F4511E] transition-colors bg-white dark:bg-slate-700">
-              <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
-              <input
-                ref={productSearchRef}
-                type="text"
-                value={productSearch}
-                onChange={e => {
-                  setProductSearch(e.target.value);
-                  setShowProductDropdown(true);
-                }}
-                onFocus={() => setShowProductDropdown(true)}
-                onBlur={() => {
-                  setTimeout(() => setShowProductDropdown(false), 200);
-                }}
-                placeholder="พิมพ์ชื่อสินค้า, รหัส หรือ SKU เพื่อค้นหา..."
-                className="flex-1 outline-none bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
-              />
-              {productsLoading && (
-                <Loader2 className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" />
-              )}
-            </div>
-
-            {/* Product Search Dropdown */}
-            {showProductDropdown && productSearch && (
-              <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-auto">
-                {filteredProducts.length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
-                    ไม่พบสินค้า
-                  </div>
-                ) : (
-                  filteredProducts.map(product => {
-                    const variationLabelDisplay = product.variation_label || '';
-                    const isAlreadyAdded = receiveItems.some(
-                      item => item.variation_id === product.id
-                    );
-                    return (
-                      <button
-                        key={product.id}
-                        type="button"
-                        onClick={() => handleAddProduct(product)}
-                        className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-3"
-                      >
-                        {product.image ? (
-                          <img
-                            src={product.image}
-                            alt={product.name}
-                            className="w-10 h-10 object-cover rounded flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
-                            <Package className="w-5 h-5 text-gray-400" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                            {product.name}
-                            {variationLabelDisplay && ` - ${variationLabelDisplay}`}
-                          </div>
-                          <div className="text-xs text-gray-400 dark:text-slate-500">
-                            {product.code}
-                            {product.sku && ` | SKU: ${product.sku}`}
-                          </div>
-                        </div>
-                        {isAlreadyAdded && (
-                          <span className="text-xs text-[#F4511E] font-medium flex-shrink-0">
-                            +1
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Receive Items List */}
-        {receiveItems.length === 0 ? (
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 text-center py-12">
-            <Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-            <p className="text-gray-500 dark:text-slate-400 text-sm">
-              ยังไม่มีสินค้าในรายการ กรุณาค้นหาและเพิ่มสินค้าด้านบน
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Desktop Table */}
-            <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-slate-700">
+        {/* Desktop: Table + Search in one card */}
+        <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700">
+          {receiveItems.length > 0 && (
+            <>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -420,14 +359,14 @@ export default function StockReceivePage() {
                       <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">
                         สินค้า
                       </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-28">
-                        รหัส/SKU
+                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-24">
+                        สต๊อกปัจจุบัน
                       </th>
                       <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-24">
-                        จำนวน
+                        รับเข้า
                       </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-48">
-                        หมายเหตุ
+                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-28">
+                        ต้นทุน/ชิ้น
                       </th>
                       <th className="text-center px-2 py-3 w-12"></th>
                     </tr>
@@ -449,26 +388,31 @@ export default function StockReceivePage() {
                               </div>
                             )}
                             <div className="min-w-0">
-                              <p className="font-medium text-gray-900 dark:text-white truncate">
-                                {item.name}
+                              <p className="font-medium text-gray-900 dark:text-white line-clamp-2 break-words">
+                                {item.name}{getCleanVarLabel(item) ? ` - ${getCleanVarLabel(item)}` : ''}
                               </p>
-                              {item.variation_label && (
-                                <p className="text-xs text-gray-500 dark:text-slate-400">
-                                  {item.variation_label}
-                                </p>
-                              )}
+                              <p className="text-xs text-gray-400 dark:text-slate-500 truncate">
+                                {buildReceiveSubtitle(item)}
+                              </p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <span className="text-gray-600 dark:text-slate-300 font-mono text-xs">
-                            {item.code}
-                          </span>
-                          {item.sku && (
-                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                              {item.sku}
-                            </p>
-                          )}
+                        <td className="px-4 py-3 text-center">
+                          {(() => {
+                            const stock = stockMap[item.variation_id] ?? null;
+                            if (stock === null) return <span className="text-xs text-gray-400">-</span>;
+                            return (
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                stock <= 0
+                                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                  : stock <= 5
+                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                    : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                              }`}>
+                                {stock.toLocaleString()}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <input
@@ -481,13 +425,16 @@ export default function StockReceivePage() {
                             className="w-20 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 text-center">
                           <input
-                            type="text"
-                            value={item.notes}
-                            onChange={e => handleUpdateNotes(index, e.target.value)}
-                            placeholder="หมายเหตุ..."
-                            className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] placeholder-gray-400 dark:placeholder-slate-500"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.unit_cost}
+                            onChange={e =>
+                              handleUpdateUnitCost(index, parseFloat(e.target.value) || 0)
+                            }
+                            className="w-24 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
                           />
                         </td>
                         <td className="px-2 py-3 text-center">
@@ -505,105 +452,152 @@ export default function StockReceivePage() {
                   </tbody>
                 </table>
               </div>
-
-              {/* Summary row */}
-              <div className="px-4 py-3 bg-gray-50 dark:bg-slate-800/50 border-t border-gray-200 dark:border-slate-700 flex items-center justify-between">
-                <span className="text-sm text-gray-500 dark:text-slate-400">
-                  รวม {receiveItems.length} รายการ
-                </span>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  จำนวนรวม: {receiveItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
-                </span>
-              </div>
+            </>
+          )}
+          {/* Product Search */}
+          <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700">
+            <ProductSearchInput
+              products={products}
+              onSelect={(p) => handleAddProduct(p as Product)}
+              loading={productsLoading}
+              isAlreadyAdded={(p) => receiveItems.some(item => item.variation_id === p.id)}
+            />
+          </div>
+          {receiveItems.length === 0 && (
+            <div className="text-center py-8 text-gray-400 dark:text-slate-500">
+              <Package2 className="w-10 h-10 mx-auto mb-2" />
+              <p className="text-sm">เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน</p>
             </div>
+          )}
+          {/* Summary row */}
+          {receiveItems.length > 0 && (
+            <div className="px-4 py-3 bg-gray-50 dark:bg-slate-800/50 border-t border-gray-200 dark:border-slate-700 rounded-b-lg flex items-center justify-between">
+              <span className="text-sm text-gray-500 dark:text-slate-400">
+                รวม {receiveItems.length} รายการ
+              </span>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                จำนวนรวม: {receiveItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
+              </span>
+            </div>
+          )}
+        </div>
 
-            {/* Mobile Cards */}
-            <div className="md:hidden space-y-2">
-              {receiveItems.map((item, index) => (
-                <div
-                  key={item.variation_id}
-                  className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 p-3"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      {item.image ? (
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-12 h-12 rounded object-cover flex-shrink-0"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                          <Package className="w-6 h-6 text-gray-400" />
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                          {item.name}
+        {/* Mobile Cards */}
+        {receiveItems.length > 0 && (
+          <div className="md:hidden space-y-2">
+            {receiveItems.map((item, index) => (
+              <div
+                key={item.variation_id}
+                className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 p-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-12 h-12 rounded object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                        <Package className="w-6 h-6 text-gray-400" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 break-words">
+                        {item.name}{getCleanVarLabel(item) ? ` - ${getCleanVarLabel(item)}` : ''}
+                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs text-gray-400 dark:text-slate-500 truncate">
+                          {buildReceiveSubtitle(item)}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-slate-400">
-                          {item.code}
-                          {item.variation_label && ` | ${item.variation_label}`}
-                        </p>
-                        {item.sku && (
-                          <p className="text-xs text-gray-400 dark:text-slate-500">
-                            SKU: {item.sku}
-                          </p>
-                        )}
+                        {(() => {
+                          const stock = stockMap[item.variation_id] ?? null;
+                          if (stock === null) return null;
+                          return (
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${
+                              stock <= 0
+                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                : stock <= 5
+                                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                  : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            }`}>
+                              สต๊อก {stock.toLocaleString()}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(index)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveItem(index)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
 
-                  <div className="mt-2.5 grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
-                        จำนวน
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={e =>
-                          handleUpdateQuantity(index, parseInt(e.target.value) || 1)
-                        }
-                        className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
-                        หมายเหตุ
-                      </label>
-                      <input
-                        type="text"
-                        value={item.notes}
-                        onChange={e => handleUpdateNotes(index, e.target.value)}
-                        placeholder="หมายเหตุ..."
-                        className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] placeholder-gray-400 dark:placeholder-slate-500"
-                      />
-                    </div>
+                <div className="mt-2.5 grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
+                      รับเข้า
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={item.quantity}
+                      onChange={e =>
+                        handleUpdateQuantity(index, parseInt(e.target.value) || 1)
+                      }
+                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
+                      ต้นทุน/ชิ้น (฿)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.unit_cost}
+                      onChange={e =>
+                        handleUpdateUnitCost(index, parseFloat(e.target.value) || 0)
+                      }
+                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                    />
                   </div>
                 </div>
-              ))}
-
-              {/* Mobile summary */}
-              <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2.5 flex items-center justify-between">
-                <span className="text-sm text-gray-500 dark:text-slate-400">
-                  รวม {receiveItems.length} รายการ
-                </span>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  จำนวนรวม: {receiveItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
-                </span>
               </div>
+            ))}
+
+            {/* Mobile summary */}
+            <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2.5 flex items-center justify-between">
+              <span className="text-sm text-gray-500 dark:text-slate-400">
+                รวม {receiveItems.length} รายการ
+              </span>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                จำนวนรวม: {receiveItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
+              </span>
             </div>
-          </>
+          </div>
         )}
+        {/* Mobile: Search + empty state */}
+        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+          <ProductSearchInput
+            products={products}
+            onSelect={(p) => handleAddProduct(p as Product)}
+            loading={productsLoading}
+            isAlreadyAdded={(p) => receiveItems.some(item => item.variation_id === p.id)}
+          />
+          {receiveItems.length === 0 && (
+            <div className="text-center py-8 text-gray-400 dark:text-slate-500">
+              <Package2 className="w-10 h-10 mx-auto mb-2" />
+              <p className="text-sm">เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน</p>
+            </div>
+          )}
+        </div>
 
         {/* Batch Notes */}
         {receiveItems.length > 0 && (
@@ -651,6 +645,33 @@ export default function StockReceivePage() {
           </button>
         </div>
       </div>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={handleConfirmSubmit}
+        icon={<Package2 className="w-6 h-6 text-[#F4511E]" />}
+        title="ยืนยันรับเข้าสินค้า"
+        description="คุณต้องการรับเข้าสินค้าทั้งหมดใช่หรือไม่?"
+        confirmLabel="ยืนยันรับเข้า"
+        confirmIcon={<CheckCircle2 className="w-4 h-4" />}
+      >
+        <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-3 space-y-1.5">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500 dark:text-slate-400">คลังสินค้า</span>
+            <span className="font-medium text-gray-900 dark:text-white">{selectedWarehouse?.name || '-'}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500 dark:text-slate-400">จำนวนรายการ</span>
+            <span className="font-medium text-gray-900 dark:text-white">{receiveItems.length} รายการ</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500 dark:text-slate-400">จำนวนรวม</span>
+            <span className="font-medium text-gray-900 dark:text-white">{receiveItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น</span>
+          </div>
+        </div>
+      </ConfirmDialog>
     </Layout>
   );
 }

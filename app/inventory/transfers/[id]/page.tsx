@@ -180,13 +180,27 @@ export default function TransferDetailPage() {
 
   const getVariationLabel = (item: TransferItem): string => {
     const parts: string[] = [];
-    if (item.variation?.variation_label) parts.push(item.variation.variation_label);
+    const raw = item.variation?.variation_label || '';
+    const code = item.variation?.product?.code || '';
+    const sku = item.variation?.sku || '';
+    if (raw && raw !== code && raw !== sku && !/^\d+$/.test(raw)) parts.push(raw);
     if (item.variation?.attributes) {
       Object.values(item.variation.attributes).forEach(v => {
         if (v && v.trim()) parts.push(v.trim());
       });
     }
     return parts.join(' / ');
+  };
+
+  const buildSubtitle = (item: TransferItem) => {
+    const code = item.variation?.product?.code || '';
+    const varLabel = getVariationLabel(item);
+    const sku = item.variation?.sku || '';
+    const parts: string[] = [];
+    if (code) parts.push(code);
+    if (varLabel) parts.push(varLabel);
+    if (sku && sku !== code) parts.push(`SKU: ${sku}`);
+    return parts.join(' | ');
   };
 
   if (authLoading || loading) {
@@ -373,7 +387,6 @@ export default function TransferDetailPage() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                 {(transfer.items || []).map(item => {
-                  const varLabel = getVariationLabel(item);
                   const isShort = item.qty_received !== null && item.qty_received < item.qty_sent;
                   return (
                     <tr key={item.id} className={`hover:bg-gray-50 dark:hover:bg-slate-700/30 ${isShort ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
@@ -391,13 +404,11 @@ export default function TransferDetailPage() {
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="font-medium text-gray-900 dark:text-white truncate">
-                              {item.variation?.product?.name || '-'}
+                            <p className="font-medium text-gray-900 dark:text-white line-clamp-2 break-words">
+                              {item.variation?.product?.name || '-'}{getVariationLabel(item) ? ` - ${getVariationLabel(item)}` : ''}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-slate-400">
-                              {item.variation?.product?.code || ''}
-                              {varLabel && ` | ${varLabel}`}
-                              {item.variation?.sku && ` | SKU: ${item.variation.sku}`}
+                            <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                              {buildSubtitle(item)}
                             </p>
                           </div>
                         </div>
@@ -464,7 +475,6 @@ export default function TransferDetailPage() {
           {/* Mobile Cards */}
           <div className="md:hidden divide-y divide-gray-100 dark:divide-slate-700">
             {(transfer.items || []).map(item => {
-              const varLabel = getVariationLabel(item);
               const isShort = item.qty_received !== null && item.qty_received < item.qty_sent;
               return (
                 <div key={item.id} className={`p-3 ${isShort ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
@@ -481,12 +491,11 @@ export default function TransferDetailPage() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                        {item.variation?.product?.name || '-'}
+                      <p className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 break-words">
+                        {item.variation?.product?.name || '-'}{getVariationLabel(item) ? ` - ${getVariationLabel(item)}` : ''}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-slate-400">
-                        {item.variation?.product?.code || ''}
-                        {varLabel && ` | ${varLabel}`}
+                      <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                        {buildSubtitle(item)}
                       </p>
                       <div className="mt-2 flex items-center gap-3">
                         <div className="text-center">

@@ -15,26 +15,47 @@ export async function GET(request: NextRequest) {
     const receiveId = searchParams.get('id');
 
     if (receiveId) {
-      const { data, error } = await supabaseAdmin
+      // Fetch receive header
+      const { data: receiveHeader, error: headerErr } = await supabaseAdmin
         .from('inventory_receives')
-        .select(`
-          *,
-          warehouse:warehouses!inventory_receives_warehouse_id_fkey(id, name, code),
-          items:inventory_receive_items(
-            id, variation_id, quantity, notes,
-            variation:product_variations!inventory_receive_items_variation_id_fkey(
-              id, variation_label, sku, attributes,
-              product:products!product_variations_product_id_fkey(id, code, name, image)
-            )
-          )
-        `)
+        .select('*')
         .eq('id', receiveId)
         .eq('company_id', auth.companyId)
         .single();
 
-      if (error || !data) {
+      if (headerErr || !receiveHeader) {
+        console.error('GET receive detail error:', headerErr?.message, headerErr?.details);
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
       }
+
+      // Fetch warehouse
+      let warehouse = null;
+      if (receiveHeader.warehouse_id) {
+        const { data: wh } = await supabaseAdmin
+          .from('warehouses')
+          .select('id, name, code')
+          .eq('id', receiveHeader.warehouse_id)
+          .single();
+        warehouse = wh;
+      }
+
+      // Fetch items with nested variation + product
+      const { data: itemsRaw } = await supabaseAdmin
+        .from('inventory_receive_items')
+        .select(`
+          id, variation_id, quantity, unit_cost, notes,
+          variation:product_variations(
+            id, variation_label, sku, barcode, attributes,
+            product:products(id, code, name, image)
+          )
+        `)
+        .eq('receive_id', receiveId);
+
+      const data = {
+        ...receiveHeader,
+        warehouse,
+        items: itemsRaw || [],
+      } as Record<string, unknown>;
 
       // Fetch created_by user name
       if (data.created_by) {
@@ -152,13 +173,18 @@ export async function POST(request: NextRequest) {
 
     const results = [];
     for (const item of items) {
-      const { variation_id, quantity, notes: itemNotes } = item;
+      const { variation_id, quantity, unit_cost, notes: itemNotes } = item;
       if (!variation_id || !quantity || quantity <= 0) continue;
 
       // Insert item
-      await supabaseAdmin
+      const itemInsert: Record<string, unknown> = { receive_id: receive.id, variation_id, quantity, notes: itemNotes || null };
+      if (unit_cost) itemInsert.unit_cost = unit_cost;
+      const { error: itemError } = await supabaseAdmin
         .from('inventory_receive_items')
-        .insert({ receive_id: receive.id, variation_id, quantity, notes: itemNotes || null });
+        .insert(itemInsert);
+      if (itemError) {
+        console.error('Insert receive item error:', itemError.message);
+      }
 
       // Upsert inventory
       const { data: existing } = await supabaseAdmin
@@ -181,20 +207,22 @@ export async function POST(request: NextRequest) {
       }
 
       // Create transaction
+      const txInsert: Record<string, unknown> = {
+        company_id: auth.companyId,
+        warehouse_id,
+        variation_id,
+        type: 'in',
+        quantity,
+        balance_after: newQuantity,
+        reference_type: 'receive',
+        reference_id: receive.id,
+        notes: itemNotes || notes || `รับเข้า ${receiveNumber}`,
+        created_by: auth.userId,
+      };
+      if (unit_cost) txInsert.unit_cost = unit_cost;
       await supabaseAdmin
         .from('inventory_transactions')
-        .insert({
-          company_id: auth.companyId,
-          warehouse_id,
-          variation_id,
-          type: 'in',
-          quantity,
-          balance_after: newQuantity,
-          reference_type: 'receive',
-          reference_id: receive.id,
-          notes: itemNotes || notes || `รับเข้า ${receiveNumber}`,
-          created_by: auth.userId,
-        });
+        .insert(txInsert);
 
       results.push({ variation_id, quantity, new_balance: newQuantity });
     }

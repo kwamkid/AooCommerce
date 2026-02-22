@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
@@ -46,26 +46,42 @@ export default function IssueDetailPage() {
 
   const [data, setData] = useState<IssueData | null>(null);
   const [loading, setLoading] = useState(true);
+  const fetchingRef = useRef(false);
 
   useEffect(() => {
     if (!authLoading && userProfile && issueId) fetchData();
   }, [authLoading, userProfile, issueId]);
 
-  const fetchData = async () => {
+  const fetchData = async (retry = 0): Promise<void> => {
+    // Prevent duplicate concurrent fetches (React Strict Mode)
+    if (retry === 0) {
+      if (fetchingRef.current) return;
+      fetchingRef.current = true;
+    }
     try {
       setLoading(true);
       const res = await apiFetch(`/api/inventory/issues?id=${issueId}`);
       if (res.ok) {
         const result = await res.json();
         setData(result.issue);
-      } else {
-        showToast('ไม่พบรายการ', 'error');
-        router.push('/inventory/issues');
+        return;
       }
+      // Retry on 401/404 — session or record may not be ready yet after redirect
+      if (retry < 2) {
+        await new Promise(r => setTimeout(r, 800));
+        return fetchData(retry + 1);
+      }
+      showToast('ไม่พบรายการ', 'error');
+      router.push('/inventory/issues');
     } catch {
+      if (retry < 2) {
+        await new Promise(r => setTimeout(r, 800));
+        return fetchData(retry + 1);
+      }
       showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
     } finally {
       setLoading(false);
+      if (retry === 0 || retry >= 2) fetchingRef.current = false;
     }
   };
 
@@ -74,9 +90,23 @@ export default function IssueDetailPage() {
 
   const getVariationLabel = (item: IssueItem) => {
     const parts: string[] = [];
-    if (item.variation?.variation_label) parts.push(item.variation.variation_label);
+    const raw = item.variation?.variation_label || '';
+    const code = item.variation?.product?.code || '';
+    const sku = item.variation?.sku || '';
+    if (raw && raw !== code && raw !== sku && !/^\d+$/.test(raw)) parts.push(raw);
     if (item.variation?.attributes) Object.values(item.variation.attributes).forEach(v => { if (v?.trim()) parts.push(v.trim()); });
     return parts.join(' / ');
+  };
+
+  const buildSubtitle = (item: IssueItem) => {
+    const code = item.variation?.product?.code || '';
+    const varLabel = getVariationLabel(item);
+    const sku = item.variation?.sku || '';
+    const parts: string[] = [];
+    if (code) parts.push(code);
+    if (varLabel) parts.push(varLabel);
+    if (sku && sku !== code) parts.push(`SKU: ${sku}`);
+    return parts.join(' | ');
   };
 
   if (authLoading || loading) {
@@ -159,7 +189,6 @@ export default function IssueDetailPage() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                 {(data.items || []).map(item => {
-                  const varLabel = getVariationLabel(item);
                   return (
                     <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
                       <td className="px-4 py-3">
@@ -172,9 +201,9 @@ export default function IssueDetailPage() {
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="font-medium text-gray-900 dark:text-white truncate">{item.variation?.product?.name || '-'}</p>
-                            <p className="text-xs text-gray-500 dark:text-slate-400">
-                              {item.variation?.product?.code || ''}{varLabel && ` | ${varLabel}`}{item.variation?.sku && ` | SKU: ${item.variation.sku}`}
+                            <p className="font-medium text-gray-900 dark:text-white line-clamp-2 break-words">{item.variation?.product?.name || '-'}{getVariationLabel(item) ? ` - ${getVariationLabel(item)}` : ''}</p>
+                            <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                              {buildSubtitle(item)}
                             </p>
                           </div>
                         </div>

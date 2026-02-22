@@ -20,6 +20,7 @@ interface ProductData {
   barcode?: string;
   default_price?: number;
   discount_price?: number;
+  cost_price?: number;
   stock?: number;
   min_stock?: number;
 
@@ -34,6 +35,7 @@ interface VariationData {
   barcode?: string;
   default_price: number;
   discount_price?: number;
+  cost_price?: number;
   stock?: number;
   min_stock?: number;
   is_active?: boolean;
@@ -222,6 +224,7 @@ export async function POST(request: NextRequest) {
           barcode: productData.barcode || null,
           default_price: productData.default_price,
           discount_price: productData.discount_price || 0,
+          cost_price: productData.cost_price || 0,
           stock: productData.stock || 0,
           min_stock: productData.min_stock || 0,
           is_active: true,
@@ -253,6 +256,7 @@ export async function POST(request: NextRequest) {
         barcode: v.barcode || null,
         default_price: v.default_price,
         discount_price: v.discount_price || 0,
+        cost_price: v.cost_price || 0,
         stock: v.stock || 0,
         min_stock: v.min_stock || 0,
         is_active: v.is_active !== undefined ? v.is_active : true,
@@ -463,6 +467,7 @@ export async function GET(request: NextRequest) {
             attributes: row.attributes,
             default_price: row.default_price,
             discount_price: row.discount_price,
+            cost_price: row.cost_price,
             stock: row.stock,
             min_stock: row.min_stock,
             is_active: row.variation_is_active,
@@ -500,6 +505,7 @@ export async function GET(request: NextRequest) {
             variation_label: row.simple_variation_label,
             default_price: row.simple_default_price,
             discount_price: row.simple_discount_price,
+            cost_price: row.cost_price,
             stock: row.simple_stock,
             min_stock: row.simple_min_stock,
             is_active: row.variation_is_active,
@@ -514,6 +520,7 @@ export async function GET(request: NextRequest) {
             attributes: row.attributes,
             default_price: row.default_price,
             discount_price: row.discount_price,
+            cost_price: row.cost_price,
             stock: row.stock,
             min_stock: row.min_stock,
             is_active: row.variation_is_active,
@@ -708,9 +715,9 @@ export async function PUT(request: NextRequest) {
     if (isSimpleProduct) {
       // For simple products: update the single variation row
       // Get the variation price/stock data from body
-      const { default_price, discount_price, stock, min_stock, sku, barcode } = body;
+      const { default_price, discount_price, cost_price, stock, min_stock, sku, barcode } = body;
 
-      if (default_price !== undefined || discount_price !== undefined || stock !== undefined || min_stock !== undefined || sku !== undefined || barcode !== undefined) {
+      if (default_price !== undefined || discount_price !== undefined || cost_price !== undefined || stock !== undefined || min_stock !== undefined || sku !== undefined || barcode !== undefined) {
         // Find the existing variation for this simple product
         const { data: existingVariation } = await supabaseAdmin
           .from('product_variations')
@@ -724,6 +731,7 @@ export async function PUT(request: NextRequest) {
           const variationUpdate: any = { updated_at: new Date().toISOString() };
           if (default_price !== undefined) variationUpdate.default_price = default_price;
           if (discount_price !== undefined) variationUpdate.discount_price = discount_price;
+          if (cost_price !== undefined) variationUpdate.cost_price = cost_price;
           if (stock !== undefined) variationUpdate.stock = stock;
           if (min_stock !== undefined) variationUpdate.min_stock = min_stock;
           if (variation_label !== undefined) variationUpdate.variation_label = variation_label;
@@ -777,6 +785,7 @@ export async function PUT(request: NextRequest) {
                 barcode: variation.barcode || null,
                 default_price: variation.default_price,
                 discount_price: variation.discount_price || 0,
+                cost_price: variation.cost_price || 0,
                 stock: variation.stock || 0,
                 min_stock: variation.min_stock || 0,
                 is_active: variation.is_active !== undefined ? variation.is_active : true,
@@ -797,6 +806,7 @@ export async function PUT(request: NextRequest) {
                 barcode: variation.barcode || null,
                 default_price: variation.default_price,
                 discount_price: variation.discount_price || 0,
+                cost_price: variation.cost_price || 0,
                 stock: variation.stock || 0,
                 min_stock: variation.min_stock || 0,
                 is_active: variation.is_active !== undefined ? variation.is_active : true,

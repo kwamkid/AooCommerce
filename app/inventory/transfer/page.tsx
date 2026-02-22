@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Search, Package, Package2, Plus, Trash2, X,
+  Loader2, Package, Package2, Trash2, X,
   Save, Warehouse, ChevronDown, FileText, ArrowRightLeft,
   AlertTriangle
 } from 'lucide-react';
+import ProductSearchInput from '@/components/ui/ProductSearchInput';
 
 // Interfaces
 interface WarehouseItem {
@@ -72,9 +73,6 @@ export default function StockTransferPage() {
   const [productsLoading, setProductsLoading] = useState(false);
 
   // Product search
-  const [productSearch, setProductSearch] = useState('');
-  const [showProductDropdown, setShowProductDropdown] = useState(false);
-  const productSearchRef = useRef<HTMLInputElement>(null);
 
   // Transfer items
   const [transferItems, setTransferItems] = useState<TransferItem[]>([]);
@@ -238,14 +236,7 @@ export default function StockTransferPage() {
       ]);
     }
 
-    // Clear search and close dropdown
-    setProductSearch('');
-    setShowProductDropdown(false);
-
-    // Refocus search input
-    setTimeout(() => {
-      productSearchRef.current?.focus();
-    }, 100);
+    // Note: search clearing and re-focus handled by ProductSearchInput
   };
 
   // Remove item from list
@@ -261,11 +252,6 @@ export default function StockTransferPage() {
   };
 
   // Filter products based on search
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    p.code.toLowerCase().includes(productSearch.toLowerCase()) ||
-    (p.sku && p.sku.toLowerCase().includes(productSearch.toLowerCase()))
-  );
 
   // Check if quantity exceeds available stock
   const hasStockWarning = (item: TransferItem): boolean => {
@@ -330,7 +316,6 @@ export default function StockTransferPage() {
           // Reset form
           setTransferItems([]);
           setBatchNotes('');
-          setProductSearch('');
           // Refresh source inventory
           fetchSourceInventory(sourceWarehouseId);
           return;
@@ -469,115 +454,18 @@ export default function StockTransferPage() {
           )}
         </div>
 
-        {/* Product Search */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-            เพิ่มสินค้า
-          </label>
-          <div className="relative">
-            <div className="flex items-center gap-2 px-3 py-2.5 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-[#F4511E] transition-colors bg-white dark:bg-slate-700">
-              <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
-              <input
-                ref={productSearchRef}
-                type="text"
-                value={productSearch}
-                onChange={e => {
-                  setProductSearch(e.target.value);
-                  setShowProductDropdown(true);
-                }}
-                onFocus={() => setShowProductDropdown(true)}
-                onBlur={() => {
-                  setTimeout(() => setShowProductDropdown(false), 200);
-                }}
-                placeholder="พิมพ์ชื่อสินค้า, รหัส หรือ SKU เพื่อค้นหา..."
-                className="flex-1 outline-none bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
-              />
-              {productsLoading && (
-                <Loader2 className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" />
-              )}
-            </div>
-
-            {/* Product Search Dropdown */}
-            {showProductDropdown && productSearch && (
-              <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-auto">
-                {filteredProducts.length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
-                    ไม่พบสินค้า
-                  </div>
-                ) : (
-                  filteredProducts.map(product => {
-                    const variationLabelDisplay = product.variation_label || '';
-                    const isAlreadyAdded = transferItems.some(
-                      item => item.variation_id === product.id
-                    );
-                    const stock = getStockForVariation(product.id);
-                    return (
-                      <button
-                        key={product.id}
-                        type="button"
-                        onClick={() => handleAddProduct(product)}
-                        className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-3"
-                      >
-                        {product.image ? (
-                          <img
-                            src={product.image}
-                            alt={product.name}
-                            className="w-10 h-10 object-cover rounded flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
-                            <Package className="w-5 h-5 text-gray-400" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                            {product.name}
-                            {variationLabelDisplay && ` - ${variationLabelDisplay}`}
-                          </div>
-                          <div className="text-xs text-gray-400 dark:text-slate-500">
-                            {product.code}
-                            {product.sku && ` | SKU: ${product.sku}`}
-                            {stock !== null && (
-                              <span className="ml-1.5 text-gray-500 dark:text-slate-400">
-                                | สต็อก: {stock}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {isAlreadyAdded && (
-                          <span className="text-xs text-[#F4511E] font-medium flex-shrink-0">
-                            +1
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            )}
+        {/* Stock warning banner */}
+        {transferItems.length > 0 && hasAnyStockWarning && (
+          <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 rounded-lg border border-amber-200 dark:border-amber-800">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            <span>บางรายการมีจำนวนโอนย้ายมากกว่าสต็อกที่มีในคลังต้นทาง</span>
           </div>
-        </div>
+        )}
 
-        {/* Transfer Items List */}
-        {transferItems.length === 0 ? (
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 text-center py-12">
-            <Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-            <p className="text-gray-500 dark:text-slate-400 text-sm">
-              ยังไม่มีสินค้าในรายการ กรุณาค้นหาและเพิ่มสินค้าด้านบน
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Stock warning banner */}
-            {hasAnyStockWarning && (
-              <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 rounded-lg border border-amber-200 dark:border-amber-800">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                <span>บางรายการมีจำนวนโอนย้ายมากกว่าสต็อกที่มีในคลังต้นทาง</span>
-              </div>
-            )}
-
-            {/* Desktop Table */}
-            <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-slate-700">
+        {/* Desktop: Table + Search in one card */}
+        <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700">
+          {transferItems.length > 0 && (
+            <>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -685,125 +573,172 @@ export default function StockTransferPage() {
                   </tbody>
                 </table>
               </div>
-
-              {/* Summary row */}
-              <div className="px-4 py-3 bg-gray-50 dark:bg-slate-800/50 border-t border-gray-200 dark:border-slate-700 flex items-center justify-between">
-                <span className="text-sm text-gray-500 dark:text-slate-400">
-                  รวม {transferItems.length} รายการ
-                </span>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  จำนวนรวม: {transferItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
-                </span>
-              </div>
+            </>
+          )}
+          {/* Product Search */}
+          <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700">
+            <ProductSearchInput
+              products={products}
+              onSelect={(p) => handleAddProduct(p as Product)}
+              loading={productsLoading}
+              isAlreadyAdded={(p) => transferItems.some(item => item.variation_id === p.id)}
+              formatSubtitle={(p) => {
+                const parts = [p.code];
+                if (p.sku) parts.push(`SKU: ${p.sku}`);
+                const stock = getStockForVariation(p.id);
+                if (stock !== null) parts.push(`สต็อก: ${stock}`);
+                return parts.join(' | ');
+              }}
+            />
+          </div>
+          {transferItems.length === 0 && (
+            <div className="text-center py-8 text-gray-400 dark:text-slate-500">
+              <Package2 className="w-10 h-10 mx-auto mb-2" />
+              <p className="text-sm">เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน</p>
             </div>
+          )}
+          {/* Summary row */}
+          {transferItems.length > 0 && (
+            <div className="px-4 py-3 bg-gray-50 dark:bg-slate-800/50 border-t border-gray-200 dark:border-slate-700 rounded-b-lg flex items-center justify-between">
+              <span className="text-sm text-gray-500 dark:text-slate-400">
+                รวม {transferItems.length} รายการ
+              </span>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                จำนวนรวม: {transferItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
+              </span>
+            </div>
+          )}
+        </div>
 
-            {/* Mobile Cards */}
-            <div className="md:hidden space-y-2">
-              {transferItems.map((item, index) => {
-                const warning = hasStockWarning(item);
-                return (
-                  <div
-                    key={item.variation_id}
-                    className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm border p-3 ${
-                      warning
-                        ? 'border-amber-300 dark:border-amber-700'
-                        : 'border-gray-200 dark:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        {item.image ? (
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="w-12 h-12 rounded object-cover flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                            <Package className="w-6 h-6 text-gray-400" />
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                            {item.name}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-slate-400">
-                            {item.code}
-                            {item.variation_label && ` | ${item.variation_label}`}
-                          </p>
-                          {item.sku && (
-                            <p className="text-xs text-gray-400 dark:text-slate-500">
-                              SKU: {item.sku}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItem(index)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <div className="mt-2.5 grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
-                          สต็อกต้นทาง
-                        </label>
-                        <div className={`px-2 py-1.5 rounded-lg text-center text-sm font-medium ${
-                          item.available_stock !== null
-                            ? item.available_stock === 0
-                              ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
-                              : 'text-gray-700 dark:text-slate-300 bg-gray-50 dark:bg-slate-700/50'
-                            : 'text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-700/50'
-                        }`}>
-                          {item.available_stock !== null ? item.available_stock.toLocaleString() : '-'}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
-                          จำนวนโอน
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={e =>
-                            handleUpdateQuantity(index, parseInt(e.target.value) || 1)
-                          }
-                          className={`w-full px-2 py-1.5 border rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] ${
-                            warning
-                              ? 'border-amber-400 dark:border-amber-500'
-                              : 'border-gray-300 dark:border-slate-600'
-                          }`}
+        {/* Mobile Cards */}
+        {transferItems.length > 0 && (
+          <div className="md:hidden space-y-2">
+            {transferItems.map((item, index) => {
+              const warning = hasStockWarning(item);
+              return (
+                <div
+                  key={item.variation_id}
+                  className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm border p-3 ${
+                    warning
+                      ? 'border-amber-300 dark:border-amber-700'
+                      : 'border-gray-200 dark:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-12 h-12 rounded object-cover flex-shrink-0"
                         />
+                      ) : (
+                        <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                          <Package className="w-6 h-6 text-gray-400" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                          {item.name}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">
+                          {item.code}
+                          {item.variation_label && ` | ${item.variation_label}`}
+                        </p>
+                        {item.sku && (
+                          <p className="text-xs text-gray-400 dark:text-slate-500">
+                            SKU: {item.sku}
+                          </p>
+                        )}
                       </div>
                     </div>
-
-                    {warning && (
-                      <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                        จำนวนโอนเกินสต็อกที่มี ({item.available_stock?.toLocaleString()})
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(index)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                );
-              })}
 
-              {/* Mobile summary */}
-              <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2.5 flex items-center justify-between">
-                <span className="text-sm text-gray-500 dark:text-slate-400">
-                  รวม {transferItems.length} รายการ
-                </span>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  จำนวนรวม: {transferItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
-                </span>
-              </div>
+                  <div className="mt-2.5 grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
+                        สต็อกต้นทาง
+                      </label>
+                      <div className={`px-2 py-1.5 rounded-lg text-center text-sm font-medium ${
+                        item.available_stock !== null
+                          ? item.available_stock === 0
+                            ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
+                            : 'text-gray-700 dark:text-slate-300 bg-gray-50 dark:bg-slate-700/50'
+                          : 'text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-700/50'
+                      }`}>
+                        {item.available_stock !== null ? item.available_stock.toLocaleString() : '-'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
+                        จำนวนโอน
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={e =>
+                          handleUpdateQuantity(index, parseInt(e.target.value) || 1)
+                        }
+                        className={`w-full px-2 py-1.5 border rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] ${
+                          warning
+                            ? 'border-amber-400 dark:border-amber-500'
+                            : 'border-gray-300 dark:border-slate-600'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {warning && (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                      จำนวนโอนเกินสต็อกที่มี ({item.available_stock?.toLocaleString()})
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Mobile summary */}
+            <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2.5 flex items-center justify-between">
+              <span className="text-sm text-gray-500 dark:text-slate-400">
+                รวม {transferItems.length} รายการ
+              </span>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                จำนวนรวม: {transferItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
+              </span>
             </div>
-          </>
+          </div>
         )}
+        {/* Mobile: Search + empty state */}
+        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+          <ProductSearchInput
+            products={products}
+            onSelect={(p) => handleAddProduct(p as Product)}
+            loading={productsLoading}
+            isAlreadyAdded={(p) => transferItems.some(item => item.variation_id === p.id)}
+            formatSubtitle={(p) => {
+              const parts = [p.code];
+              if (p.sku) parts.push(`SKU: ${p.sku}`);
+              const stock = getStockForVariation(p.id);
+              if (stock !== null) parts.push(`สต็อก: ${stock}`);
+              return parts.join(' | ');
+            }}
+          />
+          {transferItems.length === 0 && (
+            <div className="text-center py-8 text-gray-400 dark:text-slate-500">
+              <Package2 className="w-10 h-10 mx-auto mb-2" />
+              <p className="text-sm">เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน</p>
+            </div>
+          )}
+        </div>
 
         {/* Batch Notes */}
         {transferItems.length > 0 && (

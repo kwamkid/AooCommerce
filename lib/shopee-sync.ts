@@ -63,6 +63,18 @@ interface ShopeeOrder {
 
 // --- Status Mapping ---
 
+// Shopee status progression order (higher = later in lifecycle)
+const SHOPEE_STATUS_ORDER: Record<string, number> = {
+  UNPAID: 0,
+  READY_TO_SHIP: 1,
+  PROCESSED: 2,
+  SHIPPED: 3,
+  TO_CONFIRM_RECEIVE: 4,
+  COMPLETED: 5,
+  CANCELLED: 10,
+  IN_CANCEL: 10,
+};
+
 function mapShopeeStatus(shopeeStatus: string): { order_status: string; payment_status: string } {
   switch (shopeeStatus) {
     case 'UNPAID':
@@ -71,6 +83,7 @@ function mapShopeeStatus(shopeeStatus: string): { order_status: string; payment_
       return { order_status: 'new', payment_status: 'paid' };
     case 'PROCESSED':
     case 'SHIPPED':
+    case 'TO_CONFIRM_RECEIVE':
       return { order_status: 'shipping', payment_status: 'paid' };
     case 'COMPLETED':
       return { order_status: 'completed', payment_status: 'paid' };
@@ -80,6 +93,13 @@ function mapShopeeStatus(shopeeStatus: string): { order_status: string; payment_
     default:
       return { order_status: 'new', payment_status: 'pending' };
   }
+}
+
+/** Check if new Shopee status is a forward progression (prevent out-of-order webhooks from reverting status) */
+function isStatusProgression(currentStatus: string, newStatus: string): boolean {
+  const currentOrder = SHOPEE_STATUS_ORDER[currentStatus] ?? -1;
+  const newOrder = SHOPEE_STATUS_ORDER[newStatus] ?? -1;
+  return newOrder > currentOrder;
 }
 
 // --- Sync Functions ---
@@ -289,8 +309,10 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
   if (existing) {
     let statusUpdated = false;
 
-    // Update if Shopee status changed
-    if (existing.external_status !== shopeeOrder.order_status) {
+    // Update if Shopee status changed (only allow forward progression to prevent out-of-order webhooks)
+    const statusChanged = existing.external_status !== shopeeOrder.order_status;
+    const isForward = isStatusProgression(existing.external_status || '', shopeeOrder.order_status);
+    if (statusChanged && isForward) {
       // Calculate shipping fee from Shopee data
       const updatedShippingFee = shopeeOrder.actual_shipping_fee_confirmed
         ? (shopeeOrder.actual_shipping_fee || 0)

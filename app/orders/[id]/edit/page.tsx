@@ -9,7 +9,6 @@ import {
   ArrowLeft,
   Plus,
   Trash2,
-  Search,
   Loader2,
   Package,
   MapPin,
@@ -18,6 +17,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
+import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 
 // Interfaces
 interface Customer {
@@ -167,9 +167,6 @@ export default function EditOrderPage() {
   const [internalNotes, setInternalNotes] = useState('');
   const [orderDiscount, setOrderDiscount] = useState(0);
 
-  // Product search per branch
-  const [productSearches, setProductSearches] = useState<string[]>([]);
-  const [showProductDropdowns, setShowProductDropdowns] = useState<boolean[]>([]);
 
   // Refs for quantity inputs (to focus after adding product)
   const quantityInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
@@ -269,8 +266,6 @@ export default function EditOrderPage() {
 
       const branchOrdersArray = Array.from(branchMap.values());
       setBranchOrders(branchOrdersArray);
-      setProductSearches(new Array(branchOrdersArray.length).fill(''));
-      setShowProductDropdowns(new Array(branchOrdersArray.length).fill(false));
 
     } catch (error) {
       console.error('Error fetching order:', error);
@@ -376,8 +371,6 @@ export default function EditOrderPage() {
     };
 
     setBranchOrders([...branchOrders, newBranch]);
-    setProductSearches([...productSearches, '']);
-    setShowProductDropdowns([...showProductDropdowns, false]);
     setActiveBranchIndex(branchOrders.length);
   };
 
@@ -389,8 +382,6 @@ export default function EditOrderPage() {
     }
 
     setBranchOrders(branchOrders.filter((_, i) => i !== index));
-    setProductSearches(productSearches.filter((_, i) => i !== index));
-    setShowProductDropdowns(showProductDropdowns.filter((_, i) => i !== index));
 
     if (activeBranchIndex >= branchOrders.length - 1) {
       setActiveBranchIndex(Math.max(0, branchOrders.length - 2));
@@ -453,15 +444,6 @@ export default function EditOrderPage() {
     const newBranchOrders = [...branchOrders];
     newBranchOrders[branchIndex].products.push(newProduct);
     setBranchOrders(newBranchOrders);
-
-    // Clear search
-    const newSearches = [...productSearches];
-    newSearches[branchIndex] = '';
-    setProductSearches(newSearches);
-
-    const newDropdowns = [...showProductDropdowns];
-    newDropdowns[branchIndex] = false;
-    setShowProductDropdowns(newDropdowns);
 
     // Focus on quantity input after adding product
     setTimeout(() => {
@@ -934,79 +916,25 @@ export default function EditOrderPage() {
                   </table>
                 </div>
 
-                {/* Add Product Search - Below table, aligned with product column */}
+                {/* Add Product Search */}
                 <div className="mt-4">
-                  <div className="relative inline-block w-auto min-w-[300px]">
-                    <div className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-[#F4511E] transition-colors bg-white">
-                      <Plus className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                      <input
-                        type="text"
-                        value={productSearches[branchIndex] || ''}
-                        onChange={(e) => {
-                          const newSearches = [...productSearches];
-                          newSearches[branchIndex] = e.target.value;
-                          setProductSearches(newSearches);
-
-                          const newDropdowns = [...showProductDropdowns];
-                          newDropdowns[branchIndex] = true;
-                          setShowProductDropdowns(newDropdowns);
-                        }}
-                        onFocus={() => {
-                          const newDropdowns = [...showProductDropdowns];
-                          newDropdowns[branchIndex] = true;
-                          setShowProductDropdowns(newDropdowns);
-                        }}
-                        onBlur={() => {
-                          // Delay to allow click on dropdown items
-                          setTimeout(() => {
-                            const newDropdowns = [...showProductDropdowns];
-                            newDropdowns[branchIndex] = false;
-                            setShowProductDropdowns(newDropdowns);
-                          }, 200);
-                        }}
-                        placeholder="ค้นหาชื่อหรือรหัสสินค้า..."
-                        className="flex-1 min-w-[200px] outline-none bg-transparent"
-                      />
+                  <ProductSearchInput
+                    products={products as ProductSearchItem[]}
+                    onSelect={(product) => handleAddProductToBranch(branchIndex, product as unknown as Product)}
+                    placeholder="ค้นหาชื่อหรือรหัสสินค้า..."
+                    isAlreadyAdded={(p) => branchOrders[branchIndex].products.some(bp => bp.variation_id === p.id)}
+                    formatSubtitle={(p) => {
+                      const prod = products.find(pr => pr.id === p.id);
+                      return `${p.code} • คงเหลือ: ${prod?.stock ?? 0}`;
+                    }}
+                  />
+                  {branch.products.length === 0 && (
+                    <div className="text-center py-8 text-gray-400 dark:text-slate-500">
+                      <Package className="w-10 h-10 mx-auto mb-2" />
+                      <p className="text-sm">เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน</p>
                     </div>
-                    {showProductDropdowns[branchIndex] && productSearches[branchIndex] && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-auto">
-                        {products.filter(p =>
-                          p.name.toLowerCase().includes(productSearches[branchIndex].toLowerCase()) ||
-                          p.code.toLowerCase().includes(productSearches[branchIndex].toLowerCase())
-                        ).length === 0 ? (
-                          <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">ไม่พบสินค้า</div>
-                        ) : (
-                          products
-                            .filter(p =>
-                              p.name.toLowerCase().includes(productSearches[branchIndex].toLowerCase()) ||
-                              p.code.toLowerCase().includes(productSearches[branchIndex].toLowerCase())
-                            )
-                            .map(product => (
-                              <button
-                                key={product.id}
-                                type="button"
-                                onClick={() => handleAddProductToBranch(branchIndex, product)}
-                                className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
-                              >
-                                <div className="font-medium">{product.name}</div>
-                                <div className="text-sm text-gray-500 dark:text-slate-400">
-                                  {product.code} • คงเหลือ: {product.stock}
-                                </div>
-                              </button>
-                            ))
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
-
-                {branch.products.length === 0 && (
-                  <div className="text-center py-12 text-gray-500 dark:text-slate-400">
-                    <Package className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-                    <p>ยังไม่มีสินค้าในสาขานี้</p>
-                    <p className="text-sm">ค้นหาและเพิ่มสินค้าด้านบน</p>
-                  </div>
-                )}
 
                 {/* Branch Total */}
                 {branch.products.length > 0 && (

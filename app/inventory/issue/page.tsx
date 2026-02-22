@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
@@ -8,9 +8,11 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Search, Package2, Plus, X, Trash2,
-  Warehouse, AlertTriangle, PackageMinus
+  Loader2, Package2, X, Trash2,
+  Warehouse, AlertTriangle, PackageMinus, CheckCircle2,
 } from 'lucide-react';
+import ProductSearchInput from '@/components/ui/ProductSearchInput';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 // ─── Interfaces ──────────────────────────────────────────────
 
@@ -87,12 +89,12 @@ export default function StockIssuePage() {
   const [batchNotes, setBatchNotes] = useState('');
 
   // Product search
-  const [productSearch, setProductSearch] = useState('');
-  const [showProductDropdown, setShowProductDropdown] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Submitting
   const [submitting, setSubmitting] = useState(false);
+
+  // Confirm dialog
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // ─── Fetch Warehouses ────────────────────────────────────
 
@@ -214,15 +216,6 @@ export default function StockIssuePage() {
 
   // ─── Product Search & Add ────────────────────────────────
 
-  const filteredProducts = products.filter(p => {
-    const q = productSearch.toLowerCase();
-    return (
-      p.name.toLowerCase().includes(q) ||
-      p.code.toLowerCase().includes(q) ||
-      (p.sku && p.sku.toLowerCase().includes(q))
-    );
-  });
-
   const handleAddProduct = (product: Product) => {
     const existingIndex = items.findIndex(i => i.variation_id === product.id);
 
@@ -247,13 +240,7 @@ export default function StockIssuePage() {
       setItems([...items, newItem]);
     }
 
-    setProductSearch('');
-    setShowProductDropdown(false);
-
-    // Focus back to search input
-    setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 100);
+    // Note: search clearing and re-focus handled by ProductSearchInput
   };
 
   const handleRemoveItem = (index: number) => {
@@ -282,9 +269,13 @@ export default function StockIssuePage() {
 
   const canSubmit = selectedWarehouse && items.length > 0 && items.every(i => i.reason.trim().length > 0);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!canSubmit) return;
+    setShowConfirm(true);
+  };
 
+  const handleConfirmSubmit = async () => {
+    setShowConfirm(false);
     setSubmitting(true);
     try {
       const payload = {
@@ -311,13 +302,7 @@ export default function StockIssuePage() {
       }
 
       showToast(`สร้างใบเบิกออก ${result.issue_number || ''} สำเร็จ`, 'success');
-
-      // Redirect to detail or list
-      if (result.issue_id) {
-        router.push(`/inventory/issues/${result.issue_id}`);
-      } else {
-        router.push('/inventory/issues');
-      }
+      router.push('/inventory/issues');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'เกิดข้อผิดพลาด';
       showToast(message, 'error');
@@ -336,8 +321,18 @@ export default function StockIssuePage() {
     return stockMap[variationId] || null;
   };
 
-  const getVariationLabelDisplay = (variationLabel?: string) => {
-    return variationLabel || '';
+  // Hide variation_label if it's a barcode/number or same as code/sku
+  const getCleanVarLabel = (item: IssueItem) => {
+    const raw = item.variation_label || '';
+    if (!raw || raw === item.product_code || raw === item.sku || /^\d+$/.test(raw)) return '';
+    return raw;
+  };
+
+  const buildSubtitle = (item: IssueItem) => {
+    const parts: string[] = [];
+    if (item.product_code) parts.push(item.product_code);
+    if (item.sku && item.sku !== item.product_code) parts.push(`SKU: ${item.sku}`);
+    return parts.join(' | ');
   };
 
   // ─── Loading State ───────────────────────────────────────
@@ -402,98 +397,18 @@ export default function StockIssuePage() {
           )}
         </div>
 
-        {/* Product Search */}
+        {/* Desktop: Table + Search in one card */}
         {selectedWarehouse && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-              เพิ่มสินค้า
-            </label>
-            <div className="relative">
-              <div className="flex items-center gap-2 px-3 py-2.5 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-[#F4511E] transition-colors bg-white dark:bg-slate-700">
-                <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={productSearch}
-                  onChange={e => {
-                    setProductSearch(e.target.value);
-                    setShowProductDropdown(true);
-                  }}
-                  onFocus={() => setShowProductDropdown(true)}
-                  onBlur={() => {
-                    setTimeout(() => setShowProductDropdown(false), 200);
-                  }}
-                  placeholder="พิมพ์ชื่อสินค้า, รหัส หรือ SKU เพื่อค้นหา..."
-                  disabled={loadingProducts}
-                  className="flex-1 outline-none bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 disabled:opacity-50"
-                />
-                {loadingProducts && <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />}
-              </div>
-
-              {/* Search Dropdown */}
-              {showProductDropdown && productSearch && (
-                <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-auto">
-                  {filteredProducts.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">ไม่พบสินค้า</div>
-                  ) : (
-                    filteredProducts.map(product => {
-                      const capacityDisplay = getVariationLabelDisplay(product.variation_label);
-                      const stock = getStock(product.id);
-                      return (
-                        <button
-                          key={product.id}
-                          type="button"
-                          onClick={() => handleAddProduct(product)}
-                          className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-3"
-                        >
-                          {product.image ? (
-                            <img src={product.image} alt={product.name} className="w-10 h-10 object-cover rounded flex-shrink-0" />
-                          ) : (
-                            <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
-                              <Package2 className="w-5 h-5 text-gray-400" />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {product.name}{capacityDisplay && ` - ${capacityDisplay}`}
-                            </div>
-                            <div className="text-xs text-gray-400 dark:text-slate-500">
-                              {product.code}
-                              {product.sku && ` | SKU: ${product.sku}`}
-                            </div>
-                          </div>
-                          {stock && (
-                            <div className="text-right flex-shrink-0">
-                              <div className={`text-xs font-medium ${stock.available > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-slate-500'}`}>
-                                คงเหลือ {stock.available.toLocaleString()}
-                              </div>
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Items Table / Cards */}
-        {items.length > 0 && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-            {/* Desktop Table */}
-            <div className="hidden md:block">
+          <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700">
+            {items.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
                       <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">สินค้า</th>
-                      <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-20">รหัส</th>
-                      <th className="text-right px-3 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-20">คงเหลือ</th>
-                      <th className="text-center px-3 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-20">เบิก</th>
-                      <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-44">เหตุผล</th>
-                      <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-36">หมายเหตุ</th>
+                      <th className="text-center px-3 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-24">สต๊อกปัจจุบัน</th>
+                      <th className="text-center px-3 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-28">เบิกออก</th>
+                      <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-48">เหตุผล</th>
                       <th className="px-2 py-3 w-10"></th>
                     </tr>
                   </thead>
@@ -502,45 +417,44 @@ export default function StockIssuePage() {
                       const stock = getStock(item.variation_id);
                       const available = stock?.available ?? 0;
                       const isOverStock = item.quantity > available;
-                      const capacityDisplay = getVariationLabelDisplay(item.variation_label);
+                      const varLabel = getCleanVarLabel(item);
 
                       return (
                         <tr key={item.variation_id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
-                          {/* Product */}
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2.5">
                               {item.image ? (
-                                <img src={item.image} alt="" className="w-9 h-9 rounded object-cover flex-shrink-0" />
+                                <img src={item.image} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
                               ) : (
-                                <div className="w-9 h-9 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                  <Package2 className="w-4 h-4 text-gray-400" />
+                                <div className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                                  <Package2 className="w-5 h-5 text-gray-400" />
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                                  {item.product_name}{capacityDisplay && ` - ${capacityDisplay}`}
+                                <p className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 break-words">
+                                  {item.product_name}{varLabel ? ` - ${varLabel}` : ''}
+                                </p>
+                                <p className="text-xs text-gray-400 dark:text-slate-500 truncate">
+                                  {buildSubtitle(item)}
                                 </p>
                               </div>
                             </div>
                           </td>
-
-                          {/* Code/SKU */}
-                          <td className="px-3 py-3">
-                            <span className="text-xs text-gray-500 dark:text-slate-400 font-mono">{item.sku || item.product_code}</span>
-                          </td>
-
-                          {/* Available Stock */}
-                          <td className="px-3 py-3 text-right">
+                          <td className="px-3 py-3 text-center">
                             {stock ? (
-                              <span className={`text-sm font-medium ${stock.available > 0 ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-500'}`}>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                stock.available <= 0
+                                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                  : stock.available <= 5
+                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                    : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                              }`}>
                                 {stock.available.toLocaleString()}
                               </span>
                             ) : (
                               <span className="text-xs text-gray-400 dark:text-slate-500">-</span>
                             )}
                           </td>
-
-                          {/* Quantity Input */}
                           <td className="px-3 py-3 text-center">
                             <div className="inline-flex flex-col items-center">
                               <input
@@ -555,15 +469,13 @@ export default function StockIssuePage() {
                                 } text-gray-900 dark:text-white`}
                               />
                               {isOverStock && (
-                                <span className="text-xs text-amber-600 dark:text-amber-400 mt-0.5 flex items-center gap-0.5">
-                                  <AlertTriangle className="w-3 h-3" />
+                                <span className="text-xs text-amber-600 dark:text-amber-400 mt-0.5 flex items-center gap-0.5 whitespace-nowrap">
+                                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />
                                   เกิน stock
                                 </span>
                               )}
                             </div>
                           </td>
-
-                          {/* Reason */}
                           <td className="px-3 py-3">
                             <div className="space-y-1">
                               <div className="flex flex-wrap gap-1">
@@ -585,27 +497,14 @@ export default function StockIssuePage() {
                               {item.reason === 'อื่นๆ' && (
                                 <input
                                   type="text"
-                                  value={item.reason === 'อื่นๆ' ? '' : item.reason}
-                                  onChange={e => handleUpdateReason(index, e.target.value || 'อื่นๆ')}
-                                  placeholder="ระบุเหตุผล..."
+                                  value={item.notes}
+                                  onChange={e => handleUpdateNotes(index, e.target.value)}
+                                  placeholder="ระบุเหตุผล / หมายเหตุ..."
                                   className="w-full px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
                                 />
                               )}
                             </div>
                           </td>
-
-                          {/* Notes */}
-                          <td className="px-3 py-3">
-                            <input
-                              type="text"
-                              value={item.notes}
-                              onChange={e => handleUpdateNotes(index, e.target.value)}
-                              placeholder="หมายเหตุ..."
-                              className="w-full px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
-                            />
-                          </td>
-
-                          {/* Remove */}
                           <td className="px-2 py-3 text-center">
                             <button
                               type="button"
@@ -621,19 +520,47 @@ export default function StockIssuePage() {
                   </tbody>
                 </table>
               </div>
+            )}
+            {/* Product Search — always at bottom of card */}
+            <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700">
+              <ProductSearchInput
+                products={products}
+                onSelect={(p) => handleAddProduct(p as Product)}
+                loading={loadingProducts}
+                renderExtra={(p) => {
+                  const stock = getStock(p.id);
+                  if (!stock) return null;
+                  return (
+                    <div className="text-right flex-shrink-0">
+                      <div className={`text-xs font-medium ${stock.available > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-slate-500'}`}>
+                        สต๊อก {stock.available.toLocaleString()}
+                      </div>
+                    </div>
+                  );
+                }}
+              />
             </div>
+            {items.length === 0 && (
+              <div className="text-center py-8 text-gray-400 dark:text-slate-500">
+                <PackageMinus className="w-10 h-10 mx-auto mb-2" />
+                <p className="text-sm">เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน</p>
+              </div>
+            )}
+          </div>
+        )}
 
-            {/* Mobile Cards */}
-            <div className="md:hidden divide-y divide-gray-100 dark:divide-slate-700">
+        {/* Mobile Cards */}
+        {items.length > 0 && (
+          <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+            <div className="divide-y divide-gray-100 dark:divide-slate-700">
               {items.map((item, index) => {
                 const stock = getStock(item.variation_id);
                 const available = stock?.available ?? 0;
                 const isOverStock = item.quantity > available;
-                const capacityDisplay = getVariationLabelDisplay(item.variation_label);
+                const varLabel = getCleanVarLabel(item);
 
                 return (
                   <div key={item.variation_id} className="p-3 space-y-2.5">
-                    {/* Product Info Row */}
                     <div className="flex items-start gap-2">
                       {item.image ? (
                         <img src={item.image} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
@@ -643,10 +570,10 @@ export default function StockIssuePage() {
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                          {item.product_name}{capacityDisplay && ` - ${capacityDisplay}`}
+                        <p className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 break-words">
+                          {item.product_name}{varLabel ? ` - ${varLabel}` : ''}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-slate-400">{item.sku || item.product_code}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{buildSubtitle(item)}</p>
                       </div>
                       <button
                         type="button"
@@ -657,16 +584,25 @@ export default function StockIssuePage() {
                       </button>
                     </div>
 
-                    {/* Stock + Quantity Row */}
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2 flex-1">
-                        <span className="text-xs text-gray-500 dark:text-slate-400">คงเหลือ:</span>
-                        <span className={`text-sm font-medium ${stock && stock.available > 0 ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-500'}`}>
-                          {stock ? stock.available.toLocaleString() : '-'}
-                        </span>
+                        <span className="text-xs text-gray-500 dark:text-slate-400">สต๊อก:</span>
+                        {stock ? (
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                            stock.available <= 0
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              : stock.available <= 5
+                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          }`}>
+                            {stock.available.toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500 dark:text-slate-400">เบิก:</span>
+                        <span className="text-xs text-gray-500 dark:text-slate-400">เบิกออก:</span>
                         <input
                           type="number"
                           min="1"
@@ -687,7 +623,6 @@ export default function StockIssuePage() {
                       </div>
                     )}
 
-                    {/* Reason Chips */}
                     <div>
                       <span className="text-xs text-gray-500 dark:text-slate-400 mb-1 block">เหตุผล:</span>
                       <div className="flex flex-wrap gap-1.5">
@@ -709,35 +644,44 @@ export default function StockIssuePage() {
                       {item.reason === 'อื่นๆ' && (
                         <input
                           type="text"
-                          placeholder="ระบุเหตุผล..."
-                          onChange={e => handleUpdateReason(index, e.target.value || 'อื่นๆ')}
+                          value={item.notes}
+                          onChange={e => handleUpdateNotes(index, e.target.value)}
+                          placeholder="ระบุเหตุผล / หมายเหตุ..."
                           className="mt-1.5 w-full px-2.5 py-1.5 border border-gray-300 dark:border-slate-600 rounded text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
                         />
                       )}
                     </div>
-
-                    {/* Notes */}
-                    <input
-                      type="text"
-                      value={item.notes}
-                      onChange={e => handleUpdateNotes(index, e.target.value)}
-                      placeholder="หมายเหตุ (ถ้ามี)..."
-                      className="w-full px-2.5 py-1.5 border border-gray-300 dark:border-slate-600 rounded text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
-                    />
                   </div>
                 );
               })}
             </div>
           </div>
         )}
-
-        {/* Empty State */}
-        {selectedWarehouse && items.length === 0 && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-8 text-center">
-            <PackageMinus className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-            <p className="text-gray-500 dark:text-slate-400 text-sm">
-              ยังไม่มีสินค้าในรายการเบิก กรุณาค้นหาและเพิ่มสินค้าด้านบน
-            </p>
+        {/* Mobile: Search + empty state */}
+        {selectedWarehouse && (
+          <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+            <ProductSearchInput
+              products={products}
+              onSelect={(p) => handleAddProduct(p as Product)}
+              loading={loadingProducts}
+              renderExtra={(p) => {
+                const stock = getStock(p.id);
+                if (!stock) return null;
+                return (
+                  <div className="text-right flex-shrink-0">
+                    <div className={`text-xs font-medium ${stock.available > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-slate-500'}`}>
+                      สต๊อก {stock.available.toLocaleString()}
+                    </div>
+                  </div>
+                );
+              }}
+            />
+            {items.length === 0 && (
+              <div className="text-center py-8 text-gray-400 dark:text-slate-500">
+                <PackageMinus className="w-10 h-10 mx-auto mb-2" />
+                <p className="text-sm">เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -788,6 +732,33 @@ export default function StockIssuePage() {
           </div>
         )}
       </div>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={handleConfirmSubmit}
+        icon={<PackageMinus className="w-6 h-6 text-[#F4511E]" />}
+        title="ยืนยันเบิกออกสินค้า"
+        description="คุณต้องการเบิกออกสินค้าทั้งหมดใช่หรือไม่?"
+        confirmLabel="ยืนยันเบิกออก"
+        confirmIcon={<CheckCircle2 className="w-4 h-4" />}
+      >
+        <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-3 space-y-1.5">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500 dark:text-slate-400">คลังสินค้า</span>
+            <span className="font-medium text-gray-900 dark:text-white">{warehouses.find(w => w.id === selectedWarehouse)?.name || '-'}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500 dark:text-slate-400">จำนวนรายการ</span>
+            <span className="font-medium text-gray-900 dark:text-white">{items.length} รายการ</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500 dark:text-slate-400">จำนวนรวม</span>
+            <span className="font-medium text-gray-900 dark:text-white">{items.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น</span>
+          </div>
+        </div>
+      </ConfirmDialog>
     </Layout>
   );
 }

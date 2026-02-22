@@ -729,10 +729,10 @@ export default function DeliverySummaryPage() {
     try {
       const pdfMake = (await import('pdfmake/build/pdfmake')).default;
 
-      // Load Sarabun fonts as base64 for pdfmake VFS
+      // Load IBM Plex Sans Thai fonts as base64 for pdfmake VFS
       const [regularBuf, boldBuf] = await Promise.all([
-        fetch('/fonts/Sarabun-Regular.ttf').then(r => r.arrayBuffer()),
-        fetch('/fonts/Sarabun-Bold.ttf').then(r => r.arrayBuffer()),
+        fetch('/fonts/IBMPlexSansThai-Regular.ttf').then(r => r.arrayBuffer()),
+        fetch('/fonts/IBMPlexSansThai-Bold.ttf').then(r => r.arrayBuffer()),
       ]);
 
       const toBase64 = (buf: ArrayBuffer) => {
@@ -742,21 +742,21 @@ export default function DeliverySummaryPage() {
         return btoa(binary);
       };
 
-      const sarabunVfs = {
-        'Sarabun-Regular.ttf': toBase64(regularBuf),
-        'Sarabun-Bold.ttf': toBase64(boldBuf),
+      const fontVfs = {
+        'IBMPlexSansThai-Regular.ttf': toBase64(regularBuf),
+        'IBMPlexSansThai-Bold.ttf': toBase64(boldBuf),
       };
 
-      const sarabunFonts = {
-        Sarabun: {
-          normal: 'Sarabun-Regular.ttf',
-          bold: 'Sarabun-Bold.ttf',
-          italics: 'Sarabun-Regular.ttf',
-          bolditalics: 'Sarabun-Bold.ttf',
+      const fontDefs = {
+        IBMPlexSansThai: {
+          normal: 'IBMPlexSansThai-Regular.ttf',
+          bold: 'IBMPlexSansThai-Bold.ttf',
+          italics: 'IBMPlexSansThai-Regular.ttf',
+          bolditalics: 'IBMPlexSansThai-Bold.ttf',
         },
       };
 
-      pdfMake.addFontContainer({ vfs: sarabunVfs, fonts: sarabunFonts });
+      pdfMake.addFontContainer({ vfs: fontVfs, fonts: fontDefs });
 
       // Date string in Thai
       const dateStr = new Date(deliveryDate).toLocaleDateString('th-TH', {
@@ -895,7 +895,7 @@ export default function DeliverySummaryPage() {
         pageSize: 'A4',
         pageMargins: [30, 30, 30, 30],
         defaultStyle: {
-          font: 'Sarabun',
+          font: 'IBMPlexSansThai',
           fontSize: 10,
         },
         content: [

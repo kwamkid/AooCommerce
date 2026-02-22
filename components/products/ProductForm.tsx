@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
+import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
 import { getImageUrl } from '@/lib/utils/image';
@@ -91,6 +92,7 @@ interface ProductFormData {
   barcode: string;
   default_price: number;
   discount_price: number;
+  cost_price: number;
   variations: VariationFormData[];
 }
 
@@ -103,6 +105,7 @@ interface VariationFormData {
   attributes: Record<string, string>;
   default_price: number;
   discount_price: number;
+  cost_price: number;
   is_active: boolean;
 }
 
@@ -137,8 +140,12 @@ export default function ProductForm({
 }: ProductFormProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+  const { userProfile } = useAuth();
   const { features } = useFeatures();
   const { showToast } = useToast();
+
+  // Only owner/admin can see/edit cost price
+  const canViewCost = userProfile?.roles?.some(r => r === 'owner' || r === 'admin') ?? false;
 
   const [variationTypes, setVariationTypes] = useState<VariationTypeItem[]>([]);
   const [saving, setSaving] = useState(false);
@@ -185,6 +192,7 @@ export default function ProductForm({
           barcode: editingProduct.simple_barcode || '',
           default_price: editingProduct.simple_default_price || 0,
           discount_price: editingProduct.simple_discount_price || 0,
+          cost_price: (editingProduct.variations?.[0] as any)?.cost_price || 0,
           variations: []
         };
       } else {
@@ -203,6 +211,7 @@ export default function ProductForm({
           barcode: '',
           default_price: 0,
           discount_price: 0,
+          cost_price: 0,
           variations: editingProduct.variations.map(v => ({
             id: v.variation_id,
             _tempId: v.variation_id || crypto.randomUUID(),
@@ -212,6 +221,7 @@ export default function ProductForm({
             attributes: v.attributes || {},
             default_price: v.default_price,
             discount_price: v.discount_price,
+            cost_price: (v as any).cost_price || 0,
             is_active: v.is_active
           }))
         };
@@ -233,6 +243,7 @@ export default function ProductForm({
       barcode: '',
       default_price: 0,
       discount_price: 0,
+      cost_price: 0,
       variations: []
     };
   };
@@ -326,6 +337,7 @@ export default function ProductForm({
           attributes: attrs,
           default_price: 0,
           discount_price: 0,
+          cost_price: 0,
           is_active: true
         }
       ]
@@ -914,7 +926,7 @@ export default function ProductForm({
       {formData.product_type === 'simple' && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">ราคาสินค้า</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className={`grid grid-cols-2 ${canViewCost ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-4`}>
             <div>
               <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">SKU</label>
               <input
@@ -956,6 +968,18 @@ export default function ProductForm({
                 className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
               />
             </div>
+            {canViewCost && (
+              <div>
+                <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">ต้นทุน (฿)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.cost_price}
+                  onChange={(e) => setFormData({ ...formData, cost_price: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1111,8 +1135,8 @@ export default function ProductForm({
                             />
                           </div>
 
-                          {/* Fields — SKU, Barcode, Price, Discount */}
-                          <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {/* Fields — SKU, Barcode, Price, Discount, Cost */}
+                          <div className={`flex-1 grid grid-cols-2 ${canViewCost ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-2`}>
                             <div data-field={`variation.${index}.sku`}>
                               <label className="block text-xs font-medium text-gray-400 mb-0.5">SKU</label>
                               <input
@@ -1156,6 +1180,18 @@ export default function ProductForm({
                                 className="w-full px-2 py-1.5 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700 dark:text-white"
                               />
                             </div>
+                            {canViewCost && (
+                              <div>
+                                <label className="block text-xs font-medium text-gray-400 mb-0.5">ต้นทุน (฿)</label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={variation.cost_price}
+                                  onChange={(e) => updateVariation(index, 'cost_price', parseFloat(e.target.value) || 0)}
+                                  className="w-full px-2 py-1.5 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700 dark:text-white"
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

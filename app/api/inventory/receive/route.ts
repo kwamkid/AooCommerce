@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     const results = [];
     for (const item of items) {
-      const { variation_id, quantity, notes } = item;
+      const { variation_id, quantity, unit_cost, notes } = item;
       if (!variation_id || !quantity || quantity <= 0) continue;
 
       // Upsert inventory
@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
           variation_id,
           type: 'in',
           quantity,
+          unit_cost: unit_cost || null,
           balance_after: newQuantity,
           reference_type: 'manual',
           notes: notes || batchNotes || 'รับเข้าสินค้า',

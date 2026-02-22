@@ -10,6 +10,7 @@ import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { parseThaiAddress } from '@/lib/address-parser';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
+import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
@@ -208,8 +209,6 @@ export default function OrderForm({
   const [inventoryMap, setInventoryMap] = useState<Record<string, { quantity: number; reserved_quantity: number; available: number }>>({});
 
   // Product search per branch
-  const [productSearches, setProductSearches] = useState<string[]>(['']);
-  const [showProductDropdowns, setShowProductDropdowns] = useState<boolean[]>([false]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   // Close lightbox on Esc key
@@ -239,7 +238,6 @@ export default function OrderForm({
 
   // Refs
   const quantityInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
-  const productSearchRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
   const customerSectionRef = useRef<HTMLDivElement>(null);
   const deliveryDateRef = useRef<HTMLDivElement>(null);
   const branchSectionRef = useRef<HTMLDivElement>(null);
@@ -286,8 +284,6 @@ export default function OrderForm({
         products: existingProducts,
       }]);
     }
-    setProductSearches(['']);
-    setShowProductDropdowns([false]);
   };
 
   // Fetch customers, products, and warehouse config (once)
@@ -339,8 +335,6 @@ export default function OrderForm({
 
         // Set branch orders from initial data
         setBranchOrders(initialOrderData.branches);
-        setProductSearches(initialOrderData.branches.map(() => ''));
-        setShowProductDropdowns(initialOrderData.branches.map(() => false));
 
         // Set other fields
         if (initialOrderData.delivery_date) {
@@ -493,8 +487,6 @@ export default function OrderForm({
 
         const branches = Array.from(branchMap.values());
         setBranchOrders(branches);
-        setProductSearches(branches.map(() => ''));
-        setShowProductDropdowns(branches.map(() => false));
       } catch (error) {
         console.error('Error loading order:', error);
         showToast('ไม่สามารถโหลดข้อมูลคำสั่งซื้อได้', 'error');
@@ -631,8 +623,6 @@ export default function OrderForm({
             products: []
           };
           setBranchOrders([firstBranch]);
-          setProductSearches(['']);
-          setShowProductDropdowns([false]);
         }
       }
     } catch (error) {
@@ -782,8 +772,6 @@ export default function OrderForm({
 
       // Set branch orders
       setBranchOrders(branches);
-      setProductSearches(branches.map(() => ''));
-      setShowProductDropdowns(branches.map(() => false));
       setActiveBranchIndex(0);
 
       // Set other fields
@@ -820,8 +808,6 @@ export default function OrderForm({
     };
 
     setBranchOrders([...branchOrders, newBranch]);
-    setProductSearches([...productSearches, '']);
-    setShowProductDropdowns([...showProductDropdowns, false]);
     setActiveBranchIndex(branchOrders.length);
   };
 
@@ -831,8 +817,6 @@ export default function OrderForm({
       return;
     }
     setBranchOrders(branchOrders.filter((_, i) => i !== index));
-    setProductSearches(productSearches.filter((_, i) => i !== index));
-    setShowProductDropdowns(showProductDropdowns.filter((_, i) => i !== index));
     if (activeBranchIndex >= branchOrders.length - 1) {
       setActiveBranchIndex(Math.max(0, branchOrders.length - 2));
     }
@@ -916,21 +900,7 @@ export default function OrderForm({
       setBranchOrders(newBranchOrders);
     }
 
-    // Clear search and close dropdown
-    const newSearches = [...productSearches];
-    newSearches[branchIndex] = '';
-    setProductSearches(newSearches);
-    const newDropdowns = [...showProductDropdowns];
-    newDropdowns[branchIndex] = false;
-    setShowProductDropdowns(newDropdowns);
-
-    // Focus back to product search input for next scan/search
-    setTimeout(() => {
-      const searchInput = productSearchRefs.current[branchIndex];
-      if (searchInput) {
-        searchInput.focus();
-      }
-    }, 100);
+    // Note: search clearing and re-focus are handled by ProductSearchInput component
   };
 
   const handleRemoveProductFromBranch = (branchIndex: number, productIndex: number) => {
@@ -1708,97 +1678,29 @@ export default function OrderForm({
 
               {/* Add Product Search */}
               {!isReadOnly && <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700">
-                <div className="relative">
-                  <div className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-[#F4511E] transition-colors bg-transparent">
-                    <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <input
-                      ref={(el) => { productSearchRefs.current[branchIndex] = el; }}
-                      type="text"
-                      value={productSearches[branchIndex] || ''}
-                      onChange={(e) => {
-                        const newSearches = [...productSearches];
-                        newSearches[branchIndex] = e.target.value;
-                        setProductSearches(newSearches);
-                        const newDropdowns = [...showProductDropdowns];
-                        newDropdowns[branchIndex] = true;
-                        setShowProductDropdowns(newDropdowns);
-                      }}
-                      onFocus={() => {
-                        const newDropdowns = [...showProductDropdowns];
-                        newDropdowns[branchIndex] = true;
-                        setShowProductDropdowns(newDropdowns);
-                      }}
-                      onBlur={() => {
-                        setTimeout(() => {
-                          const newDropdowns = [...showProductDropdowns];
-                          newDropdowns[branchIndex] = false;
-                          setShowProductDropdowns(newDropdowns);
-                        }, 200);
-                      }}
-                      placeholder="เพิ่มสินค้า — พิมพ์ชื่อหรือรหัส..."
-                      className="flex-1 outline-none bg-transparent text-sm"
-                    />
-                  </div>
-                  {showProductDropdowns[branchIndex] && productSearches[branchIndex] && (
-                    <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-auto">
-                      {products.filter(p =>
-                        p.name.toLowerCase().includes(productSearches[branchIndex].toLowerCase()) ||
-                        p.code.toLowerCase().includes(productSearches[branchIndex].toLowerCase())
-                      ).length === 0 ? (
-                        <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">ไม่พบสินค้า</div>
-                      ) : (
-                        products
-                          .filter(p =>
-                            p.name.toLowerCase().includes(productSearches[branchIndex].toLowerCase()) ||
-                            p.code.toLowerCase().includes(productSearches[branchIndex].toLowerCase())
-                          )
-                          .map(product => {
-                            const capacityDisplay = getVariationLabelDisplay(product.variation_label);
-                            const inv = stockEnabled && selectedWarehouseId ? inventoryMap[product.id] : null;
-                            const avail = inv ? inv.available : 0;
-                            const isOutOfStock = stockEnabled && !!selectedWarehouseId && avail <= 0;
-                            const isDisabled = !allowOversell && isOutOfStock;
-                            return (
-                              <button
-                                key={product.id}
-                                type="button"
-                                onClick={() => !isDisabled && handleAddProductToBranch(branchIndex, product)}
-                                disabled={isDisabled}
-                                className={`w-full px-3 py-2 text-left transition-colors flex items-center gap-3 ${
-                                  isDisabled
-                                    ? 'opacity-50 cursor-not-allowed bg-gray-50 dark:bg-slate-700/30'
-                                    : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
-                                }`}
-                              >
-                                {product.image ? (
-                                  <img src={product.image} alt={product.name} className="w-10 h-10 object-cover rounded flex-shrink-0" />
-                                ) : (
-                                  <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
-                                    <Package className="w-5 h-5 text-gray-400 dark:text-slate-500" />
-                                  </div>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-sm font-medium text-gray-900 dark:text-slate-200 truncate">
-                                    {product.name}{capacityDisplay && ` - ${capacityDisplay}`}
-                                  </div>
-                                  <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-slate-500">
-                                    <span>{product.code} · ฿{formatNumber(product.default_price)}</span>
-                                    {stockEnabled && selectedWarehouseId && (
-                                      <span className={`px-1 py-0.5 rounded text-[10px] ${
-                                        avail <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
-                                      }`}>
-                                        {avail <= 0 ? 'หมด' : `stock ${avail}`}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </button>
-                            );
-                          })
-                      )}
-                    </div>
-                  )}
-                </div>
+                <ProductSearchInput
+                  products={products}
+                  onSelect={(p) => handleAddProductToBranch(branchIndex, p as Product)}
+                  placeholder="เพิ่มสินค้า — พิมพ์ชื่อหรือรหัส..."
+                  searchFields={[]}
+                  formatSubtitle={(p) => {
+                    const parts = [p.code];
+                    if (p.default_price != null) parts.push(`฿${formatNumber(p.default_price)}`);
+                    return parts.join(' · ');
+                  }}
+                  isDisabled={(p) => !allowOversell && stockEnabled && !!selectedWarehouseId && ((inventoryMap[p.id]?.available ?? 0) <= 0)}
+                  renderExtra={(p) => {
+                    if (!stockEnabled || !selectedWarehouseId) return null;
+                    const avail = inventoryMap[p.id]?.available ?? 0;
+                    return (
+                      <span className={`px-1 py-0.5 rounded text-[10px] flex-shrink-0 ${
+                        avail <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                      }`}>
+                        {avail <= 0 ? 'หมด' : `stock ${avail}`}
+                      </span>
+                    );
+                  }}
+                />
               </div>}
 
               {branch.products.length === 0 && !isReadOnly && (
