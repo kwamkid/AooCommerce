@@ -28,7 +28,9 @@ import {
   ChevronDown,
   Package,
   ClipboardList,
+  Pencil,
 } from 'lucide-react';
+import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 
 // Status badge components
 function OrderStatusBadge({ status }: { status: string }) {
@@ -151,6 +153,16 @@ export default function OrderDetailPage() {
   // Slip preview modal
   const [showSlipModal, setShowSlipModal] = useState(false);
 
+  // Delivery info edit
+  const [editingDelivery, setEditingDelivery] = useState(false);
+  const [deliveryForm, setDeliveryForm] = useState({
+    delivery_name: '', delivery_phone: '', delivery_email: '',
+    delivery_address: '', delivery_district: '', delivery_amphoe: '',
+    delivery_province: '', delivery_postal_code: '',
+  });
+  const [savingDelivery, setSavingDelivery] = useState(false);
+  const [deliveryErrors, setDeliveryErrors] = useState<Record<string, string>>({});
+
   // Toast (using global)
 
   useEffect(() => {
@@ -212,6 +224,59 @@ export default function OrderDetailPage() {
       }
     } catch (err) {
       console.error('Error fetching payment record:', err);
+    }
+  };
+
+  // Delivery info handlers
+  const handleEditDelivery = () => {
+    if (!fullOrderData) return;
+    setDeliveryForm({
+      delivery_name: fullOrderData.delivery_name || '',
+      delivery_phone: fullOrderData.delivery_phone || '',
+      delivery_email: fullOrderData.delivery_email || '',
+      delivery_address: fullOrderData.delivery_address || '',
+      delivery_district: fullOrderData.delivery_district || '',
+      delivery_amphoe: fullOrderData.delivery_amphoe || '',
+      delivery_province: fullOrderData.delivery_province || '',
+      delivery_postal_code: fullOrderData.delivery_postal_code || '',
+    });
+    setDeliveryErrors({});
+    setEditingDelivery(true);
+  };
+
+  const handleSaveDelivery = async () => {
+    const errors: Record<string, string> = {};
+    if (!deliveryForm.delivery_name.trim()) errors.name = 'กรุณากรอกชื่อผู้รับ';
+    const cleanPhone = deliveryForm.delivery_phone.replace(/[-\s]/g, '');
+    if (!deliveryForm.delivery_phone.trim()) {
+      errors.phone = 'กรุณากรอกเบอร์โทรศัพท์';
+    } else if (!/^0\d{9}$/.test(cleanPhone)) {
+      errors.phone = 'เบอร์โทรต้องเป็นตัวเลข 10 หลัก เริ่มด้วย 0';
+    }
+    if (deliveryForm.delivery_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(deliveryForm.delivery_email)) {
+      errors.email = 'รูปแบบอีเมลไม่ถูกต้อง';
+    }
+    if (!deliveryForm.delivery_address.trim()) errors.address = 'กรุณากรอกที่อยู่จัดส่ง';
+    if (Object.keys(errors).length > 0) {
+      setDeliveryErrors(errors);
+      return;
+    }
+    setDeliveryErrors({});
+    setSavingDelivery(true);
+    try {
+      const response = await apiFetch('/api/orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: orderId, ...deliveryForm }),
+      });
+      if (!response.ok) throw new Error('Failed to update');
+      showToast('บันทึกข้อมูลจัดส่งสำเร็จ');
+      setEditingDelivery(false);
+      fetchOrderHeader();
+    } catch {
+      showToast('ไม่สามารถบันทึกข้อมูลได้', 'error');
+    } finally {
+      setSavingDelivery(false);
     }
   };
 
@@ -934,8 +999,85 @@ export default function OrderDetailPage() {
         {/* Delivery Info — for orders without customer */}
         {fullOrderData && !fullOrderData.customer_id && !isShopeeOrder && !isPosOrder && (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
-            <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">ข้อมูลจัดส่ง</div>
-            {fullOrderData.delivery_name ? (
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">ข้อมูลจัดส่ง</div>
+              {fullOrderData.delivery_name && !editingDelivery && (
+                <button
+                  onClick={handleEditDelivery}
+                  className="text-xs text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 flex items-center gap-1 transition-colors"
+                >
+                  <Pencil className="w-3 h-3" />
+                  แก้ไข
+                </button>
+              )}
+            </div>
+
+            {editingDelivery ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ชื่อผู้รับ *</label>
+                    <input type="text" value={deliveryForm.delivery_name}
+                      onChange={e => { setDeliveryForm(f => ({ ...f, delivery_name: e.target.value })); setDeliveryErrors(prev => { const { name, ...rest } = prev; return rest; }); }}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 ${deliveryErrors.name ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
+                    {deliveryErrors.name && <p className="text-red-500 text-xs mt-1">{deliveryErrors.name}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">เบอร์โทร *</label>
+                    <input type="tel" value={deliveryForm.delivery_phone}
+                      onChange={e => { setDeliveryForm(f => ({ ...f, delivery_phone: e.target.value })); setDeliveryErrors(prev => { const { phone, ...rest } = prev; return rest; }); }}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 ${deliveryErrors.phone ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
+                    {deliveryErrors.phone && <p className="text-red-500 text-xs mt-1">{deliveryErrors.phone}</p>}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">อีเมล</label>
+                  <input type="email" value={deliveryForm.delivery_email}
+                    onChange={e => { setDeliveryForm(f => ({ ...f, delivery_email: e.target.value })); setDeliveryErrors(prev => { const { email, ...rest } = prev; return rest; }); }}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 ${deliveryErrors.email ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
+                  {deliveryErrors.email && <p className="text-red-500 text-xs mt-1">{deliveryErrors.email}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ที่อยู่ *</label>
+                  <textarea value={deliveryForm.delivery_address}
+                    onChange={e => { setDeliveryForm(f => ({ ...f, delivery_address: e.target.value })); setDeliveryErrors(prev => { const { address, ...rest } = prev; return rest; }); }}
+                    rows={2}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 ${deliveryErrors.address ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
+                  {deliveryErrors.address && <p className="text-red-500 text-xs mt-1">{deliveryErrors.address}</p>}
+                </div>
+                <ThaiAddressInput
+                  district={deliveryForm.delivery_district}
+                  amphoe={deliveryForm.delivery_amphoe}
+                  province={deliveryForm.delivery_province}
+                  postalCode={deliveryForm.delivery_postal_code}
+                  onAddressChange={(addr) => {
+                    setDeliveryForm(f => ({
+                      ...f,
+                      ...(addr.district !== undefined && { delivery_district: addr.district }),
+                      ...(addr.amphoe !== undefined && { delivery_amphoe: addr.amphoe }),
+                      ...(addr.province !== undefined && { delivery_province: addr.province }),
+                      ...(addr.postalCode !== undefined && { delivery_postal_code: addr.postalCode }),
+                    }));
+                  }}
+                />
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => setEditingDelivery(false)}
+                    className="flex-1 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    onClick={handleSaveDelivery}
+                    disabled={savingDelivery || !deliveryForm.delivery_name || !deliveryForm.delivery_phone || !deliveryForm.delivery_address}
+                    className="flex-1 py-2 bg-[#F4511E] text-white rounded-lg text-sm font-medium hover:bg-[#D63B0E] disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
+                  >
+                    {savingDelivery && <Loader2 className="w-4 h-4 animate-spin" />}
+                    บันทึก
+                  </button>
+                </div>
+              </div>
+            ) : fullOrderData.delivery_name ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <div className="text-xs text-gray-400 dark:text-slate-500">ชื่อผู้รับ</div>
@@ -945,6 +1087,12 @@ export default function OrderDetailPage() {
                   <div>
                     <div className="text-xs text-gray-400 dark:text-slate-500">เบอร์โทร</div>
                     <div className="text-sm text-gray-700 dark:text-slate-300">{fullOrderData.delivery_phone}</div>
+                  </div>
+                )}
+                {fullOrderData.delivery_email && (
+                  <div>
+                    <div className="text-xs text-gray-400 dark:text-slate-500">อีเมล</div>
+                    <div className="text-sm text-gray-700 dark:text-slate-300">{fullOrderData.delivery_email}</div>
                   </div>
                 )}
                 {fullOrderData.delivery_address && (

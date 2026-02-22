@@ -7,10 +7,11 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   Loader2, Warehouse, Package, ArrowRightLeft, CheckCircle2,
   Clock, XCircle, AlertTriangle, Truck, User, FileText,
-  ArrowLeft, PackageCheck, Printer, Save,
+  ArrowLeft, PackageCheck, Printer, Save, Link2, Copy, Check, Image as ImageIcon,
 } from 'lucide-react';
 import { flattenVariationItem, productDisplayName, productSubtitle } from '../../components/types';
 
@@ -40,6 +41,9 @@ interface Transfer {
   status: string;
   notes: string | null;
   receive_notes: string | null;
+  receive_token: string;
+  receiver_name: string | null;
+  receive_photo_url: string | null;
   created_at: string;
   shipped_at: string | null;
   received_at: string | null;
@@ -52,10 +56,9 @@ interface Transfer {
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string; bgColor: string }> = {
-  draft: { label: 'แบบร่าง', color: 'text-gray-700 dark:text-slate-300', bgColor: 'bg-gray-100 dark:bg-slate-700' },
-  shipped: { label: 'จัดส่งแล้ว - รอรับสินค้า', color: 'text-blue-700 dark:text-blue-400', bgColor: 'bg-blue-100 dark:bg-blue-900/30' },
-  received: { label: 'รับสินค้าครบแล้ว', color: 'text-green-700 dark:text-green-400', bgColor: 'bg-green-100 dark:bg-green-900/30' },
-  partial: { label: 'รับสินค้าไม่ครบ', color: 'text-amber-700 dark:text-amber-400', bgColor: 'bg-amber-100 dark:bg-amber-900/30' },
+  pending: { label: 'ที่ต้องจัดส่ง - จอง stock แล้ว', color: 'text-yellow-700 dark:text-yellow-400', bgColor: 'bg-yellow-100 dark:bg-yellow-900/30' },
+  shipping: { label: 'กำลังส่ง - รอรับสินค้า', color: 'text-blue-700 dark:text-blue-400', bgColor: 'bg-blue-100 dark:bg-blue-900/30' },
+  received: { label: 'รับสินค้าแล้ว', color: 'text-green-700 dark:text-green-400', bgColor: 'bg-green-100 dark:bg-green-900/30' },
   cancelled: { label: 'ยกเลิกแล้ว', color: 'text-red-700 dark:text-red-400', bgColor: 'bg-red-100 dark:bg-red-900/30' },
 };
 
@@ -73,13 +76,13 @@ export default function TransferDetailPage() {
   const [savingNotes, setSavingNotes] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
-  // Receive mode
-  const [receiveMode, setReceiveMode] = useState(false);
-  const [receiveQtys, setReceiveQtys] = useState<Record<string, number>>({});
-  const [receiveNotes, setReceiveNotes] = useState('');
+  // Ship action
+  const [shipping, setShipping] = useState(false);
 
   // Cancel confirm
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const fetchingRef = useRef(false);
 
   useEffect(() => {
@@ -100,13 +103,6 @@ export default function TransferDetailPage() {
         const data = await res.json();
         setTransfer(data.transfer);
         setNotes(data.transfer?.notes || '');
-        if (data.transfer?.items) {
-          const qtys: Record<string, number> = {};
-          data.transfer.items.forEach((item: TransferItem) => {
-            qtys[item.id] = item.qty_sent;
-          });
-          setReceiveQtys(qtys);
-        }
         return;
       }
       if (retry < 2) {
@@ -149,37 +145,42 @@ export default function TransferDetailPage() {
     }
   };
 
-  const handleReceive = async () => {
+  const handleShip = async () => {
     if (!transfer) return;
     try {
-      setSubmitting(true);
-      const items = transfer.items.map(item => ({
-        item_id: item.id,
-        qty_received: receiveQtys[item.id] ?? item.qty_sent,
-      }));
-
+      setShipping(true);
       const res = await apiFetch('/api/inventory/transfers', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transfer_id: transfer.id,
-          action: 'receive',
-          items,
-          receive_notes: receiveNotes || undefined,
+          action: 'ship',
         }),
       });
 
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'เกิดข้อผิดพลาด');
 
-      showToast(result.status === 'received' ? 'รับสินค้าครบแล้ว' : 'รับสินค้าไม่ครบ (บางรายการคืนคลังต้นทาง)', 'success');
-      setReceiveMode(false);
+      showToast('จัดส่งสินค้าเรียบร้อย (ตัด stock จากคลังต้นทาง)', 'success');
       fetchTransfer();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
-      setSubmitting(false);
+      setShipping(false);
     }
+  };
+
+  const getReceiveUrl = () => {
+    if (!transfer) return '';
+    return `${window.location.origin}/transfers/receive/${transfer.receive_token}`;
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(getReceiveUrl());
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch { /* fallback */ }
   };
 
   const handleCancel = async () => {
@@ -223,6 +224,7 @@ export default function TransferDetailPage() {
           warehouse: transfer.from_warehouse,
           to_warehouse: transfer.to_warehouse,
           created_by_user: transfer.created_by_user,
+          receive_token: transfer.receive_token,
           items: (transfer.items || []).map(item => ({
             ...item,
             quantity: item.qty_sent,
@@ -293,7 +295,7 @@ export default function TransferDetailPage() {
     );
   }
 
-  const st = STATUS_MAP[transfer.status] || STATUS_MAP.draft;
+  const st = STATUS_MAP[transfer.status] || STATUS_MAP.pending;
 
   return (
     <Layout
@@ -318,12 +320,12 @@ export default function TransferDetailPage() {
             <button
               onClick={handlePrint}
               disabled={generatingPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[#F4511E] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-[#F4511E] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50"
             >
               {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
               {generatingPdf ? 'กำลังสร้าง...' : 'พิมพ์'}
             </button>
-            {transfer.status === 'shipped' && !receiveMode && (
+            {transfer.status === 'pending' && (
               <>
                 <button
                   onClick={() => setShowCancelConfirm(true)}
@@ -332,26 +334,67 @@ export default function TransferDetailPage() {
                   ยกเลิก
                 </button>
                 <button
-                  onClick={() => setReceiveMode(true)}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm font-medium"
+                  onClick={handleShip}
+                  disabled={shipping}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium disabled:opacity-50"
                 >
-                  <PackageCheck className="w-4 h-4" />
-                  รับสินค้า
+                  {shipping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />}
+                  {shipping ? 'กำลังจัดส่ง...' : 'จัดส่ง'}
                 </button>
               </>
+            )}
+            {transfer.status === 'shipping' && (
+              <button
+                onClick={() => setShowCancelConfirm(true)}
+                className="px-4 py-2 text-sm border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                ยกเลิก
+              </button>
             )}
           </div>
         </div>
 
         {/* Status Banner */}
         <div className={`rounded-lg px-4 py-3 flex items-center gap-2 ${st.bgColor}`}>
-          {transfer.status === 'shipped' && <Truck className="w-5 h-5" />}
+          {transfer.status === 'pending' && <Clock className="w-5 h-5" />}
+          {transfer.status === 'shipping' && <Truck className="w-5 h-5" />}
           {transfer.status === 'received' && <CheckCircle2 className="w-5 h-5" />}
-          {transfer.status === 'partial' && <AlertTriangle className="w-5 h-5" />}
           {transfer.status === 'cancelled' && <XCircle className="w-5 h-5" />}
-          {transfer.status === 'draft' && <Clock className="w-5 h-5" />}
           <span className={`text-sm font-medium ${st.color}`}>{st.label}</span>
         </div>
+
+        {/* QR Code + Receive Link — for shipping status (above header info) */}
+        {transfer.status === 'shipping' && (
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+              <Link2 className="w-4 h-4 text-blue-500" />
+              ลิงก์รับสินค้า (ส่งให้ผู้รับสแกน QR)
+            </h3>
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <QRCodeSVG value={getReceiveUrl()} size={120} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">ส่ง QR Code หรือลิงก์ด้านล่างให้ผู้รับที่คลังปลายทาง เพื่อยืนยันรับสินค้า</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={getReceiveUrl()}
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-xs bg-gray-50 dark:bg-slate-700 text-gray-700 dark:text-slate-300 truncate"
+                  />
+                  <button
+                    onClick={handleCopyLink}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0"
+                  >
+                    {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    {copiedLink ? 'คัดลอกแล้ว' : 'คัดลอก'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Header Info */}
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
@@ -421,7 +464,7 @@ export default function TransferDetailPage() {
                 <button
                   onClick={handleSaveNotes}
                   disabled={savingNotes}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[#F4511E] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-[#F4511E] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50"
                 >
                   {savingNotes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   {savingNotes ? 'กำลังบันทึก...' : 'บันทึก'}
@@ -434,6 +477,26 @@ export default function TransferDetailPage() {
             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
               <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">หมายเหตุการรับสินค้า</label>
               <p className="text-sm text-gray-700 dark:text-slate-300">{transfer.receive_notes}</p>
+            </div>
+          )}
+
+          {/* Receiver info */}
+          {transfer.status === 'received' && transfer.receiver_name && (
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
+              <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">ผู้รับสินค้า (Public)</label>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{transfer.receiver_name}</p>
+            </div>
+          )}
+
+          {transfer.status === 'received' && transfer.receive_photo_url && (
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
+              <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">รูปถ่ายการรับสินค้า</label>
+              <img
+                src={transfer.receive_photo_url}
+                alt="รูปรับสินค้า"
+                className="max-w-xs max-h-48 rounded-lg object-contain border border-gray-200 dark:border-slate-600 mt-1 cursor-pointer hover:opacity-80"
+                onClick={() => setLightboxSrc(transfer.receive_photo_url)}
+              />
             </div>
           )}
         </div>
@@ -453,11 +516,8 @@ export default function TransferDetailPage() {
                 <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">สินค้า</th>
                   <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-28">จำนวนส่ง</th>
-                  {(transfer.status === 'received' || transfer.status === 'partial') && (
+                  {(transfer.status === 'received') && (
                     <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-28">จำนวนรับ</th>
-                  )}
-                  {receiveMode && (
-                    <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-36">จำนวนรับจริง</th>
                   )}
                 </tr>
               </thead>
@@ -494,7 +554,7 @@ export default function TransferDetailPage() {
                           {item.qty_sent}
                         </span>
                       </td>
-                      {(transfer.status === 'received' || transfer.status === 'partial') && (
+                      {(transfer.status === 'received') && (
                         <td className="px-4 py-3 text-center">
                           <span className={`text-sm font-medium ${isShort ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
                             {item.qty_received ?? '-'}
@@ -504,21 +564,6 @@ export default function TransferDetailPage() {
                               ขาด {item.qty_sent - (item.qty_received || 0)}
                             </p>
                           )}
-                        </td>
-                      )}
-                      {receiveMode && (
-                        <td className="px-4 py-3 text-center">
-                          <input
-                            type="number"
-                            min="0"
-                            max={item.qty_sent}
-                            value={receiveQtys[item.id] ?? item.qty_sent}
-                            onChange={e => {
-                              const val = Math.max(0, Math.min(item.qty_sent, parseInt(e.target.value) || 0));
-                              setReceiveQtys(prev => ({ ...prev, [item.id]: val }));
-                            }}
-                            className="w-24 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500"
-                          />
                         </td>
                       )}
                     </tr>
@@ -533,14 +578,9 @@ export default function TransferDetailPage() {
                   <td className="px-4 py-3 text-center text-sm font-medium text-gray-900 dark:text-white">
                     {(transfer.items || []).reduce((sum, i) => sum + i.qty_sent, 0)}
                   </td>
-                  {(transfer.status === 'received' || transfer.status === 'partial') && (
+                  {(transfer.status === 'received') && (
                     <td className="px-4 py-3 text-center text-sm font-medium text-gray-900 dark:text-white">
                       {(transfer.items || []).reduce((sum, i) => sum + (i.qty_received ?? 0), 0)}
-                    </td>
-                  )}
-                  {receiveMode && (
-                    <td className="px-4 py-3 text-center text-sm font-medium text-green-600 dark:text-green-400">
-                      {Object.values(receiveQtys).reduce((sum, v) => sum + v, 0)}
                     </td>
                   )}
                 </tr>
@@ -578,28 +618,12 @@ export default function TransferDetailPage() {
                           <p className="text-xs text-gray-400 dark:text-slate-500">ส่ง</p>
                           <p className="text-sm font-medium text-gray-900 dark:text-white">{item.qty_sent}</p>
                         </div>
-                        {(transfer.status === 'received' || transfer.status === 'partial') && (
+                        {(transfer.status === 'received') && (
                           <div className="text-center">
                             <p className="text-xs text-gray-400 dark:text-slate-500">รับ</p>
                             <p className={`text-sm font-medium ${isShort ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
                               {item.qty_received ?? '-'}
                             </p>
-                          </div>
-                        )}
-                        {receiveMode && (
-                          <div className="text-center ml-auto">
-                            <p className="text-xs text-gray-400 dark:text-slate-500">รับจริง</p>
-                            <input
-                              type="number"
-                              min="0"
-                              max={item.qty_sent}
-                              value={receiveQtys[item.id] ?? item.qty_sent}
-                              onChange={e => {
-                                const val = Math.max(0, Math.min(item.qty_sent, parseInt(e.target.value) || 0));
-                                setReceiveQtys(prev => ({ ...prev, [item.id]: val }));
-                              }}
-                              className="w-20 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500/50"
-                            />
                           </div>
                         )}
                       </div>
@@ -610,50 +634,6 @@ export default function TransferDetailPage() {
             })}
           </div>
         </div>
-
-        {/* Receive Actions */}
-        {receiveMode && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                <FileText className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-                หมายเหตุการรับสินค้า
-              </label>
-              <textarea
-                value={receiveNotes}
-                onChange={e => setReceiveNotes(e.target.value)}
-                rows={2}
-                placeholder="หมายเหตุ (ถ้ามี)..."
-                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500/50 focus:border-green-500"
-              />
-            </div>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setReceiveMode(false)}
-                className="px-4 py-2 text-sm border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleReceive}
-                disabled={submitting}
-                className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm font-medium disabled:opacity-50"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    กำลังบันทึก...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    ยืนยันรับสินค้า
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Cancel Confirm Modal */}
         {showCancelConfirm && (
@@ -694,6 +674,21 @@ export default function TransferDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Image Lightbox */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setLightboxSrc(null)}
+        >
+          <img
+            src={lightboxSrc}
+            alt="รูปรับสินค้า"
+            className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </Layout>
   );
 }

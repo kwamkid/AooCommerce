@@ -9,6 +9,7 @@ import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { parseThaiAddress } from '@/lib/address-parser';
+import { productSubtitle } from '@/app/inventory/components/types';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import DateRangePicker from '@/components/ui/DateRangePicker';
@@ -63,6 +64,7 @@ interface Product {
   image?: string;
   variation_label?: string;
   product_type: 'simple' | 'variation';
+  sku?: string;
   default_price: number;
   discount_price?: number;
   stock: number;
@@ -74,6 +76,8 @@ interface BranchProduct {
   product_code: string;
   product_name: string;
   variation_label?: string;
+  product_type?: 'simple' | 'variation';
+  sku?: string;
   image?: string;
   quantity: number;
   unit_price: number;
@@ -534,6 +538,7 @@ export default function OrderForm({
             image: sp.main_image_url || sp.image,
             variation_label: sp.simple_variation_label,
             product_type: 'simple',
+            sku: sp.simple_sku,
             default_price: sp.simple_default_price || 0,
             discount_price: sp.simple_discount_price || 0,
             stock: sp.simple_stock || 0
@@ -548,6 +553,7 @@ export default function OrderForm({
               image: v.image_url || sp.main_image_url || sp.image,
               variation_label: v.variation_label,
               product_type: 'variation',
+              sku: v.sku,
               default_price: v.default_price || 0,
               discount_price: v.discount_price || 0,
               stock: v.stock || 0
@@ -889,6 +895,8 @@ export default function OrderForm({
         product_code: product.code,
         product_name: product.name,
         variation_label: product.variation_label,
+        product_type: product.product_type,
+        sku: product.sku,
         image: product.image,
         quantity: 1,
         unit_price,
@@ -1472,92 +1480,97 @@ export default function OrderForm({
               {/* Products List */}
               {embedded ? (
                 /* Embedded mode: card layout — product name full width, inputs below */
-                <div className="divide-y divide-gray-100">
+                <div className="divide-y divide-gray-100 dark:divide-slate-700/50">
                   {branch.products.map((product, productIndex) => {
-                    const capacityDisplay = getVariationLabelDisplay(product.variation_label);
+                    const capacityDisplay = product.product_type === 'simple' ? '' : getVariationLabelDisplay(product.variation_label);
                     return (
-                      <div key={product.variation_id} className="px-3 py-2.5 hover:bg-gray-50/50">
-                        {/* Row 1: Image + Product name + delete */}
-                        <div className="flex items-start gap-2 mb-1.5">
-                          {product.image ? (
-                            <img
-                              src={product.image}
-                              alt={product.product_name}
-                              className="w-10 h-10 object-cover rounded flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-                              onClick={() => setLightboxImage(product.image!)}
-                            />
-                          ) : (
-                            <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
-                              <Package className="w-4 h-4 text-gray-400 dark:text-slate-500" />
+                      <div key={product.variation_id} className="px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors relative">
+                        {/* Delete button — top right corner */}
+                        {!isReadOnly && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveProductFromBranch(branchIndex, productIndex)}
+                            className="absolute top-2 right-2 text-gray-400 hover:text-red-600 p-0.5 rounded transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <div className="flex flex-wrap items-start gap-x-2.5 gap-y-1.5 pr-5">
+                          {/* Image + Name group — min-w forces inputs to wrap when narrow */}
+                          <div className="flex items-start gap-2.5 min-w-[200px] flex-[999_1_0%]">
+                            {product.image ? (
+                              <img
+                                src={product.image}
+                                alt={product.product_name}
+                                className="w-[54px] h-[54px] object-cover rounded flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => setLightboxImage(product.image!)}
+                              />
+                            ) : (
+                              <div className="w-[54px] h-[54px] bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
+                                <Package className="w-5 h-5 text-gray-400 dark:text-slate-500" />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                                {product.product_name}{capacityDisplay && ` - ${capacityDisplay}`}
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-gray-400 dark:text-slate-500">{productSubtitle({ product_code: product.product_code, sku: product.sku })}</span>
+                                {getStockBadge(product.variation_id, product.quantity)}
+                              </div>
                             </div>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
-                              {product.product_name}{capacityDisplay && ` - ${capacityDisplay}`}
-                            </div>
+                          </div>
+                          {/* Qty + Price + Discount | Total */}
+                          <div className="flex items-center justify-between w-full gap-1.5">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-gray-400 dark:text-slate-500">{product.product_code}</span>
-                              {getStockBadge(product.variation_id, product.quantity)}
+                              <input
+                                ref={(el) => { quantityInputRefs.current[`${branchIndex}-${productIndex}`] = el; }}
+                                type="number"
+                                min="1"
+                                value={product.quantity}
+                                onChange={(e) => handleUpdateProductQuantity(branchIndex, productIndex, parseInt(e.target.value) || 1)}
+                                disabled={isReadOnly}
+                                className="w-12 px-1 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
+                              />
+                              <span className="text-gray-400 dark:text-slate-500 text-xs">&times;</span>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={product.unit_price}
+                                  onChange={(e) => handleUpdateProductPrice(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
+                                  disabled={isReadOnly}
+                                  className="w-16 px-1 pr-4 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
+                                />
+                                <span className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-xs pointer-events-none">฿</span>
+                              </div>
+                              <div className="flex items-stretch">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={product.discount_type === 'percent' ? 100 : undefined}
+                                  step="0.01"
+                                  value={product.discount_value}
+                                  onChange={(e) => handleUpdateProductDiscount(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
+                                  disabled={isReadOnly}
+                                  className="w-10 px-1 py-1.5 border border-gray-300 dark:border-slate-600 rounded-l-lg border-r-0 text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleProductDiscountType(branchIndex, productIndex)}
+                                  disabled={isReadOnly}
+                                  className="px-1.5 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[24px] flex items-center justify-center disabled:opacity-50"
+                                  title={product.discount_type === 'percent' ? 'เปลี่ยนเป็นจำนวนเงิน' : 'เปลี่ยนเป็นเปอร์เซ็นต์'}
+                                >
+                                  {product.discount_type === 'percent' ? '%' : '฿'}
+                                </button>
+                              </div>
                             </div>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                              {formatPrice(calculateProductTotal(product))}
+                            </span>
                           </div>
-                          {!isReadOnly && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveProductFromBranch(branchIndex, productIndex)}
-                              className="text-gray-400 hover:text-red-600 p-0.5 rounded transition-colors flex-shrink-0 mt-0.5"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                        {/* Row 2: Qty, Price, Discount, Total */}
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            ref={(el) => { quantityInputRefs.current[`${branchIndex}-${productIndex}`] = el; }}
-                            type="number"
-                            min="1"
-                            value={product.quantity}
-                            onChange={(e) => handleUpdateProductQuantity(branchIndex, productIndex, parseInt(e.target.value) || 1)}
-                            disabled={isReadOnly}
-                            className="w-12 px-1 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
-                          />
-                          <span className="text-gray-400 dark:text-slate-500 text-xs">&times;</span>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={product.unit_price}
-                              onChange={(e) => handleUpdateProductPrice(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
-                              disabled={isReadOnly}
-                              className="w-16 px-1 pr-4 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
-                            />
-                            <span className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-xs pointer-events-none">฿</span>
-                          </div>
-                          <div className="flex items-stretch">
-                            <input
-                              type="number"
-                              min="0"
-                              max={product.discount_type === 'percent' ? 100 : undefined}
-                              step="0.01"
-                              value={product.discount_value}
-                              onChange={(e) => handleUpdateProductDiscount(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
-                              disabled={isReadOnly}
-                              className="w-10 px-1 py-1.5 border border-gray-300 dark:border-slate-600 rounded-l-lg border-r-0 text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleToggleProductDiscountType(branchIndex, productIndex)}
-                              disabled={isReadOnly}
-                              className="px-1.5 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[24px] flex items-center justify-center disabled:opacity-50"
-                              title={product.discount_type === 'percent' ? 'เปลี่ยนเป็นจำนวนเงิน' : 'เปลี่ยนเป็นเปอร์เซ็นต์'}
-                            >
-                              {product.discount_type === 'percent' ? '%' : '฿'}
-                            </button>
-                          </div>
-                          <span className="ml-auto text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
-                            {formatPrice(calculateProductTotal(product))}
-                          </span>
                         </div>
                       </div>
                     );
@@ -1579,7 +1592,7 @@ export default function OrderForm({
                     </thead>
                     <tbody className="data-tbody">
                       {branch.products.map((product, productIndex) => {
-                        const capacityDisplay = getVariationLabelDisplay(product.variation_label);
+                        const capacityDisplay = product.product_type === 'simple' ? '' : getVariationLabelDisplay(product.variation_label);
                         return (
                           <tr key={product.variation_id} className="data-tr">
                             <td className="px-6 py-3">
@@ -1601,7 +1614,7 @@ export default function OrderForm({
                                     {product.product_name}{capacityDisplay && ` - ${capacityDisplay}`}
                                   </div>
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-xs text-gray-400 dark:text-slate-500">{product.product_code}</span>
+                                    <span className="text-xs text-gray-400 dark:text-slate-500">{productSubtitle({ product_code: product.product_code, sku: product.sku })}</span>
                                     {getStockBadge(product.variation_id, product.quantity)}
                                   </div>
                                 </div>
@@ -1748,9 +1761,9 @@ export default function OrderForm({
       {/* Step 3: Summary */}
       {branchOrders.length > 0 && branchOrders.some(b => b.products.length > 0) && (
         <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-          <div className="grid grid-cols-1 md:grid-cols-[1fr,320px] gap-4">
+          <div className="flex flex-wrap gap-4">
             {/* Notes */}
-            <div className="space-y-3">
+            <div className="space-y-3 flex-1 min-w-[200px]">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                   หมายเหตุ <span className="text-gray-400 dark:text-slate-500 font-normal">(แสดงในบิล / การจัดส่ง)</span>
@@ -1780,7 +1793,7 @@ export default function OrderForm({
             </div>
 
             {/* Order Summary */}
-            <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4">
+            <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4 w-full md:w-[320px] flex-shrink-0">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">สรุปคำสั่งซื้อ</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between text-gray-500 dark:text-slate-400">
@@ -1857,9 +1870,9 @@ export default function OrderForm({
       <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
         {/* Delivery info — show when NOT in multi-branch mode */}
         {!multiBranch ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="flex flex-wrap gap-4">
           {/* Left column: ลูกค้า + ชื่อผู้รับ + เบอร์ + อีเมล + วันส่ง */}
-          <div className="space-y-3">
+          <div className="space-y-3 flex-1 min-w-[280px]">
             {/* Customer Search */}
             <div ref={customerSectionRef} className="relative">
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -1950,8 +1963,11 @@ export default function OrderForm({
           </div>
 
           {/* Right column: ที่อยู่จัดส่ง */}
-          <div className="space-y-3 md:border-l md:border-gray-200 md:dark:border-slate-700 md:pl-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">ที่อยู่จัดส่ง</label>
+          <div className="space-y-3 flex-1 min-w-[280px] md:border-l md:border-gray-200 md:dark:border-slate-700 md:pl-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่จัดส่ง</label>
+              <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} onPaste={(e) => { const pasted = e.clipboardData.getData('text'); if (pasted.length > 10) { const parsed = parseThaiAddress(pasted); if (parsed) { e.preventDefault(); setDeliveryAddress(parsed.address); setDeliveryDistrict(parsed.district); setDeliveryAmphoe(parsed.amphoe); setDeliveryProvince(parsed.province); setDeliveryPostalCode(parsed.postal_code); } } }} placeholder="วางที่อยู่ยาวๆ ได้เลย — ระบบจะแยก ตำบล อำเภอ จังหวัด ให้อัตโนมัติ" disabled={isReadOnly} rows={2} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none" />
+            </div>
 
             {selectedCustomer && shippingAddresses.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -1966,10 +1982,6 @@ export default function OrderForm({
               </div>
             )}
 
-            <div>
-              <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">ที่อยู่ (บ้านเลขที่ ซอย ถนน)</label>
-              <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} onPaste={(e) => { const pasted = e.clipboardData.getData('text'); if (pasted.length > 10) { const parsed = parseThaiAddress(pasted); if (parsed) { e.preventDefault(); setDeliveryAddress(parsed.address); setDeliveryDistrict(parsed.district); setDeliveryAmphoe(parsed.amphoe); setDeliveryProvince(parsed.province); setDeliveryPostalCode(parsed.postal_code); } } }} placeholder="วางที่อยู่ยาวๆ ได้เลย — ระบบจะแยก ตำบล อำเภอ จังหวัด ให้อัตโนมัติ" disabled={isReadOnly} rows={2} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none" />
-            </div>
             <ThaiAddressInput district={deliveryDistrict} amphoe={deliveryAmphoe} province={deliveryProvince} postalCode={deliveryPostalCode} onAddressChange={(addr) => { if (addr.district !== undefined) setDeliveryDistrict(addr.district); if (addr.amphoe !== undefined) setDeliveryAmphoe(addr.amphoe); if (addr.province !== undefined) setDeliveryProvince(addr.province); if (addr.postalCode !== undefined) setDeliveryPostalCode(addr.postalCode); }} disabled={isReadOnly} />
           </div>
         </div>

@@ -34,7 +34,6 @@ import {
   UserX,
   Clock,
   Bell,
-  UserPlus,
   FileText,
   Play,
   ArrowUpDown
@@ -64,6 +63,7 @@ function UnifiedChatPageContent() {
   const [contacts, setContacts] = useState<UnifiedContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [totalUnread, setTotalUnread] = useState(0);
   const [hasMoreContacts, setHasMoreContacts] = useState(false);
   const [loadingMoreContacts, setLoadingMoreContacts] = useState(false);
@@ -92,6 +92,7 @@ function UnifiedChatPageContent() {
 
   // Image upload
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const warehousePortalRef = useRef<HTMLDivElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
 
   // Sticker picker
@@ -105,17 +106,13 @@ function UnifiedChatPageContent() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   // Right panel (split view) - desktop only
-  const [rightPanel, setRightPanel] = useState<'order' | 'history' | 'profile' | 'create-customer' | 'edit-customer' | 'order-detail' | null>(null);
+  const [rightPanel, setRightPanel] = useState<'order' | 'history' | 'profile' | 'edit-customer' | 'order-detail' | null>(null);
 
   // Mobile view mode
-  const [mobileView, setMobileView] = useState<'contacts' | 'chat' | 'order' | 'history' | 'profile' | 'create-customer' | 'edit-customer' | 'order-detail'>('contacts');
+  const [mobileView, setMobileView] = useState<'contacts' | 'chat' | 'history' | 'profile' | 'edit-customer' | 'order-detail'>('contacts');
 
   // Order detail view
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-
-  // Create customer state
-  const [savingCustomer, setSavingCustomer] = useState(false);
-  const [customerError, setCustomerError] = useState('');
 
   // Edit customer state
   const [editingCustomer, setEditingCustomer] = useState(false);
@@ -190,12 +187,18 @@ function UnifiedChatPageContent() {
     if (!authLoading && userProfile) fetchSettings();
   }, [authLoading, userProfile]);
 
+  // Debounce search term (300ms delay)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   // Fetch contacts
   useEffect(() => {
     if (!authLoading && userProfile) {
       fetchContacts();
     }
-  }, [authLoading, userProfile, searchTerm, filterLinked, filterUnread, filterOrderDaysRange, filterAccountId, filterPlatform]);
+  }, [authLoading, userProfile, debouncedSearch, filterLinked, filterUnread, filterOrderDaysRange, filterAccountId, filterPlatform]);
 
   // Auto-select contact from URL param
   useEffect(() => {
@@ -249,10 +252,10 @@ function UnifiedChatPageContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Sync rightPanel → mobileView when resizing
+  // Sync rightPanel → mobileView when resizing (except 'order' which is unified)
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth < 768 && rightPanel) {
+      if (window.innerWidth < 768 && rightPanel && rightPanel !== 'order') {
         setMobileView(rightPanel);
       }
     };
@@ -397,7 +400,7 @@ function UnifiedChatPageContent() {
       const params = new URLSearchParams();
       if (filterAccountId) params.set('account_id', filterAccountId);
       else if (filterPlatform !== 'all') params.set('platform', filterPlatform);
-      if (searchTerm) params.set('search', searchTerm);
+      if (debouncedSearch) params.set('search', debouncedSearch);
       if (filterUnread) params.set('unread_only', 'true');
       if (filterLinked === 'linked') params.set('linked_only', 'true');
       if (filterLinked === 'unlinked') params.set('unlinked_only', 'true');
@@ -657,80 +660,6 @@ function UnifiedChatPageContent() {
     }
   };
 
-  const handleCreateCustomer = async (formData: CustomerFormData) => {
-    if (!selectedContact) return;
-    setSavingCustomer(true);
-    setCustomerError('');
-    try {
-      const billingAddress = formData.billing_same_as_shipping ? formData.shipping_address : formData.billing_address;
-      const billingDistrict = formData.billing_same_as_shipping ? formData.shipping_district : formData.billing_district;
-      const billingAmphoe = formData.billing_same_as_shipping ? formData.shipping_amphoe : formData.billing_amphoe;
-      const billingProvince = formData.billing_same_as_shipping ? formData.shipping_province : formData.billing_province;
-      const billingPostalCode = formData.billing_same_as_shipping ? formData.shipping_postal_code : formData.billing_postal_code;
-
-      const customerPayload = {
-        name: formData.name, contact_person: formData.contact_person, phone: formData.phone,
-        email: formData.email, customer_type: formData.customer_type, credit_limit: formData.credit_limit,
-        credit_days: formData.credit_days, is_active: formData.is_active, notes: formData.notes,
-        tax_id: formData.needs_tax_invoice ? formData.tax_id : '',
-        tax_company_name: formData.needs_tax_invoice ? formData.tax_company_name : '',
-        tax_branch: formData.needs_tax_invoice ? formData.tax_branch : '',
-        address: billingAddress, district: billingDistrict, amphoe: billingAmphoe,
-        province: billingProvince, postal_code: billingPostalCode
-      };
-
-      const createResponse = await apiFetch('/api/customers', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(customerPayload)
-      });
-      if (!createResponse.ok) { const error = await createResponse.json(); throw new Error(error.error || 'Failed'); }
-      const newCustomer = await createResponse.json();
-
-      if (formData.shipping_address || formData.shipping_province) {
-        const shippingPayload = {
-          customer_id: newCustomer.id, address_name: formData.shipping_address_name || 'สาขาหลัก',
-          contact_person: formData.shipping_contact_person || formData.contact_person,
-          phone: formData.shipping_phone || formData.phone, address_line1: formData.shipping_address,
-          district: formData.shipping_district, amphoe: formData.shipping_amphoe,
-          province: formData.shipping_province, postal_code: formData.shipping_postal_code,
-          google_maps_link: formData.shipping_google_maps_link, delivery_notes: formData.shipping_delivery_notes,
-          is_default: true
-        };
-        await apiFetch('/api/shipping-addresses', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(shippingPayload)
-        });
-      }
-
-      const linkResponse = await apiFetch('/api/chat/contacts', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selectedContact.id, platform: selectedContact.platform, customer_id: newCustomer.id })
-      });
-      if (!linkResponse.ok) throw new Error('Failed to link customer');
-
-      setSelectedContact(prev => prev ? {
-        ...prev, customer_id: newCustomer.id,
-        customer: { id: newCustomer.id, name: newCustomer.name, customer_code: newCustomer.customer_code }
-      } : null);
-      setContacts(prev => prev.map(c => c.id === selectedContact.id ? {
-        ...c, customer_id: newCustomer.id,
-        customer: { id: newCustomer.id, name: newCustomer.name, customer_code: newCustomer.customer_code }
-      } : c));
-      setRightPanel(null);
-      setMobileView('chat');
-    } catch (error) {
-      console.error('Error creating customer:', error);
-      setCustomerError(error instanceof Error ? error.message : 'เกิดข้อผิดพลาด');
-      throw error;
-    } finally {
-      setSavingCustomer(false);
-    }
-  };
-
-  const handleOpenCreateCustomer = () => {
-    setCustomerError('');
-    if (window.innerWidth < 768) setMobileView('create-customer');
-    else setRightPanel('create-customer');
-  };
-
   const handleOpenEditCustomer = () => {
     setEditCustomerError('');
     if (window.innerWidth < 768) setMobileView('edit-customer');
@@ -938,7 +867,7 @@ function UnifiedChatPageContent() {
 
   return (
     <Layout>
-      <div className="flex h-[calc(100vh-120px)] bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+      <div className="flex relative h-[calc(100vh-120px)] bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
         {/* Contacts Sidebar */}
         <div className={`w-full md:w-80 border-r border-gray-200 dark:border-slate-700 flex flex-col ${mobileView !== 'contacts' ? 'hidden md:flex' : 'flex'} ${rightPanel ? 'md:hidden xl:flex' : ''}`}>
           {/* Header */}
@@ -1202,12 +1131,12 @@ function UnifiedChatPageContent() {
                   {selectedContact.customer ? (
                     <>
                       <button onClick={handleOpenHistory} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'history' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ดูประวัติออเดอร์"><History className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">ประวัติ</span>}</button>
-                      <button onClick={() => { if (window.innerWidth < 768) setMobileView('order'); else setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'order' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">เปิดบิล</span>}</button>
+                      <button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'order' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">เปิดบิล</span>}</button>
                       <button onClick={handleOpenProfile} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ดูข้อมูลลูกค้า"><User className="w-4 h-4" /></button>
                     </>
                   ) : (
                     <>
-                      <button onClick={handleOpenCreateCustomer} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'create-customer' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title="สร้างลูกค้าใหม่"><UserPlus className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">สร้างลูกค้า</span>}</button>
+                      <button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'order' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">เปิดบิล</span>}</button>
                       <button onClick={() => { setShowLinkModal(true); }} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600" title="เชื่อมลูกค้าที่มีอยู่"><LinkIcon className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">เชื่อมลูกค้า</span>}</button>
                     </>
                   )}
@@ -1339,15 +1268,7 @@ function UnifiedChatPageContent() {
           )}
         </div>
 
-        {/* Mobile Order View */}
-        {mobileView === 'order' && selectedContact?.customer && (
-          <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><ShoppingCart className="w-5 h-5 text-[#F4511E]" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code} - {selectedContact.customer.name}</p></div></div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4"><OrderForm preselectedCustomerId={selectedContact.customer.id} embedded={true} onSuccess={() => { setMobileView('chat'); showToast('สร้างคำสั่งซื้อสำเร็จ!'); }} onSendBillToChat={sendBillToCustomer} onCancel={() => setMobileView('chat')} /></div>
-          </div>
-        )}
+        {/* Mobile Order View — unified with desktop panel above */}
 
         {/* Mobile History View */}
         {mobileView === 'history' && selectedContact?.customer && (
@@ -1371,7 +1292,7 @@ function UnifiedChatPageContent() {
             <div className="flex-1 overflow-y-auto p-4">
               {renderCustomerProfile()}
               <div className="mt-4 space-y-2">
-                <button onClick={() => setMobileView('order')} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
+                <button onClick={() => setRightPanel('order')} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
                 <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
                 <button onClick={() => { if (confirm(`ยกเลิกการเชื่อม "${selectedContact.display_name}" กับ "${selectedContact.customer!.name}" ?`)) { linkCustomer(null); setMobileView('chat'); } }} className="w-full py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-sm transition-colors">ยกเลิกการเชื่อม</button>
               </div>
@@ -1389,16 +1310,6 @@ function UnifiedChatPageContent() {
           </div>
         )}
 
-        {/* Mobile Create Customer View */}
-        {mobileView === 'create-customer' && selectedContact && !selectedContact.customer && (
-          <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><UserPlus className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">สร้างลูกค้าใหม่</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}: {selectedContact.display_name}</p></div></div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} lineDisplayName={selectedContact.display_name} onSubmit={handleCreateCustomer} onCancel={() => setMobileView('chat')} isLoading={savingCustomer}/></div>
-          </div>
-        )}
-
         {/* Mobile Order Detail View */}
         {mobileView === 'order-detail' && selectedOrderId && (
           <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
@@ -1410,13 +1321,19 @@ function UnifiedChatPageContent() {
         )}
 
         {/* Desktop Right Panels */}
-        {rightPanel === 'order' && selectedContact?.customer && (
-          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
+        {rightPanel === 'order' && selectedContact && (
+          <div className="flex w-full md:w-auto md:flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 absolute inset-0 md:static md:inset-auto z-10">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
-              <div className="flex items-center gap-3"><ShoppingCart className="w-5 h-5 text-[#F4511E]" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code} - {selectedContact.customer.name}</p></div></div>
-              <button onClick={() => setRightPanel(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setRightPanel(null)} className="p-1 -ml-1 text-gray-500 hover:text-gray-700 md:hidden"><ChevronLeft className="w-6 h-6" /></button>
+                <ShoppingCart className="w-5 h-5 text-[#F4511E]" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer ? `${selectedContact.customer.customer_code} - ${selectedContact.customer.name}` : `${selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}: ${selectedContact.display_name}`}</p></div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div ref={warehousePortalRef} />
+                <button onClick={() => setRightPanel(null)} className="hidden md:block p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><OrderForm preselectedCustomerId={selectedContact.customer.id} embedded={true} onSuccess={() => { setRightPanel(null); showToast('สร้างคำสั่งซื้อสำเร็จ!'); }} onSendBillToChat={sendBillToCustomer} onCancel={() => setRightPanel(null)} /></div>
+            <div className="flex-1 overflow-y-auto p-4"><OrderForm {...(selectedContact.customer ? { preselectedCustomerId: selectedContact.customer.id } : {})} embedded={true} warehousePortalRef={warehousePortalRef} onSuccess={() => { setRightPanel(null); showToast('สร้างคำสั่งซื้อสำเร็จ!'); }} onSendBillToChat={sendBillToCustomer} onCancel={() => setRightPanel(null)} /></div>
           </div>
         )}
 
@@ -1459,16 +1376,6 @@ function UnifiedChatPageContent() {
               <button onClick={() => setRightPanel('profile')} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} initialData={editCustomerInitialData} onSubmit={handleUpdateCustomerInChat} onCancel={() => setRightPanel('profile')} isEditing={true} isLoading={editingCustomer}/></div>
-          </div>
-        )}
-
-        {rightPanel === 'create-customer' && selectedContact && !selectedContact.customer && (
-          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
-              <div className="flex items-center gap-3"><UserPlus className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">สร้างลูกค้าใหม่</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}: {selectedContact.display_name}</p></div></div>
-              <button onClick={() => setRightPanel(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} lineDisplayName={selectedContact.display_name} onSubmit={handleCreateCustomer} onCancel={() => setRightPanel(null)} isLoading={savingCustomer}/></div>
           </div>
         )}
 

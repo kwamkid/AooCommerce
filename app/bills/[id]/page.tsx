@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
-import { Loader2, Printer, FileText, MapPin, Package, Camera, Upload, Clock, CheckCircle2, CreditCard, Banknote, Globe, Copy, Check, Sun, Moon, QrCode, Download } from 'lucide-react';
+import { Loader2, Printer, FileText, MapPin, Package, Camera, Upload, Clock, CheckCircle2, CreditCard, Banknote, Globe, Copy, Check, Sun, Moon, QrCode, Download, Pencil, Calendar } from 'lucide-react';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import { getBankByCode } from '@/lib/constants/banks';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
@@ -98,6 +98,7 @@ interface BillData {
     tax_branch?: string;
   } | null;
   needs_delivery_info?: boolean;
+  customer_id?: string | null;
   items: BillItem[];
   branches: BillBranch[];
 }
@@ -105,7 +106,7 @@ interface BillData {
 // Status pill component
 function StatusPill({ label, color }: { label: string; color: string }) {
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium ${color} print:border print:border-gray-400 print:bg-transparent print:text-black`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${color} print:border print:border-gray-400 print:bg-transparent print:text-black`}>
       {label}
     </span>
   );
@@ -121,11 +122,13 @@ export default function BillOnlinePage() {
 
   // Dark mode toggle (independent from admin system)
   const [dark, setDark] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('bill-theme');
     if (stored === 'light') setDark(false);
     else if (stored === 'dark') setDark(true);
+    setMounted(true);
   }, []);
 
   const toggleDark = () => {
@@ -148,6 +151,7 @@ export default function BillOnlinePage() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [gatewayLoading, setGatewayLoading] = useState(false);
   const [copiedAccount, setCopiedAccount] = useState<string | null>(null);
+  const [copiedAmount, setCopiedAmount] = useState(false);
   const [compressingSlip, setCompressingSlip] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -161,6 +165,22 @@ export default function BillOnlinePage() {
   const [deliveryPostalCode, setDeliveryPostalCode] = useState('');
   const [deliveryEmail, setDeliveryEmail] = useState('');
   const [savingDelivery, setSavingDelivery] = useState(false);
+  const [editingDelivery, setEditingDelivery] = useState(false);
+  const [deliveryErrors, setDeliveryErrors] = useState<Record<string, string>>({});
+
+  const handleEditDelivery = () => {
+    if (!bill) return;
+    setDeliveryName(bill.customer?.name || '');
+    setDeliveryPhone(bill.customer?.phone || '');
+    setDeliveryEmail(bill.customer?.email || '');
+    setDeliveryAddress(bill.customer?.address || '');
+    setDeliveryDistrict(bill.customer?.district || '');
+    setDeliveryAmphoe(bill.customer?.amphoe || '');
+    setDeliveryProvince(bill.customer?.province || '');
+    setDeliveryPostalCode(bill.customer?.postal_code || '');
+    setDeliveryErrors({});
+    setEditingDelivery(true);
+  };
 
   const handleCopyAccount = async (accountNumber: string) => {
     try {
@@ -312,7 +332,7 @@ export default function BillOnlinePage() {
     }
   };
 
-  if (loading) {
+  if (loading || !mounted) {
     return (
       <div className="min-h-screen bg-[#1A1A2E] flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
@@ -369,9 +389,8 @@ export default function BillOnlinePage() {
           <tr className={`border-b-2 ${dark ? 'border-slate-600' : 'border-gray-200'}`}>
             <th className={`text-left py-2.5 font-medium text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>#</th>
             <th className={`text-left py-2.5 font-medium text-sm pl-3 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>สินค้า</th>
-            <th className={`text-right py-2.5 font-medium text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>จำนวน</th>
-            <th className={`text-right py-2.5 font-medium text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>ราคา/หน่วย</th>
-            <th className={`text-right py-2.5 font-medium text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>ส่วนลด</th>
+            <th className={`text-right py-2.5 font-medium text-sm pr-4 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>จำนวน</th>
+            <th className={`text-right py-2.5 font-medium text-sm pr-4 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>ส่วนลด</th>
             <th className={`text-right py-2.5 font-medium text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>รวม</th>
           </tr>
         </thead>
@@ -394,10 +413,11 @@ export default function BillOnlinePage() {
                   </div>
                 </div>
               </td>
-              <td className={`py-3 text-right align-top text-base ${dark ? 'text-slate-300' : 'text-gray-700'}`}>{item.quantity}</td>
-              <td className={`py-3 text-right align-top text-base ${dark ? 'text-slate-300' : 'text-gray-700'}`}>{formatNumber(item.unit_price)}</td>
-              <td className={`py-3 text-right align-top text-base ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
-                {item.discount_amount > 0 ? `-${formatPrice(item.discount_amount)}` : '-'}
+              <td className={`py-3 text-right align-top text-base whitespace-nowrap pr-4 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>
+                {item.quantity} <span className={`${dark ? 'text-slate-500' : 'text-gray-400'}`}>x</span> {formatNumber(item.unit_price)}
+              </td>
+              <td className={`py-3 text-right align-top text-base pr-4 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
+                {item.discount_amount > 0 ? `-${formatPrice(item.discount_amount)}` : ''}
               </td>
               <td className={`py-3 text-right font-semibold align-top text-base ${dark ? 'text-white' : 'text-gray-900'}`}>{formatPrice(item.total)}</td>
             </tr>
@@ -439,7 +459,6 @@ export default function BillOnlinePage() {
           <th className="text-left py-1.5 font-semibold text-sm">#</th>
           <th className="text-left py-1.5 font-semibold text-sm pl-2">สินค้า</th>
           <th className="text-right py-1.5 font-semibold text-sm">จำนวน</th>
-          <th className="text-right py-1.5 font-semibold text-sm">ราคา</th>
           <th className="text-right py-1.5 font-semibold text-sm">ส่วนลด</th>
           <th className="text-right py-1.5 font-semibold text-sm">รวม</th>
         </tr>
@@ -459,9 +478,8 @@ export default function BillOnlinePage() {
                 </div>
               </div>
             </td>
-            <td className="py-1.5 text-right text-sm align-top">{item.quantity}</td>
-            <td className="py-1.5 text-right text-sm align-top">{formatNumber(item.unit_price)}</td>
-            <td className="py-1.5 text-right text-sm align-top">{item.discount_amount > 0 ? `-${formatPrice(item.discount_amount)}` : '-'}</td>
+            <td className="py-1.5 text-right text-sm align-top whitespace-nowrap">{item.quantity} x {formatNumber(item.unit_price)}</td>
+            <td className="py-1.5 text-right text-sm align-top">{item.discount_amount > 0 ? `-${formatPrice(item.discount_amount)}` : ''}</td>
             <td className="py-1.5 text-right font-medium text-sm align-top">{formatPrice(item.total)}</td>
           </tr>
         ))}
@@ -470,7 +488,7 @@ export default function BillOnlinePage() {
   );
 
   return (
-    <div className={`min-h-screen print:bg-white transition-colors ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-100'}`}>
+    <div className={`min-h-screen print:bg-white transition-colors ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-100'}`} suppressHydrationWarning>
       {/* Top bar — hidden in print */}
       <div className="print:hidden sticky top-0 bg-[#1A1A2E] px-4 py-3 flex items-center justify-between z-10 shadow-md">
         <div className="flex items-center gap-2">
@@ -516,12 +534,9 @@ export default function BillOnlinePage() {
               </div>
             </div>
             <div className="text-right space-y-0.5">
-              <div>
-                <span className={`text-sm ${dark ? 'text-slate-500' : 'text-gray-400'}`}>เลขที่ </span>
-                <span className={`font-bold text-lg ${dark ? 'text-white' : 'text-gray-900'}`}>{bill.order_number}</span>
-              </div>
-              <div className={`text-base ${dark ? 'text-slate-400' : 'text-gray-600'}`}>{formatDate(bill.order_date)}</div>
-              <div className="flex items-center justify-end gap-2 mt-1 print:hidden">
+              <div className={`font-bold text-base ${dark ? 'text-white' : 'text-gray-900'}`}>{bill.order_number}</div>
+              <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-600'}`} suppressHydrationWarning>{formatDate(bill.order_date)}</div>
+              <div className="flex items-center justify-end gap-1.5 mt-1 print:hidden">
                 {orderStatusInfo && (
                   <StatusPill label={orderStatusInfo.label} color={dark ? orderStatusInfo.darkColor : orderStatusInfo.color} />
                 )}
@@ -532,37 +547,45 @@ export default function BillOnlinePage() {
             </div>
           </div>
 
-          {/* Delivery Info Form — shown when no customer and no delivery info yet */}
-          {bill.needs_delivery_info && (
+          {/* Delivery Info Form — shown when no customer and no delivery info yet, or when editing */}
+          {(bill.needs_delivery_info || editingDelivery) && (
             <div className={`rounded-lg p-4 mb-5 border-2 border-dashed ${dark ? 'border-orange-500/50 bg-orange-900/10' : 'border-orange-300 bg-orange-50'}`}>
               <div className={`text-sm font-medium mb-3 ${dark ? 'text-orange-400' : 'text-orange-700'}`}>
-                กรุณากรอกข้อมูลจัดส่ง
+                {editingDelivery ? 'แก้ไขข้อมูลจัดส่ง' : 'กรุณากรอกข้อมูลจัดส่ง'}
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className={`block text-sm mb-1 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>ชื่อผู้รับ *</label>
-                  <input type="text" value={deliveryName} onChange={(e) => setDeliveryName(e.target.value)}
+                  <label className="block text-sm mb-1" style={{ color: dark ? '#cbd5e1' : '#4b5563' }}>ชื่อผู้รับ *</label>
+                  <input type="text" value={deliveryName} onChange={(e) => { setDeliveryName(e.target.value); setDeliveryErrors(prev => { const { name, ...rest } = prev; return rest; }); }}
                     placeholder="ชื่อ-นามสกุล"
-                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900'}`} />
+                    style={dark ? { backgroundColor: '#1e293b', borderColor: deliveryErrors.name ? '#ef4444' : '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: deliveryErrors.name ? '#ef4444' : '#d1d5db', color: '#111827' }}
+                    className="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                  {deliveryErrors.name && <p className="text-red-500 text-xs mt-1">{deliveryErrors.name}</p>}
                 </div>
                 <div>
-                  <label className={`block text-sm mb-1 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>เบอร์โทรศัพท์ *</label>
-                  <input type="tel" value={deliveryPhone} onChange={(e) => setDeliveryPhone(e.target.value)}
+                  <label className="block text-sm mb-1" style={{ color: dark ? '#cbd5e1' : '#4b5563' }}>เบอร์โทรศัพท์ *</label>
+                  <input type="tel" value={deliveryPhone} onChange={(e) => { setDeliveryPhone(e.target.value); setDeliveryErrors(prev => { const { phone, ...rest } = prev; return rest; }); }}
                     placeholder="0xx-xxx-xxxx"
-                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900'}`} />
+                    style={dark ? { backgroundColor: '#1e293b', borderColor: deliveryErrors.phone ? '#ef4444' : '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: deliveryErrors.phone ? '#ef4444' : '#d1d5db', color: '#111827' }}
+                    className="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                  {deliveryErrors.phone && <p className="text-red-500 text-xs mt-1">{deliveryErrors.phone}</p>}
                 </div>
                 <div>
-                  <label className={`block text-sm mb-1 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>อีเมล</label>
-                  <input type="email" value={deliveryEmail} onChange={(e) => setDeliveryEmail(e.target.value)}
+                  <label className="block text-sm mb-1" style={{ color: dark ? '#cbd5e1' : '#4b5563' }}>อีเมล</label>
+                  <input type="email" value={deliveryEmail} onChange={(e) => { setDeliveryEmail(e.target.value); setDeliveryErrors(prev => { const { email, ...rest } = prev; return rest; }); }}
                     placeholder="email@example.com"
-                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900'}`} />
+                    style={dark ? { backgroundColor: '#1e293b', borderColor: deliveryErrors.email ? '#ef4444' : '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: deliveryErrors.email ? '#ef4444' : '#d1d5db', color: '#111827' }}
+                    className="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                  {deliveryErrors.email && <p className="text-red-500 text-xs mt-1">{deliveryErrors.email}</p>}
                 </div>
                 <div>
-                  <label className={`block text-sm mb-1 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>ที่อยู่จัดส่ง *</label>
-                  <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)}
+                  <label className="block text-sm mb-1" style={{ color: dark ? '#cbd5e1' : '#4b5563' }}>ที่อยู่จัดส่ง *</label>
+                  <textarea value={deliveryAddress} onChange={(e) => { setDeliveryAddress(e.target.value); setDeliveryErrors(prev => { const { address, ...rest } = prev; return rest; }); }}
                     placeholder="บ้านเลขที่ ซอย ถนน"
                     rows={2}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900'}`} />
+                    style={dark ? { backgroundColor: '#1e293b', borderColor: deliveryErrors.address ? '#ef4444' : '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: deliveryErrors.address ? '#ef4444' : '#d1d5db', color: '#111827' }}
+                    className="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                  {deliveryErrors.address && <p className="text-red-500 text-xs mt-1">{deliveryErrors.address}</p>}
                 </div>
                 <ThaiAddressInput
                   district={deliveryDistrict}
@@ -576,16 +599,31 @@ export default function BillOnlinePage() {
                     if (addr.postalCode !== undefined) setDeliveryPostalCode(addr.postalCode);
                   }}
                   showLabels={false}
-                  inputClassName={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900'}`}
-                  dropdownClassName={`absolute z-50 left-0 right-0 mt-1 border rounded-lg shadow-lg max-h-60 overflow-y-auto ${dark ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}
+                  inputClassName="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  inputStyle={dark ? { backgroundColor: '#1e293b', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }}
+                  dropdownClassName={`absolute z-50 border rounded-lg shadow-lg max-h-[70vh] overflow-y-auto overflow-x-hidden ${dark ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}
+                  dropdownStyle={dark ? { color: '#e2e8f0', borderColor: '#475569' } : { color: '#111827', borderColor: '#e5e7eb' }}
                 />
                 <button
                   type="button"
                   onClick={async () => {
-                    if (!deliveryName || !deliveryPhone || !deliveryAddress) {
-                      showToast('กรุณากรอกชื่อ เบอร์โทร และที่อยู่', 'error');
+                    const errors: Record<string, string> = {};
+                    if (!deliveryName.trim()) errors.name = 'กรุณากรอกชื่อผู้รับ';
+                    const cleanPhone = deliveryPhone.replace(/[-\s]/g, '');
+                    if (!deliveryPhone.trim()) {
+                      errors.phone = 'กรุณากรอกเบอร์โทรศัพท์';
+                    } else if (!/^0\d{9}$/.test(cleanPhone)) {
+                      errors.phone = 'เบอร์โทรต้องเป็นตัวเลข 10 หลัก เริ่มด้วย 0';
+                    }
+                    if (deliveryEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(deliveryEmail)) {
+                      errors.email = 'รูปแบบอีเมลไม่ถูกต้อง';
+                    }
+                    if (!deliveryAddress.trim()) errors.address = 'กรุณากรอกที่อยู่จัดส่ง';
+                    if (Object.keys(errors).length > 0) {
+                      setDeliveryErrors(errors);
                       return;
                     }
+                    setDeliveryErrors({});
                     setSavingDelivery(true);
                     try {
                       const response = await fetch('/api/bills', {
@@ -608,6 +646,7 @@ export default function BillOnlinePage() {
                         throw new Error(err.error || 'เกิดข้อผิดพลาด');
                       }
                       showToast('บันทึกข้อมูลจัดส่งสำเร็จ');
+                      setEditingDelivery(false);
                       await fetchBill();
                     } catch (err) {
                       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
@@ -621,42 +660,67 @@ export default function BillOnlinePage() {
                   {savingDelivery ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                   {savingDelivery ? 'กำลังบันทึก...' : 'บันทึกข้อมูลจัดส่ง'}
                 </button>
+                {editingDelivery && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingDelivery(false)}
+                    className={`w-full py-2.5 rounded-lg font-medium text-sm transition-colors border ${dark ? 'border-slate-600 text-slate-400 hover:bg-slate-700/50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    ยกเลิก
+                  </button>
+                )}
               </div>
             </div>
           )}
 
-          {/* Customer Info + Delivery/Notes — 2 column */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5 print:grid-cols-2 print:gap-4">
-            {/* Left: Customer */}
+          {/* Customer Info + Delivery/Notes — 2 column (hide when form is shown) */}
+          {(!bill.needs_delivery_info && !editingDelivery || bill.customer?.name || bill.delivery_date || bill.notes) && !editingDelivery && (
+          <div className="grid grid-cols-1 gap-4 mb-5 print:grid-cols-2 print:gap-4">
+            {/* Left: Customer / Delivery info */}
+            {bill.customer?.name && (
             <div className={`print:bg-transparent rounded-lg p-4 print:p-0 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
-              <div className={`text-sm font-medium mb-1 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>ลูกค้า</div>
-              {bill.customer?.name ? (
-                <>
-                  <div className={`text-lg font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{bill.customer.name}</div>
-                  <div className={`text-sm space-y-0.5 mt-1 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
-                    {bill.customer.contact_person && <div>ผู้ติดต่อ: {bill.customer.contact_person}</div>}
-                    {bill.customer.phone && <div>โทร: {bill.customer.phone}</div>}
-                    {bill.customer.tax_id && (
-                      <div>
-                        เลขผู้เสียภาษี: {bill.customer.tax_id}
-                        {bill.customer.tax_branch && ` สาขา: ${bill.customer.tax_branch}`}
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className={`text-sm italic ${dark ? 'text-orange-400' : 'text-orange-500'}`}>
-                  {bill.needs_delivery_info ? 'รอข้อมูลจัดส่งจากลูกค้า' : 'ไม่ระบุลูกค้า'}
+              <div className="flex items-center justify-between mb-1">
+                <div className={`text-sm font-medium ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
+                  {!bill.customer_id ? 'ข้อมูลจัดส่ง' : 'ลูกค้า'}
                 </div>
-              )}
+                {!bill.customer_id && (
+                  <button
+                    type="button"
+                    onClick={handleEditDelivery}
+                    className={`text-xs flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors ${dark ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'}`}
+                  >
+                    <Pencil className="w-3 h-3" />
+                    แก้ไข
+                  </button>
+                )}
+              </div>
+              <div className={`text-lg font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{bill.customer.name}</div>
+              <div className={`text-sm space-y-0.5 mt-1 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                {bill.customer.contact_person && <div>ผู้ติดต่อ: {bill.customer.contact_person}</div>}
+                {bill.customer.phone && <div>โทร: {bill.customer.phone}</div>}
+                {bill.customer.email && <div>อีเมล: {bill.customer.email}</div>}
+                {bill.customer.tax_id && (
+                  <div>
+                    เลขผู้เสียภาษี: {bill.customer.tax_id}
+                    {bill.customer.tax_branch && ` สาขา: ${bill.customer.tax_branch}`}
+                  </div>
+                )}
+                {bill.customer.address && (
+                  <div>
+                    ที่อยู่: {[bill.customer.address, bill.customer.district, bill.customer.amphoe, bill.customer.province, bill.customer.postal_code].filter(Boolean).join(' ')}
+                  </div>
+                )}
+              </div>
             </div>
+            )}
 
-            {/* Right: Delivery date + Notes */}
+            {/* Right: Delivery date + Notes — only show when data exists */}
+            {(bill.delivery_date || bill.notes) && (
             <div className={`print:bg-transparent rounded-lg p-4 print:p-0 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
               {bill.delivery_date && (
                 <div className="mb-2">
                   <div className={`text-sm font-medium mb-1 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>วันจัดส่ง</div>
-                  <div className={`text-base font-semibold ${dark ? 'text-white' : 'text-gray-900'}`}>{formatDate(bill.delivery_date)}</div>
+                  <div className={`text-base font-semibold ${dark ? 'text-white' : 'text-gray-900'}`} suppressHydrationWarning>{formatDate(bill.delivery_date)}</div>
                 </div>
               )}
               {bill.notes && (
@@ -665,11 +729,10 @@ export default function BillOnlinePage() {
                   <div className={`text-base ${dark ? 'text-slate-300' : 'text-gray-700'}`}>{bill.notes}</div>
                 </div>
               )}
-              {!bill.delivery_date && !bill.notes && (
-                <div className={`text-sm italic ${dark ? 'text-slate-600' : 'text-gray-300'}`}>ไม่มีข้อมูลเพิ่มเติม</div>
-              )}
             </div>
+            )}
           </div>
+          )}
 
           {/* Items — Branch-grouped or flat */}
           {hasMultipleBranches ? (
@@ -786,11 +849,6 @@ export default function BillOnlinePage() {
               <CreditCard className="w-5 h-5 text-[#F4511E]" />
               การชำระเงิน
             </h3>
-            {/* Grand total in right column */}
-            <div className={`flex justify-between items-center py-3 border-b ${dark ? 'border-slate-600' : 'border-gray-200'}`}>
-              <span className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>ยอดรวมสุทธิ</span>
-              <span className="text-xl font-bold text-[#F4511E]">฿{formatPrice(bill.total_amount)}</span>
-            </div>
             {/* Status: pending → show CTA or form */}
             {bill.payment_status === 'pending' && !submitSuccess && (
               <>
@@ -830,21 +888,29 @@ export default function BillOnlinePage() {
 
                     {/* Payment Method — dynamic from payment_channels */}
                     <div>
-                      <label className={`block text-base font-medium mb-2 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>วิธีชำระ</label>
+                      <label className="block text-base font-medium mb-2" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>วิธีชำระ</label>
                       {bill.payment_channels && bill.payment_channels.length > 0 ? (
                         <div className="grid grid-cols-1 gap-2">
-                          {/* Build unique method buttons: separate promptpay from bank_transfer */}
+                          {/* Build method buttons respecting sort_order from settings */}
                           {(() => {
-                            const hasPromptPay = bill.payment_channels!.some(ch => ch.type === 'bank_transfer' && ch.config?.promptpay_id);
-                            const hasBankAccounts = bill.payment_channels!.some(ch => ch.type === 'bank_transfer' && ch.config?.bank_code);
-                            const hasGateway = bill.payment_channels!.some(ch => ch.type === 'payment_gateway');
-                            const hasCash = bill.payment_channels!.some(ch => ch.type === 'cash');
-
                             const methods: { key: string; icon: React.ReactNode; label: string }[] = [];
-                            if (hasPromptPay) methods.push({ key: 'promptpay', icon: <QrCode className="w-5 h-5" />, label: 'PromptPay QR' });
-                            if (hasBankAccounts) methods.push({ key: 'bank_transfer', icon: <CreditCard className="w-5 h-5" />, label: 'โอนธนาคาร' });
-                            if (hasGateway) methods.push({ key: 'payment_gateway', icon: <Globe className="w-5 h-5" />, label: 'ชำระออนไลน์' });
-                            if (hasCash) methods.push({ key: 'cash', icon: <Banknote className="w-5 h-5" />, label: 'เงินสด' });
+                            const seen = new Set<string>();
+
+                            for (const ch of bill.payment_channels!) {
+                              if (ch.type === 'bank_transfer' && ch.config?.promptpay_id && !seen.has('promptpay')) {
+                                seen.add('promptpay');
+                                methods.push({ key: 'promptpay', icon: <QrCode className="w-5 h-5" />, label: 'PromptPay QR' });
+                              } else if (ch.type === 'bank_transfer' && ch.config?.bank_code && !seen.has('bank_transfer')) {
+                                seen.add('bank_transfer');
+                                methods.push({ key: 'bank_transfer', icon: <CreditCard className="w-5 h-5" />, label: 'โอนธนาคาร' });
+                              } else if (ch.type === 'payment_gateway' && !seen.has('payment_gateway')) {
+                                seen.add('payment_gateway');
+                                methods.push({ key: 'payment_gateway', icon: <Globe className="w-5 h-5" />, label: 'ชำระออนไลน์' });
+                              } else if (ch.type === 'cash' && !seen.has('cash')) {
+                                seen.add('cash');
+                                methods.push({ key: 'cash', icon: <Banknote className="w-5 h-5" />, label: 'เงินสด' });
+                              }
+                            }
 
                             return methods.map(m => (
                               <button
@@ -935,33 +1001,35 @@ export default function BillOnlinePage() {
                             );
                           })}
 
-                        {/* Slip upload + transfer date for PromptPay too */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className={`block text-base font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>
+                        {/* Slip upload + transfer date/time for PromptPay */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="overflow-hidden">
+                            <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>
                               วันที่โอน <span className="text-red-400">*</span>
                             </label>
                             <input
                               type="date"
                               value={transferDate}
                               onChange={(e) => setTransferDate(e.target.value)}
-                              className={`w-full px-3 py-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent ${dark ? 'bg-[#1A1A2E] border-slate-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
+                              className="w-full px-3 py-3 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                             />
                           </div>
-                          <div>
-                            <label className={`block text-base font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>เวลาโอน</label>
+                          <div className="overflow-hidden">
+                            <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>เวลา</label>
                             <input
                               type="time"
                               value={transferTime}
                               onChange={(e) => setTransferTime(e.target.value)}
-                              className={`w-full px-3 py-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent ${dark ? 'bg-[#1A1A2E] border-slate-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
+                              className="w-full px-2 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                             />
                           </div>
                         </div>
 
                         {/* Slip Upload */}
                         <div>
-                          <label className={`block text-base font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>อัพโหลดสลิป</label>
+                          <label className="block text-base font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>อัพโหลดสลิป</label>
                           {compressingSlip ? (
                             <div className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}>
                               <Loader2 className="w-10 h-10 animate-spin" />
@@ -998,7 +1066,7 @@ export default function BillOnlinePage() {
                         {/* Bank accounts from settings */}
                         {bill.payment_channels && bill.payment_channels.filter(ch => ch.type === 'bank_transfer' && ch.config?.bank_code).length > 0 && (
                           <div className="space-y-2">
-                            <label className={`block text-base font-medium ${dark ? 'text-slate-400' : 'text-gray-600'}`}>โอนเข้าบัญชี</label>
+                            <label className="block text-base font-medium" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>โอนเข้าบัญชี</label>
                             {bill.payment_channels
                               .filter(ch => ch.type === 'bank_transfer' && ch.config?.bank_code)
                               .map((ch, idx) => {
@@ -1045,32 +1113,56 @@ export default function BillOnlinePage() {
                           </div>
                         )}
 
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className={`block text-base font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>
+                        {/* ยอดรวมสุทธิ with copy */}
+                        <div className={`flex items-center justify-between p-3 rounded-lg border ${dark ? 'bg-[#1A1A2E] border-slate-600' : 'bg-orange-50 border-orange-200'}`}>
+                          <span className="text-sm font-medium" style={{ color: dark ? '#94a3b8' : '#6b7280' }}>ยอดที่ต้องโอน</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg font-bold text-[#F4511E]">฿{formatPrice(bill.total_amount)}</span>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(bill.total_amount.toFixed(2));
+                                } catch { /* fallback */ const ta = document.createElement('textarea'); ta.value = bill.total_amount.toFixed(2); document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
+                                setCopiedAmount(true);
+                                setTimeout(() => setCopiedAmount(false), 2000);
+                              }}
+                              className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${dark ? 'bg-slate-600 hover:bg-slate-500 text-slate-300' : 'bg-orange-100 hover:bg-orange-200 text-orange-700'}`}
+                            >
+                              {copiedAmount ? <><Check className="w-3 h-3 text-green-500" /><span className="text-green-500">คัดลอกแล้ว</span></> : <><Copy className="w-3 h-3" /><span>คัดลอก</span></>}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* วันที่โอน + เวลาโอน */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="overflow-hidden">
+                            <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>
                               วันที่โอน <span className="text-red-400">*</span>
                             </label>
                             <input
                               type="date"
                               value={transferDate}
                               onChange={(e) => setTransferDate(e.target.value)}
-                              className={`w-full px-3 py-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent ${dark ? 'bg-[#1A1A2E] border-slate-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
+                              className="w-full px-3 py-3 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                             />
                           </div>
-                          <div>
-                            <label className={`block text-base font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>เวลาโอน</label>
+                          <div className="overflow-hidden">
+                            <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>เวลา</label>
                             <input
                               type="time"
                               value={transferTime}
                               onChange={(e) => setTransferTime(e.target.value)}
-                              className={`w-full px-3 py-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent ${dark ? 'bg-[#1A1A2E] border-slate-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
+                              className="w-full px-2 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                             />
                           </div>
                         </div>
 
                         {/* Slip Upload */}
                         <div>
-                          <label className={`block text-base font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>อัพโหลดสลิป</label>
+                          <label className="block text-base font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>อัพโหลดสลิป</label>
                           {compressingSlip ? (
                             <div className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}>
                               <Loader2 className="w-10 h-10 animate-spin" />
@@ -1143,16 +1235,25 @@ export default function BillOnlinePage() {
                       </div>
                     )}
 
+                    {/* ยอดรวมสุทธิ for cash mode */}
+                    {paymentMethod === 'cash' && (
+                      <div className={`flex items-center justify-between p-3 rounded-lg border ${dark ? 'bg-[#1A1A2E] border-slate-600' : 'bg-orange-50 border-orange-200'}`}>
+                        <span className="text-sm font-medium" style={{ color: dark ? '#94a3b8' : '#6b7280' }}>ยอดรวมสุทธิ</span>
+                        <span className="text-lg font-bold text-[#F4511E]">฿{formatPrice(bill.total_amount)}</span>
+                      </div>
+                    )}
+
                     {/* Notes — show for cash, bank_transfer, promptpay */}
                     {paymentMethod !== 'payment_gateway' && (
                       <div>
-                        <label className={`block text-base font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>หมายเหตุ</label>
+                        <label className="block text-base font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>หมายเหตุ</label>
                         <textarea
                           value={paymentNotes}
                           onChange={(e) => setPaymentNotes(e.target.value)}
                           placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
                           rows={2}
-                          className={`w-full px-3 py-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent ${dark ? 'bg-[#1A1A2E] border-slate-600 text-white placeholder-slate-600' : 'bg-white border-gray-300 text-gray-900'}`}
+                          style={dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }}
+                          className="w-full px-3 py-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                         />
                       </div>
                     )}

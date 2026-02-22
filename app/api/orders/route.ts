@@ -1137,6 +1137,15 @@ export async function PUT(request: NextRequest) {
       if (body.shipping_fee !== undefined) updateData.shipping_fee = body.shipping_fee || 0;
       if (body.order_status !== undefined) updateData.order_status = body.order_status;
       if (body.payment_status !== undefined) updateData.payment_status = body.payment_status;
+      // Delivery info fields
+      if (body.delivery_name !== undefined) updateData.delivery_name = body.delivery_name || null;
+      if (body.delivery_phone !== undefined) updateData.delivery_phone = body.delivery_phone || null;
+      if (body.delivery_address !== undefined) updateData.delivery_address = body.delivery_address || null;
+      if (body.delivery_district !== undefined) updateData.delivery_district = body.delivery_district || null;
+      if (body.delivery_amphoe !== undefined) updateData.delivery_amphoe = body.delivery_amphoe || null;
+      if (body.delivery_province !== undefined) updateData.delivery_province = body.delivery_province || null;
+      if (body.delivery_postal_code !== undefined) updateData.delivery_postal_code = body.delivery_postal_code || null;
+      if (body.delivery_email !== undefined) updateData.delivery_email = body.delivery_email || null;
 
       const { error: updateError } = await supabaseAdmin
         .from('orders')

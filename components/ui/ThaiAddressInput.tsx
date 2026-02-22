@@ -13,8 +13,10 @@ interface ThaiAddressInputProps {
   disabled?: boolean;
   className?: string;
   inputClassName?: string;
+  inputStyle?: React.CSSProperties;
   labelClassName?: string;
   dropdownClassName?: string;
+  dropdownStyle?: React.CSSProperties;
   showLabels?: boolean;
 }
 
@@ -29,23 +31,32 @@ export default function ThaiAddressInput({
   disabled = false,
   className = '',
   inputClassName,
+  inputStyle,
   labelClassName,
   dropdownClassName,
+  dropdownStyle,
   showLabels = true,
 }: ThaiAddressInputProps) {
   const [suggestions, setSuggestions] = useState<ThaiAddress[]>([]);
   const [activeField, setActiveField] = useState<FieldType | null>(null);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const [dropUp, setDropUp] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState<{ top?: number; bottom?: number; left: number; width: number } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const fieldRefs = useRef<Record<FieldType, HTMLDivElement | null>>({
+    district: null,
+    amphoe: null,
+    province: null,
+    zipcode: null,
+  });
 
   const handleSearch = useCallback((value: string, field: FieldType) => {
     if (value.length < 1) {
       setSuggestions([]);
       return;
     }
-    const results = searchAddress(value, field, 20);
+    const results = searchAddress(value, field, 8);
     setSuggestions(results);
     setHighlightIndex(-1);
   }, []);
@@ -73,15 +84,33 @@ export default function ThaiAddressInput({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Check if dropdown should open upward
+  // Position dropdown relative to the active input field
   useEffect(() => {
-    if (suggestions.length > 0 && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const dropdownHeight = Math.min(suggestions.length * 40, 240); // max-h-60 = 240px
-      setDropUp(spaceBelow < dropdownHeight + 8);
+    if (suggestions.length > 0 && activeField && containerRef.current) {
+      const fieldEl = fieldRefs.current[activeField];
+      if (!fieldEl) return;
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const fieldRect = fieldEl.getBoundingClientRect();
+      const dropdownHeight = suggestions.length * 56; // ~56px per item (2-line wrapped)
+      const spaceBelow = window.innerHeight - fieldRect.bottom;
+      const shouldDropUp = spaceBelow < dropdownHeight + 8;
+      setDropUp(shouldDropUp);
+      // Calculate position relative to container
+      const left = fieldRect.left - containerRect.left;
+      // Use container width but align to the field's left edge; cap so dropdown doesn't overflow container right
+      const maxWidth = containerRect.width - left;
+      const width = maxWidth;
+      if (shouldDropUp) {
+        const bottom = containerRect.bottom - fieldRect.top;
+        setDropdownPos({ bottom, left, width });
+      } else {
+        const top = fieldRect.bottom - containerRect.top;
+        setDropdownPos({ top, left, width });
+      }
+    } else {
+      setDropdownPos(null);
     }
-  }, [suggestions]);
+  }, [suggestions, activeField]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (suggestions.length === 0) return;
@@ -112,13 +141,13 @@ export default function ThaiAddressInput({
   const inputClass = inputClassName || defaultInputClass;
   const lblClass = labelClassName || "block text-sm text-gray-600 dark:text-slate-400 mb-1";
 
-  const defaultDropdownClass = "absolute z-50 left-0 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto";
+  const defaultDropdownClass = "absolute z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg max-h-[70vh] overflow-y-auto overflow-x-hidden";
   const dropdownCls = dropdownClassName || defaultDropdownClass;
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       <div className="grid grid-cols-2 gap-3" onKeyDown={handleKeyDown}>
-        <div>
+        <div ref={(el) => { fieldRefs.current.district = el; }}>
           {showLabels && <label className={lblClass}>ตำบล/แขวง</label>}
           <input
             type="text"
@@ -138,9 +167,10 @@ export default function ThaiAddressInput({
             disabled={disabled}
             autoComplete="off"
             className={inputClass}
+            style={inputStyle}
           />
         </div>
-        <div>
+        <div ref={(el) => { fieldRefs.current.amphoe = el; }}>
           {showLabels && <label className={lblClass}>อำเภอ/เขต</label>}
           <input
             type="text"
@@ -160,9 +190,10 @@ export default function ThaiAddressInput({
             disabled={disabled}
             autoComplete="off"
             className={inputClass}
+            style={inputStyle}
           />
         </div>
-        <div>
+        <div ref={(el) => { fieldRefs.current.province = el; }}>
           {showLabels && <label className={lblClass}>จังหวัด</label>}
           <input
             type="text"
@@ -182,9 +213,10 @@ export default function ThaiAddressInput({
             disabled={disabled}
             autoComplete="off"
             className={inputClass}
+            style={inputStyle}
           />
         </div>
-        <div>
+        <div ref={(el) => { fieldRefs.current.zipcode = el; }}>
           {showLabels && <label className={lblClass}>รหัสไปรษณีย์</label>}
           <input
             type="text"
@@ -204,16 +236,25 @@ export default function ThaiAddressInput({
             disabled={disabled}
             autoComplete="off"
             className={inputClass}
+            style={inputStyle}
           />
         </div>
       </div>
 
       {/* Dropdown suggestions */}
-      {suggestions.length > 0 && activeField && (
+      {suggestions.length > 0 && activeField && dropdownPos && (
         <div
           ref={dropdownRef}
           className={dropdownCls}
-          style={dropUp ? { bottom: '100%', marginBottom: 4 } : { top: '100%', marginTop: 4 }}
+          style={{
+            ...(dropUp
+              ? { bottom: dropdownPos.bottom, marginBottom: 4 }
+              : { top: dropdownPos.top, marginTop: 4 }),
+            left: dropdownPos.left,
+            width: dropdownPos.width,
+            right: 'auto',
+            ...dropdownStyle,
+          }}
         >
           {suggestions.map((addr, i) => (
             <button
@@ -222,20 +263,27 @@ export default function ThaiAddressInput({
               type="button"
               onClick={() => handleSelect(addr)}
               className={`w-full text-left px-3 py-2 flex items-start gap-2 text-sm transition-colors border-b last:border-b-0 ${
-                i === highlightIndex
-                  ? 'bg-orange-50 dark:bg-slate-700 border-gray-100 dark:border-slate-700'
-                  : 'hover:bg-orange-50 dark:hover:bg-slate-700 border-gray-100 dark:border-slate-700'
+                dropdownStyle
+                  ? (i === highlightIndex ? 'border-gray-100' : 'border-gray-100')
+                  : (i === highlightIndex
+                    ? 'bg-orange-50 dark:bg-slate-700 border-gray-100 dark:border-slate-700'
+                    : 'hover:bg-orange-50 dark:hover:bg-slate-700 border-gray-100 dark:border-slate-700')
               }`}
+              style={dropdownStyle ? {
+                color: dropdownStyle.color,
+                backgroundColor: i === highlightIndex ? '#fff7ed' : undefined,
+                borderColor: dropdownStyle.borderColor || '#f3f4f6',
+              } : undefined}
             >
-              <MapPin className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <span className={activeField === 'district' ? 'font-medium text-[#F4511E]' : ''}>{addr.district}</span>
-                <span className="text-gray-400 mx-1">&raquo;</span>
-                <span className={activeField === 'amphoe' ? 'font-medium text-[#F4511E]' : ''}>{addr.amphoe}</span>
-                <span className="text-gray-400 mx-1">&raquo;</span>
-                <span className={activeField === 'province' ? 'font-medium text-[#F4511E]' : ''}>{addr.province}</span>
-                <span className="text-gray-400 mx-1.5">&middot;</span>
-                <span className={`${activeField === 'zipcode' ? 'font-medium text-[#F4511E]' : 'text-gray-500 dark:text-slate-400'}`}>{addr.zipcode}</span>
+              <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={dropdownStyle ? { color: '#9ca3af' } : undefined} />
+              <div className="flex-1 min-w-0 leading-relaxed">
+                <span className={activeField === 'district' ? 'font-medium text-[#F4511E]' : ''} style={dropdownStyle && activeField !== 'district' ? { color: dropdownStyle.color } : undefined}>{addr.district}</span>
+                <span className={dropdownStyle ? 'mx-0.5' : 'text-gray-400 mx-0.5'} style={dropdownStyle ? { color: '#9ca3af' } : undefined}>&raquo;</span>
+                <span className={activeField === 'amphoe' ? 'font-medium text-[#F4511E]' : ''} style={dropdownStyle && activeField !== 'amphoe' ? { color: dropdownStyle.color } : undefined}>{addr.amphoe}</span>
+                <span className={dropdownStyle ? 'mx-0.5' : 'text-gray-400 mx-0.5'} style={dropdownStyle ? { color: '#9ca3af' } : undefined}>&raquo;</span>
+                <span className={activeField === 'province' ? 'font-medium text-[#F4511E]' : ''} style={dropdownStyle && activeField !== 'province' ? { color: dropdownStyle.color } : undefined}>{addr.province}</span>
+                <span className={dropdownStyle ? 'mx-1' : 'text-gray-400 mx-1'} style={dropdownStyle ? { color: '#9ca3af' } : undefined}>&middot;</span>
+                <span className={`${activeField === 'zipcode' ? 'font-medium text-[#F4511E]' : (dropdownStyle ? '' : 'text-gray-500 dark:text-slate-400')}`} style={dropdownStyle && activeField !== 'zipcode' ? { color: '#6b7280' } : undefined}>{addr.zipcode}</span>
               </div>
             </button>
           ))}

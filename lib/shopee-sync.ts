@@ -1262,7 +1262,7 @@ async function findOrCreateVariationBySku(
     }
 
     // Check if this specific variation already exists under the parent
-    const variationSku = sku || `${parentCode}-${shopeeInfo.shopeeModelId}`;
+    const variationSku = sku || `SP-${shopeeInfo.shopeeItemId}-${shopeeInfo.shopeeModelId}`;
     const { data: existingVar } = await supabaseAdmin
       .from('product_variations')
       .select('id')
@@ -1325,7 +1325,7 @@ async function findOrCreateVariationBySku(
   }
 
   // --- Simple Product ---
-  const productCode = sku || `SP-${shopeeInfo.shopeeItemId || Date.now()}`;
+  const productCode = sku || `SP-${shopeeInfo.shopeeItemId}`;
   const simpleLabel = sku || productName;  // Use SKU or name as display label
 
   // Check if a soft-deleted product with the same code exists

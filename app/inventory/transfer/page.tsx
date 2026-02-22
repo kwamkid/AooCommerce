@@ -408,12 +408,12 @@ export default function StockTransferPage() {
       title="โอนย้ายสินค้า"
       breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการโอนย้าย', href: '/inventory/transfers' }, { label: 'สร้างใบโอนย้าย' }]}
     >
-      <div className="space-y-4">
+      <div className="space-y-4 animate-fadeIn">
         {/* Warehouse Selection */}
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-4 items-end">
+          <div className="flex flex-col sm:flex-row gap-4 sm:items-start">
             {/* Source Warehouse */}
-            <div>
+            <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
                 คลังต้นทาง <span className="text-red-500">*</span>
               </label>
@@ -433,24 +433,15 @@ export default function StockTransferPage() {
                 </select>
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
-              {inventoryLoading && (
-                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5 flex items-center gap-1">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  กำลังโหลดสต็อก...
-                </p>
-              )}
             </div>
 
             {/* Arrow */}
-            <div className="hidden sm:flex items-center justify-center self-end mb-2.5">
-              <ArrowRightLeft className="w-5 h-5 text-gray-400 dark:text-slate-500" />
-            </div>
-            <div className="flex sm:hidden items-center justify-center">
-              <ArrowRightLeft className="w-5 h-5 text-gray-400 dark:text-slate-500 rotate-90" />
+            <div className="flex items-center justify-center sm:mt-8 flex-shrink-0">
+              <ArrowRightLeft className="w-5 h-5 text-gray-400 dark:text-slate-500 rotate-90 sm:rotate-0" />
             </div>
 
             {/* Destination Warehouse */}
-            <div>
+            <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
                 คลังปลายทาง <span className="text-red-500">*</span>
               </label>
@@ -472,6 +463,12 @@ export default function StockTransferPage() {
               </div>
             </div>
           </div>
+          {inventoryLoading && (
+            <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5 flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              กำลังโหลดสต็อก...
+            </p>
+          )}
 
           {/* Same warehouse warning */}
           {warehousesAreSame && (
@@ -822,7 +819,7 @@ export default function StockTransferPage() {
             ) : (
               <>
                 <ArrowRightLeft className="w-4 h-4" />
-                สร้างใบโอนย้ายและจัดส่ง
+                สร้างใบโอนย้าย
               </>
             )}
           </button>

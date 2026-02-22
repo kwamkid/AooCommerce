@@ -1,5 +1,5 @@
 // Path: app/api/inventory/transfers/route.ts
-// Two-step transfer: create/ship → receive
+// Three-step transfer: pending (reserve) → shipping (deduct) → received (add dest)
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, hasAnyRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
@@ -67,7 +67,8 @@ export async function GET(request: NextRequest) {
     let query = supabaseAdmin
       .from('inventory_transfers')
       .select(`
-        id, transfer_number, status, notes, created_at, shipped_at, received_at, created_by,
+        id, transfer_number, status, notes, created_at, shipped_at, received_at, created_by, receive_token,
+        receiver_name, receive_photo_url,
         from_warehouse:warehouses!inventory_transfers_from_warehouse_id_fkey(id, name, code),
         to_warehouse:warehouses!inventory_transfers_to_warehouse_id_fkey(id, name, code),
         items:inventory_transfer_items(id)
@@ -194,7 +195,7 @@ export async function POST(request: NextRequest) {
     const { data: tfNum } = await supabaseAdmin.rpc('generate_transfer_number', { p_company_id: auth.companyId });
     const transferNumber = tfNum || `TF-${Date.now()}`;
 
-    // Create transfer header (status = shipped, deduct stock immediately)
+    // Create transfer header (status = pending, reserve stock)
     const { data: transfer, error: transferError } = await supabaseAdmin
       .from('inventory_transfers')
       .insert({
@@ -202,13 +203,11 @@ export async function POST(request: NextRequest) {
         transfer_number: transferNumber,
         from_warehouse_id,
         to_warehouse_id,
-        status: 'shipped',
+        status: 'pending',
         notes: notes || null,
-        shipped_at: new Date().toISOString(),
-        shipped_by: auth.userId,
         created_by: auth.userId,
       })
-      .select('id, transfer_number')
+      .select('id, transfer_number, receive_token')
       .single();
 
     if (transferError || !transfer) {
@@ -216,7 +215,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่สามารถสร้างใบโอนย้ายได้' }, { status: 500 });
     }
 
-    // Create items and deduct from source
+    // Create items and reserve stock at source
     const results: { variation_id: string; qty_sent: number }[] = [];
 
     for (const item of validItems) {
@@ -229,35 +228,35 @@ export async function POST(request: NextRequest) {
           qty_sent: item.quantity,
         });
 
-      // Deduct from source warehouse
+      // Reserve stock at source warehouse
       const { data: sourceInv } = await supabaseAdmin
         .from('inventory')
-        .select('id, quantity')
+        .select('id, quantity, reserved_quantity')
         .eq('warehouse_id', from_warehouse_id)
         .eq('variation_id', item.variation_id)
         .single();
 
-      const newSourceQty = (sourceInv?.quantity || 0) - item.quantity;
+      const newReserved = (sourceInv?.reserved_quantity || 0) + item.quantity;
       if (sourceInv) {
         await supabaseAdmin
           .from('inventory')
-          .update({ quantity: newSourceQty, updated_at: new Date().toISOString() })
+          .update({ reserved_quantity: newReserved, updated_at: new Date().toISOString() })
           .eq('id', sourceInv.id);
       }
 
-      // Create transfer_out transaction
+      // Create reserve transaction
       await supabaseAdmin
         .from('inventory_transactions')
         .insert({
           company_id: auth.companyId,
           warehouse_id: from_warehouse_id,
           variation_id: item.variation_id,
-          type: 'transfer_out',
+          type: 'reserve',
           quantity: item.quantity,
-          balance_after: newSourceQty,
+          balance_after: sourceInv?.quantity || 0,
           reference_type: 'transfer',
           reference_id: transfer.id,
-          notes: `โอนย้ายออก ${transferNumber}`,
+          notes: `จองสินค้าโอนย้าย ${transferNumber}`,
           created_by: auth.userId,
         });
 
@@ -312,9 +311,67 @@ export async function PUT(request: NextRequest) {
       .eq('user_id', auth.userId)
       .single();
 
+    // === ACTION: SHIP (pending → shipping) ===
+    if (action === 'ship') {
+      if (transfer.status !== 'pending') {
+        return NextResponse.json({ error: 'สามารถจัดส่งได้เฉพาะใบที่อยู่ในสถานะ "ที่ต้องจัดส่ง" เท่านั้น' }, { status: 400 });
+      }
+
+      if (!canManageWarehouse(auth.companyRoles, membership?.warehouse_ids, transfer.from_warehouse_id)) {
+        return NextResponse.json({ error: 'คุณไม่มีสิทธิ์จัดส่งจากคลังต้นทางนี้' }, { status: 403 });
+      }
+
+      // Deduct quantity + release reserved_quantity at source
+      for (const item of transfer.items) {
+        const { data: sourceInv } = await supabaseAdmin
+          .from('inventory')
+          .select('id, quantity, reserved_quantity')
+          .eq('warehouse_id', transfer.from_warehouse_id)
+          .eq('variation_id', item.variation_id)
+          .single();
+
+        const newQty = (sourceInv?.quantity || 0) - item.qty_sent;
+        const newReserved = Math.max(0, (sourceInv?.reserved_quantity || 0) - item.qty_sent);
+
+        if (sourceInv) {
+          await supabaseAdmin
+            .from('inventory')
+            .update({ quantity: newQty, reserved_quantity: newReserved, updated_at: new Date().toISOString() })
+            .eq('id', sourceInv.id);
+        }
+
+        await supabaseAdmin
+          .from('inventory_transactions')
+          .insert({
+            company_id: auth.companyId,
+            warehouse_id: transfer.from_warehouse_id,
+            variation_id: item.variation_id,
+            type: 'transfer_out',
+            quantity: item.qty_sent,
+            balance_after: newQty,
+            reference_type: 'transfer',
+            reference_id: transfer.id,
+            notes: `โอนย้ายออก ${transfer.transfer_number}`,
+            created_by: auth.userId,
+          });
+      }
+
+      await supabaseAdmin
+        .from('inventory_transfers')
+        .update({
+          status: 'shipping',
+          shipped_at: new Date().toISOString(),
+          shipped_by: auth.userId,
+        })
+        .eq('id', transfer_id);
+
+      return NextResponse.json({ success: true, status: 'shipping' });
+    }
+
+    // === ACTION: RECEIVE (shipping → received) ===
     if (action === 'receive') {
-      if (transfer.status !== 'shipped') {
-        return NextResponse.json({ error: 'ใบโอนย้ายนี้ไม่อยู่ในสถานะพร้อมรับ' }, { status: 400 });
+      if (transfer.status !== 'shipping') {
+        return NextResponse.json({ error: 'ใบโอนย้ายนี้ไม่อยู่ในสถานะกำลังส่ง' }, { status: 400 });
       }
 
       if (!canManageWarehouse(auth.companyRoles, membership?.warehouse_ids, transfer.to_warehouse_id)) {
@@ -324,8 +381,6 @@ export async function PUT(request: NextRequest) {
       if (!receivedItems || !Array.isArray(receivedItems) || receivedItems.length === 0) {
         return NextResponse.json({ error: 'กรุณาระบุจำนวนที่รับ' }, { status: 400 });
       }
-
-      let allFull = true;
 
       for (const ri of receivedItems) {
         const { item_id, qty_received } = ri;
@@ -339,10 +394,6 @@ export async function PUT(request: NextRequest) {
         }
         if (qty_received > transferItem.qty_sent) {
           return NextResponse.json({ error: `จำนวนรับไม่สามารถมากกว่าจำนวนส่ง (${transferItem.qty_sent})` }, { status: 400 });
-        }
-
-        if (qty_received < transferItem.qty_sent) {
-          allFull = false;
         }
 
         // Update transfer item qty_received
@@ -413,7 +464,7 @@ export async function PUT(request: NextRequest) {
               .eq('id', sourceInv.id);
           }
 
-          // Create return transaction
+          // Create return transaction for shortfall
           await supabaseAdmin
             .from('inventory_transactions')
             .insert({
@@ -431,23 +482,24 @@ export async function PUT(request: NextRequest) {
         }
       }
 
-      // Update transfer status
+      // Update transfer status — always 'received' (no more 'partial')
       await supabaseAdmin
         .from('inventory_transfers')
         .update({
-          status: allFull ? 'received' : 'partial',
+          status: 'received',
           received_at: new Date().toISOString(),
           received_by: auth.userId,
           receive_notes: receive_notes || null,
         })
         .eq('id', transfer_id);
 
-      return NextResponse.json({ success: true, status: allFull ? 'received' : 'partial' });
+      return NextResponse.json({ success: true, status: 'received' });
     }
 
+    // === ACTION: CANCEL (pending or shipping → cancelled) ===
     if (action === 'cancel') {
-      if (transfer.status !== 'shipped') {
-        return NextResponse.json({ error: 'สามารถยกเลิกได้เฉพาะใบที่อยู่ในสถานะ "จัดส่งแล้ว" เท่านั้น' }, { status: 400 });
+      if (transfer.status !== 'pending' && transfer.status !== 'shipping') {
+        return NextResponse.json({ error: 'สามารถยกเลิกได้เฉพาะใบที่อยู่ในสถานะ "ที่ต้องจัดส่ง" หรือ "กำลังส่ง" เท่านั้น' }, { status: 400 });
       }
 
       // Only admin/owner or source warehouse user can cancel
@@ -455,37 +507,72 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'ไม่มีสิทธิ์ยกเลิกใบโอนย้ายนี้' }, { status: 403 });
       }
 
-      // Return stock to source
-      for (const item of transfer.items) {
-        const { data: sourceInv } = await supabaseAdmin
-          .from('inventory')
-          .select('id, quantity')
-          .eq('warehouse_id', transfer.from_warehouse_id)
-          .eq('variation_id', item.variation_id)
-          .single();
-
-        const newSourceQty = (sourceInv?.quantity || 0) + item.qty_sent;
-        if (sourceInv) {
-          await supabaseAdmin
+      if (transfer.status === 'pending') {
+        // Unreserve stock
+        for (const item of transfer.items) {
+          const { data: sourceInv } = await supabaseAdmin
             .from('inventory')
-            .update({ quantity: newSourceQty, updated_at: new Date().toISOString() })
-            .eq('id', sourceInv.id);
-        }
+            .select('id, quantity, reserved_quantity')
+            .eq('warehouse_id', transfer.from_warehouse_id)
+            .eq('variation_id', item.variation_id)
+            .single();
 
-        await supabaseAdmin
-          .from('inventory_transactions')
-          .insert({
-            company_id: auth.companyId,
-            warehouse_id: transfer.from_warehouse_id,
-            variation_id: item.variation_id,
-            type: 'return',
-            quantity: item.qty_sent,
-            balance_after: newSourceQty,
-            reference_type: 'transfer',
-            reference_id: transfer.id,
-            notes: `คืนจากยกเลิกโอนย้าย ${transfer.transfer_number}`,
-            created_by: auth.userId,
-          });
+          const newReserved = Math.max(0, (sourceInv?.reserved_quantity || 0) - item.qty_sent);
+          if (sourceInv) {
+            await supabaseAdmin
+              .from('inventory')
+              .update({ reserved_quantity: newReserved, updated_at: new Date().toISOString() })
+              .eq('id', sourceInv.id);
+          }
+
+          await supabaseAdmin
+            .from('inventory_transactions')
+            .insert({
+              company_id: auth.companyId,
+              warehouse_id: transfer.from_warehouse_id,
+              variation_id: item.variation_id,
+              type: 'unreserve',
+              quantity: item.qty_sent,
+              balance_after: sourceInv?.quantity || 0,
+              reference_type: 'transfer',
+              reference_id: transfer.id,
+              notes: `ยกเลิกจองโอนย้าย ${transfer.transfer_number}`,
+              created_by: auth.userId,
+            });
+        }
+      } else {
+        // shipping → cancelled: return stock to source
+        for (const item of transfer.items) {
+          const { data: sourceInv } = await supabaseAdmin
+            .from('inventory')
+            .select('id, quantity')
+            .eq('warehouse_id', transfer.from_warehouse_id)
+            .eq('variation_id', item.variation_id)
+            .single();
+
+          const newSourceQty = (sourceInv?.quantity || 0) + item.qty_sent;
+          if (sourceInv) {
+            await supabaseAdmin
+              .from('inventory')
+              .update({ quantity: newSourceQty, updated_at: new Date().toISOString() })
+              .eq('id', sourceInv.id);
+          }
+
+          await supabaseAdmin
+            .from('inventory_transactions')
+            .insert({
+              company_id: auth.companyId,
+              warehouse_id: transfer.from_warehouse_id,
+              variation_id: item.variation_id,
+              type: 'return',
+              quantity: item.qty_sent,
+              balance_after: newSourceQty,
+              reference_type: 'transfer',
+              reference_id: transfer.id,
+              notes: `คืนจากยกเลิกโอนย้าย ${transfer.transfer_number}`,
+              created_by: auth.userId,
+            });
+        }
       }
 
       await supabaseAdmin

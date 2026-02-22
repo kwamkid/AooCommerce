@@ -40,7 +40,7 @@ export default function RootLayout({
           })();
         `}} />
       </head>
-      <body className={ibmPlexSansThai.className}>
+      <body className={ibmPlexSansThai.className} suppressHydrationWarning>
         <ThemeProvider>
           <AuthProvider>
             <CompanyProvider>

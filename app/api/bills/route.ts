@@ -233,7 +233,6 @@ export async function GET(request: NextRequest) {
           })
           .map(([code, conf]) => ({ code, fee_payer: (conf.fee_payer as string) || 'merchant' }));
 
-        if (availableChannels.length === 0) return null;
         return { type: ch.type, name: ch.name, available_channels: availableChannels };
       }
 
@@ -413,6 +412,23 @@ export async function PUT(request: NextRequest) {
     if (!order_id || !delivery_name || !delivery_phone || !delivery_address) {
       return NextResponse.json(
         { error: 'กรุณากรอกชื่อ เบอร์โทร และที่อยู่' },
+        { status: 400 }
+      );
+    }
+
+    // Validate phone: 10 digits starting with 0
+    const cleanPhone = delivery_phone.replace(/[-\s]/g, '');
+    if (!/^0\d{9}$/.test(cleanPhone)) {
+      return NextResponse.json(
+        { error: 'เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลัก เริ่มด้วย 0' },
+        { status: 400 }
+      );
+    }
+
+    // Validate email (optional)
+    if (delivery_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(delivery_email)) {
+      return NextResponse.json(
+        { error: 'รูปแบบอีเมลไม่ถูกต้อง' },
         { status: 400 }
       );
     }

@@ -167,6 +167,17 @@ export default function PaymentChannelsPage() {
     }
   };
 
+  const handleGatewayToggle = async (active: boolean) => {
+    if (!gatewayChannel) return;
+    try {
+      await apiCall('PUT', { id: gatewayChannel.id, is_active: active });
+      setChannels(prev => prev.map(c => c.id === gatewayChannel.id ? { ...c, is_active: active } : c));
+      showToast(active ? 'เปิดชำระออนไลน์แล้ว' : 'ปิดชำระออนไลน์แล้ว');
+    } catch {
+      showToast('บันทึกไม่สำเร็จ', 'error');
+    }
+  };
+
   // === BANK ACCOUNT CRUD ===
   const resetBankForm = () => {
     setBankForm({ bank_code: '', account_number: '', account_name: '' });
@@ -763,13 +774,17 @@ export default function PaymentChannelsPage() {
                           <h3 className="font-medium text-gray-900 dark:text-white">ชำระออนไลน์</h3>
                           <p className="text-sm text-gray-500 dark:text-slate-400">รับชำระผ่านช่องทางออนไลน์</p>
                         </div>
-                        <img src="/beam_payment_gateway/beam_logo.svg" alt="Beam" className="h-4 opacity-40 flex-shrink-0" />
+                        <img src="/beam_payment_gateway/beam_logo.svg" alt="Beam" className="h-4 opacity-40 dark:invert dark:opacity-60 flex-shrink-0" />
                         {isCollapsed ? (
                           <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
                         ) : (
                           <ChevronUp className="w-5 h-5 text-gray-400 flex-shrink-0" />
                         )}
                       </button>
+                      <Toggle
+                        checked={channel.is_active}
+                        onChange={handleGatewayToggle}
+                      />
                     </div>
 
                     {/* Expandable content */}

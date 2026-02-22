@@ -198,7 +198,7 @@ export default function ProductSearchInput({
                     disabled
                       ? 'opacity-50 cursor-not-allowed bg-gray-50 dark:bg-slate-700/30'
                       : isHighlighted
-                        ? 'bg-orange-50 dark:bg-slate-700'
+                        ? 'bg-gray-100 dark:bg-slate-700'
                         : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
                   }`}
                 >

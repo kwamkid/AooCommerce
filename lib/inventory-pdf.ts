@@ -54,6 +54,7 @@ interface InventoryDocData {
   warehouse: { id: string; name: string; code: string | null } | null;
   to_warehouse?: { id: string; name: string; code: string | null } | null;
   created_by_user: { id: string; name: string } | null;
+  receive_token?: string;
   items: InventoryItem[];
 }
 
@@ -202,10 +203,20 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
 
   // Status text
   const statusText = isTransfer
-    ? ({ shipped: 'จัดส่งแล้ว', received: 'รับครบแล้ว', partial: 'รับไม่ครบ', cancelled: 'ยกเลิก' }[data.status] || data.status)
+    ? ({ pending: 'ที่ต้องจัดส่ง', shipping: 'กำลังส่ง', received: 'รับสินค้าแล้ว', cancelled: 'ยกเลิก' }[data.status] || data.status)
     : isReceive
       ? (data.status === 'completed' ? 'รับเข้าสำเร็จ' : 'ยกเลิก')
       : (data.status === 'completed' ? 'เบิกออกสำเร็จ' : 'ยกเลิก');
+
+  // Generate QR code for transfer receive link
+  let qrDataUrl: string | null = null;
+  if (isTransfer && data.receive_token) {
+    try {
+      const QRCode = (await import('qrcode')).default;
+      const receiveUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/transfers/receive/${data.receive_token}`;
+      qrDataUrl = await QRCode.toDataURL(receiveUrl, { width: 160, margin: 1 });
+    } catch { /* QR generation failed, skip */ }
+  }
 
   const userLabel = isTransfer ? 'ผู้สร้าง' : isReceive ? 'ผู้รับ' : 'ผู้เบิก';
 
@@ -247,7 +258,6 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
     infoBoxRows.push(
       [{ text: 'เลขที่', fontSize: 10, color: theme.primary, bold: true }, { text: data.doc_number, fontSize: 10, bold: true }],
       [{ text: 'วันที่', fontSize: 10, color: theme.primary, bold: true }, { text: dateStr, fontSize: 10 }],
-      [{ text: 'สถานะ', fontSize: 10, color: theme.primary, bold: true }, { text: statusText, fontSize: 10, bold: true }],
       [{ text: userLabel, fontSize: 10, color: theme.primary, bold: true }, { text: data.created_by_user?.name || '-', fontSize: 10 }],
     );
   } else {
@@ -259,6 +269,68 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
     );
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rightStack: any[] = [
+    { text: docTitle, fontSize: 24, bold: true, color: theme.primary, alignment: 'right', margin: [0, 0, 0, 6] },
+    {
+      table: {
+        widths: [45, '*'],
+        body: infoBoxRows,
+      },
+      layout: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        hLineWidth: (i: number, node: any) => (i === 0 || i === node.table.body.length) ? 0.5 : 0,
+        vLineWidth: () => 0,
+        hLineColor: () => '#cccccc',
+        paddingTop: (i: number) => i === 0 ? 6 : 2,
+        paddingBottom: (i: number, node: any) => i === node.table.body.length - 1 ? 6 : 2,
+        paddingLeft: () => 4,
+        paddingRight: () => 4,
+      },
+    },
+  ];
+
+  // Add warehouse info + QR code below info box for transfer
+  if (isTransfer) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const warehouseTable: any = {
+      table: {
+        widths: [65, '*'],
+        body: [
+          [{ text: 'คลังต้นทาง', fontSize: 10, color: theme.primary, bold: true }, { text: data.warehouse?.name || '-', fontSize: 10, bold: true }],
+          [{ text: 'คลังปลายทาง', fontSize: 10, color: theme.primary, bold: true }, { text: data.to_warehouse?.name || '-', fontSize: 10, bold: true }],
+        ],
+      },
+      layout: {
+        hLineWidth: () => 0,
+        vLineWidth: () => 0,
+        paddingTop: () => 2,
+        paddingBottom: () => 2,
+        paddingLeft: () => 4,
+        paddingRight: () => 4,
+      },
+    };
+
+    if (qrDataUrl) {
+      rightStack.push({
+        columns: [
+          { width: '*', ...warehouseTable },
+          {
+            width: 'auto',
+            stack: [
+              { image: qrDataUrl, width: 45, height: 45, alignment: 'center' as const },
+              { text: 'สแกนเพื่อรับสินค้า', fontSize: 7, alignment: 'center' as const, color: '#888888', margin: [0, 2, 0, 0] },
+            ],
+            margin: [6, 0, 0, 0],
+          },
+        ],
+        margin: [0, 4, 0, 0],
+      });
+    } else {
+      rightStack.push({ ...warehouseTable, margin: [0, 4, 0, 0] });
+    }
+  }
+
   content.push({
     columns: [
       {
@@ -267,25 +339,7 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
       },
       {
         width: 230,
-        stack: [
-          { text: docTitle, fontSize: 24, bold: true, color: theme.primary, alignment: 'right', margin: [0, 0, 0, 6] },
-          {
-            table: {
-              widths: [45, '*'],
-              body: infoBoxRows,
-            },
-            layout: {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              hLineWidth: (i: number, node: any) => (i === 0 || i === node.table.body.length) ? 0.5 : 0,
-              vLineWidth: () => 0,
-              hLineColor: () => '#cccccc',
-              paddingTop: (i: number) => i === 0 ? 6 : 2,
-              paddingBottom: (i: number, node: any) => i === node.table.body.length - 1 ? 6 : 2,
-              paddingLeft: () => 4,
-              paddingRight: () => 4,
-            },
-          },
-        ],
+        stack: rightStack,
       },
     ],
     margin: [0, 0, 0, 12],
@@ -296,17 +350,7 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
   // ═══════════════════════════════════════════════════
 
   if (isTransfer) {
-    content.push({
-      text: [
-        { text: 'คลังต้นทาง: ', fontSize: 11, bold: true, color: theme.primary },
-        { text: data.warehouse?.name || '-', fontSize: 11, bold: true },
-        { text: '  -->  ', fontSize: 11, color: '#999999' },
-        { text: 'คลังปลายทาง: ', fontSize: 11, bold: true, color: theme.primary },
-        { text: data.to_warehouse?.name || '-', fontSize: 11, bold: true },
-      ],
-      alignment: 'right',
-      margin: [0, 0, 0, 12],
-    });
+    // Warehouse info already in info box — no separate section needed
   } else {
     content.push({
       text: [

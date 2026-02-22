@@ -12,7 +12,7 @@ import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import {
   Loader2, ArrowRightLeft, Plus, Warehouse, Pencil, Printer, User,
-  CheckCircle2, Clock, XCircle, AlertTriangle, Truck, Search, Filter,
+  CheckCircle2, Clock, XCircle, AlertTriangle, Truck, Search,
 } from 'lucide-react';
 
 interface Transfer {
@@ -23,6 +23,8 @@ interface Transfer {
   created_at: string;
   shipped_at: string | null;
   received_at: string | null;
+  receiver_name: string | null;
+  receive_photo_url: string | null;
   from_warehouse: { id: string; name: string; code: string | null } | null;
   to_warehouse: { id: string; name: string; code: string | null } | null;
   created_by_user: { id: string; name: string } | null;
@@ -30,15 +32,14 @@ interface Transfer {
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: React.ComponentType<any> }> = {
-  draft: { label: 'แบบร่าง', color: 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300', icon: Clock },
-  shipped: { label: 'จัดส่งแล้ว', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: Truck },
-  received: { label: 'รับครบแล้ว', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 },
-  partial: { label: 'รับไม่ครบ', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', icon: AlertTriangle },
+  pending: { label: 'ที่ต้องจัดส่ง', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Clock },
+  shipping: { label: 'กำลังส่ง', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: Truck },
+  received: { label: 'รับสินค้าแล้ว', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 },
   cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: XCircle },
 };
 
 // ─── Column config ──────────────────────────────
-type ColumnKey = 'transferInfo' | 'fromWarehouse' | 'toWarehouse' | 'itemCount' | 'status' | 'createdBy' | 'actions';
+type ColumnKey = 'transferInfo' | 'fromWarehouse' | 'toWarehouse' | 'itemCount' | 'status' | 'createdBy' | 'receiver' | 'actions';
 
 interface ColumnConfig {
   key: ColumnKey;
@@ -54,6 +55,7 @@ const COLUMN_CONFIGS: ColumnConfig[] = [
   { key: 'itemCount', label: 'รายการ', defaultVisible: true },
   { key: 'status', label: 'สถานะ', defaultVisible: true },
   { key: 'createdBy', label: 'ผู้ทำรายการ', defaultVisible: true },
+  { key: 'receiver', label: 'ผู้รับ', defaultVisible: true },
   { key: 'actions', label: 'จัดการ', defaultVisible: true, alwaysVisible: true },
 ];
 
@@ -70,12 +72,14 @@ export default function TransferListPage() {
 
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('pending');
   const [warehouseFilter, setWarehouseFilter] = useState('');
   const [userFilter, setUserFilter] = useState('');
   const [warehouses, setWarehouses] = useState<{ id: string; name: string }[]>([]);
   const [search, setSearch] = useState('');
   const [printingId, setPrintingId] = useState<string | null>(null);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({ all: 0, pending: 0, shipping: 0, received: 0, cancelled: 0 });
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -122,12 +126,15 @@ export default function TransferListPage() {
   const fetchTransfers = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      if (statusFilter) params.set('status', statusFilter);
-      const res = await apiFetch(`/api/inventory/transfers?${params}`);
+      const res = await apiFetch('/api/inventory/transfers');
       if (res.ok) {
         const data = await res.json();
-        setTransfers(data.transfers || []);
+        const list: Transfer[] = data.transfers || [];
+        setTransfers(list);
+        // Calculate counts
+        const counts: Record<string, number> = { all: list.length, pending: 0, shipping: 0, received: 0, cancelled: 0 };
+        list.forEach(t => { if (counts[t.status] !== undefined) counts[t.status]++; });
+        setStatusCounts(counts);
       }
     } catch {
       showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
@@ -155,6 +162,7 @@ export default function TransferListPage() {
           warehouse: detail.from_warehouse,
           to_warehouse: detail.to_warehouse,
           created_by_user: detail.created_by_user,
+          receive_token: detail.receive_token,
           items: (detail.items || []).map((item: any) => ({
             ...item,
             quantity: item.qty_sent,
@@ -172,15 +180,16 @@ export default function TransferListPage() {
   useEffect(() => {
     if (!isAuthReady) return;
     fetchTransfers();
-  }, [isAuthReady, statusFilter]);
+  }, [isAuthReady]);
 
   // Unique users for filter
   const users = [...new Map(
     transfers.filter(t => t.created_by_user).map(t => [t.created_by_user!.id, t.created_by_user!])
   ).values()];
 
-  // Filter by warehouse, user, and search
+  // Filter by status, warehouse, user, and search
   const filtered = transfers.filter(t => {
+    if (statusFilter && statusFilter !== 'all' && t.status !== statusFilter) return false;
     if (warehouseFilter && t.from_warehouse?.id !== warehouseFilter && t.to_warehouse?.id !== warehouseFilter) return false;
     if (userFilter && t.created_by_user?.id !== userFilter) return false;
     if (!search) return true;
@@ -230,7 +239,35 @@ export default function TransferListPage() {
       breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการโอนย้าย' }]}
     >
       <div className="space-y-4">
-        {/* Action Bar */}
+        {/* Status Tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {[
+            { key: 'all', label: 'ทั้งหมด', active: 'bg-indigo-600', inactive: 'bg-indigo-50 dark:bg-indigo-950/50', labelColor: 'text-indigo-600 dark:text-indigo-400', countColor: 'text-indigo-700 dark:text-indigo-300' },
+            { key: 'pending', label: 'ที่ต้องจัดส่ง', active: 'bg-yellow-500', inactive: 'bg-yellow-50 dark:bg-yellow-950/50', labelColor: 'text-yellow-600 dark:text-yellow-400', countColor: 'text-yellow-700 dark:text-yellow-300' },
+            { key: 'shipping', label: 'กำลังส่ง', active: 'bg-blue-600', inactive: 'bg-blue-50 dark:bg-blue-950/50', labelColor: 'text-blue-600 dark:text-blue-400', countColor: 'text-blue-700 dark:text-blue-300' },
+            { key: 'received', label: 'รับสินค้าแล้ว', active: 'bg-emerald-600', inactive: 'bg-emerald-50 dark:bg-emerald-950/50', labelColor: 'text-emerald-600 dark:text-emerald-400', countColor: 'text-emerald-700 dark:text-emerald-300' },
+            { key: 'cancelled', label: 'ยกเลิก', active: 'bg-gray-500', inactive: 'bg-gray-100 dark:bg-gray-800', labelColor: 'text-gray-500 dark:text-gray-400', countColor: 'text-gray-600 dark:text-gray-300' },
+          ].map((s) => {
+            const isActive = statusFilter === s.key;
+            const count = statusCounts[s.key] || 0;
+            return (
+              <button
+                key={s.key}
+                onClick={() => { setStatusFilter(s.key); setPage(1); }}
+                className={`flex-shrink-0 rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
+                  isActive
+                    ? `${s.active} text-white shadow-md`
+                    : `${s.inactive} hover:opacity-80`
+                }`}
+              >
+                <div className={`text-xs font-medium ${isActive ? 'text-white/80' : s.labelColor}`}>{s.label}</div>
+                <div className={`text-xl font-bold ${isActive ? 'text-white' : s.countColor}`}>{count}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search & Filters */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -258,20 +295,6 @@ export default function TransferListPage() {
                 <Warehouse className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             )}
-            <div className="relative">
-              <select
-                value={statusFilter}
-                onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                className="pl-8 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 appearance-none"
-              >
-                <option value="">ทุกสถานะ</option>
-                <option value="shipped">จัดส่งแล้ว</option>
-                <option value="received">รับครบแล้ว</option>
-                <option value="partial">รับไม่ครบ</option>
-                <option value="cancelled">ยกเลิก</option>
-              </select>
-              <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            </div>
             {users.length > 1 && (
               <div className="relative">
                 <select
@@ -309,6 +332,7 @@ export default function TransferListPage() {
                   {isCol('itemCount') && <th className="data-th text-center">รายการ</th>}
                   {isCol('status') && <th className="data-th text-center">สถานะ</th>}
                   {isCol('createdBy') && <th className="data-th">ผู้ทำรายการ</th>}
+                  {isCol('receiver') && <th className="data-th">ผู้รับ</th>}
                   {isCol('actions') && <th className="data-th text-center">จัดการ</th>}
                 </tr>
               </thead>
@@ -324,7 +348,7 @@ export default function TransferListPage() {
                   </tr>
                 ) : (
                   paginatedTransfers.map(t => {
-                    const st = STATUS_MAP[t.status] || STATUS_MAP.draft;
+                    const st = STATUS_MAP[t.status] || STATUS_MAP.pending;
                     const StIcon = st.icon;
                     return (
                       <tr key={t.id} className="data-tr cursor-pointer" onClick={() => router.push(`/inventory/transfers/${t.id}`)}>
@@ -369,6 +393,25 @@ export default function TransferListPage() {
                         )}
                         {isCol('createdBy') && (
                           <td className="data-td text-sm text-gray-600 dark:text-slate-400">{t.created_by_user?.name || '-'}</td>
+                        )}
+                        {isCol('receiver') && (
+                          <td className="data-td" onClick={e => e.stopPropagation()}>
+                            {t.receiver_name ? (
+                              <div className="flex items-center gap-2">
+                                {t.receive_photo_url && (
+                                  <img
+                                    src={t.receive_photo_url}
+                                    alt="รูปรับสินค้า"
+                                    className="w-8 h-8 rounded object-cover cursor-pointer hover:opacity-80 flex-shrink-0"
+                                    onClick={() => setLightboxSrc(t.receive_photo_url)}
+                                  />
+                                )}
+                                <span className="text-sm text-gray-600 dark:text-slate-400">{t.receiver_name}</span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400 dark:text-slate-500">-</span>
+                            )}
+                          </td>
                         )}
                         {isCol('actions') && (
                           <td className="data-td" onClick={e => e.stopPropagation()}>
@@ -426,7 +469,7 @@ export default function TransferListPage() {
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-slate-700">
               {paginatedTransfers.map(t => {
-                const st = STATUS_MAP[t.status] || STATUS_MAP.draft;
+                const st = STATUS_MAP[t.status] || STATUS_MAP.pending;
                 const StIcon = st.icon;
                 return (
                   <div
@@ -454,6 +497,19 @@ export default function TransferListPage() {
                     </div>
                     <div className="flex items-center justify-between text-xs text-gray-400 dark:text-slate-500">
                       <span>{t.items?.length || 0} รายการ | {t.created_by_user?.name || '-'}</span>
+                      {t.receiver_name && (
+                        <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                          {t.receive_photo_url && (
+                            <img
+                              src={t.receive_photo_url}
+                              alt="รูปรับสินค้า"
+                              className="w-6 h-6 rounded object-cover cursor-pointer"
+                              onClick={() => setLightboxSrc(t.receive_photo_url)}
+                            />
+                          )}
+                          <span>ผู้รับ: {t.receiver_name}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -462,6 +518,21 @@ export default function TransferListPage() {
           )}
         </div>
       </div>
+
+      {/* Image Lightbox */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setLightboxSrc(null)}
+        >
+          <img
+            src={lightboxSrc}
+            alt="รูปรับสินค้า"
+            className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </Layout>
   );
 }
