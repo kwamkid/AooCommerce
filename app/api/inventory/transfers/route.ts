@@ -33,9 +33,9 @@ export async function GET(request: NextRequest) {
           to_warehouse:warehouses!inventory_transfers_to_warehouse_id_fkey(id, name, code),
           items:inventory_transfer_items(
             id, variation_id, qty_sent, qty_received, notes,
-            variation:product_variations!inventory_transfer_items_variation_id_fkey(
+            variation:product_variations(
               id, variation_label, sku, attributes,
-              product:products!product_variations_product_id_fkey(id, code, name, image)
+              product:products(id, code, name, image)
             )
           )
         `)
@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
         .single();
 
       if (error || !transfer) {
+        console.error('GET transfer by id error:', { transferId, error: error?.message, code: error?.code, details: error?.details, hint: error?.hint });
         return NextResponse.json({ error: 'Transfer not found' }, { status: 404 });
       }
 
@@ -501,6 +502,38 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error) {
     console.error('PUT transfers error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// PATCH - Update notes
+export async function PATCH(request: NextRequest) {
+  try {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { id, notes } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    }
+
+    const { error } = await supabaseAdmin
+      .from('inventory_transfers')
+      .update({ notes: notes || null, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('company_id', auth.companyId);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('PATCH transfers error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

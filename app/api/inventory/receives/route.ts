@@ -233,3 +233,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+// PATCH - Update notes
+export async function PATCH(request: NextRequest) {
+  try {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { id, notes } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    }
+
+    const { error } = await supabaseAdmin
+      .from('inventory_receives')
+      .update({ notes: notes || null, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('company_id', auth.companyId);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('PATCH receives error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

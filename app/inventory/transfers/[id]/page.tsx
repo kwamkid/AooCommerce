@@ -1,16 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
+import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import {
   Loader2, Warehouse, Package, ArrowRightLeft, CheckCircle2,
   Clock, XCircle, AlertTriangle, Truck, User, FileText,
-  ArrowLeft, PackageCheck, X,
+  ArrowLeft, PackageCheck, Printer, Save,
 } from 'lucide-react';
+import { flattenVariationItem, productDisplayName, productSubtitle } from '../../components/types';
 
 interface TransferItem {
   id: string;
@@ -67,6 +69,9 @@ export default function TransferDetailPage() {
   const [transfer, setTransfer] = useState<Transfer | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   // Receive mode
   const [receiveMode, setReceiveMode] = useState(false);
@@ -75,6 +80,7 @@ export default function TransferDetailPage() {
 
   // Cancel confirm
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const fetchingRef = useRef(false);
 
   useEffect(() => {
     if (!authLoading && userProfile && transferId) {
@@ -82,14 +88,18 @@ export default function TransferDetailPage() {
     }
   }, [authLoading, userProfile, transferId]);
 
-  const fetchTransfer = async () => {
+  const fetchTransfer = async (retry = 0): Promise<void> => {
+    if (retry === 0) {
+      if (fetchingRef.current) return;
+      fetchingRef.current = true;
+    }
     try {
       setLoading(true);
       const res = await apiFetch(`/api/inventory/transfers?id=${transferId}`);
       if (res.ok) {
         const data = await res.json();
         setTransfer(data.transfer);
-        // Pre-fill receive quantities with qty_sent
+        setNotes(data.transfer?.notes || '');
         if (data.transfer?.items) {
           const qtys: Record<string, number> = {};
           data.transfer.items.forEach((item: TransferItem) => {
@@ -97,14 +107,45 @@ export default function TransferDetailPage() {
           });
           setReceiveQtys(qtys);
         }
-      } else {
-        showToast('ไม่พบใบโอนย้าย', 'error');
-        router.push('/inventory/transfers');
+        return;
       }
+      if (retry < 2) {
+        await new Promise(r => setTimeout(r, 800));
+        return fetchTransfer(retry + 1);
+      }
+      showToast('ไม่พบใบโอนย้าย', 'error');
+      router.push('/inventory/transfers');
     } catch {
+      if (retry < 2) {
+        await new Promise(r => setTimeout(r, 800));
+        return fetchTransfer(retry + 1);
+      }
       showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
     } finally {
       setLoading(false);
+      if (retry === 0 || retry >= 2) fetchingRef.current = false;
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    if (!transfer) return;
+    try {
+      setSavingNotes(true);
+      const res = await apiFetch('/api/inventory/transfers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: transfer.id, notes: notes.trim() }),
+      });
+      if (!res.ok) {
+        const result = await res.json();
+        throw new Error(result.error || 'เกิดข้อผิดพลาด');
+      }
+      setTransfer(prev => prev ? { ...prev, notes: notes.trim() || null } : prev);
+      showToast('บันทึกหมายเหตุเรียบร้อย', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setSavingNotes(false);
     }
   };
 
@@ -167,6 +208,34 @@ export default function TransferDetailPage() {
     }
   };
 
+  const handlePrint = async () => {
+    if (!transfer) return;
+    setGeneratingPdf(true);
+    try {
+      await generateInventoryPdf({
+        type: 'transfer',
+        data: {
+          id: transfer.id,
+          doc_number: transfer.transfer_number,
+          status: transfer.status,
+          notes: transfer.notes,
+          created_at: transfer.created_at,
+          warehouse: transfer.from_warehouse,
+          to_warehouse: transfer.to_warehouse,
+          created_by_user: transfer.created_by_user,
+          items: (transfer.items || []).map(item => ({
+            ...item,
+            quantity: item.qty_sent,
+          })),
+        },
+      });
+    } catch {
+      showToast('สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   const formatDate = (d: string | null) => {
     if (!d) return '-';
     return new Date(d).toLocaleDateString('th-TH', {
@@ -178,39 +247,19 @@ export default function TransferDetailPage() {
     });
   };
 
-  const getVariationLabel = (item: TransferItem): string => {
-    const parts: string[] = [];
-    const raw = item.variation?.variation_label || '';
-    const code = item.variation?.product?.code || '';
-    const sku = item.variation?.sku || '';
-    if (raw && raw !== code && raw !== sku && !/^\d+$/.test(raw)) parts.push(raw);
-    if (item.variation?.attributes) {
-      Object.values(item.variation.attributes).forEach(v => {
-        if (v && v.trim()) parts.push(v.trim());
-      });
-    }
-    return parts.join(' / ');
-  };
+  const getDisplayName = (item: TransferItem) => productDisplayName(flattenVariationItem(item));
+  const getSubtitle = (item: TransferItem) => productSubtitle(flattenVariationItem(item));
 
-  const buildSubtitle = (item: TransferItem) => {
-    const code = item.variation?.product?.code || '';
-    const varLabel = getVariationLabel(item);
-    const sku = item.variation?.sku || '';
-    const parts: string[] = [];
-    if (code) parts.push(code);
-    if (varLabel) parts.push(varLabel);
-    if (sku && sku !== code) parts.push(`SKU: ${sku}`);
-    return parts.join(' | ');
-  };
+  const notesChanged = (notes || '') !== (transfer?.notes || '');
 
   if (authLoading || loading) {
     return (
       <Layout
-        title="รายละเอียดโอนย้าย"
+        title="แก้ไขใบโอนย้าย"
         breadcrumbs={[
           { label: 'คลังสินค้า', href: '/inventory' },
           { label: 'รายการโอนย้าย', href: '/inventory/transfers' },
-          { label: 'รายละเอียด' },
+          { label: 'แก้ไข' },
         ]}
       >
         <div className="flex items-center justify-center py-16">
@@ -266,6 +315,14 @@ export default function TransferDetailPage() {
             กลับ
           </button>
           <div className="flex items-center gap-2">
+            <button
+              onClick={handlePrint}
+              disabled={generatingPdf}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[#F4511E] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50"
+            >
+              {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+              {generatingPdf ? 'กำลังสร้าง...' : 'พิมพ์'}
+            </button>
             {transfer.status === 'shipped' && !receiveMode && (
               <>
                 <button
@@ -348,12 +405,31 @@ export default function TransferDetailPage() {
               </div>
             )}
           </div>
-          {transfer.notes && (
-            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
-              <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">หมายเหตุ</label>
-              <p className="text-sm text-gray-700 dark:text-slate-300">{transfer.notes}</p>
-            </div>
-          )}
+
+          {/* Editable Notes */}
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">หมายเหตุ</label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={2}
+              placeholder="เพิ่มหมายเหตุ..."
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+            />
+            {notesChanged && (
+              <div className="flex justify-end mt-2">
+                <button
+                  onClick={handleSaveNotes}
+                  disabled={savingNotes}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[#F4511E] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {savingNotes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {savingNotes ? 'กำลังบันทึก...' : 'บันทึก'}
+                </button>
+              </div>
+            )}
+          </div>
+
           {transfer.receive_notes && (
             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
               <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">หมายเหตุการรับสินค้า</label>
@@ -405,10 +481,10 @@ export default function TransferDetailPage() {
                           )}
                           <div className="min-w-0">
                             <p className="font-medium text-gray-900 dark:text-white line-clamp-2 break-words">
-                              {item.variation?.product?.name || '-'}{getVariationLabel(item) ? ` - ${getVariationLabel(item)}` : ''}
+                              {getDisplayName(item)}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
-                              {buildSubtitle(item)}
+                              {getSubtitle(item)}
                             </p>
                           </div>
                         </div>
@@ -492,10 +568,10 @@ export default function TransferDetailPage() {
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 break-words">
-                        {item.variation?.product?.name || '-'}{getVariationLabel(item) ? ` - ${getVariationLabel(item)}` : ''}
+                        {getDisplayName(item)}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
-                        {buildSubtitle(item)}
+                        {getSubtitle(item)}
                       </p>
                       <div className="mt-2 flex items-center gap-3">
                         <div className="text-center">

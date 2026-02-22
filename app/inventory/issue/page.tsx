@@ -8,11 +8,12 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Package2, X, Trash2,
+  Loader2, Package2, X, Trash2, ChevronDown,
   Warehouse, AlertTriangle, PackageMinus, CheckCircle2,
 } from 'lucide-react';
 import ProductSearchInput from '@/components/ui/ProductSearchInput';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { productDisplayName, productSubtitle } from '../components/types';
 
 // ─── Interfaces ──────────────────────────────────────────────
 
@@ -20,6 +21,7 @@ interface WarehouseItem {
   id: string;
   name: string;
   code: string | null;
+  is_default?: boolean;
 }
 
 interface Product {
@@ -321,19 +323,8 @@ export default function StockIssuePage() {
     return stockMap[variationId] || null;
   };
 
-  // Hide variation_label if it's a barcode/number or same as code/sku
-  const getCleanVarLabel = (item: IssueItem) => {
-    const raw = item.variation_label || '';
-    if (!raw || raw === item.product_code || raw === item.sku || /^\d+$/.test(raw)) return '';
-    return raw;
-  };
-
-  const buildSubtitle = (item: IssueItem) => {
-    const parts: string[] = [];
-    if (item.product_code) parts.push(item.product_code);
-    if (item.sku && item.sku !== item.product_code) parts.push(`SKU: ${item.sku}`);
-    return parts.join(' | ');
-  };
+  const getDisplayName = (item: IssueItem) => productDisplayName({ product_name: item.product_name, product_code: item.product_code, variation_label: item.variation_label, sku: item.sku });
+  const getSubtitle = (item: IssueItem) => productSubtitle({ product_code: item.product_code, sku: item.sku });
 
   // ─── Loading State ───────────────────────────────────────
 
@@ -357,7 +348,7 @@ export default function StockIssuePage() {
       title="เบิกออกสินค้า"
       breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการเบิกออก', href: '/inventory/issues' }, { label: 'เบิกออกสินค้า' }]}
     >
-      <div className="space-y-4 max-w-5xl">
+      <div className="space-y-4">
         {/* Warehouse Selection */}
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
@@ -373,19 +364,20 @@ export default function StockIssuePage() {
           ) : (
             <div className="flex items-center gap-3">
               <div className="relative flex-1 max-w-sm">
-                <Warehouse className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Warehouse className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 <select
                   value={selectedWarehouse}
                   onChange={e => setSelectedWarehouse(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none"
+                  className="w-full pl-9 pr-8 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none"
                 >
                   <option value="">เลือกคลังสินค้า</option>
                   {warehouses.map(wh => (
                     <option key={wh.id} value={wh.id}>
-                      {wh.name}{wh.code ? ` (${wh.code})` : ''}
+                      {wh.is_default ? '⭐ ' : ''}{wh.name}{wh.code ? ` (${wh.code})` : ''}
                     </option>
                   ))}
                 </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
               {loadingStock && (
                 <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-slate-500">
@@ -402,45 +394,43 @@ export default function StockIssuePage() {
           <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700">
             {items.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">สินค้า</th>
-                      <th className="text-center px-3 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-24">สต๊อกปัจจุบัน</th>
-                      <th className="text-center px-3 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-28">เบิกออก</th>
-                      <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-48">เหตุผล</th>
-                      <th className="px-2 py-3 w-10"></th>
+                <table className="data-table">
+                  <thead className="data-thead">
+                    <tr>
+                      <th className="data-th">สินค้า</th>
+                      <th className="data-th text-center w-28 whitespace-nowrap">สต๊อกปัจจุบัน</th>
+                      <th className="data-th text-center w-28">เบิกออก</th>
+                      <th className="data-th w-48">เหตุผล</th>
+                      <th className="data-th w-10"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                  <tbody className="data-tbody">
                     {items.map((item, index) => {
                       const stock = getStock(item.variation_id);
                       const available = stock?.available ?? 0;
                       const isOverStock = item.quantity > available;
-                      const varLabel = getCleanVarLabel(item);
-
                       return (
-                        <tr key={item.variation_id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
-                          <td className="px-4 py-3">
+                        <tr key={item.variation_id} className="data-tr">
+                          <td className="px-6 py-3">
                             <div className="flex items-center gap-2.5">
                               {item.image ? (
-                                <img src={item.image} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
+                                <img src={item.image} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0" />
                               ) : (
-                                <div className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                                <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                                   <Package2 className="w-5 h-5 text-gray-400" />
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <p className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 break-words">
-                                  {item.product_name}{varLabel ? ` - ${varLabel}` : ''}
-                                </p>
-                                <p className="text-xs text-gray-400 dark:text-slate-500 truncate">
-                                  {buildSubtitle(item)}
-                                </p>
+                                <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                                  {getDisplayName(item)}
+                                </div>
+                                <span className="text-xs text-gray-400 dark:text-slate-500">
+                                  {getSubtitle(item)}
+                                </span>
                               </div>
                             </div>
                           </td>
-                          <td className="px-3 py-3 text-center">
+                          <td className="px-6 py-3 text-center">
                             {stock ? (
                               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                                 stock.available <= 0
@@ -455,8 +445,8 @@ export default function StockIssuePage() {
                               <span className="text-xs text-gray-400 dark:text-slate-500">-</span>
                             )}
                           </td>
-                          <td className="px-3 py-3 text-center">
-                            <div className="inline-flex flex-col items-center">
+                          <td className="px-6 py-3 text-center">
+                            <div className="inline-flex relative">
                               <input
                                 type="number"
                                 min="1"
@@ -469,38 +459,28 @@ export default function StockIssuePage() {
                                 } text-gray-900 dark:text-white`}
                               />
                               {isOverStock && (
-                                <span className="text-xs text-amber-600 dark:text-amber-400 mt-0.5 flex items-center gap-0.5 whitespace-nowrap">
-                                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                                  เกิน stock
-                                </span>
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                               )}
                             </div>
                           </td>
-                          <td className="px-3 py-3">
-                            <div className="space-y-1">
-                              <div className="flex flex-wrap gap-1">
+                          <td className="px-6 py-3">
+                            <div className="space-y-1.5">
+                              <select
+                                value={item.reason}
+                                onChange={e => handleUpdateReason(index, e.target.value)}
+                                className="w-full px-2.5 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none"
+                              >
                                 {COMMON_REASONS.map(r => (
-                                  <button
-                                    key={r.value}
-                                    type="button"
-                                    onClick={() => handleUpdateReason(index, r.value)}
-                                    className={`px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
-                                      item.reason === r.value
-                                        ? 'bg-[#F4511E] text-white'
-                                        : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
-                                    }`}
-                                  >
-                                    {r.label}
-                                  </button>
+                                  <option key={r.value} value={r.value}>{r.label}</option>
                                 ))}
-                              </div>
+                              </select>
                               {item.reason === 'อื่นๆ' && (
                                 <input
                                   type="text"
                                   value={item.notes}
                                   onChange={e => handleUpdateNotes(index, e.target.value)}
                                   placeholder="ระบุเหตุผล / หมายเหตุ..."
-                                  className="w-full px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
+                                  className="w-full px-2.5 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
                                 />
                               )}
                             </div>
@@ -557,8 +537,6 @@ export default function StockIssuePage() {
                 const stock = getStock(item.variation_id);
                 const available = stock?.available ?? 0;
                 const isOverStock = item.quantity > available;
-                const varLabel = getCleanVarLabel(item);
-
                 return (
                   <div key={item.variation_id} className="p-3 space-y-2.5">
                     <div className="flex items-start gap-2">
@@ -571,9 +549,9 @@ export default function StockIssuePage() {
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 break-words">
-                          {item.product_name}{varLabel ? ` - ${varLabel}` : ''}
+                          {getDisplayName(item)}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{buildSubtitle(item)}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{getSubtitle(item)}</p>
                       </div>
                       <button
                         type="button"
@@ -625,29 +603,22 @@ export default function StockIssuePage() {
 
                     <div>
                       <span className="text-xs text-gray-500 dark:text-slate-400 mb-1 block">เหตุผล:</span>
-                      <div className="flex flex-wrap gap-1.5">
+                      <select
+                        value={item.reason}
+                        onChange={e => handleUpdateReason(index, e.target.value)}
+                        className="w-full px-2.5 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                      >
                         {COMMON_REASONS.map(r => (
-                          <button
-                            key={r.value}
-                            type="button"
-                            onClick={() => handleUpdateReason(index, r.value)}
-                            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                              item.reason === r.value
-                                ? 'bg-[#F4511E] text-white'
-                                : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
-                            }`}
-                          >
-                            {r.label}
-                          </button>
+                          <option key={r.value} value={r.value}>{r.label}</option>
                         ))}
-                      </div>
+                      </select>
                       {item.reason === 'อื่นๆ' && (
                         <input
                           type="text"
                           value={item.notes}
                           onChange={e => handleUpdateNotes(index, e.target.value)}
                           placeholder="ระบุเหตุผล / หมายเหตุ..."
-                          className="mt-1.5 w-full px-2.5 py-1.5 border border-gray-300 dark:border-slate-600 rounded text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
+                          className="mt-1.5 w-full px-2.5 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
                         />
                       )}
                     </div>

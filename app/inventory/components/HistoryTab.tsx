@@ -11,7 +11,7 @@ import {
   Transaction, TransactionType, WarehouseItem, HistoryColumnKey,
   HISTORY_COLUMN_CONFIGS, HISTORY_COLUMNS_STORAGE_KEY,
   TYPE_CONFIG, POSITIVE_TYPES, NEGATIVE_TYPES,
-  formatDate, formatTime, formatDateValue,
+  formatDate, formatTime, formatDateValue, getProductSubtitle,
 } from './types';
 
 interface HistoryTabProps {
@@ -251,12 +251,15 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
                     {visibleColumns.has('product') && (
                       <td className="px-6 py-4">
                         <div className="min-w-0">
-                          <p className="font-medium text-gray-900 dark:text-white truncate max-w-[200px]">
-                            {tx.product_name}{tx.variation_label ? ` - ${tx.variation_label}` : ''}
+                          <p className="font-medium text-gray-900 dark:text-white line-clamp-2 max-w-[300px]">
+                            {tx.product_name}{(() => {
+                              const raw = tx.variation_label || '';
+                              if (!raw || raw === tx.product_code || raw === (tx.sku || '') || /^\d+$/.test(raw)) return '';
+                              return ` - ${raw}`;
+                            })()}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-slate-400">
-                            {tx.product_code}
-                            {tx.sku && <span className="ml-1">• {tx.sku}</span>}
+                            {getProductSubtitle({ product_code: tx.product_code, sku: tx.sku })}
                           </p>
                         </div>
                       </td>

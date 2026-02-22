@@ -11,7 +11,7 @@ import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import {
-  Loader2, ArrowDownToLine, Plus, Warehouse, Eye, Search,
+  Loader2, ArrowDownToLine, Plus, Warehouse, Pencil, Search,
   CheckCircle2, XCircle, Filter, Printer, User,
 } from 'lucide-react';
 
@@ -40,9 +40,9 @@ const COLUMN_CONFIGS: ColumnConfig[] = [
   { key: 'receiveInfo', label: 'เลขที่', defaultVisible: true, alwaysVisible: true },
   { key: 'warehouse', label: 'คลัง', defaultVisible: true },
   { key: 'itemCount', label: 'รายการ', defaultVisible: true },
-  { key: 'createdBy', label: 'ผู้ทำรายการ', defaultVisible: true },
   { key: 'status', label: 'สถานะ', defaultVisible: true },
   { key: 'notes', label: 'หมายเหตุ', defaultVisible: true },
+  { key: 'createdBy', label: 'ผู้ทำรายการ', defaultVisible: true },
   { key: 'actions', label: 'จัดการ', defaultVisible: true, alwaysVisible: true },
 ];
 
@@ -203,7 +203,7 @@ export default function ReceiveListPage() {
                     <option key={wh.id} value={wh.id}>{wh.name}</option>
                   ))}
                 </select>
-                <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <Warehouse className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             )}
             {users.length > 1 && (
@@ -240,9 +240,9 @@ export default function ReceiveListPage() {
                   {isCol('receiveInfo') && <th className="data-th">เลขที่</th>}
                   {isCol('warehouse') && <th className="data-th">คลัง</th>}
                   {isCol('itemCount') && <th className="data-th text-center">รายการ</th>}
-                  {isCol('createdBy') && <th className="data-th">ผู้ทำรายการ</th>}
                   {isCol('status') && <th className="data-th text-center">สถานะ</th>}
                   {isCol('notes') && <th className="data-th">หมายเหตุ</th>}
+                  {isCol('createdBy') && <th className="data-th">ผู้ทำรายการ</th>}
                   {isCol('actions') && <th className="data-th text-center">จัดการ</th>}
                 </tr>
               </thead>
@@ -276,9 +276,6 @@ export default function ReceiveListPage() {
                       {isCol('itemCount') && (
                         <td className="data-td text-center text-sm text-gray-600 dark:text-slate-400">{r.items?.length || 0}</td>
                       )}
-                      {isCol('createdBy') && (
-                        <td className="data-td text-sm text-gray-600 dark:text-slate-400">{r.created_by_user?.name || '-'}</td>
-                      )}
                       {isCol('status') && (
                         <td className="data-td text-center">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
@@ -294,15 +291,18 @@ export default function ReceiveListPage() {
                       {isCol('notes') && (
                         <td className="data-td text-sm text-gray-500 dark:text-slate-400 max-w-[200px] truncate">{r.notes || '-'}</td>
                       )}
+                      {isCol('createdBy') && (
+                        <td className="data-td text-sm text-gray-600 dark:text-slate-400">{r.created_by_user?.name || '-'}</td>
+                      )}
                       {isCol('actions') && (
                         <td className="data-td" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1">
                             <button
                               onClick={() => router.push(`/inventory/receives/${r.id}`)}
                               className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
-                              title="ดูรายละเอียด"
+                              title="แก้ไข"
                             >
-                              <Eye className="w-4 h-4" />
+                              <Pencil className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handlePrint(r.id)}

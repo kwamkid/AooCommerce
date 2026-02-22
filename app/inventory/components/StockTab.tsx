@@ -10,7 +10,7 @@ import AdjustStockModal from './AdjustStockModal';
 import {
   InventoryItem, WarehouseItem, StockColumnKey,
   STOCK_COLUMN_CONFIGS, STOCK_COLUMNS_STORAGE_KEY,
-  getVariationLabel, getProductDisplayName,
+  getVariationLabel, getProductDisplayName, getProductSubtitle,
 } from './types';
 
 interface StockTabProps {
@@ -268,8 +268,8 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                               </div>
                             )}
                             <div className="min-w-0">
-                              <p className="font-medium text-gray-900 dark:text-white truncate">{displayName}</p>
-                              <p className="text-xs text-gray-500 dark:text-slate-400">{item.product_code}</p>
+                              <p className="font-medium text-gray-900 dark:text-white line-clamp-2">{displayName}</p>
+                              <p className="text-xs text-gray-500 dark:text-slate-400">{getProductSubtitle(item)}</p>
                             </div>
                           </div>
                         </td>

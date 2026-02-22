@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/lib/auth-context';
 
 interface Company {
@@ -67,18 +67,17 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   }, [refreshProfile]);
 
   const currentMembership = companies.find((m) => m.company_id === currentCompanyId);
+  const currentCompany = currentMembership?.company || null;
+  const companyRoles = currentMembership?.roles || [];
+  const loading = !initialized;
+
+  const value = useMemo(() => ({
+    currentCompany, companyRoles, companies, switchCompany, loading, refreshCompanies,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [currentCompanyId, companies, loading]);
 
   return (
-    <CompanyContext.Provider
-      value={{
-        currentCompany: currentMembership?.company || null,
-        companyRoles: currentMembership?.roles || [],
-        companies,
-        switchCompany,
-        loading: !initialized,
-        refreshCompanies,
-      }}
-    >
+    <CompanyContext.Provider value={value}>
       {children}
     </CompanyContext.Provider>
   );

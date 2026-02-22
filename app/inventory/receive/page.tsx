@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { productDisplayName, productSubtitle } from '../components/types';
 
 // Interfaces
 interface WarehouseItem {
@@ -46,19 +47,8 @@ interface ReceiveItem {
   unit_cost: number;
 }
 
-// Hide variation_label if it's a barcode/number or same as code/sku
-const getCleanVarLabel = (item: ReceiveItem) => {
-  const raw = item.variation_label || '';
-  if (!raw || raw === item.code || raw === item.sku || /^\d+$/.test(raw)) return '';
-  return raw;
-};
-
-const buildReceiveSubtitle = (item: ReceiveItem) => {
-  const parts: string[] = [];
-  if (item.code) parts.push(item.code);
-  if (item.sku && item.sku !== item.code) parts.push(`SKU: ${item.sku}`);
-  return parts.join(' | ');
-};
+const getDisplayName = (item: ReceiveItem) => productDisplayName({ product_name: item.name, product_code: item.code, variation_label: item.variation_label, sku: item.sku });
+const getSubtitle = (item: ReceiveItem) => productSubtitle({ product_code: item.code, sku: item.sku });
 
 export default function StockReceivePage() {
   const router = useRouter();
@@ -323,29 +313,24 @@ export default function StockReceivePage() {
         {/* Warehouse Selection */}
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-            <Warehouse className="w-4 h-4 inline mr-1.5 -mt-0.5" />
             คลังสินค้า <span className="text-red-500">*</span>
           </label>
           <div className="relative inline-block w-full sm:w-72">
+            <Warehouse className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <select
               value={selectedWarehouseId}
               onChange={e => setSelectedWarehouseId(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none pr-8"
+              className="w-full pl-9 pr-8 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none"
             >
               <option value="">-- เลือกคลังสินค้า --</option>
               {warehouses.map(wh => (
                 <option key={wh.id} value={wh.id}>
-                  {wh.name}{wh.code ? ` (${wh.code})` : ''}{wh.is_default ? ' - ค่าเริ่มต้น' : ''}
+                  {wh.is_default ? '⭐ ' : ''}{wh.name}{wh.code ? ` (${wh.code})` : ''}
                 </option>
               ))}
             </select>
             <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
-          {warehouses.length > 1 && (
-            <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5">
-              มีทั้งหมด {warehouses.length} คลัง
-            </p>
-          )}
         </div>
 
         {/* Desktop: Table + Search in one card */}
@@ -353,51 +338,43 @@ export default function StockReceivePage() {
           {receiveItems.length > 0 && (
             <>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">
-                        สินค้า
-                      </th>
-                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-24">
-                        สต๊อกปัจจุบัน
-                      </th>
-                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-24">
-                        รับเข้า
-                      </th>
-                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-28">
-                        ต้นทุน/ชิ้น
-                      </th>
-                      <th className="text-center px-2 py-3 w-12"></th>
+                <table className="data-table">
+                  <thead className="data-thead">
+                    <tr>
+                      <th className="data-th">สินค้า</th>
+                      <th className="data-th text-center w-28 whitespace-nowrap">สต๊อกปัจจุบัน</th>
+                      <th className="data-th text-center w-24">รับเข้า</th>
+                      <th className="data-th text-center w-28">ต้นทุน/ชิ้น</th>
+                      <th className="data-th w-12"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                  <tbody className="data-tbody">
                     {receiveItems.map((item, index) => (
-                      <tr key={item.variation_id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
+                      <tr key={item.variation_id} className="data-tr">
+                        <td className="px-6 py-3">
+                          <div className="flex items-center gap-2.5">
                             {item.image ? (
                               <img
                                 src={item.image}
                                 alt={item.name}
-                                className="w-10 h-10 rounded object-cover flex-shrink-0"
+                                className="w-12 h-12 rounded object-cover flex-shrink-0"
                               />
                             ) : (
-                              <div className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                              <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                                 <Package className="w-5 h-5 text-gray-400" />
                               </div>
                             )}
                             <div className="min-w-0">
-                              <p className="font-medium text-gray-900 dark:text-white line-clamp-2 break-words">
-                                {item.name}{getCleanVarLabel(item) ? ` - ${getCleanVarLabel(item)}` : ''}
-                              </p>
-                              <p className="text-xs text-gray-400 dark:text-slate-500 truncate">
-                                {buildReceiveSubtitle(item)}
-                              </p>
+                              <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                                {getDisplayName(item)}
+                              </div>
+                              <span className="text-xs text-gray-400 dark:text-slate-500">
+                                {getSubtitle(item)}
+                              </span>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-6 py-3 text-center">
                           {(() => {
                             const stock = stockMap[item.variation_id] ?? null;
                             if (stock === null) return <span className="text-xs text-gray-400">-</span>;
@@ -414,7 +391,7 @@ export default function StockReceivePage() {
                             );
                           })()}
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-6 py-3 text-center">
                           <input
                             type="number"
                             min="1"
@@ -425,7 +402,7 @@ export default function StockReceivePage() {
                             className="w-20 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
                           />
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-6 py-3 text-center">
                           <input
                             type="number"
                             min="0"
@@ -505,11 +482,11 @@ export default function StockReceivePage() {
                     )}
                     <div className="min-w-0">
                       <p className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 break-words">
-                        {item.name}{getCleanVarLabel(item) ? ` - ${getCleanVarLabel(item)}` : ''}
+                        {getDisplayName(item)}
                       </p>
                       <div className="flex items-center gap-1.5">
                         <p className="text-xs text-gray-400 dark:text-slate-500 truncate">
-                          {buildReceiveSubtitle(item)}
+                          {getSubtitle(item)}
                         </p>
                         {(() => {
                           const stock = stockMap[item.variation_id] ?? null;

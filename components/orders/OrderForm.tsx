@@ -1334,8 +1334,8 @@ export default function OrderForm({
       {/* Warehouse Picker — portal into header or inline fallback */}
       {!features.customer_branches && stockEnabled && warehouses.length > 1 && (() => {
         const warehousePicker = (
-          <div className="flex items-center gap-2">
-            <Warehouse className="w-4 h-4 text-gray-400 dark:text-slate-500" />
+          <div className="relative inline-block">
+            <Warehouse className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500 pointer-events-none" />
             <select
               value={selectedWarehouseId}
               onChange={(e) => {
@@ -1343,14 +1343,15 @@ export default function OrderForm({
                 fetchInventoryForWarehouse(e.target.value);
               }}
               disabled={isReadOnly}
-              className="px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 disabled:bg-gray-100 disabled:text-gray-500"
+              className="pl-9 pr-8 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 disabled:bg-gray-100 disabled:text-gray-500 appearance-none"
             >
               {warehouses.map(wh => (
                 <option key={wh.id} value={wh.id}>
-                  {wh.name}{wh.is_default ? ' (ค่าเริ่มต้น)' : ''}
+                  {wh.is_default ? '⭐ ' : ''}{wh.name}
                 </option>
               ))}
             </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500 pointer-events-none" />
           </div>
         );
         if (warehousePortalRef?.current) {

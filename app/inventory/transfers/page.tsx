@@ -7,9 +7,11 @@ import { useAuth } from '@/lib/auth-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
+import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import Pagination from '@/app/components/Pagination';
+import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import {
-  Loader2, ArrowRightLeft, Plus, Warehouse, Package, Eye,
+  Loader2, ArrowRightLeft, Plus, Warehouse, Pencil, Printer, User,
   CheckCircle2, Clock, XCircle, AlertTriangle, Truck, Search, Filter,
 } from 'lucide-react';
 
@@ -35,6 +37,32 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: React.Com
   cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: XCircle },
 };
 
+// ─── Column config ──────────────────────────────
+type ColumnKey = 'transferInfo' | 'fromWarehouse' | 'toWarehouse' | 'itemCount' | 'status' | 'createdBy' | 'actions';
+
+interface ColumnConfig {
+  key: ColumnKey;
+  label: string;
+  defaultVisible: boolean;
+  alwaysVisible?: boolean;
+}
+
+const COLUMN_CONFIGS: ColumnConfig[] = [
+  { key: 'transferInfo', label: 'เลขที่', defaultVisible: true, alwaysVisible: true },
+  { key: 'fromWarehouse', label: 'คลังต้นทาง', defaultVisible: true },
+  { key: 'toWarehouse', label: 'คลังปลายทาง', defaultVisible: true },
+  { key: 'itemCount', label: 'รายการ', defaultVisible: true },
+  { key: 'status', label: 'สถานะ', defaultVisible: true },
+  { key: 'createdBy', label: 'ผู้ทำรายการ', defaultVisible: true },
+  { key: 'actions', label: 'จัดการ', defaultVisible: true, alwaysVisible: true },
+];
+
+const STORAGE_KEY = 'transfers-visible-columns';
+
+function getDefaultColumns(): ColumnKey[] {
+  return COLUMN_CONFIGS.filter(c => c.defaultVisible).map(c => c.key);
+}
+
 export default function TransferListPage() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
@@ -44,15 +72,41 @@ export default function TransferListPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('');
+  const [userFilter, setUserFilter] = useState('');
   const [warehouses, setWarehouses] = useState<{ id: string; name: string }[]>([]);
   const [search, setSearch] = useState('');
+  const [printingId, setPrintingId] = useState<string | null>(null);
 
   // Pagination
   const [page, setPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState(20);
 
+  // Column visibility
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try { return new Set(JSON.parse(stored) as ColumnKey[]); } catch { /* defaults */ }
+      }
+    }
+    return new Set(getDefaultColumns());
+  });
+  const toggleColumn = (key: ColumnKey) => {
+    const config = COLUMN_CONFIGS.find(c => c.key === key);
+    if (config?.alwaysVisible) return;
+    setVisibleColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  };
+  const isCol = (key: ColumnKey) => visibleColumns.has(key);
+  const visibleCount = COLUMN_CONFIGS.filter(c => visibleColumns.has(c.key)).length;
+
   useFetchOnce(() => {
     fetchWarehouses();
+    fetchTransfers();
   }, !authLoading && !!userProfile);
 
   const fetchWarehouses = async () => {
@@ -82,22 +136,61 @@ export default function TransferListPage() {
     }
   };
 
+  const handlePrint = async (id: string) => {
+    setPrintingId(id);
+    try {
+      const res = await apiFetch(`/api/inventory/transfers?id=${id}`);
+      if (!res.ok) { showToast('โหลดข้อมูลไม่สำเร็จ', 'error'); return; }
+      const result = await res.json();
+      const detail = result.transfer;
+      if (!detail) { showToast('ไม่พบรายการ', 'error'); return; }
+      await generateInventoryPdf({
+        type: 'transfer',
+        data: {
+          id: detail.id,
+          doc_number: detail.transfer_number,
+          status: detail.status,
+          notes: detail.notes,
+          created_at: detail.created_at,
+          warehouse: detail.from_warehouse,
+          to_warehouse: detail.to_warehouse,
+          created_by_user: detail.created_by_user,
+          items: (detail.items || []).map((item: any) => ({
+            ...item,
+            quantity: item.qty_sent,
+          })),
+        },
+      });
+    } catch {
+      showToast('สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setPrintingId(null);
+    }
+  };
+
   const isAuthReady = !authLoading && !!userProfile;
   useEffect(() => {
     if (!isAuthReady) return;
     fetchTransfers();
   }, [isAuthReady, statusFilter]);
 
-  // Filter by warehouse and search
+  // Unique users for filter
+  const users = [...new Map(
+    transfers.filter(t => t.created_by_user).map(t => [t.created_by_user!.id, t.created_by_user!])
+  ).values()];
+
+  // Filter by warehouse, user, and search
   const filtered = transfers.filter(t => {
     if (warehouseFilter && t.from_warehouse?.id !== warehouseFilter && t.to_warehouse?.id !== warehouseFilter) return false;
+    if (userFilter && t.created_by_user?.id !== userFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return (
       t.transfer_number.toLowerCase().includes(s) ||
       t.from_warehouse?.name.toLowerCase().includes(s) ||
       t.to_warehouse?.name.toLowerCase().includes(s) ||
-      t.notes?.toLowerCase().includes(s)
+      t.notes?.toLowerCase().includes(s) ||
+      t.created_by_user?.name.toLowerCase().includes(s)
     );
   });
 
@@ -179,6 +272,21 @@ export default function TransferListPage() {
               </select>
               <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
+            {users.length > 1 && (
+              <div className="relative">
+                <select
+                  value={userFilter}
+                  onChange={e => { setUserFilter(e.target.value); setPage(1); }}
+                  className="pl-8 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 appearance-none"
+                >
+                  <option value="">ทุกคน</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+            )}
             <button
               onClick={() => router.push('/inventory/transfer')}
               className="bg-[#F4511E] text-white px-4 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap"
@@ -189,136 +297,170 @@ export default function TransferListPage() {
           </div>
         </div>
 
-        {/* Transfer List */}
-        {filtered.length === 0 ? (
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 text-center py-16">
-            <ArrowRightLeft className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-            <p className="text-gray-500 dark:text-slate-400 text-sm">
-              {transfers.length === 0 ? 'ยังไม่มีรายการโอนย้าย' : 'ไม่พบรายการที่ค้นหา'}
-            </p>
-          </div>
-        ) : (
-          <div className="data-table-wrap">
-            <div className="overflow-x-auto">
-              {/* Desktop Table */}
-              <table className="data-table hidden md:table">
-                <thead>
+        {/* Desktop Table */}
+        <div className="data-table-wrap hidden md:block">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="data-thead">
+                <tr>
+                  {isCol('transferInfo') && <th className="data-th">เลขที่</th>}
+                  {isCol('fromWarehouse') && <th className="data-th">คลังต้นทาง</th>}
+                  {isCol('toWarehouse') && <th className="data-th">คลังปลายทาง</th>}
+                  {isCol('itemCount') && <th className="data-th text-center">รายการ</th>}
+                  {isCol('status') && <th className="data-th text-center">สถานะ</th>}
+                  {isCol('createdBy') && <th className="data-th">ผู้ทำรายการ</th>}
+                  {isCol('actions') && <th className="data-th text-center">จัดการ</th>}
+                </tr>
+              </thead>
+              <tbody className="data-tbody">
+                {paginatedTransfers.length === 0 ? (
                   <tr>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">เลขที่</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">คลังต้นทาง</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">คลังปลายทาง</th>
-                    <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">รายการ</th>
-                    <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">สถานะ</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">วันที่สร้าง</th>
-                    <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-20"></th>
+                    <td colSpan={visibleCount} className="px-6 py-12 text-center">
+                      <ArrowRightLeft className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+                      <p className="text-gray-500 dark:text-slate-400 text-sm">
+                        {transfers.length === 0 ? 'ยังไม่มีรายการโอนย้าย' : 'ไม่พบรายการที่ค้นหา'}
+                      </p>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                  {paginatedTransfers.map(t => {
+                ) : (
+                  paginatedTransfers.map(t => {
                     const st = STATUS_MAP[t.status] || STATUS_MAP.draft;
                     const StIcon = st.icon;
                     return (
-                      <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
-                        <td className="px-4 py-3">
-                          <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">
-                            {t.transfer_number}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5">
-                            <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                            <span className="text-sm text-gray-700 dark:text-slate-300">
-                              {t.from_warehouse?.name || '-'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5">
-                            <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                            <span className="text-sm text-gray-700 dark:text-slate-300">
-                              {t.to_warehouse?.name || '-'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="text-sm text-gray-600 dark:text-slate-400">
+                      <tr key={t.id} className="data-tr cursor-pointer" onClick={() => router.push(`/inventory/transfers/${t.id}`)}>
+                        {isCol('transferInfo') && (
+                          <td className="data-td">
+                            <p className="font-mono text-sm font-medium text-gray-900 dark:text-white">{t.transfer_number}</p>
+                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
+                          </td>
+                        )}
+                        {isCol('fromWarehouse') && (
+                          <td className="data-td">
+                            <div className="flex items-center gap-1.5">
+                              <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                              <span className="text-sm text-gray-700 dark:text-slate-300">
+                                {t.from_warehouse?.name || '-'}
+                              </span>
+                            </div>
+                          </td>
+                        )}
+                        {isCol('toWarehouse') && (
+                          <td className="data-td">
+                            <div className="flex items-center gap-1.5">
+                              <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                              <span className="text-sm text-gray-700 dark:text-slate-300">
+                                {t.to_warehouse?.name || '-'}
+                              </span>
+                            </div>
+                          </td>
+                        )}
+                        {isCol('itemCount') && (
+                          <td className="data-td text-center text-sm text-gray-600 dark:text-slate-400">
                             {t.items?.length || 0}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${st.color}`}>
-                            <StIcon className="w-3 h-3" />
-                            {st.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-sm text-gray-600 dark:text-slate-400">
-                            {formatDate(t.created_at)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <button
-                            onClick={() => router.push(`/inventory/transfers/${t.id}`)}
-                            className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
-                            title="ดูรายละเอียด"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        </td>
+                          </td>
+                        )}
+                        {isCol('status') && (
+                          <td className="data-td text-center">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${st.color}`}>
+                              <StIcon className="w-3 h-3" />
+                              {st.label}
+                            </span>
+                          </td>
+                        )}
+                        {isCol('createdBy') && (
+                          <td className="data-td text-sm text-gray-600 dark:text-slate-400">{t.created_by_user?.name || '-'}</td>
+                        )}
+                        {isCol('actions') && (
+                          <td className="data-td" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => router.push(`/inventory/transfers/${t.id}`)}
+                                className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                                title="แก้ไข"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handlePrint(t.id)}
+                                disabled={printingId === t.id}
+                                className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors disabled:opacity-50"
+                                title="พิมพ์"
+                              >
+                                {printingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     );
-                  })}
-                </tbody>
-              </table>
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
 
-              {/* Mobile Cards */}
-              <div className="md:hidden divide-y divide-gray-100 dark:divide-slate-700">
-                {paginatedTransfers.map(t => {
-                  const st = STATUS_MAP[t.status] || STATUS_MAP.draft;
-                  const StIcon = st.icon;
-                  return (
-                    <div
-                      key={t.id}
-                      className="p-4 hover:bg-gray-50 dark:hover:bg-slate-700/30 cursor-pointer"
-                      onClick={() => router.push(`/inventory/transfers/${t.id}`)}
-                    >
-                      <div className="flex items-center justify-between mb-2">
+          <Pagination
+            currentPage={page} totalPages={totalPages} totalRecords={totalRecords}
+            startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
+            setRecordsPerPage={setRecordsPerPage} setPage={setPage}
+          >
+            <ColumnSettingsDropdown
+              configs={COLUMN_CONFIGS}
+              visible={visibleColumns}
+              toggle={toggleColumn}
+              buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+              dropUp
+            />
+          </Pagination>
+        </div>
+
+        {/* Mobile Cards */}
+        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+          {paginatedTransfers.length === 0 ? (
+            <div className="text-center py-16">
+              <ArrowRightLeft className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-slate-400 text-sm">
+                {transfers.length === 0 ? 'ยังไม่มีรายการโอนย้าย' : 'ไม่พบรายการที่ค้นหา'}
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 dark:divide-slate-700">
+              {paginatedTransfers.map(t => {
+                const st = STATUS_MAP[t.status] || STATUS_MAP.draft;
+                const StIcon = st.icon;
+                return (
+                  <div
+                    key={t.id}
+                    className="p-4 hover:bg-gray-50 dark:hover:bg-slate-700/30 cursor-pointer"
+                    onClick={() => router.push(`/inventory/transfers/${t.id}`)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
                         <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">
                           {t.transfer_number}
                         </span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
-                          <StIcon className="w-3 h-3" />
-                          {st.label}
-                        </span>
+                        <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400 mb-1">
-                        <Warehouse className="w-3.5 h-3.5 text-gray-400" />
-                        <span>{t.from_warehouse?.name || '-'}</span>
-                        <ArrowRightLeft className="w-3 h-3 text-gray-400" />
-                        <span>{t.to_warehouse?.name || '-'}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-gray-400 dark:text-slate-500">
-                        <span>{t.items?.length || 0} รายการ</span>
-                        <span>{formatDate(t.created_at)}</span>
-                      </div>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
+                        <StIcon className="w-3 h-3" />
+                        {st.label}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400 mb-1">
+                      <Warehouse className="w-3.5 h-3.5 text-gray-400" />
+                      <span>{t.from_warehouse?.name || '-'}</span>
+                      <ArrowRightLeft className="w-3 h-3 text-gray-400" />
+                      <span>{t.to_warehouse?.name || '-'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-400 dark:text-slate-500">
+                      <span>{t.items?.length || 0} รายการ | {t.created_by_user?.name || '-'}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              totalRecords={totalRecords}
-              startIdx={startIdx}
-              endIdx={endIdx}
-              recordsPerPage={recordsPerPage}
-              setRecordsPerPage={setRecordsPerPage}
-              setPage={setPage}
-            />
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </Layout>
   );

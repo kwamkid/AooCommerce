@@ -633,15 +633,24 @@ async function createImportLink(
 async function importStockFromShopee(companyId: string, variationId: string, shopeeStock: number) {
   if (shopeeStock <= 0) return;
 
-  // Find default warehouse
-  const { data: warehouse } = await supabaseAdmin
+  // Find default warehouse (prefer is_default, fallback to earliest)
+  const { data: defaultWh } = await supabaseAdmin
+    .from('warehouses')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('is_active', true)
+    .eq('is_default', true)
+    .limit(1)
+    .single();
+
+  const warehouse = defaultWh || (await supabaseAdmin
     .from('warehouses')
     .select('id')
     .eq('company_id', companyId)
     .eq('is_active', true)
     .order('created_at', { ascending: true })
     .limit(1)
-    .single();
+    .single()).data;
 
   if (!warehouse) return;
 

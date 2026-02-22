@@ -12,6 +12,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import ProductSearchInput from '@/components/ui/ProductSearchInput';
+import { productDisplayName, productSubtitle } from '../components/types';
 
 // Interfaces
 interface WarehouseItem {
@@ -64,9 +65,11 @@ export default function StockTransferPage() {
   const [sourceWarehouseId, setSourceWarehouseId] = useState('');
   const [destWarehouseId, setDestWarehouseId] = useState('');
 
-  // Source inventory
+  // Source & destination inventory
   const [sourceInventory, setSourceInventory] = useState<InventoryRecord[]>([]);
+  const [destInventory, setDestInventory] = useState<InventoryRecord[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [destInventoryLoading, setDestInventoryLoading] = useState(false);
 
   // Products (flattened)
   const [products, setProducts] = useState<Product[]>([]);
@@ -96,6 +99,15 @@ export default function StockTransferPage() {
       setSourceInventory([]);
     }
   }, [sourceWarehouseId]);
+
+  // Fetch dest inventory when destination warehouse changes
+  useEffect(() => {
+    if (destWarehouseId) {
+      fetchDestInventory(destWarehouseId);
+    } else {
+      setDestInventory([]);
+    }
+  }, [destWarehouseId]);
 
   // Update available stock on transfer items when source inventory changes
   useEffect(() => {
@@ -183,10 +195,10 @@ export default function StockTransferPage() {
   const fetchSourceInventory = async (warehouseId: string) => {
     try {
       setInventoryLoading(true);
-      const res = await apiFetch(`/api/inventory?warehouse_id=${warehouseId}`);
+      const res = await apiFetch(`/api/inventory?warehouse_id=${warehouseId}&limit=9999`);
       if (res.ok) {
         const data = await res.json();
-        const records: InventoryRecord[] = (data.inventory || []).map((inv: any) => ({
+        const records: InventoryRecord[] = (data.items || []).map((inv: any) => ({
           variation_id: inv.variation_id,
           quantity: inv.quantity ?? 0,
         }));
@@ -201,9 +213,36 @@ export default function StockTransferPage() {
     }
   };
 
+  const fetchDestInventory = async (warehouseId: string) => {
+    try {
+      setDestInventoryLoading(true);
+      const res = await apiFetch(`/api/inventory?warehouse_id=${warehouseId}&limit=9999`);
+      if (res.ok) {
+        const data = await res.json();
+        const records: InventoryRecord[] = (data.items || []).map((inv: any) => ({
+          variation_id: inv.variation_id,
+          quantity: inv.quantity ?? 0,
+        }));
+        setDestInventory(records);
+      } else {
+        setDestInventory([]);
+      }
+    } catch {
+      setDestInventory([]);
+    } finally {
+      setDestInventoryLoading(false);
+    }
+  };
+
   const getStockForVariation = (variationId: string): number | null => {
     if (!sourceWarehouseId) return null;
     const record = sourceInventory.find(inv => inv.variation_id === variationId);
+    return record ? record.quantity : 0;
+  };
+
+  const getDestStockForVariation = (variationId: string): number | null => {
+    if (!destWarehouseId) return null;
+    const record = destInventory.find(inv => inv.variation_id === variationId);
     return record ? record.quantity : 0;
   };
 
@@ -325,12 +364,7 @@ export default function StockTransferPage() {
 
       showToast(`สร้างใบโอนย้าย ${result.transfer_number || ''} สำเร็จ`, 'success');
 
-      // Redirect to transfer detail or list
-      if (result.transfer_id) {
-        router.push(`/inventory/transfers/${result.transfer_id}`);
-      } else {
-        router.push('/inventory/transfers');
-      }
+      router.push('/inventory/transfers');
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการโอนย้ายสินค้า',
@@ -381,19 +415,19 @@ export default function StockTransferPage() {
             {/* Source Warehouse */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                <Warehouse className="w-4 h-4 inline mr-1.5 -mt-0.5" />
                 คลังต้นทาง <span className="text-red-500">*</span>
               </label>
               <div className="relative">
+                <Warehouse className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 <select
                   value={sourceWarehouseId}
                   onChange={e => setSourceWarehouseId(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none pr-8"
+                  className="w-full pl-9 pr-8 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none"
                 >
                   <option value="">-- เลือกคลังต้นทาง --</option>
-                  {warehouses.map(wh => (
+                  {warehouses.filter(wh => wh.id !== destWarehouseId).map(wh => (
                     <option key={wh.id} value={wh.id}>
-                      {wh.name}{wh.code ? ` (${wh.code})` : ''}{wh.is_default ? ' - ค่าเริ่มต้น' : ''}
+                      {wh.is_default ? '⭐ ' : ''}{wh.name}{wh.code ? ` (${wh.code})` : ''}
                     </option>
                   ))}
                 </select>
@@ -408,7 +442,7 @@ export default function StockTransferPage() {
             </div>
 
             {/* Arrow */}
-            <div className="hidden sm:flex items-center justify-center pb-1">
+            <div className="hidden sm:flex items-center justify-center self-end mb-2.5">
               <ArrowRightLeft className="w-5 h-5 text-gray-400 dark:text-slate-500" />
             </div>
             <div className="flex sm:hidden items-center justify-center">
@@ -418,19 +452,19 @@ export default function StockTransferPage() {
             {/* Destination Warehouse */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                <Warehouse className="w-4 h-4 inline mr-1.5 -mt-0.5" />
                 คลังปลายทาง <span className="text-red-500">*</span>
               </label>
               <div className="relative">
+                <Warehouse className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 <select
                   value={destWarehouseId}
                   onChange={e => setDestWarehouseId(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none pr-8"
+                  className="w-full pl-9 pr-8 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none"
                 >
                   <option value="">-- เลือกคลังปลายทาง --</option>
-                  {warehouses.map(wh => (
+                  {warehouses.filter(wh => wh.id !== sourceWarehouseId).map(wh => (
                     <option key={wh.id} value={wh.id}>
-                      {wh.name}{wh.code ? ` (${wh.code})` : ''}{wh.is_default ? ' - ค่าเริ่มต้น' : ''}
+                      {wh.is_default ? '⭐ ' : ''}{wh.name}{wh.code ? ` (${wh.code})` : ''}
                     </option>
                   ))}
                 </select>
@@ -447,11 +481,6 @@ export default function StockTransferPage() {
             </div>
           )}
 
-          {warehouses.length > 2 && (
-            <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">
-              มีทั้งหมด {warehouses.length} คลัง
-            </p>
-          )}
         </div>
 
         {/* Stock warning banner */}
@@ -463,79 +492,81 @@ export default function StockTransferPage() {
         )}
 
         {/* Desktop: Table + Search in one card */}
+        {sourceWarehouseId && destWarehouseId && !warehousesAreSame && (
         <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700">
           {transferItems.length > 0 && (
             <>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">
-                        สินค้า
-                      </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-28">
-                        รหัส/SKU
-                      </th>
-                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-28">
-                        สต็อกต้นทาง
-                      </th>
-                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-28">
-                        จำนวนโอน
-                      </th>
-                      <th className="text-center px-2 py-3 w-12"></th>
+                <table className="data-table">
+                  <thead className="data-thead">
+                    <tr>
+                      <th className="data-th">สินค้า</th>
+                      <th className="data-th text-center w-28 whitespace-nowrap">สต็อกต้นทาง</th>
+                      <th className="data-th text-center w-28 whitespace-nowrap">สต็อกปลายทาง</th>
+                      <th className="data-th text-center w-28">จำนวนโอน</th>
+                      <th className="data-th w-12"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                  <tbody className="data-tbody">
                     {transferItems.map((item, index) => {
                       const warning = hasStockWarning(item);
                       return (
-                        <tr key={item.variation_id} className={`hover:bg-gray-50 dark:hover:bg-slate-700/30 ${warning ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
+                        <tr key={item.variation_id} className={`data-tr ${warning ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
+                          <td className="px-6 py-3">
+                            <div className="flex items-center gap-2.5">
                               {item.image ? (
                                 <img
                                   src={item.image}
                                   alt={item.name}
-                                  className="w-10 h-10 rounded object-cover flex-shrink-0"
+                                  className="w-12 h-12 rounded object-cover flex-shrink-0"
                                 />
                               ) : (
-                                <div className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                                <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                                   <Package className="w-5 h-5 text-gray-400" />
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <p className="font-medium text-gray-900 dark:text-white truncate">
-                                  {item.name}
-                                </p>
-                                {item.variation_label && (
-                                  <p className="text-xs text-gray-500 dark:text-slate-400">
-                                    {item.variation_label}
-                                  </p>
-                                )}
+                                <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                                  {productDisplayName({ product_name: item.name, product_code: item.code, variation_label: item.variation_label, sku: item.sku })}
+                                </div>
+                                <span className="text-xs text-gray-400 dark:text-slate-500">
+                                  {productSubtitle({ product_code: item.code, sku: item.sku })}
+                                </span>
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-3">
-                            <span className="text-gray-600 dark:text-slate-300 font-mono text-xs">
-                              {item.code}
-                            </span>
-                            {item.sku && (
-                              <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                                {item.sku}
-                              </p>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-center">
+                          <td className="px-6 py-3 text-center">
                             {item.available_stock !== null ? (
-                              <span className={`text-sm font-medium ${item.available_stock === 0 ? 'text-red-500' : 'text-gray-700 dark:text-slate-300'}`}>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                item.available_stock <= 0
+                                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                  : item.available_stock <= 5
+                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                    : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                              }`}>
                                 {item.available_stock.toLocaleString()}
                               </span>
                             ) : (
                               <span className="text-xs text-gray-400 dark:text-slate-500">-</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
+                          <td className="px-6 py-3 text-center">
+                            {(() => {
+                              const destStock = getDestStockForVariation(item.variation_id);
+                              if (destStock === null) return <span className="text-xs text-gray-400 dark:text-slate-500">-</span>;
+                              return (
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  destStock <= 0
+                                    ? 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400'
+                                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                }`}>
+                                  {destStock.toLocaleString()}
+                                </span>
+                              );
+                            })()}
+                          </td>
+                          <td className="px-6 py-3 text-center">
+                            <div className="inline-flex relative">
                               <input
                                 type="number"
                                 min="1"
@@ -543,17 +574,14 @@ export default function StockTransferPage() {
                                 onChange={e =>
                                   handleUpdateQuantity(index, parseInt(e.target.value) || 1)
                                 }
-                                className={`w-20 px-2 py-1.5 border rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] ${
+                                className={`w-20 px-2 py-1.5 border rounded-lg text-center text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] ${
                                   warning
-                                    ? 'border-amber-400 dark:border-amber-500'
-                                    : 'border-gray-300 dark:border-slate-600'
+                                    ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/20'
+                                    : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700'
                                 }`}
                               />
                               {warning && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs rounded-full whitespace-nowrap">
-                                  <AlertTriangle className="w-3 h-3" />
-                                  เกิน
-                                </span>
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                               )}
                             </div>
                           </td>
@@ -609,9 +637,10 @@ export default function StockTransferPage() {
             </div>
           )}
         </div>
+        )}
 
         {/* Mobile Cards */}
-        {transferItems.length > 0 && (
+        {sourceWarehouseId && destWarehouseId && !warehousesAreSame && transferItems.length > 0 && (
           <div className="md:hidden space-y-2">
             {transferItems.map((item, index) => {
               const warning = hasStockWarning(item);
@@ -638,18 +667,12 @@ export default function StockTransferPage() {
                         </div>
                       )}
                       <div className="min-w-0">
-                        <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                          {item.name}
+                        <p className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 break-words">
+                          {productDisplayName({ product_name: item.name, product_code: item.code, variation_label: item.variation_label, sku: item.sku })}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-slate-400">
-                          {item.code}
-                          {item.variation_label && ` | ${item.variation_label}`}
+                        <p className="text-xs text-gray-400 dark:text-slate-500 truncate">
+                          {productSubtitle({ product_code: item.code, sku: item.sku })}
                         </p>
-                        {item.sku && (
-                          <p className="text-xs text-gray-400 dark:text-slate-500">
-                            SKU: {item.sku}
-                          </p>
-                        )}
                       </div>
                     </div>
                     <button
@@ -661,7 +684,7 @@ export default function StockTransferPage() {
                     </button>
                   </div>
 
-                  <div className="mt-2.5 grid grid-cols-2 gap-2">
+                  <div className="mt-2.5 grid grid-cols-3 gap-2">
                     <div>
                       <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
                         สต็อกต้นทาง
@@ -675,6 +698,23 @@ export default function StockTransferPage() {
                       }`}>
                         {item.available_stock !== null ? item.available_stock.toLocaleString() : '-'}
                       </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
+                        สต็อกปลายทาง
+                      </label>
+                      {(() => {
+                        const destStock = getDestStockForVariation(item.variation_id);
+                        return (
+                          <div className={`px-2 py-1.5 rounded-lg text-center text-sm font-medium ${
+                            destStock !== null && destStock > 0
+                              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                              : 'text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-700/50'
+                          }`}>
+                            {destStock !== null ? destStock.toLocaleString() : '-'}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div>
                       <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
@@ -718,6 +758,7 @@ export default function StockTransferPage() {
           </div>
         )}
         {/* Mobile: Search + empty state */}
+        {sourceWarehouseId && destWarehouseId && !warehousesAreSame && (
         <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
           <ProductSearchInput
             products={products}
@@ -739,6 +780,7 @@ export default function StockTransferPage() {
             </div>
           )}
         </div>
+        )}
 
         {/* Batch Notes */}
         {transferItems.length > 0 && (

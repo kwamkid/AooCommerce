@@ -11,7 +11,7 @@ import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import {
-  Loader2, ArrowUpFromLine, Plus, Warehouse, Eye, Search,
+  Loader2, ArrowUpFromLine, Plus, Warehouse, Pencil, Search,
   CheckCircle2, XCircle, Filter, Printer, User,
 } from 'lucide-react';
 
@@ -28,7 +28,7 @@ interface Issue {
 }
 
 // ─── Column config ──────────────────────────────
-type ColumnKey = 'issueInfo' | 'warehouse' | 'reason' | 'itemCount' | 'createdBy' | 'status' | 'notes' | 'actions';
+type ColumnKey = 'issueInfo' | 'warehouse' | 'itemCount' | 'status' | 'notes' | 'createdBy' | 'actions';
 
 interface ColumnConfig {
   key: ColumnKey;
@@ -40,11 +40,10 @@ interface ColumnConfig {
 const COLUMN_CONFIGS: ColumnConfig[] = [
   { key: 'issueInfo', label: 'เลขที่', defaultVisible: true, alwaysVisible: true },
   { key: 'warehouse', label: 'คลัง', defaultVisible: true },
-  { key: 'reason', label: 'เหตุผล', defaultVisible: true },
   { key: 'itemCount', label: 'รายการ', defaultVisible: true },
-  { key: 'createdBy', label: 'ผู้ทำรายการ', defaultVisible: true },
   { key: 'status', label: 'สถานะ', defaultVisible: true },
   { key: 'notes', label: 'หมายเหตุ', defaultVisible: true },
+  { key: 'createdBy', label: 'ผู้ทำรายการ', defaultVisible: true },
   { key: 'actions', label: 'จัดการ', defaultVisible: true, alwaysVisible: true },
 ];
 
@@ -153,7 +152,6 @@ export default function IssueListPage() {
     return (
       r.issue_number.toLowerCase().includes(s) ||
       r.warehouse?.name.toLowerCase().includes(s) ||
-      r.reason?.toLowerCase().includes(s) ||
       r.notes?.toLowerCase().includes(s) ||
       r.created_by_user?.name.toLowerCase().includes(s)
     );
@@ -189,7 +187,7 @@ export default function IssueListPage() {
               type="text"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
-              placeholder="ค้นหาเลขที่, คลัง, เหตุผล..."
+              placeholder="ค้นหาเลขที่, คลัง, หมายเหตุ..."
               className="w-full pl-9 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
             />
           </div>
@@ -206,7 +204,7 @@ export default function IssueListPage() {
                     <option key={wh.id} value={wh.id}>{wh.name}</option>
                   ))}
                 </select>
-                <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <Warehouse className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             )}
             {users.length > 1 && (
@@ -242,11 +240,10 @@ export default function IssueListPage() {
                 <tr>
                   {isCol('issueInfo') && <th className="data-th">เลขที่</th>}
                   {isCol('warehouse') && <th className="data-th">คลัง</th>}
-                  {isCol('reason') && <th className="data-th">เหตุผล</th>}
                   {isCol('itemCount') && <th className="data-th text-center">รายการ</th>}
-                  {isCol('createdBy') && <th className="data-th">ผู้ทำรายการ</th>}
                   {isCol('status') && <th className="data-th text-center">สถานะ</th>}
                   {isCol('notes') && <th className="data-th">หมายเหตุ</th>}
+                  {isCol('createdBy') && <th className="data-th">ผู้ทำรายการ</th>}
                   {isCol('actions') && <th className="data-th text-center">จัดการ</th>}
                 </tr>
               </thead>
@@ -277,14 +274,8 @@ export default function IssueListPage() {
                           </div>
                         </td>
                       )}
-                      {isCol('reason') && (
-                        <td className="data-td text-sm text-gray-600 dark:text-slate-400 max-w-[200px] truncate">{r.reason || '-'}</td>
-                      )}
                       {isCol('itemCount') && (
                         <td className="data-td text-center text-sm text-gray-600 dark:text-slate-400">{r.items?.length || 0}</td>
-                      )}
-                      {isCol('createdBy') && (
-                        <td className="data-td text-sm text-gray-600 dark:text-slate-400">{r.created_by_user?.name || '-'}</td>
                       )}
                       {isCol('status') && (
                         <td className="data-td text-center">
@@ -301,15 +292,18 @@ export default function IssueListPage() {
                       {isCol('notes') && (
                         <td className="data-td text-sm text-gray-500 dark:text-slate-400 max-w-[200px] truncate">{r.notes || '-'}</td>
                       )}
+                      {isCol('createdBy') && (
+                        <td className="data-td text-sm text-gray-600 dark:text-slate-400">{r.created_by_user?.name || '-'}</td>
+                      )}
                       {isCol('actions') && (
                         <td className="data-td" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1">
                             <button
                               onClick={() => router.push(`/inventory/issues/${r.id}`)}
                               className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
-                              title="ดูรายละเอียด"
+                              title="แก้ไข"
                             >
-                              <Eye className="w-4 h-4" />
+                              <Pencil className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handlePrint(r.id)}
@@ -372,7 +366,6 @@ export default function IssueListPage() {
                 <Warehouse className="w-3.5 h-3.5 text-gray-400" />
                 <span>{r.warehouse?.name || '-'}</span>
               </div>
-              {r.reason && <p className="text-xs text-gray-500 dark:text-slate-400 mb-1 truncate">{r.reason}</p>}
               <div className="flex items-center justify-between text-xs text-gray-400 dark:text-slate-500">
                 <span>{r.items?.length || 0} รายการ | {r.created_by_user?.name || '-'}</span>
               </div>

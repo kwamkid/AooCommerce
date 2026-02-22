@@ -204,8 +204,12 @@ export default function Sidebar() {
   }, []);
 
   // Initial fetch + Supabase Realtime subscription for unread changes
+  // Use stable IDs to prevent re-subscribing on every context re-render
+  const userId = userProfile?.id;
+  const companyId = currentCompany?.id;
+
   useEffect(() => {
-    if (!userProfile) return;
+    if (!userId || !companyId) return;
 
     fetchChatUnread();
 
@@ -216,32 +220,32 @@ export default function Sidebar() {
         event: 'UPDATE',
         schema: 'public',
         table: 'line_contacts',
-        filter: `company_id=eq.${currentCompany?.id}`,
+        filter: `company_id=eq.${companyId}`,
       }, () => { fetchChatUnread(); })
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'line_contacts',
-        filter: `company_id=eq.${currentCompany?.id}`,
+        filter: `company_id=eq.${companyId}`,
       }, () => { fetchChatUnread(); })
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
         table: 'fb_contacts',
-        filter: `company_id=eq.${currentCompany?.id}`,
+        filter: `company_id=eq.${companyId}`,
       }, () => { fetchChatUnread(); })
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'fb_contacts',
-        filter: `company_id=eq.${currentCompany?.id}`,
+        filter: `company_id=eq.${companyId}`,
       }, () => { fetchChatUnread(); })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userProfile, currentCompany?.id, fetchChatUnread]);
+  }, [userId, companyId, fetchChatUnread]);
 
   const filteredSections = menuSections
     .filter(section => {

@@ -6,9 +6,12 @@ import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
+import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import {
   Loader2, Warehouse, Package, ArrowLeft, User, CheckCircle2, XCircle,
+  Printer, Save,
 } from 'lucide-react';
+import { flattenVariationItem, productDisplayName, productSubtitle } from '../../components/types';
 
 interface IssueItem {
   id: string;
@@ -46,6 +49,9 @@ export default function IssueDetailPage() {
 
   const [data, setData] = useState<IssueData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const fetchingRef = useRef(false);
 
   useEffect(() => {
@@ -53,7 +59,6 @@ export default function IssueDetailPage() {
   }, [authLoading, userProfile, issueId]);
 
   const fetchData = async (retry = 0): Promise<void> => {
-    // Prevent duplicate concurrent fetches (React Strict Mode)
     if (retry === 0) {
       if (fetchingRef.current) return;
       fetchingRef.current = true;
@@ -64,9 +69,9 @@ export default function IssueDetailPage() {
       if (res.ok) {
         const result = await res.json();
         setData(result.issue);
+        setNotes(result.issue?.notes || '');
         return;
       }
-      // Retry on 401/404 — session or record may not be ready yet after redirect
       if (retry < 2) {
         await new Promise(r => setTimeout(r, 800));
         return fetchData(retry + 1);
@@ -85,33 +90,54 @@ export default function IssueDetailPage() {
     }
   };
 
+  const handleSaveNotes = async () => {
+    if (!data) return;
+    try {
+      setSaving(true);
+      const res = await apiFetch('/api/inventory/issues', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: data.id, notes: notes.trim() }),
+      });
+      if (!res.ok) {
+        const result = await res.json();
+        throw new Error(result.error || 'เกิดข้อผิดพลาด');
+      }
+      setData(prev => prev ? { ...prev, notes: notes.trim() || null } : prev);
+      showToast('บันทึกหมายเหตุเรียบร้อย', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePrint = async () => {
+    if (!data) return;
+    setGeneratingPdf(true);
+    try {
+      await generateInventoryPdf({
+        type: 'issue',
+        data: { ...data, doc_number: data.issue_number },
+      });
+    } catch {
+      showToast('สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-  const getVariationLabel = (item: IssueItem) => {
-    const parts: string[] = [];
-    const raw = item.variation?.variation_label || '';
-    const code = item.variation?.product?.code || '';
-    const sku = item.variation?.sku || '';
-    if (raw && raw !== code && raw !== sku && !/^\d+$/.test(raw)) parts.push(raw);
-    if (item.variation?.attributes) Object.values(item.variation.attributes).forEach(v => { if (v?.trim()) parts.push(v.trim()); });
-    return parts.join(' / ');
-  };
+  const getDisplayName = (item: IssueItem) => productDisplayName(flattenVariationItem(item));
+  const getSubtitle = (item: IssueItem) => productSubtitle(flattenVariationItem(item));
 
-  const buildSubtitle = (item: IssueItem) => {
-    const code = item.variation?.product?.code || '';
-    const varLabel = getVariationLabel(item);
-    const sku = item.variation?.sku || '';
-    const parts: string[] = [];
-    if (code) parts.push(code);
-    if (varLabel) parts.push(varLabel);
-    if (sku && sku !== code) parts.push(`SKU: ${sku}`);
-    return parts.join(' | ');
-  };
+  const notesChanged = (notes || '') !== (data?.notes || '');
 
   if (authLoading || loading) {
     return (
-      <Layout title="รายละเอียดเบิกออก" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการเบิกออก', href: '/inventory/issues' }, { label: 'รายละเอียด' }]}>
+      <Layout title="แก้ไขใบเบิกออก" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการเบิกออก', href: '/inventory/issues' }, { label: 'แก้ไข' }]}>
         <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" /></div>
       </Layout>
     );
@@ -125,9 +151,19 @@ export default function IssueDetailPage() {
       breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการเบิกออก', href: '/inventory/issues' }, { label: data.issue_number }]}
     >
       <div className="space-y-4">
-        <button onClick={() => router.push('/inventory/issues')} className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300">
-          <ArrowLeft className="w-4 h-4" /> กลับ
-        </button>
+        <div className="flex items-center justify-between">
+          <button onClick={() => router.push('/inventory/issues')} className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300">
+            <ArrowLeft className="w-4 h-4" /> กลับ
+          </button>
+          <button
+            onClick={handlePrint}
+            disabled={generatingPdf}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[#F4511E] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50"
+          >
+            {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+            {generatingPdf ? 'กำลังสร้าง...' : 'พิมพ์'}
+          </button>
+        </div>
 
         {/* Status */}
         <div className={`rounded-lg px-4 py-3 flex items-center gap-2 ${data.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
@@ -165,12 +201,30 @@ export default function IssueDetailPage() {
               <p className="text-sm text-gray-700 dark:text-slate-300">{data.reason}</p>
             </div>
           )}
-          {data.notes && (
-            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
-              <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">หมายเหตุ</label>
-              <p className="text-sm text-gray-700 dark:text-slate-300">{data.notes}</p>
-            </div>
-          )}
+
+          {/* Editable Notes */}
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">หมายเหตุ</label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={2}
+              placeholder="เพิ่มหมายเหตุ..."
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+            />
+            {notesChanged && (
+              <div className="flex justify-end mt-2">
+                <button
+                  onClick={handleSaveNotes}
+                  disabled={saving}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[#F4511E] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Items */}
@@ -201,9 +255,9 @@ export default function IssueDetailPage() {
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="font-medium text-gray-900 dark:text-white line-clamp-2 break-words">{item.variation?.product?.name || '-'}{getVariationLabel(item) ? ` - ${getVariationLabel(item)}` : ''}</p>
+                            <p className="font-medium text-gray-900 dark:text-white line-clamp-2 break-words">{getDisplayName(item)}</p>
                             <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
-                              {buildSubtitle(item)}
+                              {getSubtitle(item)}
                             </p>
                           </div>
                         </div>

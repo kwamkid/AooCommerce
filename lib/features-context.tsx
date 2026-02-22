@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
@@ -41,16 +41,24 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Use stable IDs instead of object references to prevent re-fetch on every re-render
+  const userId = userProfile?.id;
+  const companyId = currentCompany?.id;
+
   useEffect(() => {
-    if (userProfile && currentCompany) {
+    if (userId && companyId) {
       fetchFeatures();
     } else {
       setLoading(false);
     }
-  }, [userProfile, currentCompany, fetchFeatures]);
+  }, [userId, companyId, fetchFeatures]);
+
+  const value = useMemo(() => ({
+    features, preset, loading, fetched, refreshFeatures: fetchFeatures,
+  }), [features, preset, loading, fetched, fetchFeatures]);
 
   return (
-    <FeaturesContext.Provider value={{ features, preset, loading, fetched, refreshFeatures: fetchFeatures }}>
+    <FeaturesContext.Provider value={value}>
       {children}
     </FeaturesContext.Provider>
   );

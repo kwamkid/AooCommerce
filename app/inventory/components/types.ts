@@ -123,15 +123,68 @@ export function formatDateValue(value: Date | string | null | undefined): string
   return `${y}-${m}-${d}`;
 }
 
-export function getVariationLabel(item: InventoryItem) {
-  if (item.attributes && Object.keys(item.attributes).length > 0) {
-    return Object.values(item.attributes).join(' / ');
-  }
-  return item.variation_label || '';
+// ===== Generic product display helpers =====
+// These work with any data shape — flat (StockTab, HistoryTab, create pages)
+// or nested (detail pages like issues/[id], receives/[id], transfers/[id])
+
+interface ProductDisplayFields {
+  product_name?: string;
+  product_code?: string;
+  variation_label?: string | null;
+  sku?: string | null;
+  barcode?: string | null;
+  attributes?: Record<string, string> | null;
 }
 
-export function getProductDisplayName(item: InventoryItem) {
-  const varLabel = getVariationLabel(item);
-  if (varLabel) return `${item.product_name} - ${varLabel}`;
-  return item.product_name;
+/** Clean variation label — skip barcode, product code, pure digits */
+export function cleanVariationLabel(f: ProductDisplayFields): string {
+  if (f.attributes && Object.keys(f.attributes).length > 0) {
+    const attrParts: string[] = [];
+    Object.values(f.attributes).forEach(v => { if (v?.trim()) attrParts.push(v.trim()); });
+    if (attrParts.length > 0) return attrParts.join(' / ');
+  }
+  const raw = f.variation_label || '';
+  if (!raw || raw === f.product_code || raw === f.barcode || raw === f.sku || /^\d+$/.test(raw)) return '';
+  return raw;
 }
+
+/** Product name + variation label (if meaningful) */
+export function productDisplayName(f: ProductDisplayFields): string {
+  const varLabel = cleanVariationLabel(f);
+  const name = f.product_name || '-';
+  if (varLabel) return `${name} - ${varLabel}`;
+  return name;
+}
+
+/** Subtitle: product_code | SKU: xxx (de-duped) */
+export function productSubtitle(f: ProductDisplayFields): string {
+  const parts: string[] = [];
+  if (f.product_code) parts.push(f.product_code);
+  if (f.sku && f.sku !== f.product_code && f.sku !== f.barcode) parts.push(`SKU: ${f.sku}`);
+  return parts.join(' | ');
+}
+
+/** Flatten nested variation item (detail pages) to ProductDisplayFields */
+export function flattenVariationItem(item: {
+  variation?: {
+    variation_label?: string | null;
+    sku?: string | null;
+    barcode?: string | null;
+    attributes?: Record<string, string> | null;
+    product?: { code?: string; name?: string };
+  } | null;
+}): ProductDisplayFields {
+  return {
+    product_name: item.variation?.product?.name || '-',
+    product_code: item.variation?.product?.code || '',
+    variation_label: item.variation?.variation_label,
+    sku: item.variation?.sku,
+    barcode: item.variation?.barcode,
+    attributes: item.variation?.attributes,
+  };
+}
+
+// Legacy aliases for existing imports
+export const getVariationLabel = (item: InventoryItem) => cleanVariationLabel(item);
+export const getProductDisplayName = (item: InventoryItem) => productDisplayName(item);
+export const getProductSubtitle = (item: { product_code: string; sku?: string | null; barcode?: string | null }) => productSubtitle(item);

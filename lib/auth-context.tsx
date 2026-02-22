@@ -1,7 +1,7 @@
 // Path: lib/auth-context.tsx
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -86,6 +86,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Track whether profile has been fetched to prevent duplicate calls
+  const profileFetchedRef = useRef(false);
+
   // Single init on mount — determines full auth + company state
   useEffect(() => {
     let mounted = true;
@@ -101,6 +104,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           const profile = await fetchUserProfile(currentSession.user, currentSession.access_token);
           if (!mounted) return;
+
+          profileFetchedRef.current = true;
 
           if (profile) {
             setUserProfile(profile);
@@ -128,15 +133,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => { mounted = false; };
   }, [fetchUserProfile]);
 
-  // Listen for sign-out only (sign-in is handled by login page redirect)
+  // Listen for auth state changes
+  // TOKEN_REFRESHED: only update session silently (no re-fetch, no state cascade)
+  // SIGNED_IN: fetch profile only if init hasn't done it already
+  // SIGNED_OUT: clear all state
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && currentSession) {
+      if (event === 'TOKEN_REFRESHED' && currentSession) {
+        // Silently update session reference without triggering re-renders
+        setSession(currentSession);
+        return;
+      }
+      if (event === 'SIGNED_IN' && currentSession) {
         setSession(currentSession);
         setUser(currentSession.user);
 
-        // Fetch profile if not already loaded
-        if (!userProfile || event === 'SIGNED_IN') {
+        // Only fetch profile if init() hasn't already done it
+        if (!profileFetchedRef.current) {
+          profileFetchedRef.current = true;
           const profile = await fetchUserProfile(currentSession.user, currentSession.access_token);
           if (profile) {
             setUserProfile(profile);
@@ -145,6 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       if (event === 'SIGNED_OUT') {
+        profileFetchedRef.current = false;
         setUser(null);
         setUserProfile(null);
         setSession(null);
@@ -306,11 +321,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const value = useMemo(() => ({
+    user, userProfile, session, loading, hasCompany, companies,
+    signIn, signUp, signInWithGoogle, signInWithLINE, signOut, refreshProfile,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [user, userProfile, session, loading, hasCompany, companies]);
+
   return (
-    <AuthContext.Provider value={{
-      user, userProfile, session, loading, hasCompany, companies,
-      signIn, signUp, signInWithGoogle, signInWithLINE, signOut, refreshProfile,
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
