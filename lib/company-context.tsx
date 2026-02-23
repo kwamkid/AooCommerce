@@ -9,6 +9,8 @@ interface Company {
   slug: string;
   logo_url: string | null;
   is_active: boolean;
+  business_type?: string;
+  vat_registered?: boolean;
 }
 
 interface CompanyMembership {

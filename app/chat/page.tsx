@@ -36,7 +36,9 @@ import {
   Bell,
   FileText,
   Play,
-  ArrowUpDown
+  ArrowUpDown,
+  Trash2,
+  Unlink
 } from 'lucide-react';
 import Image from 'next/image';
 import OrderForm from '@/components/orders/OrderForm';
@@ -93,6 +95,7 @@ function UnifiedChatPageContent() {
   // Image upload
   const fileInputRef = useRef<HTMLInputElement>(null);
   const warehousePortalRef = useRef<HTMLDivElement>(null);
+  const headerActionsRef = useRef<HTMLDivElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
 
   // Sticker picker
@@ -107,6 +110,7 @@ function UnifiedChatPageContent() {
 
   // Right panel (split view) - desktop only
   const [rightPanel, setRightPanel] = useState<'order' | 'history' | 'profile' | 'edit-customer' | 'order-detail' | null>(null);
+  const [orderFormKey, setOrderFormKey] = useState(0);
 
   // Mobile view mode
   const [mobileView, setMobileView] = useState<'contacts' | 'chat' | 'history' | 'profile' | 'edit-customer' | 'order-detail'>('contacts');
@@ -129,11 +133,12 @@ function UnifiedChatPageContent() {
   const [filterOrderDaysRange, setFilterOrderDaysRange] = useState<{ min: number; max: number | null } | null>(null);
   const [sortMode, setSortMode] = useState<'time' | 'unread'>('time');
   const [showAccountPicker, setShowAccountPicker] = useState(false);
+  const [accountSearch, setAccountSearch] = useState('');
 
   // Day ranges from CRM settings
   const [dayRanges, setDayRanges] = useState<DayRange[]>([]);
 
-  const hasActiveFilter = filterLinked !== 'all' || filterUnread || filterOrderDaysRange !== null;
+  const hasActiveFilter = filterLinked !== 'all' || filterOrderDaysRange !== null;
 
   // Platform color
   const platformColor = selectedContact?.source === 'instagram' ? '#E4405F' : selectedContact?.platform === 'line' ? '#06C755' : '#1877F2';
@@ -193,10 +198,43 @@ function UnifiedChatPageContent() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Fetch contacts
+  // Fetch contacts — use simple approach without AbortController for initial load
+  const fetchIdRef = useRef(0);
   useEffect(() => {
     if (!authLoading && userProfile) {
-      fetchContacts();
+      const id = ++fetchIdRef.current;
+      (async () => {
+        try {
+          const params = new URLSearchParams();
+          if (filterAccountId) params.set('account_id', filterAccountId);
+          else if (filterPlatform !== 'all') params.set('platform', filterPlatform);
+          if (debouncedSearch) params.set('search', debouncedSearch);
+          if (filterUnread) params.set('unread_only', 'true');
+          if (filterLinked === 'linked') params.set('linked_only', 'true');
+          if (filterLinked === 'unlinked') params.set('unlinked_only', 'true');
+          if (filterOrderDaysRange) {
+            params.set('order_days_min', filterOrderDaysRange.min.toString());
+            if (filterOrderDaysRange.max !== null) params.set('order_days_max', filterOrderDaysRange.max.toString());
+          }
+          params.set('limit', '30');
+          params.set('offset', '0');
+
+          const response = await apiFetch(`/api/chat/contacts?${params.toString()}`);
+          if (fetchIdRef.current !== id) return; // stale
+          if (!response.ok) throw new Error('Failed to fetch contacts');
+
+          const result = await response.json();
+          if (fetchIdRef.current !== id) return; // stale
+          setContacts(result.contacts || []);
+          setHasMoreContacts(result.summary?.hasMore || false);
+          setTotalUnread(result.summary?.totalUnread || 0);
+        } catch (error: any) {
+          if (fetchIdRef.current !== id) return;
+          console.error('Error fetching contacts:', error);
+        } finally {
+          if (fetchIdRef.current === id) setLoadingContacts(false);
+        }
+      })();
     }
   }, [authLoading, userProfile, debouncedSearch, filterLinked, filterUnread, filterOrderDaysRange, filterAccountId, filterPlatform]);
 
@@ -272,6 +310,7 @@ function UnifiedChatPageContent() {
       }
       if (showAccountPicker && !target.closest('[data-account-picker]')) {
         setShowAccountPicker(false);
+        setAccountSearch('');
       }
       if (showEmojiPicker && !target.closest('[data-emoji-picker]')) {
         setShowEmojiPicker(false);
@@ -439,8 +478,11 @@ function UnifiedChatPageContent() {
       if (error?.name === 'AbortError') return; // Ignore aborted requests
       console.error('Error fetching contacts:', error);
     } finally {
-      setLoadingContacts(false);
-      setLoadingMoreContacts(false);
+      // Only update loading state if this is still the active request
+      if (fetchContactsRef.current === controller) {
+        setLoadingContacts(false);
+        setLoadingMoreContacts(false);
+      }
     }
   };
 
@@ -660,10 +702,133 @@ function UnifiedChatPageContent() {
     }
   };
 
+  // Auto-create customer from delivery info (or contact name) + link to contact + update order
+  const autoCreateAndLinkCustomerRef = useRef(false);
+  const autoCreateAndLinkCustomer = async (orderId: string, deliveryInfo?: { name?: string; phone?: string; email?: string }) => {
+    if (!selectedContact) return;
+    // Guard: prevent duplicate calls (e.g. rapid bill creation for same contact)
+    if (autoCreateAndLinkCustomerRef.current) return;
+    if (selectedContact.customer_id) {
+      // Already linked — just update order with existing customer_id
+      await apiFetch('/api/orders', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: orderId, customer_id: selectedContact.customer_id }) });
+      return;
+    }
+    autoCreateAndLinkCustomerRef.current = true;
+    const contactId = selectedContact.id;
+    const contactPlatform = selectedContact.platform;
+    const customerName = deliveryInfo?.name || selectedContact.display_name;
+    if (!customerName) { autoCreateAndLinkCustomerRef.current = false; return; }
+    try {
+      // 1. Create customer
+      const custRes = await apiFetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: customerName,
+          phone: deliveryInfo?.phone || null,
+          email: deliveryInfo?.email || null,
+          customer_type: 'retail',
+        })
+      });
+      if (!custRes.ok) return;
+      const custResult = await custRes.json();
+      const newCustomer = custResult.customer || custResult;
+      const customerId = newCustomer.id;
+      if (!customerId) return;
+
+      // 2. Link contact to new customer in DB
+      const linkRes = await apiFetch('/api/chat/contacts', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: contactId, platform: contactPlatform, customer_id: customerId })
+      });
+      if (!linkRes.ok) return;
+
+      // 3. Update local state with customer info from create response
+      const customerInfo = { id: customerId, name: newCustomer.name || customerName, customer_code: newCustomer.customer_code || '' };
+      setSelectedContact(prev => prev && prev.id === contactId ? {
+        ...prev, customer_id: customerId, customer: customerInfo
+      } : prev);
+      setContacts(prev => prev.map(c => c.id === contactId ? {
+        ...c, customer_id: customerId, customer: customerInfo
+      } : c));
+
+      // 4. Update order with new customer_id
+      await apiFetch('/api/orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: orderId, customer_id: customerId })
+      });
+
+      // 5. Re-fetch contacts from DB to ensure UI is in sync
+      // (realtime subscription may have already fetched stale data before the link was saved)
+      const refreshRes = await apiFetch(`/api/chat/contacts?limit=30&offset=0`);
+      if (refreshRes.ok) {
+        const refreshResult = await refreshRes.json();
+        const refreshedContacts = refreshResult.contacts || [];
+        setContacts(refreshedContacts);
+        // Also update selectedContact with the fresh linked data
+        const updated = refreshedContacts.find((c: UnifiedContact) => c.id === contactId);
+        if (updated) setSelectedContact(updated);
+      }
+    } catch (error) {
+      console.error('Error auto-creating customer:', error);
+    } finally {
+      autoCreateAndLinkCustomerRef.current = false;
+    }
+  };
+
   const handleOpenEditCustomer = () => {
     setEditCustomerError('');
     if (window.innerWidth < 768) setMobileView('edit-customer');
     else setRightPanel('edit-customer');
+  };
+
+  // Unlink customer from contact (ไม่ลบ customer)
+  const handleUnlinkCustomer = async () => {
+    if (!selectedContact?.customer) return;
+    if (!confirm('ยกเลิกการเชื่อมต่อลูกค้าจาก contact นี้?')) return;
+
+    try {
+      const res = await apiFetch('/api/chat/contacts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedContact.id, platform: selectedContact.platform, customer_id: null })
+      });
+      if (!res.ok) throw new Error('Failed to unlink');
+
+      setSelectedContact(prev => prev ? { ...prev, customer_id: undefined, customer: undefined } : null);
+      setContacts(prev => prev.map(c =>
+        c.id === selectedContact.id ? { ...c, customer_id: undefined, customer: undefined } : c
+      ));
+      setRightPanel(null);
+      setMobileView('chat');
+      showToast('ยกเลิกการเชื่อมต่อลูกค้าแล้ว');
+    } catch (error) {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    }
+  };
+
+  // Hard delete customer + unlink
+  const handleDeleteCustomer = async () => {
+    if (!selectedContact?.customer) return;
+    if (!confirm(`ลบลูกค้า "${selectedContact.customer.name}" ถาวร?\n\n- ที่อยู่จัดส่งจะถูกลบ\n- ออเดอร์จะถูก unlink\n- contact จะกลับเป็นสถานะไม่มีลูกค้า`)) return;
+
+    try {
+      const res = await apiFetch(`/api/customers?id=${selectedContact.customer.id}&hard=true`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) throw new Error('Failed to delete');
+
+      setSelectedContact(prev => prev ? { ...prev, customer_id: undefined, customer: undefined } : null);
+      setContacts(prev => prev.map(c =>
+        c.id === selectedContact.id ? { ...c, customer_id: undefined, customer: undefined } : c
+      ));
+      setRightPanel(null);
+      setMobileView('chat');
+      showToast('ลบลูกค้าแล้ว');
+    } catch (error) {
+      showToast('เกิดข้อผิดพลาดในการลบ', 'error');
+    }
   };
 
   const handleUpdateCustomerInChat = async (formData: CustomerFormData) => {
@@ -685,8 +850,8 @@ function UnifiedChatPageContent() {
         tax_id: formData.needs_tax_invoice ? formData.tax_id : '',
         tax_company_name: formData.needs_tax_invoice ? formData.tax_company_name : '',
         tax_branch: formData.needs_tax_invoice ? formData.tax_branch : '',
-        address: billingAddress, district: billingDistrict, amphoe: billingAmphoe,
-        province: billingProvince, postal_code: billingPostalCode
+        tax_address: billingAddress, tax_district: billingDistrict, tax_amphoe: billingAmphoe,
+        tax_province: billingProvince, tax_postal_code: billingPostalCode
       };
 
       const response = await apiFetch('/api/customers', {
@@ -698,8 +863,8 @@ function UnifiedChatPageContent() {
         ...selectedContact.customer, name: formData.name, contact_person: formData.contact_person,
         phone: formData.phone, email: formData.email,
         customer_type: formData.customer_type as 'retail' | 'wholesale' | 'distributor',
-        address: billingAddress, district: billingDistrict, amphoe: billingAmphoe,
-        province: billingProvince, postal_code: billingPostalCode,
+        tax_address: billingAddress, tax_district: billingDistrict, tax_amphoe: billingAmphoe,
+        tax_province: billingProvince, tax_postal_code: billingPostalCode,
         tax_id: formData.needs_tax_invoice ? formData.tax_id : '',
         tax_company_name: formData.needs_tax_invoice ? formData.tax_company_name : '',
         tax_branch: formData.needs_tax_invoice ? formData.tax_branch : '',
@@ -761,16 +926,21 @@ function UnifiedChatPageContent() {
             <span className="font-medium text-gray-900 dark:text-white">{order.order_number}</span>
             {order.order_date && (<p className="text-xs text-gray-400 mt-0.5">เปิดบิล {new Date(order.created_at || order.order_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} {order.created_at && new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</p>)}
           </div>
-          <span className={`px-2 py-0.5 text-xs rounded-full ${orderStatus === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : orderStatus === 'new' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : orderStatus === 'shipping' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' : orderStatus === 'cancelled' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'}`}>
-            {orderStatus === 'completed' ? 'เสร็จสิ้น' : orderStatus === 'new' ? 'ใหม่' : orderStatus === 'shipping' ? 'กำลังส่ง' : orderStatus === 'cancelled' ? 'ยกเลิก' : orderStatus}
-          </span>
+          <div className="flex items-center gap-1">
+            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${orderStatus === 'completed' ? 'bg-green-100 text-green-700' : orderStatus === 'new' ? 'bg-blue-100 text-blue-700' : orderStatus === 'shipping' ? 'bg-yellow-100 text-yellow-700' : orderStatus === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
+              {orderStatus === 'completed' ? 'สำเร็จ' : orderStatus === 'new' ? 'ใหม่' : orderStatus === 'shipping' ? 'กำลังส่ง' : orderStatus === 'cancelled' ? 'ยกเลิก' : orderStatus}
+            </span>
+            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${order.payment_status === 'paid' ? 'bg-green-100 text-green-700' : order.payment_status === 'verifying' ? 'bg-purple-100 text-purple-700' : order.payment_status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+              {order.payment_status === 'paid' ? 'ชำระแล้ว' : order.payment_status === 'verifying' ? 'รอตรวจสอบ' : order.payment_status === 'cancelled' ? 'ยกเลิก' : 'รอชำระ'}
+            </span>
+          </div>
         </div>
         {order.branch_names && order.branch_names.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-1.5">{order.branch_names.map((name: string, idx: number) => (<span key={idx} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">{name}</span>))}</div>
+          <div className="flex flex-wrap gap-1 mb-1.5">{order.branch_names.map((name: string, idx: number) => (<span key={idx} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">{name}</span>))}</div>
         )}
         <div className="text-sm text-gray-500 dark:text-slate-400">
           <div className="flex items-center justify-between">
-            <span>{order.delivery_date ? `จัดส่ง ${new Date(order.delivery_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}` : 'ยังไม่กำหนดจัดส่ง'}</span>
+            <span>{order.delivery_date ? `จัดส่ง ${new Date(order.delivery_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}` : ''}</span>
             <span className="font-medium text-gray-900 dark:text-white">฿{formatPrice(order.total_amount)}</span>
           </div>
         </div>
@@ -789,7 +959,7 @@ function UnifiedChatPageContent() {
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{c.name}</h3>
           <p className="text-sm text-gray-500 dark:text-slate-400">{c.customer_code}</p>
           <span className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium ${c.customer_type === 'retail' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400' : c.customer_type === 'wholesale' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400' : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'}`}>
-            {c.customer_type === 'retail' ? 'ขายปลีก' : c.customer_type === 'wholesale' ? 'ขายส่ง' : 'ตัวแทนจำหน่าย'}
+            {c.customer_type === 'retail' ? 'ลูกค้าปลีก' : c.customer_type === 'wholesale' ? 'ลูกค้าส่ง' : 'ตัวแทนจำหน่าย'}
           </span>
         </div>
         <div className="space-y-3">
@@ -843,7 +1013,7 @@ function UnifiedChatPageContent() {
           {c.phone && (<div><label className="text-xs text-gray-500 dark:text-slate-400">เบอร์โทร</label><a href={`tel:${c.phone}`} className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{c.phone}</a></div>)}
           {c.email && (<div><label className="text-xs text-gray-500 dark:text-slate-400">อีเมล</label><p className="text-sm font-medium text-gray-900 dark:text-white">{c.email}</p></div>)}
         </div>
-        {(c.address || c.province) && (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">ที่อยู่ออกบิล</label><p className="text-sm text-gray-900 dark:text-white">{[c.address, c.district, c.amphoe, c.province, c.postal_code].filter(Boolean).join(' ')}</p></div>)}
+        {(c.tax_address || c.tax_province) && (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">ที่อยู่ออกบิล</label><p className="text-sm text-gray-900 dark:text-white">{[c.tax_address, c.tax_district, c.tax_amphoe, c.tax_province, c.tax_postal_code].filter(Boolean).join(' ')}</p></div>)}
         {c.tax_id && (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">ข้อมูลใบกำกับภาษี</label>{c.tax_company_name && <p className="text-sm font-medium text-gray-900 dark:text-white">{c.tax_company_name}</p>}<p className="text-sm text-gray-600 dark:text-slate-400">เลขผู้เสียภาษี: {c.tax_id}</p>{c.tax_branch && <p className="text-sm text-gray-600 dark:text-slate-400">สาขา: {c.tax_branch}</p>}</div>)}
         {(c.credit_limit || c.credit_days) ? (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">เงื่อนไขเครดิต</label><div className="flex gap-4 mt-1">{c.credit_limit ? <div><span className="text-xs text-gray-500 dark:text-slate-400">วงเงิน</span><p className="text-sm font-medium text-gray-900 dark:text-white">฿{formatPrice(c.credit_limit)}</p></div> : null}{c.credit_days ? <div><span className="text-xs text-gray-500 dark:text-slate-400">ระยะเวลา</span><p className="text-sm font-medium text-gray-900 dark:text-white">{c.credit_days} วัน</p></div> : null}</div></div>) : null}
         {c.notes && (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">หมายเหตุ</label><p className="text-sm text-gray-900 whitespace-pre-wrap">{c.notes}</p></div>)}
@@ -860,9 +1030,9 @@ function UnifiedChatPageContent() {
     is_active: selectedContact.customer.is_active ?? true, notes: selectedContact.customer.notes || '',
     needs_tax_invoice: !!selectedContact.customer.tax_id, tax_id: selectedContact.customer.tax_id || '',
     tax_company_name: selectedContact.customer.tax_company_name || '', tax_branch: selectedContact.customer.tax_branch || 'สำนักงานใหญ่',
-    billing_address: selectedContact.customer.address || '', billing_district: selectedContact.customer.district || '',
-    billing_amphoe: selectedContact.customer.amphoe || '', billing_province: selectedContact.customer.province || '',
-    billing_postal_code: selectedContact.customer.postal_code || '', billing_same_as_shipping: false
+    billing_address: selectedContact.customer.tax_address || '', billing_district: selectedContact.customer.tax_district || '',
+    billing_amphoe: selectedContact.customer.tax_amphoe || '', billing_province: selectedContact.customer.tax_province || '',
+    billing_postal_code: selectedContact.customer.tax_postal_code || '', billing_same_as_shipping: false
   } : undefined;
 
   return (
@@ -885,17 +1055,20 @@ function UnifiedChatPageContent() {
                 {(() => {
                   const selectedAccount = filterAccountId ? chatAccounts.find(a => a.id === filterAccountId) : null;
                   const selectedPic = selectedAccount ? getAccountPicture(selectedAccount) : null;
+                  const filteredAccounts = accountSearch ? chatAccounts.filter(a => a.account_name.toLowerCase().includes(accountSearch.toLowerCase())) : chatAccounts;
 
                   return (
                     <>
-                      <button onClick={() => setShowAccountPicker(!showAccountPicker)}
+                      <button onClick={() => { setShowAccountPicker(!showAccountPicker); if (showAccountPicker) setAccountSearch(''); }}
                         className="w-full h-[38px] flex items-center gap-2 px-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
                         {selectedAccount ? (
                           <>
                             {selectedPic ? (
                               <Image src={selectedPic} alt={selectedAccount.account_name} width={20} height={20} className="w-5 h-5 rounded-full object-cover flex-shrink-0" unoptimized />
                             ) : (
-                              <span className="flex-shrink-0">{selectedAccount.platform === 'line' ? <LineIcon size={20} /> : <FbIcon size={20} />}</span>
+                              <span className="flex-shrink-0 flex items-center gap-0.5">
+                                {selectedAccount.platform === 'line' ? <LineIcon size={20} /> : <><FbIcon size={20} /><IgIcon size={14} /></>}
+                              </span>
                             )}
                             <span className="flex-1 text-left text-gray-900 dark:text-white truncate text-sm">{selectedAccount.account_name}</span>
                           </>
@@ -909,30 +1082,41 @@ function UnifiedChatPageContent() {
                         )}
                       </button>
                       {showAccountPicker && (
-                        <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50 py-1 max-h-60 overflow-y-auto" style={{ width: 'min(calc(100vw - 2rem), 288px)' }}>
-                          <button onClick={() => { setFilterPlatform('all'); setFilterAccountId(''); setShowAccountPicker(false); }}
-                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${!filterAccountId && filterPlatform === 'all' ? 'bg-gray-50 dark:bg-slate-700' : ''}`}>
-                            <MessageCircle className="w-5 h-5 text-gray-400" />
-                            <span className="text-gray-900 dark:text-white">ทุกช่องทาง</span>
-                            {!filterAccountId && filterPlatform === 'all' && <Check className="w-4 h-4 text-[#F4511E] ml-auto" />}
-                          </button>
-                          {chatAccounts.map(acc => {
-                            const pic = getAccountPicture(acc);
-                            const isActive = filterAccountId === acc.id;
-                            return (
-                              <button key={acc.id} onClick={() => { setFilterAccountId(acc.id); setFilterPlatform('all'); setShowAccountPicker(false); }}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${isActive ? 'bg-gray-50 dark:bg-slate-700' : ''}`}>
-                                {pic ? (
-                                  <Image src={pic} alt={acc.account_name} width={20} height={20} className="w-5 h-5 rounded-full object-cover" unoptimized />
-                                ) : (
-                                  acc.platform === 'line' ? <LineIcon size={20} /> : <FbIcon size={20} />
-                                )}
-                                <span className="text-gray-900 dark:text-white truncate flex-1 text-left">{acc.account_name}</span>
-                                {acc.platform === 'line' ? <LineIcon size={20} /> : <FbIcon size={20} />}
-                                {isActive && <Check className="w-4 h-4 text-[#F4511E] flex-shrink-0" />}
+                        <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50 max-h-60 overflow-hidden flex flex-col" style={{ width: 'min(calc(100vw - 2rem), 288px)' }}>
+                          <div className="p-2 border-b border-gray-100 dark:border-slate-700">
+                            <input type="text" value={accountSearch} onChange={e => setAccountSearch(e.target.value)} placeholder="ค้นหาบัญชี..." autoFocus
+                              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#F4511E]" />
+                          </div>
+                          <div className="overflow-y-auto py-1">
+                            {!accountSearch && (
+                              <button onClick={() => { setFilterPlatform('all'); setFilterAccountId(''); setShowAccountPicker(false); setAccountSearch(''); }}
+                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${!filterAccountId && filterPlatform === 'all' ? 'bg-gray-50 dark:bg-slate-700' : ''}`}>
+                                <MessageCircle className="w-5 h-5 text-gray-400" />
+                                <span className="text-gray-900 dark:text-white">ทุกช่องทาง</span>
+                                {!filterAccountId && filterPlatform === 'all' && <Check className="w-4 h-4 text-[#F4511E] ml-auto" />}
                               </button>
-                            );
-                          })}
+                            )}
+                            {filteredAccounts.map(acc => {
+                              const pic = getAccountPicture(acc);
+                              const isActive = filterAccountId === acc.id;
+                              return (
+                                <button key={acc.id} onClick={() => { setFilterAccountId(acc.id); setFilterPlatform('all'); setShowAccountPicker(false); setAccountSearch(''); }}
+                                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${isActive ? 'bg-gray-50 dark:bg-slate-700' : ''}`}>
+                                  {pic ? (
+                                    <Image src={pic} alt={acc.account_name} width={20} height={20} className="w-5 h-5 rounded-full object-cover" unoptimized />
+                                  ) : (
+                                    acc.platform === 'line' ? <LineIcon size={20} /> : <FbIcon size={20} />
+                                  )}
+                                  <span className="text-gray-900 dark:text-white truncate flex-1 text-left">{acc.account_name}</span>
+                                  {acc.platform === 'line' ? <LineIcon size={16} /> : <span className="flex items-center gap-0.5"><FbIcon size={16} /><IgIcon size={14} /></span>}
+                                  {isActive && <Check className="w-4 h-4 text-[#F4511E] flex-shrink-0" />}
+                                </button>
+                              );
+                            })}
+                            {filteredAccounts.length === 0 && (
+                              <div className="px-3 py-2 text-sm text-gray-400 dark:text-slate-500 text-center">ไม่พบบัญชี</div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </>
@@ -943,6 +1127,13 @@ function UnifiedChatPageContent() {
                 className={`h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${sortMode === 'unread' ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`} title={sortMode === 'time' ? 'เรียงตามเวลา (กดเพื่อเรียงยังไม่อ่านก่อน)' : 'เรียงยังไม่อ่านก่อน (กดเพื่อเรียงตามเวลา)'}>
                 <ArrowUpDown className="w-4 h-4" />
               </button>
+              <button onClick={() => setFilterUnread(!filterUnread)}
+                className={`relative h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${filterUnread ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`} title="เฉพาะยังไม่อ่าน">
+                <MessageCircle className="w-4 h-4" />
+                {totalUnread > 0 && !filterUnread && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-0.5">{totalUnread > 9 ? '9+' : totalUnread}</span>
+                )}
+              </button>
               <div className="relative h-[38px]" data-filter-popover>
                 <button onClick={() => setShowFilterPopover(!showFilterPopover)}
                   className={`h-full w-[38px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-[#F4511E] border-[#F4511E] text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`} title="กรองรายชื่อ">
@@ -952,20 +1143,15 @@ function UnifiedChatPageContent() {
                   <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
                     <div className="p-3 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
                       <span className="font-medium text-gray-900 dark:text-white">กรองรายชื่อ</span>
-                      {hasActiveFilter && (<button onClick={() => { setFilterLinked('all'); setFilterUnread(false); setFilterOrderDaysRange(null); }} className="text-xs text-red-500 hover:text-red-600">ล้างทั้งหมด</button>)}
+                      {hasActiveFilter && (<button onClick={() => { setFilterLinked('all'); setFilterOrderDaysRange(null); }} className="text-xs text-red-500 hover:text-red-600">ล้างทั้งหมด</button>)}
                     </div>
                     <div className="p-3 space-y-4">
                       <div>
-                        <label className="text-xs font-medium text-gray-600 dark:text-slate-400 mb-2 block">สถานะเชื่อมลูกค้า</label>
+                        <label className="text-xs font-medium text-gray-600 dark:text-slate-400 mb-2 block">สถานะลูกค้า</label>
                         <div className="flex gap-2">
-                          <button onClick={() => setFilterLinked('all')} className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ทั้งหมด"><User className="w-4 h-4" /></button>
-                          <button onClick={() => setFilterLinked('linked')} className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'linked' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="เชื่อมลูกค้าแล้ว"><UserCheck className="w-4 h-4" /></button>
-                          <button onClick={() => { setFilterLinked('unlinked'); setFilterOrderDaysRange(null); }} className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'unlinked' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ยังไม่เชื่อมลูกค้า"><UserX className="w-4 h-4" /></button>
+                          <button onClick={() => setFilterLinked(filterLinked === 'linked' ? 'all' : 'linked')} className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'linked' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ลูกค้า"><UserCheck className="w-4 h-4" /><span>ลูกค้า</span></button>
+                          <button onClick={() => { const next = filterLinked === 'unlinked' ? 'all' : 'unlinked'; setFilterLinked(next); if (next === 'unlinked') setFilterOrderDaysRange(null); }} className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'unlinked' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ไม่เป็นลูกค้า"><UserX className="w-4 h-4" /><span>ไม่เป็นลูกค้า</span></button>
                         </div>
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-600 dark:text-slate-400 mb-2 block">ข้อความใหม่</label>
-                        <button onClick={() => setFilterUnread(!filterUnread)} className={`px-3 py-2 rounded-lg transition-colors flex items-center justify-center ${filterUnread ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="เฉพาะข้อความที่ยังไม่อ่าน"><Bell className="w-4 h-4" /></button>
                       </div>
                       {dayRanges.length > 0 && (
                         <div>
@@ -1007,9 +1193,9 @@ function UnifiedChatPageContent() {
             {/* Active filters display */}
             {hasActiveFilter && (
               <div className="flex flex-wrap gap-1 mt-2">
-                {filterLinked === 'linked' && !filterOrderDaysRange && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full"><UserCheck className="w-3 h-3" />เชื่อมลูกค้าแล้ว<button onClick={() => setFilterLinked('all')} className="ml-1 hover:text-blue-900"><X className="w-3 h-3" /></button></span>)}
-                {filterLinked === 'unlinked' && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full"><UserX className="w-3 h-3" />ยังไม่เชื่อมลูกค้า<button onClick={() => setFilterLinked('all')} className="ml-1 hover:text-orange-900"><X className="w-3 h-3" /></button></span>)}
-                {filterUnread && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full"><Bell className="w-3 h-3" />ยังไม่อ่าน<button onClick={() => setFilterUnread(false)} className="ml-1 hover:text-red-900"><X className="w-3 h-3" /></button></span>)}
+                {filterLinked === 'linked' && !filterOrderDaysRange && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full"><UserCheck className="w-3 h-3" />ลูกค้า<button onClick={() => setFilterLinked('all')} className="ml-1 hover:text-blue-900"><X className="w-3 h-3" /></button></span>)}
+                {filterLinked === 'unlinked' && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full"><UserX className="w-3 h-3" />ไม่เป็นลูกค้า<button onClick={() => setFilterLinked('all')} className="ml-1 hover:text-orange-900"><X className="w-3 h-3" /></button></span>)}
+
                 {filterOrderDaysRange !== null && (<span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${filterOrderDaysRange.min >= 7 ? 'bg-red-100 text-red-700' : filterOrderDaysRange.min >= 5 ? 'bg-orange-100 text-orange-700' : filterOrderDaysRange.min >= 3 ? 'bg-amber-100 text-amber-700' : 'bg-yellow-100 text-yellow-700'}`}><Clock className="w-3 h-3" />ไม่สั่ง {filterOrderDaysRange.max === null ? `${filterOrderDaysRange.min}+ วัน` : `${filterOrderDaysRange.min}-${filterOrderDaysRange.max} วัน`}<button onClick={() => { setFilterOrderDaysRange(null); setFilterLinked('all'); }} className="ml-1 hover:opacity-70"><X className="w-3 h-3" /></button></span>)}
               </div>
             )}
@@ -1113,12 +1299,12 @@ function UnifiedChatPageContent() {
                       <PlatformIcon contact={selectedContact} size={16} />
                       {selectedContact.display_name}
                     </h3>
-                    {selectedContact.account_name && (<p className="text-[10px] text-gray-400">{selectedContact.account_name}</p>)}
+                    {selectedContact.account_name && (<p className="text-[10px] text-gray-400 max-w-[200px] truncate">{selectedContact.account_name}</p>)}
                     {selectedContact.customer ? (
                       <div className="flex flex-col">
                         <p className="text-xs" style={{ color: platformColor }}>{selectedContact.customer.name}</p>
                         <p className="text-[10px] text-gray-500 dark:text-slate-400">
-                          {selectedContact.last_order_date ? (<>ล่าสุด {new Date(selectedContact.last_order_created_at || selectedContact.last_order_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} {selectedContact.last_order_created_at && new Date(selectedContact.last_order_created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</>) : (<span className="text-orange-500">ยังไม่เคยสั่ง</span>)}
+                          {selectedContact.last_order_date ? (<>สั่งล่าสุด: {new Date(selectedContact.last_order_created_at || selectedContact.last_order_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} {selectedContact.last_order_created_at && new Date(selectedContact.last_order_created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</>) : (<span className="text-orange-500">ยังไม่เคยสั่ง</span>)}
                         </p>
                         {selectedContact.avg_order_frequency != null && (<p className="text-[10px] text-gray-400 dark:text-slate-500">{selectedContact.avg_order_frequency <= 1 ? 'สั่งทุกวัน' : `~${selectedContact.avg_order_frequency} วัน/ออเดอร์`}</p>)}
                       </div>
@@ -1274,7 +1460,7 @@ function UnifiedChatPageContent() {
         {mobileView === 'history' && selectedContact?.customer && (
           <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><History className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติออเดอร์</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code} - {selectedContact.customer.name}</p></div></div>
+              <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><History className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติออเดอร์</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p></div></div>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {loadingHistory ? (<div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>) : orderHistory.length === 0 ? (<div className="text-center py-8 text-gray-500 dark:text-slate-400"><History className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีประวัติออเดอร์</p></div>) : (<div className="space-y-3">{orderHistory.map(renderOrderCard)}</div>)}
@@ -1292,9 +1478,12 @@ function UnifiedChatPageContent() {
             <div className="flex-1 overflow-y-auto p-4">
               {renderCustomerProfile()}
               <div className="mt-4 space-y-2">
-                <button onClick={() => setRightPanel('order')} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
+                <button onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
                 <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
-                <button onClick={() => { if (confirm(`ยกเลิกการเชื่อม "${selectedContact.display_name}" กับ "${selectedContact.customer!.name}" ?`)) { linkCustomer(null); setMobileView('chat'); } }} className="w-full py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-sm transition-colors">ยกเลิกการเชื่อม</button>
+                <div className="flex gap-2 pt-2">
+                  <button onClick={handleUnlinkCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Unlink className="w-3.5 h-3.5" />ยกเลิกเชื่อมต่อ</button>
+                  <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />ลบลูกค้า</button>
+                </div>
               </div>
             </div>
           </div>
@@ -1314,9 +1503,13 @@ function UnifiedChatPageContent() {
         {mobileView === 'order-detail' && selectedOrderId && (
           <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              <div className="flex items-center gap-3"><button onClick={() => setMobileView('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><FileText className="w-5 h-5 text-blue-500" /><h2 className="text-lg font-semibold text-gray-900 dark:text-white">รายละเอียดออเดอร์</h2></div>
+              <div className="flex items-center gap-3"><button onClick={() => setMobileView('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><FileText className="w-5 h-5 text-blue-500" /><div><div className="flex items-center gap-1.5 flex-wrap"><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{orderHistory.find(o => o.id === selectedOrderId)?.order_number || 'รายละเอียดออเดอร์'}</h2>{(() => { const o = orderHistory.find(o => o.id === selectedOrderId); if (!o) return null; const s = o.order_status || o.status; const p = o.payment_status; return (<><span className={`px-2 py-0.5 text-xs font-medium rounded-full ${s === 'completed' ? 'bg-green-100 text-green-700' : s === 'new' ? 'bg-blue-100 text-blue-700' : s === 'shipping' ? 'bg-yellow-100 text-yellow-700' : s === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>{s === 'completed' ? 'สำเร็จ' : s === 'new' ? 'ใหม่' : s === 'shipping' ? 'กำลังส่ง' : s === 'cancelled' ? 'ยกเลิก' : s}</span><span className={`px-2 py-0.5 text-xs font-medium rounded-full ${p === 'paid' ? 'bg-green-100 text-green-700' : p === 'verifying' ? 'bg-purple-100 text-purple-700' : p === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>{p === 'paid' ? 'ชำระแล้ว' : p === 'verifying' ? 'รอตรวจสอบ' : p === 'cancelled' ? 'ยกเลิก' : 'รอชำระ'}</span></>); })()}</div>{selectedContact?.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p>}</div></div>
+              <div className="flex items-center gap-2">
+                <div ref={headerActionsRef} />
+                <div ref={warehousePortalRef} />
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><OrderForm key={`mobile-${selectedOrderId}`} editOrderId={selectedOrderId} embedded={true} onSuccess={() => { setMobileView('history'); showToast('บันทึกการแก้ไขสำเร็จ!'); if (selectedContact?.customer) fetchOrderHistory(selectedContact.customer.id); }} onCancel={() => setMobileView('history')} /></div>
+            <div className="flex-1 overflow-y-auto p-4"><OrderForm key={`mobile-${selectedOrderId}`} editOrderId={selectedOrderId} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} onSuccess={() => { setMobileView('history'); showToast('บันทึกการแก้ไขสำเร็จ!'); if (selectedContact?.customer) fetchOrderHistory(selectedContact.customer.id); }} onCancel={() => setMobileView('history')} /></div>
           </div>
         )}
 
@@ -1326,21 +1519,22 @@ function UnifiedChatPageContent() {
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3">
                 <button onClick={() => setRightPanel(null)} className="p-1 -ml-1 text-gray-500 hover:text-gray-700 md:hidden"><ChevronLeft className="w-6 h-6" /></button>
-                <ShoppingCart className="w-5 h-5 text-[#F4511E]" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer ? `${selectedContact.customer.customer_code} - ${selectedContact.customer.name}` : `${selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}: ${selectedContact.display_name}`}</p></div>
+                <ShoppingCart className="w-5 h-5 text-[#F4511E]" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer ? selectedContact.customer.name : `${selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}: ${selectedContact.display_name}`}</p></div>
               </div>
               <div className="flex items-center gap-2">
+                <div ref={headerActionsRef} />
                 <div ref={warehousePortalRef} />
                 <button onClick={() => setRightPanel(null)} className="hidden md:block p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><OrderForm {...(selectedContact.customer ? { preselectedCustomerId: selectedContact.customer.id } : {})} embedded={true} warehousePortalRef={warehousePortalRef} onSuccess={() => { setRightPanel(null); showToast('สร้างคำสั่งซื้อสำเร็จ!'); }} onSendBillToChat={sendBillToCustomer} onCancel={() => setRightPanel(null)} /></div>
+            <div className="flex-1 overflow-y-auto p-4"><OrderForm key={orderFormKey} {...(selectedContact.customer ? { preselectedCustomerId: selectedContact.customer.id } : {})} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} onSuccess={(orderId, customerId, deliveryInfo) => { setRightPanel(null); if (customerId && selectedContact && !selectedContact.customer_id) { linkCustomer(customerId); } else if (!customerId && selectedContact && !selectedContact.customer_id) { autoCreateAndLinkCustomer(orderId, deliveryInfo); } }} onSendBillToChat={sendBillToCustomer} onCancel={() => setRightPanel(null)} /></div>
           </div>
         )}
 
         {rightPanel === 'history' && selectedContact?.customer && (
           <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
-              <div className="flex items-center gap-3"><History className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติออเดอร์</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code} - {selectedContact.customer.name}</p></div></div>
+              <div className="flex items-center gap-3"><History className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติออเดอร์</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p></div></div>
               <button onClick={() => setRightPanel(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
@@ -1361,9 +1555,12 @@ function UnifiedChatPageContent() {
             <div className="flex-1 overflow-y-auto p-4">
               {renderCustomerProfile()}
               <div className="mt-4 space-y-2">
-                <button onClick={() => setRightPanel('order')} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
+                <button onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
                 <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
-                <button onClick={() => { if (confirm(`ยกเลิกการเชื่อม "${selectedContact.display_name}" กับ "${selectedContact.customer!.name}" ?`)) { linkCustomer(null); setRightPanel(null); } }} className="w-full py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-sm transition-colors">ยกเลิกการเชื่อม</button>
+                <div className="flex gap-2 pt-2">
+                  <button onClick={handleUnlinkCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Unlink className="w-3.5 h-3.5" />ยกเลิกเชื่อมต่อ</button>
+                  <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />ลบลูกค้า</button>
+                </div>
               </div>
             </div>
           </div>
@@ -1380,12 +1577,16 @@ function UnifiedChatPageContent() {
         )}
 
         {rightPanel === 'order-detail' && selectedOrderId && (
-          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
+          <div className="flex w-full md:w-auto md:flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 absolute inset-0 md:static md:inset-auto z-10">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
-              <div className="flex items-center gap-3"><button onClick={() => setRightPanel('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-5 h-5" /></button><FileText className="w-5 h-5 text-blue-500" /><h2 className="text-lg font-semibold text-gray-900 dark:text-white">รายละเอียดออเดอร์</h2></div>
-              <button onClick={() => setRightPanel(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
+              <div className="flex items-center gap-3"><button onClick={() => setRightPanel('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-5 h-5" /></button><FileText className="w-5 h-5 text-blue-500" /><div><div className="flex items-center gap-1.5 flex-wrap"><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{orderHistory.find(o => o.id === selectedOrderId)?.order_number || 'รายละเอียดออเดอร์'}</h2>{(() => { const o = orderHistory.find(o => o.id === selectedOrderId); if (!o) return null; const s = o.order_status || o.status; const p = o.payment_status; return (<><span className={`px-2 py-0.5 text-xs font-medium rounded-full ${s === 'completed' ? 'bg-green-100 text-green-700' : s === 'new' ? 'bg-blue-100 text-blue-700' : s === 'shipping' ? 'bg-yellow-100 text-yellow-700' : s === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>{s === 'completed' ? 'สำเร็จ' : s === 'new' ? 'ใหม่' : s === 'shipping' ? 'กำลังส่ง' : s === 'cancelled' ? 'ยกเลิก' : s}</span><span className={`px-2 py-0.5 text-xs font-medium rounded-full ${p === 'paid' ? 'bg-green-100 text-green-700' : p === 'verifying' ? 'bg-purple-100 text-purple-700' : p === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>{p === 'paid' ? 'ชำระแล้ว' : p === 'verifying' ? 'รอตรวจสอบ' : p === 'cancelled' ? 'ยกเลิก' : 'รอชำระ'}</span></>); })()}</div>{selectedContact?.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p>}</div></div>
+              <div className="flex items-center gap-2">
+                <div ref={headerActionsRef} />
+                <div ref={warehousePortalRef} />
+                <button onClick={() => setRightPanel(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><OrderForm key={selectedOrderId} editOrderId={selectedOrderId} embedded={true} onSuccess={() => { setRightPanel('history'); showToast('บันทึกการแก้ไขสำเร็จ!'); if (selectedContact?.customer) fetchOrderHistory(selectedContact.customer.id); }} onCancel={() => setRightPanel('history')} /></div>
+            <div className="flex-1 overflow-y-auto p-4"><OrderForm key={selectedOrderId} editOrderId={selectedOrderId} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} onSuccess={() => { setRightPanel('history'); showToast('บันทึกการแก้ไขสำเร็จ!'); if (selectedContact?.customer) fetchOrderHistory(selectedContact.customer.id); }} onCancel={() => setRightPanel('history')} /></div>
           </div>
         )}
       </div>

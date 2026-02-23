@@ -16,11 +16,11 @@ interface Customer {
   contact_person?: string;
   phone?: string;
   email?: string;
-  address?: string;
-  district?: string;
-  amphoe?: string;
-  province?: string;
-  postal_code?: string;
+  tax_address?: string;
+  tax_district?: string;
+  tax_amphoe?: string;
+  tax_province?: string;
+  tax_postal_code?: string;
   tax_id?: string;
   tax_company_name?: string;
   tax_branch?: string;
@@ -205,11 +205,11 @@ export default function EditCustomerPage() {
             tax_id: customer.tax_id || '',
             tax_company_name: customer.tax_company_name || '',
             tax_branch: customer.tax_branch || 'สำนักงานใหญ่',
-            billing_address: customer.address || '',
-            billing_district: customer.district || '',
-            billing_amphoe: customer.amphoe || '',
-            billing_province: customer.province || '',
-            billing_postal_code: customer.postal_code || '',
+            billing_address: customer.tax_address || '',
+            billing_district: customer.tax_district || '',
+            billing_amphoe: customer.tax_amphoe || '',
+            billing_province: customer.tax_province || '',
+            billing_postal_code: customer.tax_postal_code || '',
             billing_same_as_shipping: false
           }}
           onSubmit={handleUpdateCustomer}

@@ -157,14 +157,18 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
                 <span>-฿{formatPrice(data.order.discount_amount)}</span>
               </div>
             )}
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>มูลค่าก่อน VAT</span>
-              <span>฿{formatPrice(data.order.subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>VAT 7%</span>
-              <span>฿{formatPrice(data.order.vat_amount)}</span>
-            </div>
+            {data.order.vat_amount > 0 && (
+              <>
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>มูลค่าก่อน VAT</span>
+                  <span>฿{formatPrice(data.order.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>VAT 7%</span>
+                  <span>฿{formatPrice(data.order.vat_amount)}</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between font-bold text-base pt-1">
               <span>ยอดชำระ</span>
               <span>฿{formatPrice(data.order.total_amount)}</span>

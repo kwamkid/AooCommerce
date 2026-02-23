@@ -70,28 +70,53 @@ export default function NewCustomerPage() {
 
       const newCustomer = await createResponse.json();
 
-      // Create shipping address if provided
-      if (data.shipping_address || data.shipping_province) {
-        const shippingPayload = {
-          customer_id: newCustomer.id,
-          address_name: data.shipping_address_name || 'สาขาหลัก',
-          contact_person: data.shipping_contact_person || data.contact_person,
-          phone: data.shipping_phone || data.phone,
-          address_line1: data.shipping_address,
-          district: data.shipping_district,
-          amphoe: data.shipping_amphoe,
-          province: data.shipping_province,
-          postal_code: data.shipping_postal_code,
-          google_maps_link: data.shipping_google_maps_link,
-          delivery_notes: data.shipping_delivery_notes,
-          is_default: true
-        };
+      const customerId = newCustomer.customer?.id || newCustomer.id;
 
+      // Create primary shipping address if provided
+      if (data.shipping_address || data.shipping_province) {
         await apiFetch('/api/shipping-addresses', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(shippingPayload)
+          body: JSON.stringify({
+            customer_id: customerId,
+            address_name: data.shipping_address_name || 'ที่อยู่หลัก',
+            contact_person: data.shipping_contact_person || data.contact_person,
+            phone: data.shipping_phone || data.phone,
+            address_line1: data.shipping_address,
+            district: data.shipping_district,
+            amphoe: data.shipping_amphoe,
+            province: data.shipping_province,
+            postal_code: data.shipping_postal_code,
+            google_maps_link: data.shipping_google_maps_link,
+            delivery_notes: data.shipping_delivery_notes,
+            is_default: true
+          })
         });
+      }
+
+      // Create additional shipping addresses
+      if (data.additional_addresses?.length) {
+        for (const addr of data.additional_addresses) {
+          if (!addr.address_line1 && !addr.province) continue;
+          await apiFetch('/api/shipping-addresses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              customer_id: customerId,
+              address_name: addr.address_name || 'ที่อยู่เพิ่มเติม',
+              contact_person: addr.contact_person || data.contact_person,
+              phone: addr.phone || data.phone,
+              address_line1: addr.address_line1,
+              district: addr.district,
+              amphoe: addr.amphoe,
+              province: addr.province,
+              postal_code: addr.postal_code,
+              google_maps_link: addr.google_maps_link,
+              delivery_notes: addr.delivery_notes,
+              is_default: false,
+            })
+          });
+        }
       }
 
       showToast('สร้างลูกค้าสำเร็จ');

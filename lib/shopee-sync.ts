@@ -277,6 +277,50 @@ export async function syncOrdersByTimeRange(
   return result;
 }
 
+/**
+ * Sync incomplete orders — re-fetch status for Shopee orders that haven't reached COMPLETED/CANCELLED yet.
+ * This catches orders that were created during early development or missed webhook updates.
+ */
+export async function syncIncompleteOrders(
+  account: ShopeeAccountRow,
+  onProgress?: SyncProgressCallback
+): Promise<SyncResult> {
+  const companyId = account.company_id;
+  console.log(`[Shopee Sync] syncIncompleteOrders: shop_id=${account.shop_id}`);
+
+  // Find orders that are not yet at a terminal state (COMPLETED / CANCELLED)
+  const { data: incompleteOrders, error: fetchError } = await supabaseAdmin
+    .from('orders')
+    .select('external_order_sn')
+    .eq('company_id', companyId)
+    .eq('source', 'shopee')
+    .eq('shopee_account_id', account.id)
+    .not('external_status', 'in', '("COMPLETED","CANCELLED","IN_CANCEL")')
+    .not('external_order_sn', 'is', null)
+    .order('created_at', { ascending: true });
+
+  if (fetchError) {
+    console.error(`[Shopee Sync] Failed to fetch incomplete orders:`, fetchError);
+    return { orders_created: 0, orders_updated: 0, orders_skipped: 0, products_created: 0, customers_created: 0, errors: [fetchError.message] };
+  }
+
+  const orderSns = (incompleteOrders || []).map(o => o.external_order_sn!).filter(Boolean);
+  console.log(`[Shopee Sync] Found ${orderSns.length} incomplete orders to re-sync`);
+
+  if (orderSns.length === 0) {
+    return { orders_created: 0, orders_updated: 0, orders_skipped: 0, products_created: 0, customers_created: 0, errors: [] };
+  }
+
+  onProgress?.({
+    phase: 'collecting',
+    current: orderSns.length,
+    total: null,
+    label: `พบ ${orderSns.length} ออเดอร์ที่ยังไม่สมบูรณ์`,
+  });
+
+  return syncOrdersByOrderSn(account, orderSns, onProgress);
+}
+
 // --- Upsert Logic ---
 
 interface UpsertResult {
@@ -318,6 +362,16 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
         ? (shopeeOrder.actual_shipping_fee || 0)
         : (shopeeOrder.estimated_shipping_fee || 0);
 
+      // Auto-sync fulfillment_status based on Shopee status
+      const fulfillmentUpdate: Record<string, unknown> = {};
+      if (['SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'].includes(shopeeOrder.order_status)) {
+        fulfillmentUpdate.fulfillment_status = 'shipped';
+        fulfillmentUpdate.shipped_at = new Date().toISOString();
+      } else if (['CANCELLED', 'IN_CANCEL'].includes(shopeeOrder.order_status)) {
+        fulfillmentUpdate.fulfillment_status = 'pending';
+        fulfillmentUpdate.hold_reason = null;
+      }
+
       await supabaseAdmin
         .from('orders')
         .update({
@@ -327,6 +381,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
           external_data: shopeeOrder as unknown as Record<string, unknown>,
           shipping_fee: updatedShippingFee,
           updated_at: new Date().toISOString(),
+          ...fulfillmentUpdate,
         })
         .eq('id', existing.id);
 
@@ -352,6 +407,29 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
         fetchAndSaveEscrowDetail(account, shopeeOrder.order_sn, existing.id).catch(err => {
           console.error(`[Shopee Sync] Escrow fetch error for ${shopeeOrder.order_sn}:`, err);
         });
+      }
+    }
+
+    // Repair: if external_status matches but order_status/payment_status is wrong (e.g. from early dev syncs)
+    if (!statusUpdated) {
+      const expectedMapping = mapShopeeStatus(shopeeOrder.order_status);
+      if (existing.order_status !== expectedMapping.order_status) {
+        const repairUpdate: Record<string, unknown> = {
+          order_status: expectedMapping.order_status,
+          payment_status: expectedMapping.payment_status,
+          updated_at: new Date().toISOString(),
+        };
+        // Also fix fulfillment_status if it should be shipped
+        if (['SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'].includes(shopeeOrder.order_status)) {
+          repairUpdate.fulfillment_status = 'shipped';
+          repairUpdate.shipped_at = new Date().toISOString();
+        }
+        await supabaseAdmin
+          .from('orders')
+          .update(repairUpdate)
+          .eq('id', existing.id);
+        console.log(`[Shopee Sync] Repaired order ${shopeeOrder.order_sn}: order_status ${existing.order_status} → ${expectedMapping.order_status}`);
+        statusUpdated = true;
       }
     }
 

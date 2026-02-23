@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
         company:companies (
           id, name, slug, logo_url, description, phone, email, address,
           tax_id, tax_company_name, tax_branch, website, is_active,
+          business_type, vat_registered, settings,
           created_by, created_at, updated_at
         )
       `)
@@ -197,7 +198,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id, name, description, phone, email, address, taxId, taxCompanyName, taxBranch, website } = await request.json();
+    const { id, name, description, phone, email, address, taxId, taxCompanyName, taxBranch, website, businessType, vatRegistered, addressParts } = await request.json();
 
     if (!id) {
       return NextResponse.json({ error: 'Company ID is required' }, { status: 400 });
@@ -216,6 +217,27 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขข้อมูลบริษัท' }, { status: 403 });
     }
 
+    // If addressParts provided, merge into settings JSONB
+    let settingsUpdate = {};
+    if (addressParts) {
+      // Fetch current settings to merge
+      const { data: current } = await supabaseAdmin
+        .from('companies')
+        .select('settings')
+        .eq('id', id)
+        .single();
+      const currentSettings = (current?.settings || {}) as Record<string, unknown>;
+      settingsUpdate = {
+        settings: {
+          ...currentSettings,
+          district: addressParts.district || null,
+          amphoe: addressParts.amphoe || null,
+          province: addressParts.province || null,
+          postal_code: addressParts.postalCode || null,
+        },
+      };
+    }
+
     const { data, error } = await supabaseAdmin
       .from('companies')
       .update({
@@ -228,6 +250,9 @@ export async function PUT(request: NextRequest) {
         tax_company_name: taxCompanyName || null,
         tax_branch: taxBranch || null,
         website: website || null,
+        ...(businessType !== undefined && { business_type: businessType }),
+        ...(vatRegistered !== undefined && { vat_registered: vatRegistered }),
+        ...settingsUpdate,
       })
       .eq('id', id)
       .select()

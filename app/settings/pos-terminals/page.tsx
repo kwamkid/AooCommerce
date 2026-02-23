@@ -10,7 +10,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Plus, Check, X, Edit2, Trash2, Monitor, AlertTriangle, Warehouse,
-  CreditCard, Banknote, Building2, MoreHorizontal, ArrowUp, ArrowDown, Info,
+  CreditCard, Banknote, Building2, MoreHorizontal, ArrowUp, ArrowDown, Info, QrCode,
 } from 'lucide-react';
 
 interface TerminalItem {
@@ -39,6 +39,7 @@ interface PaymentChannelItem {
 }
 
 const CHANNEL_TYPE_OPTIONS = [
+  { value: 'promptpay', label: 'PromptPay', icon: QrCode },
   { value: 'bank_transfer', label: 'โอนเงิน', icon: Building2 },
   { value: 'card_terminal', label: 'บัตรเครดิต/เดบิต', icon: CreditCard },
   { value: 'other', label: 'อื่นๆ', icon: MoreHorizontal },
@@ -46,6 +47,7 @@ const CHANNEL_TYPE_OPTIONS = [
 
 function getChannelIcon(type: string) {
   if (type === 'cash') return Banknote;
+  if (type === 'promptpay') return QrCode;
   if (type === 'card_terminal') return CreditCard;
   if (type === 'bank_transfer') return Building2;
   return MoreHorizontal;
@@ -235,7 +237,7 @@ export default function PosTerminalsPage() {
   };
 
   const resetChannelForm = () => {
-    setChannelType('bank_transfer');
+    setChannelType('promptpay');
     setChannelName('');
     setChannelPromptPayId('');
     setShowChannelForm(false);
@@ -246,7 +248,7 @@ export default function PosTerminalsPage() {
     setEditingChannelId(ch.id);
     setChannelName(ch.name);
     setChannelType(ch.type);
-    setChannelPromptPayId((ch.config?.promptpay_id as string) || '');
+    setChannelPromptPayId(ch.type === 'promptpay' ? ((ch.config?.promptpay_id as string) || '') : '');
     setShowChannelForm(true);
   };
 
@@ -257,7 +259,11 @@ export default function PosTerminalsPage() {
     }
 
     // Validate PromptPay ID format
-    if (channelType === 'bank_transfer' && channelPromptPayId.trim()) {
+    if (channelType === 'promptpay') {
+      if (!channelPromptPayId.trim()) {
+        showToast('กรุณากรอก PromptPay ID', 'error');
+        return;
+      }
       const id = channelPromptPayId.trim().replace(/\D/g, '');
       if (id.length !== 10 && id.length !== 13) {
         showToast('PromptPay ID ต้องเป็นเบอร์โทร (10 หลัก) หรือ เลขบัตรประชาชน/Tax ID (13 หลัก)', 'error');
@@ -268,7 +274,7 @@ export default function PosTerminalsPage() {
     setSavingChannel(true);
     try {
       const config: Record<string, unknown> = {};
-      if (channelType === 'bank_transfer' && channelPromptPayId.trim()) {
+      if (channelType === 'promptpay' && channelPromptPayId.trim()) {
         const cleaned = channelPromptPayId.trim().replace(/\D/g, '');
         config.promptpay_id = cleaned;
       }
@@ -548,8 +554,9 @@ export default function PosTerminalsPage() {
                       const canEdit = ch.type !== 'cash';
                       const isFirst = idx === 0;
                       const isLast = idx === channels.length - 1;
+                      const isEditing = editingChannelId === ch.id && showChannelForm;
                       return (
-                        <div key={ch.id} className="space-y-3">
+                        <div key={ch.id}>
                           <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden ${!ch.is_active ? 'opacity-60' : ''}`}>
                             <div className="flex items-center gap-3 p-4">
                               <div className="flex flex-col flex-shrink-0">
@@ -579,7 +586,7 @@ export default function PosTerminalsPage() {
                                   ) : (
                                     <span className="text-gray-400">ปิดใช้งาน</span>
                                   )}
-                                  {ch.type === 'bank_transfer' && ch.config?.promptpay_id ? (
+                                  {ch.type === 'promptpay' && ch.config?.promptpay_id ? (
                                     <span className="text-blue-500">QR: {String(ch.config.promptpay_id)}</span>
                                   ) : null}
                                 </div>
@@ -588,13 +595,13 @@ export default function PosTerminalsPage() {
                                 <Toggle checked={ch.is_active} onChange={() => handleToggleChannel(ch)} />
                                 {canEdit && (
                                   <button
-                                    onClick={() => startEditChannel(ch)}
-                                    className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+                                    onClick={() => isEditing ? resetChannelForm() : startEditChannel(ch)}
+                                    className={`p-1.5 transition-colors ${isEditing ? 'text-[#F4511E]' : 'text-gray-400 hover:text-blue-600'}`}
                                   >
-                                    <Edit2 className="w-4 h-4" />
+                                    {isEditing ? <X className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
                                   </button>
                                 )}
-                                {canDelete && (
+                                {canDelete && !isEditing && (
                                   <button
                                     onClick={() => {
                                       if (confirm('ลบช่องทางชำระเงินนี้?')) handleDeleteChannel(ch.id);
@@ -607,9 +614,14 @@ export default function PosTerminalsPage() {
                                 )}
                               </div>
                             </div>
-                          </div>
 
-                          {editingChannelId === ch.id && showChannelForm && renderChannelForm()}
+                            {/* Inline edit form (expand inside card) */}
+                            {isEditing && (
+                              <div className="border-t border-gray-100 dark:border-slate-700 p-4">
+                                {renderChannelFormInline()}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -700,6 +712,85 @@ export default function PosTerminalsPage() {
     );
   }
 
+  function renderChannelFormInline() {
+    return (
+      <div className="space-y-3">
+        <div>
+          <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ชื่อช่องทาง *</label>
+          <input
+            type="text"
+            value={channelName}
+            onChange={e => setChannelName(e.target.value)}
+            placeholder="เช่น โอนเงิน, บัตรเครดิต"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+            autoFocus
+          />
+        </div>
+
+        {channelType === 'promptpay' && (
+          <div>
+            <div className="flex items-center gap-1.5 mb-1">
+              <label className="text-sm text-gray-500 dark:text-slate-400">PromptPay ID (QR Code)</label>
+              <div className="relative group">
+                <Info className="w-4 h-4 text-gray-400 dark:text-slate-500 cursor-help" />
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3 bg-gray-900 dark:bg-slate-700 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <p className="font-semibold mb-1.5">วิธีสมัคร PromptPay</p>
+                  <p className="font-medium text-yellow-300 mb-1">บุคคลธรรมดา:</p>
+                  <p className="mb-1.5">ใช้เบอร์โทร (10 หลัก) หรือเลขบัตรประชาชน (13 หลัก) ที่ผูก PromptPay ไว้กับธนาคาร</p>
+                  <p className="font-medium text-yellow-300 mb-1">นิติบุคคล (บริษัท):</p>
+                  <p className="mb-1.5">ใช้เลขประจำตัวผู้เสียภาษี (Tax ID 13 หลัก)</p>
+                  <p className="text-red-300 mt-1">* เลขบัญชีธนาคารใช้ไม่ได้ ต้องเป็นเลขที่ผูก PromptPay แล้วเท่านั้น</p>
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-slate-700"></div>
+                </div>
+              </div>
+            </div>
+            <input
+              type="text"
+              value={channelPromptPayId}
+              onChange={e => {
+                const v = e.target.value.replace(/[^\d-]/g, '');
+                setChannelPromptPayId(v);
+              }}
+              placeholder="เบอร์โทร (10 หลัก) หรือ Tax ID (13 หลัก)"
+              className={`w-full px-3 py-2 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] ${
+                channelPromptPayId.trim() && channelPromptPayId.replace(/\D/g, '').length !== 10 && channelPromptPayId.replace(/\D/g, '').length !== 13
+                  ? 'border-red-400 dark:border-red-500'
+                  : 'border-gray-300 dark:border-slate-600'
+              }`}
+            />
+            {channelPromptPayId.trim() ? (() => {
+              const digits = channelPromptPayId.replace(/\D/g, '').length;
+              if (digits === 10) return <p className="text-xs text-green-500 mt-1">เบอร์โทรศัพท์ (10 หลัก)</p>;
+              if (digits === 13) return <p className="text-xs text-green-500 mt-1">บัตรประชาชน / Tax ID (13 หลัก)</p>;
+              return <p className="text-xs text-red-500 mt-1">PromptPay ID ต้องเป็น 10 หลัก (เบอร์โทร) หรือ 13 หลัก (บัตร ปชช./Tax ID) — ตอนนี้ {digits} หลัก</p>;
+            })() : (
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
+                กรอกเพื่อแสดง QR PromptPay อัตโนมัติตอนชำระเงิน
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={handleSaveChannel}
+            disabled={savingChannel}
+            className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {savingChannel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            บันทึก
+          </button>
+          <button
+            onClick={resetChannelForm}
+            className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
+          >
+            ยกเลิก
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   function renderChannelForm() {
     return (
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
@@ -748,7 +839,7 @@ export default function PosTerminalsPage() {
           />
         </div>
 
-        {channelType === 'bank_transfer' && (
+        {channelType === 'promptpay' && (
           <div>
             <div className="flex items-center gap-1.5 mb-1">
               <label className="text-sm text-gray-500 dark:text-slate-400">PromptPay ID (QR Code)</label>

@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
         delivery_district, delivery_amphoe, delivery_province, delivery_postal_code, delivery_email,
         customer:customers (
           name, contact_person, phone, email,
-          address, district, amphoe, province, postal_code,
+          tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code,
           tax_company_name, tax_id, tax_branch,
           customer_type_new
         )
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     const [companyResult, itemsResult, paymentRecordsResult, paymentChannelsResult] = await Promise.all([
       supabaseAdmin
         .from('companies')
-        .select('name, logo_url')
+        .select('name, logo_url, vat_registered')
         .eq('id', order.company_id)
         .single(),
       supabaseAdmin
@@ -248,8 +248,8 @@ export async function GET(request: NextRequest) {
       return { type: ch.type, name: ch.name, config: { description: cfg.description } };
     }).filter(Boolean);
 
-    // Build customer info: from joined customer or from inline delivery fields
-    const deliveryCustomer = !customerData && order.delivery_name ? {
+    // Build customer info: prefer delivery snapshot, fallback to default shipping_address
+    let deliveryCustomer = order.delivery_name ? {
       name: order.delivery_name,
       phone: order.delivery_phone,
       address: order.delivery_address,
@@ -260,19 +260,43 @@ export async function GET(request: NextRequest) {
       email: order.delivery_email,
     } : null;
 
+    // Fallback: fetch default shipping_address instead of customer inline address
+    if (!deliveryCustomer && order.customer_id) {
+      const { data: defaultAddr } = await supabaseAdmin
+        .from('shipping_addresses')
+        .select('contact_person, phone, address_line1, district, amphoe, province, postal_code')
+        .eq('customer_id', order.customer_id)
+        .eq('is_default', true)
+        .eq('is_active', true)
+        .single();
+      if (defaultAddr) {
+        deliveryCustomer = {
+          name: defaultAddr.contact_person || (customerData?.name as string) || '',
+          phone: defaultAddr.phone || (customerData?.phone as string) || '',
+          address: defaultAddr.address_line1 || '',
+          district: defaultAddr.district || '',
+          amphoe: defaultAddr.amphoe || '',
+          province: defaultAddr.province || '',
+          postal_code: defaultAddr.postal_code || '',
+          email: (customerData?.email as string) || '',
+        };
+      }
+    }
+
     return NextResponse.json({
       bill: {
         ...order,
         company_name: company?.name || '',
         company_logo: company?.logo_url || null,
+        vat_registered: company?.vat_registered || false,
         items: flatItems,
         branches,
         payment_record: paymentRecord,
         payment_channels: sanitizedChannels,
         customer_type: customerType,
-        // Override customer with delivery info if no linked customer
-        customer: customerData || deliveryCustomer || null,
-        needs_delivery_info: !order.customer_id && !order.delivery_name,
+        // Prefer delivery snapshot, fallback to default shipping_address, then customer data
+        customer: deliveryCustomer || customerData || null,
+        needs_delivery_info: !order.delivery_name || !order.delivery_phone || !order.delivery_address,
         shipping_addresses: branches.map(b => ({
           address_name: b.address_name,
           contact_person: b.contact_person,
@@ -409,9 +433,9 @@ export async function PUT(request: NextRequest) {
     const { order_id, delivery_name, delivery_phone, delivery_address,
             delivery_district, delivery_amphoe, delivery_province, delivery_postal_code, delivery_email } = body;
 
-    if (!order_id || !delivery_name || !delivery_phone || !delivery_address) {
+    if (!order_id || !delivery_name || !delivery_phone || !delivery_address || !delivery_province || !delivery_postal_code) {
       return NextResponse.json(
-        { error: 'กรุณากรอกชื่อ เบอร์โทร และที่อยู่' },
+        { error: 'กรุณากรอกชื่อ เบอร์โทร ที่อยู่ จังหวัด และรหัสไปรษณีย์' },
         { status: 400 }
       );
     }
@@ -421,6 +445,14 @@ export async function PUT(request: NextRequest) {
     if (!/^0\d{9}$/.test(cleanPhone)) {
       return NextResponse.json(
         { error: 'เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลัก เริ่มด้วย 0' },
+        { status: 400 }
+      );
+    }
+
+    // Validate postal code: 5 digits
+    if (!/^\d{5}$/.test(delivery_postal_code.trim())) {
+      return NextResponse.json(
+        { error: 'รหัสไปรษณีย์ต้องเป็นตัวเลข 5 หลัก' },
         { status: 400 }
       );
     }
@@ -448,11 +480,6 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'คำสั่งซื้อถูกยกเลิกแล้ว' }, { status: 400 });
     }
 
-    // Only allow for orders without a linked customer
-    if (order.customer_id) {
-      return NextResponse.json({ error: 'ออเดอร์นี้มีข้อมูลลูกค้าแล้ว' }, { status: 400 });
-    }
-
     const { error: updateError } = await supabaseAdmin
       .from('orders')
       .update({
@@ -471,6 +498,82 @@ export async function PUT(request: NextRequest) {
     if (updateError) {
       console.error('Delivery info update error:', updateError);
       return NextResponse.json({ error: 'ไม่สามารถบันทึกข้อมูลได้' }, { status: 500 });
+    }
+
+    // Sync delivery info to shipping_addresses (single source of truth) + contact info to customer
+    if (order.customer_id) {
+      try {
+        // Sync contact info only (not address) to customer
+        await supabaseAdmin
+          .from('customers')
+          .update({
+            contact_person: delivery_name,
+            phone: cleanPhone,
+            email: delivery_email || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', order.customer_id);
+
+        // Upsert default shipping address only if address data is complete enough
+        // (address_line1 and province are NOT NULL in shipping_addresses)
+        if (delivery_address && delivery_province) {
+          const { data: existingAddr } = await supabaseAdmin
+            .from('shipping_addresses')
+            .select('id')
+            .eq('customer_id', order.customer_id)
+            .eq('is_default', true)
+            .single();
+
+          const addrPayload = {
+            customer_id: order.customer_id,
+            address_name: 'ที่อยู่หลัก',
+            contact_person: delivery_name,
+            phone: cleanPhone,
+            address_line1: delivery_address,
+            district: delivery_district || null,
+            amphoe: delivery_amphoe || null,
+            province: delivery_province,
+            postal_code: delivery_postal_code || null,
+            is_default: true,
+          };
+
+          let shippingAddressId: string | null = null;
+
+          if (existingAddr) {
+            await supabaseAdmin
+              .from('shipping_addresses')
+              .update({ ...addrPayload, updated_at: new Date().toISOString() })
+              .eq('id', existingAddr.id);
+            shippingAddressId = existingAddr.id;
+          } else {
+            // Need company_id for new shipping address
+            const { data: customer } = await supabaseAdmin
+              .from('customers')
+              .select('company_id')
+              .eq('id', order.customer_id)
+              .single();
+            if (customer) {
+              const { data: newAddr } = await supabaseAdmin
+                .from('shipping_addresses')
+                .insert({ ...addrPayload, company_id: customer.company_id })
+                .select('id')
+                .single();
+              shippingAddressId = newAddr?.id || null;
+            }
+          }
+
+          // Link order to shipping_address
+          if (shippingAddressId) {
+            await supabaseAdmin
+              .from('orders')
+              .update({ shipping_address_id: shippingAddressId })
+              .eq('id', order_id);
+          }
+        }
+      } catch (syncError) {
+        // Non-critical: log but don't fail the request
+        console.error('Error syncing delivery info to shipping_address:', syncError);
+      }
     }
 
     return NextResponse.json({ success: true });

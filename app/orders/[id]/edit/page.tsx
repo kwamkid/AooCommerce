@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { useCompany } from '@/lib/company-context';
 import { apiFetch } from '@/lib/api-client';
 import {
   ArrowLeft,
@@ -134,6 +135,8 @@ export default function EditOrderPage() {
   const params = useParams();
   const orderId = params.id as string;
   const { userProfile, loading: authLoading } = useAuth();
+  const { currentCompany } = useCompany();
+  const vatRegistered = currentCompany?.vat_registered || false;
 
   // State
   const [loading, setLoading] = useState(true);
@@ -510,9 +513,9 @@ export default function EditOrderPage() {
   const itemsTotal = branchOrders.reduce((sum, branch) => sum + calculateBranchTotal(branch), 0);
   const totalShippingFee = branchOrders.reduce((sum, branch) => sum + (branch.shipping_fee || 0), 0);
   const totalWithVAT = itemsTotal - orderDiscount + totalShippingFee; // This is the final total (already includes VAT)
-  const subtotal = Math.round((totalWithVAT / 1.07) * 100) / 100; // Calculate subtotal (before VAT)
-  const vat = totalWithVAT - subtotal; // VAT amount
-  const total = totalWithVAT; // Final total (same as totalWithVAT)
+  const subtotal = vatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
+  const vat = vatRegistered ? totalWithVAT - subtotal : 0;
+  const total = totalWithVAT;
 
   // Validate and submit
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1027,14 +1030,18 @@ export default function EditOrderPage() {
                       <span className="px-2 py-1 border border-l-0 border-gray-300 dark:border-slate-600 rounded-r bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 text-sm font-bold flex items-center">฿</span>
                     </div>
                   </div>
-                  <div className="flex justify-between text-sm text-gray-600 pt-2 border-t">
-                    <span>ยอดก่อน VAT</span>
-                    <span>฿{formatPrice(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm text-gray-600 dark:text-slate-400">
-                    <span>VAT 7%</span>
-                    <span>฿{formatPrice(vat)}</span>
-                  </div>
+                  {vatRegistered && (
+                    <>
+                      <div className="flex justify-between text-sm text-gray-600 pt-2 border-t">
+                        <span>ยอดก่อน VAT</span>
+                        <span>฿{formatPrice(subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-gray-600 dark:text-slate-400">
+                        <span>VAT 7%</span>
+                        <span>฿{formatPrice(vat)}</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-between text-xl font-bold pt-3 border-t">
                     <span>ยอดรวมสุทธิ</span>
                     <span className="text-[#F4511E]">฿{formatPrice(total)}</span>

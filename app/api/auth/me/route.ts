@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
         company_id,
         roles,
         company:companies (
-          id, name, slug, logo_url, is_active
+          id, name, slug, logo_url, is_active, business_type, vat_registered
         )
       `)
       .eq('user_id', user.id)

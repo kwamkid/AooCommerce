@@ -14,6 +14,7 @@ import { apiFetch } from '@/lib/api-client';
 function channelTypeToPaymentMethod(type: string): string {
   switch (type) {
     case 'cash': return 'cash';
+    case 'promptpay': return 'transfer';
     case 'bank_transfer': return 'transfer';
     case 'card_terminal': return 'card_terminal';
     default: return 'pos_channel';
@@ -83,7 +84,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
   // Generate PromptPay QR payload
   const promptPayId = selectedChannel?.config?.promptpay_id as string | undefined;
   const qrPayload = useMemo(() => {
-    if (!promptPayId || selectedChannel?.type !== 'bank_transfer') return null;
+    if (!promptPayId || selectedChannel?.type !== 'promptpay') return null;
     try {
       return generatePayload(promptPayId, { amount: totalAmount });
     } catch {

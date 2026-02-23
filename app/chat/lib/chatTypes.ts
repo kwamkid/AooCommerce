@@ -15,11 +15,11 @@ export interface UnifiedContact {
     phone?: string;
     email?: string;
     customer_type?: 'retail' | 'wholesale' | 'distributor';
-    address?: string;
-    district?: string;
-    amphoe?: string;
-    province?: string;
-    postal_code?: string;
+    tax_address?: string;
+    tax_district?: string;
+    tax_amphoe?: string;
+    tax_province?: string;
+    tax_postal_code?: string;
     tax_id?: string;
     tax_company_name?: string;
     tax_branch?: string;

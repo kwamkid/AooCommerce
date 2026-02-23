@@ -203,6 +203,20 @@ export default function OrderDetailPage() {
       setExternalOrderSn(order.external_order_sn || '');
       setFullOrderData(order);
 
+      // Pre-fill delivery form when incomplete (has some but not all required fields)
+      if (!order.delivery_name || !order.delivery_phone || !order.delivery_address) {
+        setDeliveryForm({
+          delivery_name: order.delivery_name || '',
+          delivery_phone: order.delivery_phone || '',
+          delivery_email: order.delivery_email || '',
+          delivery_address: order.delivery_address || '',
+          delivery_district: order.delivery_district || '',
+          delivery_amphoe: order.delivery_amphoe || '',
+          delivery_province: order.delivery_province || '',
+          delivery_postal_code: order.delivery_postal_code || '',
+        });
+      }
+
       if (order.payment_status === 'paid' || order.payment_status === 'verifying') {
         await fetchPaymentRecord();
       }
@@ -257,6 +271,12 @@ export default function OrderDetailPage() {
       errors.email = 'รูปแบบอีเมลไม่ถูกต้อง';
     }
     if (!deliveryForm.delivery_address.trim()) errors.address = 'กรุณากรอกที่อยู่จัดส่ง';
+    if (!deliveryForm.delivery_province.trim()) errors.province = 'กรุณากรอกจังหวัด';
+    if (!deliveryForm.delivery_postal_code.trim()) {
+      errors.postal_code = 'กรุณากรอกรหัสไปรษณีย์';
+    } else if (!/^\d{5}$/.test(deliveryForm.delivery_postal_code.trim())) {
+      errors.postal_code = 'รหัสไปรษณีย์ต้องเป็นตัวเลข 5 หลัก';
+    }
     if (Object.keys(errors).length > 0) {
       setDeliveryErrors(errors);
       return;
@@ -996,12 +1016,14 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        {/* Delivery Info — for orders without customer */}
-        {fullOrderData && !fullOrderData.customer_id && !isShopeeOrder && !isPosOrder && (
+        {/* Delivery Info — for orders without customer or with delivery fields */}
+        {fullOrderData && (!fullOrderData.customer_id || fullOrderData.delivery_name || fullOrderData.delivery_phone || fullOrderData.delivery_address) && !isShopeeOrder && !isPosOrder && (() => {
+          const deliveryComplete = !!(fullOrderData.delivery_name && fullOrderData.delivery_phone && fullOrderData.delivery_address);
+          return (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
             <div className="flex items-center justify-between mb-3">
               <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">ข้อมูลจัดส่ง</div>
-              {fullOrderData.delivery_name && !editingDelivery && (
+              {deliveryComplete && !editingDelivery && (
                 <button
                   onClick={handleEditDelivery}
                   className="text-xs text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 flex items-center gap-1 transition-colors"
@@ -1012,7 +1034,7 @@ export default function OrderDetailPage() {
               )}
             </div>
 
-            {editingDelivery ? (
+            {(editingDelivery || !deliveryComplete) ? (
               <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -1024,7 +1046,7 @@ export default function OrderDetailPage() {
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">เบอร์โทร *</label>
-                    <input type="tel" value={deliveryForm.delivery_phone}
+                    <input type="text" inputMode="tel" value={deliveryForm.delivery_phone}
                       onChange={e => { setDeliveryForm(f => ({ ...f, delivery_phone: e.target.value })); setDeliveryErrors(prev => { const { phone, ...rest } = prev; return rest; }); }}
                       className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 ${deliveryErrors.phone ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
                     {deliveryErrors.phone && <p className="text-red-500 text-xs mt-1">{deliveryErrors.phone}</p>}
@@ -1032,7 +1054,7 @@ export default function OrderDetailPage() {
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">อีเมล</label>
-                  <input type="email" value={deliveryForm.delivery_email}
+                  <input type="text" inputMode="email" value={deliveryForm.delivery_email}
                     onChange={e => { setDeliveryForm(f => ({ ...f, delivery_email: e.target.value })); setDeliveryErrors(prev => { const { email, ...rest } = prev; return rest; }); }}
                     className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 ${deliveryErrors.email ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
                   {deliveryErrors.email && <p className="text-red-500 text-xs mt-1">{deliveryErrors.email}</p>}
@@ -1060,16 +1082,21 @@ export default function OrderDetailPage() {
                     }));
                   }}
                 />
+                {(deliveryErrors.province || deliveryErrors.postal_code) && (
+                  <p className="text-red-500 text-xs -mt-1">{deliveryErrors.province || deliveryErrors.postal_code}</p>
+                )}
                 <div className="flex gap-2 pt-1">
-                  <button
-                    onClick={() => setEditingDelivery(false)}
-                    className="flex-1 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    ยกเลิก
-                  </button>
+                  {editingDelivery && (
+                    <button
+                      onClick={() => setEditingDelivery(false)}
+                      className="flex-1 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      ยกเลิก
+                    </button>
+                  )}
                   <button
                     onClick={handleSaveDelivery}
-                    disabled={savingDelivery || !deliveryForm.delivery_name || !deliveryForm.delivery_phone || !deliveryForm.delivery_address}
+                    disabled={savingDelivery || !deliveryForm.delivery_name || !deliveryForm.delivery_phone || !deliveryForm.delivery_address || !deliveryForm.delivery_province || !deliveryForm.delivery_postal_code}
                     className="flex-1 py-2 bg-[#F4511E] text-white rounded-lg text-sm font-medium hover:bg-[#D63B0E] disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
                   >
                     {savingDelivery && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -1077,7 +1104,7 @@ export default function OrderDetailPage() {
                   </button>
                 </div>
               </div>
-            ) : fullOrderData.delivery_name ? (
+            ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <div className="text-xs text-gray-400 dark:text-slate-500">ชื่อผู้รับ</div>
@@ -1104,13 +1131,10 @@ export default function OrderDetailPage() {
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="text-sm text-orange-500 dark:text-orange-400 italic">
-                รอข้อมูลจัดส่งจากลูกค้า — ส่ง Bill Online ให้ลูกค้ากรอก
-              </div>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {/* OrderForm - Edit or Read-only */}
         <OrderForm

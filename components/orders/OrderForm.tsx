@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
+import { useCompany } from '@/lib/company-context';
 import { apiFetch } from '@/lib/api-client';
 import { parseThaiAddress } from '@/lib/address-parser';
 import { productSubtitle } from '@/app/inventory/components/types';
@@ -112,7 +113,7 @@ interface OrderFormProps {
   // Pre-loaded order data from parent to avoid duplicate fetch
   preloadedOrder?: any;
   // Callback when order is created/updated successfully
-  onSuccess?: (orderId: string) => void;
+  onSuccess?: (orderId: string, customerId?: string, deliveryInfo?: { name?: string; phone?: string; email?: string }) => void;
   // Callback when cancelled
   onCancel?: () => void;
   // Embedded mode (no back button, different styling)
@@ -123,6 +124,8 @@ interface OrderFormProps {
   printMode?: 'order' | 'packing' | null;
   // Portal target for warehouse picker (renders into parent header)
   warehousePortalRef?: RefObject<HTMLDivElement | null>;
+  // Portal target for header actions (copy order button)
+  headerActionsRef?: RefObject<HTMLDivElement | null>;
 }
 
 export default function OrderForm({
@@ -136,16 +139,21 @@ export default function OrderForm({
   onSendBillToChat,
   printMode = null,
   warehousePortalRef,
+  headerActionsRef,
 }: OrderFormProps) {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const { features } = useFeatures();
+  const { currentCompany } = useCompany();
+  const vatRegistered = currentCompany?.vat_registered || false;
 
   // State
   const [loading, setLoading] = useState(!!editOrderId);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [addressConflict, setAddressConflict] = useState<{ mode: 'update' | 'new' | null; addressName: string } | null>(null);
+  const [showAddressDropdown, setShowAddressDropdown] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [savedOrderId, setSavedOrderId] = useState('');
   const [savedOrderNumber, setSavedOrderNumber] = useState('');
@@ -245,6 +253,19 @@ export default function OrderForm({
   const customerSectionRef = useRef<HTMLDivElement>(null);
   const deliveryDateRef = useRef<HTMLDivElement>(null);
   const branchSectionRef = useRef<HTMLDivElement>(null);
+  const deliverySectionRef = useRef<HTMLDivElement>(null);
+  const [wideEnough, setWideEnough] = useState(false);
+
+  // Watch container width for responsive 2-column layout
+  useEffect(() => {
+    const el = deliverySectionRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setWideEnough(entry.contentRect.width >= 480);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loading]);
 
   // Initialize default branch (product-first flow for all modes)
   // This allows product section to show immediately without selecting a customer
@@ -392,6 +413,17 @@ export default function OrderForm({
             endDate: new Date(order.delivery_date)
           });
         }
+
+        // Set delivery info
+        if (order.delivery_name) setDeliveryName(order.delivery_name);
+        if (order.delivery_phone) setDeliveryPhone(order.delivery_phone);
+        if (order.delivery_address) setDeliveryAddress(order.delivery_address);
+        if (order.delivery_district) setDeliveryDistrict(order.delivery_district);
+        if (order.delivery_amphoe) setDeliveryAmphoe(order.delivery_amphoe);
+        if (order.delivery_province) setDeliveryProvince(order.delivery_province);
+        if (order.delivery_postal_code) setDeliveryPostalCode(order.delivery_postal_code);
+        if (order.delivery_email) setDeliveryEmail(order.delivery_email);
+        if (order.shipping_address_id) setSelectedAddressId(order.shipping_address_id);
 
         // Set notes and discount
         if (order.notes) setNotes(order.notes);
@@ -733,45 +765,71 @@ export default function OrderForm({
 
       // Transform order data - group items by shipping address
       const branchMap = new Map<string, BranchOrder>();
+      const defaultKey = '__default__';
 
       for (const item of order.items || []) {
-        for (const shipment of item.shipments || []) {
-          const addressId = shipment.shipping_address_id;
-          const addressName = shipment.shipping_address?.address_name || 'ไม่ระบุ';
+        const shipments = item.shipments || [];
 
-          if (!branchMap.has(addressId)) {
-            branchMap.set(addressId, {
-              shipping_address_id: addressId,
-              address_name: addressName,
-              delivery_notes: shipment.delivery_notes || '',
-              shipping_fee: shipment.shipping_fee || 0,
+        if (shipments.length > 0) {
+          for (const shipment of shipments) {
+            const addressId = shipment.shipping_address_id || defaultKey;
+            const addressName = shipment.shipping_address?.address_name || 'รายการสินค้า';
+
+            if (!branchMap.has(addressId)) {
+              branchMap.set(addressId, {
+                shipping_address_id: addressId === defaultKey ? '' : addressId,
+                address_name: addressName,
+                delivery_notes: shipment.delivery_notes || '',
+                shipping_fee: shipment.shipping_fee || 0,
+                products: []
+              });
+            }
+
+            const branch = branchMap.get(addressId)!;
+            const existingProduct = branch.products.find(p => p.variation_id === item.variation_id);
+            if (!existingProduct) {
+              branch.products.push({
+                variation_id: item.variation_id,
+                product_id: item.product_id,
+                product_code: item.product_code,
+                product_name: item.product_name,
+                variation_label: item.variation_label,
+                quantity: shipment.quantity,
+                unit_price: item.unit_price,
+                discount_value: item.discount_type === 'amount' ? (item.discount_amount || 0) : (item.discount_percent || 0),
+                discount_type: item.discount_type || 'percent'
+              });
+            }
+          }
+        } else {
+          // No shipments — put into default branch
+          if (!branchMap.has(defaultKey)) {
+            branchMap.set(defaultKey, {
+              shipping_address_id: '',
+              address_name: 'รายการสินค้า',
+              delivery_notes: '',
+              shipping_fee: 0,
               products: []
             });
           }
-
-          const branch = branchMap.get(addressId)!;
-
-          // Check if product already exists in this branch
-          const existingProduct = branch.products.find(p => p.variation_id === item.variation_id);
-          if (!existingProduct) {
-            branch.products.push({
-              variation_id: item.variation_id,
-              product_id: item.product_id,
-              product_code: item.product_code,
-              product_name: item.product_name,
-              variation_label: item.variation_label,
-              quantity: shipment.quantity,
-              unit_price: item.unit_price,
-              discount_value: item.discount_type === 'amount' ? (item.discount_amount || 0) : (item.discount_percent || 0),
-              discount_type: item.discount_type || 'percent'
-            });
-          }
+          const branch = branchMap.get(defaultKey)!;
+          branch.products.push({
+            variation_id: item.variation_id,
+            product_id: item.product_id,
+            product_code: item.product_code,
+            product_name: item.product_name,
+            variation_label: item.variation_label,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            discount_value: item.discount_type === 'amount' ? (item.discount_amount || 0) : (item.discount_percent || 0),
+            discount_type: item.discount_type || 'percent'
+          });
         }
       }
 
       const branches = Array.from(branchMap.values());
 
-      if (branches.length === 0) {
+      if (branches.length === 0 || branches.every(b => b.products.length === 0)) {
         showToast('ไม่พบข้อมูลสินค้าใน Order เก่า', 'error');
         return;
       }
@@ -779,6 +837,17 @@ export default function OrderForm({
       // Set branch orders
       setBranchOrders(branches);
       setActiveBranchIndex(0);
+
+      // Copy delivery info
+      if (order.delivery_name) setDeliveryName(order.delivery_name);
+      if (order.delivery_phone) setDeliveryPhone(order.delivery_phone);
+      if (order.delivery_address) setDeliveryAddress(order.delivery_address);
+      if (order.delivery_district) setDeliveryDistrict(order.delivery_district);
+      if (order.delivery_amphoe) setDeliveryAmphoe(order.delivery_amphoe);
+      if (order.delivery_province) setDeliveryProvince(order.delivery_province);
+      if (order.delivery_postal_code) setDeliveryPostalCode(order.delivery_postal_code);
+      if (order.delivery_email) setDeliveryEmail(order.delivery_email);
+      if (order.shipping_address_id) setSelectedAddressId(order.shipping_address_id);
 
       // Set other fields
       if (order.notes) setNotes(order.notes);
@@ -993,8 +1062,8 @@ export default function OrderForm({
     return orderDiscount;
   };
   const totalWithVAT = itemsTotal - calculateOrderDiscount() + totalShippingFee;
-  const subtotal = Math.round((totalWithVAT / 1.07) * 100) / 100;
-  const vat = totalWithVAT - subtotal;
+  const subtotal = vatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
+  const vat = vatRegistered ? totalWithVAT - subtotal : 0;
   const total = totalWithVAT;
 
   // Submit
@@ -1006,6 +1075,12 @@ export default function OrderForm({
     // Customer is optional for all modes
     if (features.delivery_date.enabled && features.delivery_date.required && !deliveryDate) {
       errors.deliveryDate = 'กรุณาเลือกวันที่ส่งของ';
+    }
+    if (deliveryPhone.trim() && !/^(0[0-9]{8,9}|[0-9]{9,10})$/.test(deliveryPhone.trim())) {
+      errors.deliveryPhone = 'เบอร์โทรไม่ถูกต้อง';
+    }
+    if (deliveryEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(deliveryEmail.trim())) {
+      errors.deliveryEmail = 'อีเมลไม่ถูกต้อง';
     }
     // Check that at least one product exists
     if (branchOrders.length === 0 || branchOrders.every(b => b.products.length === 0)) {
@@ -1034,11 +1109,39 @@ export default function OrderForm({
       return;
     }
 
+    // Check if delivery address differs from selected shipping_address (single-branch, non-edit, has customer)
+    if (!isEditMode && !multiBranch && selectedCustomer && selectedAddressId && selectedAddressId !== 'new') {
+      const selectedAddr = shippingAddresses.find(a => a.id === selectedAddressId);
+      if (selectedAddr) {
+        const differs = (
+          (deliveryAddress || '') !== (selectedAddr.address_line1 || '') ||
+          (deliveryDistrict || '') !== (selectedAddr.district || '') ||
+          (deliveryAmphoe || '') !== (selectedAddr.amphoe || '') ||
+          (deliveryProvince || '') !== (selectedAddr.province || '') ||
+          (deliveryPostalCode || '') !== (selectedAddr.postal_code || '')
+        );
+        if (differs && deliveryAddress.trim()) {
+          setAddressConflict({ mode: null, addressName: selectedAddr.address_name });
+          return; // Wait for user choice
+        }
+      }
+    }
+
+    doSave('auto');
+  };
+
+  const doSave = async (addressAction: 'update' | 'new' | 'auto') => {
     try {
       setSaving(true);
+      setAddressConflict(null);
 
-      const items = branchOrders.flatMap(branch =>
-        branch.products.map(product => ({
+      // In single-branch mode, use selectedAddressId; in multi-branch, use branch's own
+      const effectiveAddressId = (branch: typeof branchOrders[0]) =>
+        multiBranch ? branch.shipping_address_id : (selectedAddressId && selectedAddressId !== 'new' ? selectedAddressId : branch.shipping_address_id);
+
+      const items = branchOrders.flatMap(branch => {
+        const addrId = effectiveAddressId(branch);
+        return branch.products.map(product => ({
           variation_id: product.variation_id,
           product_id: product.product_id,
           product_code: product.product_code,
@@ -1048,17 +1151,47 @@ export default function OrderForm({
           unit_price: product.unit_price,
           discount_value: product.discount_value,
           discount_type: product.discount_type,
-          // Only include shipments when customer is selected (has shipping address)
-          shipments: selectedCustomer ? [{
-            shipping_address_id: branch.shipping_address_id,
+          // Only include shipments when customer is selected AND has a valid shipping address
+          shipments: selectedCustomer && addrId ? [{
+            shipping_address_id: addrId,
             quantity: product.quantity,
             shipping_fee: branch.shipping_fee || 0
           }] : []
-        }))
-      );
+        }));
+      });
+
+      // Determine primary shipping_address_id
+      const primaryAddressId = selectedCustomer
+        ? (selectedAddressId && selectedAddressId !== 'new' ? selectedAddressId : branchOrders[0]?.shipping_address_id || undefined)
+        : undefined;
+
+      // Auto-populate delivery snapshot from selected address if delivery fields are empty
+      let snapshotName = deliveryName;
+      let snapshotPhone = deliveryPhone;
+      let snapshotAddress = deliveryAddress;
+      let snapshotDistrict = deliveryDistrict;
+      let snapshotAmphoe = deliveryAmphoe;
+      let snapshotProvince = deliveryProvince;
+      let snapshotPostalCode = deliveryPostalCode;
+      let snapshotEmail = deliveryEmail;
+
+      if (selectedCustomer && !deliveryName && primaryAddressId) {
+        const addr = shippingAddresses.find(a => a.id === primaryAddressId);
+        if (addr) {
+          snapshotName = addr.contact_person || selectedCustomer.name;
+          snapshotPhone = addr.phone || selectedCustomer.phone || '';
+          snapshotAddress = addr.address_line1 || '';
+          snapshotDistrict = addr.district || '';
+          snapshotAmphoe = addr.amphoe || '';
+          snapshotProvince = addr.province || '';
+          snapshotPostalCode = addr.postal_code || '';
+          snapshotEmail = selectedCustomer.email || '';
+        }
+      }
 
       const orderData: any = {
         ...(selectedCustomer ? { customer_id: selectedCustomer.id } : {}),
+        ...(primaryAddressId ? { shipping_address_id: primaryAddressId } : {}),
         delivery_date: deliveryDate || undefined,
         discount_amount: calculateOrderDiscount(),
         order_discount_type: orderDiscountType,
@@ -1068,17 +1201,19 @@ export default function OrderForm({
         ...(stockEnabled && selectedWarehouseId ? { warehouse_id: selectedWarehouseId } : {}),
         // Non-customer: send shipping fee directly
         ...(!selectedCustomer ? { shipping_fee: branchOrders[0]?.shipping_fee || 0 } : {}),
-        // Delivery info (both customer & non-customer)
-        ...(deliveryName ? {
-          delivery_name: deliveryName,
-          delivery_phone: deliveryPhone || undefined,
-          delivery_address: deliveryAddress || undefined,
-          delivery_district: deliveryDistrict || undefined,
-          delivery_amphoe: deliveryAmphoe || undefined,
-          delivery_province: deliveryProvince || undefined,
-          delivery_postal_code: deliveryPostalCode || undefined,
-          delivery_email: deliveryEmail || undefined,
+        // Delivery info snapshot (both customer & non-customer)
+        ...(snapshotName ? {
+          delivery_name: snapshotName,
+          delivery_phone: snapshotPhone || undefined,
+          delivery_address: snapshotAddress || undefined,
+          delivery_district: snapshotDistrict || undefined,
+          delivery_amphoe: snapshotAmphoe || undefined,
+          delivery_province: snapshotProvince || undefined,
+          delivery_postal_code: snapshotPostalCode || undefined,
+          delivery_email: snapshotEmail || undefined,
         } : {}),
+        // Tell API how to handle address: 'update' = update existing, 'new' = create new
+        ...(addressAction !== 'auto' ? { address_action: addressAction } : {}),
       };
 
       if (isEditMode) {
@@ -1099,7 +1234,7 @@ export default function OrderForm({
       if (isEditMode) {
         showToast('บันทึกการแก้ไขสำเร็จ');
         if (onSuccess) {
-          setTimeout(() => onSuccess(newOrderId), 1000);
+          setTimeout(() => onSuccess(newOrderId, selectedCustomer?.id, deliveryName ? { name: deliveryName, phone: deliveryPhone, email: deliveryEmail } : undefined), 1000);
         } else {
           setTimeout(() => { router.push('/orders'); }, 1500);
         }
@@ -1304,15 +1439,19 @@ export default function OrderForm({
                   <span>-฿{formatPrice(orderDiscountType === 'percent' ? (itemsTotal + totalShippingFee) * orderDiscount / 100 : orderDiscount)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-gray-600 pt-1 border-t border-gray-300">
-                <span>ยอดก่อน VAT</span>
-                <span>฿{formatPrice(subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-gray-600">
-                <span>VAT 7%</span>
-                <span>฿{formatPrice(vat)}</span>
-              </div>
-              <div className="flex justify-between font-bold text-base pt-1.5 border-t-2 border-black">
+              {vatRegistered && (
+                <>
+                  <div className="flex justify-between text-gray-600 pt-1 border-t border-gray-300">
+                    <span>ยอดก่อน VAT</span>
+                    <span>฿{formatPrice(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600">
+                    <span>VAT 7%</span>
+                    <span>฿{formatPrice(vat)}</span>
+                  </div>
+                </>
+              )}
+              <div className={`flex justify-between font-bold text-base pt-1.5 border-t-2 border-black`}>
                 <span>ยอดรวมสุทธิ</span>
                 <span>฿{formatPrice(total)}</span>
               </div>
@@ -1337,7 +1476,19 @@ export default function OrderForm({
     <form onSubmit={handleSubmit} className={`space-y-4 ${printMode ? 'print:hidden' : ''}`}>
       {readOnlyBanner}
 
-      {/* Old customer-first section removed — unified below products */}
+      {/* Header actions portal — copy order button in parent header */}
+      {headerActionsRef?.current && !isEditMode && selectedCustomer && createPortal(
+        <button
+          type="button"
+          onClick={handleCopyLatestOrder}
+          disabled={loadingLatestOrder}
+          className="p-1.5 text-blue-700 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50 flex items-center"
+          title="คัดลอก Order ล่าสุด"
+        >
+          {loadingLatestOrder ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+        </button>,
+        headerActionsRef.current
+      )}
 
       {/* Warehouse Picker — portal into header or inline fallback */}
       {!features.customer_branches && stockEnabled && warehouses.length > 1 && (() => {
@@ -1848,14 +1999,18 @@ export default function OrderForm({
                     </button>
                   </div>
                 </div>
-                <div className="flex justify-between text-gray-500 dark:text-slate-400 pt-2 border-t border-gray-200 dark:border-slate-600">
-                  <span>ยอดก่อน VAT</span>
-                  <span>฿{formatPrice(subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                  <span>VAT 7%</span>
-                  <span>฿{formatPrice(vat)}</span>
-                </div>
+                {vatRegistered && (
+                  <>
+                    <div className="flex justify-between text-gray-500 dark:text-slate-400 pt-2 border-t border-gray-200 dark:border-slate-600">
+                      <span>ยอดก่อน VAT</span>
+                      <span>฿{formatPrice(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-500 dark:text-slate-400">
+                      <span>VAT 7%</span>
+                      <span>฿{formatPrice(vat)}</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200 dark:border-slate-600 text-gray-900 dark:text-slate-100">
                   <span>ยอดรวมสุทธิ</span>
                   <span className="text-[#F4511E]">฿{formatPrice(total)}</span>
@@ -1866,33 +2021,36 @@ export default function OrderForm({
         </div>
       )}
 
-      {/* Customer + Delivery section — 2 columns */}
-      <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+      {/* Customer + Delivery section — 2 columns when wide enough */}
+      <div ref={deliverySectionRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
         {/* Delivery info — show when NOT in multi-branch mode */}
         {!multiBranch ? (
-        <div className="flex flex-wrap gap-4">
-          {/* Left column: ลูกค้า + ชื่อผู้รับ + เบอร์ + อีเมล + วันส่ง */}
-          <div className="space-y-3 flex-1 min-w-[280px]">
-            {/* Customer Search */}
-            <div ref={customerSectionRef} className="relative">
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                ลูกค้า <span className="text-gray-400 text-xs font-normal">(ไม่บังคับ)</span>
-              </label>
-              {selectedCustomer ? (
-                <div className="flex items-center gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg">
-                  <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
+        <div className={`grid grid-cols-1 ${wideEnough ? 'grid-cols-2' : ''} gap-x-4 gap-y-3`}>
+          {/* Row 1 Left: ลูกค้า */}
+          <div ref={customerSectionRef} className="relative flex flex-col">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              ลูกค้า <span className="text-gray-400 text-xs font-normal">(ไม่บังคับ)</span>
+            </label>
+            {selectedCustomer ? (
+              <div className="relative flex-1">
+                <div
+                  className={`flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg h-full ${shippingAddresses.length > 1 && !isReadOnly ? 'cursor-pointer' : ''}`}
+                  onClick={() => { if (shippingAddresses.length > 1 && !isReadOnly) setShowAddressDropdown(!showAddressDropdown); }}
+                >
+                  <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-gray-900 dark:text-slate-200">{selectedCustomer.name}</span>
-                    <span className="text-xs text-gray-500 dark:text-slate-400 ml-2">{selectedCustomer.customer_code}{selectedCustomer.phone ? ` · ${selectedCustomer.phone}` : ''}</span>
+                    <div className="text-sm font-medium text-gray-900 dark:text-slate-200">{selectedCustomer.name}</div>
+                    {shippingAddresses.length > 0 && (
+                      <div className="text-sm text-gray-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 flex-shrink-0" />
+                        <span>{selectedAddressId === 'new' ? 'ที่อยู่ใหม่' : (shippingAddresses.find(a => a.id === selectedAddressId)?.address_name || shippingAddresses[0]?.address_name)}</span>
+                        {shippingAddresses.length > 1 && !isReadOnly && <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />}
+                      </div>
+                    )}
                   </div>
-                  {!isReadOnly && (
-                    <button type="button" onClick={handleCopyLatestOrder} disabled={loadingLatestOrder} className="p-1.5 text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50" title="คัดลอก Order ล่าสุด">
-                      {loadingLatestOrder ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  )}
                   {/* Multi-branch toggle */}
-                  {features.customer_branches && shippingAddresses.length > 0 && !isReadOnly && (
-                    <button type="button" onClick={() => handleMultiBranchToggle(!multiBranch)} className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600">
+                  {features.customer_branches && shippingAddresses.length > 1 && !isReadOnly && (
+                    <button type="button" onClick={(e) => { e.stopPropagation(); handleMultiBranchToggle(!multiBranch); }} className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600">
                       <div className="relative w-7 h-4 rounded-full bg-gray-300 dark:bg-slate-500 transition-colors">
                         <div className="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-all" />
                       </div>
@@ -1900,90 +2058,118 @@ export default function OrderForm({
                     </button>
                   )}
                   {!isReadOnly && !preselectedCustomerId && (
-                    <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerSearch(''); setShippingAddresses([]); setSelectedAddressId(''); setCustomerPrices({}); }} className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedCustomer(null); setCustomerSearch(''); setShippingAddresses([]); setSelectedAddressId(''); setCustomerPrices({}); setShowAddressDropdown(false); }} className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors">
                       <X className="w-3.5 h-3.5 text-gray-400" />
                     </button>
                   )}
                 </div>
-              ) : (
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input type="text" value={customerSearch} onChange={(e) => { setCustomerSearch(e.target.value); setShowCustomerDropdown(true); }} onFocus={() => setShowCustomerDropdown(true)} placeholder="ค้นหาชื่อ, รหัส, หรือเบอร์โทร..." className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200" disabled={(!!preselectedCustomerId || isEditMode) && !!selectedCustomer} />
-                </div>
-              )}
-              {showCustomerDropdown && customerSearch && !selectedCustomer && !preselectedCustomerId && (
-                <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-auto">
-                  {filteredCustomers.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">ไม่พบลูกค้า</div>
-                  ) : (
-                    filteredCustomers.map(customer => (
-                      <button key={customer.id} type="button" onClick={() => handleSelectCustomer(customer)} className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
-                        <div className="text-sm font-medium text-gray-900 dark:text-slate-200">{customer.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-slate-400">{customer.customer_code}{customer.phone ? ` · ${customer.phone}` : ''}</div>
+                {/* Custom address dropdown */}
+                {showAddressDropdown && shippingAddresses.length > 1 && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowAddressDropdown(false)} />
+                    <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
+                      {shippingAddresses.map(addr => (
+                        <button key={addr.id} type="button" onClick={() => {
+                          setSelectedAddressId(addr.id);
+                          setDeliveryName(addr.contact_person || selectedCustomer.name);
+                          setDeliveryPhone(addr.phone || selectedCustomer.phone || '');
+                          setDeliveryAddress(addr.address_line1 || '');
+                          setDeliveryDistrict(addr.district || '');
+                          setDeliveryAmphoe(addr.amphoe || '');
+                          setDeliveryProvince(addr.province || '');
+                          setDeliveryPostalCode(addr.postal_code || '');
+                          setShowAddressDropdown(false);
+                        }} className={`w-full px-3 py-2.5 text-left flex items-center gap-2 transition-colors ${selectedAddressId === addr.id ? 'bg-orange-50 dark:bg-orange-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}>
+                          <MapPin className={`w-3.5 h-3.5 flex-shrink-0 ${selectedAddressId === addr.id ? 'text-[#F4511E]' : 'text-gray-400'}`} />
+                          <div className="flex-1 min-w-0">
+                            <div className={`text-sm ${selectedAddressId === addr.id ? 'font-medium text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>{addr.address_name}</div>
+                            <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{[addr.address_line1, addr.district, addr.amphoe, addr.province].filter(Boolean).join(', ')}</div>
+                          </div>
+                          {selectedAddressId === addr.id && <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />}
+                        </button>
+                      ))}
+                      <button type="button" onClick={() => {
+                        setSelectedAddressId('new');
+                        setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
+                        setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
+                        setDeliveryProvince(''); setDeliveryPostalCode('');
+                        setShowAddressDropdown(false);
+                      }} className="w-full px-3 py-2.5 text-left flex items-center gap-2 border-t border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                        <Plus className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="text-sm text-gray-500 dark:text-slate-400">ที่อยู่ใหม่</span>
                       </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input type="text" value={customerSearch} onChange={(e) => { setCustomerSearch(e.target.value); setShowCustomerDropdown(true); }} onFocus={() => setShowCustomerDropdown(true)} placeholder="ค้นหาชื่อ, รหัส, หรือเบอร์โทร..." className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200" disabled={(!!preselectedCustomerId || isEditMode) && !!selectedCustomer} />
+              </div>
+            )}
+            {showCustomerDropdown && customerSearch && !selectedCustomer && !preselectedCustomerId && (
+              <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-auto">
+                {filteredCustomers.length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">ไม่พบลูกค้า</div>
+                ) : (
+                  filteredCustomers.map(customer => (
+                    <button key={customer.id} type="button" onClick={() => handleSelectCustomer(customer)} className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                      <div className="text-sm font-medium text-gray-900 dark:text-slate-200">{customer.name}</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400">{customer.customer_code}{customer.phone ? ` · ${customer.phone}` : ''}</div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+            {!selectedCustomer && (
+              <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">ไม่เลือกลูกค้า = ส่ง Bill Online ให้ลูกค้ากรอกเอง</p>
+            )}
+          </div>
 
-            {/* ชื่อผู้รับ */}
+          {/* Row 1 Right: ที่อยู่จัดส่ง */}
+          <div className={`flex flex-col ${wideEnough ? 'border-l border-gray-200 dark:border-slate-700 pl-4' : ''}`}>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่จัดส่ง</label>
+            <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} onPaste={(e) => { const pasted = e.clipboardData.getData('text'); if (pasted.length > 10) { const parsed = parseThaiAddress(pasted); if (parsed) { e.preventDefault(); setDeliveryAddress(parsed.address); setDeliveryDistrict(parsed.district); setDeliveryAmphoe(parsed.amphoe); setDeliveryProvince(parsed.province); setDeliveryPostalCode(parsed.postal_code); } } }} placeholder="วางที่อยู่ยาวๆ ได้เลย — ระบบจะแยก ตำบล อำเภอ จังหวัด ให้อัตโนมัติ" disabled={isReadOnly} className="w-full flex-1 px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none" />
+          </div>
+
+          {/* Row 2-3 Left: ชื่อผู้รับ + เบอร์โทร + อีเมล */}
+          <div className="space-y-3">
             <div>
               <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">ชื่อผู้รับ</label>
               <input type="text" value={deliveryName} onChange={(e) => setDeliveryName(e.target.value)} placeholder="ชื่อ-นามสกุล" disabled={isReadOnly} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" />
             </div>
-            {/* เบอร์โทร + อีเมล */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
-                <input type="tel" value={deliveryPhone} onChange={(e) => setDeliveryPhone(e.target.value)} placeholder="0xx-xxx-xxxx" disabled={isReadOnly} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" />
+                <input type="text" inputMode="tel" value={deliveryPhone} onChange={(e) => { setDeliveryPhone(e.target.value); if (fieldErrors.deliveryPhone) { const v = e.target.value.trim(); setFieldErrors(prev => { const next = { ...prev }; if (!v || /^(0[0-9]{8,9}|[0-9]{9,10})$/.test(v)) delete next.deliveryPhone; return next; }); } }} onBlur={() => { const v = deliveryPhone.trim(); if (v && !/^(0[0-9]{8,9}|[0-9]{9,10})$/.test(v)) setFieldErrors(prev => ({ ...prev, deliveryPhone: 'เบอร์โทรไม่ถูกต้อง' })); else setFieldErrors(prev => { const { deliveryPhone: _, ...rest } = prev; return rest; }); }} placeholder="0xx-xxx-xxxx" disabled={isReadOnly} className={`w-full px-3 py-2.5 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 ${fieldErrors.deliveryPhone ? 'border-red-400' : 'border-gray-300 dark:border-slate-600'}`} />
+                {fieldErrors.deliveryPhone && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryPhone}</p>}
               </div>
               <div>
                 <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
-                <input type="email" value={deliveryEmail} onChange={(e) => setDeliveryEmail(e.target.value)} placeholder="email@example.com" disabled={isReadOnly} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" />
+                <input type="text" inputMode="email" value={deliveryEmail} onChange={(e) => { setDeliveryEmail(e.target.value); if (fieldErrors.deliveryEmail) { const v = e.target.value.trim(); setFieldErrors(prev => { const next = { ...prev }; if (!v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) delete next.deliveryEmail; return next; }); } }} onBlur={() => { const v = deliveryEmail.trim(); if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) setFieldErrors(prev => ({ ...prev, deliveryEmail: 'อีเมลไม่ถูกต้อง' })); else setFieldErrors(prev => { const { deliveryEmail: _, ...rest } = prev; return rest; }); }} placeholder="email@example.com" disabled={isReadOnly} className={`w-full px-3 py-2.5 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 ${fieldErrors.deliveryEmail ? 'border-red-400' : 'border-gray-300 dark:border-slate-600'}`} />
+                {fieldErrors.deliveryEmail && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryEmail}</p>}
               </div>
             </div>
-
-            {/* Delivery Date */}
-            {features.delivery_date.enabled && (
-            <div ref={deliveryDateRef}>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
-              </label>
-              <div className={fieldErrors.deliveryDate ? 'ring-2 ring-red-400 rounded-lg' : ''}>
-                <DateRangePicker value={deliveryDateValue} onChange={(val) => { setDeliveryDateValue(val); setFieldErrors(prev => { const { deliveryDate, ...rest } = prev; return rest; }); }} asSingle={true} useRange={false} showShortcuts={false} showFooter={false} placeholder="เลือกวันที่ส่ง" disabled={isReadOnly} />
-              </div>
-              {fieldErrors.deliveryDate && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryDate}</p>}
-            </div>
-            )}
-
-            {!selectedCustomer && (
-              <p className="text-sm text-gray-400 dark:text-slate-500">ไม่เลือกลูกค้า = ส่ง Bill Online ให้ลูกค้ากรอกเอง</p>
-            )}
           </div>
 
-          {/* Right column: ที่อยู่จัดส่ง */}
-          <div className="space-y-3 flex-1 min-w-[280px] md:border-l md:border-gray-200 md:dark:border-slate-700 md:pl-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่จัดส่ง</label>
-              <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} onPaste={(e) => { const pasted = e.clipboardData.getData('text'); if (pasted.length > 10) { const parsed = parseThaiAddress(pasted); if (parsed) { e.preventDefault(); setDeliveryAddress(parsed.address); setDeliveryDistrict(parsed.district); setDeliveryAmphoe(parsed.amphoe); setDeliveryProvince(parsed.province); setDeliveryPostalCode(parsed.postal_code); } } }} placeholder="วางที่อยู่ยาวๆ ได้เลย — ระบบจะแยก ตำบล อำเภอ จังหวัด ให้อัตโนมัติ" disabled={isReadOnly} rows={2} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none" />
-            </div>
-
-            {selectedCustomer && shippingAddresses.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {shippingAddresses.map(addr => (
-                  <button key={addr.id} type="button" onClick={() => { setSelectedAddressId(addr.id); setDeliveryName(addr.contact_person || selectedCustomer.name); setDeliveryPhone(addr.phone || selectedCustomer.phone || ''); setDeliveryAddress(addr.address_line1 || ''); setDeliveryDistrict(addr.district || ''); setDeliveryAmphoe(addr.amphoe || ''); setDeliveryProvince(addr.province || ''); setDeliveryPostalCode(addr.postal_code || ''); }} className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${selectedAddressId === addr.id ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-400 hover:border-gray-400 dark:hover:border-slate-500'}`}>
-                    <MapPin className="w-3 h-3 inline mr-1" />{addr.address_name}
-                  </button>
-                ))}
-                <button type="button" onClick={() => { setSelectedAddressId('new'); setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail(''); setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe(''); setDeliveryProvince(''); setDeliveryPostalCode(''); }} className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${selectedAddressId === 'new' ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E]'}`}>
-                  <Plus className="w-3 h-3 inline mr-1" />ที่อยู่ใหม่
-                </button>
-              </div>
-            )}
-
+          {/* Row 2-3 Right: ตำบล อำเภอ จังหวัด รหัสไปรษณีย์ (with autocomplete) */}
+          <div className={`${wideEnough ? 'border-l border-gray-200 dark:border-slate-700 pl-4' : ''}`}>
             <ThaiAddressInput district={deliveryDistrict} amphoe={deliveryAmphoe} province={deliveryProvince} postalCode={deliveryPostalCode} onAddressChange={(addr) => { if (addr.district !== undefined) setDeliveryDistrict(addr.district); if (addr.amphoe !== undefined) setDeliveryAmphoe(addr.amphoe); if (addr.province !== undefined) setDeliveryProvince(addr.province); if (addr.postalCode !== undefined) setDeliveryPostalCode(addr.postalCode); }} disabled={isReadOnly} />
           </div>
+
+          {/* Delivery Date — full width */}
+          {features.delivery_date.enabled && (
+          <div ref={deliveryDateRef} className={wideEnough ? 'col-span-2' : ''}>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
+            </label>
+            <div className={fieldErrors.deliveryDate ? 'ring-2 ring-red-400 rounded-lg' : ''}>
+              <DateRangePicker value={deliveryDateValue} onChange={(val) => { setDeliveryDateValue(val); setFieldErrors(prev => { const { deliveryDate, ...rest } = prev; return rest; }); }} asSingle={true} useRange={false} showShortcuts={false} showFooter={false} placeholder="เลือกวันที่ส่ง" disabled={isReadOnly} />
+            </div>
+            {fieldErrors.deliveryDate && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryDate}</p>}
+          </div>
+          )}
         </div>
         ) : (
         /* Multi-branch mode: just customer + delivery date */
@@ -2002,11 +2188,6 @@ export default function OrderForm({
                     <span className="text-xs text-gray-500 dark:text-slate-400 ml-2"><MapPin className="w-3 h-3 inline mr-0.5" />{shippingAddresses.length} สาขา</span>
                   )}
                 </div>
-                {!isReadOnly && (
-                  <button type="button" onClick={handleCopyLatestOrder} disabled={loadingLatestOrder} className="p-1.5 text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50" title="คัดลอก Order ล่าสุด">
-                    {loadingLatestOrder ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
-                  </button>
-                )}
                 {/* Multi-branch toggle — ON state */}
                 <button type="button" onClick={() => handleMultiBranchToggle(false)} className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap bg-[#F4511E] text-white">
                   <div className="relative w-7 h-4 rounded-full bg-white/30 transition-colors">
@@ -2089,6 +2270,42 @@ export default function OrderForm({
         </div>
       )}
 
+      {/* Address Conflict Dialog */}
+      {addressConflict && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-sm w-full p-5">
+            <h3 className="text-base font-bold text-gray-900 dark:text-slate-100 mb-2">ที่อยู่ไม่ตรงกับ &quot;{addressConflict.addressName}&quot;</h3>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">ที่อยู่ที่กรอกไม่ตรงกับที่อยู่เดิม ต้องการดำเนินการอย่างไร?</p>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => doSave('update')}
+                disabled={saving}
+                className="w-full px-4 py-2.5 text-sm font-medium text-white bg-[#F4511E] rounded-lg hover:bg-[#E64A19] transition-colors disabled:opacity-50"
+              >
+                อัพเดท &quot;{addressConflict.addressName}&quot;
+              </button>
+              <button
+                type="button"
+                onClick={() => doSave('new')}
+                disabled={saving}
+                className="w-full px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+              >
+                บันทึกเป็นที่อยู่ใหม่
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddressConflict(null)}
+                disabled={saving}
+                className="w-full px-4 py-2.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Success Modal with Bill Online */}
       {showSuccessModal && (
         <div
@@ -2156,6 +2373,9 @@ export default function OrderForm({
                       const billUrl = `${window.location.origin}/bills/${savedOrderId}`;
                       setShowSuccessModal(false);
                       onSendBillToChat(savedOrderId, savedOrderNumber, billUrl);
+                      if (onSuccess) {
+                        onSuccess(savedOrderId, selectedCustomer?.id, deliveryName ? { name: deliveryName, phone: deliveryPhone, email: deliveryEmail } : undefined);
+                      }
                     }}
                     className="w-full px-4 py-2.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium flex items-center justify-center gap-2"
                   >
@@ -2168,7 +2388,7 @@ export default function OrderForm({
                   onClick={() => {
                     setShowSuccessModal(false);
                     if (onSuccess) {
-                      onSuccess(savedOrderId);
+                      onSuccess(savedOrderId, selectedCustomer?.id, deliveryName ? { name: deliveryName, phone: deliveryPhone, email: deliveryEmail } : undefined);
                     } else {
                       router.push(`/orders/${savedOrderId}`);
                     }

@@ -98,8 +98,8 @@ function CustomerTypeBadge({ type }: { type: string }) {
   };
 
   const labels: Record<string, string> = {
-    retail: 'ขายปลีก',
-    wholesale: 'ขายส่ง',
+    retail: 'ลูกค้าปลีก',
+    wholesale: 'ลูกค้าส่ง',
     distributor: 'ตัวแทนจำหน่าย'
   };
 

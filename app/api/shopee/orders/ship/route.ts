@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { order_id } = body;
+    const { order_id, pickup_time_id } = body;
 
     if (!order_id) {
       return NextResponse.json({ error: 'Missing order_id' }, { status: 400 });
@@ -117,14 +117,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'ไม่พบที่อยู่รับพัสดุ กรุณาตั้งค่าใน Shopee Seller Center' }, { status: 400 });
       }
 
-      // time_slot_list is nested inside each address — pick recommended slot first, else first available
+      // time_slot_list is nested inside each address
+      // If pickup_time_id is provided (from time slot modal), use it directly
+      // Otherwise, auto-pick recommended slot first, else first available
       const timeSlots = pickupAddress.time_slot_list || [];
-      const recommendedSlot = timeSlots.find(s => s.flags?.includes('recommended'));
-      const pickupTimeSlot = recommendedSlot || timeSlots[0];
+      let selectedTimeId = pickup_time_id || '';
+      if (!selectedTimeId) {
+        const recommendedSlot = timeSlots.find(s => s.flags?.includes('recommended'));
+        const pickupTimeSlot = recommendedSlot || timeSlots[0];
+        selectedTimeId = pickupTimeSlot?.pickup_time_id || '';
+      }
 
       const pickupParams = {
         address_id: pickupAddress.address_id,
-        pickup_time_id: pickupTimeSlot?.pickup_time_id || '',
+        pickup_time_id: selectedTimeId,
       };
 
       shipResult = await shipOrder(creds, order.external_order_sn, pickupParams);

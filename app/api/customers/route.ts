@@ -8,15 +8,15 @@ interface CustomerData {
   contact_person?: string;
   phone?: string;
   email?: string;
-  address?: string;
-  district?: string;
-  amphoe?: string;
-  province?: string;
-  postal_code?: string;
+  tax_address?: string;
+  tax_district?: string;
+  tax_amphoe?: string;
+  tax_province?: string;
+  tax_postal_code?: string;
   tax_id?: string;
   tax_company_name?: string;
   tax_branch?: string;
-  customer_type: 'retail' | 'wholesale' | 'distributor';
+  customer_type: string;
   credit_limit?: number;
   credit_days?: number;
   assigned_salesperson?: string;
@@ -59,11 +59,11 @@ export async function POST(request: NextRequest) {
         contact_person: customerData.contact_person || null,
         phone: customerData.phone || null,
         email: customerData.email || null,
-        address: customerData.address || null,
-        district: customerData.district || null,
-        amphoe: customerData.amphoe || null,
-        province: customerData.province || null,
-        postal_code: customerData.postal_code || null,
+        tax_address: customerData.tax_address || null,
+        tax_district: customerData.tax_district || null,
+        tax_amphoe: customerData.tax_amphoe || null,
+        tax_province: customerData.tax_province || null,
+        tax_postal_code: customerData.tax_postal_code || null,
         tax_id: customerData.tax_id || null,
         tax_company_name: customerData.tax_company_name || null,
         tax_branch: customerData.tax_branch || null,
@@ -88,8 +88,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Auto-create default shipping address if address info is provided
-    if (data && customerData.address && customerData.province) {
+    // Normalize customer_type for response
+    if (data) data.customer_type = data.customer_type_new || data.customer_type || 'retail';
+
+    // Auto-create default shipping address if tax address info is provided (use as initial shipping address)
+    if (data && customerData.tax_address && customerData.tax_province) {
       try {
         await supabaseAdmin
           .from('shipping_addresses')
@@ -99,11 +102,11 @@ export async function POST(request: NextRequest) {
             address_name: 'สำนักงานใหญ่', // Default name
             contact_person: customerData.contact_person || null,
             phone: customerData.phone || null,
-            address_line1: customerData.address,
-            district: customerData.district || null,
-            amphoe: customerData.amphoe || null,
-            province: customerData.province,
-            postal_code: customerData.postal_code || null,
+            address_line1: customerData.tax_address,
+            district: customerData.tax_district || null,
+            amphoe: customerData.tax_amphoe || null,
+            province: customerData.tax_province,
+            postal_code: customerData.tax_postal_code || null,
             is_default: true,
             is_active: true,
             created_by: auth.userId,
@@ -155,11 +158,17 @@ export async function GET(request: NextRequest) {
 
     // Apply filters
     if (search) {
-      query = query.or(`name.ilike.%${search}%,customer_code.ilike.%${search}%,phone.ilike.%${search}%`);
+      // Support searching by UUID (exact match on id) or by name/code/phone
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search);
+      if (isUuid) {
+        query = query.eq('id', search);
+      } else {
+        query = query.or(`name.ilike.%${search}%,customer_code.ilike.%${search}%,phone.ilike.%${search}%`);
+      }
     }
 
     if (customerType && customerType !== 'all') {
-      query = query.eq('customer_type', customerType);
+      query = query.eq('customer_type_new', customerType);
     }
 
     if (isActive !== null && isActive !== undefined && isActive !== 'all') {
@@ -183,12 +192,19 @@ export async function GET(request: NextRequest) {
       const customerIds = data.map(c => c.id);
 
       // Fetch all stats in parallel
-      const [addressResult, lineResult, orderResult] = await Promise.all([
+      const [addressResult, defaultAddrResult, lineResult, orderResult] = await Promise.all([
         supabaseAdmin
           .from('shipping_addresses')
           .select('customer_id')
           .in('customer_id', customerIds)
           .eq('company_id', auth.companyId)
+          .eq('is_active', true),
+        supabaseAdmin
+          .from('shipping_addresses')
+          .select('customer_id, address_line1, district, amphoe, province, postal_code')
+          .in('customer_id', customerIds)
+          .eq('company_id', auth.companyId)
+          .eq('is_default', true)
           .eq('is_active', true),
         supabaseAdmin
           .from('line_contacts')
@@ -203,6 +219,7 @@ export async function GET(request: NextRequest) {
       ]);
 
       const { data: addressCounts } = addressResult;
+      const { data: defaultAddresses } = defaultAddrResult;
       const { data: lineContacts, error: lineError } = lineResult;
       const { data: orderTotals } = orderResult;
 
@@ -216,6 +233,14 @@ export async function GET(request: NextRequest) {
         addressCountMap[addr.customer_id] = (addressCountMap[addr.customer_id] || 0) + 1;
       });
 
+      // Default address lookup (for display in customer list)
+      const defaultAddrMap: Record<string, { address_line1: string; district: string; amphoe: string; province: string; postal_code: string }> = {};
+      defaultAddresses?.forEach(addr => {
+        if (addr.customer_id) {
+          defaultAddrMap[addr.customer_id] = addr;
+        }
+      });
+
       const lineContactMap: Record<string, string> = {}; // customer_id -> display_name
       lineContacts?.forEach(contact => {
         if (contact.customer_id) {
@@ -224,24 +249,31 @@ export async function GET(request: NextRequest) {
       });
 
       const orderTotalMap: Record<string, number> = {};
+      const orderCountMap: Record<string, number> = {};
       orderTotals?.forEach(order => {
         if (order.customer_id) {
           orderTotalMap[order.customer_id] = (orderTotalMap[order.customer_id] || 0) + (order.total_amount || 0);
+          orderCountMap[order.customer_id] = (orderCountMap[order.customer_id] || 0) + 1;
         }
       });
 
       // Merge stats into customers
       const customersWithStats = data.map(customer => ({
         ...customer,
+        customer_type: customer.customer_type_new || customer.customer_type || 'retail',
         shipping_address_count: addressCountMap[customer.id] || 0,
+        default_address: defaultAddrMap[customer.id] || null,
         line_display_name: lineContactMap[customer.id] || null,
-        total_order_amount: orderTotalMap[customer.id] || 0
+        total_order_amount: orderTotalMap[customer.id] || 0,
+        order_count: orderCountMap[customer.id] || 0
       }));
 
       return NextResponse.json({ customers: customersWithStats });
     }
 
-    return NextResponse.json({ customers: data });
+    // Normalize customer_type for all consumers
+    const normalized = data?.map((c: any) => ({ ...c, customer_type: c.customer_type_new || c.customer_type || 'retail' })) || [];
+    return NextResponse.json({ customers: normalized });
   } catch (error) {
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -263,7 +295,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, customer_type, ...updateData } = body;
+    const { id, customer_type, address, district, amphoe, province, postal_code, ...updateData } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -273,7 +305,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Map customer_type to customer_type_new for database
-    const dataToUpdate = {
+    const dataToUpdate: Record<string, unknown> = {
       ...updateData,
       updated_at: new Date().toISOString()
     };
@@ -282,6 +314,13 @@ export async function PUT(request: NextRequest) {
     if (customer_type) {
       dataToUpdate.customer_type_new = customer_type;
     }
+
+    // Map old address field names to new tax_address columns (backward compat)
+    if (address !== undefined) dataToUpdate.tax_address = address;
+    if (district !== undefined) dataToUpdate.tax_district = district;
+    if (amphoe !== undefined) dataToUpdate.tax_amphoe = amphoe;
+    if (province !== undefined) dataToUpdate.tax_province = province;
+    if (postal_code !== undefined) dataToUpdate.tax_postal_code = postal_code;
 
     const { data, error } = await supabaseAdmin
       .from('customers')
@@ -310,7 +349,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE - ลบลูกค้า (soft delete)
+// DELETE - ลบลูกค้า (single: ?id=xxx, bulk: ?ids=a,b,c, hard delete: ?hard=true)
 export async function DELETE(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
@@ -324,32 +363,68 @@ export async function DELETE(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const customerId = searchParams.get('id');
+    const bulkIds = searchParams.get('ids');
+    const hardDelete = searchParams.get('hard') === 'true';
 
-    if (!customerId) {
+    // Collect IDs to delete
+    const customerIds: string[] = [];
+    if (bulkIds) {
+      customerIds.push(...bulkIds.split(',').filter(Boolean));
+    } else if (customerId) {
+      customerIds.push(customerId);
+    }
+
+    if (customerIds.length === 0) {
       return NextResponse.json(
         { error: 'Customer ID is required' },
         { status: 400 }
       );
     }
 
-    // Soft delete - ปิดการใช้งาน
-    const { error } = await supabaseAdmin
-      .from('customers')
-      .update({
-        is_active: false,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', customerId)
-      .eq('company_id', auth.companyId);
+    if (hardDelete) {
+      // Hard delete: unlink orders → delete activities → delete customers
+      await supabaseAdmin
+        .from('orders')
+        .update({ customer_id: null })
+        .in('customer_id', customerIds);
 
-    if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
+      await supabaseAdmin
+        .from('customer_activities')
+        .delete()
+        .in('customer_id', customerIds);
+
+      const { error } = await supabaseAdmin
+        .from('customers')
+        .delete()
+        .in('id', customerIds)
+        .eq('company_id', auth.companyId);
+
+      if (error) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 500 }
+        );
+      }
+    } else {
+      // Soft delete - ปิดการใช้งาน
+      const { error } = await supabaseAdmin
+        .from('customers')
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString()
+        })
+        .in('id', customerIds)
+        .eq('company_id', auth.companyId);
+
+      if (error) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 500 }
+        );
+      }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, deleted: customerIds.length });
   } catch (error) {
     return NextResponse.json(
       { error: 'Internal server error' },

@@ -1,12 +1,14 @@
 // Path: app/customers/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
+import Checkbox from '@/components/ui/Checkbox';
 import { useAuth } from '@/lib/auth-context';
+import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import {
@@ -18,23 +20,23 @@ import {
   X,
   Loader2,
   Phone,
-  MessageCircle,
-  Eye,
+  Trash2,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 
 // Column toggle system
-type ColumnKey = 'customer' | 'type' | 'phone' | 'line' | 'totalOrder' | 'branch' | 'status';
+type ColumnKey = 'customer' | 'type' | 'phone' | 'email' | 'address' | 'totalOrder' | 'orderCount' | 'branch';
 
 const COLUMN_CONFIGS: { key: ColumnKey; label: string; defaultVisible: boolean; alwaysVisible?: boolean }[] = [
   { key: 'customer', label: 'ลูกค้า', defaultVisible: true, alwaysVisible: true },
   { key: 'type', label: 'ประเภท', defaultVisible: true },
   { key: 'phone', label: 'เบอร์โทร', defaultVisible: true },
-  { key: 'line', label: 'LINE', defaultVisible: true },
+  { key: 'email', label: 'อีเมล', defaultVisible: true },
+  { key: 'address', label: 'ที่อยู่', defaultVisible: true },
+  { key: 'orderCount', label: 'จำนวนบิล', defaultVisible: true },
   { key: 'totalOrder', label: 'ยอดสั่งซื้อ', defaultVisible: true },
   { key: 'branch', label: 'สาขา', defaultVisible: true },
-  { key: 'status', label: 'สถานะ', defaultVisible: true },
 ];
 
 const STORAGE_KEY = 'customers-visible-columns';
@@ -51,14 +53,14 @@ interface Customer {
   contact_person?: string;
   phone?: string;
   email?: string;
-  address?: string;
-  district?: string;
-  amphoe?: string;
-  province?: string;
-  postal_code?: string;
+  tax_address?: string;
+  tax_district?: string;
+  tax_amphoe?: string;
+  tax_province?: string;
+  tax_postal_code?: string;
   tax_id?: string;
-  customer_type: 'retail' | 'wholesale' | 'distributor';
-  customer_type_new?: 'retail' | 'wholesale' | 'distributor'; // From database
+  customer_type: string;
+  customer_type_new?: string; // From database
   credit_limit: number;
   credit_days: number;
   assigned_salesperson?: string;
@@ -68,48 +70,44 @@ interface Customer {
   updated_at: string;
   // Stats from API
   shipping_address_count?: number;
+  default_address?: { address_line1: string; district: string; amphoe: string; province: string; postal_code: string } | null;
   line_display_name?: string | null;
   total_order_amount?: number;
+  order_count?: number;
 }
 
-// Status badge component
-function StatusBadge({ isActive }: { isActive: boolean }) {
-  return isActive ? (
-    <span className="flex items-center text-green-600">
-      <Check className="w-4 h-4 mr-1" />
-      <span className="text-sm">ใช้งาน</span>
-    </span>
-  ) : (
-    <span className="flex items-center text-red-600">
-      <X className="w-4 h-4 mr-1" />
-      <span className="text-sm">ปิดใช้งาน</span>
-    </span>
-  );
-}
+// Customer type config
+const CUSTOMER_TYPES: Record<string, { label: string; color: string }> = {
+  retail: { label: 'ลูกค้าปลีก', color: 'bg-blue-100 text-blue-800' },
+  wholesale: { label: 'ลูกค้าส่ง', color: 'bg-purple-100 text-purple-800' },
+  cash_dealer: { label: 'ตัวแทนฯ เงินสด', color: 'bg-green-100 text-green-800' },
+  consignment_dealer: { label: 'ตัวแทนฯ ฝากขาย', color: 'bg-amber-100 text-amber-800' },
+  department_store: { label: 'ห้าง/Modern Trade', color: 'bg-pink-100 text-pink-800' },
+  distributor: { label: 'ตัวกระจายสินค้า', color: 'bg-teal-100 text-teal-800' },
+  credit_dealer: { label: 'ตัวแทนฯ เครดิต', color: 'bg-orange-100 text-orange-800' },
+  sub_dealer: { label: 'ตัวแทนย่อย', color: 'bg-indigo-100 text-indigo-800' },
+  corporate: { label: 'องค์กร/B2B', color: 'bg-slate-100 text-slate-800' },
+  project: { label: 'ลูกค้าโครงการ', color: 'bg-cyan-100 text-cyan-800' },
+  marketplace_dealer: { label: 'ตัวแทน Marketplace', color: 'bg-violet-100 text-violet-800' },
+  dropship: { label: 'Dropship', color: 'bg-sky-100 text-sky-800' },
+  affiliate: { label: 'Affiliate/KOL', color: 'bg-fuchsia-100 text-fuchsia-800' },
+  oem_odm: { label: 'OEM/ODM', color: 'bg-rose-100 text-rose-800' },
+  regional_agent: { label: 'ตัวแทนภูมิภาค', color: 'bg-emerald-100 text-emerald-800' },
+  government: { label: 'ราชการ/หน่วยงานรัฐ', color: 'bg-yellow-100 text-yellow-800' },
+};
 
-// Customer type badge
 function CustomerTypeBadge({ type }: { type: string }) {
-  const colors = {
-    retail: 'bg-blue-100 text-blue-800',
-    wholesale: 'bg-purple-100 text-purple-800',
-    distributor: 'bg-green-100 text-green-800'
-  };
-
-  const labels = {
-    retail: 'ขายปลีก',
-    wholesale: 'ขายส่ง',
-    distributor: 'ตัวแทนจำหน่าย'
-  };
-
+  const config = CUSTOMER_TYPES[type] || { label: type, color: 'bg-gray-100 text-gray-800' };
   return (
-    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[type as keyof typeof colors]}`}>
-      {labels[type as keyof typeof labels]}
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+      {config.label}
     </span>
   );
 }
 
 export default function CustomersPage() {
   const { userProfile, loading: authLoading } = useAuth();
+  const { showToast } = useToast();
   const router = useRouter();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -118,8 +116,12 @@ export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
-  const [filterActive, setFilterActive] = useState<string>('all');
-  const [filterLine, setFilterLine] = useState<string>('all');
+  const [filterAmount, setFilterAmount] = useState<string>('all');
+  const [filterOrderCount, setFilterOrderCount] = useState<string>('all');
+
+  // Selection & bulk delete
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -146,6 +148,57 @@ export default function CustomersPage() {
   };
 
   const isCol = (key: ColumnKey) => visibleColumns.has(key);
+
+  // Selection helpers
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // Bulk delete handler
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`ลบลูกค้า ${selectedIds.size} รายการ ถาวร?\n\nที่อยู่จัดส่ง, กิจกรรม จะถูกลบ\nออเดอร์จะถูก unlink`)) return;
+
+    setBulkDeleting(true);
+    try {
+      const ids = [...selectedIds].join(',');
+      const res = await apiFetch(`/api/customers?ids=${ids}&hard=true`, { method: 'DELETE' });
+      if (!res.ok) { const r = await res.json(); throw new Error(r.error || 'ไม่สามารถลบได้'); }
+
+      showToast(`ลบลูกค้า ${selectedIds.size} รายการสำเร็จ`);
+      setCustomers(prev => prev.filter(c => !selectedIds.has(c.id)));
+      setSelectedIds(new Set());
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'ไม่สามารถลบได้', 'error');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  // Single delete handler
+  const handleDeleteCustomer = async (customerId: string, customerName: string) => {
+    if (!confirm(`ลบลูกค้า "${customerName}" ถาวร?`)) return;
+
+    try {
+      const res = await apiFetch(`/api/customers?id=${customerId}&hard=true`, { method: 'DELETE' });
+      if (!res.ok) { const r = await res.json(); throw new Error(r.error || 'ไม่สามารถลบได้'); }
+
+      showToast('ลบลูกค้าสำเร็จ');
+      setCustomers(prev => prev.filter(c => c.id !== customerId));
+      setSelectedIds(prev => { const next = new Set(prev); next.delete(customerId); return next; });
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'ไม่สามารถลบได้', 'error');
+    }
+  };
+
+  // Clear selection when filters change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [searchTerm, filterType, filterAmount, filterOrderCount, currentPage]);
 
   // Check auth
   useEffect(() => {
@@ -204,19 +257,49 @@ export default function CustomersPage() {
       customer.phone?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesType = filterType === 'all' || customer.customer_type === filterType;
-    const matchesActive = filterActive === 'all' ||
-      (filterActive === 'true' ? customer.is_active : !customer.is_active);
-    const matchesLine = filterLine === 'all' ||
-      (filterLine === 'linked' ? !!customer.line_display_name : !customer.line_display_name);
 
-    return matchesSearch && matchesType && matchesActive && matchesLine;
+    const amt = customer.total_order_amount || 0;
+    const matchesAmount = filterAmount === 'all' ||
+      (filterAmount === '0' ? amt === 0 :
+       filterAmount === '<10000' ? amt > 0 && amt < 10000 :
+       filterAmount === '10000-50000' ? amt >= 10000 && amt <= 50000 :
+       filterAmount === '50000-100000' ? amt > 50000 && amt <= 100000 :
+       filterAmount === '>100000' ? amt > 100000 : true);
+
+    const cnt = customer.order_count || 0;
+    const matchesOrderCount = filterOrderCount === 'all' ||
+      (filterOrderCount === '0' ? cnt === 0 :
+       filterOrderCount === '1-5' ? cnt >= 1 && cnt <= 5 :
+       filterOrderCount === '6-20' ? cnt >= 6 && cnt <= 20 :
+       filterOrderCount === '>20' ? cnt > 20 : true);
+
+    return matchesSearch && matchesType && matchesAmount && matchesOrderCount;
   });
+
+  // Types that exist in customer data (for filter dropdown)
+  const activeTypes = useMemo(() => {
+    const types = new Set(customers.map(c => c.customer_type));
+    return Object.entries(CUSTOMER_TYPES).filter(([key]) => types.has(key));
+  }, [customers]);
 
   // Pagination
   const totalPages = Math.ceil(filteredCustomers.length / rowsPerPage);
   const startIndex = (currentPage - 1) * rowsPerPage;
   const endIndex = startIndex + rowsPerPage;
   const paginatedCustomers = filteredCustomers.slice(startIndex, endIndex);
+
+  const allPageSelected = paginatedCustomers.length > 0 &&
+    paginatedCustomers.every(c => selectedIds.has(c.id));
+
+  const toggleSelectAll = () => {
+    const pageIds = paginatedCustomers.map(c => c.id);
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allPageSelected) pageIds.forEach(id => next.delete(id));
+      else pageIds.forEach(id => next.add(id));
+      return next;
+    });
+  };
 
   if (authLoading || loading) {
     return (
@@ -273,34 +356,66 @@ export default function CustomersPage() {
               className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
             >
               <option value="all">ประเภททั้งหมด</option>
-              <option value="retail">ขายปลีก</option>
-              <option value="wholesale">ขายส่ง</option>
-              <option value="distributor">ตัวแทนจำหน่าย</option>
+              {activeTypes.map(([key, { label }]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
             </select>
 
-            {/* Active Filter */}
+            {/* Order Amount Filter */}
             <select
-              value={filterActive}
-              onChange={(e) => { setFilterActive(e.target.value); setCurrentPage(1); }}
+              value={filterAmount}
+              onChange={(e) => { setFilterAmount(e.target.value); setCurrentPage(1); }}
               className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
             >
-              <option value="all">สถานะทั้งหมด</option>
-              <option value="true">ใช้งาน</option>
-              <option value="false">ปิดใช้งาน</option>
+              <option value="all">ยอดทั้งหมด</option>
+              <option value="0">ยังไม่มียอด</option>
+              <option value="<10000">น้อยกว่า ฿10,000</option>
+              <option value="10000-50000">฿10,000 - ฿50,000</option>
+              <option value="50000-100000">฿50,000 - ฿100,000</option>
+              <option value=">100000">มากกว่า ฿100,000</option>
             </select>
 
-            {/* LINE Filter */}
+            {/* Order Count Filter */}
             <select
-              value={filterLine}
-              onChange={(e) => { setFilterLine(e.target.value); setCurrentPage(1); }}
+              value={filterOrderCount}
+              onChange={(e) => { setFilterOrderCount(e.target.value); setCurrentPage(1); }}
               className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
             >
-              <option value="all">LINE ทั้งหมด</option>
-              <option value="linked">เชื่อมต่อ LINE แล้ว</option>
-              <option value="not_linked">ยังไม่เชื่อมต่อ</option>
+              <option value="all">จำนวนบิลทั้งหมด</option>
+              <option value="0">ยังไม่มีบิล</option>
+              <option value="1-5">1 - 5 บิล</option>
+              <option value="6-20">6 - 20 บิล</option>
+              <option value=">20">มากกว่า 20 บิล</option>
             </select>
+
+
           </div>
         </div>
+
+        {/* Bulk Action Bar */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center justify-between bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3">
+            <span className="text-sm text-red-700 dark:text-red-300 font-medium">
+              เลือก {selectedIds.size} รายการ
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="px-3 py-1.5 text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                {bulkDeleting ? 'กำลังลบ...' : `ลบ ${selectedIds.size} รายการ`}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Customer Table */}
         <div className="data-table-wrap">
@@ -308,13 +423,18 @@ export default function CustomersPage() {
             <table className="w-full">
               <thead className="data-thead">
                 <tr>
+                  <th className="w-[44px] px-3 py-3 text-center">
+                    <Checkbox checked={allPageSelected} onChange={toggleSelectAll} />
+                  </th>
                   {isCol('customer') && <th className="data-th min-w-[200px]">ลูกค้า</th>}
                   {isCol('type') && <th className="data-th w-[100px]">ประเภท</th>}
                   {isCol('phone') && <th className="data-th w-[110px]">เบอร์โทร</th>}
-                  {isCol('line') && <th className="data-th min-w-[200px]">LINE</th>}
-                  {isCol('totalOrder') && <th className="data-th text-right w-[100px]">ยอดสั่งซื้อ</th>}
+                  {isCol('email') && <th className="data-th min-w-[160px]">อีเมล</th>}
+                  {isCol('address') && <th className="data-th min-w-[200px]">ที่อยู่</th>}
+                  {isCol('orderCount') && <th className="data-th text-center w-[100px]">จำนวนบิล</th>}
+                  {isCol('totalOrder') && <th className="data-th text-right w-[130px]">ยอดสั่งซื้อ</th>}
                   {isCol('branch') && <th className="data-th text-center w-[60px]">สาขา</th>}
-                  {isCol('status') && <th className="data-th text-center w-[90px]">สถานะ</th>}
+                  <th className="w-[44px]"></th>
                 </tr>
               </thead>
               <tbody className="data-tbody">
@@ -324,15 +444,17 @@ export default function CustomersPage() {
                     onClick={() => router.push(`/customers/${customer.id}`)}
                     className="data-tr cursor-pointer"
                   >
+                    {/* Checkbox */}
+                    <td className="w-[44px] px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox checked={selectedIds.has(customer.id)} onChange={() => toggleSelect(customer.id)} />
+                    </td>
+
                     {/* ลูกค้า: ชื่อ (เด่น) + รหัส (จาง) */}
                     {isCol('customer') && (
                     <td className="px-4 py-3">
-                      <div className="flex items-start gap-2">
-                        <Eye className="w-4 h-4 text-gray-300 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-white">{customer.name}</div>
-                          <div className="text-xs text-gray-400 dark:text-slate-500">{customer.customer_code}</div>
-                        </div>
+                      <div>
+                        <div className="font-semibold text-[15px] text-gray-900 dark:text-white">{customer.name}</div>
+                        <div className="text-xs text-gray-400 dark:text-slate-500">{customer.customer_code}</div>
                       </div>
                     </td>
                     )}
@@ -362,14 +484,36 @@ export default function CustomersPage() {
                     </td>
                     )}
 
-                    {/* LINE status */}
-                    {isCol('line') && (
+                    {/* อีเมล */}
+                    {isCol('email') && (
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      {customer.email ? (
+                        <span className="text-sm text-gray-700 dark:text-slate-300">{customer.email}</span>
+                      ) : (
+                        <span className="text-gray-300 text-sm">-</span>
+                      )}
+                    </td>
+                    )}
+
+                    {/* ที่อยู่ (default shipping address) */}
+                    {isCol('address') && (
                     <td className="px-3 py-3">
-                      {customer.line_display_name ? (
-                        <span className="inline-flex items-center gap-1.5 text-sm text-[#06C755]" title="เชื่อมต่อ LINE แล้ว">
-                          <MessageCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{customer.line_display_name}</span>
+                      {customer.default_address ? (
+                        <span className="text-sm text-gray-700 dark:text-slate-300 line-clamp-1">
+                          {[customer.default_address.address_line1, customer.default_address.amphoe, customer.default_address.province].filter(Boolean).join(' ')}
                         </span>
+                      ) : (
+                        <span className="text-gray-300 text-sm">-</span>
+                      )}
+                    </td>
+                    )}
+
+
+                    {/* จำนวนบิล */}
+                    {isCol('orderCount') && (
+                    <td className="px-3 py-3 text-center whitespace-nowrap">
+                      {customer.order_count && customer.order_count > 0 ? (
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{customer.order_count}</span>
                       ) : (
                         <span className="text-gray-300 text-sm">-</span>
                       )}
@@ -402,12 +546,16 @@ export default function CustomersPage() {
                     </td>
                     )}
 
-                    {/* สถานะ */}
-                    {isCol('status') && (
-                    <td className="px-3 py-3 text-center">
-                      <StatusBadge isActive={customer.is_active} />
+                    {/* ลบ */}
+                    <td className="w-[44px] px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => handleDeleteCustomer(customer.id, customer.name)}
+                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="ลบลูกค้า"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
-                    )}
                   </tr>
                 ))}
               </tbody>

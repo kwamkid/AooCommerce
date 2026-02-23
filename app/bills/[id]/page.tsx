@@ -80,6 +80,7 @@ interface BillData {
   notes?: string;
   company_name?: string;
   company_logo?: string | null;
+  vat_registered?: boolean;
   payment_record?: PaymentRecord | null;
   payment_channels?: PaymentChannelData[];
   customer_type?: string;
@@ -88,11 +89,11 @@ interface BillData {
     contact_person?: string;
     phone?: string;
     email?: string;
-    address?: string;
-    district?: string;
-    amphoe?: string;
-    province?: string;
-    postal_code?: string;
+    tax_address?: string;
+    tax_district?: string;
+    tax_amphoe?: string;
+    tax_province?: string;
+    tax_postal_code?: string;
     tax_company_name?: string;
     tax_id?: string;
     tax_branch?: string;
@@ -173,11 +174,11 @@ export default function BillOnlinePage() {
     setDeliveryName(bill.customer?.name || '');
     setDeliveryPhone(bill.customer?.phone || '');
     setDeliveryEmail(bill.customer?.email || '');
-    setDeliveryAddress(bill.customer?.address || '');
-    setDeliveryDistrict(bill.customer?.district || '');
-    setDeliveryAmphoe(bill.customer?.amphoe || '');
-    setDeliveryProvince(bill.customer?.province || '');
-    setDeliveryPostalCode(bill.customer?.postal_code || '');
+    setDeliveryAddress(bill.customer?.tax_address || '');
+    setDeliveryDistrict(bill.customer?.tax_district || '');
+    setDeliveryAmphoe(bill.customer?.tax_amphoe || '');
+    setDeliveryProvince(bill.customer?.tax_province || '');
+    setDeliveryPostalCode(bill.customer?.tax_postal_code || '');
     setDeliveryErrors({});
     setEditingDelivery(true);
   };
@@ -228,6 +229,18 @@ export default function BillOnlinePage() {
       }
       const result = await response.json();
       setBill(result.bill);
+      // Pre-fill delivery form when incomplete (needs_delivery_info but has partial data)
+      if (result.bill.needs_delivery_info && result.bill.customer) {
+        const c = result.bill.customer;
+        setDeliveryName(c.name || '');
+        setDeliveryPhone(c.phone || '');
+        setDeliveryEmail(c.email || '');
+        setDeliveryAddress(c.tax_address || '');
+        setDeliveryDistrict(c.tax_district || '');
+        setDeliveryAmphoe(c.tax_amphoe || '');
+        setDeliveryProvince(c.tax_province || '');
+        setDeliveryPostalCode(c.tax_postal_code || '');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดบิลได้');
     } finally {
@@ -604,6 +617,9 @@ export default function BillOnlinePage() {
                   dropdownClassName={`absolute z-50 border rounded-lg shadow-lg max-h-[70vh] overflow-y-auto overflow-x-hidden ${dark ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}
                   dropdownStyle={dark ? { color: '#e2e8f0', borderColor: '#475569' } : { color: '#111827', borderColor: '#e5e7eb' }}
                 />
+                {(deliveryErrors.province || deliveryErrors.postal_code) && (
+                  <p className="text-red-500 text-xs -mt-1 mb-2">{deliveryErrors.province || deliveryErrors.postal_code}</p>
+                )}
                 <button
                   type="button"
                   onClick={async () => {
@@ -619,6 +635,12 @@ export default function BillOnlinePage() {
                       errors.email = 'รูปแบบอีเมลไม่ถูกต้อง';
                     }
                     if (!deliveryAddress.trim()) errors.address = 'กรุณากรอกที่อยู่จัดส่ง';
+                    if (!deliveryProvince.trim()) errors.province = 'กรุณากรอกจังหวัด';
+                    if (!deliveryPostalCode.trim()) {
+                      errors.postal_code = 'กรุณากรอกรหัสไปรษณีย์';
+                    } else if (!/^\d{5}$/.test(deliveryPostalCode.trim())) {
+                      errors.postal_code = 'รหัสไปรษณีย์ต้องเป็นตัวเลข 5 หลัก';
+                    }
                     if (Object.keys(errors).length > 0) {
                       setDeliveryErrors(errors);
                       return;
@@ -654,7 +676,7 @@ export default function BillOnlinePage() {
                       setSavingDelivery(false);
                     }
                   }}
-                  disabled={savingDelivery || !deliveryName || !deliveryPhone || !deliveryAddress}
+                  disabled={savingDelivery || !deliveryName || !deliveryPhone || !deliveryAddress || !deliveryProvince || !deliveryPostalCode}
                   className="w-full bg-[#F4511E] text-white py-2.5 rounded-lg font-medium text-sm hover:bg-[#E64A19] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {savingDelivery ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
@@ -681,18 +703,16 @@ export default function BillOnlinePage() {
             <div className={`print:bg-transparent rounded-lg p-4 print:p-0 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
               <div className="flex items-center justify-between mb-1">
                 <div className={`text-sm font-medium ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
-                  {!bill.customer_id ? 'ข้อมูลจัดส่ง' : 'ลูกค้า'}
+                  ข้อมูลจัดส่ง
                 </div>
-                {!bill.customer_id && (
-                  <button
-                    type="button"
-                    onClick={handleEditDelivery}
-                    className={`text-xs flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors ${dark ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'}`}
-                  >
-                    <Pencil className="w-3 h-3" />
-                    แก้ไข
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleEditDelivery}
+                  className={`text-xs flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors ${dark ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'}`}
+                >
+                  <Pencil className="w-3 h-3" />
+                  แก้ไข
+                </button>
               </div>
               <div className={`text-lg font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{bill.customer.name}</div>
               <div className={`text-sm space-y-0.5 mt-1 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
@@ -705,9 +725,9 @@ export default function BillOnlinePage() {
                     {bill.customer.tax_branch && ` สาขา: ${bill.customer.tax_branch}`}
                   </div>
                 )}
-                {bill.customer.address && (
+                {bill.customer.tax_address && (
                   <div>
-                    ที่อยู่: {[bill.customer.address, bill.customer.district, bill.customer.amphoe, bill.customer.province, bill.customer.postal_code].filter(Boolean).join(' ')}
+                    ที่อยู่: {[bill.customer.tax_address, bill.customer.tax_district, bill.customer.tax_amphoe, bill.customer.tax_province, bill.customer.tax_postal_code].filter(Boolean).join(' ')}
                   </div>
                 )}
               </div>
@@ -784,8 +804,8 @@ export default function BillOnlinePage() {
             </div>
           ) : (
             <div className="mb-5">
-              {/* Single branch address */}
-              {bill.branches && bill.branches.length === 1 && (
+              {/* Single branch address — only show if NO delivery info section above (guest order) */}
+              {bill.branches && bill.branches.length === 1 && !bill.customer?.name && (
                 <div className={`print:bg-transparent rounded-lg p-4 mb-4 print:p-0 print:mb-2 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
                   <div className={`flex items-center gap-2 text-base font-medium mb-0.5 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>
                     <MapPin className="w-4 h-4 text-[#F4511E] print:text-black" />
@@ -825,14 +845,18 @@ export default function BillOnlinePage() {
                   <span>-{formatPrice(bill.discount_amount)}</span>
                 </div>
               )}
-              <div className={`flex justify-between text-sm pt-1.5 border-t ${dark ? 'text-slate-400 border-slate-700' : 'text-gray-500 border-gray-100'}`}>
-                <span>ยอดก่อน VAT</span>
-                <span>{formatPrice(bill.subtotal)}</span>
-              </div>
-              <div className={`flex justify-between text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
-                <span>VAT 7%</span>
-                <span>{formatPrice(bill.vat_amount)}</span>
-              </div>
+              {bill.vat_registered && (
+                <>
+                  <div className={`flex justify-between text-sm pt-1.5 border-t ${dark ? 'text-slate-400 border-slate-700' : 'text-gray-500 border-gray-100'}`}>
+                    <span>ยอดก่อน VAT</span>
+                    <span>{formatPrice(bill.subtotal)}</span>
+                  </div>
+                  <div className={`flex justify-between text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                    <span>VAT 7%</span>
+                    <span>{formatPrice(bill.vat_amount)}</span>
+                  </div>
+                </>
+              )}
               <div className={`flex justify-between text-lg font-bold pt-2 border-t-2 ${dark ? 'border-slate-600' : 'border-gray-200'}`}>
                 <span className={dark ? 'text-white' : 'text-gray-900'}>ยอดรวมสุทธิ</span>
                 <span className="text-[#F4511E] print:text-black">฿{formatPrice(bill.total_amount)}</span>

@@ -215,6 +215,77 @@ export default function IntegrationsPage() {
     }
   };
 
+  const handleSyncIncomplete = async (accountId: string) => {
+    setSyncingId(accountId);
+    setSyncProgress(0);
+    setSyncPhaseLabel('กำลังค้นหาออเดอร์ที่ยังไม่สมบูรณ์...');
+    const controller = new AbortController();
+    syncAbortRef.current = controller;
+
+    try {
+      const res = await apiFetch('/api/shopee/sync-incomplete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shopee_account_id: accountId }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        showToast(data.error || 'Sync ไม่สำเร็จ', 'error');
+        return;
+      }
+
+      let result: Record<string, unknown> = {};
+
+      await readSSEStream(res, (event) => {
+        if (event.type === 'progress') {
+          const phase = event.phase as string;
+          const current = event.current as number;
+          const total = event.total as number | null;
+          const label = event.label as string;
+          setSyncPhaseLabel(label);
+
+          if (phase === 'collecting') {
+            setSyncProgress(Math.min(5 + (current % 10), 15));
+          } else if (phase === 'processing' && total) {
+            setSyncProgress(Math.round((current / total) * 80) + 15);
+          }
+        } else if (event.type === 'done') {
+          result = event;
+          setSyncProgress(100);
+          setSyncPhaseLabel('เสร็จสิ้น');
+        } else if (event.type === 'error') {
+          showToast((event.message as string) || 'Sync ไม่สำเร็จ', 'error');
+        }
+      }, controller.signal);
+
+      if (controller.signal.aborted) {
+        showToast('ยกเลิกการ sync แล้ว', 'error');
+        return;
+      }
+
+      await new Promise(r => setTimeout(r, 500));
+
+      if (result.success) {
+        const parts: string[] = [];
+        if ((result.orders_created as number) > 0) parts.push(`คำสั่งซื้อใหม่ ${result.orders_created}`);
+        if ((result.orders_updated as number) > 0) parts.push(`อัพเดทสถานะ ${result.orders_updated}`);
+        const summary = parts.length > 0 ? parts.join(', ') : 'ไม่มีการเปลี่ยนแปลง';
+        showToast(`Sync สถานะค้างสำเร็จ: ${summary}`, 'success');
+        fetchAccounts();
+      }
+    } catch {
+      if (!controller.signal.aborted) {
+        showToast('เกิดข้อผิดพลาดในการ sync', 'error');
+      }
+    } finally {
+      syncAbortRef.current = null;
+      setSyncingId(null);
+      setSyncProgress(0);
+      setSyncPhaseLabel('');
+    }
+  };
+
   const handleDisconnect = async (accountId: string) => {
     if (!confirm('ต้องการยกเลิกการเชื่อมต่อร้านนี้?')) return;
     setDisconnectingId(accountId);
@@ -485,6 +556,14 @@ export default function IntegrationsPage() {
                         >
                           <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                           {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
+                        </button>
+                        <button
+                          onClick={() => handleSyncIncomplete(account.id)}
+                          disabled={isSyncing || account.connection_status === 'expired'}
+                          className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                        >
+                          <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                          Sync สถานะค้าง
                         </button>
                         <button
                           onClick={() => {

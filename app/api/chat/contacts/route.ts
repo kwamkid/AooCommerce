@@ -101,6 +101,8 @@ export async function GET(request: NextRequest) {
 
     for (const c of lineContacts) {
       const acc = (c.chat_account_id ? accountMap.get(c.chat_account_id) : undefined) || defaultAccountByPlatform.get('line');
+      const cust = c.customer ? { ...c.customer, customer_type: c.customer.customer_type_new || c.customer.customer_type } : c.customer;
+      if (cust) delete (cust as any).customer_type_new;
       unified.push({
         id: c.id,
         platform: 'line',
@@ -109,7 +111,7 @@ export async function GET(request: NextRequest) {
         picture_url: c.picture_url,
         status: c.status,
         customer_id: c.customer_id,
-        customer: c.customer,
+        customer: cust,
         unread_count: c.unread_count || 0,
         last_message_at: c.last_message_at,
         last_message: c.last_message,
@@ -124,6 +126,8 @@ export async function GET(request: NextRequest) {
 
     for (const c of fbContacts) {
       const acc = (c.chat_account_id ? accountMap.get(c.chat_account_id) : undefined) || defaultAccountByPlatform.get('facebook');
+      const cust2 = c.customer ? { ...c.customer, customer_type: c.customer.customer_type_new || c.customer.customer_type } : c.customer;
+      if (cust2) delete (cust2 as any).customer_type_new;
       unified.push({
         id: c.id,
         platform: 'facebook',
@@ -133,7 +137,7 @@ export async function GET(request: NextRequest) {
         picture_url: c.picture_url,
         status: c.status,
         customer_id: c.customer_id,
-        customer: c.customer,
+        customer: cust2,
         unread_count: c.unread_count || 0,
         last_message_at: c.last_message_at,
         last_message: c.last_message,
@@ -274,7 +278,7 @@ async function fetchLineContacts(companyId: string, filters: {
       *,
       customer:customers(
         id, name, customer_code, contact_person, phone, email,
-        customer_type_new, address, district, amphoe, province, postal_code,
+        customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code,
         tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active
       )
     `)
@@ -309,7 +313,7 @@ async function fetchLineContacts(companyId: string, filters: {
         *,
         customer:customers!inner(
           id, name, customer_code, contact_person, phone, email,
-          customer_type_new, address, district, amphoe, province, postal_code,
+          customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code,
           tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active
         )
       `)
@@ -382,7 +386,7 @@ async function fetchFbContacts(companyId: string, filters: {
       *,
       customer:customers(
         id, name, customer_code, contact_person, phone, email,
-        customer_type_new, address, district, amphoe, province, postal_code,
+        customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code,
         tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active
       )
     `)
@@ -417,7 +421,7 @@ async function fetchFbContacts(companyId: string, filters: {
         *,
         customer:customers!inner(
           id, name, customer_code, contact_person, phone, email,
-          customer_type_new, address, district, amphoe, province, postal_code,
+          customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code,
           tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active
         )
       `)

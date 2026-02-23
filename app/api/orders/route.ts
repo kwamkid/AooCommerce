@@ -30,6 +30,7 @@ interface OrderData {
   notes?: string;
   internal_notes?: string;
   warehouse_id?: string;
+  shipping_address_id?: string;
   delivery_name?: string;
   delivery_phone?: string;
   delivery_address?: string;
@@ -38,6 +39,7 @@ interface OrderData {
   delivery_province?: string;
   delivery_postal_code?: string;
   delivery_email?: string;
+  address_action?: 'update' | 'new';
   items: OrderItemInput[];
 }
 
@@ -133,10 +135,19 @@ export async function POST(request: NextRequest) {
     }
 
     const discountAmount = orderData.discount_amount || 0;
-    // Prices are VAT-inclusive, so we reverse-calculate VAT from the total
+
+    // Check if company is VAT registered
+    const { data: companyInfo } = await supabaseAdmin
+      .from('companies')
+      .select('vat_registered')
+      .eq('id', auth.companyId)
+      .single();
+    const isVatRegistered = companyInfo?.vat_registered || false;
+
+    // Prices are VAT-inclusive (if VAT registered), so we reverse-calculate VAT from the total
     const totalWithVAT = subtotal - discountAmount + totalShippingFee;
-    const subtotalBeforeVAT = Math.round((totalWithVAT / 1.07) * 100) / 100;
-    const vatAmount = totalWithVAT - subtotalBeforeVAT;
+    const subtotalBeforeVAT = isVatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
+    const vatAmount = isVatRegistered ? totalWithVAT - subtotalBeforeVAT : 0;
     const totalAmount = totalWithVAT;
     console.log('[CREATE ORDER] itemsSubtotal:', subtotal, 'discount:', discountAmount, 'shipping:', totalShippingFee, 'subtotalBeforeVAT:', subtotalBeforeVAT, 'vat:', vatAmount, 'TOTAL:', totalAmount);
 
@@ -152,6 +163,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Auto-populate delivery snapshot from shipping_address if not provided
+    if (orderData.shipping_address_id && !orderData.delivery_name) {
+      const { data: addr } = await supabaseAdmin
+        .from('shipping_addresses')
+        .select('contact_person, phone, address_line1, district, amphoe, province, postal_code')
+        .eq('id', orderData.shipping_address_id)
+        .single();
+      if (addr) {
+        orderData.delivery_name = addr.contact_person || '';
+        orderData.delivery_phone = addr.phone || '';
+        orderData.delivery_address = addr.address_line1 || '';
+        orderData.delivery_district = addr.district || '';
+        orderData.delivery_amphoe = addr.amphoe || '';
+        orderData.delivery_province = addr.province || '';
+        orderData.delivery_postal_code = addr.postal_code || '';
+      }
+    }
+
     // Create order
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
@@ -159,6 +188,7 @@ export async function POST(request: NextRequest) {
         company_id: auth.companyId,
         order_number: orderNumber,
         customer_id: orderData.customer_id || null,
+        shipping_address_id: orderData.shipping_address_id || null,
         delivery_date: orderData.delivery_date || null,
         subtotal: subtotalBeforeVAT,
         vat_amount: vatAmount,
@@ -232,17 +262,21 @@ export async function POST(request: NextRequest) {
 
       // Create shipments for this item (skip for orders without customer)
       if (orderData.customer_id && item.shipments && item.shipments.length > 0) {
-        const shipmentsToInsert = item.shipments.map((shipment: any) => ({
-          company_id: auth.companyId,
-          order_item_id: orderItem.id,
-          shipping_address_id: shipment.shipping_address_id,
-          quantity: shipment.quantity,
-          shipping_fee: shipment.shipping_fee || 0,
-          delivery_status: 'pending',
-          delivery_notes: shipment.delivery_notes || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }));
+        const shipmentsToInsert = item.shipments
+          .filter((shipment: any) => shipment.shipping_address_id)
+          .map((shipment: any) => ({
+            company_id: auth.companyId,
+            order_item_id: orderItem.id,
+            shipping_address_id: shipment.shipping_address_id,
+            quantity: shipment.quantity,
+            shipping_fee: shipment.shipping_fee || 0,
+            delivery_status: 'pending',
+            delivery_notes: shipment.delivery_notes || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }));
+
+        if (shipmentsToInsert.length === 0) continue;
 
         const { error: shipmentError } = await supabaseAdmin
           .from('order_shipments')
@@ -257,6 +291,103 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
+      }
+    }
+
+    // --- Upsert shipping_address from delivery snapshot (when customer exists) ---
+    // address_action: 'update' = update selected address, 'new' = create new address, undefined = auto
+    const addressAction = orderData.address_action as string | undefined;
+    if (orderData.customer_id && orderData.delivery_address) {
+      try {
+        // Check if delivery info matches the selected shipping_address
+        let needsUpsert = true;
+        if (orderData.shipping_address_id) {
+          const { data: selectedAddr } = await supabaseAdmin
+            .from('shipping_addresses')
+            .select('address_line1, district, amphoe, province, postal_code')
+            .eq('id', orderData.shipping_address_id)
+            .single();
+          if (selectedAddr &&
+            selectedAddr.address_line1 === (orderData.delivery_address || '') &&
+            selectedAddr.district === (orderData.delivery_district || '') &&
+            selectedAddr.amphoe === (orderData.delivery_amphoe || '') &&
+            selectedAddr.province === (orderData.delivery_province || '') &&
+            selectedAddr.postal_code === (orderData.delivery_postal_code || '')) {
+            needsUpsert = false; // address matches, just update contact info
+            await supabaseAdmin
+              .from('shipping_addresses')
+              .update({
+                contact_person: orderData.delivery_name || null,
+                phone: orderData.delivery_phone || null,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', orderData.shipping_address_id);
+          }
+        }
+
+        if (needsUpsert && addressAction === 'update' && orderData.shipping_address_id) {
+          // User chose to update the existing address
+          await supabaseAdmin
+            .from('shipping_addresses')
+            .update({
+              contact_person: orderData.delivery_name || null,
+              phone: orderData.delivery_phone || null,
+              address_line1: orderData.delivery_address || null,
+              district: orderData.delivery_district || null,
+              amphoe: orderData.delivery_amphoe || null,
+              province: orderData.delivery_province || null,
+              postal_code: orderData.delivery_postal_code || null,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', orderData.shipping_address_id);
+          needsUpsert = false;
+        }
+
+        if (needsUpsert) {
+          // Create new shipping_address (user chose 'new' or auto mode)
+          const { data: newAddr } = await supabaseAdmin
+            .from('shipping_addresses')
+            .insert({
+              company_id: auth.companyId,
+              customer_id: orderData.customer_id,
+              address_name: 'ที่อยู่จัดส่ง',
+              contact_person: orderData.delivery_name || null,
+              phone: orderData.delivery_phone || null,
+              address_line1: orderData.delivery_address || null,
+              district: orderData.delivery_district || null,
+              amphoe: orderData.delivery_amphoe || null,
+              province: orderData.delivery_province || null,
+              postal_code: orderData.delivery_postal_code || null,
+              is_default: !orderData.shipping_address_id,
+              is_active: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select('id')
+            .single();
+
+          if (newAddr) {
+            // Update order to point to new address
+            await supabaseAdmin
+              .from('orders')
+              .update({ shipping_address_id: newAddr.id })
+              .eq('id', order.id);
+
+            // Update shipments to point to new address
+            const { data: orderItems } = await supabaseAdmin
+              .from('order_items')
+              .select('id')
+              .eq('order_id', order.id);
+            if (orderItems && orderItems.length > 0) {
+              await supabaseAdmin
+                .from('order_shipments')
+                .update({ shipping_address_id: newAddr.id })
+                .in('order_item_id', orderItems.map(i => i.id));
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Shipping address upsert error (non-blocking):', e);
       }
     }
 
@@ -919,7 +1050,7 @@ export async function PUT(request: NextRequest) {
     // Check if order exists and is editable (only 'new' status can be fully edited)
     const { data: existingOrder, error: fetchError } = await supabaseAdmin
       .from('orders')
-      .select('id, order_status')
+      .select('id, order_status, customer_id')
       .eq('id', id)
       .eq('company_id', auth.companyId)
       .single();
@@ -1010,10 +1141,19 @@ export async function PUT(request: NextRequest) {
       const totalShippingFee = Array.from(shippingFeeByAddress.values()).reduce((sum, f) => sum + f, 0);
 
       const orderDiscountAmount = discount_amount || 0;
-      // Prices are VAT-inclusive, so we reverse-calculate VAT from the total
+
+      // Check if company is VAT registered
+      const { data: companyInfoUpdate } = await supabaseAdmin
+        .from('companies')
+        .select('vat_registered')
+        .eq('id', auth.companyId)
+        .single();
+      const isVatRegisteredUpdate = companyInfoUpdate?.vat_registered || false;
+
+      // Prices are VAT-inclusive (if VAT registered), so we reverse-calculate VAT from the total
       const totalWithVAT = subtotal - orderDiscountAmount + totalShippingFee;
-      const subtotalBeforeVAT = Math.round((totalWithVAT / 1.07) * 100) / 100;
-      const vatAmount = totalWithVAT - subtotalBeforeVAT;
+      const subtotalBeforeVAT = isVatRegisteredUpdate ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
+      const vatAmount = isVatRegisteredUpdate ? totalWithVAT - subtotalBeforeVAT : 0;
       const totalAmount = totalWithVAT;
       console.log('[UPDATE ORDER] itemsSubtotal:', subtotal, 'discount:', orderDiscountAmount, 'shipping:', totalShippingFee, 'subtotalBeforeVAT:', subtotalBeforeVAT, 'vat:', vatAmount, 'TOTAL:', totalAmount);
 
@@ -1093,17 +1233,21 @@ export async function PUT(request: NextRequest) {
         }
 
         // Create shipments for this item
-        const shipmentsToInsert = item.shipments.map((shipment: any) => ({
-          company_id: auth.companyId,
-          order_item_id: orderItem.id,
-          shipping_address_id: shipment.shipping_address_id,
-          quantity: shipment.quantity,
-          shipping_fee: shipment.shipping_fee || 0,
-          delivery_status: 'pending',
-          delivery_notes: shipment.delivery_notes || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }));
+        const shipmentsToInsert = item.shipments
+          .filter((shipment: any) => shipment.shipping_address_id)
+          .map((shipment: any) => ({
+            company_id: auth.companyId,
+            order_item_id: orderItem.id,
+            shipping_address_id: shipment.shipping_address_id,
+            quantity: shipment.quantity,
+            shipping_fee: shipment.shipping_fee || 0,
+            delivery_status: 'pending',
+            delivery_notes: shipment.delivery_notes || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }));
+
+        if (shipmentsToInsert.length === 0) continue;
 
         const { error: shipmentError } = await supabaseAdmin
           .from('order_shipments')
@@ -1135,8 +1279,19 @@ export async function PUT(request: NextRequest) {
       if (notes !== undefined) updateData.notes = notes || null;
       if (internal_notes !== undefined) updateData.internal_notes = internal_notes || null;
       if (body.shipping_fee !== undefined) updateData.shipping_fee = body.shipping_fee || 0;
-      if (body.order_status !== undefined) updateData.order_status = body.order_status;
+      if (body.order_status !== undefined) {
+        updateData.order_status = body.order_status;
+        // Auto-sync fulfillment_status
+        if (body.order_status === 'shipping') {
+          updateData.fulfillment_status = 'shipped';
+          updateData.shipped_at = new Date().toISOString();
+        } else if (body.order_status === 'cancelled') {
+          updateData.fulfillment_status = 'pending';
+          updateData.hold_reason = null;
+        }
+      }
       if (body.payment_status !== undefined) updateData.payment_status = body.payment_status;
+      if (body.customer_id !== undefined) updateData.customer_id = body.customer_id || null;
       // Delivery info fields
       if (body.delivery_name !== undefined) updateData.delivery_name = body.delivery_name || null;
       if (body.delivery_phone !== undefined) updateData.delivery_phone = body.delivery_phone || null;
@@ -1146,6 +1301,7 @@ export async function PUT(request: NextRequest) {
       if (body.delivery_province !== undefined) updateData.delivery_province = body.delivery_province || null;
       if (body.delivery_postal_code !== undefined) updateData.delivery_postal_code = body.delivery_postal_code || null;
       if (body.delivery_email !== undefined) updateData.delivery_email = body.delivery_email || null;
+      if (body.shipping_address_id !== undefined) updateData.shipping_address_id = body.shipping_address_id || null;
 
       const { error: updateError } = await supabaseAdmin
         .from('orders')
@@ -1158,6 +1314,75 @@ export async function PUT(request: NextRequest) {
           { error: updateError.message },
           { status: 500 }
         );
+      }
+
+      // Auto-sync delivery info to shipping_addresses if customer exists
+      if (body.delivery_name && existingOrder.customer_id) {
+        try {
+          const cleanPhone = (body.delivery_phone || '').replace(/[-\s]/g, '');
+
+          // Sync contact info (not address) to customer
+          await supabaseAdmin
+            .from('customers')
+            .update({
+              contact_person: body.delivery_name,
+              phone: cleanPhone,
+              email: body.delivery_email || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingOrder.customer_id);
+
+          // Upsert shipping_address only if address data is complete enough
+          // (address_line1 and province are NOT NULL in shipping_addresses)
+          if (body.delivery_address && body.delivery_province) {
+            const { data: existingAddr } = await supabaseAdmin
+              .from('shipping_addresses')
+              .select('id')
+              .eq('customer_id', existingOrder.customer_id)
+              .eq('is_default', true)
+              .single();
+
+            const addrPayload = {
+              customer_id: existingOrder.customer_id,
+              address_name: 'ที่อยู่หลัก',
+              contact_person: body.delivery_name,
+              phone: cleanPhone,
+              address_line1: body.delivery_address,
+              district: body.delivery_district || null,
+              amphoe: body.delivery_amphoe || null,
+              province: body.delivery_province,
+              postal_code: body.delivery_postal_code || null,
+              is_default: true,
+            };
+
+            if (existingAddr) {
+              await supabaseAdmin
+                .from('shipping_addresses')
+                .update({ ...addrPayload, updated_at: new Date().toISOString() })
+                .eq('id', existingAddr.id);
+              // Set shipping_address_id on order
+              await supabaseAdmin.from('orders').update({ shipping_address_id: existingAddr.id }).eq('id', id);
+            } else {
+              const { data: customer } = await supabaseAdmin
+                .from('customers')
+                .select('company_id')
+                .eq('id', existingOrder.customer_id)
+                .single();
+              if (customer) {
+                const { data: newAddr } = await supabaseAdmin
+                  .from('shipping_addresses')
+                  .insert({ ...addrPayload, company_id: customer.company_id })
+                  .select('id')
+                  .single();
+                if (newAddr) {
+                  await supabaseAdmin.from('orders').update({ shipping_address_id: newAddr.id }).eq('id', id);
+                }
+              }
+            }
+          }
+        } catch (syncError) {
+          console.error('Error syncing delivery info to shipping_address:', syncError);
+        }
       }
 
       // --- Stock logic on status change (best-effort) ---

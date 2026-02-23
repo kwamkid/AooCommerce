@@ -567,6 +567,7 @@ export default function PosPage() {
             onOpenCustomerSearch={() => setShowCustomerSearch(true)}
             onCheckout={() => setShowPayment(true)}
             allowOversell={allowOversell}
+            vatRegistered={currentCompany?.vat_registered || false}
           />
         </div>
       </div>

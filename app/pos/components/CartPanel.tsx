@@ -31,6 +31,7 @@ interface CartPanelProps {
   onOpenCustomerSearch: () => void;
   onCheckout: () => void;
   allowOversell: boolean;
+  vatRegistered?: boolean;
 }
 
 function getLineTotal(item: CartItem): number {
@@ -52,14 +53,15 @@ export default function CartPanel({
   onOpenCustomerSearch,
   onCheckout,
   allowOversell,
+  vatRegistered = false,
 }: CartPanelProps) {
   const itemsSubtotal = items.reduce((s, i) => s + getLineTotal(i), 0);
   const orderDiscountAmount = orderDiscountType === 'percent'
     ? Math.round(itemsSubtotal * (orderDiscount / 100) * 100) / 100
     : orderDiscount;
   const totalWithVAT = itemsSubtotal - orderDiscountAmount;
-  const subtotalBeforeVAT = Math.round((totalWithVAT / 1.07) * 100) / 100;
-  const vatAmount = Math.round((totalWithVAT - subtotalBeforeVAT) * 100) / 100;
+  const subtotalBeforeVAT = vatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
+  const vatAmount = vatRegistered ? Math.round((totalWithVAT - subtotalBeforeVAT) * 100) / 100 : 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -220,10 +222,12 @@ export default function CartPanel({
             <span className="text-red-500 dark:text-red-400">-฿{formatPrice(orderDiscountAmount)}</span>
           </div>
         )}
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-500 dark:text-gray-400">VAT 7%</span>
-          <span className="text-gray-600 dark:text-gray-300">฿{formatPrice(vatAmount)}</span>
-        </div>
+        {vatRegistered && (
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500 dark:text-gray-400">VAT 7%</span>
+            <span className="text-gray-600 dark:text-gray-300">฿{formatPrice(vatAmount)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-lg font-bold pt-1">
           <span className="text-gray-900 dark:text-white">ยอดชำระ</span>
           <span className="text-[#F4511E]">฿{formatPrice(totalWithVAT)}</span>

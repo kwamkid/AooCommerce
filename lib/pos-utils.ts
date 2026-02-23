@@ -26,7 +26,8 @@ export interface PosOrderTotals {
  */
 export function calculatePosOrderTotals(
   items: PosCartItem[],
-  orderDiscount: number = 0
+  orderDiscount: number = 0,
+  vatRegistered: boolean = false
 ): PosOrderTotals {
   let itemsSubtotal = 0;
 
@@ -44,8 +45,8 @@ export function calculatePosOrderTotals(
   }
 
   const totalWithVAT = itemsSubtotal - orderDiscount;
-  const subtotalBeforeVAT = Math.round((totalWithVAT / 1.07) * 100) / 100;
-  const vatAmount = Math.round((totalWithVAT - subtotalBeforeVAT) * 100) / 100;
+  const subtotalBeforeVAT = vatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
+  const vatAmount = vatRegistered ? Math.round((totalWithVAT - subtotalBeforeVAT) * 100) / 100 : 0;
 
   return {
     subtotalBeforeVAT,

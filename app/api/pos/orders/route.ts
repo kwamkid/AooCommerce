@@ -214,10 +214,18 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    // VAT calculation (prices are VAT-inclusive, reverse-calculate)
+    // Check if company is VAT registered
+    const { data: posCompanyInfo } = await supabaseAdmin
+      .from('companies')
+      .select('vat_registered')
+      .eq('id', auth.companyId)
+      .single();
+    const posVatRegistered = posCompanyInfo?.vat_registered || false;
+
+    // VAT calculation (prices are VAT-inclusive if registered, reverse-calculate)
     const totalWithVAT = itemsSubtotal - orderDiscountAmount;
-    const subtotalBeforeVAT = Math.round((totalWithVAT / 1.07) * 100) / 100;
-    const vatAmount = Math.round((totalWithVAT - subtotalBeforeVAT) * 100) / 100;
+    const subtotalBeforeVAT = posVatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
+    const vatAmount = posVatRegistered ? Math.round((totalWithVAT - subtotalBeforeVAT) * 100) / 100 : 0;
 
     // Validate payment total
     const paymentTotal = payments.reduce((sum, p) => sum + Number(p.amount), 0);

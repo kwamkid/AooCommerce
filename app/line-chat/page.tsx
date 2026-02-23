@@ -38,7 +38,9 @@ import {
   FileText,
   Download,
   Play,
-  Images
+  Images,
+  Trash2,
+  Unlink
 } from 'lucide-react';
 import Image from 'next/image';
 import OrderForm from '@/components/orders/OrderForm';
@@ -59,11 +61,11 @@ interface LineContact {
     phone?: string;
     email?: string;
     customer_type?: 'retail' | 'wholesale' | 'distributor';
-    address?: string;
-    district?: string;
-    amphoe?: string;
-    province?: string;
-    postal_code?: string;
+    tax_address?: string;
+    tax_district?: string;
+    tax_amphoe?: string;
+    tax_province?: string;
+    tax_postal_code?: string;
     tax_id?: string;
     tax_company_name?: string;
     tax_branch?: string;
@@ -168,6 +170,7 @@ function LineChatPageContent() {
 
   // Image upload
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const headerActionsRef = useRef<HTMLDivElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
 
   // Sticker picker
@@ -188,6 +191,7 @@ function LineChatPageContent() {
 
   // Order detail view
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [orderFormKey, setOrderFormKey] = useState(0);
 
   // Toast notification (using global)
 
@@ -982,12 +986,12 @@ function LineChatPageContent() {
         tax_id: formData.needs_tax_invoice ? formData.tax_id : '',
         tax_company_name: formData.needs_tax_invoice ? formData.tax_company_name : '',
         tax_branch: formData.needs_tax_invoice ? formData.tax_branch : '',
-        // Billing address fields
-        address: billingAddress,
-        district: billingDistrict,
-        amphoe: billingAmphoe,
-        province: billingProvince,
-        postal_code: billingPostalCode
+        // Billing address fields (tax invoice address)
+        tax_address: billingAddress,
+        tax_district: billingDistrict,
+        tax_amphoe: billingAmphoe,
+        tax_province: billingProvince,
+        tax_postal_code: billingPostalCode
       };
 
       const createResponse = await apiFetch('/api/customers', {
@@ -1003,28 +1007,53 @@ function LineChatPageContent() {
 
       const newCustomer = await createResponse.json();
 
-      // 2. Create shipping address if provided
-      if (formData.shipping_address || formData.shipping_province) {
-        const shippingPayload = {
-          customer_id: newCustomer.id,
-          address_name: formData.shipping_address_name || 'สาขาหลัก',
-          contact_person: formData.shipping_contact_person || formData.contact_person,
-          phone: formData.shipping_phone || formData.phone,
-          address_line1: formData.shipping_address,
-          district: formData.shipping_district,
-          amphoe: formData.shipping_amphoe,
-          province: formData.shipping_province,
-          postal_code: formData.shipping_postal_code,
-          google_maps_link: formData.shipping_google_maps_link,
-          delivery_notes: formData.shipping_delivery_notes,
-          is_default: true
-        };
+      const customerId = newCustomer.customer?.id || newCustomer.id;
+      const customerName = newCustomer.customer?.name || newCustomer.name;
+      const customerCode = newCustomer.customer?.customer_code || newCustomer.customer_code;
 
+      // 2. Create primary shipping address if provided
+      if (formData.shipping_address || formData.shipping_province) {
         await apiFetch('/api/shipping-addresses', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(shippingPayload)
+          body: JSON.stringify({
+            customer_id: customerId,
+            address_name: formData.shipping_address_name || 'ที่อยู่หลัก',
+            contact_person: formData.shipping_contact_person || formData.contact_person,
+            phone: formData.shipping_phone || formData.phone,
+            address_line1: formData.shipping_address,
+            district: formData.shipping_district,
+            amphoe: formData.shipping_amphoe,
+            province: formData.shipping_province,
+            postal_code: formData.shipping_postal_code,
+            google_maps_link: formData.shipping_google_maps_link,
+            delivery_notes: formData.shipping_delivery_notes,
+            is_default: true
+          })
         });
+      }
+
+      // 2b. Create additional shipping addresses
+      if (formData.additional_addresses?.length) {
+        for (const addr of formData.additional_addresses) {
+          if (!addr.address_line1 && !addr.province) continue;
+          await apiFetch('/api/shipping-addresses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              customer_id: customerId,
+              address_name: addr.address_name || 'ที่อยู่เพิ่มเติม',
+              contact_person: addr.contact_person || formData.contact_person,
+              phone: addr.phone || formData.phone,
+              address_line1: addr.address_line1,
+              district: addr.district, amphoe: addr.amphoe,
+              province: addr.province, postal_code: addr.postal_code,
+              google_maps_link: addr.google_maps_link,
+              delivery_notes: addr.delivery_notes,
+              is_default: false,
+            })
+          });
+        }
       }
 
       // 3. Link to LINE contact
@@ -1097,6 +1126,54 @@ function LineChatPageContent() {
     }
   };
 
+  // Unlink customer from contact (ไม่ลบ customer)
+  const handleUnlinkCustomer = async () => {
+    if (!selectedContact?.customer) return;
+    if (!confirm('ยกเลิกการเชื่อมต่อลูกค้าจาก contact นี้?')) return;
+
+    try {
+      const res = await apiFetch('/api/line/contacts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedContact.id, customer_id: null })
+      });
+      if (!res.ok) throw new Error('Failed to unlink');
+
+      setSelectedContact(prev => prev ? { ...prev, customer_id: undefined, customer: undefined } : null);
+      setContacts(prev => prev.map(c =>
+        c.id === selectedContact.id ? { ...c, customer_id: undefined, customer: undefined } : c
+      ));
+      setRightPanel(null);
+      setMobileView('chat');
+      showToast('ยกเลิกการเชื่อมต่อลูกค้าแล้ว');
+    } catch (error) {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    }
+  };
+
+  // Hard delete customer + unlink
+  const handleDeleteCustomer = async () => {
+    if (!selectedContact?.customer) return;
+    if (!confirm(`ลบลูกค้า "${selectedContact.customer.name}" ถาวร?\n\n- ที่อยู่จัดส่งจะถูกลบ\n- ออเดอร์จะถูก unlink\n- contact จะกลับเป็นสถานะไม่มีลูกค้า`)) return;
+
+    try {
+      const res = await apiFetch(`/api/customers?id=${selectedContact.customer.id}&hard=true`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) throw new Error('Failed to delete');
+
+      setSelectedContact(prev => prev ? { ...prev, customer_id: undefined, customer: undefined } : null);
+      setContacts(prev => prev.map(c =>
+        c.id === selectedContact.id ? { ...c, customer_id: undefined, customer: undefined } : c
+      ));
+      setRightPanel(null);
+      setMobileView('chat');
+      showToast('ลบลูกค้าแล้ว');
+    } catch (error) {
+      showToast('เกิดข้อผิดพลาดในการลบ', 'error');
+    }
+  };
+
   // Update customer from chat
   const handleUpdateCustomerInChat = async (formData: CustomerFormData) => {
     if (!selectedContact?.customer) return;
@@ -1127,12 +1204,12 @@ function LineChatPageContent() {
         tax_id: formData.needs_tax_invoice ? formData.tax_id : '',
         tax_company_name: formData.needs_tax_invoice ? formData.tax_company_name : '',
         tax_branch: formData.needs_tax_invoice ? formData.tax_branch : '',
-        // Billing address fields
-        address: billingAddress,
-        district: billingDistrict,
-        amphoe: billingAmphoe,
-        province: billingProvince,
-        postal_code: billingPostalCode
+        // Billing address fields (tax invoice address)
+        tax_address: billingAddress,
+        tax_district: billingDistrict,
+        tax_amphoe: billingAmphoe,
+        tax_province: billingProvince,
+        tax_postal_code: billingPostalCode
       };
 
       const response = await apiFetch('/api/customers', {
@@ -1154,11 +1231,11 @@ function LineChatPageContent() {
         phone: formData.phone,
         email: formData.email,
         customer_type: formData.customer_type as 'retail' | 'wholesale' | 'distributor',
-        address: billingAddress,
-        district: billingDistrict,
-        amphoe: billingAmphoe,
-        province: billingProvince,
-        postal_code: billingPostalCode,
+        tax_address: billingAddress,
+        tax_district: billingDistrict,
+        tax_amphoe: billingAmphoe,
+        tax_province: billingProvince,
+        tax_postal_code: billingPostalCode,
         tax_id: formData.needs_tax_invoice ? formData.tax_id : '',
         tax_company_name: formData.needs_tax_invoice ? formData.tax_company_name : '',
         tax_branch: formData.needs_tax_invoice ? formData.tax_branch : '',
@@ -1669,6 +1746,7 @@ function LineChatPageContent() {
                       {/* Open Order Button */}
                       <button
                         onClick={() => {
+                          setOrderFormKey(k => k + 1);
                           if (window.innerWidth < 768) {
                             setMobileView('order');
                           } else {
@@ -2044,17 +2122,20 @@ function LineChatPageContent() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2>
                   <p className="text-xs text-gray-500 dark:text-slate-400">
-                    {selectedContact.customer.customer_code} - {selectedContact.customer.name}
+                    {selectedContact.customer.name}
                   </p>
                 </div>
               </div>
+              <div ref={headerActionsRef} className="flex items-center gap-2" />
             </div>
 
             {/* Order Form */}
             <div className="flex-1 overflow-y-auto p-4">
               <OrderForm
+                key={orderFormKey}
                 preselectedCustomerId={selectedContact.customer.id}
                 embedded={true}
+                headerActionsRef={headerActionsRef}
                 onSuccess={(orderId) => {
                   setMobileView('chat');
                   showToast('สร้างคำสั่งซื้อสำเร็จ!');
@@ -2208,8 +2289,8 @@ function LineChatPageContent() {
                     selectedContact.customer.customer_type === 'wholesale' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400' :
                     'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
                   }`}>
-                    {selectedContact.customer.customer_type === 'retail' ? 'ขายปลีก' :
-                     selectedContact.customer.customer_type === 'wholesale' ? 'ขายส่ง' : 'ตัวแทนจำหน่าย'}
+                    {selectedContact.customer.customer_type === 'retail' ? 'ลูกค้าปลีก' :
+                     selectedContact.customer.customer_type === 'wholesale' ? 'ลูกค้าส่ง' : 'ตัวแทนจำหน่าย'}
                   </span>
                 </div>
 
@@ -2252,16 +2333,16 @@ function LineChatPageContent() {
                 </div>
 
                 {/* Address */}
-                {(selectedContact.customer.address || selectedContact.customer.province) && (
+                {(selectedContact.customer.tax_address || selectedContact.customer.tax_province) && (
                   <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
                     <label className="text-xs text-gray-500 dark:text-slate-400">ที่อยู่ออกบิล</label>
                     <p className="text-sm text-gray-900 dark:text-white">
                       {[
-                        selectedContact.customer.address,
-                        selectedContact.customer.district,
-                        selectedContact.customer.amphoe,
-                        selectedContact.customer.province,
-                        selectedContact.customer.postal_code
+                        selectedContact.customer.tax_address,
+                        selectedContact.customer.tax_district,
+                        selectedContact.customer.tax_amphoe,
+                        selectedContact.customer.tax_province,
+                        selectedContact.customer.tax_postal_code
                       ].filter(Boolean).join(' ')}
                     </p>
                   </div>
@@ -2313,7 +2394,7 @@ function LineChatPageContent() {
                 {/* Action buttons */}
                 <div className="pt-4 border-t border-gray-100 dark:border-slate-700 space-y-2">
                   <button
-                    onClick={() => setMobileView('order')}
+                    onClick={() => { setOrderFormKey(k => k + 1); setMobileView('order'); }}
                     className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"
                   >
                     <ShoppingCart className="w-4 h-4" />
@@ -2325,6 +2406,22 @@ function LineChatPageContent() {
                   >
                     ดูรายละเอียดเต็ม
                   </button>
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={handleUnlinkCustomer}
+                      className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Unlink className="w-3.5 h-3.5" />
+                      ยกเลิกเชื่อมต่อ
+                    </button>
+                    <button
+                      onClick={handleDeleteCustomer}
+                      className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      ลบลูกค้า
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2369,11 +2466,11 @@ function LineChatPageContent() {
                   tax_id: selectedContact.customer.tax_id || '',
                   tax_company_name: selectedContact.customer.tax_company_name || '',
                   tax_branch: selectedContact.customer.tax_branch || 'สำนักงานใหญ่',
-                  billing_address: selectedContact.customer.address || '',
-                  billing_district: selectedContact.customer.district || '',
-                  billing_amphoe: selectedContact.customer.amphoe || '',
-                  billing_province: selectedContact.customer.province || '',
-                  billing_postal_code: selectedContact.customer.postal_code || '',
+                  billing_address: selectedContact.customer.tax_address || '',
+                  billing_district: selectedContact.customer.tax_district || '',
+                  billing_amphoe: selectedContact.customer.tax_amphoe || '',
+                  billing_province: selectedContact.customer.tax_province || '',
+                  billing_postal_code: selectedContact.customer.tax_postal_code || '',
                   billing_same_as_shipping: false
                 }}
                 onSubmit={handleUpdateCustomerInChat}
@@ -2459,24 +2556,29 @@ function LineChatPageContent() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2>
                   <p className="text-xs text-gray-500 dark:text-slate-400">
-                    {selectedContact.customer.customer_code} - {selectedContact.customer.name}
+                    {selectedContact.customer.name}
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setRightPanel(null)}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                title="ปิด"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <div ref={headerActionsRef} />
+                <button
+                  onClick={() => setRightPanel(null)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                  title="ปิด"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Order Form */}
             <div className="flex-1 overflow-y-auto p-4">
               <OrderForm
+                key={orderFormKey}
                 preselectedCustomerId={selectedContact.customer.id}
                 embedded={true}
+                headerActionsRef={headerActionsRef}
                 onSuccess={(orderId) => {
                   setRightPanel(null);
                   showToast('สร้างคำสั่งซื้อสำเร็จ!');
@@ -2636,8 +2738,8 @@ function LineChatPageContent() {
                     selectedContact.customer.customer_type === 'wholesale' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400' :
                     'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
                   }`}>
-                    {selectedContact.customer.customer_type === 'retail' ? 'ขายปลีก' :
-                     selectedContact.customer.customer_type === 'wholesale' ? 'ขายส่ง' : 'ตัวแทนจำหน่าย'}
+                    {selectedContact.customer.customer_type === 'retail' ? 'ลูกค้าปลีก' :
+                     selectedContact.customer.customer_type === 'wholesale' ? 'ลูกค้าส่ง' : 'ตัวแทนจำหน่าย'}
                   </span>
                 </div>
 
@@ -2680,16 +2782,16 @@ function LineChatPageContent() {
                 </div>
 
                 {/* Address */}
-                {(selectedContact.customer.address || selectedContact.customer.province) && (
+                {(selectedContact.customer.tax_address || selectedContact.customer.tax_province) && (
                   <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
                     <label className="text-xs text-gray-500 dark:text-slate-400">ที่อยู่ออกบิล</label>
                     <p className="text-sm text-gray-900 dark:text-white">
                       {[
-                        selectedContact.customer.address,
-                        selectedContact.customer.district,
-                        selectedContact.customer.amphoe,
-                        selectedContact.customer.province,
-                        selectedContact.customer.postal_code
+                        selectedContact.customer.tax_address,
+                        selectedContact.customer.tax_district,
+                        selectedContact.customer.tax_amphoe,
+                        selectedContact.customer.tax_province,
+                        selectedContact.customer.tax_postal_code
                       ].filter(Boolean).join(' ')}
                     </p>
                   </div>
@@ -2741,7 +2843,7 @@ function LineChatPageContent() {
                 {/* Action buttons */}
                 <div className="pt-4 border-t border-gray-100 dark:border-slate-700 space-y-2">
                   <button
-                    onClick={() => setRightPanel('order')}
+                    onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }}
                     className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"
                   >
                     <ShoppingCart className="w-4 h-4" />
@@ -2753,6 +2855,22 @@ function LineChatPageContent() {
                   >
                     ดูรายละเอียดเต็ม
                   </button>
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={handleUnlinkCustomer}
+                      className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Unlink className="w-3.5 h-3.5" />
+                      ยกเลิกเชื่อมต่อ
+                    </button>
+                    <button
+                      onClick={handleDeleteCustomer}
+                      className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      ลบลูกค้า
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2798,11 +2916,11 @@ function LineChatPageContent() {
                   tax_id: selectedContact.customer.tax_id || '',
                   tax_company_name: selectedContact.customer.tax_company_name || '',
                   tax_branch: selectedContact.customer.tax_branch || 'สำนักงานใหญ่',
-                  billing_address: selectedContact.customer.address || '',
-                  billing_district: selectedContact.customer.district || '',
-                  billing_amphoe: selectedContact.customer.amphoe || '',
-                  billing_province: selectedContact.customer.province || '',
-                  billing_postal_code: selectedContact.customer.postal_code || '',
+                  billing_address: selectedContact.customer.tax_address || '',
+                  billing_district: selectedContact.customer.tax_district || '',
+                  billing_amphoe: selectedContact.customer.tax_amphoe || '',
+                  billing_province: selectedContact.customer.tax_province || '',
+                  billing_postal_code: selectedContact.customer.tax_postal_code || '',
                   billing_same_as_shipping: false
                 }}
                 onSubmit={handleUpdateCustomerInChat}
