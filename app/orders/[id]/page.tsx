@@ -302,12 +302,12 @@ export default function OrderDetailPage() {
 
   // Status flow helpers
   const getNextOrderStatus = (status: string): string | null => {
-    const flow: Record<string, string> = { new: 'shipping', shipping: 'completed' };
+    const flow: Record<string, string> = { new: 'ready_to_ship', ready_to_ship: 'processing', processing: 'shipping', shipping: 'completed' };
     return flow[status] || null;
   };
 
   const getOrderStatusLabel = (status: string): string => {
-    const labels: Record<string, string> = { new: 'ใหม่', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
+    const labels: Record<string, string> = { new: 'ใหม่', ready_to_ship: 'รอกดรับ', processing: 'ที่ต้องจัดส่ง', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
     return labels[status] || status;
   };
 
@@ -1129,6 +1129,25 @@ export default function OrderDetailPage() {
                       {[fullOrderData.delivery_address, fullOrderData.delivery_district, fullOrderData.delivery_amphoe, fullOrderData.delivery_province, fullOrderData.delivery_postal_code].filter(Boolean).join(' ')}
                     </div>
                   </div>
+                )}
+                {(fullOrderData.tracking_number || fullOrderData.shipping_carrier) && (
+                  <>
+                    {fullOrderData.shipping_carrier && (
+                      <div>
+                        <div className="text-xs text-gray-400 dark:text-slate-500">ขนส่ง</div>
+                        <div className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <Truck className="w-3.5 h-3.5" />
+                          {fullOrderData.shipping_carrier}
+                        </div>
+                      </div>
+                    )}
+                    {fullOrderData.tracking_number && (
+                      <div>
+                        <div className="text-xs text-gray-400 dark:text-slate-500">เลขพัสดุ</div>
+                        <div className="text-sm font-mono text-gray-700 dark:text-slate-300">{fullOrderData.tracking_number}</div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

@@ -50,8 +50,7 @@ export async function GET(request: NextRequest) {
       `)
       .eq('company_id', auth.companyId)
       .neq('source', 'pos')
-      .in('order_status', ['new', 'shipping'])
-      .neq('fulfillment_status', 'shipped')
+      .in('order_status', ['ready_to_ship', 'processing'])
       .order('created_at', { ascending: true });
 
     if (ordersError) {
@@ -261,7 +260,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'order_id and action are required' }, { status: 400 });
     }
 
-    if (!['pack', 'ship', 'hold', 'unhold'].includes(action)) {
+    if (!['pack', 'ship', 'hold', 'unhold', 'accept'].includes(action)) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
@@ -278,6 +277,19 @@ export async function PUT(request: NextRequest) {
     }
 
     const now = new Date().toISOString();
+
+    if (action === 'accept') {
+      // Mark as processing (กดรับออเดอร์ / ดำเนินการ)
+      await supabaseAdmin
+        .from('orders')
+        .update({
+          order_status: 'processing',
+          updated_at: now,
+        })
+        .eq('id', order_id)
+        .eq('company_id', auth.companyId);
+      return NextResponse.json({ success: true });
+    }
 
     if (action === 'pack') {
       await supabaseAdmin
@@ -303,8 +315,8 @@ export async function PUT(request: NextRequest) {
         updated_at: now,
       };
 
-      // Also set order_status to shipping if currently new (triggers stock deduction)
-      if (order.order_status === 'new') {
+      // Also set order_status to shipping if not already shipping
+      if (['new', 'ready_to_ship', 'processing'].includes(order.order_status)) {
         updateData.order_status = 'shipping';
       }
 
@@ -314,8 +326,8 @@ export async function PUT(request: NextRequest) {
         .eq('id', order_id)
         .eq('company_id', auth.companyId);
 
-      // Stock deduction (best-effort) — only when order_status changes new → shipping
-      if (order.order_status === 'new') {
+      // Stock deduction (best-effort) — when order_status changes to shipping
+      if (['new', 'ready_to_ship', 'processing'].includes(order.order_status)) {
         try {
           const stockConfig = await getStockConfig(auth.companyId!);
           if (stockConfig.stockEnabled && order.warehouse_id) {

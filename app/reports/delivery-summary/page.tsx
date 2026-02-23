@@ -500,7 +500,7 @@ export default function DeliverySummaryPage() {
 
   // Status flow helpers
   const getNextOrderStatus = (status: string): string | null => {
-    const flow: Record<string, string> = { new: 'shipping', shipping: 'completed' };
+    const flow: Record<string, string> = { new: 'ready_to_ship', ready_to_ship: 'processing', processing: 'shipping', shipping: 'completed' };
     return flow[status] || null;
   };
 
@@ -509,7 +509,7 @@ export default function DeliverySummaryPage() {
   };
 
   const getOrderStatusLabel = (status: string): string => {
-    const labels: Record<string, string> = { new: 'ใหม่', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
+    const labels: Record<string, string> = { new: 'ใหม่', ready_to_ship: 'รอกดรับ', processing: 'ที่ต้องจัดส่ง', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
     return labels[status] || status;
   };
 

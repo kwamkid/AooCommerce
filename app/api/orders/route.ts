@@ -662,361 +662,47 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Otherwise, fetch orders list
-    const customerId = searchParams.get('customer_id');
-    const status = searchParams.get('status');
-    const paymentStatus = searchParams.get('payment_status');
-    const search = searchParams.get('search');
+    // Otherwise, fetch orders list via single RPC call
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
-    const offset = (page - 1) * limit;
-
-    // Sort params
     const sortBy = searchParams.get('sort_by') || 'created_at';
     const sortDir = searchParams.get('sort_dir') || 'desc';
-    const ascending = sortDir === 'asc';
+    const search = searchParams.get('search') || null;
+    const orderStatus = searchParams.get('status') || null;
+    const paymentStatus = searchParams.get('payment_status') || null;
+    const source = searchParams.get('source') || null;
+    const createdBy = searchParams.get('created_by') || null;
+    const channel = searchParams.get('channel') || null;
+    const deliveryDateStart = searchParams.get('delivery_date_start') || null;
+    const deliveryDateEnd = searchParams.get('delivery_date_end') || null;
+    const customerId = searchParams.get('customer_id') || null;
 
-    // Query from orders table directly with customer join (avoids view issues with total_amount)
-    // When searching by customer name, we need to find matching customer IDs first
-    let searchCustomerIds: string[] | null = null;
-    if (search) {
-      const { data: matchingCustomers } = await supabaseAdmin
-        .from('customers')
-        .select('id')
-        .eq('company_id', auth.companyId)
-        .ilike('name', `%${search}%`);
-      searchCustomerIds = (matchingCustomers || []).map(c => c.id);
-    }
+    const { data: result, error: rpcError } = await supabaseAdmin.rpc('get_orders_list', {
+      p_company_id: auth.companyId,
+      p_page: page,
+      p_limit: limit,
+      p_sort_by: sortBy,
+      p_sort_dir: sortDir,
+      p_search: search,
+      p_order_status: orderStatus,
+      p_payment_status: paymentStatus,
+      p_source: source,
+      p_created_by: createdBy,
+      p_channel: channel,
+      p_delivery_date_start: deliveryDateStart,
+      p_delivery_date_end: deliveryDateEnd,
+      p_customer_id: customerId,
+    });
 
-    let query = supabaseAdmin
-      .from('orders')
-      .select(`
-        id, order_number, order_date, created_at, delivery_date,
-        subtotal, discount_amount, vat_amount, shipping_fee, total_amount,
-        order_status, payment_status, payment_method,
-        source, external_status, external_order_sn,
-        customer_id, shopee_account_id, created_by,
-        delivery_name, delivery_phone,
-        customer:customers (
-          customer_code, name, contact_person, phone
-        )
-      `, { count: 'exact' })
-      .eq('company_id', auth.companyId);
-
-    // Apply filters
-    if (customerId) {
-      query = query.eq('customer_id', customerId);
-    }
-
-    if (status && status !== 'all') {
-      query = query.eq('order_status', status);
-    }
-
-    if (paymentStatus && paymentStatus !== 'all') {
-      query = query.eq('payment_status', paymentStatus);
-    }
-
-    const sourceFilter = searchParams.get('source');
-    if (sourceFilter === 'exclude_pos') {
-      query = query.neq('source', 'pos');
-    } else if (sourceFilter && sourceFilter !== 'all') {
-      query = query.eq('source', sourceFilter);
-    }
-
-    const createdByFilter = searchParams.get('created_by');
-    if (createdByFilter && createdByFilter !== 'all') {
-      query = query.eq('created_by', createdByFilter);
-    }
-
-    if (search) {
-      if (searchCustomerIds && searchCustomerIds.length > 0) {
-        query = query.or(`order_number.ilike.%${search}%,customer_id.in.(${searchCustomerIds.join(',')}),delivery_name.ilike.%${search}%`);
-      } else {
-        query = query.or(`order_number.ilike.%${search}%,delivery_name.ilike.%${search}%`);
-      }
-    }
-
-    // Add pagination and ordering
-    const allowedSortColumns = ['order_date', 'created_at', 'delivery_date', 'total_amount', 'order_number'];
-    const sortColumn = allowedSortColumns.includes(sortBy) ? sortBy : 'created_at';
-
-    // Build status counts query (independent of status/payment filters)
-    let countQuery = supabaseAdmin
-      .from('orders')
-      .select('order_status, payment_status')
-      .eq('company_id', auth.companyId);
-
-    if (sourceFilter === 'exclude_pos') {
-      countQuery = countQuery.neq('source', 'pos');
-    } else if (sourceFilter && sourceFilter !== 'all') {
-      countQuery = countQuery.eq('source', sourceFilter);
-    }
-    if (customerId) {
-      countQuery = countQuery.eq('customer_id', customerId);
-    }
-    if (createdByFilter && createdByFilter !== 'all') {
-      countQuery = countQuery.eq('created_by', createdByFilter);
-    }
-    if (search) {
-      if (searchCustomerIds && searchCustomerIds.length > 0) {
-        countQuery = countQuery.or(`order_number.ilike.%${search}%,customer_id.in.(${searchCustomerIds.join(',')}),delivery_name.ilike.%${search}%`);
-      } else {
-        countQuery = countQuery.or(`order_number.ilike.%${search}%,delivery_name.ilike.%${search}%`);
-      }
-    }
-
-    // Run main query + status counts in parallel
-    const [mainResult, countResult] = await Promise.all([
-      query
-        .order(sortColumn, { ascending, nullsFirst: false })
-        .range(offset, offset + limit - 1),
-      countQuery,
-    ]);
-
-    const { data: rawOrders, error, count } = mainResult;
-    const { data: allStatusRows } = countResult;
-
-    if (error) {
+    if (rpcError) {
+      console.error('RPC get_orders_list error:', rpcError);
       return NextResponse.json(
-        { error: error.message },
+        { error: rpcError.message },
         { status: 500 }
       );
     }
 
-    // Flatten customer data for backward compatibility
-    const orders = (rawOrders || []).map((o: any) => ({
-      ...o,
-      customer_code: o.customer?.customer_code || null,
-      customer_name: o.customer?.name || o.delivery_name || null,
-      contact_person: o.customer?.contact_person || null,
-      customer_phone: o.customer?.phone || o.delivery_phone || null,
-      customer: undefined
-    }));
-
-    const statusCounts: Record<string, number> = { all: 0, new: 0, shipping: 0, completed: 0, cancelled: 0 };
-    const paymentCounts: Record<string, number> = { all: 0, pending: 0, verifying: 0, paid: 0, cancelled: 0 };
-
-    (allStatusRows || []).forEach((row: any) => {
-      statusCounts.all++;
-      if (row.order_status in statusCounts) statusCounts[row.order_status]++;
-      paymentCounts.all++;
-      if (row.payment_status in paymentCounts) paymentCounts[row.payment_status]++;
-    });
-
-    // Early return if no orders
-    if (!orders || orders.length === 0) {
-      return NextResponse.json({
-        orders: [],
-        pagination: { page, limit, total: 0, totalPages: 0 },
-        statusCounts,
-        paymentCounts
-      });
-    }
-
-    // Get all order IDs for batch fetching branch names
-    const orderIds = orders.map(o => o.id);
-
-    // Collect customer IDs and shopee account IDs for channel info
-    const customerIds = [...new Set(orders.map((o: any) => o.customer_id).filter(Boolean))];
-    const shopeeAccountIds = [...new Set(orders.map((o: any) => o.shopee_account_id).filter(Boolean))];
-
-    // Fetch company members for "created by" filter options
-    const { data: memberRows } = await supabaseAdmin
-      .from('company_members')
-      .select('user_id')
-      .eq('company_id', auth.companyId)
-      .eq('is_active', true);
-
-    const memberUserIds = (memberRows || []).map(m => m.user_id).filter(Boolean);
-    let createdByOptions: { id: string; name: string }[] = [];
-    if (memberUserIds.length > 0) {
-      const { data: profiles } = await supabaseAdmin
-        .from('user_profiles')
-        .select('id, name, email')
-        .in('id', memberUserIds);
-      createdByOptions = (profiles || []).map(p => ({
-        id: p.id,
-        name: p.name || p.email || 'Unknown',
-      }));
-    }
-
-    // Batch fetch: branch names + channel info in parallel
-    const [branchResult, lineResult, fbResult, shopeeResult, chatAccountsResult] = await Promise.all([
-      // Branch names
-      supabaseAdmin
-        .from('order_items')
-        .select(`
-          order_id,
-          order_shipments!inner (
-            shipping_address:shipping_addresses!inner (
-              address_name
-            )
-          )
-        `)
-        .in('order_id', orderIds)
-        .eq('company_id', auth.companyId),
-      // LINE contacts → chat_accounts for customers
-      customerIds.length > 0
-        ? supabaseAdmin
-            .from('line_contacts')
-            .select('customer_id, display_name, picture_url, chat_account_id, chat_account:chat_accounts(id, account_name, platform)')
-            .eq('company_id', auth.companyId)
-            .in('customer_id', customerIds)
-        : Promise.resolve({ data: [] as any[] }),
-      // FB contacts → chat_accounts for customers
-      customerIds.length > 0
-        ? supabaseAdmin
-            .from('fb_contacts')
-            .select('customer_id, display_name, picture_url, chat_account_id, chat_account:chat_accounts(id, account_name, platform)')
-            .eq('company_id', auth.companyId)
-            .in('customer_id', customerIds)
-        : Promise.resolve({ data: [] as any[] }),
-      // Shopee accounts
-      shopeeAccountIds.length > 0
-        ? supabaseAdmin
-            .from('shopee_accounts')
-            .select('id, shop_name, metadata')
-            .in('id', shopeeAccountIds)
-        : Promise.resolve({ data: [] as any[] }),
-      // All chat accounts for this company (for filter options with profile pics)
-      supabaseAdmin
-        .from('chat_accounts')
-        .select('id, platform, account_name, credentials')
-        .eq('company_id', auth.companyId)
-        .eq('is_active', true),
-    ]);
-
-    // Build branch names map
-    const orderBranchesMap = new Map<string, Set<string>>();
-    (branchResult.data || []).forEach((item: any) => {
-      const orderId = item.order_id;
-      if (!orderBranchesMap.has(orderId)) {
-        orderBranchesMap.set(orderId, new Set());
-      }
-      (item.order_shipments || []).forEach((shipment: any) => {
-        if (shipment.shipping_address?.address_name) {
-          orderBranchesMap.get(orderId)!.add(shipment.shipping_address.address_name);
-        }
-      });
-    });
-
-    // Build channel map: customer_id → channel info (prefer LINE, then FB)
-    const customerChannelMap = new Map<string, { platform: string; account_name: string; account_id: string; picture_url: string | null }>();
-    for (const lc of (lineResult.data || [])) {
-      if (lc.customer_id && !customerChannelMap.has(lc.customer_id)) {
-        const acc = lc.chat_account as any;
-        customerChannelMap.set(lc.customer_id, {
-          platform: 'line',
-          account_name: acc?.account_name || 'LINE',
-          account_id: acc?.id || lc.chat_account_id || '',
-          picture_url: lc.picture_url || null,
-        });
-      }
-    }
-    for (const fc of (fbResult.data || [])) {
-      if (fc.customer_id && !customerChannelMap.has(fc.customer_id)) {
-        const acc = fc.chat_account as any;
-        customerChannelMap.set(fc.customer_id, {
-          platform: 'facebook',
-          account_name: acc?.account_name || 'Facebook',
-          account_id: acc?.id || fc.chat_account_id || '',
-          picture_url: fc.picture_url || null,
-        });
-      }
-    }
-
-    // Build shopee account map
-    const shopeeAccountMap = new Map<string, { shop_name: string; shop_logo: string | null }>();
-    for (const sa of (shopeeResult.data || [])) {
-      shopeeAccountMap.set(sa.id, {
-        shop_name: sa.shop_name || 'Shopee',
-        shop_logo: (sa.metadata as any)?.shop_logo || null,
-      });
-    }
-
-    // Build chat account picture map from credentials
-    const chatAccountPicMap = new Map<string, string>();
-    for (const ca of (chatAccountsResult.data || [])) {
-      const creds = ca.credentials as any;
-      const pic = ca.platform === 'line'
-        ? creds?.bot_picture_url
-        : creds?.page_picture_url || creds?.ig_profile_picture_url;
-      if (pic) chatAccountPicMap.set(ca.id, pic);
-    }
-
-    // Build channel filter options with profile pics
-    const channelOptions: { id: string; platform: string; name: string; picture_url: string | null }[] = [];
-    const seenChannelIds = new Set<string>();
-
-    // Add all active chat accounts (LINE/FB)
-    for (const ca of (chatAccountsResult.data || [])) {
-      if (!seenChannelIds.has(ca.id)) {
-        seenChannelIds.add(ca.id);
-        channelOptions.push({
-          id: ca.id,
-          platform: ca.platform,
-          name: ca.account_name,
-          picture_url: chatAccountPicMap.get(ca.id) || null,
-        });
-      }
-    }
-
-    // Add all active shopee accounts
-    const { data: allShopeeAccounts } = await supabaseAdmin
-      .from('shopee_accounts')
-      .select('id, shop_name, metadata')
-      .eq('company_id', auth.companyId)
-      .eq('is_active', true);
-    for (const sa of (allShopeeAccounts || [])) {
-      if (!seenChannelIds.has(sa.id)) {
-        seenChannelIds.add(sa.id);
-        channelOptions.push({
-          id: sa.id,
-          platform: 'shopee',
-          name: sa.shop_name || 'Shopee',
-          picture_url: (sa.metadata as any)?.shop_logo || null,
-        });
-      }
-    }
-
-    // Build created_by name map
-    const createdByNameMap = new Map<string, string>();
-    for (const opt of createdByOptions) {
-      createdByNameMap.set(opt.id, opt.name);
-    }
-
-    // Map orders with branch names + channel info + created_by_name
-    const ordersWithDetails = orders.map((order: any) => {
-      let channel = null;
-      if (order.source === 'shopee' && order.shopee_account_id) {
-        const sa = shopeeAccountMap.get(order.shopee_account_id);
-        if (sa) {
-          channel = { platform: 'shopee', account_name: sa.shop_name, account_id: order.shopee_account_id, picture_url: sa.shop_logo };
-        }
-      } else if (order.customer_id) {
-        channel = customerChannelMap.get(order.customer_id) || null;
-      }
-      return {
-        ...order,
-        branch_names: Array.from(orderBranchesMap.get(order.id) || []),
-        channel,
-        created_by_name: order.created_by ? createdByNameMap.get(order.created_by) || null : null,
-      };
-    });
-
-    return NextResponse.json({
-      orders: ordersWithDetails,
-      pagination: {
-        page,
-        limit,
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / limit)
-      },
-      statusCounts,
-      paymentCounts,
-      channelOptions,
-      createdByOptions,
-    });
+    return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -1038,6 +724,228 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
+
+    // --- Bulk actions (accept/cancel/hold/unhold) ---
+    if (body.action && body.ids && Array.isArray(body.ids)) {
+      const { action, ids, hold_reason } = body;
+      const validIds = ids.filter((id: string) => id);
+      if (validIds.length === 0) {
+        return NextResponse.json({ error: 'No valid order IDs provided' }, { status: 400 });
+      }
+
+      if (action === 'bulk_accept') {
+        // ready_to_ship → processing
+        const { data: updated, error } = await supabaseAdmin
+          .from('orders')
+          .update({ order_status: 'processing', updated_at: new Date().toISOString() })
+          .in('id', validIds)
+          .eq('company_id', auth.companyId)
+          .eq('order_status', 'ready_to_ship')
+          .select('id');
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ success: true, updated: (updated || []).length });
+      }
+
+      if (action === 'bulk_cancel') {
+        // Cancel orders + handle stock (unreserve for new/ready_to_ship)
+        const { data: ordersToCancel } = await supabaseAdmin
+          .from('orders')
+          .select('id, order_status, warehouse_id')
+          .in('id', validIds)
+          .eq('company_id', auth.companyId)
+          .neq('order_status', 'cancelled');
+
+        let cancelledCount = 0;
+        for (const order of ordersToCancel || []) {
+          const { error } = await supabaseAdmin
+            .from('orders')
+            .update({
+              order_status: 'cancelled',
+              payment_status: 'cancelled',
+              fulfillment_status: 'pending',
+              hold_reason: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', order.id)
+            .eq('company_id', auth.companyId);
+          if (!error) cancelledCount++;
+
+          // Stock unreserve for new/ready_to_ship orders
+          if (!error && order.warehouse_id && ['new', 'ready_to_ship', 'processing'].includes(order.order_status)) {
+            try {
+              const { data: orderItems } = await supabaseAdmin
+                .from('order_items')
+                .select('variation_id, quantity')
+                .eq('order_id', order.id)
+                .eq('company_id', auth.companyId);
+              for (const oi of orderItems || []) {
+                if (!oi.variation_id) continue;
+                const { data: inv } = await supabaseAdmin
+                  .from('inventory')
+                  .select('id, quantity, reserved_quantity')
+                  .eq('warehouse_id', order.warehouse_id)
+                  .eq('variation_id', oi.variation_id)
+                  .eq('company_id', auth.companyId)
+                  .single();
+                if (inv) {
+                  await supabaseAdmin
+                    .from('inventory')
+                    .update({
+                      reserved_quantity: Math.max(0, (inv.reserved_quantity || 0) - oi.quantity),
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', inv.id);
+                  await supabaseAdmin
+                    .from('inventory_transactions')
+                    .insert({
+                      company_id: auth.companyId,
+                      warehouse_id: order.warehouse_id,
+                      variation_id: oi.variation_id,
+                      type: 'unreserve',
+                      quantity: oi.quantity,
+                      balance_after: inv.quantity,
+                      reference_type: 'order',
+                      reference_id: order.id,
+                      notes: 'Unreserve for bulk cancelled order',
+                      created_by: auth.userId,
+                      created_at: new Date().toISOString(),
+                    });
+                }
+              }
+            } catch (e) {
+              console.error('[BULK CANCEL] Stock error for order', order.id, e);
+            }
+          }
+        }
+        return NextResponse.json({ success: true, cancelled: cancelledCount });
+      }
+
+      if (action === 'hold') {
+        const { error } = await supabaseAdmin
+          .from('orders')
+          .update({
+            fulfillment_status: 'on_hold',
+            hold_reason: hold_reason || null,
+            updated_at: new Date().toISOString(),
+          })
+          .in('id', validIds)
+          .eq('company_id', auth.companyId);
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ success: true });
+      }
+
+      if (action === 'unhold') {
+        const { error } = await supabaseAdmin
+          .from('orders')
+          .update({
+            fulfillment_status: 'pending',
+            hold_reason: null,
+            updated_at: new Date().toISOString(),
+          })
+          .in('id', validIds)
+          .eq('company_id', auth.companyId);
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ success: true });
+      }
+
+      if (action === 'bulk_ship') {
+        // processing → shipping with optional tracking info
+        const { tracking_number, shipping_carrier } = body;
+        const updatePayload: any = {
+          order_status: 'shipping',
+          fulfillment_status: 'shipped',
+          shipped_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        if (tracking_number) updatePayload.tracking_number = tracking_number;
+        if (shipping_carrier) updatePayload.shipping_carrier = shipping_carrier;
+
+        // Fetch orders to process stock deduction
+        const { data: ordersToShip } = await supabaseAdmin
+          .from('orders')
+          .select('id, order_status, warehouse_id')
+          .in('id', validIds)
+          .eq('company_id', auth.companyId)
+          .eq('order_status', 'processing');
+
+        let shippedCount = 0;
+        const allVarIds: string[] = [];
+
+        for (const order of ordersToShip || []) {
+          const { error } = await supabaseAdmin
+            .from('orders')
+            .update(updatePayload)
+            .eq('id', order.id)
+            .eq('company_id', auth.companyId);
+          if (!error) shippedCount++;
+
+          // Stock deduction (best-effort)
+          if (!error && order.warehouse_id) {
+            try {
+              const stockConfig = await getStockConfig(auth.companyId!);
+              if (stockConfig.stockEnabled) {
+                const { data: orderItems } = await supabaseAdmin
+                  .from('order_items')
+                  .select('variation_id, quantity')
+                  .eq('order_id', order.id)
+                  .eq('company_id', auth.companyId);
+                for (const oi of orderItems || []) {
+                  if (!oi.variation_id) continue;
+                  try {
+                    const { data: inv } = await supabaseAdmin
+                      .from('inventory')
+                      .select('id, quantity, reserved_quantity')
+                      .eq('warehouse_id', order.warehouse_id)
+                      .eq('variation_id', oi.variation_id)
+                      .eq('company_id', auth.companyId)
+                      .single();
+                    if (inv) {
+                      const newQty = (inv.quantity || 0) - oi.quantity;
+                      const newReserved = Math.max(0, (inv.reserved_quantity || 0) - oi.quantity);
+                      await supabaseAdmin
+                        .from('inventory')
+                        .update({ quantity: newQty, reserved_quantity: newReserved, updated_at: new Date().toISOString() })
+                        .eq('id', inv.id);
+                      await supabaseAdmin
+                        .from('inventory_transactions')
+                        .insert({
+                          company_id: auth.companyId,
+                          warehouse_id: order.warehouse_id,
+                          variation_id: oi.variation_id,
+                          type: 'out',
+                          quantity: oi.quantity,
+                          balance_after: newQty,
+                          reference_type: 'order',
+                          reference_id: order.id,
+                          notes: 'Deduct for bulk shipment',
+                          created_by: auth.userId,
+                          created_at: new Date().toISOString(),
+                        });
+                      allVarIds.push(oi.variation_id);
+                    }
+                  } catch (e) {
+                    console.error('[BULK SHIP] Stock error', e);
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('[BULK SHIP] Stock config error', e);
+            }
+          }
+        }
+
+        // Auto-sync stock to Shopee
+        if (allVarIds.length > 0) {
+          import('@/lib/shopee-auto-sync').then(m => m.triggerShopeeStockSync(allVarIds)).catch(() => {});
+        }
+
+        return NextResponse.json({ success: true, shipped: shippedCount });
+      }
+
+      return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+    }
+
+    // --- Single order update ---
     const { id, items, delivery_date, payment_method, discount_amount, notes, internal_notes } = body;
 
     if (!id) {
@@ -1279,18 +1187,29 @@ export async function PUT(request: NextRequest) {
       if (notes !== undefined) updateData.notes = notes || null;
       if (internal_notes !== undefined) updateData.internal_notes = internal_notes || null;
       if (body.shipping_fee !== undefined) updateData.shipping_fee = body.shipping_fee || 0;
+      if (body.tracking_number !== undefined) updateData.tracking_number = body.tracking_number || null;
+      if (body.shipping_carrier !== undefined) updateData.shipping_carrier = body.shipping_carrier || null;
       if (body.order_status !== undefined) {
         updateData.order_status = body.order_status;
         // Auto-sync fulfillment_status
         if (body.order_status === 'shipping') {
           updateData.fulfillment_status = 'shipped';
           updateData.shipped_at = new Date().toISOString();
+          // Save tracking info if provided alongside status change
+          if (body.tracking_number) updateData.tracking_number = body.tracking_number;
+          if (body.shipping_carrier) updateData.shipping_carrier = body.shipping_carrier;
         } else if (body.order_status === 'cancelled') {
           updateData.fulfillment_status = 'pending';
           updateData.hold_reason = null;
         }
       }
-      if (body.payment_status !== undefined) updateData.payment_status = body.payment_status;
+      if (body.payment_status !== undefined) {
+        updateData.payment_status = body.payment_status;
+        // Auto-sync: when paid and still 'new', advance to 'ready_to_ship'
+        if (body.payment_status === 'paid' && existingOrder.order_status === 'new' && !body.order_status) {
+          updateData.order_status = 'ready_to_ship';
+        }
+      }
       if (body.customer_id !== undefined) updateData.customer_id = body.customer_id || null;
       // Delivery info fields
       if (body.delivery_name !== undefined) updateData.delivery_name = body.delivery_name || null;

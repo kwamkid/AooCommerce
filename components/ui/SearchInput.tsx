@@ -1,11 +1,17 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { Search, X } from 'lucide-react';
+
+export interface SearchInputHandle {
+  focus: () => void;
+}
 
 interface SearchInputProps {
   value: string;
   onChange: (value: string) => void;
+  /** Called when user presses Enter */
+  onSubmit?: () => void;
   placeholder?: string;
   className?: string;
   /** Custom ring color class, e.g. 'focus:ring-[#06C755]'. Default: 'focus:ring-[#F4511E]' */
@@ -14,15 +20,20 @@ interface SearchInputProps {
   autoFocus?: boolean;
 }
 
-export default function SearchInput({
+const SearchInput = forwardRef<SearchInputHandle, SearchInputProps>(function SearchInput({
   value,
   onChange,
+  onSubmit,
   placeholder = 'ค้นหา...',
   className = '',
   ringColor = 'focus:ring-[#F4511E]',
   autoFocus = false,
-}: SearchInputProps) {
+}, ref) {
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current?.focus(),
+  }));
 
   const handleClear = useCallback(() => {
     onChange('');
@@ -32,9 +43,11 @@ export default function SearchInput({
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
       onChange('');
-      // Keep focus so user can type again immediately
     }
-  }, [onChange]);
+    if (e.key === 'Enter' && onSubmit) {
+      onSubmit();
+    }
+  }, [onChange, onSubmit]);
 
   return (
     <div className="relative">
@@ -61,4 +74,6 @@ export default function SearchInput({
       )}
     </div>
   );
-}
+});
+
+export default SearchInput;

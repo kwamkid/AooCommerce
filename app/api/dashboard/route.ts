@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       .eq('company_id', auth.companyId)
       .gte('delivery_date', today.toISOString().split('T')[0])
       .lt('delivery_date', tomorrow.toISOString().split('T')[0])
-      .in('order_status', ['new', 'shipping'])
+      .in('order_status', ['new', 'ready_to_ship', 'processing', 'shipping'])
       .order('delivery_date', { ascending: true });
 
     if (deliveriesError) {

@@ -14,8 +14,6 @@ import {
   ChevronRight,
   RefreshCw,
   AlertTriangle,
-  Clock,
-  CheckCircle2,
   Pause,
   Play,
   Printer,
@@ -100,7 +98,7 @@ interface BulkShipResult {
 }
 
 type ChannelTab = 'all' | 'shopee' | 'manual' | 'summary';
-type UrgencyGroup = 'overdue' | 'today' | 'ready' | 'waiting';
+type PackGroup = 'pending_accept' | 'to_ship' | 'on_hold';
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -111,11 +109,10 @@ const PLATFORM_ICONS: Record<string, string> = {
   shopee: '/marketplace/shopee.svg',
 };
 
-const URGENCY_CONFIG: Record<UrgencyGroup, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
-  overdue: { label: 'ค้าง / มีปัญหา', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/20', icon: <AlertTriangle className="w-5 h-5" /> },
-  today: { label: 'ต้องส่งวันนี้', color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-50 dark:bg-orange-900/20', icon: <Clock className="w-5 h-5" /> },
-  ready: { label: 'เตรียมแพ็คได้', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-50 dark:bg-blue-900/20', icon: <Package className="w-5 h-5" /> },
-  waiting: { label: 'รอชำระเงิน', color: 'text-gray-500 dark:text-gray-400', bgColor: 'bg-gray-50 dark:bg-gray-800', icon: <Pause className="w-5 h-5" /> },
+const GROUP_CONFIG: Record<PackGroup, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
+  pending_accept: { label: 'รอกดรับออเดอร์', color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-50 dark:bg-orange-900/20', icon: <ShoppingBag className="w-5 h-5" /> },
+  to_ship: { label: 'ที่ต้องจัดส่ง', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-50 dark:bg-blue-900/20', icon: <Truck className="w-5 h-5" /> },
+  on_hold: { label: 'พักไว้', color: 'text-gray-500 dark:text-gray-400', bgColor: 'bg-gray-50 dark:bg-gray-800/50', icon: <Pause className="w-5 h-5" /> },
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -130,22 +127,10 @@ function timeAgo(dateStr: string): string {
   return `${days} วันที่แล้ว`;
 }
 
-function classifyOrder(order: PackShipOrder): UrgencyGroup {
-  const today = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-
-  if (order.fulfillment_status === 'on_hold') return 'overdue';
-  if (order.delivery_date && order.delivery_date < today && order.fulfillment_status === 'pending') return 'overdue';
-  if (['pending', 'verifying'].includes(order.payment_status)) return 'waiting';
-  if (order.source === 'shopee' && order.external_status === 'UNPAID') return 'waiting';
-  if (order.source === 'shopee' && ['READY_TO_SHIP', 'PROCESSED'].includes(order.external_status || '')) return 'today';
-
-  if (order.payment_status === 'paid') {
-    if (!order.delivery_date || order.delivery_date === today) return 'today';
-    if (order.delivery_date === tomorrow) return 'ready';
-  }
-
-  return 'today';
+function classifyOrder(order: PackShipOrder): PackGroup {
+  if (order.fulfillment_status === 'on_hold') return 'on_hold';
+  if (order.order_status === 'ready_to_ship') return 'pending_accept';
+  return 'to_ship';
 }
 
 // ─── Channel Badge (reuse same pattern as orders page) ───────────────
@@ -187,7 +172,7 @@ export default function PackShipPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<ChannelTab>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [collapsedSections, setCollapsedSections] = useState<Set<UrgencyGroup>>(new Set(['waiting']));
+  const [collapsedSections, setCollapsedSections] = useState<Set<PackGroup>>(new Set());
 
   // Modals
   const [holdModal, setHoldModal] = useState<{ orderId: string; orderNumber: string } | null>(null);
@@ -236,7 +221,7 @@ export default function PackShipPage() {
   }, [orders, activeTab]);
 
   const groupedOrders = useMemo(() => {
-    const groups: Record<UrgencyGroup, PackShipOrder[]> = { overdue: [], today: [], ready: [], waiting: [] };
+    const groups: Record<PackGroup, PackShipOrder[]> = { pending_accept: [], to_ship: [], on_hold: [] };
     for (const order of filteredOrders) {
       groups[classifyOrder(order)].push(order);
     }
@@ -260,14 +245,13 @@ export default function PackShipPage() {
   };
 
   const selectedOrders = useMemo(() => orders.filter(o => selectedIds.has(o.id)), [orders, selectedIds]);
-  const selectedShopeeReadyToShip = selectedOrders.filter(o => o.source === 'shopee' && o.external_status === 'READY_TO_SHIP');
-  const selectedShopeeProcessed = selectedOrders.filter(o => o.source === 'shopee' && o.external_status === 'PROCESSED');
-  const selectedPackable = selectedOrders.filter(o => o.fulfillment_status === 'pending' && (o.source !== 'shopee' || o.external_status === 'PROCESSED'));
-  const selectedShippable = selectedOrders.filter(o => o.fulfillment_status === 'packed');
+  const selectedShopeeReadyToShip = selectedOrders.filter(o => o.source === 'shopee' && o.order_status === 'ready_to_ship');
+  const selectedShopeeProcessed = selectedOrders.filter(o => o.source === 'shopee' && o.order_status === 'processing');
+  const selectedShippable = selectedOrders.filter(o => o.order_status === 'processing' && o.source !== 'shopee');
 
   // ─── Actions ───────────────────────────────────────────────────────
 
-  const handleFulfillmentAction = async (orderId: string, action: 'pack' | 'ship' | 'hold' | 'unhold', reason?: string) => {
+  const handleFulfillmentAction = async (orderId: string, action: 'ship' | 'hold' | 'unhold' | 'accept', reason?: string) => {
     setActionLoading(true);
     try {
       const res = await apiFetch('/api/pack-ship', {
@@ -276,22 +260,11 @@ export default function PackShipPage() {
         body: JSON.stringify({ order_id: orderId, action, hold_reason: reason }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
-      showToast(action === 'pack' ? 'แพ็คเสร็จแล้ว' : action === 'ship' ? 'จัดส่งแล้ว' : action === 'hold' ? 'พักไว้แล้ว' : 'ปลดการพักแล้ว', 'success');
+      showToast(action === 'ship' ? 'จัดส่งแล้ว' : action === 'accept' ? 'กดรับแล้ว' : action === 'hold' ? 'พักไว้แล้ว' : 'ปลดการพักแล้ว', 'success');
       fetchData();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally { setActionLoading(false); setHoldModal(null); setHoldReason(''); }
-  };
-
-  const handleBulkPack = async () => {
-    setActionLoading(true);
-    try {
-      for (const order of selectedPackable) {
-        await apiFetch('/api/pack-ship', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order_id: order.id, action: 'pack' }) });
-      }
-      showToast(`แพ็คเสร็จ ${selectedPackable.length} รายการ`, 'success');
-      setSelectedIds(new Set()); fetchData();
-    } catch { showToast('เกิดข้อผิดพลาด', 'error'); } finally { setActionLoading(false); }
   };
 
   const handleBulkShip = async () => {
@@ -389,7 +362,7 @@ export default function PackShipPage() {
 
   // ─── Render Helpers ────────────────────────────────────────────────
 
-  const toggleSection = (group: UrgencyGroup) => {
+  const toggleSection = (group: PackGroup) => {
     setCollapsedSections(prev => {
       const next = new Set(prev);
       if (next.has(group)) next.delete(group); else next.add(group);
@@ -403,12 +376,11 @@ export default function PackShipPage() {
     const phone = order.customer?.phone || order.delivery_phone || '';
     const isShopee = order.source === 'shopee';
     const isHold = order.fulfillment_status === 'on_hold';
-    const isPacked = order.fulfillment_status === 'packed';
 
     return (
       <div
         key={order.id}
-        className={`border rounded-xl bg-white dark:bg-slate-800 transition-all ${
+        className={`border rounded-xl bg-white dark:bg-slate-800 transition-all overflow-hidden ${
           isSelected ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-800' : 'border-gray-200 dark:border-slate-700'
         } ${isHold ? 'opacity-75' : ''}`}
       >
@@ -441,17 +413,17 @@ export default function PackShipPage() {
         {/* Items */}
         <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700">
           {order.items.slice(0, 4).map((item, idx) => (
-            <div key={idx} className="flex items-center gap-2.5 py-1">
+            <div key={idx} className="flex items-center gap-2 py-1 min-w-0">
               {item.image ? (
                 <img src={getImageUrl(item.image)} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
               ) : (
                 <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-slate-700 flex-shrink-0" />
               )}
-              <span className="text-sm truncate flex-1">
+              <span className="text-sm truncate min-w-0 flex-1">
                 {item.product_name}
                 {item.variation_label && <span className="text-gray-400 ml-1">({item.variation_label})</span>}
               </span>
-              <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 flex-shrink-0">x{item.quantity}</span>
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 flex-shrink-0 ml-1">x{item.quantity}</span>
             </div>
           ))}
           {order.items.length > 4 && (
@@ -468,9 +440,9 @@ export default function PackShipPage() {
               </div>
             )}
             {order.notes && (
-              <div className="flex items-start gap-1.5">
+              <div className="flex items-start gap-1.5 min-w-0">
                 <MessageSquare className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                <span className="truncate">&quot;{order.notes}&quot;</span>
+                <span className="truncate min-w-0">&quot;{order.notes}&quot;</span>
               </div>
             )}
             {isHold && order.hold_reason && (
@@ -483,24 +455,21 @@ export default function PackShipPage() {
         )}
 
         {/* Status badges + Carrier */}
-        {(isShopee || order.shipping_carrier || isPacked) && (
+        {(order.order_status || order.shipping_carrier) && (
           <div className="px-4 py-2 border-t border-gray-100 dark:border-slate-700 flex items-center gap-2 flex-wrap text-sm">
-            {isShopee && order.external_status && (
+            {order.order_status && order.order_status !== 'new' && (
               <span className={`px-2.5 py-1 rounded-full font-medium ${
-                order.external_status === 'READY_TO_SHIP' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                : order.external_status === 'PROCESSED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                order.order_status === 'ready_to_ship' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                : order.order_status === 'processing' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
                 : 'bg-gray-100 text-gray-600'
               }`}>
-                {order.external_status}
+                {order.order_status === 'ready_to_ship' ? 'รอกดรับ'
+                  : order.order_status === 'processing' ? 'ที่ต้องจัดส่ง'
+                  : order.order_status}
               </span>
             )}
             {order.shipping_carrier && (
               <span className="text-gray-400">{order.shipping_carrier}</span>
-            )}
-            {isPacked && (
-              <span className="px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 font-medium">
-                แพ็คแล้ว
-              </span>
             )}
           </div>
         )}
@@ -513,19 +482,12 @@ export default function PackShipPage() {
               disabled={actionLoading}
               className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
             >
-              <Play className="w-4 h-4" /> กลับมาแพ็ค
-            </button>
-          ) : isPacked ? (
-            <button
-              onClick={() => handleFulfillmentAction(order.id, 'ship')}
-              disabled={actionLoading}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5"
-            >
-              <Truck className="w-4 h-4" /> จัดส่งแล้ว
+              <Play className="w-4 h-4" /> กลับมา
             </button>
           ) : (
             <>
-              {isShopee && order.external_status === 'READY_TO_SHIP' && (
+              {/* ready_to_ship: Shopee → รับออเดอร์, Manual → ดำเนินการ */}
+              {isShopee && order.order_status === 'ready_to_ship' && (
                 <button
                   onClick={() => handleSingleAcceptShopee(order.id)}
                   disabled={actionLoading}
@@ -534,7 +496,18 @@ export default function PackShipPage() {
                   <ShoppingBag className="w-4 h-4" /> รับออเดอร์
                 </button>
               )}
-              {isShopee && order.external_status === 'PROCESSED' && (
+              {!isShopee && order.order_status === 'ready_to_ship' && (
+                <button
+                  onClick={() => handleFulfillmentAction(order.id, 'accept')}
+                  disabled={actionLoading}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <ShoppingBag className="w-4 h-4" /> ดำเนินการ
+                </button>
+              )}
+
+              {/* processing: Shopee → ใบปะหน้า (รอ webhook จัดส่ง), Manual → จัดส่งแล้ว */}
+              {isShopee && order.order_status === 'processing' && (
                 <button
                   onClick={() => handleSinglePrintLabel(order.id)}
                   disabled={actionLoading}
@@ -543,15 +516,16 @@ export default function PackShipPage() {
                   <Printer className="w-4 h-4" /> ใบปะหน้า
                 </button>
               )}
-              {(!isShopee || order.external_status === 'PROCESSED') && (
+              {!isShopee && order.order_status === 'processing' && (
                 <button
-                  onClick={() => handleFulfillmentAction(order.id, 'pack')}
+                  onClick={() => handleFulfillmentAction(order.id, 'ship')}
                   disabled={actionLoading}
-                  className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  <CheckCircle2 className="w-4 h-4" /> แพ็คเสร็จ
+                  <Truck className="w-4 h-4" /> จัดส่งแล้ว
                 </button>
               )}
+
               <button
                 onClick={() => setHoldModal({ orderId: order.id, orderNumber: order.order_number })}
                 disabled={actionLoading}
@@ -566,11 +540,33 @@ export default function PackShipPage() {
     );
   };
 
-  const renderUrgencySection = (group: UrgencyGroup) => {
+  const renderUrgencySection = (group: PackGroup) => {
     const sectionOrders = groupedOrders[group];
     if (sectionOrders.length === 0) return null;
-    const config = URGENCY_CONFIG[group];
+    const config = GROUP_CONFIG[group];
     const isCollapsed = collapsedSections.has(group);
+
+    // Sub-group "ที่ต้องจัดส่ง" by delivery deadline
+    const subGroups = group === 'to_ship' ? (() => {
+      const today = new Date().toISOString().split('T')[0];
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      const overdue: PackShipOrder[] = [];
+      const todayOrders: PackShipOrder[] = [];
+      const tomorrowOrders: PackShipOrder[] = [];
+      const later: PackShipOrder[] = [];
+      for (const o of sectionOrders) {
+        if (o.delivery_date && o.delivery_date < today) overdue.push(o);
+        else if (!o.delivery_date || o.delivery_date === today) todayOrders.push(o);
+        else if (o.delivery_date === tomorrow) tomorrowOrders.push(o);
+        else later.push(o);
+      }
+      return [
+        { label: 'เลยกำหนด', orders: overdue, color: 'text-red-500' },
+        { label: 'ต้องส่งวันนี้', orders: todayOrders, color: 'text-orange-500' },
+        { label: 'ต้องส่งพรุ่งนี้', orders: tomorrowOrders, color: 'text-amber-500' },
+        { label: 'ภายหลัง', orders: later, color: 'text-gray-400' },
+      ].filter(g => g.orders.length > 0);
+    })() : null;
 
     return (
       <div key={group} className="mb-6">
@@ -584,9 +580,25 @@ export default function PackShipPage() {
           <span className="ml-auto bg-white/60 dark:bg-black/20 px-2.5 py-0.5 rounded-full text-sm font-bold">{sectionOrders.length}</span>
         </button>
         {!isCollapsed && (
-          <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sectionOrders.map(renderOrderCard)}
-          </div>
+          subGroups ? (
+            // "ที่ต้องจัดส่ง" with deadline sub-groups
+            <div className="mt-3 space-y-4">
+              {subGroups.map(sub => (
+                <div key={sub.label}>
+                  <div className={`text-sm font-semibold mb-2 ${sub.color}`}>
+                    {sub.label} ({sub.orders.length})
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {sub.orders.map(renderOrderCard)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {sectionOrders.map(renderOrderCard)}
+            </div>
+          )
         )}
       </div>
     );
@@ -659,55 +671,62 @@ export default function PackShipPage() {
 
   return (
     <Layout>
-      <div className="space-y-6">
-        {/* Header — same pattern as orders/inventory pages */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <PackageCheck className="w-8 h-8 text-[#F4511E]" />
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">แพ็ค & จัดส่ง</h1>
-              <p className="text-gray-600 dark:text-slate-400 mt-1">
-                {orders.length} ออเดอร์ที่ต้องดำเนินการ
+      <div className="space-y-4 sm:space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <PackageCheck className="w-8 h-8 text-[#F4511E] flex-shrink-0" />
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">แพ็ค & จัดส่ง</h1>
+              <p className="text-sm text-gray-500 dark:text-slate-400">
+                {orders.length} ออเดอร์
               </p>
             </div>
           </div>
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 flex-shrink-0"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            รีเฟรช
+            <span className="hidden sm:inline">รีเฟรช</span>
           </button>
         </div>
 
-        {/* Channel Tabs — inside a card like delivery-summary */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-3">
-          <div className="flex items-center gap-1 bg-gray-100 dark:bg-slate-700 rounded-lg p-1">
-            {([
-              { key: 'all' as ChannelTab, label: 'ทั้งหมด', count: channelCounts.all },
-              { key: 'shopee' as ChannelTab, label: 'Shopee', count: channelCounts.shopee },
-              { key: 'manual' as ChannelTab, label: 'Manual', count: channelCounts.manual },
-              { key: 'summary' as ChannelTab, label: 'สรุปรายการ', count: null },
-            ]).map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => { setActiveTab(tab.key); setSelectedIds(new Set()); }}
-                className={`flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium rounded-md transition-all ${
-                  activeTab === tab.key
-                    ? 'bg-[#F4511E] text-white shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
-                }`}
-              >
-                {tab.label}
-                {tab.count !== null && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                    activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-slate-600 text-gray-500 dark:text-gray-400'
-                  }`}>{tab.count}</span>
-                )}
-              </button>
-            ))}
-          </div>
+        {/* Channel Tabs */}
+        <div className="flex items-center gap-1 bg-gray-100 dark:bg-slate-700 rounded-xl p-1">
+          {([
+            { key: 'all' as ChannelTab, label: 'ทั้งหมด', count: channelCounts.all },
+            { key: 'shopee' as ChannelTab, label: 'Shopee', count: channelCounts.shopee },
+            { key: 'manual' as ChannelTab, label: 'ช่องทางอื่น', count: channelCounts.manual },
+            { key: 'summary' as ChannelTab, label: 'สรุป', count: null },
+          ]).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => { setActiveTab(tab.key); setSelectedIds(new Set()); }}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-semibold rounded-lg transition-all ${
+                activeTab === tab.key
+                  ? 'bg-[#F4511E] text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+              }`}
+            >
+              {tab.key === 'shopee' && <img src="/marketplace/shopee.svg" alt="" className="w-5 h-5" />}
+              {tab.key === 'manual' && (
+                <span className="flex items-center gap-0.5">
+                  <img src="/social/facebook.svg" alt="" className="w-4 h-4" />
+                  <img src="/social/line_oa.svg" alt="" className="w-4 h-4" />
+                  <img src="/social/instagram.svg" alt="" className="w-4 h-4" />
+                </span>
+              )}
+              {tab.key !== 'manual' && <span className={tab.key === 'shopee' ? 'hidden sm:inline' : ''}>{tab.label}</span>}
+              {tab.key === 'manual' && <span className="hidden sm:inline">{tab.label}</span>}
+              {tab.count !== null && (
+                <span className={`text-xs font-bold min-w-[1.25rem] text-center px-1.5 py-0.5 rounded-full ${
+                  activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-slate-600 text-gray-500 dark:text-gray-400'
+                }`}>{tab.count}</span>
+              )}
+            </button>
+          ))}
         </div>
 
         {/* Tab Content */}
@@ -727,7 +746,7 @@ export default function PackShipPage() {
               </div>
             ) : (
               <>
-                {(['overdue', 'today', 'ready', 'waiting'] as UrgencyGroup[]).map(renderUrgencySection)}
+                {(['pending_accept', 'to_ship', 'on_hold'] as PackGroup[]).map(renderUrgencySection)}
               </>
             )}
           </>
@@ -735,21 +754,21 @@ export default function PackShipPage() {
 
         {/* Floating Action Bar */}
         {selectedIds.size > 0 && activeTab !== 'summary' && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-            <div className="flex items-center gap-3 px-6 py-4 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-600">
+          <div className="fixed bottom-4 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50">
+            <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-600">
               <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                เลือก {selectedIds.size} รายการ
+                เลือก {selectedIds.size}
               </span>
-              <div className="w-px h-7 bg-gray-200 dark:bg-slate-600" />
+              <div className="w-px h-6 bg-gray-200 dark:bg-slate-600" />
 
               {selectedShopeeReadyToShip.length > 0 && (
                 <button
                   onClick={handleBulkAcceptShopee}
                   disabled={actionLoading}
-                  className="px-5 py-2.5 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 flex items-center gap-2"
+                  className="px-3 py-2 text-sm font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 flex items-center gap-1.5"
                 >
                   <ShoppingBag className="w-4 h-4" />
-                  รับออเดอร์ Shopee ({selectedShopeeReadyToShip.length})
+                  รับออเดอร์ ({selectedShopeeReadyToShip.length})
                 </button>
               )}
 
@@ -757,21 +776,10 @@ export default function PackShipPage() {
                 <button
                   onClick={handleBulkPrintLabels}
                   disabled={actionLoading}
-                  className="px-5 py-2.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 flex items-center gap-2"
+                  className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 flex items-center gap-1.5"
                 >
                   <Printer className="w-4 h-4" />
-                  พิมพ์ใบปะหน้า ({selectedShopeeProcessed.length})
-                </button>
-              )}
-
-              {selectedPackable.length > 0 && (
-                <button
-                  onClick={handleBulkPack}
-                  disabled={actionLoading}
-                  className="px-5 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  แพ็คเสร็จ ({selectedPackable.length})
+                  ใบปะหน้า ({selectedShopeeProcessed.length})
                 </button>
               )}
 
@@ -779,16 +787,16 @@ export default function PackShipPage() {
                 <button
                   onClick={handleBulkShip}
                   disabled={actionLoading}
-                  className="px-5 py-2.5 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                  className="px-3 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5"
                 >
                   <Truck className="w-4 h-4" />
-                  จัดส่งแล้ว ({selectedShippable.length})
+                  ส่ง ({selectedShippable.length})
                 </button>
               )}
 
               <button
                 onClick={() => setSelectedIds(new Set())}
-                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <X className="w-5 h-5" />
               </button>

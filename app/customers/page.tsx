@@ -392,27 +392,26 @@ export default function CustomersPage() {
           </div>
         </div>
 
-        {/* Bulk Action Bar */}
+        {/* Bulk Action Bar — floating bottom */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center justify-between bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3">
-            <span className="text-sm text-red-700 dark:text-red-300 font-medium">
-              เลือก {selectedIds.size} รายการ
-            </span>
-            <div className="flex items-center gap-2">
+          <div className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-lg px-6 py-3">
+            <div className="max-w-screen-xl mx-auto flex items-center justify-between">
               <button
                 onClick={() => setSelectedIds(new Set())}
-                className="px-3 py-1.5 text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                className="text-sm text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
               >
-                ยกเลิก
+                clear all
               </button>
-              <button
-                onClick={handleBulkDelete}
-                disabled={bulkDeleting}
-                className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" />
-                {bulkDeleting ? 'กำลังลบ...' : `ลบ ${selectedIds.size} รายการ`}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleting}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm rounded-lg font-medium transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {bulkDeleting ? 'กำลังลบ...' : `ลบ ${selectedIds.size} รายการ`}
+                </button>
+              </div>
             </div>
           </div>
         )}

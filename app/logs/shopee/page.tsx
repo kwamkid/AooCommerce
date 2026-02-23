@@ -238,7 +238,7 @@ export default function ShopeeLogsPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="ค้นหา order, error, action..."
+                placeholder="ค้นหาเลข order เช่น 260219..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={handleSearchKeyDown}

@@ -334,18 +334,24 @@ export default function OrderForm({
   }, [preselectedCustomerId, customers]);
 
   // Initialize from copied order data
+  const initialDataApplied = useRef(false);
   useEffect(() => {
-    if (initialOrderData && customers.length > 0 && products.length > 0 && !selectedCustomer) {
+    if (!initialOrderData || initialDataApplied.current) return;
+    // Don't apply if no meaningful data (branches empty = data not ready yet)
+    if (initialOrderData.branches.length === 0 && !initialOrderData.customer_id) return;
+    // Wait for customers/products to load (only if we have a customer to match)
+    if (initialOrderData.customer_id && customers.length === 0) return;
+    if (initialOrderData.branches.some(b => b.products.length > 0) && products.length === 0) return;
+
+    initialDataApplied.current = true;
+
+    // Set customer if available
+    if (initialOrderData.customer_id) {
       const customer = customers.find(c => c.id === initialOrderData.customer_id);
       if (customer) {
-        // Set customer without reinitializing branches
         setSelectedCustomer(customer);
         setCustomerSearch(customer.name);
-
-        // Fetch shipping addresses without forcing init
         fetchShippingAddresses(customer.id, false);
-
-        // Fetch customer prices
         (async () => {
           try {
             const response = await apiFetch(`/api/customer-prices?customer_id=${customer.id}`);
@@ -357,22 +363,31 @@ export default function OrderForm({
             console.error('Error fetching customer prices:', error);
           }
         })();
-
-        // Set branch orders from initial data
-        setBranchOrders(initialOrderData.branches);
-
-        // Set other fields
-        if (initialOrderData.delivery_date) {
-          setDeliveryDateValue({
-            startDate: new Date(initialOrderData.delivery_date),
-            endDate: new Date(initialOrderData.delivery_date)
-          });
-        }
-        if (initialOrderData.notes) setNotes(initialOrderData.notes);
-        if (initialOrderData.internal_notes) setInternalNotes(initialOrderData.internal_notes);
-        if (initialOrderData.discount_amount) setOrderDiscount(initialOrderData.discount_amount);
       }
     }
+
+    // Set branch orders from initial data (enrich with product images)
+    if (initialOrderData.branches.length > 0) {
+      const enrichedBranches = initialOrderData.branches.map(branch => ({
+        ...branch,
+        products: branch.products.map(p => {
+          const match = products.find(pr => pr.id === p.variation_id);
+          return { ...p, image: match?.image || p.image };
+        }),
+      }));
+      setBranchOrders(enrichedBranches);
+    }
+
+    // Set other fields
+    if (initialOrderData.delivery_date) {
+      setDeliveryDateValue({
+        startDate: new Date(initialOrderData.delivery_date),
+        endDate: new Date(initialOrderData.delivery_date)
+      });
+    }
+    if (initialOrderData.notes) setNotes(initialOrderData.notes);
+    if (initialOrderData.internal_notes) setInternalNotes(initialOrderData.internal_notes);
+    if (initialOrderData.discount_amount) setOrderDiscount(initialOrderData.discount_amount);
   }, [initialOrderData, customers, products]);
 
   // Load existing order for editing

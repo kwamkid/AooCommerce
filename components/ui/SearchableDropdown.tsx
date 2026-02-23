@@ -19,6 +19,8 @@ interface SearchableDropdownProps {
   allLabel?: string;           // e.g. "ทั้งหมด" (default)
   /** Extra fixed options shown before the dynamic list (e.g. "เปิดบิลตรง") */
   extraOptions?: { id: string; label: string; icon?: React.ReactNode }[];
+  /** Custom icon shown when no selection is active (defaults to Filter icon) */
+  defaultIcon?: React.ReactNode;
 }
 
 export default function SearchableDropdown({
@@ -29,6 +31,7 @@ export default function SearchableDropdown({
   searchPlaceholder,
   allLabel = 'ทั้งหมด',
   extraOptions,
+  defaultIcon,
 }: SearchableDropdownProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -91,7 +94,7 @@ export default function SearchableDropdown({
             <img src={selected.platformIcon} alt="" className="w-3 h-3" />
           </div>
         ) : !isActive ? (
-          <Filter className="w-4 h-4" />
+          defaultIcon || <Filter className="w-4 h-4" />
         ) : null}
         <span className="whitespace-nowrap">{isActive ? displayLabel : placeholder}</span>
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />

@@ -59,6 +59,8 @@ interface ShopeeOrder {
   buyer_cancel_reason?: string;
   cancel_by?: string;
   cancel_reason?: string;
+  ship_by_date?: number;
+  days_to_ship?: number;
 }
 
 // --- Status Mapping ---
@@ -80,8 +82,9 @@ function mapShopeeStatus(shopeeStatus: string): { order_status: string; payment_
     case 'UNPAID':
       return { order_status: 'new', payment_status: 'pending' };
     case 'READY_TO_SHIP':
-      return { order_status: 'new', payment_status: 'paid' };
+      return { order_status: 'ready_to_ship', payment_status: 'paid' };
     case 'PROCESSED':
+      return { order_status: 'processing', payment_status: 'paid' };
     case 'SHIPPED':
     case 'TO_CONFIRM_RECEIVE':
       return { order_status: 'shipping', payment_status: 'paid' };
@@ -140,7 +143,7 @@ export async function syncOrdersByOrderSn(
     try {
       const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_order_detail', {
         order_sn_list: batch.join(','),
-        response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,item_list,pay_time,shipping_carrier,tracking_number,total_amount,payment_method,estimated_shipping_fee,actual_shipping_fee,actual_shipping_fee_confirmed,note,buyer_cancel_reason,cancel_by,cancel_reason',
+        response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,item_list,pay_time,shipping_carrier,tracking_number,total_amount,payment_method,estimated_shipping_fee,actual_shipping_fee,actual_shipping_fee_confirmed,note,buyer_cancel_reason,cancel_by,cancel_reason,ship_by_date,days_to_ship',
       });
 
       if (error) {
@@ -339,7 +342,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
   // Check if order already exists
   const { data: existing } = await supabaseAdmin
     .from('orders')
-    .select('id, order_status, external_status, external_data, customer_id, created_at')
+    .select('id, order_status, external_status, external_data, customer_id, created_at, fulfillment_status')
     .eq('company_id', companyId)
     .eq('source', 'shopee')
     .eq('external_order_sn', shopeeOrder.order_sn)
@@ -381,6 +384,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
           external_data: shopeeOrder as unknown as Record<string, unknown>,
           shipping_fee: updatedShippingFee,
           updated_at: new Date().toISOString(),
+          ...(shopeeOrder.ship_by_date ? { delivery_date: new Date(shopeeOrder.ship_by_date * 1000).toISOString().split('T')[0] } : {}),
           ...fulfillmentUpdate,
         })
         .eq('id', existing.id);
@@ -410,17 +414,20 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
       }
     }
 
-    // Repair: if external_status matches but order_status/payment_status is wrong (e.g. from early dev syncs)
+    // Repair: if external_status matches but order_status/payment_status/fulfillment_status is wrong
     if (!statusUpdated) {
       const expectedMapping = mapShopeeStatus(shopeeOrder.order_status);
-      if (existing.order_status !== expectedMapping.order_status) {
+      const shouldBeShipped = ['SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'].includes(shopeeOrder.order_status);
+      const needsOrderFix = existing.order_status !== expectedMapping.order_status;
+      const needsFulfillmentFix = shouldBeShipped && (existing as Record<string, unknown>).fulfillment_status !== 'shipped';
+
+      if (needsOrderFix || needsFulfillmentFix) {
         const repairUpdate: Record<string, unknown> = {
           order_status: expectedMapping.order_status,
           payment_status: expectedMapping.payment_status,
           updated_at: new Date().toISOString(),
         };
-        // Also fix fulfillment_status if it should be shipped
-        if (['SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'].includes(shopeeOrder.order_status)) {
+        if (shouldBeShipped) {
           repairUpdate.fulfillment_status = 'shipped';
           repairUpdate.shipped_at = new Date().toISOString();
         }
@@ -428,7 +435,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
           .from('orders')
           .update(repairUpdate)
           .eq('id', existing.id);
-        console.log(`[Shopee Sync] Repaired order ${shopeeOrder.order_sn}: order_status ${existing.order_status} → ${expectedMapping.order_status}`);
+        console.log(`[Shopee Sync] Repaired order ${shopeeOrder.order_sn}: order_status=${existing.order_status}→${expectedMapping.order_status}, fulfillment fix=${needsFulfillmentFix}`);
         statusUpdated = true;
       }
     }
@@ -641,6 +648,9 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
       external_data: shopeeOrder as unknown as Record<string, unknown>,
       warehouse_id: warehouseId,
       notes: orderNotes,
+      delivery_date: shopeeOrder.ship_by_date
+        ? new Date(shopeeOrder.ship_by_date * 1000).toISOString().split('T')[0]
+        : null,
       created_at: new Date(shopeeOrder.create_time * 1000).toISOString(),
     })
     .select()
@@ -1722,11 +1732,6 @@ async function findOrCreateShopeeCustomer(
       name: buyerName,
       contact_person: unmasked(addr?.name),
       phone: phone,
-      address: unmasked(addr?.full_address),
-      province: unmasked(addr?.state),
-      district: unmasked(addr?.district),
-      amphoe: unmasked(addr?.city),
-      postal_code: unmasked(addr?.zipcode),
       customer_type_new: 'retail',
       is_active: true,
       notes: `สร้างอัตโนมัติจาก Shopee (${shopeeOrder.buyer_username || ''})`,
