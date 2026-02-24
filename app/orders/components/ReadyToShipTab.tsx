@@ -12,7 +12,9 @@ import {
   Trash2,
   CreditCard,
   CheckCircle,
+  Banknote,
 } from 'lucide-react';
+import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import OrderCard from './OrderCard';
 import ActionMenu, { ActionItem } from './ActionMenu';
 import { Order } from './types';
@@ -44,7 +46,7 @@ export default function ReadyToShipTab({
   const [confirmModal, setConfirmModal] = useState<{ type: 'accept' | 'cancel'; ids: string[] } | null>(null);
   const [toast, setToast] = useState('');
 
-  // Only manual orders can be bulk-selected
+  // All orders can be bulk-selected (Shopee needs bulk accept too)
   const selectableOrders = useMemo(() => orders, [orders]);
   const allSelected = selectableOrders.length > 0 && selectableOrders.every(o => selectedIds.has(o.id));
 
@@ -106,6 +108,22 @@ export default function ReadyToShipTab({
     }
   };
 
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const handlePrintInvoice = async (orderId: string) => {
+    setActionLoading(true);
+    try {
+      const res = await apiFetch(`/api/orders/${orderId}`);
+      if (!res.ok) throw new Error('Failed to fetch order');
+      const result = await res.json();
+      await generateOrderInvoicePdf({ data: result.order });
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const renderCardActions = (order: Order) => {
     const isShopee = order.source === 'shopee';
     const primaryActions: React.ReactNode[] = [];
@@ -125,6 +143,15 @@ export default function ReadyToShipTab({
         </button>
       );
     }
+
+    // Menu: Print invoice
+    menuItems.push({
+      key: 'invoice',
+      label: order.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้',
+      icon: <Banknote className="w-4 h-4" />,
+      onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
+      className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
+    });
 
     // Menu: Cancel (manual only)
     if (!isShopee) {
@@ -179,7 +206,7 @@ export default function ReadyToShipTab({
             order={order}
             statusFilter="ready_to_ship"
             selected={selectedIds.has(order.id)}
-            showCheckbox={true}
+            showCheckbox
             onToggleSelect={toggleSelect}
             onImageClick={onImageClick}
             showPaymentStatus={order.payment_status !== 'paid'}

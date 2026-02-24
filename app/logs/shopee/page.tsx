@@ -50,6 +50,7 @@ const ACTION_LABELS: Record<string, string> = {
   sync_orders_manual: 'ดึงออเดอร์ (Manual)',
   sync_orders_poll: 'ดึงออเดอร์ (Auto)',
   webhook_order_status: 'Webhook อัปเดตสถานะ',
+  webhook_sync_error: 'Webhook Sync ผิดพลาด',
   sync_products: 'sync_products',
 };
 
@@ -532,12 +533,17 @@ function StatusIcon({ status }: { status: string }) {
 
 function OrderLink({ referenceId, label }: { referenceId: string; label: string }) {
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     if (loading) return;
     setLoading(true);
+    setNotFound(false);
+    setSyncResult(null);
     try {
       const orderNumber = `SP-${referenceId}`;
       const res = await apiFetch(`/api/orders?search=${encodeURIComponent(orderNumber)}&limit=1`);
@@ -548,6 +554,7 @@ function OrderLink({ referenceId, label }: { referenceId: string; label: string 
           return;
         }
       }
+      setNotFound(true);
     } catch {
       // fallback
     } finally {
@@ -555,19 +562,71 @@ function OrderLink({ referenceId, label }: { referenceId: string; label: string 
     }
   };
 
+  const handleResync = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (syncing) return;
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await apiFetch('/api/shopee/sync-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_sn: referenceId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.orders_created > 0) {
+          setSyncResult('created');
+          setNotFound(false);
+        } else if (data.orders_updated > 0) {
+          setSyncResult('updated');
+          setNotFound(false);
+        } else if (data.errors?.length > 0) {
+          setSyncResult(`error: ${data.errors[0]}`);
+        } else {
+          setSyncResult('skipped');
+        }
+      } else {
+        setSyncResult(`error: ${data.error || 'Unknown'}`);
+      }
+    } catch (err) {
+      setSyncResult(`error: ${err instanceof Error ? err.message : 'Failed'}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
-    <a
-      href="#"
-      onClick={handleClick}
-      className={`inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline ${loading ? 'opacity-50' : ''}`}
-    >
-      {label}
-      {loading ? (
-        <Loader2 className="w-3 h-3 animate-spin" />
-      ) : (
-        <ExternalLink className="w-3 h-3" />
+    <span className="inline-flex items-center gap-1 flex-wrap">
+      <a
+        href="#"
+        onClick={handleClick}
+        className={`inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline ${loading ? 'opacity-50' : ''}`}
+      >
+        {label}
+        {loading ? (
+          <Loader2 className="w-3 h-3 animate-spin" />
+        ) : (
+          <ExternalLink className="w-3 h-3" />
+        )}
+      </a>
+      {notFound && (
+        <button
+          onClick={handleResync}
+          disabled={syncing}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:hover:bg-orange-900/50 disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
+          Re-sync
+        </button>
       )}
-    </a>
+      {syncResult && (
+        <span className={`text-xs ${syncResult.startsWith('error') ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
+          {syncResult === 'created' ? 'สร้างแล้ว' : syncResult === 'updated' ? 'อัปเดตแล้ว' : syncResult === 'skipped' ? 'ไม่มีการเปลี่ยนแปลง' : syncResult}
+        </span>
+      )}
+    </span>
   );
 }
 

@@ -30,7 +30,11 @@ import {
   ClipboardList,
   Pencil,
 } from 'lucide-react';
+import PaymentModal from '../components/PaymentModal';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
+import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
+import { generatePackingListPdf } from '@/lib/order-packing-pdf';
+import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 
 // Status badge components
 function OrderStatusBadge({ status }: { status: string }) {
@@ -127,6 +131,7 @@ export default function OrderDetailPage() {
   // Print
   const [printMode, setPrintMode] = useState<'order' | 'packing' | null>(null);
   const [showPrintMenu, setShowPrintMenu] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   // Status management
   const [updating, setUpdating] = useState(false);
@@ -141,14 +146,8 @@ export default function OrderDetailPage() {
     statusType: 'order' | 'payment';
   }>({ show: false, nextStatus: '', statusType: 'order' });
 
-  // Payment details (when marking as paid)
-  const [paymentDetails, setPaymentDetails] = useState({
-    paymentMethod: 'cash',
-    collectedBy: '',
-    transferDate: '',
-    transferTime: '',
-    notes: ''
-  });
+  // Payment modal
+  const [paymentModalShow, setPaymentModalShow] = useState(false);
 
   // Slip preview modal
   const [showSlipModal, setShowSlipModal] = useState(false);
@@ -325,8 +324,7 @@ export default function OrderDetailPage() {
 
   const handlePaymentStatusClick = () => {
     if (paymentStatus !== 'pending') return;
-    setPaymentDetails({ paymentMethod: 'cash', collectedBy: '', transferDate: '', transferTime: '', notes: '' });
-    setStatusModal({ show: true, nextStatus: 'paid', statusType: 'payment' });
+    setPaymentModalShow(true);
   };
 
   const handleCancelClick = () => {
@@ -337,72 +335,29 @@ export default function OrderDetailPage() {
     setStatusModal({ show: false, nextStatus: '', statusType: 'order' });
   };
 
-  // Confirm status update
+  // Confirm status update (order status only — payment handled by PaymentModal)
   const confirmStatusUpdate = async () => {
-    // Validate payment details if marking as paid
-    if (statusModal.statusType === 'payment' && statusModal.nextStatus === 'paid') {
-      if (paymentDetails.paymentMethod === 'cash' && !paymentDetails.collectedBy.trim()) {
-        showToast('กรุณาระบุชื่อคนเก็บเงิน', 'error');
-        return;
-      }
-      if (paymentDetails.paymentMethod === 'transfer' && (!paymentDetails.transferDate || !paymentDetails.transferTime)) {
-        showToast('กรุณาระบุวันที่และเวลาจากสลิป', 'error');
-        return;
-      }
-    }
-
     try {
       setUpdating(true);
 
       const updateData: any = { id: orderId };
-
-      if (statusModal.statusType === 'order') {
-        updateData.order_status = statusModal.nextStatus;
-        if (statusModal.nextStatus === 'cancelled') {
-          updateData.payment_status = 'cancelled';
-        }
-      } else {
-        updateData.payment_status = statusModal.nextStatus;
+      updateData.order_status = statusModal.nextStatus;
+      if (statusModal.nextStatus === 'cancelled') {
+        updateData.payment_status = 'cancelled';
       }
 
       const response = await apiFetch('/api/orders', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData)
       });
 
       if (!response.ok) throw new Error('Failed to update status');
 
-      // If marking as paid, create payment record
-      if (statusModal.statusType === 'payment' && statusModal.nextStatus === 'paid') {
-        await apiFetch('/api/payment-records', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            order_id: orderId,
-            payment_method: paymentDetails.paymentMethod,
-            amount: 0,
-            collected_by: paymentDetails.paymentMethod === 'cash' ? paymentDetails.collectedBy : null,
-            transfer_date: paymentDetails.paymentMethod === 'transfer' ? paymentDetails.transferDate : null,
-            transfer_time: paymentDetails.paymentMethod === 'transfer' ? paymentDetails.transferTime : null,
-            notes: paymentDetails.notes || null
-          })
-        });
-        await fetchPaymentRecord();
-      }
-
       // Update local state
-      if (statusModal.statusType === 'order') {
-        setOrderStatus(statusModal.nextStatus);
-        if (statusModal.nextStatus === 'cancelled') {
-          setPaymentStatus('cancelled');
-        }
-      } else {
-        setPaymentStatus(statusModal.nextStatus);
+      setOrderStatus(statusModal.nextStatus);
+      if (statusModal.nextStatus === 'cancelled') {
+        setPaymentStatus('cancelled');
       }
 
       closeStatusModal();
@@ -518,6 +473,48 @@ export default function OrderDetailPage() {
       window.print();
       setPrintMode(null);
     }, 150);
+  };
+
+  const handlePrintInvoice = async () => {
+    if (!fullOrderData) return;
+    setShowPrintMenu(false);
+    setGeneratingPdf(true);
+    try {
+      await generateOrderInvoicePdf({ data: fullOrderData });
+    } catch (err) {
+      console.error('Error generating invoice PDF:', err);
+      showToast('สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  const handlePrintPackingList = async () => {
+    if (!fullOrderData) return;
+    setShowPrintMenu(false);
+    setGeneratingPdf(true);
+    try {
+      await generatePackingListPdf({ data: fullOrderData });
+    } catch (err) {
+      console.error('Error generating packing list PDF:', err);
+      showToast('สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  const handlePrintShippingLabel = async () => {
+    if (!fullOrderData) return;
+    setShowPrintMenu(false);
+    setGeneratingPdf(true);
+    try {
+      await generateShippingLabelPdf({ data: fullOrderData });
+    } catch (err) {
+      console.error('Error generating shipping label PDF:', err);
+      showToast('สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
   const handlePrintShopeeLabel = async () => {
@@ -661,6 +658,14 @@ export default function OrderDetailPage() {
                   <div className="fixed inset-0 z-40" onClick={() => setShowPrintMenu(false)} />
                   <div className="absolute right-0 mt-1 w-52 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg z-50 py-1">
                     <button
+                      onClick={handlePrintInvoice}
+                      disabled={generatingPdf}
+                      className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
+                    >
+                      {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" /> : <Banknote className="w-4 h-4 text-gray-400" />}
+                      {paymentStatus === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้'}
+                    </button>
+                    <button
                       onClick={() => handlePrint('order')}
                       className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
                     >
@@ -668,8 +673,9 @@ export default function OrderDetailPage() {
                       ใบออเดอร์
                     </button>
                     <button
-                      onClick={() => handlePrint('packing')}
-                      className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
+                      onClick={handlePrintPackingList}
+                      disabled={generatingPdf}
+                      className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
                     >
                       <ClipboardList className="w-4 h-4 text-gray-400" />
                       ใบจัดของ
@@ -677,11 +683,9 @@ export default function OrderDetailPage() {
                     <div className="border-t border-gray-100 dark:border-slate-700 my-1" />
                     {orderSource === 'manual' ? (
                       <button
-                        onClick={() => {
-                          setShowPrintMenu(false);
-                          window.open(`/orders/${orderId}/shipping-labels`, '_blank');
-                        }}
-                        className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
+                        onClick={handlePrintShippingLabel}
+                        disabled={generatingPdf}
+                        className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
                       >
                         <Package className="w-4 h-4 text-gray-400" />
                         ใบปะหน้า
@@ -1164,7 +1168,7 @@ export default function OrderDetailPage() {
           printMode={printMode}
         />
 
-        {/* Status Update Confirmation Modal */}
+        {/* Status Update Confirmation Modal (order status only) */}
         {statusModal.show && (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
@@ -1175,7 +1179,7 @@ export default function OrderDetailPage() {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   {statusModal.nextStatus === 'cancelled'
                     ? 'ยืนยันการยกเลิกคำสั่งซื้อ'
-                    : `ยืนยันการเปลี่ยน${statusModal.statusType === 'order' ? 'สถานะคำสั่งซื้อ' : 'สถานะการชำระเงิน'}`
+                    : 'ยืนยันการเปลี่ยนสถานะคำสั่งซื้อ'
                   }
                 </h3>
                 <button onClick={closeStatusModal} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
@@ -1189,121 +1193,15 @@ export default function OrderDetailPage() {
                 </p>
                 <div className="flex items-center gap-2 text-sm">
                   <span className="text-gray-600 dark:text-slate-400">เปลี่ยนจาก:</span>
-                  {statusModal.statusType === 'order' ? (
-                    <>
-                      <OrderStatusBadge status={orderStatus} />
-                      <ChevronRight className="w-4 h-4 text-gray-400" />
-                      <OrderStatusBadge status={statusModal.nextStatus} />
-                    </>
-                  ) : (
-                    <>
-                      <PaymentStatusBadge status={paymentStatus} />
-                      <ChevronRight className="w-4 h-4 text-gray-400" />
-                      <PaymentStatusBadge status={statusModal.nextStatus} />
-                    </>
-                  )}
+                  <OrderStatusBadge status={orderStatus} />
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                  <OrderStatusBadge status={statusModal.nextStatus} />
                 </div>
 
                 {/* Warning for cancel */}
                 {statusModal.nextStatus === 'cancelled' && (
                   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                     การยกเลิกคำสั่งซื้อจะไม่สามารถกลับคืนได้
-                  </div>
-                )}
-
-                {/* Payment Details Form (when marking as paid) */}
-                {statusModal.statusType === 'payment' && statusModal.nextStatus === 'paid' && (
-                  <div className="mt-6 pt-6 border-t space-y-4">
-                    <h4 className="font-medium text-gray-900 dark:text-white">รายละเอียดการชำระเงิน</h4>
-
-                    {/* Payment Method Selection */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        วิธีการชำระเงิน <span className="text-red-500">*</span>
-                      </label>
-                      <div className="flex gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setPaymentDetails({ ...paymentDetails, paymentMethod: 'cash' })}
-                          className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
-                            paymentDetails.paymentMethod === 'cash'
-                              ? 'border-[#F4511E] bg-[#F4511E] bg-opacity-10 text-[#F4511E] font-medium'
-                              : 'border-gray-300 text-gray-700 hover:border-gray-400'
-                          }`}
-                        >
-                          เงินสด
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPaymentDetails({ ...paymentDetails, paymentMethod: 'transfer' })}
-                          className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
-                            paymentDetails.paymentMethod === 'transfer'
-                              ? 'border-[#F4511E] bg-[#F4511E] bg-opacity-10 text-[#F4511E] font-medium'
-                              : 'border-gray-300 text-gray-700 hover:border-gray-400'
-                          }`}
-                        >
-                          โอนเงิน
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Cash Payment Fields */}
-                    {paymentDetails.paymentMethod === 'cash' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          ชื่อคนเก็บเงิน <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={paymentDetails.collectedBy}
-                          onChange={(e) => setPaymentDetails({ ...paymentDetails, collectedBy: e.target.value })}
-                          placeholder="ระบุชื่อคนเก็บเงิน"
-                          className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                        />
-                      </div>
-                    )}
-
-                    {/* Transfer Payment Fields */}
-                    {paymentDetails.paymentMethod === 'transfer' && (
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              วันที่จากสลิป <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                              type="date"
-                              value={paymentDetails.transferDate}
-                              onChange={(e) => setPaymentDetails({ ...paymentDetails, transferDate: e.target.value })}
-                              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              เวลาจากสลิป <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                              type="time"
-                              value={paymentDetails.transferTime}
-                              onChange={(e) => setPaymentDetails({ ...paymentDetails, transferTime: e.target.value })}
-                              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Notes */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">หมายเหตุ</label>
-                      <textarea
-                        value={paymentDetails.notes}
-                        onChange={(e) => setPaymentDetails({ ...paymentDetails, notes: e.target.value })}
-                        placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
-                        rows={2}
-                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                      />
-                    </div>
                   </div>
                 )}
               </div>
@@ -1338,6 +1236,20 @@ export default function OrderDetailPage() {
             </div>
           </div>
         )}
+
+        {/* Payment Modal (shared component) */}
+        <PaymentModal
+          show={paymentModalShow}
+          orderId={orderId as string}
+          orderNumber={orderNumber}
+          totalAmount={fullOrderData?.total_amount || 0}
+          onClose={() => setPaymentModalShow(false)}
+          onSuccess={() => {
+            setPaymentModalShow(false);
+            setPaymentStatus('paid');
+            fetchPaymentRecord();
+          }}
+        />
         {/* Slip Preview Modal */}
         {showSlipModal && paymentRecord?.slip_image_url && (
           <div

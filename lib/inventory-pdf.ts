@@ -4,6 +4,16 @@
  */
 
 import JsBarcode from 'jsbarcode';
+import {
+  type CompanyInfo,
+  fetchCompanyInfo,
+  setupPdfMake,
+  loadLogoDataUrl,
+  formatPdfDate,
+  buildCompanyStack,
+  buildCornerTriangle,
+  buildSignatureFooter,
+} from './pdf-utils';
 
 /** Generate a barcode as a data URL using JsBarcode on an off-screen canvas */
 function generateBarcodeDataUrl(value: string): string | null {
@@ -58,14 +68,8 @@ interface InventoryDocData {
   items: InventoryItem[];
 }
 
-export interface CompanyInfo {
-  name: string;
-  address?: string;
-  phone?: string;
-  tax_id?: string;
-  tax_company_name?: string;
-  logo_url?: string | null;
-}
+// CompanyInfo is re-exported from pdf-utils
+export type { CompanyInfo } from './pdf-utils';
 
 function getVariationLabel(item: InventoryItem) {
   const parts: string[] = [];
@@ -88,8 +92,7 @@ function buildSubtitle(item: InventoryItem) {
   return parts.join(' | ');
 }
 
-const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric' });
+const formatDate = formatPdfDate;
 
 // ─── Color themes (ink-saving: color only at corner tab) ─────
 interface ThemeColors {
@@ -102,35 +105,7 @@ const THEMES: Record<string, ThemeColors> = {
   transfer: { primary: '#b45309' },
 };
 
-// Cache company info to avoid repeated API calls
-let cachedCompanyInfo: CompanyInfo | null = null;
-
-async function fetchCompanyInfo(): Promise<CompanyInfo | null> {
-  if (cachedCompanyInfo) return cachedCompanyInfo;
-  try {
-    const { apiFetch } = await import('@/lib/api-client');
-    const res = await apiFetch('/api/companies');
-    if (!res.ok) return null;
-    const result = await res.json();
-    const memberships = result.companies || [];
-    // Pick current company from localStorage, or first
-    const currentId = typeof window !== 'undefined' ? localStorage.getItem('aoo-current-company-id') : null;
-    const membership = (currentId
-      ? memberships.find((m: { company_id: string }) => m.company_id === currentId)
-      : null) || memberships[0];
-    const co = membership?.company;
-    if (!co) return null;
-    cachedCompanyInfo = {
-      name: co.name || '',
-      address: co.address || '',
-      phone: co.phone || '',
-      tax_id: co.tax_id || '',
-      tax_company_name: co.tax_company_name || '',
-      logo_url: co.logo_url || null,
-    };
-    return cachedCompanyInfo;
-  } catch { return null; }
-}
+// Company info fetching is now in pdf-utils.ts
 
 interface GeneratePdfOptions {
   type: 'receive' | 'issue' | 'transfer';
@@ -144,34 +119,7 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
     company = (await fetchCompanyInfo()) || undefined;
   }
 
-  const pdfMake = (await import('pdfmake/build/pdfmake')).default;
-
-  const [regularBuf, boldBuf] = await Promise.all([
-    fetch('/fonts/IBMPlexSansThai-Regular.ttf').then(r => r.arrayBuffer()),
-    fetch('/fonts/IBMPlexSansThai-Bold.ttf').then(r => r.arrayBuffer()),
-  ]);
-
-  const toBase64 = (buf: ArrayBuffer) => {
-    const bytes = new Uint8Array(buf);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    return btoa(binary);
-  };
-
-  pdfMake.addFontContainer({
-    vfs: {
-      'IBMPlexSansThai-Regular.ttf': toBase64(regularBuf),
-      'IBMPlexSansThai-Bold.ttf': toBase64(boldBuf),
-    },
-    fonts: {
-      IBMPlexSansThai: {
-        normal: 'IBMPlexSansThai-Regular.ttf',
-        bold: 'IBMPlexSansThai-Bold.ttf',
-        italics: 'IBMPlexSansThai-Regular.ttf',
-        bolditalics: 'IBMPlexSansThai-Bold.ttf',
-      },
-    },
-  });
+  const pdfMake = await setupPdfMake();
 
   const theme = THEMES[type];
   const isReceive = type === 'receive';
@@ -185,21 +133,7 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
   const totalQty = data.items.reduce((s, i) => s + i.quantity, 0);
 
   // Load company logo
-  let logoDataUrl: string | null = null;
-  if (company?.logo_url) {
-    try {
-      const response = await fetch(company.logo_url);
-      if (response.ok) {
-        const blob = await response.blob();
-        logoDataUrl = await new Promise<string | null>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = () => resolve(null);
-          reader.readAsDataURL(blob);
-        });
-      }
-    } catch { /* skip logo */ }
-  }
+  const logoDataUrl = company?.logo_url ? await loadLogoDataUrl(company.logo_url) : null;
 
   // Status text
   const statusText = isTransfer
@@ -228,26 +162,7 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
   // ═══════════════════════════════════════════════════
 
   // Left side: logo + company info
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const companyStack: any[] = [];
-
-  if (logoDataUrl) {
-    companyStack.push({ image: logoDataUrl, width: 50, height: 50, fit: [50, 50], margin: [0, 0, 0, 6] });
-  }
-
-  const companyName = company?.tax_company_name || company?.name || '';
-  if (companyName) {
-    companyStack.push({ text: companyName, bold: true, fontSize: 12, color: '#333333' });
-  }
-  if (company?.address) {
-    companyStack.push({ text: company.address, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
-  }
-  if (company?.tax_id) {
-    companyStack.push({ text: `เลขประจำตัวผู้เสียภาษี ${company.tax_id}`, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
-  }
-  if (company?.phone) {
-    companyStack.push({ text: `เบอร์มือถือ ${company.phone}`, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
-  }
+  const companyStack = buildCompanyStack(company, logoDataUrl);
 
   // Right side: document title + info box
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -534,89 +449,12 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
 
   const leftSignLabel = isTransfer ? 'ผู้ส่ง' : isReceive ? 'ผู้ส่งสินค้า' : 'ผู้เบิกสินค้า';
   const rightSignLabel = isTransfer ? 'ผู้รับ' : isReceive ? 'ผู้รับสินค้า' : 'ผู้อนุมัติ';
-  const leftCompanyName = company?.name || '';
-
-  // A4 dimensions
-  const pageWidth = 595.28;
-  const triangleSize = 50;
-
   const docDefinition = {
     defaultStyle: { font: 'IBMPlexSansThai', fontSize: 16 },
     pageSize: 'A4' as const,
     pageMargins: [40, 40, 40, 110] as [number, number, number, number],
-    // Color triangle at top-right corner with print margin offset
-    background: () => ({
-      canvas: [{
-        type: 'polyline',
-        closePath: true,
-        points: [
-          { x: pageWidth - 8, y: 8 },
-          { x: pageWidth - 8 - triangleSize, y: 8 },
-          { x: pageWidth - 8, y: 8 + triangleSize },
-        ],
-        color: theme.primary,
-      }],
-    }),
-    // Signature section pinned to absolute bottom of every page
-    // Each side: signature line (left) + date line (right) on same row
-    footer: {
-      columns: [
-        {
-          width: '*',
-          stack: [
-            { text: leftCompanyName ? `ในนาม ${leftCompanyName}` : ' ', fontSize: 10, color: '#666666' },
-            { text: ' ', margin: [0, 18, 0, 0] },
-            {
-              columns: [
-                {
-                  width: '*',
-                  stack: [
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 140, y2: 0, lineWidth: 0.5, lineColor: '#cccccc' }] },
-                    { text: leftSignLabel, fontSize: 10, margin: [0, 3, 0, 0] },
-                  ],
-                },
-                {
-                  width: 'auto',
-                  stack: [
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 80, y2: 0, lineWidth: 0.5, lineColor: '#cccccc' }] },
-                    { text: 'วันที่', fontSize: 10, margin: [0, 3, 0, 0] },
-                  ],
-                },
-              ],
-              columnGap: 10,
-            },
-          ],
-        },
-        { width: 30, text: '' },
-        {
-          width: '*',
-          stack: [
-            { text: ' ', fontSize: 10 },
-            { text: ' ', margin: [0, 18, 0, 0] },
-            {
-              columns: [
-                {
-                  width: '*',
-                  stack: [
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 140, y2: 0, lineWidth: 0.5, lineColor: '#cccccc' }] },
-                    { text: rightSignLabel, fontSize: 10, margin: [0, 3, 0, 0] },
-                  ],
-                },
-                {
-                  width: 'auto',
-                  stack: [
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 80, y2: 0, lineWidth: 0.5, lineColor: '#cccccc' }] },
-                    { text: 'วันที่', fontSize: 10, margin: [0, 3, 0, 0] },
-                  ],
-                },
-              ],
-              columnGap: 10,
-            },
-          ],
-        },
-      ],
-      margin: [40, 0, 40, 12],
-    },
+    background: () => buildCornerTriangle(theme.primary),
+    footer: buildSignatureFooter(company?.name || '', leftSignLabel, rightSignLabel),
     content,
     styles: {
       tableHeader: { bold: true, fontSize: 11, color: '#333333' },

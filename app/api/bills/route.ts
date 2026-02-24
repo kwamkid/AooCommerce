@@ -248,20 +248,30 @@ export async function GET(request: NextRequest) {
       return { type: ch.type, name: ch.name, config: { description: cfg.description } };
     }).filter(Boolean);
 
-    // Build customer info: prefer delivery snapshot, fallback to default shipping_address
-    let deliveryCustomer = order.delivery_name ? {
-      name: order.delivery_name,
-      phone: order.delivery_phone,
-      address: order.delivery_address,
-      district: order.delivery_district,
-      amphoe: order.delivery_amphoe,
-      province: order.delivery_province,
-      postal_code: order.delivery_postal_code,
-      email: order.delivery_email,
-    } : null;
+    // Build customer info for bill display
+    // Shipping address: from delivery snapshot → fallback to default shipping_address
+    // Tax info: always from customerData (customers table)
+    let shippingInfo: {
+      name: string; phone?: string; email?: string;
+      address?: string; district?: string; amphoe?: string; province?: string; postal_code?: string;
+    } | null = null;
 
-    // Fallback: fetch default shipping_address instead of customer inline address
-    if (!deliveryCustomer && order.customer_id) {
+    // Priority 1: delivery snapshot on the order
+    if (order.delivery_name) {
+      shippingInfo = {
+        name: order.delivery_name,
+        phone: order.delivery_phone,
+        email: order.delivery_email,
+        address: order.delivery_address,
+        district: order.delivery_district,
+        amphoe: order.delivery_amphoe,
+        province: order.delivery_province,
+        postal_code: order.delivery_postal_code,
+      };
+    }
+
+    // Priority 2: default shipping_address from customer
+    if (!shippingInfo && order.customer_id) {
       const { data: defaultAddr } = await supabaseAdmin
         .from('shipping_addresses')
         .select('contact_person, phone, address_line1, district, amphoe, province, postal_code')
@@ -270,18 +280,55 @@ export async function GET(request: NextRequest) {
         .eq('is_active', true)
         .single();
       if (defaultAddr) {
-        deliveryCustomer = {
+        shippingInfo = {
           name: defaultAddr.contact_person || (customerData?.name as string) || '',
           phone: defaultAddr.phone || (customerData?.phone as string) || '',
+          email: (customerData?.email as string) || '',
           address: defaultAddr.address_line1 || '',
           district: defaultAddr.district || '',
           amphoe: defaultAddr.amphoe || '',
           province: defaultAddr.province || '',
           postal_code: defaultAddr.postal_code || '',
-          email: (customerData?.email as string) || '',
         };
       }
     }
+
+    // Priority 3: customer name/phone only (no address)
+    if (!shippingInfo && customerData) {
+      shippingInfo = {
+        name: (customerData.name as string) || '',
+        phone: (customerData.phone as string) || '',
+        email: (customerData.email as string) || '',
+      };
+    }
+
+    // Merge: shipping address + tax info from customer
+    const billCustomer = shippingInfo ? {
+      ...shippingInfo,
+      // Tax/billing info always from customers table
+      tax_address: (customerData?.tax_address as string) || undefined,
+      tax_district: (customerData?.tax_district as string) || undefined,
+      tax_amphoe: (customerData?.tax_amphoe as string) || undefined,
+      tax_province: (customerData?.tax_province as string) || undefined,
+      tax_postal_code: (customerData?.tax_postal_code as string) || undefined,
+      tax_company_name: (customerData?.tax_company_name as string) || undefined,
+      tax_id: (customerData?.tax_id as string) || undefined,
+      tax_branch: (customerData?.tax_branch as string) || undefined,
+      contact_person: (customerData?.contact_person as string) || undefined,
+    } : customerData ? {
+      name: (customerData.name as string) || '',
+      phone: (customerData.phone as string) || '',
+      email: (customerData.email as string) || '',
+      contact_person: (customerData.contact_person as string) || undefined,
+      tax_address: (customerData.tax_address as string) || undefined,
+      tax_district: (customerData.tax_district as string) || undefined,
+      tax_amphoe: (customerData.tax_amphoe as string) || undefined,
+      tax_province: (customerData.tax_province as string) || undefined,
+      tax_postal_code: (customerData.tax_postal_code as string) || undefined,
+      tax_company_name: (customerData.tax_company_name as string) || undefined,
+      tax_id: (customerData.tax_id as string) || undefined,
+      tax_branch: (customerData.tax_branch as string) || undefined,
+    } : null;
 
     return NextResponse.json({
       bill: {
@@ -294,8 +341,7 @@ export async function GET(request: NextRequest) {
         payment_record: paymentRecord,
         payment_channels: sanitizedChannels,
         customer_type: customerType,
-        // Prefer delivery snapshot, fallback to default shipping_address, then customer data
-        customer: deliveryCustomer || customerData || null,
+        customer: billCustomer,
         needs_delivery_info: !order.delivery_name || !order.delivery_phone || !order.delivery_address,
         shipping_addresses: branches.map(b => ({
           address_name: b.address_name,

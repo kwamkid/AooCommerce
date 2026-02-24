@@ -89,6 +89,13 @@ interface BillData {
     contact_person?: string;
     phone?: string;
     email?: string;
+    // Shipping address (from delivery snapshot or shipping_addresses)
+    address?: string;
+    district?: string;
+    amphoe?: string;
+    province?: string;
+    postal_code?: string;
+    // Tax/billing info (from customers table)
     tax_address?: string;
     tax_district?: string;
     tax_amphoe?: string;
@@ -174,11 +181,11 @@ export default function BillOnlinePage() {
     setDeliveryName(bill.customer?.name || '');
     setDeliveryPhone(bill.customer?.phone || '');
     setDeliveryEmail(bill.customer?.email || '');
-    setDeliveryAddress(bill.customer?.tax_address || '');
-    setDeliveryDistrict(bill.customer?.tax_district || '');
-    setDeliveryAmphoe(bill.customer?.tax_amphoe || '');
-    setDeliveryProvince(bill.customer?.tax_province || '');
-    setDeliveryPostalCode(bill.customer?.tax_postal_code || '');
+    setDeliveryAddress(bill.customer?.address || '');
+    setDeliveryDistrict(bill.customer?.district || '');
+    setDeliveryAmphoe(bill.customer?.amphoe || '');
+    setDeliveryProvince(bill.customer?.province || '');
+    setDeliveryPostalCode(bill.customer?.postal_code || '');
     setDeliveryErrors({});
     setEditingDelivery(true);
   };
@@ -235,11 +242,11 @@ export default function BillOnlinePage() {
         setDeliveryName(c.name || '');
         setDeliveryPhone(c.phone || '');
         setDeliveryEmail(c.email || '');
-        setDeliveryAddress(c.tax_address || '');
-        setDeliveryDistrict(c.tax_district || '');
-        setDeliveryAmphoe(c.tax_amphoe || '');
-        setDeliveryProvince(c.tax_province || '');
-        setDeliveryPostalCode(c.tax_postal_code || '');
+        setDeliveryAddress(c.address || '');
+        setDeliveryDistrict(c.district || '');
+        setDeliveryAmphoe(c.amphoe || '');
+        setDeliveryProvince(c.province || '');
+        setDeliveryPostalCode(c.postal_code || '');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดบิลได้');
@@ -719,15 +726,15 @@ export default function BillOnlinePage() {
                 {bill.customer.contact_person && <div>ผู้ติดต่อ: {bill.customer.contact_person}</div>}
                 {bill.customer.phone && <div>โทร: {bill.customer.phone}</div>}
                 {bill.customer.email && <div>อีเมล: {bill.customer.email}</div>}
+                {bill.customer.address && (
+                  <div>
+                    ที่อยู่: {[bill.customer.address, bill.customer.district, bill.customer.amphoe, bill.customer.province, bill.customer.postal_code].filter(Boolean).join(' ')}
+                  </div>
+                )}
                 {bill.customer.tax_id && (
                   <div>
                     เลขผู้เสียภาษี: {bill.customer.tax_id}
                     {bill.customer.tax_branch && ` สาขา: ${bill.customer.tax_branch}`}
-                  </div>
-                )}
-                {bill.customer.tax_address && (
-                  <div>
-                    ที่อยู่: {[bill.customer.tax_address, bill.customer.tax_district, bill.customer.tax_amphoe, bill.customer.tax_province, bill.customer.tax_postal_code].filter(Boolean).join(' ')}
                   </div>
                 )}
               </div>
@@ -1025,33 +1032,7 @@ export default function BillOnlinePage() {
                             );
                           })}
 
-                        {/* Slip upload + transfer date/time for PromptPay */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="overflow-hidden">
-                            <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>
-                              วันที่โอน <span className="text-red-400">*</span>
-                            </label>
-                            <input
-                              type="date"
-                              value={transferDate}
-                              onChange={(e) => setTransferDate(e.target.value)}
-                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
-                              className="w-full px-3 py-3 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                            />
-                          </div>
-                          <div className="overflow-hidden">
-                            <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>เวลา</label>
-                            <input
-                              type="time"
-                              value={transferTime}
-                              onChange={(e) => setTransferTime(e.target.value)}
-                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
-                              className="w-full px-2 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Slip Upload */}
+                        {/* Slip Upload first (for future auto-detect) */}
                         <div>
                           <label className="block text-base font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>อัพโหลดสลิป</label>
                           {compressingSlip ? (
@@ -1080,6 +1061,32 @@ export default function BillOnlinePage() {
                               <span className="text-base">เลือกรูป / ถ่ายรูปสลิป</span>
                             </button>
                           )}
+                        </div>
+
+                        {/* Transfer date/time */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="overflow-hidden">
+                            <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>
+                              วันที่โอน <span className="text-red-400">*</span>
+                            </label>
+                            <input
+                              type="date"
+                              value={transferDate}
+                              onChange={(e) => setTransferDate(e.target.value)}
+                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
+                              className="w-full px-3 py-3 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                            />
+                          </div>
+                          <div className="overflow-hidden">
+                            <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>เวลา</label>
+                            <input
+                              type="time"
+                              value={transferTime}
+                              onChange={(e) => setTransferTime(e.target.value)}
+                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
+                              className="w-full px-2 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                            />
+                          </div>
                         </div>
                       </>
                     )}
@@ -1158,33 +1165,7 @@ export default function BillOnlinePage() {
                           </div>
                         </div>
 
-                        {/* วันที่โอน + เวลาโอน */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="overflow-hidden">
-                            <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>
-                              วันที่โอน <span className="text-red-400">*</span>
-                            </label>
-                            <input
-                              type="date"
-                              value={transferDate}
-                              onChange={(e) => setTransferDate(e.target.value)}
-                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
-                              className="w-full px-3 py-3 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                            />
-                          </div>
-                          <div className="overflow-hidden">
-                            <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>เวลา</label>
-                            <input
-                              type="time"
-                              value={transferTime}
-                              onChange={(e) => setTransferTime(e.target.value)}
-                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
-                              className="w-full px-2 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Slip Upload */}
+                        {/* Slip Upload first (for future auto-detect) */}
                         <div>
                           <label className="block text-base font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>อัพโหลดสลิป</label>
                           {compressingSlip ? (
@@ -1213,6 +1194,32 @@ export default function BillOnlinePage() {
                               <span className="text-base">เลือกรูป / ถ่ายรูปสลิป</span>
                             </button>
                           )}
+                        </div>
+
+                        {/* วันที่โอน + เวลาโอน */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="overflow-hidden">
+                            <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>
+                              วันที่โอน <span className="text-red-400">*</span>
+                            </label>
+                            <input
+                              type="date"
+                              value={transferDate}
+                              onChange={(e) => setTransferDate(e.target.value)}
+                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
+                              className="w-full px-3 py-3 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                            />
+                          </div>
+                          <div className="overflow-hidden">
+                            <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>เวลา</label>
+                            <input
+                              type="time"
+                              value={transferTime}
+                              onChange={(e) => setTransferTime(e.target.value)}
+                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
+                              className="w-full px-2 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                            />
+                          </div>
                         </div>
                       </>
                     )}

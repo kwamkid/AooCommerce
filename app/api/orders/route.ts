@@ -554,7 +554,15 @@ export async function GET(request: NextRequest) {
             name,
             contact_person,
             phone,
-            email
+            email,
+            tax_company_name,
+            tax_id,
+            tax_branch,
+            tax_address,
+            tax_district,
+            tax_amphoe,
+            tax_province,
+            tax_postal_code
           )
         `)
         .eq('id', orderId)
@@ -725,25 +733,100 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json();
 
-    // --- Bulk actions (accept/cancel/hold/unhold) ---
-    if (body.action && body.ids && Array.isArray(body.ids)) {
-      const { action, ids, hold_reason } = body;
-      const validIds = ids.filter((id: string) => id);
+    // --- Bulk actions (accept/cancel/hold/unhold/ship) ---
+    const bulkIds = body.ids || (body.items ? body.items.map((i: any) => i.id) : null);
+    if (body.action && bulkIds && Array.isArray(bulkIds)) {
+      const { action, hold_reason } = body;
+      const validIds = bulkIds.filter((id: string) => id);
       if (validIds.length === 0) {
         return NextResponse.json({ error: 'No valid order IDs provided' }, { status: 400 });
       }
 
       if (action === 'bulk_accept') {
-        // ready_to_ship → processing
-        const { data: updated, error } = await supabaseAdmin
+        // Separate Shopee vs manual orders
+        const { data: ordersToAccept } = await supabaseAdmin
           .from('orders')
-          .update({ order_status: 'processing', updated_at: new Date().toISOString() })
+          .select('id, source, external_order_sn, external_status, shopee_account_id')
           .in('id', validIds)
           .eq('company_id', auth.companyId)
-          .eq('order_status', 'ready_to_ship')
-          .select('id');
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-        return NextResponse.json({ success: true, updated: (updated || []).length });
+          .eq('order_status', 'ready_to_ship');
+
+        const manualIds = (ordersToAccept || []).filter(o => o.source !== 'shopee').map(o => o.id);
+        const shopeeOrders = (ordersToAccept || []).filter(o => o.source === 'shopee');
+
+        let updatedCount = 0;
+        const errors: string[] = [];
+
+        // Manual orders: just update DB
+        if (manualIds.length > 0) {
+          const { data: updated, error } = await supabaseAdmin
+            .from('orders')
+            .update({ order_status: 'processing', updated_at: new Date().toISOString() })
+            .in('id', manualIds)
+            .eq('company_id', auth.companyId)
+            .select('id');
+          if (error) errors.push(error.message);
+          else updatedCount += (updated || []).length;
+        }
+
+        // Shopee orders: call Shopee ship API for each
+        if (shopeeOrders.length > 0) {
+          const { ensureValidToken, getShippingParameter, shipOrder } = await import('@/lib/shopee-api');
+          for (const order of shopeeOrders) {
+            try {
+              if (order.external_status !== 'READY_TO_SHIP') {
+                errors.push(`${order.external_order_sn}: สถานะไม่ถูกต้อง (${order.external_status})`);
+                continue;
+              }
+              // Fetch Shopee account
+              const { data: account } = await supabaseAdmin
+                .from('shopee_accounts')
+                .select('*')
+                .eq('id', order.shopee_account_id)
+                .eq('company_id', auth.companyId)
+                .eq('is_active', true)
+                .single();
+              if (!account) { errors.push(`${order.external_order_sn}: ไม่พบบัญชี Shopee`); continue; }
+
+              const creds = await ensureValidToken(account);
+              const { data: shippingParams, error: paramError } = await getShippingParameter(creds, order.external_order_sn);
+              if (paramError) { errors.push(`${order.external_order_sn}: ${paramError}`); continue; }
+
+              const params = shippingParams as any;
+              let shipResult;
+              if (params?.info_needed?.dropoff?.length > 0) {
+                const dropoffParams: Record<string, unknown> = {};
+                if (params.dropoff?.branch_list?.[0]) dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
+                shipResult = await shipOrder(creds, order.external_order_sn, undefined, dropoffParams);
+              } else {
+                const pickupAddress = params?.pickup?.address_list?.[0];
+                if (!pickupAddress) { errors.push(`${order.external_order_sn}: ไม่พบที่อยู่รับพัสดุ`); continue; }
+                const timeSlots = pickupAddress.time_slot_list || [];
+                const recommended = timeSlots.find((s: any) => s.flags?.includes('recommended'));
+                const selectedTimeId = (recommended || timeSlots[0])?.pickup_time_id || '';
+                shipResult = await shipOrder(creds, order.external_order_sn, { address_id: pickupAddress.address_id, pickup_time_id: selectedTimeId });
+              }
+
+              if (shipResult.error) { errors.push(`${order.external_order_sn}: ${shipResult.error}`); continue; }
+
+              // Update DB
+              await supabaseAdmin
+                .from('orders')
+                .update({ external_status: 'PROCESSED', order_status: 'shipping', updated_at: new Date().toISOString() })
+                .eq('id', order.id)
+                .eq('company_id', auth.companyId);
+              updatedCount++;
+            } catch (err) {
+              errors.push(`${order.external_order_sn}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            }
+          }
+        }
+
+        return NextResponse.json({
+          success: true,
+          updated: updatedCount,
+          ...(errors.length > 0 ? { errors } : {}),
+        });
       }
 
       if (action === 'bulk_cancel') {
@@ -849,16 +932,19 @@ export async function PUT(request: NextRequest) {
       }
 
       if (action === 'bulk_ship') {
-        // processing → shipping with optional tracking info
-        const { tracking_number, shipping_carrier } = body;
-        const updatePayload: any = {
-          order_status: 'shipping',
-          fulfillment_status: 'shipped',
-          shipped_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        if (tracking_number) updatePayload.tracking_number = tracking_number;
-        if (shipping_carrier) updatePayload.shipping_carrier = shipping_carrier;
+        // processing → shipping with per-order tracking info
+        const { items, tracking_number, shipping_carrier } = body;
+
+        // Build per-order tracking map from items array
+        const trackingMap: Record<string, { tracking_number?: string; shipping_carrier?: string }> = {};
+        if (items && Array.isArray(items)) {
+          for (const item of items) {
+            trackingMap[item.id] = {
+              tracking_number: item.tracking_number || null,
+              shipping_carrier: item.shipping_carrier || null,
+            };
+          }
+        }
 
         // Fetch orders to process stock deduction
         const { data: ordersToShip } = await supabaseAdmin
@@ -872,6 +958,20 @@ export async function PUT(request: NextRequest) {
         const allVarIds: string[] = [];
 
         for (const order of ordersToShip || []) {
+          // Per-order tracking takes precedence, fallback to shared values
+          const orderTracking = trackingMap[order.id] || {};
+          const tn = orderTracking.tracking_number || tracking_number || null;
+          const sc = orderTracking.shipping_carrier || shipping_carrier || null;
+
+          const updatePayload: any = {
+            order_status: 'shipping',
+            fulfillment_status: 'shipped',
+            shipped_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          if (tn) updatePayload.tracking_number = tn;
+          if (sc) updatePayload.shipping_carrier = sc;
+
           const { error } = await supabaseAdmin
             .from('orders')
             .update(updatePayload)

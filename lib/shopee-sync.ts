@@ -147,7 +147,7 @@ export async function syncOrdersByOrderSn(
       });
 
       if (error) {
-        result.errors.push(`Batch fetch error: ${error}`);
+        result.errors.push(`Batch fetch error (shop_id=${creds.shop_id}): ${error}`);
         processedCount += batch.length;
         continue;
       }

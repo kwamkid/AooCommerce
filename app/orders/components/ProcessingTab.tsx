@@ -15,7 +15,12 @@ import {
   Pause,
   Play,
   CheckCircle,
+  CreditCard,
+  Banknote,
 } from 'lucide-react';
+import { generatePackingListPdf } from '@/lib/order-packing-pdf';
+import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
+import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import OrderCard from './OrderCard';
 import ActionMenu, { ActionItem } from './ActionMenu';
 import {
@@ -32,6 +37,7 @@ interface ProcessingTabProps {
   onRefresh: () => void;
   onImageClick: (url: string) => void;
   onStatusClick?: (order: Order) => void;
+  onPaymentClick?: (order: Order) => void;
   onDeleteOrder: (e: React.MouseEvent, order: Order) => void;
 }
 
@@ -40,6 +46,7 @@ export default function ProcessingTab({
   userProfile,
   onRefresh,
   onImageClick,
+  onPaymentClick,
   onDeleteOrder,
 }: ProcessingTabProps) {
   const router = useRouter();
@@ -53,10 +60,20 @@ export default function ProcessingTab({
   const [cancelConfirm, setCancelConfirm] = useState<{ ids: string[] } | null>(null);
   const [toast, setToast] = useState('');
 
-  // Ship modal
+  // Ship modal (single)
   const [shipModal, setShipModal] = useState<{ order: Order } | null>(null);
   const [shipCarrier, setShipCarrier] = useState('');
   const [shipTracking, setShipTracking] = useState('');
+
+  // Bulk ship modal
+  const [bulkShipModal, setBulkShipModal] = useState(false);
+  const [bulkShipItems, setBulkShipItems] = useState<Array<{
+    id: string;
+    order_number: string;
+    customer_name: string;
+    tracking_number: string;
+    shipping_carrier: string;
+  }>>([]);
 
   // Group orders by delivery date
   const groupedOrders = useMemo(() => {
@@ -81,6 +98,11 @@ export default function ProcessingTab({
   const activeOrders = groupedOrders[activeGroup];
   const selectableInActiveGroup = activeGroup !== 'on_hold' ? activeOrders : [];
   const allGroupSelected = selectableInActiveGroup.length > 0 && selectableInActiveGroup.every(o => selectedIds.has(o.id));
+
+  // Count of selected non-Shopee orders (only these can be shipped)
+  const shippableSelectedIds = useMemo(() => {
+    return orders.filter(o => selectedIds.has(o.id) && o.source !== 'shopee').map(o => o.id);
+  }, [orders, selectedIds]);
 
   // Selection
   const toggleSelect = (id: string) => {
@@ -190,18 +212,41 @@ export default function ProcessingTab({
     }
   };
 
-  const handleBulkShip = async (ids: string[]) => {
+  const openBulkShipModal = () => {
+    // Only non-Shopee orders can be shipped — NEVER change Shopee status to shipping
+    const items = orders
+      .filter(o => selectedIds.has(o.id) && o.source !== 'shopee')
+      .map(o => ({
+        id: o.id,
+        order_number: o.order_number,
+        customer_name: o.customer_name || o.delivery_name || 'ลูกค้าทั่วไป',
+        tracking_number: '',
+        shipping_carrier: '',
+      }));
+    setBulkShipItems(items);
+    setBulkShipModal(true);
+  };
+
+  const handleBulkShipWithTracking = async () => {
     setActionLoading(true);
     try {
       const res = await apiFetch('/api/orders', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'bulk_ship', ids }),
+        body: JSON.stringify({
+          action: 'bulk_ship',
+          items: bulkShipItems.map(item => ({
+            id: item.id,
+            tracking_number: item.tracking_number || null,
+            shipping_carrier: item.shipping_carrier || null,
+          })),
+        }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
       const result = await res.json();
-      showToast(`จัดส่งสำเร็จ ${result.shipped || ids.length} รายการ`, 'success');
+      showToast(`จัดส่งสำเร็จ ${result.shipped || bulkShipItems.length} รายการ`, 'success');
       setSelectedIds(new Set());
+      setBulkShipModal(false);
       onRefresh();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
@@ -210,17 +255,66 @@ export default function ProcessingTab({
     }
   };
 
-  const handlePrintLabels = (orderIds: string[]) => {
-    // Open print page with selected order ids
-    const params = new URLSearchParams();
-    orderIds.forEach(id => params.append('ids', id));
-    window.open(`/orders/print-labels?${params.toString()}`, '_blank');
+  const handleTrackingPaste = (index: number, e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData('text');
+    const lines = text.split(/[\n\t\r]+/).map(l => l.trim()).filter(Boolean);
+    if (lines.length > 1) {
+      e.preventDefault();
+      setBulkShipItems(prev => {
+        const next = [...prev];
+        for (let i = 0; i < lines.length && (index + i) < next.length; i++) {
+          next[index + i] = { ...next[index + i], tracking_number: lines[i] };
+        }
+        return next;
+      });
+    }
   };
 
-  const handlePrintPackingSlips = (orderIds: string[]) => {
-    const params = new URLSearchParams();
-    orderIds.forEach(id => params.append('ids', id));
-    window.open(`/orders/print-packing?${params.toString()}`, '_blank');
+  const fetchOrderForPdf = async (orderId: string) => {
+    const res = await apiFetch(`/api/orders/${orderId}`);
+    if (!res.ok) throw new Error('Failed to fetch order');
+    const result = await res.json();
+    return result.order;
+  };
+
+  const handlePrintLabels = async (orderIds: string[]) => {
+    setActionLoading(true);
+    try {
+      for (const id of orderIds) {
+        const orderData = await fetchOrderForPdf(id);
+        await generateShippingLabelPdf({ data: orderData });
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handlePrintPackingSlips = async (orderIds: string[]) => {
+    setActionLoading(true);
+    try {
+      for (const id of orderIds) {
+        const orderData = await fetchOrderForPdf(id);
+        await generatePackingListPdf({ data: orderData });
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handlePrintInvoice = async (orderId: string) => {
+    setActionLoading(true);
+    try {
+      const orderData = await fetchOrderForPdf(orderId);
+      await generateOrderInvoicePdf({ data: orderData });
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const renderCardActions = (order: Order) => {
@@ -228,6 +322,21 @@ export default function ProcessingTab({
     const isOnHold = order.fulfillment_status === 'on_hold';
     const primaryActions: React.ReactNode[] = [];
     const menuItems: ActionItem[] = [];
+
+    // Primary: Payment (manual, unpaid, not on hold)
+    if (!isShopee && !isOnHold && order.payment_status === 'pending') {
+      primaryActions.push(
+        <button
+          key="pay"
+          onClick={(e) => { e.stopPropagation(); onPaymentClick?.(order); }}
+          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1"
+          title="บันทึกชำระ"
+        >
+          <CreditCard className="w-3.5 h-3.5" />
+          บันทึกชำระ
+        </button>
+      );
+    }
 
     // Primary: Ship action (manual only, not on hold)
     if (!isShopee && !isOnHold) {
@@ -260,21 +369,30 @@ export default function ProcessingTab({
       );
     }
 
-    // Menu: Print label
-    if (!isOnHold) {
-      menuItems.push({
-        key: 'print', label: 'พิมพ์ใบปะหน้า', icon: <Printer className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); handlePrintLabels([order.id]); },
-        className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
-      });
-    }
+    // Menu: Print invoice
+    menuItems.push({
+      key: 'invoice',
+      label: order.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้',
+      icon: <Banknote className="w-4 h-4" />,
+      onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
+      className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
+    });
 
     // Menu: Print packing slip
     if (!isOnHold) {
       menuItems.push({
-        key: 'packing', label: 'พิมพ์ใบจัดของ', icon: <ClipboardList className="w-4 h-4" />,
+        key: 'packing', label: 'ใบจัดของ', icon: <ClipboardList className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintPackingSlips([order.id]); },
         className: 'p-1.5 text-gray-400 hover:text-indigo-600 transition-colors rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30',
+      });
+    }
+
+    // Menu: Print label
+    if (!isOnHold) {
+      menuItems.push({
+        key: 'print', label: 'ใบปะหน้า', icon: <Printer className="w-4 h-4" />,
+        onClick: (e) => { e.stopPropagation(); handlePrintLabels([order.id]); },
+        className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
       });
     }
 
@@ -420,14 +538,16 @@ export default function ProcessingTab({
                 <ClipboardList className="w-4 h-4" />
                 ใบจัดของ ({selectedIds.size})
               </button>
-              <button
-                onClick={() => handleBulkShip(Array.from(selectedIds))}
-                disabled={actionLoading}
-                className="px-4 py-2 text-sm font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <Package className="w-4 h-4" />
-                จัดส่งแล้ว ({selectedIds.size})
-              </button>
+              {shippableSelectedIds.length > 0 && (
+                <button
+                  onClick={openBulkShipModal}
+                  disabled={actionLoading}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Package className="w-4 h-4" />
+                  จัดส่งแล้ว ({shippableSelectedIds.length})
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -581,6 +701,103 @@ export default function ProcessingTab({
                   <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>
                 ) : (
                   <span>ยืนยันยกเลิก</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Ship Modal */}
+      {bulkShipModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => !actionLoading && setBulkShipModal(false)}
+        >
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+              จัดส่งออเดอร์ ({bulkShipItems.length} รายการ)
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
+              กรอกเลขพัสดุสำหรับแต่ละออเดอร์ (ไม่บังคับ) หรือวางจาก Excel
+            </p>
+
+            {/* Apply same carrier to all */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs text-gray-500 dark:text-slate-400">ใช้ขนส่งเดียวกัน:</span>
+              <select
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  setBulkShipItems(prev => prev.map(item => ({ ...item, shipping_carrier: e.target.value })));
+                }}
+                className="px-2 py-1 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded text-sm"
+                defaultValue=""
+              >
+                <option value="">-- เลือก --</option>
+                {SHIPPING_CARRIERS.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+              {bulkShipItems.map((item, idx) => (
+                <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-slate-700/50">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.order_number}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{item.customer_name}</p>
+                  </div>
+                  <select
+                    value={item.shipping_carrier}
+                    onChange={(e) => {
+                      setBulkShipItems(prev => {
+                        const next = [...prev];
+                        next[idx] = { ...next[idx], shipping_carrier: e.target.value };
+                        return next;
+                      });
+                    }}
+                    className="w-28 px-2 py-1.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg text-xs"
+                  >
+                    <option value="">ขนส่ง</option>
+                    {SHIPPING_CARRIERS.map(c => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={item.tracking_number}
+                    onChange={(e) => {
+                      setBulkShipItems(prev => {
+                        const next = [...prev];
+                        next[idx] = { ...next[idx], tracking_number: e.target.value };
+                        return next;
+                      });
+                    }}
+                    onPaste={(e) => handleTrackingPaste(idx, e)}
+                    placeholder="เลขพัสดุ"
+                    className="w-40 px-2 py-1.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg text-sm font-mono"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-3 justify-end pt-4 border-t dark:border-slate-700">
+              <button
+                onClick={() => setBulkShipModal(false)}
+                disabled={actionLoading}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleBulkShipWithTracking}
+                disabled={actionLoading}
+                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {actionLoading ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>
+                ) : (
+                  <><Package className="w-4 h-4" /> จัดส่งทั้งหมด</>
                 )}
               </button>
             </div>

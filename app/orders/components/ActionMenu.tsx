@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { MoreVertical } from 'lucide-react';
 
 export interface ActionItem {
@@ -14,16 +15,41 @@ export interface ActionItem {
 
 export default function ActionMenu({ items }: { items: ActionItem[] }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+
+  const updatePosition = useCallback(() => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    // Position menu above the button, aligned to right edge
+    setMenuPos({
+      top: rect.top - 4, // 4px gap above button
+      left: rect.right,  // right-aligned
+    });
+  }, []);
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    updatePosition();
+
+    const handleClose = (e: MouseEvent) => {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        buttonRef.current && !buttonRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
+    const handleScroll = () => setOpen(false);
+
+    document.addEventListener('mousedown', handleClose);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClose);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [open, updatePosition]);
 
   if (items.length === 0) return null;
 
@@ -43,17 +69,27 @@ export default function ActionMenu({ items }: { items: ActionItem[] }) {
         ))}
       </div>
 
-      {/* Mobile: dropdown */}
-      <div className="relative sm:hidden" ref={ref}>
+      {/* Mobile: dropdown via portal */}
+      <div className="sm:hidden">
         <button
+          ref={buttonRef}
           onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
           className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
         >
           <MoreVertical className="w-4 h-4" />
         </button>
 
-        {open && (
-          <div className="absolute right-0 bottom-full mb-1 w-44 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50 py-1">
+        {open && menuPos && createPortal(
+          <div
+            ref={menuRef}
+            className="fixed w-44 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg py-1"
+            style={{
+              top: menuPos.top,
+              left: menuPos.left - 176, // 176 = w-44 = 11rem
+              transform: 'translateY(-100%)',
+              zIndex: 9999,
+            }}
+          >
             {items.map((item) => (
               <button
                 key={item.key}
@@ -66,7 +102,8 @@ export default function ActionMenu({ items }: { items: ActionItem[] }) {
                 {item.label}
               </button>
             ))}
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </>
