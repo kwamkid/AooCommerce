@@ -26,9 +26,6 @@ import OrderCard from './OrderCard';
 import ActionMenu, { ActionItem } from './ActionMenu';
 import {
   Order,
-  DeliveryGroup,
-  classifyDeliveryGroup,
-  DELIVERY_GROUP_CONFIG,
   SHIPPING_CARRIERS,
 } from './types';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
@@ -55,7 +52,7 @@ export default function ProcessingTab({
   const { showToast } = useToast();
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [activeGroup, setActiveGroup] = useState<DeliveryGroup>('today');
+  const [activeCarrierGroup, setActiveCarrierGroup] = useState<string>('');
   const [holdModal, setHoldModal] = useState<{ orderId: string; orderNumber: string } | null>(null);
   const [holdReason, setHoldReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -77,28 +74,58 @@ export default function ProcessingTab({
     shipping_carrier: string;
   }>>([]);
 
-  // Group orders by delivery date
-  const groupedOrders = useMemo(() => {
-    const groups: Record<DeliveryGroup, Order[]> = { today: [], tomorrow: [], other: [], on_hold: [] };
+  // Group orders by shipping carrier
+  const { carrierGroups, carrierOrder, onHoldOrders } = useMemo(() => {
+    const groups = new Map<string, Order[]>();
+    const holdOrders: Order[] = [];
+    const ON_HOLD_KEY = '__on_hold__';
+    const UNSPECIFIED_KEY = 'ไม่ระบุขนส่ง';
+
     for (const order of orders) {
-      groups[classifyDeliveryGroup(order)].push(order);
+      if (order.fulfillment_status === 'on_hold') {
+        holdOrders.push(order);
+        continue;
+      }
+      const carrier = order.shipping_carrier || UNSPECIFIED_KEY;
+      if (!groups.has(carrier)) groups.set(carrier, []);
+      groups.get(carrier)!.push(order);
     }
-    return groups;
+
+    // Sort: carriers with orders first, "ไม่ระบุขนส่ง" last
+    const sortedKeys = [...groups.keys()].sort((a, b) => {
+      if (a === UNSPECIFIED_KEY) return 1;
+      if (b === UNSPECIFIED_KEY) return -1;
+      return groups.get(b)!.length - groups.get(a)!.length;
+    });
+
+    // Add on_hold as last group if any
+    if (holdOrders.length > 0) sortedKeys.push(ON_HOLD_KEY);
+
+    return { carrierGroups: groups, carrierOrder: sortedKeys, onHoldOrders: holdOrders };
   }, [orders]);
 
-  const groupOrder: DeliveryGroup[] = ['today', 'tomorrow', 'other', 'on_hold'];
+  const ON_HOLD_KEY = '__on_hold__';
+  const isOnHoldTab = activeCarrierGroup === ON_HOLD_KEY;
 
-  // Auto-select first non-empty group if active group becomes empty
+  // Auto-select first non-empty group
   useEffect(() => {
-    if (groupedOrders[activeGroup].length === 0) {
-      const firstNonEmpty = groupOrder.find(g => groupedOrders[g].length > 0);
-      if (firstNonEmpty) setActiveGroup(firstNonEmpty);
+    if (carrierOrder.length === 0) return;
+    const currentOrders = isOnHoldTab ? onHoldOrders : carrierGroups.get(activeCarrierGroup);
+    if (!currentOrders || currentOrders.length === 0) {
+      setActiveCarrierGroup(carrierOrder[0]);
     }
-  }, [groupedOrders, activeGroup]);
+  }, [carrierOrder, activeCarrierGroup]);
+
+  // Set initial group on mount
+  useEffect(() => {
+    if (activeCarrierGroup === '' && carrierOrder.length > 0) {
+      setActiveCarrierGroup(carrierOrder[0]);
+    }
+  }, [carrierOrder]);
 
   // Active group orders
-  const activeOrders = groupedOrders[activeGroup];
-  const selectableInActiveGroup = activeGroup !== 'on_hold' ? activeOrders : [];
+  const activeOrders = isOnHoldTab ? onHoldOrders : (carrierGroups.get(activeCarrierGroup) || []);
+  const selectableInActiveGroup = isOnHoldTab ? [] : activeOrders;
   const allGroupSelected = selectableInActiveGroup.length > 0 && selectableInActiveGroup.every(o => selectedIds.has(o.id));
 
   // Count of selected non-marketplace orders (only these can be shipped manually)
@@ -489,25 +516,28 @@ export default function ProcessingTab({
 
   return (
     <>
-      {/* Sub-tabs for delivery groups */}
+      {/* Sub-tabs for carrier groups */}
       {orders.length > 0 && (
         <div className="flex gap-1.5 overflow-x-auto mb-4">
-          {groupOrder.map((group) => {
-            const count = groupedOrders[group].length;
+          {carrierOrder.map((group) => {
+            const isHold = group === ON_HOLD_KEY;
+            const count = isHold ? onHoldOrders.length : (carrierGroups.get(group)?.length || 0);
             if (count === 0) return null;
-            const config = DELIVERY_GROUP_CONFIG[group];
-            const isActive = activeGroup === group;
+            const isActive = activeCarrierGroup === group;
+            const label = isHold ? 'พักไว้' : group;
             return (
               <button
                 key={group}
-                onClick={() => setActiveGroup(group)}
+                onClick={() => setActiveCarrierGroup(group)}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                   isActive
-                    ? `${config.bgColor} ${config.color}`
+                    ? isHold
+                      ? 'bg-gray-200 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'
+                      : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
                     : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
                 }`}
               >
-                {config.label} ({count})
+                {label} ({count})
               </button>
             );
           })}
@@ -518,7 +548,7 @@ export default function ProcessingTab({
       {activeOrders.length > 0 && (
         <div className="space-y-3">
           {/* Select all for active group */}
-          {activeGroup !== 'on_hold' && selectableInActiveGroup.length > 1 && (
+          {!isOnHoldTab && selectableInActiveGroup.length > 1 && (
             <div className="flex items-center gap-2 px-4">
               <input
                 type="checkbox"
@@ -535,7 +565,7 @@ export default function ProcessingTab({
               order={order}
               statusFilter="processing"
               selected={selectedIds.has(order.id)}
-              showCheckbox={activeGroup !== 'on_hold'}
+              showCheckbox={!isOnHoldTab}
               onToggleSelect={toggleSelect}
               onImageClick={onImageClick}
               showPaymentStatus

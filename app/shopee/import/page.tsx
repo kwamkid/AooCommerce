@@ -80,6 +80,9 @@ function ShopeeImportContent() {
   const [configs, setConfigs] = useState<Record<number, ImportConfig>>({});
   const [pickerForItemId, setPickerForItemId] = useState<number | null>(null);
 
+  // Step 2b: Import options
+  const [copySkuToBarcode, setCopySkuToBarcode] = useState(false);
+
   // Step 3: Progress
   const [progressItems, setProgressItems] = useState<ProgressItem[]>([]);
   const [isImporting, setIsImporting] = useState(false);
@@ -196,6 +199,7 @@ function ShopeeImportContent() {
         body: JSON.stringify({
           marketplace_account_id: accountId,
           items: importItems,
+          copy_sku_to_barcode: copySkuToBarcode,
         }),
       });
 
@@ -464,6 +468,27 @@ function ShopeeImportContent() {
               <strong>สร้างใหม่</strong> = สร้างสินค้าใหม่ในระบบ + ดึง stock จาก Shopee เข้า warehouse เริ่มต้น (ชื่อสินค้าในระบบ = ชื่อสินค้าบน Shopee)<br />
               <strong>ผูกกับสินค้าที่มี</strong> = ผูก link กับสินค้าที่มีอยู่แล้ว + ใช้ stock จากระบบเรา push ไป Shopee ทันที (ชื่อสินค้าในระบบไม่เปลี่ยน, ชื่อ Platform อัพเดทจาก Shopee)
             </p>
+          </div>
+
+          {/* Import options */}
+          <div className="bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded-lg p-3">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={copySkuToBarcode}
+                  onChange={e => setCopySkuToBarcode(e.target.checked)}
+                />
+                <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${copySkuToBarcode ? 'bg-[#F4511E]' : 'border-2 border-gray-300 dark:border-slate-500'}`}>
+                  {copySkuToBarcode && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                </div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-gray-800 dark:text-slate-200">เติม Barcode จาก SKU</span>
+                <p className="text-xs text-gray-500 dark:text-slate-400">ใช้ SKU ของ Shopee เป็น Barcode ให้อัตโนมัติ (เฉพาะสินค้าที่สร้างใหม่)</p>
+              </div>
+            </label>
           </div>
 
           <div className="space-y-2">

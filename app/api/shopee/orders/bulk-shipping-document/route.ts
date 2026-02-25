@@ -157,8 +157,13 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      // Use the first valid order's suggested type for download
-      const downloadDocType = docTypeMap.values().next().value || 'NORMAL_AIR_WAYBILL';
+      // Group orders by shipping document type for download
+      const snsByDocType = new Map<string, string[]>();
+      for (const sn of validSns) {
+        const docType = docTypeMap.get(sn) || 'NORMAL_AIR_WAYBILL';
+        if (!snsByDocType.has(docType)) snsByDocType.set(docType, []);
+        snsByDocType.get(docType)!.push(sn);
+      }
 
       // Step 3: Create shipping document task (already batch)
       const orderList = validSns.map(sn => ({
@@ -224,17 +229,31 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Step 5: Download PDF
-      const { pdfBuffer, error: downloadError } = await downloadShippingDocument(creds, validSns, downloadDocType);
+      // Step 5: Download PDFs — grouped by doc type, with one-by-one fallback
+      for (const [docType, groupSns] of snsByDocType) {
+        const { pdfBuffer, error: downloadError } = await downloadShippingDocument(creds, groupSns, docType);
 
-      if (downloadError || !pdfBuffer) {
-        logBulkDoc(companyId, account.id, account.shop_name, 'error', `ดาวน์โหลดไม่สำเร็จ: ${downloadError}`, validSns, startTime);
-        return NextResponse.json({
-          error: `ดาวน์โหลดใบปะหน้าไม่สำเร็จ: ${downloadError || 'Unknown error'}`,
-        }, { status: 500 });
+        if (downloadError && downloadError.toLowerCase().includes('can not download together')) {
+          // Fallback: download each order individually
+          console.log(`[Shopee Bulk Doc] Group download failed for ${docType}, falling back to individual download for ${groupSns.length} orders`);
+          for (const sn of groupSns) {
+            const { pdfBuffer: singlePdf, error: singleErr } = await downloadShippingDocument(creds, [sn], docType);
+            if (singleErr || !singlePdf) {
+              console.error(`[Shopee Bulk Doc] Individual download failed for ${sn}:`, singleErr);
+              continue; // skip this order, download the rest
+            }
+            allPdfBuffers.push(singlePdf);
+          }
+        } else if (downloadError || !pdfBuffer) {
+          logBulkDoc(companyId, account.id, account.shop_name, 'error', `ดาวน์โหลดไม่สำเร็จ: ${downloadError}`, groupSns, startTime);
+          return NextResponse.json({
+            error: `ดาวน์โหลดใบปะหน้าไม่สำเร็จ: ${downloadError || 'Unknown error'}`,
+          }, { status: 500 });
+        } else {
+          allPdfBuffers.push(pdfBuffer);
+        }
       }
 
-      allPdfBuffers.push(pdfBuffer);
       logBulkDoc(companyId, account.id, account.shop_name, 'success', undefined, validSns, startTime);
     }
 

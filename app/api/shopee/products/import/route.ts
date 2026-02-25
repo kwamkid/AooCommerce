@@ -139,9 +139,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { marketplace_account_id, items } = body as {
+    const { marketplace_account_id, items, copy_sku_to_barcode } = body as {
       marketplace_account_id: string;
       items: ImportItem[];
+      copy_sku_to_barcode?: boolean;
     };
 
     if (!marketplace_account_id) {
@@ -230,7 +231,7 @@ export async function POST(request: NextRequest) {
           try {
             if (importItem.action === 'create') {
               // Create new product in our system from Shopee item
-              await importCreateProduct(companyId, account.id, accountName, creds, detail);
+              await importCreateProduct(companyId, account.id, accountName, creds, detail, { copySkuToBarcode: copy_sku_to_barcode });
               send({ type: 'progress', current: idx + 1, total: items.length, success: true, item_name: detail.item_name });
               successCount++;
             } else if (importItem.action === 'link') {
@@ -298,7 +299,8 @@ async function importCreateProduct(
   accountId: string,
   accountName: string,
   creds: Awaited<ReturnType<typeof ensureValidToken>>,
-  item: ShopeeItemFullDetail
+  item: ShopeeItemFullDetail,
+  options?: { copySkuToBarcode?: boolean }
 ) {
   const primaryImage = item.images[0] || null;
 
@@ -417,6 +419,7 @@ async function importCreateProduct(
             product_id: parentProductId,
             variation_label: model.model_name || sku,
             sku,
+            barcode: (options?.copySkuToBarcode && sku) ? sku : null,
             attributes,
             default_price: model.current_price,
             stock: 0,
@@ -529,6 +532,7 @@ async function importCreateProduct(
           product_id: productId,
           variation_label: simpleLabel,
           sku: sku || null,
+          barcode: (options?.copySkuToBarcode && sku) ? sku : null,
           default_price: model?.current_price || 0,
           stock: 0,
           is_active: true,

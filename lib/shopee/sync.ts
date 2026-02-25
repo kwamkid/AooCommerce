@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemEnrichment, ShopeeItemEnrichment, getEscrowDetail } from '@/lib/shopee/api';
 import { getCategoryName } from '@/lib/shopee/product-sync';
 import { logIntegration } from '@/lib/integration-logger';
+import { parallelLimit } from '@/lib/parallel';
 
 // --- Sync Progress Types ---
 
@@ -156,19 +157,23 @@ export async function syncOrdersByOrderSn(
       }
 
       const orders = (data as { order_list: ShopeeOrder[] })?.order_list || [];
-      for (const shopeeOrder of orders) {
-        try {
-          // If webhook says status is further ahead than API response, override
-          const hintStatus = webhookStatusHint?.[shopeeOrder.order_sn];
-          if (hintStatus) {
-            const apiOrder = SHOPEE_STATUS_ORDER[shopeeOrder.order_status] ?? -1;
-            const webhookOrder = SHOPEE_STATUS_ORDER[hintStatus] ?? -1;
-            if (webhookOrder > apiOrder) {
-              console.log(`[Shopee Sync] API returned ${shopeeOrder.order_status} but webhook says ${hintStatus} for ${shopeeOrder.order_sn} — using webhook status`);
-              shopeeOrder.order_status = hintStatus;
-            }
-          }
 
+      // Apply webhook status hints before processing
+      for (const shopeeOrder of orders) {
+        const hintStatus = webhookStatusHint?.[shopeeOrder.order_sn];
+        if (hintStatus) {
+          const apiOrder = SHOPEE_STATUS_ORDER[shopeeOrder.order_status] ?? -1;
+          const webhookOrder = SHOPEE_STATUS_ORDER[hintStatus] ?? -1;
+          if (webhookOrder > apiOrder) {
+            console.log(`[Shopee Sync] API returned ${shopeeOrder.order_status} but webhook says ${hintStatus} for ${shopeeOrder.order_sn} — using webhook status`);
+            shopeeOrder.order_status = hintStatus;
+          }
+        }
+      }
+
+      // Process orders in parallel (concurrency=3) for ~3x speedup
+      await parallelLimit(orders, async (shopeeOrder) => {
+        try {
           const upsertResult = await upsertOrder(account, shopeeOrder);
           if (upsertResult.action === 'created') {
             result.orders_created++;
@@ -189,7 +194,7 @@ export async function syncOrdersByOrderSn(
           total: totalOrders,
           label: `กำลังประมวลผลออเดอร์ ${processedCount}/${totalOrders}`,
         });
-      }
+      }, 3);
     } catch (e) {
       result.errors.push(`Batch error: ${e instanceof Error ? e.message : 'Unknown error'}`);
       processedCount += batch.length;
@@ -397,6 +402,8 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
           external_status: shopeeOrder.order_status,
           external_data: shopeeOrder as unknown as Record<string, unknown>,
           shipping_fee: updatedShippingFee,
+          shipping_carrier: shopeeOrder.shipping_carrier || null,
+          tracking_number: shopeeOrder.tracking_number || null,
           updated_at: new Date().toISOString(),
           ...(shopeeOrder.ship_by_date ? { delivery_date: new Date(shopeeOrder.ship_by_date * 1000).toISOString().split('T')[0] } : {}),
           ...fulfillmentUpdate,
@@ -862,6 +869,8 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
       delivery_date: shopeeOrder.ship_by_date
         ? new Date(shopeeOrder.ship_by_date * 1000).toISOString().split('T')[0]
         : null,
+      shipping_carrier: shopeeOrder.shipping_carrier || null,
+      tracking_number: shopeeOrder.tracking_number || null,
       created_at: new Date(shopeeOrder.create_time * 1000).toISOString(),
     })
     .select()
@@ -913,30 +922,30 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
     throw new Error(`Failed to create order: ${orderError.message}`);
   }
 
-  // Create order items + reserve stock
-  for (const item of resolvedItems) {
-    await supabaseAdmin
-      .from('order_items')
-      .insert({
-        company_id: companyId,
-        order_id: order.id,
-        variation_id: item.variation_id,
-        product_id: item.product_id,
-        product_code: item.product_code,
-        product_name: item.product_name,
-        quantity: item.qty,
-        unit_price: item.price,
-        discount_percent: 0,
-        discount_amount: 0,
-        discount_type: 'percent',
-        subtotal: item.total,
-        total: item.total,
-      });
+  // Create order items in bulk (single insert)
+  const orderItemsToInsert = resolvedItems.map(item => ({
+    company_id: companyId,
+    order_id: order.id,
+    variation_id: item.variation_id,
+    product_id: item.product_id,
+    product_code: item.product_code,
+    product_name: item.product_name,
+    quantity: item.qty,
+    unit_price: item.price,
+    discount_percent: 0,
+    discount_amount: 0,
+    discount_type: 'percent',
+    subtotal: item.total,
+    total: item.total,
+  }));
+  await supabaseAdmin.from('order_items').insert(orderItemsToInsert);
 
-    // Reserve stock if we have variation_id and warehouse
-    if (item.variation_id && warehouseId) {
-      await reserveStock(companyId, warehouseId, item.variation_id, item.qty, order.id, order.order_number);
-    }
+  // Reserve stock in parallel
+  const stockItems = resolvedItems.filter(item => item.variation_id && warehouseId);
+  if (stockItems.length > 0) {
+    await Promise.all(stockItems.map(item =>
+      reserveStock(companyId, warehouseId!, item.variation_id!, item.qty, order.id, order.order_number)
+    ));
   }
 
   // Create order shipments for each item (same pattern as manual order creation)

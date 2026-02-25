@@ -11,6 +11,7 @@ import {
   ShopeeItemAttribute,
 } from '@/lib/shopee/api';
 import { SyncProgressCallback } from '@/lib/shopee/sync';
+import { parallelLimit } from '@/lib/parallel';
 
 // --- Types ---
 
@@ -391,7 +392,8 @@ export async function syncProductsFromShopee(account: ShopeeAccountRow, onProgre
       try {
         const details = await getItemFullDetails(creds, batch);
 
-        for (const [itemId, item] of details) {
+        const detailEntries = [...details.entries()];
+        await parallelLimit(detailEntries, async ([itemId, item]) => {
           try {
             await processShopeeItem(companyId, account.id, accountName, item, result);
           } catch (e) {
@@ -406,7 +408,7 @@ export async function syncProductsFromShopee(account: ShopeeAccountRow, onProgre
             total: totalItems,
             label: `กำลังประมวลผลสินค้า ${processedCount}/${totalItems}`,
           });
-        }
+        }, 3);
       } catch (e) {
         const msg = `Batch error (items ${batch[0]}-${batch[batch.length - 1]}): ${e instanceof Error ? e.message : 'Unknown error'}`;
         result.errors.push(msg);
@@ -927,25 +929,28 @@ export async function pushPriceToShopee(
       itemGroups.set(link.external_item_id, group);
     }
 
+    // Pre-fetch all variation prices in one query
+    const priceVariationIds = links.filter(l => !l.platform_price && l.variation_id).map(l => l.variation_id) as string[];
+    const priceMap = new Map<string, number>();
+    if (priceVariationIds.length > 0) {
+      const { data: variations } = await supabaseAdmin
+        .from('product_variations')
+        .select('id, default_price, discount_price')
+        .in('id', priceVariationIds);
+      if (variations) {
+        for (const v of variations) {
+          priceMap.set(v.id, v.discount_price > 0 ? v.discount_price : v.default_price);
+        }
+      }
+    }
+
     for (const [externalItemId, groupLinks] of itemGroups) {
       const priceList: { model_id: number; original_price: number }[] = [];
 
       for (const link of groupLinks) {
-        let price = link.platform_price;
+        const price = link.platform_price || (link.variation_id ? priceMap.get(link.variation_id) : null) || 0;
 
-        if (!price && link.variation_id) {
-          const { data: variation } = await supabaseAdmin
-            .from('product_variations')
-            .select('default_price, discount_price')
-            .eq('id', link.variation_id)
-            .single();
-
-          if (variation) {
-            price = variation.discount_price > 0 ? variation.discount_price : variation.default_price;
-          }
-        }
-
-        if (price && price > 0) {
+        if (price > 0) {
           priceList.push({
             model_id: parseInt(link.external_model_id) || 0,
             original_price: price,
@@ -1007,25 +1012,31 @@ export async function pushStockToShopee(
       itemGroups.set(link.external_item_id, group);
     }
 
+    // Pre-fetch all inventory data in one query (instead of per-variation)
+    const allVariationIds = links.map(l => l.variation_id).filter(Boolean) as string[];
+    const inventoryMap = new Map<string, number>();
+    if (allVariationIds.length > 0) {
+      const { data: inventoryRows } = await supabaseAdmin
+        .from('inventory')
+        .select('variation_id, quantity, reserved_quantity')
+        .in('variation_id', allVariationIds);
+      if (inventoryRows) {
+        for (const inv of inventoryRows) {
+          const current = inventoryMap.get(inv.variation_id) || 0;
+          inventoryMap.set(inv.variation_id, current + (inv.quantity || 0) - (inv.reserved_quantity || 0));
+        }
+      }
+    }
+
     for (const [externalItemId, groupLinks] of itemGroups) {
       const stockList: { model_id: number; seller_stock: { stock: number }[] }[] = [];
 
       for (const link of groupLinks) {
         let stock = 0;
-
         if (link.variation_id) {
-          // Read actual stock from inventory table (sum across all warehouses)
-          const { data: inventoryRows } = await supabaseAdmin
-            .from('inventory')
-            .select('quantity, reserved_quantity')
-            .eq('variation_id', link.variation_id);
-
-          if (inventoryRows && inventoryRows.length > 0) {
-            const totalQty = inventoryRows.reduce((sum, inv) => sum + (inv.quantity || 0), 0);
-            const totalReserved = inventoryRows.reduce((sum, inv) => sum + (inv.reserved_quantity || 0), 0);
-            stock = totalQty - totalReserved;
-          } else {
-            // Fallback to legacy product_variations.stock if no inventory rows
+          stock = inventoryMap.get(link.variation_id) ?? 0;
+          // Fallback to legacy product_variations.stock if not in inventory table
+          if (!inventoryMap.has(link.variation_id)) {
             const { data: variation } = await supabaseAdmin
               .from('product_variations')
               .select('stock')
