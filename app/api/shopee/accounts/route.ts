@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
-import { ensureValidToken, getShopInfo, ShopeeAccountRow } from '@/lib/shopee-api';
+import { ensureValidToken, getShopInfo, ShopeeAccountRow } from '@/lib/shopee/api';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: accounts, error } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .select('id, company_id, shop_id, shop_name, is_active, last_sync_at, last_product_sync_at, access_token_expires_at, refresh_token_expires_at, auto_sync_stock, auto_sync_product_info, metadata, created_at, updated_at')
       .eq('company_id', companyId)
       .order('created_at', { ascending: false });
@@ -78,7 +78,7 @@ export async function DELETE(request: NextRequest) {
 
     // Soft delete - set is_active to false and clear tokens
     const { error } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .update({
         is_active: false,
         access_token: null,
@@ -114,7 +114,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { data: account, error: accError } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .select('*')
       .eq('id', accountId)
       .eq('company_id', companyId)
@@ -135,7 +135,7 @@ export async function PATCH(request: NextRequest) {
         updateData.metadata = { ...(account.metadata || {}), shop_logo: shopInfo.shop_logo };
       }
       await supabaseAdmin
-        .from('shopee_accounts')
+        .from('marketplace_accounts')
         .update(updateData)
         .eq('id', account.id);
     }
@@ -170,7 +170,7 @@ export async function PUT(request: NextRequest) {
     if (typeof auto_sync_product_info === 'boolean') updateData.auto_sync_product_info = auto_sync_product_info;
 
     const { error } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .update(updateData)
       .eq('id', id)
       .eq('company_id', companyId);

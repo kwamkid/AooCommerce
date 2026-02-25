@@ -1,9 +1,9 @@
 'use client';
 
 import { formatPrice } from '@/lib/utils/format';
+import { useToast } from '@/lib/toast-context';
 import {
   Phone,
-  AlertTriangle,
   Clock,
   Package,
   Truck,
@@ -66,8 +66,8 @@ export default function OrderCard({
   showOrderStatus,
   showPaymentStatus,
 }: OrderCardProps) {
+  const { showToast } = useToast();
   const deadline = getDeadlineInfo(order.delivery_date);
-  const showUrgentStrip = deadline?.urgent && ['ready_to_ship', 'processing'].includes(order.order_status);
   const customerName = order.customer_name || order.delivery_name || 'ลูกค้าทั่วไป';
   const customerPhone = order.customer_phone || order.delivery_phone;
   const orderStatusCfg = ORDER_STATUS_CONFIG[order.order_status] || ORDER_STATUS_CONFIG.new;
@@ -87,14 +87,6 @@ export default function OrderCard({
           : 'border-gray-200 dark:border-slate-700 hover:border-[#F4511E]/40 dark:hover:border-[#F4511E]/40 hover:shadow-md'
       }`}
     >
-      {/* Urgency strip */}
-      {showUrgentStrip && deadline && (
-        <div className={`px-4 py-1.5 flex items-center gap-1.5 text-xs font-medium ${deadline.color}`}>
-          <AlertTriangle className="w-3.5 h-3.5" />
-          {deadline.label}
-        </div>
-      )}
-
       {/* 2-column layout with optional checkbox */}
       <div className="flex">
         {/* Checkbox */}
@@ -117,7 +109,11 @@ export default function OrderCard({
           {/* Header: channel + order ID + date */}
           <div className="px-4 pb-2 flex items-center gap-2">
             <ChannelBadge channel={order.channel} />
-            <span className="text-sm font-semibold text-gray-900 dark:text-white">{order.order_number}</span>
+            <span
+              className="text-sm font-semibold text-gray-900 dark:text-white hover:text-[#F4511E] cursor-pointer transition-colors"
+              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(order.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
+              title="คัดลอกเลขคำสั่งซื้อ"
+            >{order.order_number}</span>
             {order.source === 'pos' && (
               <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">POS</span>
             )}
@@ -127,7 +123,7 @@ export default function OrderCard({
             <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">
               {relativeTime(order.created_at)}
             </span>
-            {!showUrgentStrip && deadline && ['ready_to_ship', 'processing', 'shipping'].includes(order.order_status) && (
+            {deadline && ['ready_to_ship', 'processing'].includes(order.order_status) && (
               <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium flex items-center gap-0.5 flex-shrink-0 ${deadline.color}`}>
                 <Clock className="w-3 h-3" />
                 {deadline.label}

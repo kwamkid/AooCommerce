@@ -80,8 +80,81 @@ export async function GET(request: NextRequest) {
       error: allRows?.filter(r => r.status === 'error').length || 0,
     };
 
+    // Batch-resolve order UUIDs + product names for reference links
+    const logList = logs || [];
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    // Separate order references: some store UUID (shipping-document), some store order_sn (sync)
+    const orderUuids: string[] = [];
+    const orderSns: string[] = [];
+    for (const l of logList) {
+      if (l.reference_type === 'order' && l.reference_id) {
+        if (UUID_RE.test(l.reference_id)) {
+          orderUuids.push(l.reference_id);
+        } else {
+          orderSns.push(l.reference_id);
+        }
+      }
+    }
+
+    const productIds: string[] = logList
+      .filter(l => l.reference_type === 'product' && l.reference_id)
+      .map(l => l.reference_id!);
+
+    // Also extract product_id from request_body for product-related actions
+    const productActions = ['auto_push_stock', 'auto_push_price', 'auto_push_info', 'push_stock', 'push_price', 'sync_products'];
+    for (const log of logList) {
+      if (productActions.includes(log.action) && log.request_body && typeof log.request_body === 'object') {
+        const body = log.request_body as Record<string, unknown>;
+        const pid = body.product_id as string | undefined;
+        if (pid && !productIds.includes(pid)) {
+          productIds.push(pid);
+        }
+      }
+    }
+
+    // orderMap: reference_id → order UUID (for links)
+    // For UUID references: reference_id IS the UUID already
+    // For order_sn references: lookup external_order_sn → id
+    let orderMap: Record<string, string> = {};
+    let productMap: Record<string, string> = {};
+
+    // UUID references map to themselves
+    for (const uuid of orderUuids) {
+      orderMap[uuid] = uuid;
+    }
+
+    // order_sn references need DB lookup
+    if (orderSns.length > 0) {
+      const uniqueSns = [...new Set(orderSns)];
+      const { data: orders } = await supabaseAdmin
+        .from('orders')
+        .select('id, external_order_sn')
+        .eq('company_id', companyId)
+        .in('external_order_sn', uniqueSns);
+      if (orders) {
+        for (const o of orders) {
+          orderMap[o.external_order_sn] = o.id;
+        }
+      }
+    }
+
+    if (productIds.length > 0) {
+      const uniquePids = [...new Set(productIds)];
+      const { data: products } = await supabaseAdmin
+        .from('products')
+        .select('id, name')
+        .eq('company_id', companyId)
+        .in('id', uniquePids);
+      if (products) {
+        productMap = Object.fromEntries(products.map(p => [p.id, p.name]));
+      }
+    }
+
     return NextResponse.json({
-      logs: logs || [],
+      logs: logList,
+      orderMap,
+      productMap,
       pagination: {
         page,
         limit,

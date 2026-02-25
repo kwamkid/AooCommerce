@@ -42,7 +42,6 @@ import {
   Award,
   Monitor,
   Receipt,
-  PackageCheck,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -72,7 +71,7 @@ const menuSections: MenuSection[] = [
       { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-5 h-5" />, roles: ['admin', 'sales', 'account', 'warehouse'] },
       { label: 'Chat', href: '/chat', icon: <MessageCircle className="w-5 h-5" />, roles: ['admin', 'sales'] },
       { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-5 h-5" />, roles: ['admin', 'sales', 'warehouse'] },
-      { label: 'แพ็ค & จัดส่ง', href: '/pack-ship', icon: <PackageCheck className="w-5 h-5" />, roles: ['admin', 'sales', 'warehouse'] },
+
       { label: 'สินค้า', href: '/products', icon: <Package2 className="w-5 h-5" />, roles: ['admin', 'sales', 'warehouse'] }
     ]
   },

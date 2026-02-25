@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, supabaseAdmin } from '@/lib/supabase-admin';
-import { ensureValidToken, getShopeeCategories, ShopeeAccountRow } from '@/lib/shopee-api';
+import { ensureValidToken, getShopeeCategories, ShopeeAccountRow } from '@/lib/shopee/api';
 
 export async function GET(request: NextRequest) {
   try {
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     let shopIdMap: Record<string, string> = {};
     if (accountIds.length > 0) {
       const { data: accounts } = await supabaseAdmin
-        .from('shopee_accounts')
+        .from('marketplace_accounts')
         .select('id, shop_id')
         .in('id', accountIds);
       if (accounts) {
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
 
       // Load category caches for all relevant accounts
       let { data: caches } = await supabaseAdmin
-        .from('shopee_category_cache')
+        .from('marketplace_category_cache')
         .select('account_id, category_data')
         .in('account_id', backfillAccountIds);
 
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
       const missingAccountIds = backfillAccountIds.filter(id => !cachedAccountIds.has(id));
       if (missingAccountIds.length > 0) {
         const { data: shopeeAccounts } = await supabaseAdmin
-          .from('shopee_accounts')
+          .from('marketplace_accounts')
           .select('*')
           .in('id', missingAccountIds)
           .eq('is_active', true);
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
               const categoryList = catResponse?.category_list || [];
               if (categoryList.length > 0) {
                 await supabaseAdmin
-                  .from('shopee_category_cache')
+                  .from('marketplace_category_cache')
                   .upsert({
                     account_id: acc.id,
                     company_id: companyId,
@@ -233,7 +233,7 @@ export async function PATCH(request: NextRequest) {
 
     // Auto-sync price to Shopee if platform_price changed
     if (platform_price !== undefined && data?.product_id) {
-      const { triggerShopeePriceSync } = await import('@/lib/shopee-auto-sync');
+      const { triggerShopeePriceSync } = await import('@/lib/shopee/auto-sync');
       triggerShopeePriceSync(data.product_id);
     }
 

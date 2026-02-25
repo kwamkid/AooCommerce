@@ -1,7 +1,8 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee-api';
-import { pushStockToShopee, pushPriceToShopee, pushInfoToShopee } from '@/lib/shopee-product-sync';
+import { ShopeeAccountRow } from '@/lib/shopee/api';
+import { pushStockToShopee, pushPriceToShopee, pushInfoToShopee } from '@/lib/shopee/product-sync';
 import { logIntegration } from '@/lib/integration-logger';
+import { parallelLimit } from '@/lib/parallel';
 
 /**
  * Fire-and-forget: trigger stock sync to Shopee for variation(s).
@@ -34,18 +35,19 @@ async function _doStockSync(variationIds: string[]): Promise<void> {
     }
   }
 
-  for (const { product_id, account_id } of uniquePairs) {
+  // Process all pairs in parallel (5 concurrent)
+  await parallelLimit(uniquePairs, async ({ product_id, account_id }) => {
     try {
       const { data: account } = await supabaseAdmin
-        .from('shopee_accounts')
+        .from('marketplace_accounts')
         .select('*')
         .eq('id', account_id)
         .eq('is_active', true)
         .single();
 
-      if (!account) continue;
+      if (!account) return;
       // Check account-level toggle
-      if (account.auto_sync_stock === false) continue;
+      if (account.auto_sync_stock === false) return;
 
       const startMs = Date.now();
       const result = await pushStockToShopee(account as ShopeeAccountRow, product_id);
@@ -71,7 +73,7 @@ async function _doStockSync(variationIds: string[]): Promise<void> {
     } catch (err) {
       console.error(`[Shopee Auto-Sync] Stock push failed for product ${product_id}:`, err);
     }
-  }
+  }, 5);
 }
 
 /**
@@ -97,18 +99,19 @@ async function _doPriceSync(productId: string): Promise<void> {
 
   const uniqueAccountIds = [...new Set(links.map(l => l.account_id))];
 
-  for (const accountId of uniqueAccountIds) {
+  // Process all accounts in parallel (5 concurrent)
+  await parallelLimit(uniqueAccountIds, async (accountId) => {
     try {
       const { data: account } = await supabaseAdmin
-        .from('shopee_accounts')
+        .from('marketplace_accounts')
         .select('*')
         .eq('id', accountId)
         .eq('is_active', true)
         .single();
 
-      if (!account) continue;
+      if (!account) return;
       // Check account-level toggle
-      if (account.auto_sync_product_info === false) continue;
+      if (account.auto_sync_product_info === false) return;
 
       const startMs = Date.now();
       const result = await pushPriceToShopee(account as ShopeeAccountRow, productId);
@@ -134,7 +137,7 @@ async function _doPriceSync(productId: string): Promise<void> {
     } catch (err) {
       console.error(`[Shopee Auto-Sync] Price push failed for product ${productId}:`, err);
     }
-  }
+  }, 5);
 }
 
 /**
@@ -169,17 +172,18 @@ async function _doInfoSync(productId: string, productName: string): Promise<void
     }
   }
 
-  for (const { account_id, external_item_id } of uniqueItems) {
+  // Process all items in parallel (5 concurrent)
+  await parallelLimit(uniqueItems, async ({ account_id, external_item_id }) => {
     try {
       const { data: account } = await supabaseAdmin
-        .from('shopee_accounts')
+        .from('marketplace_accounts')
         .select('*')
         .eq('id', account_id)
         .eq('is_active', true)
         .single();
 
-      if (!account) continue;
-      if (account.auto_sync_product_info === false) continue;
+      if (!account) return;
+      if (account.auto_sync_product_info === false) return;
 
       const startMs = Date.now();
       const result = await pushInfoToShopee(account as ShopeeAccountRow, parseInt(external_item_id), productName);
@@ -205,5 +209,5 @@ async function _doInfoSync(productId: string, productName: string): Promise<void
     } catch (err) {
       console.error(`[Shopee Auto-Sync] Info push failed for product ${productId}:`, err);
     }
-  }
+  }, 5);
 }

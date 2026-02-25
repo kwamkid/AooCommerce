@@ -560,7 +560,7 @@ export async function GET(request: NextRequest) {
       const accountIds = [...shopMap.keys()];
       if (accountIds.length > 0) {
         const { data: accounts } = await supabaseAdmin
-          .from('shopee_accounts')
+          .from('marketplace_accounts')
           .select('id, shop_name, metadata')
           .in('id', accountIds);
         for (const acc of (accounts || [])) {
@@ -821,12 +821,12 @@ export async function PUT(request: NextRequest) {
 
     // Auto-sync price to Shopee if default_price changed
     if (body.default_price !== undefined || (variations && Array.isArray(variations))) {
-      import('@/lib/shopee-auto-sync').then(m => m.triggerShopeePriceSync(id)).catch(() => {});
+      import('@/lib/shopee/auto-sync').then(m => m.triggerShopeePriceSync(id)).catch(() => {});
     }
 
     // Auto-sync product name to Shopee if name changed
     if (body.name) {
-      import('@/lib/shopee-auto-sync').then(m => m.triggerShopeeInfoSync(id, body.name)).catch(() => {});
+      import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeInfoSync(id, body.name)).catch(() => {});
     }
 
     // Fetch complete product with variations

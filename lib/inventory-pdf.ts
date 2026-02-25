@@ -461,5 +461,6 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
     },
   };
 
-  pdfMake.createPdf(docDefinition).open();
+  const pdfDoc = pdfMake.createPdf(docDefinition);
+  return pdfDoc.getBlob();
 }

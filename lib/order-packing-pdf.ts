@@ -5,9 +5,12 @@
  * ใบจัดของ — สำหรับคลังสินค้าจัดเตรียมสินค้า
  * สี: #6366f1 (indigo)
  * มี checkbox column สำหรับติ๊ก
+ * มี image column สำหรับรูปสินค้า
+ * มี barcode column (CODE128, สแกนได้) — auto-hide if no items have barcode/sku
  * ไม่มีคอลัมน์ราคา
  */
 
+import JsBarcode from 'jsbarcode';
 import {
   type CompanyInfo,
   fetchCompanyInfo,
@@ -26,6 +29,9 @@ interface PackingItem {
   product_code?: string;
   variation_label?: string;
   quantity: number;
+  image?: string | null;
+  barcode?: string | null;
+  sku?: string | null;
 }
 
 export interface PackingListData {
@@ -42,6 +48,7 @@ export interface PackingListData {
   delivery_amphoe?: string;
   delivery_province?: string;
   delivery_postal_code?: string;
+  source?: string;
   items: PackingItem[];
 }
 
@@ -51,8 +58,44 @@ const THEME = { primary: '#6366f1' };
 
 // ─── Helpers ─────────────────────────────────────────────
 
-const MAX_NAME_LEN = 70;
+const MAX_NAME_LEN = 60;
 const truncateName = (name: string) => name.length > MAX_NAME_LEN ? name.slice(0, MAX_NAME_LEN) + '...' : name;
+
+/** Generate a barcode as a data URL using JsBarcode on an off-screen canvas */
+function generateBarcodeDataUrl(value: string): string | null {
+  if (!value) return null;
+  try {
+    const canvas = document.createElement('canvas');
+    JsBarcode(canvas, value, {
+      format: 'CODE128',
+      width: 1.5,
+      height: 40,
+      displayValue: false,
+      margin: 2,
+    });
+    return canvas.toDataURL('image/png');
+  } catch {
+    return null;
+  }
+}
+
+/** Load an image URL as base64 data URL for embedding in PDF (5s timeout) */
+async function loadImageAsDataUrl(url: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch { return null; }
+}
 
 // ─── Main Export ─────────────────────────────────────────
 
@@ -70,6 +113,28 @@ export async function generatePackingListPdf({ data, company }: GenerateOptions)
   const logoDataUrl = company?.logo_url ? await loadLogoDataUrl(company.logo_url) : null;
 
   const dateStr = formatPdfDate(data.order_date || data.created_at);
+
+  // Pre-load product images in parallel
+  const imageMap = new Map<string, string>();
+  const imagePromises = data.items
+    .filter(item => item.image)
+    .map(async (item) => {
+      const dataUrl = await loadImageAsDataUrl(item.image!);
+      if (dataUrl) imageMap.set(item.image!, dataUrl);
+    });
+  await Promise.all(imagePromises);
+
+  // Pre-generate barcode images (source: barcode > sku > product_code)
+  const barcodeMap = new Map<string, string>();
+  for (const item of data.items) {
+    const barcodeValue = item.barcode || item.sku || item.product_code || '';
+    if (barcodeValue && !barcodeMap.has(barcodeValue)) {
+      const dataUrl = generateBarcodeDataUrl(barcodeValue);
+      if (dataUrl) barcodeMap.set(barcodeValue, dataUrl);
+    }
+  }
+  const hasBarcode = barcodeMap.size > 0;
+  const hasImage = imageMap.size > 0;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const content: any[] = [];
@@ -134,8 +199,9 @@ export async function generatePackingListPdf({ data, company }: GenerateOptions)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const deliveryStack: any[] = [
       { text: 'จัดส่งถึง', fontSize: 10, bold: true, color: THEME.primary, margin: [0, 0, 0, 4] },
-      { text: customerName, fontSize: 12, bold: true, color: '#333333' },
     ];
+
+    deliveryStack.push({ text: customerName, fontSize: 12, bold: true, color: '#333333' });
 
     if (customerPhone) {
       deliveryStack.push({ text: `โทร: ${customerPhone}`, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
@@ -161,33 +227,96 @@ export async function generatePackingListPdf({ data, company }: GenerateOptions)
   }
 
   // ═══════════════════════════════════════════════════
-  // ส่วนที่ 3 — ตารางสินค้า (มี checkbox)
+  // ส่วนที่ 3 — ตารางสินค้า (มี checkbox + image + barcode)
   // ═══════════════════════════════════════════════════
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const headerCols: any[] = [
-    { text: '☐', style: 'tableHeader', alignment: 'center' },
-    { text: '#', style: 'tableHeader', alignment: 'center' },
-    { text: 'รายละเอียด', style: 'tableHeader' },
-    { text: 'จำนวน', style: 'tableHeader', alignment: 'center' },
-  ];
-  const widths: (number | string)[] = [25, 25, '*', 50];
+  // Generate checkbox image (square box) for packing list
+  const checkboxDataUrl = (() => {
+    const size = 28;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    ctx.strokeStyle = '#999999';
+    ctx.lineWidth = 1.5;
+    const inset = 2;
+    ctx.strokeRect(inset, inset, size - inset * 2, size - inset * 2);
+    return canvas.toDataURL('image/png');
+  })();
 
-  const tableBody = data.items.map((item, idx) => {
+  // Build table header: รูป | รายละเอียด | Barcode | จำนวน | ✓
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const headerCols: any[] = [];
+  const widths: (number | string)[] = [];
+
+  if (hasImage) {
+    headerCols.push({ text: 'รูป', style: 'tableHeader', alignment: 'center' });
+    widths.push(45);
+  }
+
+  headerCols.push({ text: 'รายละเอียด', style: 'tableHeader' });
+  widths.push('*');
+
+  if (hasBarcode) {
+    headerCols.push({ text: 'Barcode', style: 'tableHeader', alignment: 'center' });
+    widths.push(100);
+  }
+
+  headerCols.push({ text: 'จำนวน', style: 'tableHeader', alignment: 'center' });
+  widths.push(50);
+
+  headerCols.push({ text: '✓', style: 'tableHeader', alignment: 'center' });
+  widths.push(30);
+
+  const tableBody = data.items.map((item) => {
     const nameText = truncateName(item.product_name);
-    const subtitleParts = [item.product_code, item.variation_label].filter(Boolean);
+    // If barcode column is showing product_code, don't repeat it in subtitle
+    const barcodeSource = item.barcode || item.sku || item.product_code || '';
+    const showCodeInSubtitle = !hasBarcode || (item.product_code && item.product_code !== barcodeSource);
+    const subtitleParts = [showCodeInSubtitle ? item.product_code : null, item.variation_label].filter(Boolean);
     const subtitle = subtitleParts.join(' | ');
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const productStack: any[] = [{ text: nameText, fontSize: 11 }];
     if (subtitle) productStack.push({ text: subtitle, fontSize: 9, color: '#888888' });
 
-    return [
-      { text: '☐', alignment: 'center', fontSize: 14, margin: [0, 1, 0, 0] },
-      { text: `${idx + 1}`, alignment: 'center', fontSize: 11, margin: [0, 2, 0, 0] },
-      { stack: productStack, margin: [0, 1, 0, 1] },
-      { text: `${item.quantity}`, alignment: 'center', fontSize: 11, margin: [0, 2, 0, 0] },
-    ];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const row: any[] = [];
+
+    // Image column
+    if (hasImage) {
+      const imgDataUrl = item.image ? imageMap.get(item.image) : null;
+      if (imgDataUrl) {
+        row.push({ image: imgDataUrl, width: 35, height: 35, fit: [35, 35], alignment: 'center' as const, margin: [0, 1, 0, 1] });
+      } else {
+        row.push({ text: '-', alignment: 'center', fontSize: 11, margin: [0, 2, 0, 0] });
+      }
+    }
+
+    row.push({ stack: productStack, margin: [0, 1, 0, 1] });
+
+    // Barcode column
+    if (hasBarcode) {
+      const barcodeValue = item.barcode || item.sku || item.product_code || '';
+      const barcodeDataUrl = barcodeValue ? barcodeMap.get(barcodeValue) : null;
+      if (barcodeDataUrl) {
+        row.push({
+          stack: [
+            { image: barcodeDataUrl, width: 90, height: 30, alignment: 'center' as const, margin: [0, 1, 0, 0] },
+            { text: barcodeValue, fontSize: 7, alignment: 'center' as const, color: '#666666' },
+          ],
+        });
+      } else {
+        row.push({ text: '-', alignment: 'center', fontSize: 11, margin: [0, 2, 0, 0] });
+      }
+    }
+
+    row.push({ text: `${item.quantity}`, alignment: 'center', fontSize: 11, margin: [0, 2, 0, 0] });
+
+    // Checkbox column (square box image)
+    row.push({ image: checkboxDataUrl, width: 14, height: 14, alignment: 'center' as const, margin: [0, 4, 0, 0] });
+
+    return row;
   });
 
   content.push({
@@ -275,5 +404,6 @@ export async function generatePackingListPdf({ data, company }: GenerateOptions)
     },
   };
 
-  pdfMake.createPdf(docDefinition).open();
+  const pdfDoc = pdfMake.createPdf(docDefinition);
+  return pdfDoc.getBlob();
 }

@@ -242,7 +242,7 @@ export default function ShopeeBulkExportModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product_ids: productIds,
-          shopee_account_id: accountId,
+          marketplace_account_id: accountId,
           per_product_options: perProductOptions,
         }),
       });

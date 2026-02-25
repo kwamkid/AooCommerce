@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     // Auto-sync stock to Shopee if linked
     const syncVariationIds = results.map((r: { variation_id: string }) => r.variation_id);
     if (syncVariationIds.length > 0) {
-      const { triggerShopeeStockSync } = await import('@/lib/shopee-auto-sync');
+      const { triggerShopeeStockSync } = await import('@/lib/shopee/auto-sync');
       triggerShopeeStockSync(syncVariationIds);
     }
 

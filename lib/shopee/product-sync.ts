@@ -9,8 +9,8 @@ import {
   ShopeeAccountRow,
   ShopeeItemFullDetail,
   ShopeeItemAttribute,
-} from '@/lib/shopee-api';
-import { SyncProgressCallback } from '@/lib/shopee-sync';
+} from '@/lib/shopee/api';
+import { SyncProgressCallback } from '@/lib/shopee/sync';
 
 // --- Types ---
 
@@ -166,7 +166,7 @@ export async function getCategoryName(accountId: string, categoryId: number): Pr
   if (!categoryNameCache[accountId]) {
     categoryNameCache[accountId] = new Map();
     const { data: cache } = await supabaseAdmin
-      .from('shopee_category_cache')
+      .from('marketplace_category_cache')
       .select('category_data')
       .eq('account_id', accountId)
       .single();
@@ -251,6 +251,14 @@ async function createLink(params: {
     upsertData.shopee_brand_id = params.brand.brand_id;
     upsertData.shopee_brand_name = params.brand.display_brand_name || params.brand.original_brand_name;
   }
+
+  upsertData.platform_data = {
+    category_id: upsertData.shopee_category_id ? Number(upsertData.shopee_category_id) : null,
+    category_name: upsertData.shopee_category_name || null,
+    attributes: upsertData.shopee_attributes || null,
+    brand_id: upsertData.shopee_brand_id || null,
+    brand_name: upsertData.shopee_brand_name || null,
+  };
 
   await supabaseAdmin.from('marketplace_product_links').upsert(
     upsertData,
@@ -409,7 +417,7 @@ export async function syncProductsFromShopee(account: ShopeeAccountRow, onProgre
 
     // Step 3: Update last_product_sync_at
     await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .update({ last_product_sync_at: new Date().toISOString() })
       .eq('id', account.id);
 

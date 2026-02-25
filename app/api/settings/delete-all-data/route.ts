@@ -49,7 +49,7 @@ export async function DELETE(request: NextRequest) {
 
     // --- Marketplace / Shopee Links ---
     await deleteTable('marketplace_product_links', companyId);
-    await deleteTable('shopee_category_cache', companyId);
+    await deleteTable('marketplace_category_cache', companyId);
 
     // --- Inventory ---
     // *_items tables have ON DELETE CASCADE from parent, no company_id column
@@ -94,11 +94,11 @@ export async function DELETE(request: NextRequest) {
 
     // --- Logs ---
     await deleteTable('integration_logs', companyId);
-    await deleteTable('shopee_sync_log', companyId);
+    await deleteTable('marketplace_sync_log', companyId);
 
     // --- Reset Shopee account sync timestamps (keep accounts connected) ---
     const { error: resetError } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .update({
         last_sync_at: null,
         last_product_sync_at: null,

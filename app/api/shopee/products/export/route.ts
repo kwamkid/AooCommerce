@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee-api';
-import { exportProductToShopee, exportBulkToShopee, ExportOptions } from '@/lib/shopee-product-export';
+import { ShopeeAccountRow } from '@/lib/shopee/api';
+import { exportProductToShopee, exportBulkToShopee, ExportOptions } from '@/lib/shopee/product-export';
 
 /**
  * POST /api/shopee/products/export
  * Body: {
  *   product_ids: string[],
- *   shopee_account_id: string,
+ *   marketplace_account_id: string,
  *   shopee_category_id?: number,       // shared fallback (used for single export)
  *   weight?: number,                   // shared fallback
  *   per_product_options?: Record<string, { shopee_category_id: number, shopee_category_name?: string, weight?: number }>
@@ -22,13 +22,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { product_ids, shopee_account_id, shopee_category_id, shopee_category_name, weight, per_product_options, mode } = body;
+    const { product_ids, marketplace_account_id, shopee_category_id, shopee_category_name, weight, per_product_options, mode } = body;
 
     if (!product_ids || !Array.isArray(product_ids) || product_ids.length === 0) {
       return NextResponse.json({ error: 'product_ids is required' }, { status: 400 });
     }
-    if (!shopee_account_id) {
-      return NextResponse.json({ error: 'shopee_account_id is required' }, { status: 400 });
+    if (!marketplace_account_id) {
+      return NextResponse.json({ error: 'marketplace_account_id is required' }, { status: 400 });
     }
 
     // Validate: need either shared category or per-product options
@@ -38,9 +38,9 @@ export async function POST(request: NextRequest) {
 
     // Fetch account
     const { data: account, error: accErr } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .select('*')
-      .eq('id', shopee_account_id)
+      .eq('id', marketplace_account_id)
       .eq('company_id', auth.companyId)
       .eq('is_active', true)
       .single();
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
         };
 
-        console.log(`[Shopee Export API] Starting export: ${product_ids.length} products to account ${shopee_account_id}`);
+        console.log(`[Shopee Export API] Starting export: ${product_ids.length} products to account ${marketplace_account_id}`);
         send({ type: 'started', total: product_ids.length });
 
         try {

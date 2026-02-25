@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee-api';
-import { syncIncompleteOrders } from '@/lib/shopee-sync';
+import { ShopeeAccountRow } from '@/lib/shopee/api';
+import { syncIncompleteOrders } from '@/lib/shopee/sync';
 import { logIntegration } from '@/lib/integration-logger';
 
 export async function POST(request: NextRequest) {
@@ -11,16 +11,16 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { shopee_account_id } = body;
+  const { marketplace_account_id } = body;
 
-  if (!shopee_account_id) {
-    return NextResponse.json({ error: 'Missing shopee_account_id' }, { status: 400 });
+  if (!marketplace_account_id) {
+    return NextResponse.json({ error: 'Missing marketplace_account_id' }, { status: 400 });
   }
 
   const { data: account, error: accError } = await supabaseAdmin
-    .from('shopee_accounts')
+    .from('marketplace_accounts')
     .select('*')
-    .eq('id', shopee_account_id)
+    .eq('id', marketplace_account_id)
     .eq('company_id', companyId)
     .eq('is_active', true)
     .single();
@@ -41,9 +41,9 @@ export async function POST(request: NextRequest) {
       try {
         // Create sync log
         const { data: log } = await supabaseAdmin
-          .from('shopee_sync_log')
+          .from('marketplace_sync_log')
           .insert({
-            shopee_account_id: account.id,
+            marketplace_account_id: account.id,
             company_id: companyId,
             sync_type: 'manual',
           })
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
         // Update sync log
         if (log) {
           await supabaseAdmin
-            .from('shopee_sync_log')
+            .from('marketplace_sync_log')
             .update({
               orders_fetched: result.orders_created + result.orders_updated + result.orders_skipped,
               orders_created: result.orders_created,

@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { parallelLimit } from '@/lib/parallel';
 
 // --- Configuration ---
 const SHOPEE_SANDBOX_HOST = 'https://partner.test-stable.shopeemobile.com';
@@ -298,7 +299,7 @@ export async function ensureValidToken(account: ShopeeAccountRow): Promise<Shope
   const refreshExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
   await supabaseAdmin
-    .from('shopee_accounts')
+    .from('marketplace_accounts')
     .update({
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
@@ -331,10 +332,20 @@ export interface ShopeeItemAttribute {
   }>;
 }
 
+export interface ShopeeModelInfo {
+  model_id: number;
+  model_sku: string;
+  model_name: string;        // e.g. "Coral Pink" — built from tier_index + option_list
+  tier_index: number[];
+  price: number;             // current_price or original_price
+  image_url?: string;        // from tier_variation option_list
+}
+
 export interface ShopeeItemEnrichment {
   images: string[];  // Product images from get_item_base_info
   tierVariations: string[];  // e.g. ["สี", "ขนาด"] from get_model_list
   modelImageMap: Map<string, string>;  // model_sku → image_url from tier_variation option_list
+  allModels: ShopeeModelInfo[];  // ALL models (variations) for this item
   item_name?: string;       // Product name from get_item_base_info
   item_status?: string;     // e.g. "NORMAL", "BANNED" from get_item_base_info
   category_id?: number;     // Shopee category ID from get_item_base_info
@@ -388,6 +399,7 @@ export async function getItemEnrichment(
           images,
           tierVariations: [],
           modelImageMap: new Map(),
+          allModels: [],
           item_name: item.item_name,
           item_status: item.item_status,
           category_id: item.category_id,
@@ -404,8 +416,8 @@ export async function getItemEnrichment(
     }
   }
 
-  // Step 2: get_model_list (per item) for tier_variation names + option images
-  for (const itemId of itemsWithModels) {
+  // Step 2: get_model_list (per item, PARALLEL) for tier_variation names + option images
+  await parallelLimit(itemsWithModels, async (itemId) => {
     try {
       const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/product/get_model_list', {
         item_id: itemId,
@@ -413,7 +425,7 @@ export async function getItemEnrichment(
 
       if (error) {
         console.error(`[Shopee API] get_model_list error for item ${itemId}:`, error);
-        continue;
+        return;
       }
 
       const response = data as {
@@ -425,34 +437,53 @@ export async function getItemEnrichment(
           model_id: number;
           model_sku: string;
           tier_index?: number[];
+          price_info?: Array<{ current_price?: number; original_price?: number }>;
         }>;
       };
 
       const enrichment = result.get(itemId);
-      if (!enrichment) continue;
+      if (!enrichment) return;
 
       // Extract tier_variation names
       const tierVars = response.tier_variation || [];
       enrichment.tierVariations = tierVars.map(tv => tv.name);
 
-      // Build model_sku → image_url map
-      // tier_variation[0].option_list has images (first tier usually has images)
-      // model.tier_index[0] tells which option of the first tier this model uses
+      // Build model_sku → image_url map + allModels list
       const models = response.model || [];
       const firstTierOptions = tierVars[0]?.option_list || [];
 
       for (const model of models) {
         const tierIdx = model.tier_index?.[0];
+        let imageUrl: string | undefined;
         if (tierIdx !== undefined && firstTierOptions[tierIdx]?.image?.image_url) {
-          enrichment.modelImageMap.set(model.model_sku, firstTierOptions[tierIdx].image!.image_url!);
+          imageUrl = firstTierOptions[tierIdx].image!.image_url!;
+          enrichment.modelImageMap.set(model.model_sku, imageUrl);
         }
+
+        // Build model display name from tier_index + option_list
+        const modelNameParts: string[] = [];
+        for (let t = 0; t < (model.tier_index?.length || 0); t++) {
+          const optIdx = model.tier_index![t];
+          const optName = tierVars[t]?.option_list?.[optIdx]?.option;
+          if (optName) modelNameParts.push(optName);
+        }
+
+        const priceInfo = model.price_info?.[0];
+        enrichment.allModels.push({
+          model_id: model.model_id,
+          model_sku: model.model_sku,
+          model_name: modelNameParts.join(', ') || model.model_sku,
+          tier_index: model.tier_index || [],
+          price: priceInfo?.current_price || priceInfo?.original_price || 0,
+          image_url: imageUrl,
+        });
       }
 
-      console.log(`[Shopee API] get_model_list item ${itemId}: tiers=[${enrichment.tierVariations.join(',')}], models with images=${enrichment.modelImageMap.size}`);
+      console.log(`[Shopee API] get_model_list item ${itemId}: tiers=[${enrichment.tierVariations.join(',')}], models=${enrichment.allModels.length}, models with images=${enrichment.modelImageMap.size}`);
     } catch (e) {
       console.error(`[Shopee API] get_model_list error for item ${itemId}:`, e);
     }
-  }
+  }, 8);
 
   return result;
 }
@@ -583,41 +614,77 @@ export async function shipOrder(
   return shopeeApiRequest(creds, 'POST', '/api/v2/logistics/ship_order', {}, body);
 }
 
+export interface ShippingDocumentParameterItem {
+  order_sn: string;
+  package_number?: string;
+  suggest_shipping_document_type?: string;
+  selectable_shipping_document_type?: string[];
+  fail_error?: string;
+  fail_message?: string;
+}
+
+/**
+ * Get selectable and suggested shipping document types for orders.
+ * Must call BEFORE createShippingDocument to know which document_type to use.
+ * Field name is "suggest_shipping_document_type" (no 'd' at end) per Shopee docs.
+ */
+export async function getShippingDocumentParameter(
+  creds: ShopeeCredentials,
+  orderSns: string[]
+): Promise<{
+  data: unknown;
+  error?: string;
+  resultList?: ShippingDocumentParameterItem[];
+}> {
+  const { data, error } = await shopeeApiRequest(creds, 'POST', '/api/v2/logistics/get_shipping_document_parameter', {}, {
+    order_list: orderSns.map(sn => ({ order_sn: sn })),
+  });
+
+  if (error) return { data: null, error };
+
+  const response = data as { result_list?: ShippingDocumentParameterItem[] };
+
+  console.log(`[Shopee API] get_shipping_document_parameter:`, JSON.stringify(response).substring(0, 500));
+
+  return { data: response, resultList: response?.result_list };
+}
+
+export interface CreateShippingDocumentOrderItem {
+  order_sn: string;
+  package_number?: string;
+  tracking_number?: string;
+  shipping_document_type?: string;
+}
+
 /**
  * Create a shipping document task (async).
+ * Each order item should include tracking_number and shipping_document_type
+ * from get_tracking_number and get_shipping_document_parameter APIs.
  * Must poll getShippingDocumentResult() until status is READY.
  */
 export async function createShippingDocument(
   creds: ShopeeCredentials,
-  orderSns: string[],
-  documentType: string = 'NORMAL_AIR_WAYBILL'
+  orderList: CreateShippingDocumentOrderItem[]
 ): Promise<{ data: unknown; error?: string; resultList?: Array<{ order_sn: string; fail_error?: string; fail_message?: string }> }> {
-  const timestamp = getTimestamp();
-  const sign = generateSign('/api/v2/logistics/create_shipping_document', timestamp, creds.access_token, creds.shop_id);
-  const queryParams = new URLSearchParams({
-    partner_id: String(creds.partner_id),
-    timestamp: String(timestamp),
-    sign,
-    access_token: creds.access_token,
-    shop_id: String(creds.shop_id),
+  const { data, error } = await shopeeApiRequest(creds, 'POST', '/api/v2/logistics/create_shipping_document', {}, {
+    order_list: orderList,
   });
-  const url = `${getBaseUrl()}/api/v2/logistics/create_shipping_document?${queryParams.toString()}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      order_list: orderSns.map(sn => ({ order_sn: sn })),
-      document_type: documentType,
-    }),
-  });
-  const data = await res.json();
-  console.log(`[Shopee API] create_shipping_document response:`, JSON.stringify(data).substring(0, 1000));
 
-  if (data.error) {
-    const resultList = data.response?.result_list || [];
-    return { data: null, error: data.message || data.error, resultList };
+  console.log(`[Shopee API] create_shipping_document response:`, JSON.stringify(data || error).substring(0, 1000));
+
+  if (error) {
+    const response = data as { result_list?: Array<{ order_sn: string; fail_error?: string; fail_message?: string }> } | null;
+    return { data: null, error, resultList: response?.result_list };
   }
-  return { data: data.response || data };
+
+  const response = data as { result_list?: Array<{ order_sn: string; fail_error?: string; fail_message?: string }> };
+  return { data: response, resultList: response?.result_list };
+}
+
+export interface GetShippingDocResultOrderItem {
+  order_sn: string;
+  package_number?: string;
+  shipping_document_type?: string;
 }
 
 /**
@@ -626,26 +693,27 @@ export async function createShippingDocument(
  */
 export async function getShippingDocumentResult(
   creds: ShopeeCredentials,
-  orderSns: string[]
+  orderList: GetShippingDocResultOrderItem[]
 ): Promise<{ data: unknown; error?: string }> {
   return shopeeApiRequest(creds, 'POST', '/api/v2/logistics/get_shipping_document_result', {}, {
-    order_list: orderSns.map(sn => ({ order_sn: sn })),
+    order_list: orderList,
   });
 }
 
 /**
  * Download a shipping document (PDF) after it is READY.
+ * shipping_document_type is a TOP-LEVEL parameter (not per-order).
  * Returns the raw PDF buffer.
  */
 export async function downloadShippingDocument(
   creds: ShopeeCredentials,
   orderSns: string[],
-  documentType: string = 'NORMAL_AIR_WAYBILL'
+  shippingDocumentType: string = 'NORMAL_AIR_WAYBILL'
 ): Promise<{ pdfBuffer: Buffer | null; error?: string }> {
   try {
     const res = await shopeeApiRequestRaw(creds, 'POST', '/api/v2/logistics/download_shipping_document', {}, {
       order_list: orderSns.map(sn => ({ order_sn: sn })),
-      document_type: documentType,
+      shipping_document_type: shippingDocumentType,
     });
 
     const contentType = res.headers.get('content-type') || '';
@@ -663,6 +731,24 @@ export async function downloadShippingDocument(
     console.error('[Shopee API] downloadShippingDocument error:', e);
     return { pdfBuffer: null, error: e instanceof Error ? e.message : 'Unknown error' };
   }
+}
+
+/**
+ * Get tracking number for an order.
+ * Uses /api/v2/logistics/get_tracking_number
+ */
+export async function getTrackingNumber(
+  creds: ShopeeCredentials,
+  orderSn: string
+): Promise<{ tracking_number?: string; error?: string }> {
+  const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/logistics/get_tracking_number', {
+    order_sn: orderSn,
+  });
+
+  if (error) return { error };
+
+  const response = data as { tracking_number?: string; plp_number?: string; first_mile_tracking_number?: string };
+  return { tracking_number: response?.tracking_number || response?.plp_number || '' };
 }
 
 // ============================================
@@ -825,8 +911,8 @@ export async function getItemFullDetails(
     }
   }
 
-  // Step 2: get_model_list for variation items
-  for (const itemId of itemsWithModels) {
+  // Step 2: get_model_list for variation items (PARALLEL)
+  await parallelLimit(itemsWithModels, async (itemId) => {
     try {
       const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/product/get_model_list', {
         item_id: itemId,
@@ -834,7 +920,7 @@ export async function getItemFullDetails(
 
       if (error) {
         console.error(`[Shopee API] get_model_list error for item ${itemId}:`, error);
-        continue;
+        return;
       }
 
       const response = data as {
@@ -852,7 +938,7 @@ export async function getItemFullDetails(
       };
 
       const detail = result.get(itemId);
-      if (!detail) continue;
+      if (!detail) return;
 
       const tierVars = response.tier_variation || [];
       detail.tierVariations = tierVars.map(tv => tv.name);
@@ -889,7 +975,7 @@ export async function getItemFullDetails(
     } catch (e) {
       console.error(`[Shopee API] get_model_list error for item ${itemId}:`, e);
     }
-  }
+  }, 8);
 
   return result;
 }

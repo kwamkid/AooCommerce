@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee-api';
-import { syncProductsFromShopee } from '@/lib/shopee-product-sync';
+import { ShopeeAccountRow } from '@/lib/shopee/api';
+import { syncProductsFromShopee } from '@/lib/shopee/product-sync';
 import { logIntegration } from '@/lib/integration-logger';
 
 export async function POST(request: NextRequest) {
@@ -11,15 +11,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { shopee_account_id } = await request.json();
-  if (!shopee_account_id) {
-    return NextResponse.json({ error: 'Missing shopee_account_id' }, { status: 400 });
+  const { marketplace_account_id } = await request.json();
+  if (!marketplace_account_id) {
+    return NextResponse.json({ error: 'Missing marketplace_account_id' }, { status: 400 });
   }
 
   const { data: account, error: accError } = await supabaseAdmin
-    .from('shopee_accounts')
+    .from('marketplace_accounts')
     .select('*')
-    .eq('id', shopee_account_id)
+    .eq('id', marketplace_account_id)
     .eq('company_id', companyId)
     .eq('is_active', true)
     .single();

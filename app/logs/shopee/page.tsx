@@ -51,7 +51,16 @@ const ACTION_LABELS: Record<string, string> = {
   sync_orders_poll: 'ดึงออเดอร์ (Auto)',
   webhook_order_status: 'Webhook อัปเดตสถานะ',
   webhook_sync_error: 'Webhook Sync ผิดพลาด',
-  sync_products: 'sync_products',
+  sync_products: 'ดึงสินค้า',
+  auto_push_stock: 'Auto Sync สต็อก',
+  auto_push_price: 'Auto Sync ราคา',
+  auto_push_info: 'Auto Sync ข้อมูลสินค้า',
+  push_stock: 'Push สต็อก',
+  push_price: 'Push ราคา',
+  shipping_document: 'พิมพ์ใบปะหน้า',
+  bulk_shipping_document: 'พิมพ์ใบปะหน้า (Bulk)',
+  resync_order: 'Sync ออเดอร์ใหม่',
+  accept_order: 'รับออเดอร์',
 };
 
 function getActionLabel(action: string): string {
@@ -82,6 +91,9 @@ const SHOPEE_STATUS_MAP: Record<string, { label: string; color: string }> = {
   CANCELLED:      { label: 'ยกเลิก',       color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
   IN_CANCEL:      { label: 'กำลังยกเลิก',  color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
   INVOICE_PENDING:{ label: 'รอออกใบแจ้งหนี้', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400' },
+  TO_CONFIRM_RECEIVE: { label: 'รอยืนยันรับ', color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400' },
+  TO_RETURN:      { label: 'คืนสินค้า',     color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400' },
+  RETRY_SHIP:     { label: 'จัดส่งซ้ำ',     color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
 };
 
 function extractShopeeStatus(log: IntegrationLog): string | null {
@@ -108,6 +120,19 @@ function getOrderSnFromLabel(label: string | null): string | null {
   return match ? match[1] : label;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-/i;
+
+/** Get display label for order reference — prefer reference_label over raw reference_id */
+function getOrderDisplayLabel(log: IntegrationLog): string {
+  // If reference_id is a UUID, prefer reference_label (which is the order_sn)
+  if (log.reference_id && UUID_RE.test(log.reference_id)) {
+    return log.reference_label || log.reference_id.slice(0, 8);
+  }
+  // Otherwise reference_id is order_sn — use "Order xxx" format from label
+  const fromLabel = getOrderSnFromLabel(log.reference_label);
+  return fromLabel || log.reference_id || '-';
+}
+
 export default function ShopeeLogsPage() {
   const { userProfile } = useAuth();
   const [logs, setLogs] = useState<IntegrationLog[]>([]);
@@ -124,6 +149,8 @@ export default function ShopeeLogsPage() {
   const [statusCounts, setStatusCounts] = useState({ all: 0, success: 0, error: 0 });
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loadTime, setLoadTime] = useState<number | null>(null);
+  const [orderMap, setOrderMap] = useState<Record<string, string>>({});
+  const [productMap, setProductMap] = useState<Record<string, string>>({});
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -140,6 +167,7 @@ export default function ShopeeLogsPage() {
       if (dateRange?.startDate) params.set('date_from', String(dateRange.startDate));
       if (dateRange?.endDate) params.set('date_to', String(dateRange.endDate));
 
+      params.set('_t', Date.now().toString());
       const res = await apiFetch(`/api/logs?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -147,6 +175,8 @@ export default function ShopeeLogsPage() {
         setTotalRecords(data.pagination.total);
         setTotalPages(data.pagination.totalPages);
         setStatusCounts(data.statusCounts);
+        setOrderMap(data.orderMap || {});
+        setProductMap(data.productMap || {});
       }
     } catch (err) {
       console.error('Failed to fetch logs:', err);
@@ -317,6 +347,8 @@ export default function ShopeeLogsPage() {
                           dt={dt}
                           isExpanded={isExpanded}
                           onToggle={() => setExpandedRow(isExpanded ? null : log.id)}
+                          orderMap={orderMap}
+                          productMap={productMap}
                         />
                       );
                     })}
@@ -336,6 +368,8 @@ export default function ShopeeLogsPage() {
                       dt={dt}
                       isExpanded={isExpanded}
                       onToggle={() => setExpandedRow(isExpanded ? null : log.id)}
+                      orderMap={orderMap}
+                      productMap={productMap}
                     />
                   );
                 })}
@@ -363,21 +397,44 @@ export default function ShopeeLogsPage() {
   );
 }
 
+// --- Helper: get product name from log ---
+function getProductInfo(log: IntegrationLog, productMap: Record<string, string>): { id: string; name: string } | null {
+  // Check reference_type first
+  if (log.reference_type === 'product' && log.reference_id && productMap[log.reference_id]) {
+    return { id: log.reference_id, name: productMap[log.reference_id] };
+  }
+  // Check request_body.product_id
+  if (log.request_body && typeof log.request_body === 'object') {
+    const body = log.request_body as Record<string, unknown>;
+    const pid = body.product_id as string | undefined;
+    if (pid && productMap[pid]) {
+      return { id: pid, name: productMap[pid] };
+    }
+  }
+  return null;
+}
+
 // --- Desktop Row ---
 function LogRow({
   log,
   dt,
   isExpanded,
   onToggle,
+  orderMap,
+  productMap,
 }: {
   log: IntegrationLog;
   dt: { date: string; time: string };
   isExpanded: boolean;
   onToggle: () => void;
+  orderMap: Record<string, string>;
+  productMap: Record<string, string>;
 }) {
   const shopeeStatus = extractShopeeStatus(log);
   const statusInfo = shopeeStatus ? SHOPEE_STATUS_MAP[shopeeStatus] : null;
-  const orderLabel = getOrderSnFromLabel(log.reference_label);
+  const displayLabel = getOrderDisplayLabel(log);
+  const orderUuid = log.reference_id ? orderMap[log.reference_id] : undefined;
+  const productInfo = getProductInfo(log, productMap);
 
   return (
     <>
@@ -397,16 +454,36 @@ function LogRow({
           <DirectionBadge direction={log.direction} />
         </td>
         <td className="px-6 py-4">
-          <span className="text-gray-900 dark:text-white">{getActionLabel(log.action)}</span>
+          <div>
+            <span className="text-gray-900 dark:text-white">{getActionLabel(log.action)}</span>
+            {productInfo && (
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 truncate max-w-[200px]">
+                {productInfo.name}
+              </p>
+            )}
+          </div>
         </td>
         <td className="px-6 py-4">
           <span className="text-gray-600 dark:text-slate-300">{log.account_name || '-'}</span>
         </td>
         <td className="px-6 py-4">
           {log.reference_type === 'order' && log.reference_id ? (
-            <OrderLink referenceId={log.reference_id} label={orderLabel || log.reference_id} />
+            orderUuid ? (
+              <a
+                href={`/orders/${orderUuid}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline"
+              >
+                {displayLabel}
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            ) : (
+              <OrderLink referenceId={log.reference_id} label={displayLabel} />
+            )
           ) : log.reference_label ? (
-            <span className="text-blue-600 dark:text-blue-400">{log.reference_label}</span>
+            <span className="text-gray-500 dark:text-slate-400">{log.reference_label}</span>
           ) : (
             <span className="text-gray-400">-</span>
           )}
@@ -444,15 +521,21 @@ function MobileLogCard({
   dt,
   isExpanded,
   onToggle,
+  orderMap,
+  productMap,
 }: {
   log: IntegrationLog;
   dt: { date: string; time: string };
   isExpanded: boolean;
   onToggle: () => void;
+  orderMap: Record<string, string>;
+  productMap: Record<string, string>;
 }) {
   const shopeeStatus = extractShopeeStatus(log);
   const statusInfo = shopeeStatus ? SHOPEE_STATUS_MAP[shopeeStatus] : null;
-  const orderLabel = getOrderSnFromLabel(log.reference_label);
+  const displayLabel = getOrderDisplayLabel(log);
+  const orderUuid = log.reference_id ? orderMap[log.reference_id] : undefined;
+  const productInfo = getProductInfo(log, productMap);
 
   return (
     <div className="p-4">
@@ -464,6 +547,9 @@ function MobileLogCard({
             <span className="text-xs text-gray-500 dark:text-slate-400">{formatDuration(log.duration_ms)}</span>
           </div>
           <p className="text-sm font-medium text-gray-900 dark:text-white">{getActionLabel(log.action)}</p>
+          {productInfo && (
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 truncate">{productInfo.name}</p>
+          )}
           <div className="flex items-center gap-2 mt-1">
             <span className="text-xs text-gray-500 dark:text-slate-400">{dt.date} {dt.time}</span>
             {log.account_name && (
@@ -472,9 +558,22 @@ function MobileLogCard({
           </div>
           <div className="flex items-center gap-2 mt-1.5">
             {log.reference_type === 'order' && log.reference_id ? (
-              <OrderLink referenceId={log.reference_id} label={orderLabel || log.reference_id} />
+              orderUuid ? (
+                <a
+                  href={`/orders/${orderUuid}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline"
+                >
+                  {displayLabel}
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              ) : (
+                <OrderLink referenceId={log.reference_id} label={displayLabel} />
+              )
             ) : log.reference_label ? (
-              <span className="text-xs text-blue-600 dark:text-blue-400">{log.reference_label}</span>
+              <span className="text-xs text-gray-500 dark:text-slate-400">{log.reference_label}</span>
             ) : null}
             {shopeeStatus && (
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo?.color || 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'}`}>
@@ -545,12 +644,21 @@ function OrderLink({ referenceId, label }: { referenceId: string; label: string 
     setNotFound(false);
     setSyncResult(null);
     try {
-      const orderNumber = `SP-${referenceId}`;
-      const res = await apiFetch(`/api/orders?search=${encodeURIComponent(orderNumber)}&limit=1`);
+      // Search by order_sn directly (new format), fallback to SP- prefix (old format)
+      const res = await apiFetch(`/api/orders?search=${encodeURIComponent(referenceId)}&limit=1`);
       if (res.ok) {
         const data = await res.json();
         if (data.orders?.length > 0) {
           window.open(`/orders/${data.orders[0].id}`, '_blank');
+          return;
+        }
+      }
+      // Fallback: try old SP- prefix format
+      const resFallback = await apiFetch(`/api/orders?search=${encodeURIComponent(`SP-${referenceId}`)}&limit=1`);
+      if (resFallback.ok) {
+        const dataFb = await resFallback.json();
+        if (dataFb.orders?.length > 0) {
+          window.open(`/orders/${dataFb.orders[0].id}`, '_blank');
           return;
         }
       }

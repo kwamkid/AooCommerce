@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
-import { generateAuthUrl } from '@/lib/shopee-api';
+import { generateAuthUrl } from '@/lib/shopee/api';
 
 export async function GET(request: NextRequest) {
   try {

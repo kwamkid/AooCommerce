@@ -6,7 +6,7 @@ import {
   ensureValidToken,
   getShippingParameter,
   shipOrder,
-} from '@/lib/shopee-api';
+} from '@/lib/shopee/api';
 
 /**
  * POST - Accept/ship a Shopee order.
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     // 1. Fetch order
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, source, external_order_sn, external_status, shopee_account_id, order_status')
+      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status')
       .eq('id', order_id)
       .eq('company_id', companyId)
       .single();
@@ -48,15 +48,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (!order.shopee_account_id || !order.external_order_sn) {
+    if (!order.marketplace_account_id || !order.external_order_sn) {
       return NextResponse.json({ error: 'Missing Shopee account or order SN' }, { status: 400 });
     }
 
     // 2. Fetch Shopee account
     const { data: account, error: accError } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .select('*')
-      .eq('id', order.shopee_account_id)
+      .eq('id', order.marketplace_account_id)
       .eq('company_id', companyId)
       .eq('is_active', true)
       .single();
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
       .from('orders')
       .update({
         external_status: 'PROCESSED',
-        order_status: 'shipping',
+        order_status: 'processing',
         updated_at: new Date().toISOString(),
       })
       .eq('id', order_id)
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       external_status: 'PROCESSED',
-      order_status: 'shipping',
+      order_status: 'processing',
     });
   } catch (error) {
     console.error('[Shopee Ship] Error:', error);

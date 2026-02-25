@@ -29,12 +29,15 @@ import {
   Package,
   ClipboardList,
   Pencil,
+  RefreshCw,
 } from 'lucide-react';
 import PaymentModal from '../components/PaymentModal';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { generatePackingListPdf } from '@/lib/order-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
+import { showPdfPreview } from '@/lib/print-pdf';
+import { isMarketplaceSource } from '@/lib/marketplace/types';
 
 // Status badge components
 function OrderStatusBadge({ status }: { status: string }) {
@@ -126,6 +129,7 @@ export default function OrderDetailPage() {
   const [shopeeActionLoading, setShopeeActionLoading] = useState(false);
   const [fullOrderData, setFullOrderData] = useState<any>(null);
   const isShopeeOrder = orderSource === 'shopee';
+  const isMarketplaceOrder = isMarketplaceSource(orderSource);
   const isPosOrder = orderSource === 'pos';
 
   // Print
@@ -466,6 +470,54 @@ export default function OrderDetailPage() {
     }
   };
 
+  // Key to force OrderForm remount after re-sync
+  const [orderFormKey, setOrderFormKey] = useState(0);
+
+  const handleResyncOrder = async () => {
+    if (!externalOrderSn) return;
+    try {
+      setShopeeActionLoading(true);
+      showToast('กำลัง sync ข้อมูลจาก Shopee...');
+      const response = await apiFetch('/api/shopee/sync-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_sn: externalOrderSn,
+          marketplace_account_id: fullOrderData?.marketplace_account_id,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Sync failed');
+      }
+      if (result.errors?.length > 0) {
+        showToast(`Sync มีข้อผิดพลาด: ${result.errors[0]}`, 'error');
+      } else {
+        showToast('Sync ข้อมูลสำเร็จ');
+      }
+      // Fetch fresh order data (cache-bust to avoid stale response)
+      const freshRes = await apiFetch(`/api/orders?id=${orderId}&_t=${Date.now()}`);
+      if (freshRes.ok) {
+        const freshResult = await freshRes.json();
+        const freshOrder = freshResult.order;
+        setOrderNumber(freshOrder.order_number);
+        setOrderDate(freshOrder.order_date);
+        setOrderStatus(freshOrder.order_status);
+        setPaymentStatus(freshOrder.payment_status);
+        setOrderSource(freshOrder.source || 'manual');
+        setExternalStatus(freshOrder.external_status || '');
+        setExternalOrderSn(freshOrder.external_order_sn || '');
+        setFullOrderData(freshOrder);
+        // Force OrderForm remount with fresh data
+        setOrderFormKey(k => k + 1);
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Sync ไม่สำเร็จ', 'error');
+    } finally {
+      setShopeeActionLoading(false);
+    }
+  };
+
   const handlePrint = (mode: 'order' | 'packing') => {
     setShowPrintMenu(false);
     setPrintMode(mode);
@@ -480,7 +532,8 @@ export default function OrderDetailPage() {
     setShowPrintMenu(false);
     setGeneratingPdf(true);
     try {
-      await generateOrderInvoicePdf({ data: fullOrderData });
+      const blob = await generateOrderInvoicePdf({ data: fullOrderData });
+      showPdfPreview(blob, fullOrderData.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้');
     } catch (err) {
       console.error('Error generating invoice PDF:', err);
       showToast('สร้าง PDF ไม่สำเร็จ', 'error');
@@ -494,7 +547,8 @@ export default function OrderDetailPage() {
     setShowPrintMenu(false);
     setGeneratingPdf(true);
     try {
-      await generatePackingListPdf({ data: fullOrderData });
+      const blob = await generatePackingListPdf({ data: fullOrderData });
+      showPdfPreview(blob, 'ใบจัดของ');
     } catch (err) {
       console.error('Error generating packing list PDF:', err);
       showToast('สร้าง PDF ไม่สำเร็จ', 'error');
@@ -508,7 +562,8 @@ export default function OrderDetailPage() {
     setShowPrintMenu(false);
     setGeneratingPdf(true);
     try {
-      await generateShippingLabelPdf({ data: fullOrderData });
+      const blob = await generateShippingLabelPdf({ data: fullOrderData });
+      showPdfPreview(blob, 'ใบปะหน้า');
     } catch (err) {
       console.error('Error generating shipping label PDF:', err);
       showToast('สร้าง PDF ไม่สำเร็จ', 'error');
@@ -531,9 +586,7 @@ export default function OrderDetailPage() {
         throw new Error(err.error || 'Failed to generate label');
       }
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      showToast('เปิดใบปะหน้า Shopee แล้ว');
+      showPdfPreview(blob, 'ใบปะหน้า Shopee');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -586,7 +639,11 @@ export default function OrderDetailPage() {
             </button>
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white print:text-black">{orderNumber}</h1>
+                <h1
+                  className="text-2xl font-bold text-gray-900 dark:text-white print:text-black hover:text-[#F4511E] cursor-pointer transition-colors"
+                  onClick={() => { navigator.clipboard.writeText(orderNumber).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
+                  title="คัดลอกเลขคำสั่งซื้อ"
+                >{orderNumber}</h1>
                 {isShopeeOrder && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
                     <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3.5 h-3.5" />
@@ -728,6 +785,14 @@ export default function OrderDetailPage() {
                   <ShopeeExternalStatusBadge status={externalStatus} />
                 </div>
               </div>
+              <button
+                onClick={handleResyncOrder}
+                disabled={shopeeActionLoading}
+                className="text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-slate-700 p-2 rounded-lg transition-colors disabled:opacity-50"
+                title="Sync ข้อมูลจาก Shopee ใหม่"
+              >
+                <RefreshCw className={`w-4 h-4 ${shopeeActionLoading ? 'animate-spin' : ''}`} />
+              </button>
             </div>
 
             {/* Buyer's note */}
@@ -842,7 +907,7 @@ export default function OrderDetailPage() {
         )}
 
         {/* Status Management — prominent buttons (hidden on print) */}
-        {orderStatus !== 'cancelled' && !isShopeeOrder && !isPosOrder && (
+        {orderStatus !== 'cancelled' && !isMarketplaceOrder && !isPosOrder && (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               {/* Order Status Section */}
@@ -951,8 +1016,8 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        {/* Shopee Status Management — read-only display (hidden on print) */}
-        {orderStatus !== 'cancelled' && isShopeeOrder && (
+        {/* Marketplace Status Management — read-only display (hidden on print) */}
+        {orderStatus !== 'cancelled' && isMarketplaceOrder && (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="flex-1">
@@ -1021,7 +1086,7 @@ export default function OrderDetailPage() {
         )}
 
         {/* Delivery Info — for orders without customer or with delivery fields */}
-        {fullOrderData && (!fullOrderData.customer_id || fullOrderData.delivery_name || fullOrderData.delivery_phone || fullOrderData.delivery_address) && !isShopeeOrder && !isPosOrder && (() => {
+        {fullOrderData && (!fullOrderData.customer_id || fullOrderData.delivery_name || fullOrderData.delivery_phone || fullOrderData.delivery_address) && !isMarketplaceOrder && !isPosOrder && (() => {
           const deliveryComplete = !!(fullOrderData.delivery_name && fullOrderData.delivery_phone && fullOrderData.delivery_address);
           return (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
@@ -1161,6 +1226,7 @@ export default function OrderDetailPage() {
 
         {/* OrderForm - Edit or Read-only */}
         <OrderForm
+          key={orderFormKey}
           editOrderId={orderId}
           preloadedOrder={fullOrderData}
           onSuccess={handleOrderSaved}
@@ -1273,6 +1339,7 @@ export default function OrderDetailPage() {
         )}
 
       </div>
+
     </Layout>
   );
 }

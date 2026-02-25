@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { refreshAccessToken } from '@/lib/shopee-api';
+import { refreshAccessToken } from '@/lib/shopee/api';
 
 export async function POST(request: NextRequest) {
   // Verify cron secret
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
   // Find accounts with access tokens expiring soon
   const { data: accounts } = await supabaseAdmin
-    .from('shopee_accounts')
+    .from('marketplace_accounts')
     .select('*')
     .eq('is_active', true)
     .not('refresh_token', 'is', null)
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       const refreshExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
       await supabaseAdmin
-        .from('shopee_accounts')
+        .from('marketplace_accounts')
         .update({
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token,

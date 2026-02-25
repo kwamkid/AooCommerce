@@ -440,5 +440,6 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
     },
   };
 
-  pdfMake.createPdf(docDefinition).open();
+  const pdfDoc = pdfMake.createPdf(docDefinition);
+  return pdfDoc.getBlob();
 }

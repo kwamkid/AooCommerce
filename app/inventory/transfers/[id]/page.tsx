@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
+import { showPdfPreview } from '@/lib/print-pdf';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Loader2, Warehouse, Package, ArrowRightLeft, CheckCircle2,
@@ -213,7 +214,7 @@ export default function TransferDetailPage() {
     if (!transfer) return;
     setGeneratingPdf(true);
     try {
-      await generateInventoryPdf({
+      const blob = await generateInventoryPdf({
         type: 'transfer',
         data: {
           id: transfer.id,
@@ -231,6 +232,7 @@ export default function TransferDetailPage() {
           })),
         },
       });
+      showPdfPreview(blob, 'ใบโอนย้ายสินค้า');
     } catch {
       showToast('สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {

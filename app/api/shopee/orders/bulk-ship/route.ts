@@ -6,7 +6,8 @@ import {
   ensureValidToken,
   getShippingParameter,
   shipOrder,
-} from '@/lib/shopee-api';
+} from '@/lib/shopee/api';
+import { logIntegration } from '@/lib/integration-logger';
 
 interface TimeSlot {
   pickup_time_id: string;
@@ -24,7 +25,7 @@ interface BulkShipResult {
   time_slots?: TimeSlot[];
 }
 
-function formatTimeSlot(slot: { pickup_time_id: string; date: number; flags?: string[] }): TimeSlot {
+function formatTimeSlot(slot: { pickup_time_id: string; date: number; time_text?: string; flags?: string[] }): TimeSlot {
   const date = new Date(slot.date * 1000);
   const now = new Date();
   const isToday = date.toDateString() === now.toDateString();
@@ -33,12 +34,14 @@ function formatTimeSlot(slot: { pickup_time_id: string; date: number; flags?: st
   const isTomorrow = date.toDateString() === tomorrow.toDateString();
 
   const dayLabel = isToday ? 'วันนี้' : isTomorrow ? 'พรุ่งนี้' : date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-  const timeStr = date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+  // Use time_text from Shopee API (e.g. "08:30 - 12:30") instead of parsing from date timestamp
+  const display = slot.time_text ? `${dayLabel} ${slot.time_text}` : dayLabel;
 
   return {
     pickup_time_id: slot.pickup_time_id,
     date: slot.date,
-    display: `${dayLabel} ${timeStr}`,
+    display,
     recommended: slot.flags?.includes('recommended') || false,
   };
 }
@@ -56,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { order_ids } = body;
+    const { order_ids, pickup_time_id } = body;
 
     if (!order_ids || !Array.isArray(order_ids) || order_ids.length === 0) {
       return NextResponse.json({ error: 'Missing order_ids array' }, { status: 400 });
@@ -69,7 +72,7 @@ export async function POST(request: NextRequest) {
     // Fetch all orders
     const { data: orders, error: ordersError } = await supabaseAdmin
       .from('orders')
-      .select('id, source, external_order_sn, external_status, shopee_account_id, order_status')
+      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status')
       .eq('company_id', companyId)
       .in('id', order_ids);
 
@@ -80,7 +83,7 @@ export async function POST(request: NextRequest) {
     // Create lookup map
     const orderMap = new Map((orders || []).map(o => [o.id, o]));
 
-    // Cache credentials per shopee_account_id to avoid re-fetching
+    // Cache credentials per marketplace_account_id to avoid re-fetching
     const credsCache = new Map<string, Awaited<ReturnType<typeof ensureValidToken>>>();
 
     const results: BulkShipResult[] = [];
@@ -108,19 +111,19 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      if (!order.shopee_account_id || !order.external_order_sn) {
+      if (!order.marketplace_account_id || !order.external_order_sn) {
         results.push({ order_id: orderId, order_sn: '', success: false, error: 'Missing Shopee account or order SN' });
         continue;
       }
 
       try {
         // Get or cache credentials
-        let creds = credsCache.get(order.shopee_account_id);
+        let creds = credsCache.get(order.marketplace_account_id);
         if (!creds) {
           const { data: account, error: accError } = await supabaseAdmin
-            .from('shopee_accounts')
+            .from('marketplace_accounts')
             .select('*')
-            .eq('id', order.shopee_account_id)
+            .eq('id', order.marketplace_account_id)
             .eq('company_id', companyId)
             .eq('is_active', true)
             .single();
@@ -131,7 +134,7 @@ export async function POST(request: NextRequest) {
           }
 
           creds = await ensureValidToken(account as ShopeeAccountRow);
-          credsCache.set(order.shopee_account_id, creds);
+          credsCache.set(order.marketplace_account_id, creds);
         }
 
         // Get shipping parameters
@@ -148,7 +151,7 @@ export async function POST(request: NextRequest) {
             address_list?: Array<{
               address_id: number;
               address_flag?: string[];
-              time_slot_list?: Array<{ pickup_time_id: string; date: number; flags?: string[] }>;
+              time_slot_list?: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }>;
             }>;
           };
           dropoff?: { branch_list?: Array<{ branch_id: number }> };
@@ -166,7 +169,7 @@ export async function POST(request: NextRequest) {
           } else {
             await supabaseAdmin.from('orders').update({
               external_status: 'PROCESSED',
-              order_status: 'shipping',
+              order_status: 'processing',
               updated_at: new Date().toISOString(),
             }).eq('id', orderId).eq('company_id', companyId);
             results.push({ order_id: orderId, order_sn: order.external_order_sn, success: true });
@@ -183,25 +186,31 @@ export async function POST(request: NextRequest) {
 
         const timeSlots = pickupAddress.time_slot_list || [];
 
-        // Express delivery: multiple time slots → let user choose
-        if (timeSlots.length > 1) {
-          results.push({
-            order_id: orderId,
-            order_sn: order.external_order_sn,
-            success: false,
-            needs_time_slot: true,
-            time_slots: timeSlots.map(formatTimeSlot),
-          });
-          continue;
-        }
+        // If user already selected a time slot (retry), use it directly
+        let selectedTimeSlotId = pickup_time_id as string | undefined;
 
-        // Standard delivery: 0-1 time slot → auto-pick and ship
-        const recommendedSlot = timeSlots.find(s => s.flags?.includes('recommended'));
-        const pickupTimeSlot = recommendedSlot || timeSlots[0];
+        if (!selectedTimeSlotId) {
+          // Express delivery: multiple time slots → let user choose
+          if (timeSlots.length > 1) {
+            results.push({
+              order_id: orderId,
+              order_sn: order.external_order_sn,
+              success: false,
+              needs_time_slot: true,
+              time_slots: timeSlots.map(formatTimeSlot),
+            });
+            continue;
+          }
+
+          // Standard delivery: 0-1 time slot → auto-pick recommended
+          const recommendedSlot = timeSlots.find(s => s.flags?.includes('recommended'));
+          const pickupTimeSlot = recommendedSlot || timeSlots[0];
+          selectedTimeSlotId = pickupTimeSlot?.pickup_time_id || '';
+        }
 
         const pickupParams = {
           address_id: pickupAddress.address_id,
-          pickup_time_id: pickupTimeSlot?.pickup_time_id || '',
+          pickup_time_id: selectedTimeSlotId,
         };
 
         const shipResult = await shipOrder(creds, order.external_order_sn, pickupParams);
@@ -211,10 +220,10 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Update DB
+        // Update DB — PROCESSED = processing (ที่ต้องจัดส่ง), NOT shipping!
         await supabaseAdmin.from('orders').update({
           external_status: 'PROCESSED',
-          order_status: 'shipping',
+          order_status: 'processing',
           updated_at: new Date().toISOString(),
         }).eq('id', orderId).eq('company_id', companyId);
 
@@ -233,6 +242,36 @@ export async function POST(request: NextRequest) {
     const successCount = results.filter(r => r.success).length;
     const needsTimeSlotCount = results.filter(r => r.needs_time_slot).length;
     const errorCount = results.filter(r => !r.success && !r.needs_time_slot).length;
+
+    // Log each processed order to integration_logs
+    for (const r of results) {
+      if (r.needs_time_slot) continue; // Don't log timeslot requests
+      const order = orderMap.get(r.order_id);
+      const accountId = order?.marketplace_account_id;
+      // Look up shop name from account
+      let shopName = '';
+      if (accountId) {
+        const cached = credsCache.get(accountId);
+        shopName = (cached as any)?.shop_name || '';
+      }
+      logIntegration({
+        company_id: companyId,
+        integration: 'shopee',
+        account_id: accountId || undefined,
+        account_name: shopName || undefined,
+        direction: 'outgoing',
+        action: 'accept_order',
+        method: 'POST',
+        api_path: '/api/v2/logistics/ship_order',
+        request_body: { order_sn: r.order_sn },
+        response_body: r.success ? { success: true } : { error: r.error },
+        status: r.success ? 'success' : 'error',
+        error_message: r.error || undefined,
+        reference_type: 'order',
+        reference_id: r.order_sn,
+        reference_label: r.order_sn,
+      });
+    }
 
     return NextResponse.json({
       results,

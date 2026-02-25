@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee-api';
-import { syncOrdersByOrderSn, syncOrdersByTimeRange } from '@/lib/shopee-sync';
+import { ShopeeAccountRow } from '@/lib/shopee/api';
+import { syncOrdersByOrderSn, syncOrdersByTimeRange } from '@/lib/shopee/sync';
+import { logIntegration } from '@/lib/integration-logger';
 
 /**
  * POST /api/shopee/sync-order
  * Re-sync a specific Shopee order by order_sn.
  * Falls back to time-range sync if direct order fetch fails.
  */
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { order_sn, shopee_account_id } = body;
+  const { order_sn, marketplace_account_id } = body;
 
   if (!order_sn) {
     return NextResponse.json({ error: 'Missing order_sn' }, { status: 400 });
@@ -25,13 +26,13 @@ export async function POST(request: NextRequest) {
 
   // Find the Shopee account
   let accountQuery = supabaseAdmin
-    .from('shopee_accounts')
+    .from('marketplace_accounts')
     .select('*')
     .eq('company_id', companyId)
     .eq('is_active', true);
 
-  if (shopee_account_id) {
-    accountQuery = accountQuery.eq('id', shopee_account_id);
+  if (marketplace_account_id) {
+    accountQuery = accountQuery.eq('id', marketplace_account_id);
   }
 
   const { data: account, error: accError } = await accountQuery.limit(1).single();
@@ -43,9 +44,9 @@ export async function POST(request: NextRequest) {
   try {
     // Create sync log
     const { data: log } = await supabaseAdmin
-      .from('shopee_sync_log')
+      .from('marketplace_sync_log')
       .insert({
-        shopee_account_id: account.id,
+        marketplace_account_id: account.id,
         company_id: companyId,
         sync_type: 'webhook',
       })
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
     // Update sync log
     if (log) {
       await supabaseAdmin
-        .from('shopee_sync_log')
+        .from('marketplace_sync_log')
         .update({
           orders_fetched: 1,
           orders_created: result.orders_created,
@@ -102,6 +103,31 @@ export async function POST(request: NextRequest) {
         .eq('id', log.id);
     }
 
+    // Log to integration_logs for Shopee Log page visibility
+    const hasErrors = result.errors.length > 0;
+    logIntegration({
+      company_id: companyId,
+      integration: 'shopee',
+      account_id: account.id,
+      account_name: account.shop_name,
+      direction: 'incoming',
+      action: 'resync_order',
+      method: 'POST',
+      api_path: '/api/v2/order/get_order_detail',
+      request_body: { order_sn },
+      response_body: {
+        orders_created: result.orders_created,
+        orders_updated: result.orders_updated,
+        orders_skipped: result.orders_skipped,
+        errors: result.errors,
+      },
+      status: hasErrors ? 'error' : 'success',
+      error_message: hasErrors ? result.errors.join('; ') : undefined,
+      reference_type: 'order',
+      reference_id: order_sn,
+      reference_label: order_sn,
+    });
+
     return NextResponse.json({
       success: true,
       orders_created: result.orders_created,
@@ -110,6 +136,23 @@ export async function POST(request: NextRequest) {
       errors: result.errors,
     });
   } catch (err) {
+    // Log error to integration_logs
+    logIntegration({
+      company_id: companyId,
+      integration: 'shopee',
+      account_id: account.id,
+      account_name: account.shop_name,
+      direction: 'incoming',
+      action: 'resync_order',
+      method: 'POST',
+      api_path: '/api/v2/order/get_order_detail',
+      request_body: { order_sn },
+      status: 'error',
+      error_message: err instanceof Error ? err.message : 'Sync failed',
+      reference_type: 'order',
+      reference_id: order_sn,
+      reference_label: order_sn,
+    });
     return NextResponse.json({
       error: err instanceof Error ? err.message : 'Sync failed',
     }, { status: 500 });

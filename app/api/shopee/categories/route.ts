@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
-import { ensureValidToken, getShopeeCategories, getShopeeCategoryAttributes, ShopeeAccountRow } from '@/lib/shopee-api';
+import { ensureValidToken, getShopeeCategories, getShopeeCategoryAttributes, ShopeeAccountRow } from '@/lib/shopee/api';
 
 const CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch account
     const { data: account, error: accErr } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .select('*')
       .eq('id', accountId)
       .eq('company_id', auth.companyId)
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
 
     // Return category tree (with cache)
     const { data: cached } = await supabaseAdmin
-      .from('shopee_category_cache')
+      .from('marketplace_category_cache')
       .select('*')
       .eq('account_id', accountId)
       .single();
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
 
     // Upsert cache
     await supabaseAdmin
-      .from('shopee_category_cache')
+      .from('marketplace_category_cache')
       .upsert({
         account_id: accountId,
         company_id: auth.companyId,

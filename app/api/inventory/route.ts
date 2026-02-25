@@ -319,7 +319,7 @@ export async function POST(request: NextRequest) {
       });
 
     // Auto-sync stock to Shopee if linked
-    const { triggerShopeeStockSync } = await import('@/lib/shopee-auto-sync');
+    const { triggerShopeeStockSync } = await import('@/lib/shopee/auto-sync');
     triggerShopeeStockSync([variation_id]);
 
     return NextResponse.json({ success: true });

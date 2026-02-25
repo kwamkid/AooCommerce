@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee-api';
+import { ShopeeAccountRow } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 
 /**
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     // Look up account
     const { data: account, error: accountError } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .select('*')
       .eq('shop_id', shopId)
       .eq('is_active', true)
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
       // Also check without is_active filter
       const { data: anyAccount } = await supabaseAdmin
-        .from('shopee_accounts')
+        .from('marketplace_accounts')
         .select('id, shop_id, shop_name, is_active')
         .eq('shop_id', shopId)
         .single();
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       } else {
         // List all accounts for debugging
         const { data: allAccounts } = await supabaseAdmin
-          .from('shopee_accounts')
+          .from('marketplace_accounts')
           .select('id, shop_id, shop_name, is_active')
           .limit(10);
         steps.push(`   All accounts: ${JSON.stringify(allAccounts)}`);
@@ -106,12 +106,12 @@ export async function POST(request: NextRequest) {
     // Sync order
     steps.push('8. Starting syncSingleOrder...');
     try {
-      const { syncOrdersByOrderSn } = await import('@/lib/shopee-sync');
+      const { syncOrdersByOrderSn } = await import('@/lib/shopee/sync');
 
       const { data: log } = await supabaseAdmin
-        .from('shopee_sync_log')
+        .from('marketplace_sync_log')
         .insert({
-          shopee_account_id: account.id,
+          marketplace_account_id: account.id,
           company_id: account.company_id,
           sync_type: 'webhook',
         })
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
 
       if (log) {
         await supabaseAdmin
-          .from('shopee_sync_log')
+          .from('marketplace_sync_log')
           .update({
             orders_fetched: 1,
             orders_created: result.orders_created,

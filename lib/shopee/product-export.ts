@@ -9,7 +9,8 @@ import {
   shopeeApiRequest,
   ShopeeAccountRow,
   ShopeeCredentials,
-} from '@/lib/shopee-api';
+} from '@/lib/shopee/api';
+import { parallelLimit } from '@/lib/parallel';
 
 // --- Types ---
 
@@ -195,25 +196,26 @@ async function uploadProductImages(
   creds: ShopeeCredentials,
   imageUrls: string[]
 ): Promise<{ image_id_list: string[]; errors: string[] }> {
-  const imageIds: string[] = [];
   const errors: string[] = [];
+  const urls = imageUrls.slice(0, 9); // Shopee max 9 images
 
-  for (const url of imageUrls.slice(0, 9)) { // Shopee max 9 images
+  // Upload images in parallel (3 concurrent) — preserves order
+  const results = await parallelLimit(urls, async (url) => {
     try {
       const { data, error } = await uploadImageByUrl(creds, url);
       if (error) {
         errors.push(`Image upload failed: ${error}`);
-        continue;
+        return null;
       }
       const response = data as { image_info?: { image_id: string } };
-      if (response.image_info?.image_id) {
-        imageIds.push(response.image_info.image_id);
-      }
+      return response.image_info?.image_id || null;
     } catch (e) {
       errors.push(`Image upload error: ${e instanceof Error ? e.message : 'Unknown'}`);
+      return null;
     }
-  }
+  }, 3);
 
+  const imageIds = results.filter((id): id is string => id !== null);
   return { image_id_list: imageIds, errors };
 }
 
@@ -700,6 +702,13 @@ export async function exportProductToShopee(
         shopee_category_name: options.shopee_category_name || null,
         weight: options.weight || 0.5,
         shopee_attributes: attributeList.length > 0 ? attributeList : null,
+        platform_data: {
+          category_id: options.shopee_category_id || null,
+          category_name: options.shopee_category_name || null,
+          attributes: attributeList.length > 0 ? attributeList : null,
+          brand_id: null,
+          brand_name: null,
+        },
         sync_enabled: true,
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -733,6 +742,13 @@ export async function exportProductToShopee(
           shopee_category_name: options.shopee_category_name || null,
           weight: options.weight || 0.5,
           shopee_attributes: attributeList.length > 0 ? attributeList : null,
+          platform_data: {
+            category_id: options.shopee_category_id || null,
+            category_name: options.shopee_category_name || null,
+            attributes: attributeList.length > 0 ? attributeList : null,
+            brand_id: null,
+            brand_name: null,
+          },
           sync_enabled: true,
           last_synced_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),

@@ -40,17 +40,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { product_id, variation_id, shopee_account_id, shopee_item_id, shopee_model_id } = await request.json();
+    const { product_id, variation_id, marketplace_account_id, shopee_item_id, shopee_model_id } = await request.json();
 
-    if (!product_id || !shopee_account_id || !shopee_item_id) {
+    if (!product_id || !marketplace_account_id || !shopee_item_id) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     // Verify account belongs to company
     const { data: account } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .select('id, shop_name')
-      .eq('id', shopee_account_id)
+      .eq('id', marketplace_account_id)
       .eq('company_id', companyId)
       .eq('is_active', true)
       .single();
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       .upsert({
         company_id: companyId,
         platform: 'shopee',
-        account_id: shopee_account_id,
+        account_id: marketplace_account_id,
         account_name: account.shop_name,
         product_id,
         variation_id: variation_id || null,

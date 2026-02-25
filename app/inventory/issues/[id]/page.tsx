@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
+import { showPdfPreview } from '@/lib/print-pdf';
 import {
   Loader2, Warehouse, Package, ArrowLeft, User, CheckCircle2, XCircle,
   Printer, Save,
@@ -116,10 +117,11 @@ export default function IssueDetailPage() {
     if (!data) return;
     setGeneratingPdf(true);
     try {
-      await generateInventoryPdf({
+      const blob = await generateInventoryPdf({
         type: 'issue',
         data: { ...data, doc_number: data.issue_number },
       });
+      showPdfPreview(blob, 'ใบเบิกออกสินค้า');
     } catch {
       showToast('สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {

@@ -8,9 +8,9 @@ import {
   ShopeeAccountRow,
   ShopeeItemFullDetail,
   ShopeeModelDetail,
-} from '@/lib/shopee-api';
+} from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
-import { getCategoryName } from '@/lib/shopee-product-sync';
+import { getCategoryName } from '@/lib/shopee/product-sync';
 
 // GET — List Shopee items (paginated) with linked status
 export async function GET(request: NextRequest) {
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: account, error: accErr } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .select('*')
       .eq('id', accountId)
       .eq('company_id', auth.companyId)
@@ -139,22 +139,22 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { shopee_account_id, items } = body as {
-      shopee_account_id: string;
+    const { marketplace_account_id, items } = body as {
+      marketplace_account_id: string;
       items: ImportItem[];
     };
 
-    if (!shopee_account_id) {
-      return NextResponse.json({ error: 'shopee_account_id is required' }, { status: 400 });
+    if (!marketplace_account_id) {
+      return NextResponse.json({ error: 'marketplace_account_id is required' }, { status: 400 });
     }
     if (!items || items.length === 0) {
       return NextResponse.json({ error: 'items is required' }, { status: 400 });
     }
 
     const { data: account, error: accErr } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .select('*')
-      .eq('id', shopee_account_id)
+      .eq('id', marketplace_account_id)
       .eq('company_id', auth.companyId)
       .eq('is_active', true)
       .single();
@@ -195,9 +195,9 @@ export async function POST(request: NextRequest) {
         // Ensure category cache exists for this account (needed for getCategoryName)
         try {
           const { data: existingCache } = await supabaseAdmin
-            .from('shopee_category_cache')
+            .from('marketplace_category_cache')
             .select('id')
-            .eq('account_id', shopee_account_id)
+            .eq('account_id', marketplace_account_id)
             .single();
 
           if (!existingCache) {
@@ -206,9 +206,9 @@ export async function POST(request: NextRequest) {
             const categoryList = catResponse?.category_list || [];
             if (categoryList.length > 0) {
               await supabaseAdmin
-                .from('shopee_category_cache')
+                .from('marketplace_category_cache')
                 .upsert({
-                  account_id: shopee_account_id,
+                  account_id: marketplace_account_id,
                   company_id: companyId,
                   category_data: categoryList,
                   fetched_at: new Date().toISOString(),
@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
                 importItem.link_to_variation_mappings
               );
               // Push our stock to Shopee immediately
-              const { pushStockToShopee } = await import('@/lib/shopee-product-sync');
+              const { pushStockToShopee } = await import('@/lib/shopee/product-sync');
               pushStockToShopee(account as ShopeeAccountRow, importItem.link_to_product_id).catch(() => {});
               send({ type: 'progress', current: idx + 1, total: items.length, success: true, item_name: detail.item_name });
               successCount++;
@@ -624,6 +624,13 @@ async function createImportLink(
     shopee_attributes: item.attribute_list || null,
     shopee_brand_id: item.brand?.brand_id || null,
     shopee_brand_name: item.brand?.display_brand_name || item.brand?.original_brand_name || null,
+    platform_data: {
+      category_id: item.category_id ? String(item.category_id) : null,
+      category_name: categoryName || null,
+      attributes: item.attribute_list || null,
+      brand_id: item.brand?.brand_id || null,
+      brand_name: item.brand?.display_brand_name || item.brand?.original_brand_name || null,
+    },
     sync_enabled: true,
     last_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

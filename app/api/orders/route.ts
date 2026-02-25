@@ -595,7 +595,7 @@ export async function GET(request: NextRequest) {
       const productIds = (items || []).map(i => i.product_id).filter(Boolean);
       const itemIds = (items || []).map(i => i.id);
 
-      const [imagesResult, shipmentsResult] = await Promise.all([
+      const [imagesResult, shipmentsResult, variationsResult] = await Promise.all([
         (variationIds.length > 0 || productIds.length > 0)
           ? supabaseAdmin
               .from('product_images')
@@ -629,6 +629,12 @@ export async function GET(request: NextRequest) {
               .in('order_item_id', itemIds)
               .eq('company_id', auth.companyId)
           : Promise.resolve({ data: [] as any[] }),
+        variationIds.length > 0
+          ? supabaseAdmin
+              .from('product_variations')
+              .select('id, sku, barcode')
+              .in('id', variationIds)
+          : Promise.resolve({ data: [] as { id: string; sku: string | null; barcode: string | null }[] }),
       ]);
 
       // Build image map: prefer variation image, fallback to product image
@@ -648,6 +654,12 @@ export async function GET(request: NextRequest) {
         if (image) imageMap[item.id] = image;
       }
 
+      // Build variation lookup for barcode/sku
+      const variationLookup: Record<string, { sku: string | null; barcode: string | null }> = {};
+      for (const v of variationsResult.data || []) {
+        variationLookup[v.id] = { sku: v.sku, barcode: v.barcode };
+      }
+
       // Group shipments by order_item_id
       const shipmentsByItem = new Map<string, any[]>();
       for (const shipment of shipmentsResult.data || []) {
@@ -656,11 +668,16 @@ export async function GET(request: NextRequest) {
         shipmentsByItem.get(key)!.push(shipment);
       }
 
-      const itemsWithShipments = (items || []).map(item => ({
-        ...item,
-        image: imageMap[item.id] || null,
-        shipments: shipmentsByItem.get(item.id) || [],
-      }));
+      const itemsWithShipments = (items || []).map(item => {
+        const variation = variationLookup[item.variation_id] || {};
+        return {
+          ...item,
+          image: imageMap[item.id] || null,
+          sku: variation.sku || null,
+          barcode: variation.barcode || null,
+          shipments: shipmentsByItem.get(item.id) || [],
+        };
+      });
 
       return NextResponse.json({
         order: {
@@ -746,7 +763,7 @@ export async function PUT(request: NextRequest) {
         // Separate Shopee vs manual orders
         const { data: ordersToAccept } = await supabaseAdmin
           .from('orders')
-          .select('id, source, external_order_sn, external_status, shopee_account_id')
+          .select('id, source, external_order_sn, external_status, marketplace_account_id')
           .in('id', validIds)
           .eq('company_id', auth.companyId)
           .eq('order_status', 'ready_to_ship');
@@ -771,7 +788,7 @@ export async function PUT(request: NextRequest) {
 
         // Shopee orders: call Shopee ship API for each
         if (shopeeOrders.length > 0) {
-          const { ensureValidToken, getShippingParameter, shipOrder } = await import('@/lib/shopee-api');
+          const { ensureValidToken, getShippingParameter, shipOrder } = await import('@/lib/shopee/api');
           for (const order of shopeeOrders) {
             try {
               if (order.external_status !== 'READY_TO_SHIP') {
@@ -780,9 +797,9 @@ export async function PUT(request: NextRequest) {
               }
               // Fetch Shopee account
               const { data: account } = await supabaseAdmin
-                .from('shopee_accounts')
+                .from('marketplace_accounts')
                 .select('*')
-                .eq('id', order.shopee_account_id)
+                .eq('id', order.marketplace_account_id)
                 .eq('company_id', auth.companyId)
                 .eq('is_active', true)
                 .single();
@@ -812,7 +829,7 @@ export async function PUT(request: NextRequest) {
               // Update DB
               await supabaseAdmin
                 .from('orders')
-                .update({ external_status: 'PROCESSED', order_status: 'shipping', updated_at: new Date().toISOString() })
+                .update({ external_status: 'PROCESSED', order_status: 'processing', updated_at: new Date().toISOString() })
                 .eq('id', order.id)
                 .eq('company_id', auth.companyId);
               updatedCount++;
@@ -1036,7 +1053,7 @@ export async function PUT(request: NextRequest) {
 
         // Auto-sync stock to Shopee
         if (allVarIds.length > 0) {
-          import('@/lib/shopee-auto-sync').then(m => m.triggerShopeeStockSync(allVarIds)).catch(() => {});
+          import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(allVarIds)).catch(() => {});
         }
 
         return NextResponse.json({ success: true, shipped: shippedCount });
@@ -1478,7 +1495,7 @@ export async function PUT(request: NextRequest) {
                 // Auto-sync stock to Shopee after shipping deduction
                 const shippingVarIds = (orderItems || []).map((oi: { variation_id?: string }) => oi.variation_id).filter(Boolean) as string[];
                 if (shippingVarIds.length > 0) {
-                  import('@/lib/shopee-auto-sync').then(m => m.triggerShopeeStockSync(shippingVarIds)).catch(() => {});
+                  import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(shippingVarIds)).catch(() => {});
                 }
               } else if (newStatus === 'cancelled') {
                 if (oldStatus === 'new') {
@@ -1571,7 +1588,7 @@ export async function PUT(request: NextRequest) {
                   // Auto-sync stock to Shopee after cancel return
                   const cancelVarIds = (orderItems || []).map((oi: { variation_id?: string }) => oi.variation_id).filter(Boolean) as string[];
                   if (cancelVarIds.length > 0) {
-                    import('@/lib/shopee-auto-sync').then(m => m.triggerShopeeStockSync(cancelVarIds)).catch(() => {});
+                    import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(cancelVarIds)).catch(() => {});
                   }
                 }
               }
@@ -1750,7 +1767,7 @@ export async function DELETE(request: NextRequest) {
             // Auto-sync stock to Shopee after delete cancel return
             const deleteVarIds = (orderItems || []).map((oi: { variation_id?: string }) => oi.variation_id).filter(Boolean) as string[];
             if (deleteVarIds.length > 0) {
-              import('@/lib/shopee-auto-sync').then(m => m.triggerShopeeStockSync(deleteVarIds)).catch(() => {});
+              import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(deleteVarIds)).catch(() => {});
             }
           }
         }

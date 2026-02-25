@@ -21,6 +21,7 @@ import {
 import { generatePackingListPdf } from '@/lib/order-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
+import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import OrderCard from './OrderCard';
 import ActionMenu, { ActionItem } from './ActionMenu';
 import {
@@ -30,6 +31,7 @@ import {
   DELIVERY_GROUP_CONFIG,
   SHIPPING_CARRIERS,
 } from './types';
+import { isMarketplaceSource } from '@/lib/marketplace/types';
 
 interface ProcessingTabProps {
   orders: Order[];
@@ -99,9 +101,9 @@ export default function ProcessingTab({
   const selectableInActiveGroup = activeGroup !== 'on_hold' ? activeOrders : [];
   const allGroupSelected = selectableInActiveGroup.length > 0 && selectableInActiveGroup.every(o => selectedIds.has(o.id));
 
-  // Count of selected non-Shopee orders (only these can be shipped)
+  // Count of selected non-marketplace orders (only these can be shipped manually)
   const shippableSelectedIds = useMemo(() => {
-    return orders.filter(o => selectedIds.has(o.id) && o.source !== 'shopee').map(o => o.id);
+    return orders.filter(o => selectedIds.has(o.id) && !isMarketplaceSource(o.source)).map(o => o.id);
   }, [orders, selectedIds]);
 
   // Selection
@@ -213,9 +215,9 @@ export default function ProcessingTab({
   };
 
   const openBulkShipModal = () => {
-    // Only non-Shopee orders can be shipped — NEVER change Shopee status to shipping
+    // Only non-marketplace orders can be shipped manually — NEVER change marketplace status to shipping
     const items = orders
-      .filter(o => selectedIds.has(o.id) && o.source !== 'shopee')
+      .filter(o => selectedIds.has(o.id) && !isMarketplaceSource(o.source))
       .map(o => ({
         id: o.id,
         order_number: o.order_number,
@@ -277,12 +279,44 @@ export default function ProcessingTab({
     return result.order;
   };
 
+  const handlePrintShopeeLabels = async (orderIds: string[]) => {
+    const response = await apiFetch('/api/shopee/orders/bulk-shipping-document', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_ids: orderIds }),
+    });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'Failed to generate Shopee labels');
+    }
+    const blob = await response.blob();
+    showPdfPreview(blob, 'ใบปะหน้า Shopee');
+  };
+
   const handlePrintLabels = async (orderIds: string[]) => {
     setActionLoading(true);
     try {
-      for (const id of orderIds) {
-        const orderData = await fetchOrderForPdf(id);
-        await generateShippingLabelPdf({ data: orderData });
+      // Split by source: Shopee orders use bulk API, others use local PDF
+      const shopeeIds = orderIds.filter(id => {
+        const order = orders.find(o => o.id === id);
+        return order?.source === 'shopee';
+      });
+      const otherIds = orderIds.filter(id => !shopeeIds.includes(id));
+
+      // Print Shopee labels in one bulk call
+      if (shopeeIds.length > 0) {
+        await handlePrintShopeeLabels(shopeeIds);
+      }
+
+      // Print non-Shopee labels — merge into single PDF
+      if (otherIds.length > 0) {
+        const blobs: Blob[] = [];
+        for (const id of otherIds) {
+          const orderData = await fetchOrderForPdf(id);
+          blobs.push(await generateShippingLabelPdf({ data: orderData }));
+        }
+        const merged = await mergePdfBlobs(blobs);
+        showPdfPreview(merged, 'ใบปะหน้า');
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
@@ -294,10 +328,13 @@ export default function ProcessingTab({
   const handlePrintPackingSlips = async (orderIds: string[]) => {
     setActionLoading(true);
     try {
+      const blobs: Blob[] = [];
       for (const id of orderIds) {
         const orderData = await fetchOrderForPdf(id);
-        await generatePackingListPdf({ data: orderData });
+        blobs.push(await generatePackingListPdf({ data: orderData }));
       }
+      const merged = await mergePdfBlobs(blobs);
+      showPdfPreview(merged, 'ใบจัดของ');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -309,7 +346,8 @@ export default function ProcessingTab({
     setActionLoading(true);
     try {
       const orderData = await fetchOrderForPdf(orderId);
-      await generateOrderInvoicePdf({ data: orderData });
+      const blob = await generateOrderInvoicePdf({ data: orderData });
+      showPdfPreview(blob, orderData.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -319,12 +357,13 @@ export default function ProcessingTab({
 
   const renderCardActions = (order: Order) => {
     const isShopee = order.source === 'shopee';
+    const isMarketplace = isMarketplaceSource(order.source);
     const isOnHold = order.fulfillment_status === 'on_hold';
     const primaryActions: React.ReactNode[] = [];
     const menuItems: ActionItem[] = [];
 
-    // Primary: Payment (manual, unpaid, not on hold)
-    if (!isShopee && !isOnHold && order.payment_status === 'pending') {
+    // Primary: Payment (non-marketplace, unpaid, not on hold)
+    if (!isMarketplace && !isOnHold && order.payment_status === 'pending') {
       primaryActions.push(
         <button
           key="pay"
@@ -338,8 +377,8 @@ export default function ProcessingTab({
       );
     }
 
-    // Primary: Ship action (manual only, not on hold)
-    if (!isShopee && !isOnHold) {
+    // Primary: Ship action (non-marketplace only, not on hold)
+    if (!isMarketplace && !isOnHold) {
       primaryActions.push(
         <button
           key="ship"
@@ -396,8 +435,8 @@ export default function ProcessingTab({
       });
     }
 
-    // Menu: Hold (manual, not on hold)
-    if (!isShopee && !isOnHold) {
+    // Menu: Hold (any order, not already on hold)
+    if (!isOnHold) {
       menuItems.push({
         key: 'hold', label: 'พักไว้', icon: <Pause className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); setHoldModal({ orderId: order.id, orderNumber: order.order_number }); },
@@ -405,8 +444,8 @@ export default function ProcessingTab({
       });
     }
 
-    // Menu: Cancel (manual only)
-    if (!isShopee) {
+    // Menu: Cancel (non-marketplace only)
+    if (!isMarketplace) {
       menuItems.push({
         key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); setCancelConfirm({ ids: [order.id] }); },
@@ -499,7 +538,7 @@ export default function ProcessingTab({
               showCheckbox={activeGroup !== 'on_hold'}
               onToggleSelect={toggleSelect}
               onImageClick={onImageClick}
-              showPaymentStatus={order.payment_status !== 'paid'}
+              showPaymentStatus
               actions={renderCardActions(order)}
             />
           ))}
@@ -805,6 +844,14 @@ export default function ProcessingTab({
         </div>
       )}
 
+      {/* PDF loading toast */}
+      {actionLoading && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm">
+          <Loader2 className="w-4 h-4 animate-spin text-[#F4511E]" />
+          กำลังสร้าง PDF...
+        </div>
+      )}
+
       {/* Local toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm animate-fade-in">
@@ -812,6 +859,7 @@ export default function ProcessingTab({
           {toast}
         </div>
       )}
+
     </>
   );
 }

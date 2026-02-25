@@ -53,6 +53,14 @@ interface MarketplaceLink {
   }> | null;
   shopee_brand_id: number | null;
   shopee_brand_name: string | null;
+  platform_data?: {
+    category_id?: any;
+    category_name?: any;
+    attributes?: any[];
+    brand_id?: any;
+    brand_name?: any;
+    [key: string]: any;
+  } | null;
   products: {
     id: string;
     code: string;
@@ -185,8 +193,8 @@ export default function EditProductPage() {
             prices[l.id] = l.platform_price?.toString() || '';
             discounts[l.id] = l.platform_discount_price?.toString() || '';
             barcodes[l.id] = l.platform_barcode || '';
-            catIds[l.id] = l.shopee_category_id;
-            catNames[l.id] = l.shopee_category_name || '';
+            catIds[l.id] = l.platform_data?.category_id ?? l.shopee_category_id;
+            catNames[l.id] = (l.platform_data?.category_name ?? l.shopee_category_name) || '';
             weights[l.id] = l.weight?.toString() || '';
           });
           setPlatformNameValues(platNames);
@@ -198,7 +206,7 @@ export default function EditProductPage() {
           setWeightValues(weights);
 
           // If any link has category_id but no category_name, refresh via API to trigger backfill
-          const needsBackfill = links.some((l: MarketplaceLink) => l.shopee_category_id && !l.shopee_category_name);
+          const needsBackfill = links.some((l: MarketplaceLink) => (l.platform_data?.category_id ?? l.shopee_category_id) && !(l.platform_data?.category_name ?? l.shopee_category_name));
           if (needsBackfill) {
             apiFetch(`/api/marketplace/links?product_id=${productId}`).then(async (r) => {
               if (!r.ok) return;
@@ -207,7 +215,7 @@ export default function EditProductPage() {
               setMarketplaceLinks(backfilledLinks);
               const newCatNames: Record<string, string> = {};
               backfilledLinks.forEach((l: MarketplaceLink) => {
-                newCatNames[l.id] = l.shopee_category_name || '';
+                newCatNames[l.id] = (l.platform_data?.category_name ?? l.shopee_category_name) || '';
               });
               setCategoryNameValues(prev => ({ ...prev, ...newCatNames }));
             }).catch(() => {});
@@ -255,8 +263,8 @@ export default function EditProductPage() {
           prices[l.id] = l.platform_price?.toString() || '';
           discounts[l.id] = l.platform_discount_price?.toString() || '';
           barcodes[l.id] = l.platform_barcode || '';
-          catIds[l.id] = l.shopee_category_id;
-          catNames[l.id] = l.shopee_category_name || '';
+          catIds[l.id] = l.platform_data?.category_id ?? l.shopee_category_id;
+          catNames[l.id] = (l.platform_data?.category_name ?? l.shopee_category_name) || '';
           weights[l.id] = l.weight?.toString() || '';
         });
         setPlatformNameValues(platNames);
@@ -667,6 +675,7 @@ export default function EditProductPage() {
     const systemDiscountPrice = getSystemDiscountPrice(link);
 
     return (
+      <>
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-5">
         {/* Product info row */}
         <div className="flex items-start gap-4">
@@ -810,22 +819,27 @@ export default function EditProductPage() {
           </div>
         </div>
 
+      </div>
+
         {/* Shopee Attributes card */}
-        {(link.shopee_brand_name || (link.shopee_attributes && link.shopee_attributes.length > 0)) && (
+        {((link.platform_data?.brand_name ?? link.shopee_brand_name) || ((link.platform_data?.attributes ?? link.shopee_attributes) && (link.platform_data?.attributes ?? link.shopee_attributes)!.length > 0)) && (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
             <h4 className="text-sm font-semibold text-gray-800 dark:text-slate-200 mb-3">Shopee Attributes</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {link.shopee_brand_name && (
+              {(link.platform_data?.brand_name ?? link.shopee_brand_name) && (
                 <div>
                   <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
                     Brand<span className="text-red-500 ml-0.5">*</span>
                   </label>
                   <div className="px-3 py-2 text-sm bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
-                    {link.shopee_brand_name}
+                    {link.platform_data?.brand_name ?? link.shopee_brand_name}
                   </div>
                 </div>
               )}
-              {link.shopee_attributes?.map((attr) => (
+              {((link.platform_data?.attributes ?? link.shopee_attributes) as typeof link.shopee_attributes)?.filter(attr => {
+                const name = (attr.original_attribute_name || '').toLowerCase();
+                return name !== 'weight';
+              }).map((attr) => (
                 <div key={attr.attribute_id}>
                   <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
                     {attr.display_attribute_name || attr.original_attribute_name}
@@ -841,7 +855,7 @@ export default function EditProductPage() {
             </div>
           </div>
         )}
-      </div>
+    </>
     );
   };
 
@@ -937,38 +951,6 @@ export default function EditProductPage() {
           </div>
 
         </div>
-
-        {/* Shopee Attributes card */}
-        {(firstLink.shopee_brand_name || (firstLink.shopee_attributes && firstLink.shopee_attributes.length > 0)) && (
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
-            <h4 className="text-sm font-semibold text-gray-800 dark:text-slate-200 mb-3">Shopee Attributes</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {firstLink.shopee_brand_name && (
-                <div>
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
-                    Brand<span className="text-red-500 ml-0.5">*</span>
-                  </label>
-                  <div className="px-3 py-2 text-sm bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
-                    {firstLink.shopee_brand_name}
-                  </div>
-                </div>
-              )}
-              {firstLink.shopee_attributes?.map((attr) => (
-                <div key={attr.attribute_id}>
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
-                    {attr.display_attribute_name || attr.original_attribute_name}
-                    {attr.is_mandatory && <span className="text-red-500 ml-0.5">*</span>}
-                  </label>
-                  <div className="px-3 py-2 text-sm bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
-                    {attr.attribute_value_list && attr.attribute_value_list.length > 0
-                      ? attr.attribute_value_list.map(v => v.display_value_name || v.original_value_name).join(', ')
-                      : <span className="text-gray-400 dark:text-slate-500 italic">ยังไม่ได้ตั้งค่า</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Variations table */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
@@ -1083,6 +1065,41 @@ export default function EditProductPage() {
             </table>
           </div>
         </div>
+
+        {/* Shopee Attributes card */}
+        {((firstLink.platform_data?.brand_name ?? firstLink.shopee_brand_name) || ((firstLink.platform_data?.attributes ?? firstLink.shopee_attributes) && (firstLink.platform_data?.attributes ?? firstLink.shopee_attributes)!.length > 0)) && (
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <h4 className="text-sm font-semibold text-gray-800 dark:text-slate-200 mb-3">Shopee Attributes</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(firstLink.platform_data?.brand_name ?? firstLink.shopee_brand_name) && (
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                    Brand<span className="text-red-500 ml-0.5">*</span>
+                  </label>
+                  <div className="px-3 py-2 text-sm bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
+                    {firstLink.platform_data?.brand_name ?? firstLink.shopee_brand_name}
+                  </div>
+                </div>
+              )}
+              {((firstLink.platform_data?.attributes ?? firstLink.shopee_attributes) as typeof firstLink.shopee_attributes)?.filter(attr => {
+                const name = (attr.original_attribute_name || '').toLowerCase();
+                return name !== 'weight';
+              }).map((attr) => (
+                <div key={attr.attribute_id}>
+                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                    {attr.display_attribute_name || attr.original_attribute_name}
+                    {attr.is_mandatory && <span className="text-red-500 ml-0.5">*</span>}
+                  </label>
+                  <div className="px-3 py-2 text-sm bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
+                    {attr.attribute_value_list && attr.attribute_value_list.length > 0
+                      ? attr.attribute_value_list.map(v => v.display_value_name || v.original_value_name).join(', ')
+                      : <span className="text-gray-400 dark:text-slate-500 italic">ยังไม่ได้ตั้งค่า</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   };

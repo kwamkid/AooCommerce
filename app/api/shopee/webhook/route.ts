@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee-api';
+import { ShopeeAccountRow } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 import crypto from 'crypto';
 
-// Allow up to 30s for webhook processing (sync must complete before return)
-export const maxDuration = 30;
+// Allow up to 60s for webhook processing (sync must complete before return)
+// New orders with many new products can take 30-50s due to product creation
+export const maxDuration = 60;
 
 function verifySignature(url: string, rawBody: string, signature: string, partnerKey: string): boolean {
   try {
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     // Look up account by shop_id
     const { data: account } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .select('*')
       .eq('shop_id', shopId)
       .eq('is_active', true)
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
 
         // Sync order BEFORE returning — must await to prevent Vercel from killing the process
         try {
-          await syncSingleOrder(account as ShopeeAccountRow, orderSn);
+          await syncSingleOrder(account as ShopeeAccountRow, orderSn, shopeeStatus || undefined);
         } catch (err) {
           console.error('Shopee webhook sync error:', err);
         }
@@ -115,41 +116,30 @@ export async function GET() {
   return NextResponse.json({ status: 'ok' });
 }
 
-async function syncSingleOrder(account: ShopeeAccountRow, orderSn: string) {
-  const { syncOrdersByOrderSn } = await import('@/lib/shopee-sync');
+async function syncSingleOrder(account: ShopeeAccountRow, orderSn: string, webhookStatus?: string) {
+  const { syncOrdersByOrderSn } = await import('@/lib/shopee/sync');
 
-  // Dedup: skip if same order_sn was synced via webhook in the last 30 seconds
-  const { data: recentSync } = await supabaseAdmin
-    .from('shopee_sync_log')
-    .select('id')
-    .eq('company_id', account.company_id)
-    .eq('sync_type', 'webhook')
-    .gte('created_at', new Date(Date.now() - 30_000).toISOString())
-    .not('completed_at', 'is', null)
-    .limit(1)
-    .maybeSingle();
-
-  // Check if the order already exists and was recently updated (within 30s)
-  if (recentSync) {
+  // Dedup: skip only if this exact order was updated within 10s AND already has the correct status
+  if (webhookStatus) {
     const { data: existingOrder } = await supabaseAdmin
       .from('orders')
-      .select('id, updated_at')
+      .select('id, external_status, updated_at')
       .eq('company_id', account.company_id)
       .eq('external_order_sn', orderSn)
-      .gte('updated_at', new Date(Date.now() - 30_000).toISOString())
+      .gte('updated_at', new Date(Date.now() - 10_000).toISOString())
       .maybeSingle();
 
-    if (existingOrder) {
-      console.log(`[Shopee Webhook] Skipping duplicate sync for ${orderSn} — recently synced`);
+    if (existingOrder && existingOrder.external_status === webhookStatus) {
+      console.log(`[Shopee Webhook] Skipping duplicate sync for ${orderSn} — already ${webhookStatus}`);
       return;
     }
   }
 
   // Create sync log entry (before sync, so we can track failures)
   const { data: log } = await supabaseAdmin
-    .from('shopee_sync_log')
+    .from('marketplace_sync_log')
     .insert({
-      shopee_account_id: account.id,
+      marketplace_account_id: account.id,
       company_id: account.company_id,
       sync_type: 'webhook',
     })
@@ -157,12 +147,13 @@ async function syncSingleOrder(account: ShopeeAccountRow, orderSn: string) {
     .single();
 
   try {
-    const result = await syncOrdersByOrderSn(account, [orderSn]);
+    const webhookStatusHint = webhookStatus ? { [orderSn]: webhookStatus } : undefined;
+    const result = await syncOrdersByOrderSn(account, [orderSn], undefined, webhookStatusHint);
 
     // Update sync log with results
     if (log) {
       await supabaseAdmin
-        .from('shopee_sync_log')
+        .from('marketplace_sync_log')
         .update({
           orders_fetched: 1,
           orders_created: result.orders_created,
@@ -196,7 +187,7 @@ async function syncSingleOrder(account: ShopeeAccountRow, orderSn: string) {
     const errorMsg = err instanceof Error ? err.message : 'Unknown sync error';
     if (log) {
       await supabaseAdmin
-        .from('shopee_sync_log')
+        .from('marketplace_sync_log')
         .update({
           orders_fetched: 1,
           errors: [errorMsg],

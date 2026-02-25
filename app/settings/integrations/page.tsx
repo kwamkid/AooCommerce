@@ -154,7 +154,7 @@ export default function IntegrationsPage() {
       const res = await apiFetch('/api/shopee/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopee_account_id: accountId, time_from: timeFrom, time_to: now }),
+        body: JSON.stringify({ marketplace_account_id: accountId, time_from: timeFrom, time_to: now }),
       });
 
       if (!res.ok) {
@@ -226,7 +226,7 @@ export default function IntegrationsPage() {
       const res = await apiFetch('/api/shopee/sync-incomplete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopee_account_id: accountId }),
+        body: JSON.stringify({ marketplace_account_id: accountId }),
       });
 
       if (!res.ok) {

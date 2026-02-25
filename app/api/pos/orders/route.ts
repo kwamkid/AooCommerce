@@ -389,7 +389,7 @@ export async function POST(request: NextRequest) {
         .map((i: { variation_id?: string }) => i.variation_id)
         .filter(Boolean) as string[];
       if (posVariationIds.length > 0) {
-        import('@/lib/shopee-auto-sync').then(m => m.triggerShopeeStockSync(posVariationIds)).catch(() => {});
+        import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(posVariationIds)).catch(() => {});
       }
     }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee-api';
-import { syncOrdersByTimeRange } from '@/lib/shopee-sync';
+import { ShopeeAccountRow } from '@/lib/shopee/api';
+import { syncOrdersByTimeRange } from '@/lib/shopee/sync';
 import { logIntegration } from '@/lib/integration-logger';
 
 export async function POST(request: NextRequest) {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
   // Get all active accounts
   const { data: accounts } = await supabaseAdmin
-    .from('shopee_accounts')
+    .from('marketplace_accounts')
     .select('*')
     .eq('is_active', true)
     .not('refresh_token', 'is', null);
@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
 
       // Create sync log
       const { data: log } = await supabaseAdmin
-        .from('shopee_sync_log')
+        .from('marketplace_sync_log')
         .insert({
-          shopee_account_id: account.id,
+          marketplace_account_id: account.id,
           company_id: account.company_id,
           sync_type: 'poll',
         })
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       // Update sync log
       if (log) {
         await supabaseAdmin
-          .from('shopee_sync_log')
+          .from('marketplace_sync_log')
           .update({
             orders_fetched: result.orders_created + result.orders_updated + result.orders_skipped,
             orders_created: result.orders_created,

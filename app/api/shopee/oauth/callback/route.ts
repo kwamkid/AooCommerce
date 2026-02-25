@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { exchangeCodeForToken, getShopListByMerchant, ensureValidToken, getShopInfo } from '@/lib/shopee-api';
+import { exchangeCodeForToken, getShopListByMerchant, ensureValidToken, getShopInfo } from '@/lib/shopee/api';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
 
       // Upsert shop connection
       const { data: account, error } = await supabaseAdmin
-        .from('shopee_accounts')
+        .from('marketplace_accounts')
         .upsert({
           company_id: companyId,
           shop_id: sid,
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
           const updateData: Record<string, unknown> = { updated_at: new Date().toISOString(), metadata: meta };
           if (shopInfo.shop_name) updateData.shop_name = shopInfo.shop_name;
           await supabaseAdmin
-            .from('shopee_accounts')
+            .from('marketplace_accounts')
             .update(updateData)
             .eq('id', account.id);
         }

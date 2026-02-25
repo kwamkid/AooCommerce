@@ -8,6 +8,7 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
+import { showPdfPreview } from '@/lib/print-pdf';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import {
@@ -128,10 +129,11 @@ export default function IssueListPage() {
       const result = await res.json();
       const detail = result.issue;
       if (!detail) { showToast('ไม่พบรายการ', 'error'); return; }
-      await generateInventoryPdf({
+      const blob = await generateInventoryPdf({
         type: 'issue',
         data: { ...detail, doc_number: detail.issue_number },
       });
+      showPdfPreview(blob, 'ใบเบิกออกสินค้า');
     } catch {
       showToast('สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {

@@ -194,7 +194,7 @@ function ShopeeImportContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          shopee_account_id: accountId,
+          marketplace_account_id: accountId,
           items: importItems,
         }),
       });

@@ -23,7 +23,6 @@ import {
   CheckCircle,
   X,
   ChevronDown,
-  AlertTriangle,
   Clock,
   Package,
   CreditCard,
@@ -59,6 +58,8 @@ import PaymentModal from './components/PaymentModal';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { generatePackingListPdf } from '@/lib/order-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
+import { showPdfPreview } from '@/lib/print-pdf';
+import { isMarketplaceSource } from '@/lib/marketplace/types';
 
 // Channel badge
 function ChannelBadge({ channel }: { channel: Order['channel'] }) {
@@ -372,7 +373,9 @@ export default function OrdersPage() {
     setPdfLoading(true);
     try {
       const orderData = await fetchOrderForPdf(orderId);
-      await generateOrderInvoicePdf({ data: orderData });
+      const blob = await generateOrderInvoicePdf({ data: orderData });
+      const title = orderData.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้';
+      showPdfPreview(blob, title);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -384,7 +387,8 @@ export default function OrdersPage() {
     setPdfLoading(true);
     try {
       const orderData = await fetchOrderForPdf(orderId);
-      await generatePackingListPdf({ data: orderData });
+      const blob = await generatePackingListPdf({ data: orderData });
+      showPdfPreview(blob, 'ใบจัดของ');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -396,7 +400,30 @@ export default function OrdersPage() {
     setPdfLoading(true);
     try {
       const orderData = await fetchOrderForPdf(orderId);
-      await generateShippingLabelPdf({ data: orderData });
+      const blob = await generateShippingLabelPdf({ data: orderData });
+      showPdfPreview(blob, 'ใบปะหน้า');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  const handlePrintShopeeLabel = async (orderId: string) => {
+    setPdfLoading(true);
+    try {
+      showToast('กำลังสร้างใบปะหน้า Shopee...');
+      const response = await apiFetch('/api/shopee/orders/shipping-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to generate Shopee label');
+      }
+      const blob = await response.blob();
+      showPdfPreview(blob, 'ใบปะหน้า Shopee');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -407,8 +434,8 @@ export default function OrdersPage() {
   // === Render Default Order Card (for tabs without special components) ===
   const renderDefaultOrderCard = (order: Order) => {
     const deadline = getDeadlineInfo(order.delivery_date);
-    const showUrgentStrip = deadline?.urgent && ['ready_to_ship', 'processing'].includes(order.order_status);
     const isShopee = order.source === 'shopee';
+    const isMarketplace = isMarketplaceSource(order.source);
     const customerName = order.customer_name || order.delivery_name || 'ลูกค้าทั่วไป';
     const customerPhone = order.customer_phone || order.delivery_phone;
     const orderStatusCfg = ORDER_STATUS_CONFIG[order.order_status] || ORDER_STATUS_CONFIG.new;
@@ -419,7 +446,7 @@ export default function OrdersPage() {
       const menuItems: ActionItem[] = [];
 
       // Primary: Payment action (manual, new tab, pending payment)
-      if (statusFilter === 'new' && !isShopee && order.payment_status === 'pending') {
+      if (statusFilter === 'new' && !isMarketplace && order.payment_status === 'pending') {
         primaryActions.push(
           <button
             key="pay"
@@ -433,7 +460,7 @@ export default function OrdersPage() {
       }
 
       // Primary: Complete action (shipping tab)
-      if (statusFilter === 'shipping' && !isShopee) {
+      if (statusFilter === 'shipping' && !isMarketplace) {
         primaryActions.push(
           <button
             key="complete"
@@ -464,13 +491,23 @@ export default function OrdersPage() {
         });
       }
 
-      // Menu: Print shipping label (processing and above, manual only)
-      if (['processing', 'shipping', 'completed'].includes(order.order_status) && (!order.source || order.source === 'manual')) {
-        menuItems.push({
-          key: 'label', label: 'ใบปะหน้า', icon: <Printer className="w-4 h-4" />,
-          onClick: (e) => { e.stopPropagation(); handlePrintShippingLabel(order.id); },
-          className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
-        });
+      // Menu: Print shipping label (processing and above)
+      if (['processing', 'shipping', 'completed'].includes(order.order_status)) {
+        if (order.source === 'shopee') {
+          // Shopee orders → fetch label from Shopee API
+          menuItems.push({
+            key: 'label', label: 'ใบปะหน้า Shopee', icon: <Printer className="w-4 h-4" />,
+            onClick: (e) => { e.stopPropagation(); handlePrintShopeeLabel(order.id); },
+            className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
+          });
+        } else {
+          // Manual orders → use our template
+          menuItems.push({
+            key: 'label', label: 'ใบปะหน้า', icon: <Printer className="w-4 h-4" />,
+            onClick: (e) => { e.stopPropagation(); handlePrintShippingLabel(order.id); },
+            className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
+          });
+        }
       }
 
       // Menu: Bill link (manual)
@@ -544,25 +581,22 @@ export default function OrdersPage() {
         onClick={() => window.open(`/orders/${order.id}`, '_blank')}
         className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 hover:border-[#F4511E]/40 dark:hover:border-[#F4511E]/40 hover:shadow-md transition-all cursor-pointer overflow-hidden"
       >
-        {showUrgentStrip && deadline && (
-          <div className={`px-4 py-1.5 flex items-center gap-1.5 text-xs font-medium ${deadline.color}`}>
-            <AlertTriangle className="w-3.5 h-3.5" />
-            {deadline.label}
-          </div>
-        )}
-
         <div className="flex">
           <div className="flex-[7] min-w-0 py-3">
             <div className="px-4 pb-2 flex items-center gap-2">
               <ChannelBadge channel={order.channel} />
-              <span className="text-sm font-semibold text-gray-900 dark:text-white">{order.order_number}</span>
+              <span
+                className="text-sm font-semibold text-gray-900 dark:text-white hover:text-[#F4511E] cursor-pointer transition-colors"
+                onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(order.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
+                title="คัดลอกเลขคำสั่งซื้อ"
+              >{order.order_number}</span>
               {order.source === 'pos' && (
                 <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">POS</span>
               )}
               <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">
                 {relativeTime(order.created_at)}
               </span>
-              {!showUrgentStrip && deadline && ['ready_to_ship', 'processing', 'shipping'].includes(order.order_status) && (
+              {deadline && ['ready_to_ship', 'processing'].includes(order.order_status) && (
                 <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium flex items-center gap-0.5 flex-shrink-0 ${deadline.color}`}>
                   <Clock className="w-3 h-3" />
                   {deadline.label}
@@ -645,13 +679,13 @@ export default function OrdersPage() {
             </span>
 
             <div className="flex items-center gap-1.5 flex-nowrap justify-end">
-              {(statusFilter === 'all' || statusFilter === 'shipping' || statusFilter === 'completed' || statusFilter === 'cancelled') && (
+              {(statusFilter === 'all' || statusFilter === 'cancelled') && (
                 <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${orderStatusCfg.bg} ${orderStatusCfg.color}`}>
                   {orderStatusCfg.label}
                 </span>
               )}
 
-              {order.order_status !== 'cancelled' && (statusFilter === 'all' || statusFilter === 'new' || statusFilter === 'shipping' || statusFilter === 'completed' || order.payment_status !== 'paid') && (
+              {order.order_status !== 'cancelled' && (
                 <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${paymentStatusCfg.bg} ${paymentStatusCfg.color}`}>
                   {paymentStatusCfg.label}
                 </span>

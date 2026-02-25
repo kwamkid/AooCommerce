@@ -3,23 +3,40 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
 import {
   type ShopeeAccountRow,
+  type ShopeeCredentials,
   ensureValidToken,
+  getShippingParameter,
+  shipOrder,
+  getTrackingNumber,
+  getShippingDocumentParameter,
   createShippingDocument,
   getShippingDocumentResult,
   downloadShippingDocument,
-} from '@/lib/shopee-api';
+} from '@/lib/shopee/api';
+import { logIntegration } from '@/lib/integration-logger';
 
 /**
  * POST - Generate and download Shopee shipping label PDF.
- * Flow: createShippingDocument → poll getShippingDocumentResult → downloadShippingDocument
- * Polling happens server-side; client gets back the PDF in a single request.
+ * Correct flow per Shopee API docs:
+ *   1. If order is READY_TO_SHIP → auto-ship first
+ *   2. get_tracking_number → get tracking number
+ *   3. get_shipping_document_parameter → get suggested document type
+ *   4. create_shipping_document (with tracking_number + shipping_document_type)
+ *   5. get_shipping_document_result → poll until READY
+ *   6. download_shipping_document
  */
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  let companyId = '';
+  let accountId = '';
+  let accountName = '';
+
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !isAdminRole(companyRoles)) {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId || !isAdminRole(auth.companyRoles)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    companyId = auth.companyId;
 
     const body = await request.json();
     const { order_id } = body;
@@ -31,7 +48,7 @@ export async function POST(request: NextRequest) {
     // 1. Fetch order
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, source, external_order_sn, external_status, shopee_account_id')
+      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status')
       .eq('id', order_id)
       .eq('company_id', companyId)
       .single();
@@ -44,15 +61,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not a Shopee order' }, { status: 400 });
     }
 
-    if (!order.shopee_account_id || !order.external_order_sn) {
+    if (!order.marketplace_account_id || !order.external_order_sn) {
       return NextResponse.json({ error: 'Missing Shopee account or order SN' }, { status: 400 });
     }
 
+    accountId = order.marketplace_account_id;
+
     // 2. Fetch Shopee account
     const { data: account, error: accError } = await supabaseAdmin
-      .from('shopee_accounts')
+      .from('marketplace_accounts')
       .select('*')
-      .eq('id', order.shopee_account_id)
+      .eq('id', order.marketplace_account_id)
       .eq('company_id', companyId)
       .eq('is_active', true)
       .single();
@@ -61,52 +80,106 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Shopee account not found or inactive' }, { status: 404 });
     }
 
-    // 3. Ensure valid token
+    accountName = account.shop_name || '';
     const creds = await ensureValidToken(account as ShopeeAccountRow);
     const orderSn = order.external_order_sn;
 
-    // 4. Create shipping document task (may fail for already-shipped orders)
-    const { error: createError, resultList } = await createShippingDocument(creds, [orderSn]);
+    // 3. If order is still READY_TO_SHIP in our DB, auto-ship first
+    if (order.external_status === 'READY_TO_SHIP') {
+      const shipError = await autoShipOrder(creds, orderSn);
+      if (shipError) {
+        logDoc(companyId, accountId, accountName, 'error', shipError, order_id, orderSn, startTime, '/api/v2/logistics/ship_order');
+        return NextResponse.json({ error: shipError }, { status: 500 });
+      }
+
+      // Update DB
+      await supabaseAdmin.from('orders').update({
+        external_status: 'PROCESSED',
+        order_status: 'processing', // PROCESSED = processing (ที่ต้องจัดส่ง), NOT shipping!
+        updated_at: new Date().toISOString(),
+      }).eq('id', order_id).eq('company_id', companyId);
+
+      // Wait for Shopee to process the shipment
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
+    // 4. Get tracking number
+    const trackingResult = await getTrackingNumber(creds, orderSn);
+    const trackingNumber = trackingResult.tracking_number || '';
+    console.log(`[Shopee Doc] Tracking for ${orderSn}: ${trackingNumber || 'none'}`);
+
+    // 5. Get shipping document parameter — tells us which document type to use
+    const docParamResult = await getShippingDocumentParameter(creds, [orderSn]);
+    const docParam = docParamResult.resultList?.find(r => r.order_sn === orderSn);
+
+    if (docParam?.fail_error) {
+      // Handle known errors
+      const failError = docParam.fail_error;
+      const failMessage = docParam.fail_message || failError;
+
+      if (failError.includes('can_not_print_jit_order')) {
+        const msg = 'ช่องทางขนส่งนี้พิมพ์ใบปะหน้าได้จาก Shopee Seller Center เท่านั้น';
+        logDoc(companyId, accountId, accountName, 'error', msg, order_id, orderSn, startTime, '/api/v2/logistics/get_shipping_document_parameter', docParam);
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+
+      console.error(`[Shopee Doc] get_shipping_document_parameter error for ${orderSn}:`, failError, failMessage);
+      logDoc(companyId, accountId, accountName, 'error', failMessage, order_id, orderSn, startTime, '/api/v2/logistics/get_shipping_document_parameter', docParam);
+      return NextResponse.json({ error: `ดึงข้อมูลใบปะหน้าไม่สำเร็จ: ${failMessage}` }, { status: 500 });
+    }
+
+    const suggestedDocType = docParam?.suggest_shipping_document_type || 'NORMAL_AIR_WAYBILL';
+    console.log(`[Shopee Doc] Suggested doc type for ${orderSn}: ${suggestedDocType}, selectable: ${JSON.stringify(docParam?.selectable_shipping_document_type)}`);
+
+    // 6. Create shipping document with tracking_number and correct document type
+    const createResult = await createShippingDocument(creds, [{
+      order_sn: orderSn,
+      tracking_number: trackingNumber || undefined,
+      shipping_document_type: suggestedDocType,
+    }]);
+
     let skipPolling = false;
 
-    if (createError) {
-      // Check both top-level error and per-order result_list for "already shipped" signals
-      const resultItem = resultList?.find(r => r.order_sn === orderSn);
+    if (createResult.error) {
+      const resultItem = createResult.resultList?.find(r => r.order_sn === orderSn);
       const failError = resultItem?.fail_error || '';
-      const failMessage = resultItem?.fail_message || '';
-      const allText = `${createError} ${failError} ${failMessage}`;
+      const failMessage = resultItem?.fail_message || createResult.error;
 
-      const isAlreadyShipped = allText.includes('package_can_not_print') || allText.includes('has been shipped');
-      if (isAlreadyShipped) {
-        console.log(`[Shopee Doc] Order already shipped, trying direct download for ${orderSn}`);
+      // Package already has a document created → try direct download
+      if (failError.includes('package_can_not_print') || failMessage.includes('has been shipped')) {
+        console.log(`[Shopee Doc] Document already exists for ${orderSn}, trying direct download`);
         skipPolling = true;
+      } else if (failError.includes('can_not_print_jit_order')) {
+        const msg = 'ช่องทางขนส่งนี้พิมพ์ใบปะหน้าได้จาก Shopee Seller Center เท่านั้น';
+        logDoc(companyId, accountId, accountName, 'error', msg, order_id, orderSn, startTime, '/api/v2/logistics/create_shipping_document', resultItem);
+        return NextResponse.json({ error: msg }, { status: 400 });
       } else {
-        console.error('[Shopee Doc] createShippingDocument error:', createError, 'result:', resultItem);
-        return NextResponse.json({ error: 'สร้างใบปะหน้าไม่สำเร็จ กรุณาตรวจสอบสถานะออเดอร์ใน Shopee Seller Center' }, { status: 500 });
+        // Real error
+        console.error(`[Shopee Doc] createShippingDocument error for ${orderSn}:`, failError, failMessage);
+        logDoc(companyId, accountId, accountName, 'error', `สร้างใบปะหน้าไม่สำเร็จ: ${failMessage}`, order_id, orderSn, startTime, '/api/v2/logistics/create_shipping_document', resultItem);
+        return NextResponse.json({ error: `สร้างใบปะหน้าไม่สำเร็จ: ${failMessage}` }, { status: 500 });
       }
     }
 
-    // 5. Poll for document readiness (skip if already shipped)
+    // 7. Poll for document readiness
     if (!skipPolling) {
-      const MAX_POLLS = 10;
+      const MAX_POLLS = 15;
       let documentReady = false;
 
       for (let i = 0; i < MAX_POLLS; i++) {
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        const { data: resultData, error: resultError } = await getShippingDocumentResult(creds, [orderSn]);
+        const { data: resultData, error: resultError } = await getShippingDocumentResult(creds, [{
+          order_sn: orderSn,
+          shipping_document_type: suggestedDocType,
+        }]);
         if (resultError) {
-          console.error(`[Shopee Doc] getShippingDocumentResult poll ${i + 1} error:`, resultError);
+          console.error(`[Shopee Doc] poll ${i + 1} error:`, resultError);
           continue;
         }
 
         const result = resultData as {
-          result_list?: Array<{
-            order_sn: string;
-            status: string;
-            fail_error?: string;
-            fail_message?: string;
-          }>;
+          result_list?: Array<{ order_sn: string; status: string; fail_error?: string; fail_message?: string }>;
         };
 
         const orderResult = result.result_list?.find(r => r.order_sn === orderSn);
@@ -118,31 +191,40 @@ export async function POST(request: NextRequest) {
         }
 
         if (orderResult?.status === 'FAILED') {
-          return NextResponse.json({
-            error: 'สร้างใบปะหน้าไม่สำเร็จ กรุณาตรวจสอบสถานะออเดอร์ใน Shopee Seller Center',
-          }, { status: 500 });
+          const msg = orderResult.fail_message || 'สร้างใบปะหน้าไม่สำเร็จ';
+          logDoc(companyId, accountId, accountName, 'error', msg, order_id, orderSn, startTime, '/api/v2/logistics/get_shipping_document_result', orderResult);
+          return NextResponse.json({ error: msg }, { status: 500 });
         }
       }
 
       if (!documentReady) {
-        return NextResponse.json({
-          error: 'ใบปะหน้ายังไม่พร้อม กรุณาลองใหม่อีกครั้ง',
-        }, { status: 408 });
+        return NextResponse.json({ error: 'ใบปะหน้ายังไม่พร้อม กรุณาลองใหม่อีกครั้ง' }, { status: 408 });
       }
     }
 
-    // 6. Download the PDF
-    const { pdfBuffer, error: downloadError } = await downloadShippingDocument(creds, [orderSn]);
+    // 8. Download the PDF
+    const { pdfBuffer, error: downloadError } = await downloadShippingDocument(creds, [orderSn], suggestedDocType);
 
     if (downloadError || !pdfBuffer) {
       console.error('[Shopee Doc] downloadShippingDocument error:', downloadError);
-      const userMessage = skipPolling
-        ? 'ไม่พบใบปะหน้าสำหรับออเดอร์นี้ อาจเป็นเพราะพัสดุถูกส่งไปแล้วและใบปะหน้าหมดอายุ'
-        : 'ดาวน์โหลดใบปะหน้าไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
+
+      const dlErr = String(downloadError || '');
+      let userMessage: string;
+
+      if (dlErr.includes('should_print_first') || dlErr.includes('should print first')) {
+        userMessage = 'ใบปะหน้ายังไม่พร้อมในระบบ Shopee — กรุณาพิมพ์จาก Shopee Seller Center หรือรอสักครู่แล้วลองใหม่';
+      } else {
+        userMessage = `ดาวน์โหลดใบปะหน้าไม่สำเร็จ: ${downloadError}`;
+      }
+
+      logDoc(companyId, accountId, accountName, 'error', userMessage, order_id, orderSn, startTime, '/api/v2/logistics/download_shipping_document', { downloadError });
       return NextResponse.json({ error: userMessage }, { status: 500 });
     }
 
-    // 7. Return PDF
+    // 9. Success — log and return PDF
+    logDoc(companyId, accountId, accountName, 'success', undefined, order_id, orderSn, startTime);
+    console.log(`[Shopee Doc] Label downloaded for ${orderSn} (${Date.now() - startTime}ms)`);
+
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
@@ -153,8 +235,91 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Shopee Doc] Error:', error);
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Failed to generate shipping document',
-    }, { status: 500 });
+    const msg = error instanceof Error ? error.message : 'Failed to generate shipping document';
+    if (companyId && accountId) {
+      logDoc(companyId, accountId, accountName, 'error', msg, '', '', startTime);
+    }
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
+}
+
+// ─── Helpers ─────────────────────────────────────────
+
+/** Auto-ship an order that's still READY_TO_SHIP. Returns error string or null on success. */
+async function autoShipOrder(creds: ShopeeCredentials, orderSn: string): Promise<string | null> {
+  console.log(`[Shopee Doc] Order ${orderSn} is READY_TO_SHIP — auto-shipping`);
+
+  const { data: shippingParams, error: paramError } = await getShippingParameter(creds, orderSn);
+  if (paramError) return `ดึงข้อมูลขนส่งไม่ได้: ${paramError}`;
+
+  const params = shippingParams as {
+    info_needed?: { pickup?: string[]; dropoff?: string[]; non_integrated?: string[] };
+    pickup?: {
+      address_list?: Array<{
+        address_id: number;
+        time_slot_list?: Array<{ pickup_time_id: string; date: number; flags?: string[] }>;
+      }>;
+    };
+    dropoff?: { branch_list?: Array<{ branch_id: number }> };
+  };
+
+  let shipResult: { data: unknown; error?: string };
+
+  if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
+    const dropoffParams: Record<string, unknown> = {};
+    if (params.dropoff?.branch_list?.[0]) {
+      dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
+    }
+    shipResult = await shipOrder(creds, orderSn, undefined, dropoffParams);
+  } else {
+    const pickupAddress = params.pickup?.address_list?.[0];
+    if (!pickupAddress) return 'ไม่พบที่อยู่รับพัสดุ กรุณาตั้งค่าใน Shopee Seller Center';
+
+    const timeSlots = pickupAddress.time_slot_list || [];
+    const recommendedSlot = timeSlots.find(s => s.flags?.includes('recommended'));
+    const pickupTimeSlot = recommendedSlot || timeSlots[0];
+
+    shipResult = await shipOrder(creds, orderSn, {
+      address_id: pickupAddress.address_id,
+      pickup_time_id: pickupTimeSlot?.pickup_time_id || '',
+    });
+  }
+
+  if (shipResult.error) {
+    const errText = String(shipResult.error);
+    if (errText.includes('already shipped') || errText.includes('order_status_error')) {
+      console.log(`[Shopee Doc] Order ${orderSn} already shipped on Shopee side`);
+      return null; // OK — already shipped
+    }
+    return `รับออเดอร์ไม่สำเร็จ: ${shipResult.error}`;
+  }
+
+  console.log(`[Shopee Doc] Order ${orderSn} shipped successfully`);
+  return null;
+}
+
+/** Helper to log shipping document actions to integration_logs */
+function logDoc(
+  companyId: string, accountId: string, accountName: string,
+  status: 'success' | 'error', errorMessage?: string,
+  orderId?: string, orderSn?: string, startTime?: number,
+  apiPath?: string, responseBody?: unknown,
+) {
+  logIntegration({
+    company_id: companyId,
+    integration: 'shopee',
+    account_id: accountId,
+    account_name: accountName,
+    direction: 'outgoing',
+    action: 'shipping_document',
+    method: 'POST',
+    api_path: apiPath || '/api/v2/logistics/download_shipping_document',
+    status,
+    error_message: errorMessage,
+    response_body: responseBody,
+    reference_type: orderId ? 'order' : undefined,
+    reference_id: orderId || undefined,
+    reference_label: orderSn || undefined,
+    duration_ms: startTime ? Date.now() - startTime : undefined,
+  });
 }

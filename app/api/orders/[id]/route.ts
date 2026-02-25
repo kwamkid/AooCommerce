@@ -82,10 +82,69 @@ export async function GET(
       );
     }
 
-    // Combine order with items
+    // Fetch product images and variations in parallel
+    const variationIds = (items || []).map(i => i.variation_id).filter(Boolean);
+    const productIds = (items || []).map(i => i.product_id).filter(Boolean);
+
+    const [imagesResult, variationsResult] = await Promise.all([
+      (variationIds.length > 0 || productIds.length > 0)
+        ? supabaseAdmin
+            .from('product_images')
+            .select('product_id, variation_id, image_url, sort_order')
+            .eq('company_id', auth.companyId)
+            .or(
+              [
+                variationIds.length > 0 ? `variation_id.in.(${variationIds.join(',')})` : '',
+                productIds.length > 0 ? `product_id.in.(${productIds.join(',')})` : ''
+              ].filter(Boolean).join(',')
+            )
+            .order('sort_order', { ascending: true })
+        : Promise.resolve({ data: [] as { product_id: string; variation_id: string; image_url: string }[] }),
+      variationIds.length > 0
+        ? supabaseAdmin
+            .from('product_variations')
+            .select('id, sku, barcode')
+            .in('id', variationIds)
+        : Promise.resolve({ data: [] as { id: string; sku: string | null; barcode: string | null }[] }),
+    ]);
+
+    // Build image map: prefer variation image, fallback to product image
+    const imageMap: Record<string, string> = {};
+    const productImageMap: Record<string, string> = {};
+    const variationImageMap: Record<string, string> = {};
+    for (const img of imagesResult.data || []) {
+      if (img.variation_id && !variationImageMap[img.variation_id]) {
+        variationImageMap[img.variation_id] = img.image_url;
+      }
+      if (img.product_id && !productImageMap[img.product_id]) {
+        productImageMap[img.product_id] = img.image_url;
+      }
+    }
+    for (const item of items || []) {
+      const image = variationImageMap[item.variation_id] || productImageMap[item.product_id];
+      if (image) imageMap[item.id] = image;
+    }
+
+    // Build variation lookup for barcode/sku
+    const variationLookup: Record<string, { sku: string | null; barcode: string | null }> = {};
+    for (const v of variationsResult.data || []) {
+      variationLookup[v.id] = { sku: v.sku, barcode: v.barcode };
+    }
+
+    const itemsEnriched = (items || []).map(item => {
+      const variation = variationLookup[item.variation_id] || {};
+      return {
+        ...item,
+        image: imageMap[item.id] || null,
+        sku: (variation as any).sku || null,
+        barcode: (variation as any).barcode || null,
+      };
+    });
+
+    // Combine order with enriched items
     const orderWithItems = {
       ...order,
-      items: items || []
+      items: itemsEnriched
     };
 
     return NextResponse.json({ order: orderWithItems });
