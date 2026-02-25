@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemEnrichment, ShopeeItemEnrichment, getEscrowDetail, getPackageDetail } from '@/lib/shopee/api';
+import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemEnrichment, ShopeeItemEnrichment, getEscrowDetail, getPackageDetail, getPackageNumberList } from '@/lib/shopee/api';
 import { getCategoryName } from '@/lib/shopee/product-sync';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
@@ -395,14 +395,54 @@ async function syncCanSplitOrder(
 ) {
   // Only check for READY_TO_SHIP orders (split only works at this stage)
   if (shopeeOrder.order_status !== 'READY_TO_SHIP') return;
-  if (!shopeeOrder.package_list || shopeeOrder.package_list.length === 0) return;
 
   try {
-    const firstPackageNumber = shopeeOrder.package_list[0].package_number;
-    if (!firstPackageNumber) return;
+    // Get package number: from shopeeOrder.package_list or fetch via API
+    let packageNumber: string | undefined;
 
-    const { packages, error } = await getPackageDetail(creds, [firstPackageNumber]);
-    if (error || packages.length === 0) return;
+    if (shopeeOrder.package_list && shopeeOrder.package_list.length > 0) {
+      packageNumber = shopeeOrder.package_list[0].package_number;
+    }
+
+    // If no package_list in order data, fetch it from Shopee API
+    if (!packageNumber) {
+      console.log(`[Shopee Sync] ${shopeeOrder.order_sn} has no package_list, fetching from API...`);
+      const { packageNumbers, error: pkgError } = await getPackageNumberList(creds, shopeeOrder.order_sn);
+      if (pkgError) {
+        console.error(`[Shopee Sync] Failed to get package_list for ${shopeeOrder.order_sn}:`, pkgError);
+        return;
+      }
+      // getPackageNumberList returns empty if <=1 package, but we still need the single package_number
+      // Re-fetch with get_order_detail directly to get even a single package
+      if (packageNumbers.length > 0) {
+        packageNumber = packageNumbers[0];
+      } else {
+        // Fetch order detail with package_list to get even the single package
+        const { data: detailData } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_order_detail', {
+          order_sn_list: shopeeOrder.order_sn,
+          response_optional_fields: 'package_list',
+        });
+        const orderDetail = (detailData as { order_list?: { package_list?: { package_number: string }[] }[] })
+          ?.order_list?.[0];
+        packageNumber = orderDetail?.package_list?.[0]?.package_number;
+      }
+    }
+
+    if (!packageNumber) {
+      console.log(`[Shopee Sync] ${shopeeOrder.order_sn} no package_number found, skipping can_split_order check`);
+      return;
+    }
+
+    console.log(`[Shopee Sync] Checking can_split_order for ${shopeeOrder.order_sn} (package: ${packageNumber})`);
+    const { packages, error } = await getPackageDetail(creds, [packageNumber]);
+    if (error) {
+      console.error(`[Shopee Sync] get_package_detail error for ${shopeeOrder.order_sn}:`, error);
+      return;
+    }
+    if (packages.length === 0) {
+      console.log(`[Shopee Sync] get_package_detail returned empty for ${shopeeOrder.order_sn}`);
+      return;
+    }
 
     const canSplit = packages[0].can_split_order === true;
     await supabaseAdmin
@@ -410,9 +450,7 @@ async function syncCanSplitOrder(
       .update({ can_split_order: canSplit })
       .eq('id', orderId);
 
-    if (canSplit) {
-      console.log(`[Shopee Sync] ${shopeeOrder.order_sn} can_split_order=true`);
-    }
+    console.log(`[Shopee Sync] ${shopeeOrder.order_sn} can_split_order=${canSplit}`);
   } catch (e) {
     console.error(`[Shopee Sync] Failed to check can_split_order for ${shopeeOrder.order_sn}:`, e);
   }
@@ -492,8 +530,8 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
         await syncShopeeParcels(existing.id, companyId, shopeeOrder);
       }
 
-      // Check can_split_order via get_package_detail (fire-and-forget)
-      syncCanSplitOrder(existing.id, creds, shopeeOrder).catch(() => {});
+      // Check can_split_order via get_package_detail
+      await syncCanSplitOrder(existing.id, creds, shopeeOrder).catch(() => {});
 
       // อัปเดตค่าส่งใน order_shipments ด้วย (ใส่ที่ shipment แรก)
       if (updatedShippingFee > 0) {
@@ -544,15 +582,16 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
         console.log(`[Shopee Sync] Repaired order ${shopeeOrder.order_sn}: order_status=${existing.order_status}→${expectedMapping.order_status}, fulfillment fix=${needsFulfillmentFix}`);
         statusUpdated = true;
 
-        // Also check can_split_order on repair (fire-and-forget)
-        syncCanSplitOrder(existing.id, creds, shopeeOrder).catch(() => {});
+        // Also check can_split_order on repair
+        await syncCanSplitOrder(existing.id, creds, shopeeOrder).catch(() => {});
       }
     }
 
     // Always re-check can_split_order for READY_TO_SHIP orders that haven't been checked yet
     // (covers manual re-sync, orders created before split feature, and retried webhook syncs)
+    // Awaited (not fire-and-forget) to ensure it completes before function returns
     if (!statusUpdated && shopeeOrder.order_status === 'READY_TO_SHIP') {
-      syncCanSplitOrder(existing.id, creds, shopeeOrder).catch(() => {});
+      await syncCanSplitOrder(existing.id, creds, shopeeOrder).catch(() => {});
     }
 
     // Fetch escrow for COMPLETED orders that don't have escrow_detail yet
@@ -1130,8 +1169,8 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
     }
   }
 
-  // Check can_split_order via get_package_detail (fire-and-forget)
-  syncCanSplitOrder(order.id, creds, shopeeOrder).catch(() => {});
+  // Check can_split_order via get_package_detail
+  await syncCanSplitOrder(order.id, creds, shopeeOrder).catch(() => {});
 
   // Fetch escrow detail for COMPLETED orders (fire-and-forget)
   if (shopeeOrder.order_status === 'COMPLETED') {

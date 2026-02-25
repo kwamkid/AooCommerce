@@ -49,12 +49,15 @@ export async function POST(req: NextRequest) {
     // 2. Fetch order items to validate quantities
     const { data: orderItems, error: itemsErr } = await supabaseAdmin
       .from('order_items')
-      .select('id, quantity, product_name, variation_label, external_item_id, external_model_id')
-      .eq('order_id', order_id)
-      .eq('company_id', companyId);
+      .select('id, quantity, product_name, variation_label, variation_id')
+      .eq('order_id', order_id);
 
     if (itemsErr || !orderItems) {
+      console.error('[API] orders/split: Failed to fetch order_items:', itemsErr);
       return NextResponse.json({ error: 'ไม่สามารถดึงข้อมูลสินค้าได้' }, { status: 500 });
+    }
+    if (orderItems.length === 0) {
+      return NextResponse.json({ error: 'ไม่พบสินค้าในคำสั่งซื้อนี้' }, { status: 400 });
     }
 
     // 3. Validate: every item must be fully assigned
@@ -123,13 +126,78 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Look up Shopee external IDs via marketplace_product_links
+      const variationIds = orderItems
+        .map(oi => oi.variation_id)
+        .filter((v): v is string => !!v);
+
+      // Map: order_item_id → { item_id, model_id }
+      const shopeeIdMap = new Map<string, { item_id: number; model_id: number }>();
+
+      if (variationIds.length > 0) {
+        const { data: productLinks } = await supabaseAdmin
+          .from('marketplace_product_links')
+          .select('variation_id, external_item_id, external_model_id')
+          .eq('account_id', order.marketplace_account_id)
+          .in('variation_id', variationIds);
+
+        const linkMap = new Map(
+          (productLinks || []).map(l => [l.variation_id, l])
+        );
+
+        for (const oi of orderItems) {
+          if (oi.variation_id) {
+            const link = linkMap.get(oi.variation_id);
+            if (link) {
+              shopeeIdMap.set(oi.id, {
+                item_id: parseInt(link.external_item_id || '0'),
+                model_id: parseInt(link.external_model_id || '0'),
+              });
+            }
+          }
+        }
+      }
+
+      // Fallback: get from external_data.item_list for any unresolved items
+      if (shopeeIdMap.size < orderItems.length) {
+        const externalData = orderDetailData?.external_data as Record<string, unknown> | null;
+        const itemList = (externalData?.item_list || []) as {
+          item_id: number; model_id: number; item_name: string;
+          model_quantity_purchased?: number; model_name?: string;
+        }[];
+
+        for (const oi of orderItems) {
+          if (!shopeeIdMap.has(oi.id) && itemList.length > 0) {
+            // Match by product_name similarity
+            const match = itemList.find(si =>
+              oi.product_name && si.item_name &&
+              (oi.product_name.includes(si.item_name) || si.item_name.includes(oi.product_name))
+            );
+            if (match) {
+              shopeeIdMap.set(oi.id, {
+                item_id: match.item_id,
+                model_id: match.model_id,
+              });
+            }
+          }
+        }
+      }
+
+      // Validate all items are mapped
+      const unmapped = orderItems.filter(oi => !shopeeIdMap.has(oi.id));
+      if (unmapped.length > 0) {
+        return NextResponse.json({
+          error: `ไม่พบข้อมูล Shopee สำหรับสินค้า: ${unmapped.map(u => u.product_name).join(', ')}`
+        }, { status: 400 });
+      }
+
       // Build Shopee package_list: array of item arrays with model_quantity for unit-level split
       const packageList = parcels.map(parcel =>
         parcel.items.map(item => {
-          const oi = orderItems.find(o => o.id === item.order_item_id);
+          const ids = shopeeIdMap.get(item.order_item_id)!;
           return {
-            item_id: parseInt(oi?.external_item_id || '0'),
-            model_id: parseInt(oi?.external_model_id || '0'),
+            item_id: ids.item_id,
+            model_id: ids.model_id,
             model_quantity: item.quantity,
           };
         })
@@ -182,7 +250,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 6. Mark order as split
+    // 6. Mark order as split (ยังอยู่ ready_to_ship — รอกดรับออเดอร์แยก)
     await supabaseAdmin
       .from('orders')
       .update({ is_split: true, updated_at: new Date().toISOString() })

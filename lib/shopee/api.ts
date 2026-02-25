@@ -618,6 +618,51 @@ export async function shipOrder(
   return shopeeApiRequest(creds, 'POST', '/api/v2/logistics/ship_order', {}, body);
 }
 
+/**
+ * Batch ship up to 50 packages in one API call.
+ * Uses /api/v2/logistics/mass_ship_order (new API, 2025-02-24).
+ * CONSTRAINT: All packages must have the SAME logistics_channel_id and product_location_id.
+ * Each package can have individual pickup/dropoff params.
+ */
+export interface MassShipPackage {
+  package_number: string;
+  pickup?: { address_id: number; pickup_time_id: string };
+  dropoff?: { branch_id?: number; sender_real_name?: string; tracking_number?: string };
+}
+
+export async function massShipOrder(
+  creds: ShopeeCredentials,
+  packages: MassShipPackage[],
+  logisticsChannelId?: number,
+  productLocationId?: string
+): Promise<{
+  successList: { package_number: string }[];
+  failList: { package_number: string; fail_reason: string }[];
+  error?: string;
+}> {
+  if (packages.length === 0) return { successList: [], failList: [] };
+
+  const body: Record<string, unknown> = {
+    package_list: packages,
+  };
+  if (logisticsChannelId) body.logistics_channel_id = logisticsChannelId;
+  if (productLocationId) body.product_location_id = productLocationId;
+
+  const { data, error } = await shopeeApiRequest(creds, 'POST', '/api/v2/logistics/mass_ship_order', {}, body);
+
+  if (error) return { successList: [], failList: [], error };
+
+  const response = data as {
+    success_list?: { package_number: string }[];
+    fail_list?: { package_number: string; fail_reason: string }[];
+  };
+
+  return {
+    successList: response?.success_list || [],
+    failList: response?.fail_list || [],
+  };
+}
+
 export interface ShippingDocumentParameterItem {
   order_sn: string;
   package_number?: string;
@@ -748,6 +793,45 @@ export async function downloadShippingDocument(
 }
 
 /**
+ * Batch get tracking numbers for up to 50 packages in one API call.
+ * Uses /api/v2/logistics/get_mass_tracking_number (new API, 2025-02-24).
+ * Every order (split or non-split) has at least one package_number.
+ */
+export async function massGetTrackingNumber(
+  creds: ShopeeCredentials,
+  packageNumbers: string[]
+): Promise<{
+  successList: { package_number: string; tracking_number: string }[];
+  failList: { package_number: string; fail_reason: string }[];
+  error?: string;
+}> {
+  if (packageNumbers.length === 0) return { successList: [], failList: [] };
+
+  const packageList = packageNumbers.map(pn => ({ package_number: pn }));
+
+  const { data, error } = await shopeeApiRequest(creds, 'POST', '/api/v2/logistics/get_mass_tracking_number', {}, {
+    package_list: packageList,
+  });
+
+  if (error) return { successList: [], failList: [], error };
+
+  const response = data as {
+    success_list?: { package_number: string; tracking_number: string; plp_number?: string }[];
+    fail_list?: { package_number: string; fail_reason: string }[];
+  };
+
+  const successList = (response?.success_list || []).map(item => ({
+    package_number: item.package_number,
+    tracking_number: item.tracking_number || item.plp_number || '',
+  }));
+
+  return {
+    successList,
+    failList: response?.fail_list || [],
+  };
+}
+
+/**
  * Get tracking number for an order (optionally for a specific package of a split order).
  * Uses /api/v2/logistics/get_tracking_number
  */
@@ -818,6 +902,63 @@ export async function getPackageNumberListBatch(
   for (const order of response?.order_list || []) {
     if (order.package_list && order.package_list.length > 1) {
       packageMap.set(order.order_sn, order.package_list.map(p => p.package_number));
+    }
+  }
+
+  return { packageMap };
+}
+
+export interface PackageInfo {
+  package_number: string;
+  logistics_channel_id?: number;
+  shipping_carrier?: string;
+}
+
+/**
+ * Batch get ALL package info for multiple orders (including non-split single-package orders).
+ * Returns a map of order_sn -> PackageInfo[] for EVERY order that has a package_list.
+ * Used by mass APIs (get_mass_tracking_number, mass_ship_order) which require package_number.
+ */
+export async function getAllPackageNumbersBatch(
+  creds: ShopeeCredentials,
+  orderSns: string[]
+): Promise<{ packageMap: Map<string, PackageInfo[]>; error?: string }> {
+  if (orderSns.length === 0) return { packageMap: new Map() };
+
+  const packageMap = new Map<string, PackageInfo[]>();
+
+  // get_order_detail supports up to 50 order_sn per call
+  for (let i = 0; i < orderSns.length; i += 50) {
+    const batch = orderSns.slice(i, i + 50);
+    const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_order_detail', {
+      order_sn_list: batch.join(','),
+      response_optional_fields: 'package_list',
+    });
+
+    if (error) {
+      console.error(`[Shopee API] getAllPackageNumbersBatch error:`, error);
+      continue;
+    }
+
+    const response = data as {
+      order_list?: {
+        order_sn: string;
+        package_list?: {
+          package_number: string;
+          logistics_channel_id?: number;
+          shipping_carrier?: string;
+        }[];
+      }[];
+    };
+
+    for (const order of response?.order_list || []) {
+      if (order.package_list && order.package_list.length > 0) {
+        packageMap.set(order.order_sn, order.package_list.map(p => ({
+          package_number: p.package_number,
+          logistics_channel_id: p.logistics_channel_id,
+          shipping_carrier: p.shipping_carrier,
+        })));
+      }
     }
   }
 
@@ -1289,7 +1430,8 @@ export async function getPackageDetail(
   creds: ShopeeCredentials,
   packageNumbers: string[],
 ): Promise<{ packages: PackageDetail[]; error?: string }> {
-  const { data, error } = await shopeeApiRequest(creds, 'POST', '/api/v2/order/get_package_detail', {
+  // Shopee docs: GET method with package_number_list as query param
+  const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_package_detail', {
     package_number_list: packageNumbers.join(','),
   });
   if (error) return { packages: [], error };
@@ -1329,10 +1471,10 @@ export async function splitOrder(
   error?: string;
   packageList?: SplitOrderResultPackage[];
 }> {
-  // Shopee split_order is a GET request with JSON-encoded package_list in query params
-  const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/split_order', {
+  // Shopee split_order: POST with body (despite docs saying GET)
+  const { data, error } = await shopeeApiRequest(creds, 'POST', '/api/v2/order/split_order', {}, {
     order_sn: orderSn,
-    package_list: JSON.stringify(packageList.map(items => ({ item_list: items }))),
+    package_list: packageList.map(items => ({ item_list: items })),
   });
 
   if (error) return { data, error };
@@ -1349,7 +1491,8 @@ export async function unsplitOrder(
   creds: ShopeeCredentials,
   orderSn: string
 ): Promise<{ data: unknown; error?: string }> {
-  return shopeeApiRequest(creds, 'GET', '/api/v2/order/unsplit_order', {
+  // Shopee unsplit_order: POST with body (despite docs saying GET)
+  return shopeeApiRequest(creds, 'POST', '/api/v2/order/unsplit_order', {}, {
     order_sn: orderSn,
   });
 }

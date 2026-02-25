@@ -5,27 +5,28 @@ import {
   type ShopeeAccountRow,
   type ShopeeCredentials,
   ensureValidToken,
-  getTrackingNumber,
+  massGetTrackingNumber,
   getShippingParameter,
   shipOrder,
   getShippingDocumentParameter,
   createShippingDocument,
   getShippingDocumentResult,
   downloadShippingDocument,
-  getPackageNumberListBatch,
+  getAllPackageNumbersBatch,
 } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
 import { PDFDocument } from 'pdf-lib';
 
-// Total 6 steps for progress tracking
-const STEPS = {
-  DETECT_SPLIT: { step: 1, total: 6, label: 'ตรวจสอบพัสดุ' },
-  AUTO_SHIP: { step: 2, total: 6, label: 'รับออเดอร์' },
-  TRACKING: { step: 3, total: 6, label: 'ดึงเลขพัสดุ' },
-  DOC_PARAM: { step: 4, total: 6, label: 'เตรียมเอกสาร' },
-  CREATE_DOC: { step: 5, total: 6, label: 'สร้างใบปะหน้า' },
-  DOWNLOAD: { step: 6, total: 6, label: 'ดาวน์โหลด PDF' },
+// 6 steps per shop for progress tracking
+const STEPS_PER_SHOP = 6;
+const STEP_LABELS = {
+  DETECT_SPLIT: { step: 1, label: 'ตรวจสอบพัสดุ' },
+  AUTO_SHIP: { step: 2, label: 'รับออเดอร์' },
+  TRACKING: { step: 3, label: 'ดึงเลขพัสดุ' },
+  DOC_PARAM: { step: 4, label: 'เตรียมเอกสาร' },
+  CREATE_DOC: { step: 5, label: 'สร้างใบปะหน้า' },
+  DOWNLOAD: { step: 6, label: 'ดาวน์โหลด PDF' },
 };
 
 /**
@@ -93,11 +94,6 @@ export async function POST(request: NextRequest) {
         }
       };
 
-      const sendProgress = (step: typeof STEPS[keyof typeof STEPS], detail?: string) => {
-        const progress = Math.round((step.step / step.total) * 100);
-        send({ type: 'progress', step: step.step, total: step.total, label: step.label, progress, detail });
-      };
-
       const startTime = Date.now();
 
       try {
@@ -117,10 +113,23 @@ export async function POST(request: NextRequest) {
           byShop.get(shopId)!.push(order);
         }
 
-        console.log(`[Shopee Bulk Doc] ${orders.length} orders grouped into ${byShop.size} shop(s):`,
+        const shopCount = byShop.size;
+        const totalSteps = STEPS_PER_SHOP * shopCount;
+        let shopIndex = 0;
+
+        // Progress is calculated globally: (shopIndex * STEPS_PER_SHOP + step) / totalSteps
+        const sendProgress = (step: typeof STEP_LABELS[keyof typeof STEP_LABELS], detail?: string) => {
+          const globalStep = shopIndex * STEPS_PER_SHOP + step.step;
+          const progress = Math.round((globalStep / totalSteps) * 100);
+          const shopLabel = shopCount > 1 ? `[${shopIndex + 1}/${shopCount}] ` : '';
+          send({ type: 'progress', step: globalStep, total: totalSteps, label: `${shopLabel}${step.label}`, progress, detail });
+        };
+
+        console.log(`[Shopee Bulk Doc] ${orders.length} orders grouped into ${shopCount} shop(s):`,
           [...byShop.entries()].map(([shopId, ords]) => `shop=${shopId} (${ords.length} orders)`));
 
         const allPdfBuffers: Buffer[] = [];
+        const allFailedSns: string[] = []; // Track failed order SNs across all shops
 
         for (const [shopId, shopOrders] of byShop) {
           const account = shopIdToAccount.get(shopId);
@@ -133,11 +142,13 @@ export async function POST(request: NextRequest) {
           const creds = await ensureValidToken(account as ShopeeAccountRow);
           const orderSns = shopOrders.map(o => o.external_order_sn!);
 
-          // Step 1: Detect split orders
-          sendProgress(STEPS.DETECT_SPLIT, `${orders.length} รายการ`);
+          // Step 1: Detect split orders + get package_number for ALL orders (needed by mass APIs)
+          sendProgress(STEP_LABELS.DETECT_SPLIT, `${orders.length} รายการ`);
 
+          // packageNumberMap: order_sn → package_number[] (every order, including non-split with 1 pkg)
           const packageNumberMap = new Map<string, string[]>();
 
+          // First, load known split order parcels from DB
           const splitOrdersFromDb = shopOrders.filter(o => o.is_split);
           if (splitOrdersFromDb.length > 0) {
             const { data: parcels } = await supabaseAdmin
@@ -155,39 +166,45 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          const nonSplitSns = orderSns.filter(sn => !packageNumberMap.has(sn));
-          if (nonSplitSns.length > 0) {
-            const { packageMap } = await getPackageNumberListBatch(creds, nonSplitSns);
-            for (const [sn, packageNumbers] of packageMap) {
+          // Fetch package_numbers for ALL remaining orders (including non-split) via batch API
+          const remainingSns = orderSns.filter(sn => !packageNumberMap.has(sn));
+          if (remainingSns.length > 0) {
+            const { packageMap } = await getAllPackageNumbersBatch(creds, remainingSns);
+            for (const [sn, packageInfos] of packageMap) {
+              const packageNumbers = packageInfos.map(p => p.package_number);
               packageNumberMap.set(sn, packageNumbers);
-              const order = shopOrders.find(o => o.external_order_sn === sn);
-              if (order) {
-                await supabaseAdmin.from('orders').update({ is_split: true }).eq('id', order.id);
-                const { count } = await supabaseAdmin
-                  .from('order_parcels')
-                  .select('id', { count: 'exact', head: true })
-                  .eq('order_id', order.id);
-                if ((count || 0) === 0) {
-                  await supabaseAdmin.from('order_parcels').insert(
-                    packageNumbers.map((pn, idx) => ({
-                      order_id: order.id,
-                      parcel_number: idx + 1,
-                      package_number: pn,
-                      status: 'pending',
-                    }))
-                  );
-                  console.log(`[Shopee Bulk Doc] Auto-created ${packageNumbers.length} parcels for split order ${sn}`);
+              // Auto-create parcel records for newly detected split orders
+              if (packageNumbers.length > 1) {
+                const order = shopOrders.find(o => o.external_order_sn === sn);
+                if (order) {
+                  await supabaseAdmin.from('orders').update({ is_split: true }).eq('id', order.id);
+                  const { count } = await supabaseAdmin
+                    .from('order_parcels')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('order_id', order.id);
+                  if ((count || 0) === 0) {
+                    await supabaseAdmin.from('order_parcels').insert(
+                      packageNumbers.map((pn, idx) => ({
+                        order_id: order.id,
+                        parcel_number: idx + 1,
+                        package_number: pn,
+                        status: 'pending',
+                      }))
+                    );
+                    console.log(`[Shopee Bulk Doc] Auto-created ${packageNumbers.length} parcels for split order ${sn}`);
+                  }
                 }
               }
             }
           }
 
-          console.log(`[Shopee Bulk Doc] Split orders detected: ${packageNumberMap.size} (${[...packageNumberMap.entries()].map(([sn, pns]) => `${sn}:${pns.length}pkg`).join(', ')})`);
+          const splitCount = [...packageNumberMap.values()].filter(pns => pns.length > 1).length;
+          console.log(`[Shopee Bulk Doc] Package numbers: ${packageNumberMap.size} orders, ${splitCount} split (${[...packageNumberMap.entries()].map(([sn, pns]) => `${sn}:${pns.length}pkg`).join(', ')})`);
 
           // Step 2: Auto-ship orders still in READY_TO_SHIP
           const readyOrders = shopOrders.filter(o => o.external_status === 'READY_TO_SHIP');
           if (readyOrders.length > 0) {
-            sendProgress(STEPS.AUTO_SHIP, `${readyOrders.length} ออเดอร์`);
+            sendProgress(STEP_LABELS.AUTO_SHIP, `${readyOrders.length} ออเดอร์`);
             await parallelLimit(readyOrders, async (order) => {
               const sn = order.external_order_sn!;
               const pkgNums = packageNumberMap.get(sn);
@@ -208,30 +225,46 @@ export async function POST(request: NextRequest) {
             }, 3);
             await new Promise(resolve => setTimeout(resolve, 2000));
           } else {
-            sendProgress(STEPS.AUTO_SHIP, 'ข้าม (รับแล้ว)');
+            sendProgress(STEP_LABELS.AUTO_SHIP, 'ข้าม (รับแล้ว)');
           }
 
-          // Step 3: Get tracking numbers
-          const trackingMap = new Map<string, string>();
-          const trackingRequests: { sn: string; pn?: string }[] = [];
+          // Step 3: Get tracking numbers via mass API (1 call per 50 packages)
+          const trackingMap = new Map<string, string>(); // key: "sn:pn" or "sn" → tracking_number
+          const allPackageNumbers: { pn: string; sn: string }[] = [];
           for (const sn of orderSns) {
             const pkgNums = packageNumberMap.get(sn);
             if (pkgNums && pkgNums.length > 0) {
-              for (const pn of pkgNums) trackingRequests.push({ sn, pn });
-            } else {
-              trackingRequests.push({ sn });
+              for (const pn of pkgNums) allPackageNumbers.push({ pn, sn });
             }
           }
-          sendProgress(STEPS.TRACKING, `${trackingRequests.length} เลขพัสดุ`);
-          await parallelLimit(trackingRequests, async ({ sn, pn }) => {
-            const { tracking_number } = await getTrackingNumber(creds, sn, pn);
-            if (tracking_number) {
-              trackingMap.set(pn ? `${sn}:${pn}` : sn, tracking_number);
-            }
-          }, 5);
 
-          // Step 4: Get shipping document parameters
-          sendProgress(STEPS.DOC_PARAM);
+          sendProgress(STEP_LABELS.TRACKING, `${allPackageNumbers.length} เลขพัสดุ`);
+
+          // Build pn→sn lookup for mapping results back
+          const pnToSn = new Map(allPackageNumbers.map(({ pn, sn }) => [pn, sn]));
+
+          // Mass get tracking (max 50 per call)
+          for (let i = 0; i < allPackageNumbers.length; i += 50) {
+            const batch = allPackageNumbers.slice(i, i + 50);
+            const { successList, failList } = await massGetTrackingNumber(
+              creds,
+              batch.map(item => item.pn)
+            );
+            for (const item of successList) {
+              if (item.tracking_number) {
+                const sn = pnToSn.get(item.package_number) || '';
+                trackingMap.set(`${sn}:${item.package_number}`, item.tracking_number);
+              }
+            }
+            if (failList.length > 0) {
+              console.warn(`[Shopee Bulk Doc] Mass tracking failed for ${failList.length} packages:`, failList.map(f => `${f.package_number}:${f.fail_reason}`).join(', '));
+            }
+          }
+
+          console.log(`[Shopee Bulk Doc] Got ${trackingMap.size}/${allPackageNumbers.length} tracking numbers via mass API`);
+
+          // Step 4: Get shipping document parameters (always pass package_number)
+          sendProgress(STEP_LABELS.DOC_PARAM);
           const docParamItems: { order_sn: string; package_number?: string }[] = [];
           for (const sn of orderSns) {
             const pkgNums = packageNumberMap.get(sn);
@@ -245,7 +278,7 @@ export async function POST(request: NextRequest) {
           }
 
           const docParamResult = await getShippingDocumentParameter(creds, orderSns, docParamItems);
-          const docTypeMap = new Map<string, string>();
+          const docTypeMap = new Map<string, string>(); // key: "sn:pn"
           const failedSns: string[] = [];
 
           for (const item of docParamResult.resultList || []) {
@@ -268,7 +301,7 @@ export async function POST(request: NextRequest) {
           }
 
           // Step 5: Create shipping documents + poll
-          sendProgress(STEPS.CREATE_DOC, `${validSns.length} ออเดอร์`);
+          sendProgress(STEP_LABELS.CREATE_DOC, `${validSns.length} ออเดอร์`);
 
           type DocItem = { order_sn: string; package_number?: string; tracking_number?: string; shipping_document_type: string };
           const orderList: DocItem[] = [];
@@ -285,33 +318,60 @@ export async function POST(request: NextRequest) {
                 });
               }
             } else {
+              // Fallback: order without known package_number
               orderList.push({
                 order_sn: sn,
-                tracking_number: trackingMap.get(sn) || undefined,
+                tracking_number: undefined,
                 shipping_document_type: docTypeMap.get(sn) || 'NORMAL_AIR_WAYBILL',
               });
             }
           }
 
-          const { error: createError } = await createShippingDocument(creds, orderList);
-          let skipPolling = false;
+          // Create shipping documents — check per-item results for partial failures
+          const { error: createError, resultList: createResultList } = await createShippingDocument(creds, orderList);
 
-          if (createError) {
-            if (createError.includes('package_can_not_print') || createError.includes('has been shipped')) {
-              skipPolling = true;
-            } else {
-              logBulkDoc(companyId, account.id, account.shop_name, 'error', `สร้างใบปะหน้าไม่สำเร็จ: ${createError}`, validSns, startTime);
-              send({ type: 'error', message: `สร้างใบปะหน้าไม่สำเร็จ: ${createError}` });
-              controller.close();
-              return;
+          // Categorize per-item results
+          const createFailedSns: string[] = [];
+          const createdSns: string[] = []; // successfully created in this batch
+          const retryItems: typeof orderList = []; // package_can_not_print → retry separately
+
+          if (createResultList) {
+            for (const item of createResultList) {
+              if (item.fail_error) {
+                if (item.fail_error === 'logistics.package_can_not_print') {
+                  // Retry these separately — they may need their own create+poll+download cycle
+                  const retryOrderItems = orderList.filter(oi => oi.order_sn === item.order_sn);
+                  for (const ri of retryOrderItems) {
+                    if (!retryItems.find(r => r.order_sn === ri.order_sn && r.package_number === ri.package_number)) {
+                      retryItems.push(ri);
+                    }
+                  }
+                  console.log(`[Shopee Bulk Doc] Will retry create separately: ${item.order_sn}`);
+                } else {
+                  if (!createFailedSns.includes(item.order_sn)) createFailedSns.push(item.order_sn);
+                  console.error(`[Shopee Bulk Doc] Create failed for ${item.order_sn}: ${item.fail_error} - ${item.fail_message}`);
+                }
+              } else {
+                if (!createdSns.includes(item.order_sn)) createdSns.push(item.order_sn);
+              }
+            }
+          } else if (!createError) {
+            for (const item of orderList) {
+              if (!createdSns.includes(item.order_sn)) createdSns.push(item.order_sn);
             }
           }
 
-          if (!skipPolling) {
-            const MAX_POLLS = 15;
-            let documentReady = false;
+          if (createError && createResultList === undefined) {
+            logBulkDoc(companyId, account.id, account.shop_name, 'error', `สร้างใบปะหน้าไม่สำเร็จ: ${createError}`, validSns, startTime);
+            send({ type: 'error', message: `สร้างใบปะหน้าไม่สำเร็จ: ${createError}` });
+            controller.close();
+            return;
+          }
 
-            const pollOrderList = orderList.map(item => ({
+          // Helper: poll items until READY, return failed SNs
+          const pollUntilReady = async (items: typeof orderList): Promise<void> => {
+            const MAX_POLLS = 15;
+            const pollOrderList = items.map(item => ({
               order_sn: item.order_sn,
               package_number: item.package_number,
               shipping_document_type: item.shipping_document_type,
@@ -319,76 +379,129 @@ export async function POST(request: NextRequest) {
 
             for (let i = 0; i < MAX_POLLS; i++) {
               await new Promise(resolve => setTimeout(resolve, 1000));
-              sendProgress(STEPS.CREATE_DOC, `รอเอกสารพร้อม... (${i + 1}/${MAX_POLLS})`);
+              sendProgress(STEP_LABELS.CREATE_DOC, `รอเอกสารพร้อม... (${i + 1}/${MAX_POLLS})`);
 
               const { data: resultData, error: resultError } = await getShippingDocumentResult(creds, pollOrderList);
               if (resultError) continue;
 
               const result = resultData as {
-                result_list?: Array<{ order_sn: string; status: string }>;
+                result_list?: Array<{ order_sn: string; package_number?: string; status: string; fail_error?: string; fail_message?: string }>;
               };
+              if (!result.result_list) continue;
 
-              const allReady = result.result_list?.every(r => r.status === 'READY');
-              const anyFailed = result.result_list?.some(r => r.status === 'FAILED');
+              const failedItems = result.result_list.filter(r => r.status === 'FAILED');
+              const processingItems = result.result_list.filter(r => r.status !== 'READY' && r.status !== 'FAILED');
 
-              if (allReady) {
-                documentReady = true;
-                break;
-              }
-
-              if (anyFailed) {
-                logBulkDoc(companyId, account.id, account.shop_name, 'error', 'บางใบปะหน้าสร้างไม่สำเร็จ', validSns, startTime);
-                send({ type: 'error', message: 'บางใบปะหน้าสร้างไม่สำเร็จ กรุณาตรวจสอบสถานะใน Shopee Seller Center' });
-                controller.close();
-                return;
-              }
-            }
-
-            if (!documentReady) {
-              send({ type: 'error', message: 'ใบปะหน้ายังไม่พร้อม กรุณาลองใหม่อีกครั้ง' });
-              controller.close();
-              return;
-            }
-          }
-
-          // Step 6: Download PDFs
-          sendProgress(STEPS.DOWNLOAD, `${orderList.length} ใบ`);
-
-          const docTypeGroups = new Map<string, { order_sn: string; package_number?: string }[]>();
-          for (const item of orderList) {
-            const dt = item.shipping_document_type;
-            if (!docTypeGroups.has(dt)) docTypeGroups.set(dt, []);
-            docTypeGroups.get(dt)!.push({ order_sn: item.order_sn, package_number: item.package_number });
-          }
-
-          for (const [docType, groupItems] of docTypeGroups) {
-            const groupSns = [...new Set(groupItems.map(i => i.order_sn))];
-            const { pdfBuffer, error: downloadError } = await downloadShippingDocument(creds, groupSns, docType, groupItems);
-
-            if (downloadError && downloadError.toLowerCase().includes('can not download together')) {
-              console.log(`[Shopee Bulk Doc] Group download failed for ${docType}, falling back to individual download for ${groupItems.length} items`);
-              for (const item of groupItems) {
-                const { pdfBuffer: singlePdf, error: singleErr } = await downloadShippingDocument(
-                  creds, [item.order_sn], docType,
-                  [{ order_sn: item.order_sn, package_number: item.package_number }]
-                );
-                if (singleErr || !singlePdf) {
-                  console.error(`[Shopee Bulk Doc] Individual download failed for ${item.order_sn}${item.package_number ? `:${item.package_number}` : ''}:`, singleErr);
-                  continue;
+              if (failedItems.length > 0) {
+                for (const fi of failedItems) {
+                  console.error(`[Shopee Bulk Doc] Poll FAILED for ${fi.order_sn}${fi.package_number ? `:${fi.package_number}` : ''}: ${fi.fail_error} - ${fi.fail_message}`);
+                  if (!createFailedSns.includes(fi.order_sn)) createFailedSns.push(fi.order_sn);
                 }
-                allPdfBuffers.push(singlePdf);
+                const failedSnSet = new Set(failedItems.map(fi => fi.order_sn));
+                const remaining = pollOrderList.filter(p => !failedSnSet.has(p.order_sn));
+                pollOrderList.length = 0;
+                pollOrderList.push(...remaining);
               }
-            } else if (downloadError || !pdfBuffer) {
-              logBulkDoc(companyId, account.id, account.shop_name, 'error', `ดาวน์โหลดไม่สำเร็จ: ${downloadError}`, groupSns, startTime);
-              send({ type: 'error', message: `ดาวน์โหลดใบปะหน้าไม่สำเร็จ: ${downloadError || 'Unknown error'}` });
-              controller.close();
-              return;
-            } else {
-              allPdfBuffers.push(pdfBuffer);
+
+              if (processingItems.length === 0) break;
+            }
+          };
+
+          // Helper: download a group of items, with individual fallback
+          const downloadGroup = async (items: typeof orderList): Promise<void> => {
+            const docTypeGroups = new Map<string, { order_sn: string; package_number?: string }[]>();
+            for (const item of items) {
+              const dt = item.shipping_document_type;
+              if (!docTypeGroups.has(dt)) docTypeGroups.set(dt, []);
+              docTypeGroups.get(dt)!.push({ order_sn: item.order_sn, package_number: item.package_number });
+            }
+
+            for (const [docType, groupItems] of docTypeGroups) {
+              const sns = [...new Set(groupItems.map(i => i.order_sn))];
+              const { pdfBuffer, error: downloadError } = await downloadShippingDocument(creds, sns, docType, groupItems);
+              if (downloadError || !pdfBuffer) {
+                console.log(`[Shopee Bulk Doc] Group download failed (${downloadError}), falling back to individual`);
+                for (const item of groupItems) {
+                  const { pdfBuffer: singlePdf, error: singleErr } = await downloadShippingDocument(
+                    creds, [item.order_sn], docType,
+                    [{ order_sn: item.order_sn, package_number: item.package_number }]
+                  );
+                  if (singleErr || !singlePdf) {
+                    console.error(`[Shopee Bulk Doc] Individual download failed for ${item.order_sn}:`, singleErr);
+                    if (!createFailedSns.includes(item.order_sn)) createFailedSns.push(item.order_sn);
+                    continue;
+                  }
+                  allPdfBuffers.push(singlePdf);
+                }
+              } else {
+                allPdfBuffers.push(pdfBuffer);
+              }
+            }
+          };
+
+          // ── Batch A: Newly created items → poll → group download ──
+          const batchAItems = orderList.filter(item => createdSns.includes(item.order_sn));
+          if (batchAItems.length > 0) {
+            await pollUntilReady(batchAItems);
+            const readyAItems = batchAItems.filter(item => !createFailedSns.includes(item.order_sn));
+            if (readyAItems.length > 0) {
+              sendProgress(STEP_LABELS.DOWNLOAD, `${readyAItems.length} ใบ (batch A)`);
+              await downloadGroup(readyAItems);
             }
           }
 
-          logBulkDoc(companyId, account.id, account.shop_name, 'success', undefined, validSns, startTime);
+          // ── Batch B: Retry items (package_can_not_print) → create again → poll → download ──
+          if (retryItems.length > 0) {
+            console.log(`[Shopee Bulk Doc] Retrying create for ${retryItems.length} items: ${[...new Set(retryItems.map(r => r.order_sn))].join(', ')}`);
+            sendProgress(STEP_LABELS.CREATE_DOC, `สร้างใบปะหน้าซ้ำ ${retryItems.length} ใบ`);
+
+            const { resultList: retryResultList } = await createShippingDocument(creds, retryItems);
+            const retryCreatedSns: string[] = [];
+
+            if (retryResultList) {
+              for (const item of retryResultList) {
+                if (item.fail_error) {
+                  if (!createFailedSns.includes(item.order_sn)) createFailedSns.push(item.order_sn);
+                  console.error(`[Shopee Bulk Doc] Retry create still failed for ${item.order_sn}: ${item.fail_error}`);
+                } else {
+                  if (!retryCreatedSns.includes(item.order_sn)) retryCreatedSns.push(item.order_sn);
+                }
+              }
+            }
+
+            const retryCreatedItems = retryItems.filter(item => retryCreatedSns.includes(item.order_sn));
+            if (retryCreatedItems.length > 0) {
+              await pollUntilReady(retryCreatedItems);
+              const readyBItems = retryCreatedItems.filter(item => !createFailedSns.includes(item.order_sn));
+              if (readyBItems.length > 0) {
+                sendProgress(STEP_LABELS.DOWNLOAD, `${readyBItems.length} ใบ (batch B)`);
+                await downloadGroup(readyBItems);
+              }
+            }
+          }
+
+          // Step 6 complete
+          const totalDownloaded = orderList.length - createFailedSns.length;
+          if (totalDownloaded === 0 && createFailedSns.length > 0) {
+            const failMsg = `ทุกออเดอร์สร้างใบปะหน้าไม่ได้: ${createFailedSns.join(', ')}`;
+            logBulkDoc(companyId, account.id, account.shop_name, 'error', failMsg, validSns, startTime);
+            send({ type: 'error', message: failMsg });
+            controller.close();
+            return;
+          }
+
+          // Track failed SNs at top level for final response
+          allFailedSns.push(...createFailedSns);
+
+          // Log with partial failure info
+          if (createFailedSns.length > 0) {
+            logBulkDoc(companyId, account.id, account.shop_name, 'success',
+              `บางออเดอร์ไม่สามารถสร้างใบปะหน้าได้: ${createFailedSns.join(', ')}`, validSns, startTime);
+          } else {
+            logBulkDoc(companyId, account.id, account.shop_name, 'success', undefined, validSns, startTime);
+          }
+
+          shopIndex++;
         }
 
         // Merge PDF buffers
@@ -411,11 +524,19 @@ export async function POST(request: NextRequest) {
           finalBytes = new Uint8Array(await mergedPdf.save());
         }
 
-        console.log(`[Shopee Bulk Doc] ${orders.length} labels downloaded (${Date.now() - startTime}ms)`);
+        const successCount = orders.length - allFailedSns.length;
+        console.log(`[Shopee Bulk Doc] ${successCount}/${orders.length} labels downloaded (${Date.now() - startTime}ms)${allFailedSns.length > 0 ? ` | Failed: ${allFailedSns.join(', ')}` : ''}`);
 
-        // Send PDF as base64 in final event
+        // Send PDF as base64 in final event (include warning for partial failures)
         const base64Pdf = Buffer.from(finalBytes).toString('base64');
-        send({ type: 'done', pdf: base64Pdf, count: orders.length, duration: Date.now() - startTime });
+        const doneEvent: Record<string, unknown> = {
+          type: 'done', pdf: base64Pdf, count: successCount, duration: Date.now() - startTime,
+        };
+        if (allFailedSns.length > 0) {
+          doneEvent.warning = `${allFailedSns.length} ออเดอร์สร้างใบปะหน้าไม่ได้: ${allFailedSns.join(', ')} — กรุณาตรวจสอบสถานะใน Shopee Seller Center`;
+          doneEvent.failed_sns = allFailedSns;
+        }
+        send(doneEvent);
       } catch (error) {
         console.error('[Shopee Bulk Doc] Error:', error);
         send({ type: 'error', message: error instanceof Error ? error.message : 'Failed to generate shipping documents' });

@@ -23,6 +23,7 @@ import { showPdfPreview } from '@/lib/print-pdf';
 import OrderCard from './OrderCard';
 import ActionMenu, { ActionItem } from './ActionMenu';
 import SplitParcelModal from './SplitParcelModal';
+import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { Order } from './types';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 
@@ -65,6 +66,10 @@ export default function ReadyToShipTab({
   const { showToast } = useToast();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  const [overlayTitle, setOverlayTitle] = useState('กำลังรับออเดอร์...');
+  const [overlayMessage, setOverlayMessage] = useState<string | undefined>();
+  const [overlayProgress, setOverlayProgress] = useState<number | undefined>();
   const [confirmModal, setConfirmModal] = useState<{ type: 'accept' | 'cancel'; ids: string[] } | null>(null);
   const [holdModal, setHoldModal] = useState<{ orderId: string; orderNumber: string } | null>(null);
   const [holdReason, setHoldReason] = useState('');
@@ -132,17 +137,24 @@ export default function ReadyToShipTab({
 
   const handleBulkAccept = async (ids: string[]) => {
     setBulkLoading(true);
+    setOverlayOpen(true);
+    setOverlayTitle('กำลังรับออเดอร์...');
+    setOverlayMessage(`0 / ${ids.length}`);
+    setOverlayProgress(0);
     try {
       // Split Shopee vs manual orders
       const shopeeIds = ids.filter(id => orders.find(o => o.id === id)?.source === 'shopee');
       const manualIds = ids.filter(id => !shopeeIds.includes(id));
 
       let successCount = 0;
+      let processedCount = 0;
+      const total = ids.length;
       const timeSlotQueue: TimeSlotModal[] = [];
       const errors: string[] = [];
 
       // Process manual orders
       if (manualIds.length > 0) {
+        setOverlayMessage(`Manual orders: ${manualIds.length} รายการ`);
         const res = await apiFetch('/api/orders', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -150,15 +162,21 @@ export default function ReadyToShipTab({
         });
         if (res.ok) {
           const result = await res.json();
-          successCount += result.updated || manualIds.length;
+          const count = result.updated || manualIds.length;
+          successCount += count;
+          processedCount += manualIds.length;
         } else {
           const d = await res.json();
           errors.push(d.error || 'Manual accept failed');
+          processedCount += manualIds.length;
         }
+        setOverlayProgress(Math.round((processedCount / total) * 100));
+        setOverlayMessage(`${processedCount} / ${total}`);
       }
 
       // Process Shopee orders
       if (shopeeIds.length > 0) {
+        setOverlayMessage(`${processedCount} / ${total} — กำลังส่งไป Shopee...`);
         const res = await apiFetch('/api/shopee/orders/bulk-ship', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -167,6 +185,9 @@ export default function ReadyToShipTab({
         if (res.ok) {
           const data = await res.json();
           for (const r of data.results || []) {
+            processedCount++;
+            setOverlayProgress(Math.round((processedCount / total) * 100));
+            setOverlayMessage(`${processedCount} / ${total}`);
             if (r.success) {
               successCount++;
             } else if (r.needs_time_slot && r.time_slots?.length > 0) {
@@ -185,6 +206,9 @@ export default function ReadyToShipTab({
           errors.push('Shopee accept failed');
         }
       }
+
+      setOverlayProgress(100);
+      setOverlayMessage('เสร็จสิ้น');
 
       // Show results
       if (successCount > 0) {
@@ -209,6 +233,9 @@ export default function ReadyToShipTab({
     } finally {
       setBulkLoading(false);
       setConfirmModal(null);
+      setOverlayOpen(false);
+      setOverlayProgress(undefined);
+      setOverlayMessage(undefined);
     }
   };
 
@@ -253,6 +280,10 @@ export default function ReadyToShipTab({
 
   const handleSingleAcceptShopee = async (orderId: string, pickupTimeId?: string) => {
     setActionLoading(true);
+    setOverlayOpen(true);
+    setOverlayTitle('กำลังรับออเดอร์...');
+    setOverlayProgress(undefined);
+    setOverlayMessage(undefined);
     try {
       const payload: Record<string, unknown> = { order_ids: [orderId] };
       if (pickupTimeId) payload.pickup_time_id = pickupTimeId;
@@ -292,6 +323,9 @@ export default function ReadyToShipTab({
       showToast('เกิดข้อผิดพลาด', 'error');
     } finally {
       setActionLoading(false);
+      setOverlayOpen(false);
+      setOverlayProgress(undefined);
+      setOverlayMessage(undefined);
     }
   };
 
@@ -372,11 +406,11 @@ export default function ReadyToShipTab({
           key="unhold"
           onClick={(e) => { e.stopPropagation(); handleUnhold(order.id); }}
           disabled={actionLoading}
-          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+          className="px-2.5 py-1.5 md:px-3 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1 disabled:opacity-50"
           title="กลับมา"
         >
           <Play className="w-3.5 h-3.5" />
-          กลับมา
+          <span className="hidden md:inline">กลับมา</span>
         </button>
       );
     } else {
@@ -387,11 +421,11 @@ export default function ReadyToShipTab({
             key="split"
             onClick={(e) => { e.stopPropagation(); handleOpenSplit(order); }}
             disabled={actionLoading}
-            className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            className="px-2.5 py-2 md:px-3 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
             title="แบ่งกล่อง"
           >
             <Scissors className="w-4 h-4" />
-            แบ่งกล่อง
+            <span className="hidden md:inline">แบ่งกล่อง</span>
           </button>
         );
       }
@@ -406,11 +440,11 @@ export default function ReadyToShipTab({
             else onStatusClick(order);
           }}
           disabled={actionLoading}
-          className="px-4 py-2 text-sm font-medium rounded-lg bg-[#F4511E] text-white hover:bg-[#D63B0E] transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-[#F4511E] text-white hover:bg-[#D63B0E] transition-colors flex items-center gap-1.5 disabled:opacity-50"
           title="รับออเดอร์"
         >
           <Package className="w-4 h-4" />
-          รับออเดอร์
+          <span className="hidden md:inline">รับออเดอร์</span>
         </button>
       );
     }
@@ -547,10 +581,10 @@ export default function ReadyToShipTab({
               <button
                 onClick={() => setConfirmModal({ type: 'accept', ids: Array.from(selectedIds) })}
                 disabled={bulkLoading}
-                className="px-4 py-2 text-sm font-medium rounded-lg bg-[#F4511E] text-white hover:bg-[#D63B0E] transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-[#F4511E] text-white hover:bg-[#D63B0E] transition-colors flex items-center gap-1.5 disabled:opacity-50"
               >
                 <Package className="w-4 h-4" />
-                รับออเดอร์ ({selectedIds.size})
+                <span className="hidden md:inline">รับออเดอร์</span> ({selectedIds.size})
               </button>
             </div>
           </div>
@@ -770,6 +804,14 @@ export default function ReadyToShipTab({
           }}
         />
       )}
+
+      {/* Loading Overlay */}
+      <LoadingOverlay
+        isOpen={overlayOpen}
+        title={overlayTitle}
+        message={overlayMessage}
+        progress={overlayProgress}
+      />
     </>
   );
 }

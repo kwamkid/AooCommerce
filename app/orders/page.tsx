@@ -457,10 +457,11 @@ export default function OrdersPage() {
         <button
           key="pay"
           onClick={(e) => { e.stopPropagation(); handlePaymentStatusClick(order); }}
-          className="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5"
+          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5"
+          title="บันทึกชำระ"
         >
           <CreditCard className="w-4 h-4" />
-          บันทึกชำระ
+          <span className="hidden md:inline">บันทึกชำระ</span>
         </button>
       );
     }
@@ -471,10 +472,11 @@ export default function OrdersPage() {
         <button
           key="complete"
           onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }}
-          className="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5"
+          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5"
+          title="สำเร็จ"
         >
           <Package className="w-4 h-4" />
-          สำเร็จ
+          <span className="hidden md:inline">สำเร็จ</span>
         </button>
       );
     }

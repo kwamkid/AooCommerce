@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
-import { Package, Plus, Trash2, X, Loader2 } from 'lucide-react';
+import { useState, useMemo, useCallback, useRef, DragEvent } from 'react';
+import { Package, Plus, Trash2, X, Loader2, GripVertical } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 
 interface OrderItem {
@@ -43,6 +43,8 @@ export default function SplitParcelModal({
   const [parcels, setParcels] = useState<Parcel[]>(() => initParcels(orderItems));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [dragOverParcel, setDragOverParcel] = useState<number | null>(null);
+  const dragDataRef = useRef<{ fromParcelIdx: number; itemId: string; qty: number } | null>(null);
 
   // Initialize: all items in parcel 1, parcel 2 empty
   function initParcels(items: OrderItem[]): Parcel[] {
@@ -132,8 +134,25 @@ export default function SplitParcelModal({
 
   // Move item from one parcel to another
   const moveItem = (fromIdx: number, toIdx: number, itemId: string, qty: number) => {
-    removeFromParcel(fromIdx, itemId);
-    addToParcel(toIdx, itemId, qty);
+    setParcels(prev => {
+      const next = [...prev];
+      // Remove from source
+      const sourceParcel = { ...next[fromIdx] };
+      sourceParcel.items = sourceParcel.items.filter(pi => pi.order_item_id !== itemId);
+      next[fromIdx] = sourceParcel;
+      // Add to target
+      const targetParcel = { ...next[toIdx] };
+      const existing = targetParcel.items.find(pi => pi.order_item_id === itemId);
+      if (existing) {
+        targetParcel.items = targetParcel.items.map(pi =>
+          pi.order_item_id === itemId ? { ...pi, quantity: pi.quantity + qty } : pi
+        );
+      } else {
+        targetParcel.items = [...targetParcel.items, { order_item_id: itemId, quantity: qty }];
+      }
+      next[toIdx] = targetParcel;
+      return next;
+    });
   };
 
   // Add a new empty parcel
@@ -146,6 +165,49 @@ export default function SplitParcelModal({
   const removeParcel = (idx: number) => {
     if (parcels.length <= 2) return;
     setParcels(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  // --- Drag & Drop ---
+  const handleDragStart = (e: DragEvent, parcelIdx: number, itemId: string, qty: number) => {
+    dragDataRef.current = { fromParcelIdx: parcelIdx, itemId, qty };
+    e.dataTransfer.effectAllowed = 'move';
+    // Set a minimal drag image text
+    e.dataTransfer.setData('text/plain', itemId);
+  };
+
+  const handleDragOver = (e: DragEvent, parcelIdx: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverParcel !== parcelIdx) {
+      setDragOverParcel(parcelIdx);
+    }
+  };
+
+  const handleDragLeave = (e: DragEvent, parcelIdx: number) => {
+    // Only clear if we're actually leaving the parcel container
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      if (dragOverParcel === parcelIdx) {
+        setDragOverParcel(null);
+      }
+    }
+  };
+
+  const handleDrop = (e: DragEvent, toParcelIdx: number) => {
+    e.preventDefault();
+    setDragOverParcel(null);
+    const dragData = dragDataRef.current;
+    if (!dragData) return;
+    if (dragData.fromParcelIdx === toParcelIdx) return;
+    moveItem(dragData.fromParcelIdx, toParcelIdx, dragData.itemId, dragData.qty);
+    dragDataRef.current = null;
+  };
+
+  const handleDragEnd = () => {
+    setDragOverParcel(null);
+    dragDataRef.current = null;
   };
 
   // Submit split
@@ -198,10 +260,10 @@ export default function SplitParcelModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
           <div>
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
               แบ่งกล่อง
             </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
               {orderNumber} — {orderItems.length} รายการ, {totalRequired} ชิ้น
             </p>
           </div>
@@ -232,16 +294,23 @@ export default function SplitParcelModal({
           {parcels.map((parcel, parcelIdx) => (
             <div
               key={parcelIdx}
-              className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden"
+              className={`border-2 rounded-lg overflow-hidden transition-colors ${
+                dragOverParcel === parcelIdx
+                  ? 'border-blue-400 dark:border-blue-500 bg-blue-50/50 dark:bg-blue-900/10'
+                  : 'border-gray-200 dark:border-gray-600'
+              }`}
+              onDragOver={(e) => handleDragOver(e, parcelIdx)}
+              onDragLeave={(e) => handleDragLeave(e, parcelIdx)}
+              onDrop={(e) => handleDrop(e, parcelIdx)}
             >
               {/* Parcel header */}
-              <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-700/50">
+              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700/50">
                 <div className="flex items-center gap-2">
-                  <Package className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                  <Package className="w-5 h-5 text-gray-500" />
+                  <span className="text-base font-semibold text-gray-700 dark:text-gray-200">
                     กล่องที่ {parcelIdx + 1}
                   </span>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-sm text-gray-400">
                     ({parcel.items.reduce((s, i) => s + i.quantity, 0)} ชิ้น)
                   </span>
                 </div>
@@ -251,15 +320,15 @@ export default function SplitParcelModal({
                     className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500"
                     title="ลบกล่อง"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 )}
               </div>
 
               {/* Items in this parcel */}
-              <div className="p-3 space-y-2">
+              <div className="p-3 space-y-2 min-h-[60px]">
                 {parcel.items.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-3">
+                  <p className="text-sm text-gray-400 text-center py-4">
                     ลากสินค้ามาวาง หรือกด + เพิ่มสินค้า
                   </p>
                 ) : (
@@ -267,21 +336,32 @@ export default function SplitParcelModal({
                     const item = itemMap.get(pi.order_item_id);
                     if (!item) return null;
                     return (
-                      <div key={pi.order_item_id} className="flex items-center gap-3">
+                      <div
+                        key={pi.order_item_id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, parcelIdx, pi.order_item_id, pi.quantity)}
+                        onDragEnd={handleDragEnd}
+                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-grab active:cursor-grabbing transition-colors group"
+                      >
+                        {/* Drag handle */}
+                        <div className="flex-shrink-0 text-gray-300 dark:text-gray-600 group-hover:text-gray-400 dark:group-hover:text-gray-500">
+                          <GripVertical className="w-5 h-5" />
+                        </div>
+
                         {/* Image */}
-                        <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden flex-shrink-0">
+                        <div className="w-11 h-11 rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden flex-shrink-0">
                           {item.image ? (
                             <img src={item.image} alt="" className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
-                              <Package className="w-4 h-4 text-gray-300" />
+                              <Package className="w-5 h-5 text-gray-300" />
                             </div>
                           )}
                         </div>
 
                         {/* Name */}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-800 dark:text-gray-200 truncate">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
                             {item.product_name}
                           </p>
                           {item.variation_label && (
@@ -293,11 +373,11 @@ export default function SplitParcelModal({
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => updateQty(parcelIdx, pi.order_item_id, pi.quantity - 1)}
-                            className="w-7 h-7 rounded-md border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
+                            className="w-8 h-8 rounded-md border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 text-base"
                           >
                             -
                           </button>
-                          <span className="w-8 text-center text-sm font-medium text-gray-700 dark:text-gray-200">
+                          <span className="w-9 text-center text-base font-semibold text-gray-700 dark:text-gray-200">
                             {pi.quantity}
                           </span>
                           <button
@@ -307,16 +387,16 @@ export default function SplitParcelModal({
                                 updateQty(parcelIdx, pi.order_item_id, pi.quantity + 1);
                               }
                             }}
-                            className="w-7 h-7 rounded-md border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
+                            className="w-8 h-8 rounded-md border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 text-base"
                           >
                             +
                           </button>
                         </div>
 
-                        {/* Move to other parcel buttons */}
+                        {/* Move to other parcel dropdown */}
                         {parcels.length > 1 && (
                           <select
-                            className="text-xs border border-gray-200 dark:border-gray-600 rounded-md px-1.5 py-1 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                            className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-pointer"
                             value=""
                             onChange={(e) => {
                               const toIdx = parseInt(e.target.value);
@@ -325,7 +405,7 @@ export default function SplitParcelModal({
                               }
                             }}
                           >
-                            <option value="">ย้าย...</option>
+                            <option value="" disabled>ย้ายไป...</option>
                             {parcels.map((_, i) =>
                               i !== parcelIdx ? (
                                 <option key={i} value={i}>กล่อง {i + 1}</option>
@@ -349,7 +429,7 @@ export default function SplitParcelModal({
                           <button
                             key={item.id}
                             onClick={() => addToParcel(parcelIdx, item.id, remaining)}
-                            className="text-xs px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                            className="text-sm px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
                           >
                             + {item.product_name} x{remaining}
                           </button>
@@ -366,10 +446,10 @@ export default function SplitParcelModal({
           {parcels.length < 5 && (
             <button
               onClick={addParcel}
-              className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-lg text-gray-400 hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300 dark:hover:border-gray-500 transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-lg text-gray-400 hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300 dark:hover:border-gray-500 transition-colors text-sm"
             >
               <Plus className="w-4 h-4" />
-              <span className="text-sm">เพิ่มกล่อง</span>
+              <span>เพิ่มกล่อง</span>
             </button>
           )}
         </div>
@@ -383,14 +463,14 @@ export default function SplitParcelModal({
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
             >
               ยกเลิก
             </button>
             <button
               onClick={handleSubmit}
               disabled={!isValid || loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg flex items-center gap-2"
+              className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg flex items-center gap-2"
             >
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               แบ่งกล่อง

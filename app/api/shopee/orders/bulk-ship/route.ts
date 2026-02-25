@@ -3,9 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
 import {
   type ShopeeAccountRow,
+  type MassShipPackage,
   ensureValidToken,
   getShippingParameter,
   shipOrder,
+  massShipOrder,
+  getAllPackageNumbersBatch,
 } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 
@@ -48,8 +51,8 @@ function formatTimeSlot(slot: { pickup_time_id: string; date: number; time_text?
 
 /**
  * POST - Bulk accept/ship Shopee orders.
- * For standard delivery: auto-ship immediately.
- * For express delivery (multiple time slots): return needs_time_slot with available slots.
+ * Uses mass_ship_order API (max 50 packages/call) for optimized batch shipping.
+ * Falls back to individual ship_order for orders needing time slot selection.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -86,188 +89,253 @@ export async function POST(request: NextRequest) {
     // Cache credentials per marketplace_account_id to avoid re-fetching
     const credsCache = new Map<string, Awaited<ReturnType<typeof ensureValidToken>>>();
 
-    const results: BulkShipResult[] = [];
+    // Pre-validate orders and prepare work items
+    const validOrders: typeof orders = [];
+    const quickResults: BulkShipResult[] = [];
 
     for (const orderId of order_ids) {
       const order = orderMap.get(orderId);
-
       if (!order) {
-        results.push({ order_id: orderId, order_sn: '', success: false, error: 'Order not found' });
-        continue;
-      }
-
-      if (order.source !== 'shopee') {
-        results.push({ order_id: orderId, order_sn: order.external_order_sn || '', success: false, error: 'Not a Shopee order' });
-        continue;
-      }
-
-      if (order.external_status !== 'READY_TO_SHIP') {
-        results.push({
-          order_id: orderId,
-          order_sn: order.external_order_sn || '',
-          success: false,
-          error: `สถานะปัจจุบัน: ${order.external_status}`,
-        });
-        continue;
-      }
-
-      if (!order.marketplace_account_id || !order.external_order_sn) {
-        results.push({ order_id: orderId, order_sn: '', success: false, error: 'Missing Shopee account or order SN' });
-        continue;
-      }
-
-      try {
-        // Get or cache credentials
-        let creds = credsCache.get(order.marketplace_account_id);
-        if (!creds) {
-          const { data: account, error: accError } = await supabaseAdmin
-            .from('marketplace_accounts')
-            .select('*')
-            .eq('id', order.marketplace_account_id)
-            .eq('company_id', companyId)
-            .eq('is_active', true)
-            .single();
-
-          if (accError || !account) {
-            results.push({ order_id: orderId, order_sn: order.external_order_sn, success: false, error: 'Shopee account not found' });
-            continue;
-          }
-
-          creds = await ensureValidToken(account as ShopeeAccountRow);
-          credsCache.set(order.marketplace_account_id, creds);
-        }
-
-        // Get shipping parameters
-        const { data: shippingParams, error: paramError } = await getShippingParameter(creds, order.external_order_sn);
-
-        if (paramError) {
-          results.push({ order_id: orderId, order_sn: order.external_order_sn, success: false, error: `ดึงข้อมูลขนส่งไม่ได้: ${paramError}` });
-          continue;
-        }
-
-        const params = shippingParams as {
-          info_needed?: { pickup?: string[]; dropoff?: string[]; non_integrated?: string[] };
-          pickup?: {
-            address_list?: Array<{
-              address_id: number;
-              address_flag?: string[];
-              time_slot_list?: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }>;
-            }>;
-          };
-          dropoff?: { branch_list?: Array<{ branch_id: number }> };
-        };
-
-        // For split orders, get parcel package_numbers
-        let packageNumbers: string[] = [];
-        if (order.is_split) {
-          const { data: parcels } = await supabaseAdmin
-            .from('order_parcels')
-            .select('id, parcel_number, package_number')
-            .eq('order_id', orderId)
-            .order('parcel_number');
-
-          packageNumbers = (parcels || [])
-            .map(p => p.package_number)
-            .filter((pn): pn is string => !!pn);
-        }
-
-        // Helper: ship a single order/parcel
-        const doShip = async (packageNumber?: string) => {
-          if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
-            const dropoffParams: Record<string, unknown> = {};
-            if (params.dropoff?.branch_list?.[0]) {
-              dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
-            }
-            return shipOrder(creds, order.external_order_sn, undefined, dropoffParams, packageNumber);
-          }
-
-          const pickupAddress = params.pickup?.address_list?.[0];
-          if (!pickupAddress) {
-            return { data: null, error: 'ไม่พบที่อยู่รับพัสดุ' };
-          }
-
-          const timeSlots = pickupAddress.time_slot_list || [];
-          let selectedTimeSlotId = pickup_time_id as string | undefined;
-
-          if (!selectedTimeSlotId) {
-            if (timeSlots.length > 1) {
-              return { data: null, error: '__needs_time_slot__', _timeSlots: timeSlots };
-            }
-            const recommendedSlot = timeSlots.find(s => s.flags?.includes('recommended'));
-            const pickupTimeSlot = recommendedSlot || timeSlots[0];
-            selectedTimeSlotId = pickupTimeSlot?.pickup_time_id || '';
-          }
-
-          return shipOrder(creds, order.external_order_sn, {
-            address_id: pickupAddress.address_id,
-            pickup_time_id: selectedTimeSlotId,
-          }, undefined, packageNumber);
-        };
-
-        // Ship each parcel (or single order if not split)
-        const parcelsToShip = order.is_split && packageNumbers.length > 0
-          ? packageNumbers
-          : [undefined]; // single ship without package_number
-
-        let allSuccess = true;
-        let shipError = '';
-
-        for (const pkgNum of parcelsToShip) {
-          const shipResult = await doShip(pkgNum) as { data: unknown; error?: string; _timeSlots?: unknown[] };
-
-          if (shipResult.error === '__needs_time_slot__') {
-            const timeSlots = (shipResult as { _timeSlots: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }> })._timeSlots;
-            results.push({
-              order_id: orderId,
-              order_sn: order.external_order_sn,
-              success: false,
-              needs_time_slot: true,
-              time_slots: timeSlots.map(formatTimeSlot),
-            });
-            allSuccess = false;
-            break;
-          }
-
-          if (shipResult.error) {
-            shipError = shipResult.error;
-            allSuccess = false;
-            break;
-          }
-        }
-
-        if (!allSuccess) {
-          if (shipError) {
-            results.push({ order_id: orderId, order_sn: order.external_order_sn, success: false, error: `รับออเดอร์ไม่สำเร็จ: ${shipError}` });
-          }
-          continue;
-        }
-
-        // Update DB — PROCESSED = processing (ที่ต้องจัดส่ง), NOT shipping!
-        await supabaseAdmin.from('orders').update({
-          external_status: 'PROCESSED',
-          order_status: 'processing',
-          updated_at: new Date().toISOString(),
-        }).eq('id', orderId).eq('company_id', companyId);
-
-        // Update parcel statuses if split
-        if (order.is_split) {
-          await supabaseAdmin.from('order_parcels').update({
-            status: 'shipped',
-            updated_at: new Date().toISOString(),
-          }).eq('order_id', orderId);
-        }
-
-        results.push({ order_id: orderId, order_sn: order.external_order_sn, success: true });
-      } catch (err) {
-        console.error(`[Shopee Bulk Ship] Error processing order ${orderId}:`, err);
-        results.push({
-          order_id: orderId,
-          order_sn: order.external_order_sn,
-          success: false,
-          error: err instanceof Error ? err.message : 'Unknown error',
-        });
+        quickResults.push({ order_id: orderId, order_sn: '', success: false, error: 'Order not found' });
+      } else if (order.source !== 'shopee') {
+        quickResults.push({ order_id: orderId, order_sn: order.external_order_sn || '', success: false, error: 'Not a Shopee order' });
+      } else if (order.external_status !== 'READY_TO_SHIP') {
+        quickResults.push({ order_id: orderId, order_sn: order.external_order_sn || '', success: false, error: `สถานะปัจจุบัน: ${order.external_status}` });
+      } else if (!order.marketplace_account_id || !order.external_order_sn) {
+        quickResults.push({ order_id: orderId, order_sn: '', success: false, error: 'Missing Shopee account or order SN' });
+      } else {
+        validOrders.push(order);
       }
     }
+
+    // Pre-fetch all credentials (deduplicated by account)
+    const uniqueAccountIds = [...new Set(validOrders.map(o => o.marketplace_account_id).filter(Boolean))];
+    for (const accountId of uniqueAccountIds) {
+      if (!credsCache.has(accountId)) {
+        const { data: account } = await supabaseAdmin
+          .from('marketplace_accounts')
+          .select('*')
+          .eq('id', accountId)
+          .eq('company_id', companyId)
+          .eq('is_active', true)
+          .single();
+        if (account) {
+          credsCache.set(accountId, await ensureValidToken(account as ShopeeAccountRow));
+        }
+      }
+    }
+
+    // Group valid orders by marketplace_account_id
+    const byAccount = new Map<string, typeof validOrders>();
+    for (const order of validOrders) {
+      const accId = order.marketplace_account_id!;
+      if (!byAccount.has(accId)) byAccount.set(accId, []);
+      byAccount.get(accId)!.push(order);
+    }
+
+    const parallelResults: BulkShipResult[] = [];
+
+    for (const [accountId, accountOrders] of byAccount) {
+      const creds = credsCache.get(accountId);
+      if (!creds) {
+        for (const order of accountOrders) {
+          parallelResults.push({ order_id: order.id, order_sn: order.external_order_sn || '', success: false, error: 'Shopee account not found' });
+        }
+        continue;
+      }
+
+      const orderSns = accountOrders.map(o => o.external_order_sn!);
+
+      // Step 1: Get package_number + logistics_channel_id for ALL orders via batch API
+      const { packageMap } = await getAllPackageNumbersBatch(creds, orderSns);
+
+      // Also load split order parcels from DB for orders already marked as split
+      for (const order of accountOrders) {
+        if (order.is_split && !packageMap.has(order.external_order_sn!)) {
+          const { data: parcels } = await supabaseAdmin
+            .from('order_parcels')
+            .select('package_number')
+            .eq('order_id', order.id)
+            .order('parcel_number');
+          const pns = (parcels || []).map(p => p.package_number).filter(Boolean);
+          if (pns.length > 0) {
+            packageMap.set(order.external_order_sn!, pns.map(pn => ({ package_number: pn })));
+          }
+        }
+      }
+
+      // Step 2: Get shipping parameter from first order to determine pickup/dropoff
+      const firstSn = orderSns[0];
+      const { data: shippingParams, error: paramError } = await getShippingParameter(creds, firstSn);
+      if (paramError) {
+        for (const order of accountOrders) {
+          parallelResults.push({ order_id: order.id, order_sn: order.external_order_sn || '', success: false, error: `ดึงข้อมูลขนส่งไม่ได้: ${paramError}` });
+        }
+        continue;
+      }
+
+      const params = shippingParams as {
+        info_needed?: { pickup?: string[]; dropoff?: string[]; non_integrated?: string[] };
+        pickup?: {
+          address_list?: Array<{
+            address_id: number;
+            address_flag?: string[];
+            time_slot_list?: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }>;
+          }>;
+        };
+        dropoff?: { branch_list?: Array<{ branch_id: number }> };
+      };
+
+      // Determine pickup/dropoff info
+      const isDropoff = params.info_needed?.dropoff && params.info_needed.dropoff.length > 0;
+      const pickupAddress = params.pickup?.address_list?.[0];
+      const timeSlots = pickupAddress?.time_slot_list || [];
+
+      // Check if needs time slot selection (multiple slots, no pickup_time_id provided)
+      if (!isDropoff && !pickup_time_id && timeSlots.length > 1) {
+        // Return needs_time_slot for all orders — user must select a time slot first
+        for (const order of accountOrders) {
+          parallelResults.push({
+            order_id: order.id,
+            order_sn: order.external_order_sn || '',
+            success: false,
+            needs_time_slot: true,
+            time_slots: timeSlots.map(formatTimeSlot),
+          });
+        }
+        continue;
+      }
+
+      // Build pickup/dropoff for mass_ship_order
+      let pickupInfo: MassShipPackage['pickup'];
+      let dropoffInfo: MassShipPackage['dropoff'];
+
+      if (isDropoff) {
+        const branchId = params.dropoff?.branch_list?.[0]?.branch_id;
+        if (branchId) dropoffInfo = { branch_id: branchId };
+      } else if (pickupAddress) {
+        const selectedTimeSlotId = pickup_time_id
+          || timeSlots.find(s => s.flags?.includes('recommended'))?.pickup_time_id
+          || timeSlots[0]?.pickup_time_id
+          || '';
+        pickupInfo = { address_id: pickupAddress.address_id, pickup_time_id: selectedTimeSlotId };
+      }
+
+      // Step 3: Build package list for mass_ship_order
+      // Group by logistics_channel_id (mass_ship_order requires same channel per batch)
+      const channelGroups = new Map<number, { pkg: MassShipPackage; order: typeof accountOrders[0] }[]>();
+      const fallbackOrders: typeof accountOrders[0][] = []; // orders without package_number
+
+      for (const order of accountOrders) {
+        const sn = order.external_order_sn!;
+        const pkgInfos = packageMap.get(sn);
+
+        if (!pkgInfos || pkgInfos.length === 0) {
+          fallbackOrders.push(order);
+          continue;
+        }
+
+        for (const pkgInfo of pkgInfos) {
+          const channelId = pkgInfo.logistics_channel_id || 0;
+          const massShipPkg: MassShipPackage = {
+            package_number: pkgInfo.package_number,
+            ...(pickupInfo ? { pickup: pickupInfo } : {}),
+            ...(dropoffInfo ? { dropoff: dropoffInfo } : {}),
+          };
+
+          if (!channelGroups.has(channelId)) channelGroups.set(channelId, []);
+          channelGroups.get(channelId)!.push({ pkg: massShipPkg, order });
+        }
+      }
+
+      console.log(`[Shopee Bulk Ship] ${accountOrders.length} orders → ${[...channelGroups.entries()].map(([ch, items]) => `channel=${ch}:${items.length}pkg`).join(', ')}${fallbackOrders.length > 0 ? ` + ${fallbackOrders.length} fallback` : ''}`);
+
+      // Step 4: Mass ship per channel group
+      const orderSuccessSet = new Set<string>(); // order IDs that succeeded
+      const orderErrorMap = new Map<string, string>(); // order ID → error
+
+      for (const [channelId, items] of channelGroups) {
+        const packages = items.map(i => i.pkg);
+        const { successList, failList, error: massError } = await massShipOrder(
+          creds, packages,
+          channelId || undefined,
+        );
+
+        if (massError) {
+          console.error(`[Shopee Bulk Ship] mass_ship_order error for channel ${channelId}:`, massError);
+          // Fall back to individual ship_order for this group
+          for (const item of items) {
+            const result = await individualShipOrder(creds, item.order, pickupInfo, dropoffInfo, item.pkg.package_number);
+            if (result.success) {
+              orderSuccessSet.add(item.order.id);
+            } else {
+              orderErrorMap.set(item.order.id, result.error || 'Unknown error');
+            }
+          }
+          continue;
+        }
+
+        // Map results back to orders
+        const successPns = new Set(successList.map(s => s.package_number));
+        const failPnMap = new Map(failList.map(f => [f.package_number, f.fail_reason]));
+
+        for (const item of items) {
+          const pn = item.pkg.package_number;
+          if (successPns.has(pn)) {
+            orderSuccessSet.add(item.order.id);
+          } else if (failPnMap.has(pn)) {
+            const reason = failPnMap.get(pn)!;
+            // Already shipped is OK
+            if (reason.includes('already shipped') || reason.includes('order_status_error')) {
+              orderSuccessSet.add(item.order.id);
+            } else {
+              orderErrorMap.set(item.order.id, `รับออเดอร์ไม่สำเร็จ: ${reason}`);
+            }
+          }
+        }
+
+        console.log(`[Shopee Bulk Ship] Channel ${channelId}: ${successList.length} success, ${failList.length} fail`);
+      }
+
+      // Step 5: Fallback — individual ship_order for orders without package_number
+      for (const order of fallbackOrders) {
+        if (!pickupAddress && !isDropoff) {
+          orderErrorMap.set(order.id, 'ไม่พบที่อยู่รับพัสดุ');
+          continue;
+        }
+        const result = await individualShipOrder(creds, order, pickupInfo, dropoffInfo);
+        if (result.success) {
+          orderSuccessSet.add(order.id);
+        } else {
+          orderErrorMap.set(order.id, result.error || 'Unknown error');
+        }
+      }
+
+      // Step 6: Update DB for successful orders
+      for (const order of accountOrders) {
+        if (orderSuccessSet.has(order.id)) {
+          await supabaseAdmin.from('orders').update({
+            external_status: 'PROCESSED',
+            order_status: 'processing',
+            updated_at: new Date().toISOString(),
+          }).eq('id', order.id).eq('company_id', companyId);
+
+          if (order.is_split) {
+            await supabaseAdmin.from('order_parcels').update({
+              status: 'shipped',
+              updated_at: new Date().toISOString(),
+            }).eq('order_id', order.id);
+          }
+
+          parallelResults.push({ order_id: order.id, order_sn: order.external_order_sn || '', success: true });
+        } else if (orderErrorMap.has(order.id)) {
+          parallelResults.push({ order_id: order.id, order_sn: order.external_order_sn || '', success: false, error: orderErrorMap.get(order.id) });
+        }
+        // Note: needs_time_slot orders were already handled above
+      }
+    }
+
+    const results = [...quickResults, ...parallelResults];
 
     const successCount = results.filter(r => r.success).length;
     const needsTimeSlotCount = results.filter(r => r.needs_time_slot).length;
@@ -275,10 +343,9 @@ export async function POST(request: NextRequest) {
 
     // Log each processed order to integration_logs
     for (const r of results) {
-      if (r.needs_time_slot) continue; // Don't log timeslot requests
+      if (r.needs_time_slot) continue;
       const order = orderMap.get(r.order_id);
       const accountId = order?.marketplace_account_id;
-      // Look up shop name from account
       let shopName = '';
       if (accountId) {
         const cached = credsCache.get(accountId);
@@ -292,7 +359,7 @@ export async function POST(request: NextRequest) {
         direction: 'outgoing',
         action: 'accept_order',
         method: 'POST',
-        api_path: '/api/v2/logistics/ship_order',
+        api_path: '/api/v2/logistics/mass_ship_order',
         request_body: { order_sn: r.order_sn },
         response_body: r.success ? { success: true } : { error: r.error },
         status: r.success ? 'success' : 'error',
@@ -312,5 +379,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       error: error instanceof Error ? error.message : 'Failed to bulk ship orders',
     }, { status: 500 });
+  }
+}
+
+/** Fallback: ship a single order using individual ship_order API */
+async function individualShipOrder(
+  creds: Awaited<ReturnType<typeof ensureValidToken>>,
+  order: { id: string; external_order_sn: string | null; is_split?: boolean | null },
+  pickupInfo?: { address_id: number; pickup_time_id: string },
+  dropoffInfo?: { branch_id?: number },
+  packageNumber?: string,
+): Promise<{ success: boolean; error?: string }> {
+  const sn = order.external_order_sn || '';
+  try {
+    const result = await shipOrder(
+      creds, sn,
+      pickupInfo,
+      dropoffInfo ? { branch_id: dropoffInfo.branch_id } : undefined,
+      packageNumber,
+    );
+
+    if (result.error) {
+      const errText = String(result.error);
+      if (errText.includes('already shipped') || errText.includes('order_status_error')) {
+        return { success: true };
+      }
+      return { success: false, error: `รับออเดอร์ไม่สำเร็จ: ${result.error}` };
+    }
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }

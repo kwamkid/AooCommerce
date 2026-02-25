@@ -438,6 +438,10 @@ export default function ProcessingTab({
         } else if (event.type === 'done' && event.pdf) {
           const bytes = Uint8Array.from(atob(event.pdf), c => c.charCodeAt(0));
           pdfBlob = new Blob([bytes], { type: 'application/pdf' });
+          // Show warning for partial failures (some orders couldn't generate labels)
+          if (event.warning) {
+            setTimeout(() => alert(event.warning), 500);
+          }
         } else if (event.type === 'error') {
           throw new Error(event.message || 'Shopee label generation failed');
         }
@@ -588,8 +592,8 @@ export default function ProcessingTab({
     if (!isMarketplace && !isOnHold && order.payment_status === 'pending') {
       primaryActions.push(
         <button key="pay" onClick={(e) => { e.stopPropagation(); onPaymentClick?.(order); }}
-          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1" title="บันทึกชำระ">
-          <CreditCard className="w-3.5 h-3.5" /> บันทึกชำระ
+          className="px-2.5 py-1.5 md:px-3 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1" title="บันทึกชำระ">
+          <CreditCard className="w-3.5 h-3.5" /> <span className="hidden md:inline">บันทึกชำระ</span>
         </button>
       );
     }
@@ -597,8 +601,8 @@ export default function ProcessingTab({
     if (!isMarketplace && !isOnHold) {
       primaryActions.push(
         <button key="ship" onClick={(e) => { e.stopPropagation(); setShipModal({ order }); }}
-          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1" title="จัดส่งแล้ว">
-          <Package className="w-3.5 h-3.5" /> จัดส่งแล้ว
+          className="px-2.5 py-1.5 md:px-3 text-xs font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1" title="จัดส่งแล้ว">
+          <Package className="w-3.5 h-3.5" /> <span className="hidden md:inline">จัดส่งแล้ว</span>
         </button>
       );
     }
@@ -606,8 +610,8 @@ export default function ProcessingTab({
     if (isOnHold) {
       primaryActions.push(
         <button key="unhold" onClick={(e) => { e.stopPropagation(); handleUnhold(order.id); }} disabled={actionLoading}
-          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1 disabled:opacity-50" title="กลับมา">
-          <Play className="w-3.5 h-3.5" /> กลับมา
+          className="px-2.5 py-1.5 md:px-3 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1 disabled:opacity-50" title="กลับมา">
+          <Play className="w-3.5 h-3.5" /> <span className="hidden md:inline">กลับมา</span>
         </button>
       );
     }
@@ -781,26 +785,26 @@ export default function ProcessingTab({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => handlePrintLabels(Array.from(selectedIds))}
-                className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+                className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5"
               >
                 <Printer className="w-4 h-4" />
-                ใบปะหน้า ({selectedIds.size})
+                <span className="hidden md:inline">ใบปะหน้า</span> ({selectedIds.size})
               </button>
               <button
                 onClick={() => handlePrintPackingSlips(Array.from(selectedIds))}
-                className="px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
+                className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
               >
                 <ClipboardList className="w-4 h-4" />
-                ใบจัดของ ({selectedIds.size})
+                <span className="hidden md:inline">ใบจัดของ</span> ({selectedIds.size})
               </button>
               {shippableSelectedIds.length > 0 && (
                 <button
                   onClick={openBulkShipModal}
                   disabled={actionLoading}
-                  className="px-4 py-2 text-sm font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
                 >
                   <Package className="w-4 h-4" />
-                  จัดส่งแล้ว ({shippableSelectedIds.length})
+                  <span className="hidden md:inline">จัดส่งแล้ว</span> ({shippableSelectedIds.length})
                 </button>
               )}
             </div>

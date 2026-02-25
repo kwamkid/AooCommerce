@@ -248,7 +248,7 @@ export default function OrderCard({
 
           {/* Actions */}
           {actions && (
-            <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
               {actions}
             </div>
           )}

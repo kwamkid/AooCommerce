@@ -15103,16 +15103,22 @@
 
 ### v2.order.get_package_detail
 
-**Method:** `POST`  
-**Endpoint:** `/api/v2/order/get_package_detail`  
-**URL:** https://partner.shopeemobile.com/api/v2/order/get_package_detail  
-**Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/order/get_package_detail  
+**Method:** `GET`
+**Endpoint:** `/api/v2/order/get_package_detail`
+**URL:** https://partner.shopeemobile.com/api/v2/order/get_package_detail
+**Test URL:** https://openplatform.sandbox.test-stable.shopee.sg/api/v2/order/get_package_detail
 
-**Description:** Use this api to get package detail.  
+**Description:** Use this api to get package detail.
 
 #### Common Parameters
 
-*No common parameters.*
+| Name | Type | Sample | Description |
+|------|------|--------|-------------|
+| partner_id | int | 1 | Partner ID is assigned upon registration is successful. Required for all requests. |
+| timestamp | timestamp | 1610000000 | This is to indicate the timestamp of the request. Required for all requests. Expires in 5 minutes. |
+| access_token | string | c09222e3fc40ffb25fc947f738b1abf1 | The token for API access. Valid for multiple use and expires in 4 hours. |
+| shop_id | int | 600000 | Shopee's unique identifier for a shop. Required param for most APIs. |
+| sign | string | e318d3e93271... | Signature generated via HMAC-SHA256. |
 
 #### Request Parameters
 
@@ -15224,8 +15230,8 @@
 
 ### v2.order.split_order
 
-**Method:** `GET`  
-**Endpoint:** `/api/v2/order/split_order`  
+**Method:** `POST`
+**Endpoint:** `/api/v2/order/split_order`
 **URL:** https://partner.shopeemobile.com/api/v2/order/split_order  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/order/split_order  
 
@@ -15323,8 +15329,8 @@
 
 ### v2.order.unsplit_order
 
-**Method:** `GET`  
-**Endpoint:** `/api/v2/order/unsplit_order`  
+**Method:** `POST`
+**Endpoint:** `/api/v2/order/unsplit_order`
 **URL:** https://partner.shopeemobile.com/api/v2/order/unsplit_order  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/order/unsplit_order  
 
