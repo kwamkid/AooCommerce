@@ -462,5 +462,5 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
   };
 
   const pdfDoc = pdfMake.createPdf(docDefinition);
-  return pdfDoc.getBlob() as unknown as Promise<Blob>;
+  return pdfDoc.getBlob();
 }

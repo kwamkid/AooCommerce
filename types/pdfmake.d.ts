@@ -15,12 +15,12 @@ declare module 'pdfmake/build/pdfmake' {
     addVirtualFileSystem(vfs: { [file: string]: string }): void;
     addFonts(fonts: TFontDictionary): void;
     createPdf(docDefinition: any): {
-      download(defaultFileName?: string): void;
-      open(): void;
-      print(): void;
-      getBlob(cb: (blob: Blob) => void): void;
-      getBase64(cb: (data: string) => void): void;
-      getBuffer(cb: (buffer: Buffer) => void): void;
+      download(defaultFileName?: string): Promise<void>;
+      open(): Promise<void>;
+      print(): Promise<void>;
+      getBlob(): Promise<Blob>;
+      getBase64(): Promise<string>;
+      getBuffer(): Promise<Uint8Array>;
     };
   }
 
