@@ -34,7 +34,7 @@ import {
 import PaymentModal from '../components/PaymentModal';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
-import { generatePackingListPdf } from '@/lib/order-packing-pdf';
+import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
@@ -547,7 +547,33 @@ export default function OrderDetailPage() {
     setShowPrintMenu(false);
     setGeneratingPdf(true);
     try {
-      const blob = await generatePackingListPdf({ data: fullOrderData });
+      // Build order list (expand split parcels as separate entries)
+      const ordersData: any[] = [];
+      if (fullOrderData.is_split && fullOrderData.parcels?.length > 0) {
+        for (const parcel of fullOrderData.parcels) {
+          const parcelItems = (parcel.items || []).map((pi: any) => {
+            const fullItem = fullOrderData.items?.find((i: any) => i.id === pi.order_item_id);
+            return {
+              product_name: pi.product_name || fullItem?.product_name || '',
+              variation_label: pi.variation_label || fullItem?.variation_label || null,
+              quantity: pi.quantity,
+              image: pi.image || fullItem?.image || null,
+              barcode: fullItem?.barcode || null,
+              sku: fullItem?.sku || null,
+              product_code: fullItem?.product_code || null,
+            };
+          });
+          ordersData.push({
+            ...fullOrderData,
+            items: parcelItems.length > 0 ? parcelItems : fullOrderData.items,
+            order_number: `${fullOrderData.order_number} (กล่อง ${parcel.parcel_number}/${fullOrderData.parcels.length})`,
+          });
+        }
+      } else {
+        ordersData.push(fullOrderData);
+      }
+
+      const blob = await generatePackingPdf(ordersData);
       showPdfPreview(blob, 'ใบจัดของ');
     } catch (err) {
       console.error('Error generating packing list PDF:', err);

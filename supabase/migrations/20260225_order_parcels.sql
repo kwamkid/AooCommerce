@@ -1,8 +1,9 @@
 -- Parcel splitting support: order_parcels + order_parcel_items tables
 -- Allows 1 order to have multiple parcels, each with own tracking number
 
--- 1. Mark order as split
+-- 1. Mark order as split + Shopee can_split_order flag (from get_package_detail API)
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_split BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS can_split_order BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- 2. Parcel table
 CREATE TABLE IF NOT EXISTS order_parcels (
@@ -37,11 +38,13 @@ CREATE INDEX IF NOT EXISTS idx_order_parcel_items_parcel ON order_parcel_items(p
 ALTER TABLE order_parcels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_parcel_items ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "order_parcels_company" ON order_parcels;
 CREATE POLICY "order_parcels_company" ON order_parcels
   FOR ALL USING (
     company_id = (current_setting('app.company_id', true))::uuid
   );
 
+DROP POLICY IF EXISTS "order_parcel_items_via_parcel" ON order_parcel_items;
 CREATE POLICY "order_parcel_items_via_parcel" ON order_parcel_items
   FOR ALL USING (
     parcel_id IN (
@@ -115,7 +118,8 @@ BEGIN
            o.delivery_name, o.delivery_phone,
            o.fulfillment_status, o.hold_reason,
            o.tracking_number, o.shipping_carrier,
-           o.is_split
+           o.is_split,
+           o.can_split_order
     FROM orders o
     WHERE o.company_id = p_company_id
       AND (
@@ -473,6 +477,7 @@ BEGIN
         'tracking_number', oc.tracking_number,
         'shipping_carrier', oc.shipping_carrier,
         'is_split', COALESCE(oc.is_split, false),
+        'can_split_order', COALESCE(oc.can_split_order, false),
         'parcel_count', COALESCE(pc.parcel_count, 0),
         'items_preview', COALESCE(ip.preview, '[]'::jsonb),
         'item_count', COALESCE(ic.item_count, 0),

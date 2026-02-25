@@ -798,7 +798,7 @@ export async function PUT(request: NextRequest) {
         // Separate Shopee vs manual orders
         const { data: ordersToAccept } = await supabaseAdmin
           .from('orders')
-          .select('id, source, external_order_sn, external_status, marketplace_account_id')
+          .select('id, source, external_order_sn, external_status, marketplace_account_id, is_split')
           .in('id', validIds)
           .eq('company_id', auth.companyId)
           .eq('order_status', 'ready_to_ship');
@@ -845,18 +845,51 @@ export async function PUT(request: NextRequest) {
               if (paramError) { errors.push(`${order.external_order_sn}: ${paramError}`); continue; }
 
               const params = shippingParams as any;
+
+              // For split orders, ship each parcel separately with package_number
+              const packageNumbers: string[] = [];
+              if (order.is_split) {
+                const { data: parcels } = await supabaseAdmin
+                  .from('order_parcels')
+                  .select('package_number')
+                  .eq('order_id', order.id)
+                  .order('parcel_number');
+                for (const p of parcels || []) {
+                  if (p.package_number) packageNumbers.push(p.package_number);
+                }
+              }
+
+              // Ship function — reused for each parcel or once for non-split
+              const doShip = async (packageNumber?: string) => {
+                if (params?.info_needed?.dropoff?.length > 0) {
+                  const dropoffParams: Record<string, unknown> = {};
+                  if (params.dropoff?.branch_list?.[0]) dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
+                  return shipOrder(creds, order.external_order_sn!, undefined, dropoffParams, packageNumber);
+                } else {
+                  const pickupAddress = params?.pickup?.address_list?.[0];
+                  if (!pickupAddress) return { error: 'ไม่พบที่อยู่รับพัสดุ', data: null };
+                  const timeSlots = pickupAddress.time_slot_list || [];
+                  const recommended = timeSlots.find((s: any) => s.flags?.includes('recommended'));
+                  const selectedTimeId = (recommended || timeSlots[0])?.pickup_time_id || '';
+                  return shipOrder(creds, order.external_order_sn!, { address_id: pickupAddress.address_id, pickup_time_id: selectedTimeId }, undefined, packageNumber);
+                }
+              };
+
               let shipResult;
-              if (params?.info_needed?.dropoff?.length > 0) {
-                const dropoffParams: Record<string, unknown> = {};
-                if (params.dropoff?.branch_list?.[0]) dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
-                shipResult = await shipOrder(creds, order.external_order_sn, undefined, dropoffParams);
+              if (packageNumbers.length > 0) {
+                // Ship each parcel
+                let allOk = true;
+                for (const pn of packageNumbers) {
+                  const result = await doShip(pn);
+                  if (result.error) {
+                    errors.push(`${order.external_order_sn} (parcel ${pn}): ${result.error}`);
+                    allOk = false;
+                  }
+                }
+                if (!allOk) continue;
+                shipResult = { error: null };
               } else {
-                const pickupAddress = params?.pickup?.address_list?.[0];
-                if (!pickupAddress) { errors.push(`${order.external_order_sn}: ไม่พบที่อยู่รับพัสดุ`); continue; }
-                const timeSlots = pickupAddress.time_slot_list || [];
-                const recommended = timeSlots.find((s: any) => s.flags?.includes('recommended'));
-                const selectedTimeId = (recommended || timeSlots[0])?.pickup_time_id || '';
-                shipResult = await shipOrder(creds, order.external_order_sn, { address_id: pickupAddress.address_id, pickup_time_id: selectedTimeId });
+                shipResult = await doShip();
               }
 
               if (shipResult.error) { errors.push(`${order.external_order_sn}: ${shipResult.error}`); continue; }
@@ -1001,7 +1034,7 @@ export async function PUT(request: NextRequest) {
         // Fetch orders to process stock deduction
         const { data: ordersToShip } = await supabaseAdmin
           .from('orders')
-          .select('id, order_status, warehouse_id')
+          .select('id, order_status, warehouse_id, is_split')
           .in('id', validIds)
           .eq('company_id', auth.companyId)
           .eq('order_status', 'processing');
@@ -1029,7 +1062,21 @@ export async function PUT(request: NextRequest) {
             .update(updatePayload)
             .eq('id', order.id)
             .eq('company_id', auth.companyId);
-          if (!error) shippedCount++;
+          if (!error) {
+            shippedCount++;
+            // For split orders, also update all parcels with tracking info
+            if (order.is_split && (tn || sc)) {
+              await supabaseAdmin
+                .from('order_parcels')
+                .update({
+                  ...(tn ? { tracking_number: tn } : {}),
+                  ...(sc ? { shipping_carrier: sc } : {}),
+                  status: 'shipped',
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('order_id', order.id);
+            }
+          }
 
           // Stock deduction (best-effort)
           if (!error && order.warehouse_id) {

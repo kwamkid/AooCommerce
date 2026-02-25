@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
-import { splitOrder, ensureValidToken } from '@/lib/shopee/api';
+import { splitOrder, getPackageDetail, ensureValidToken } from '@/lib/shopee/api';
 
 interface ParcelInput {
   items: { order_item_id: string; quantity: number }[];
@@ -102,13 +102,35 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Shopee token หมดอายุ' }, { status: 401 });
       }
 
-      // Build Shopee package_list: array of item arrays
+      // Check can_split_order via get_package_detail
+      // First get package_number from order's package_list (get_order_detail)
+      const { data: orderDetailData } = await supabaseAdmin
+        .from('orders')
+        .select('external_data')
+        .eq('id', order_id)
+        .single();
+
+      const packageListFromOrder = (orderDetailData?.external_data as Record<string, unknown>)?.package_list as
+        { package_number: string }[] | undefined;
+      const firstPackageNumber = packageListFromOrder?.[0]?.package_number;
+
+      if (firstPackageNumber) {
+        const { packages, error: pkgError } = await getPackageDetail(creds, [firstPackageNumber]);
+        if (!pkgError && packages.length > 0 && packages[0].can_split_order === false) {
+          return NextResponse.json({
+            error: 'ร้านนี้ยังไม่ได้เปิดใช้งานแยกกล่อง กรุณาสมัครที่ Shopee Seller Centre ก่อน'
+          }, { status: 400 });
+        }
+      }
+
+      // Build Shopee package_list: array of item arrays with model_quantity for unit-level split
       const packageList = parcels.map(parcel =>
         parcel.items.map(item => {
           const oi = orderItems.find(o => o.id === item.order_item_id);
           return {
             item_id: parseInt(oi?.external_item_id || '0'),
             model_id: parseInt(oi?.external_model_id || '0'),
+            model_quantity: item.quantity,
           };
         })
       );

@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemEnrichment, ShopeeItemEnrichment, getEscrowDetail } from '@/lib/shopee/api';
+import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemEnrichment, ShopeeItemEnrichment, getEscrowDetail, getPackageDetail } from '@/lib/shopee/api';
 import { getCategoryName } from '@/lib/shopee/product-sync';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
@@ -63,6 +63,9 @@ interface ShopeeOrder {
   cancel_reason?: string;
   ship_by_date?: number;
   days_to_ship?: number;
+  // Split order fields
+  split_up?: boolean;
+  package_list?: { package_number: string; logistics_status?: string; shipping_carrier?: string; item_list?: { item_id: number; model_id: number }[] }[];
 }
 
 // --- Status Mapping ---
@@ -147,7 +150,7 @@ export async function syncOrdersByOrderSn(
     try {
       const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_order_detail', {
         order_sn_list: batch.join(','),
-        response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,item_list,pay_time,shipping_carrier,tracking_number,total_amount,payment_method,estimated_shipping_fee,actual_shipping_fee,actual_shipping_fee_confirmed,note,buyer_cancel_reason,cancel_by,cancel_reason,ship_by_date,days_to_ship',
+        response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,item_list,pay_time,shipping_carrier,tracking_number,total_amount,payment_method,estimated_shipping_fee,actual_shipping_fee,actual_shipping_fee_confirmed,note,buyer_cancel_reason,cancel_by,cancel_reason,ship_by_date,days_to_ship,package_list',
       });
 
       if (error) {
@@ -343,6 +346,78 @@ export async function syncIncompleteOrders(
   return syncOrdersByOrderSn(account, orderSns, onProgress);
 }
 
+// --- Shopee Split Order Helpers ---
+
+/**
+ * Sync order_parcels for a Shopee-side split order (existing order being updated).
+ * Creates parcels from Shopee package_list if they don't exist yet.
+ */
+async function syncShopeeParcels(orderId: string, companyId: string, shopeeOrder: ShopeeOrder) {
+  if (!shopeeOrder.package_list || shopeeOrder.package_list.length <= 1) return;
+
+  try {
+    // Check if parcels already exist
+    const { count } = await supabaseAdmin
+      .from('order_parcels')
+      .select('id', { count: 'exact', head: true })
+      .eq('order_id', orderId);
+
+    if ((count || 0) >= shopeeOrder.package_list.length) return; // already synced
+
+    // Delete existing parcels if count mismatch (re-sync)
+    if ((count || 0) > 0) {
+      await supabaseAdmin.from('order_parcels').delete().eq('order_id', orderId);
+    }
+
+    const parcelsToInsert = shopeeOrder.package_list.map((pkg, idx) => ({
+      order_id: orderId,
+      parcel_number: idx + 1,
+      package_number: pkg.package_number,
+      shipping_carrier: pkg.shipping_carrier || shopeeOrder.shipping_carrier || null,
+      status: pkg.logistics_status === 'LOGISTICS_PICKUP_DONE' || pkg.logistics_status === 'LOGISTICS_DELIVERY_DONE'
+        ? 'shipped' : 'pending',
+    }));
+    await supabaseAdmin.from('order_parcels').insert(parcelsToInsert);
+    console.log(`[Shopee Sync] Synced ${parcelsToInsert.length} parcels for split order ${shopeeOrder.order_sn}`);
+  } catch (e) {
+    console.error(`[Shopee Sync] Failed to sync parcels for ${shopeeOrder.order_sn}:`, e);
+  }
+}
+
+/**
+ * Check can_split_order via get_package_detail and update DB.
+ * Only meaningful for READY_TO_SHIP orders with package_list.
+ */
+async function syncCanSplitOrder(
+  orderId: string,
+  creds: Awaited<ReturnType<typeof ensureValidToken>>,
+  shopeeOrder: ShopeeOrder,
+) {
+  // Only check for READY_TO_SHIP orders (split only works at this stage)
+  if (shopeeOrder.order_status !== 'READY_TO_SHIP') return;
+  if (!shopeeOrder.package_list || shopeeOrder.package_list.length === 0) return;
+
+  try {
+    const firstPackageNumber = shopeeOrder.package_list[0].package_number;
+    if (!firstPackageNumber) return;
+
+    const { packages, error } = await getPackageDetail(creds, [firstPackageNumber]);
+    if (error || packages.length === 0) return;
+
+    const canSplit = packages[0].can_split_order === true;
+    await supabaseAdmin
+      .from('orders')
+      .update({ can_split_order: canSplit })
+      .eq('id', orderId);
+
+    if (canSplit) {
+      console.log(`[Shopee Sync] ${shopeeOrder.order_sn} can_split_order=true`);
+    }
+  } catch (e) {
+    console.error(`[Shopee Sync] Failed to check can_split_order for ${shopeeOrder.order_sn}:`, e);
+  }
+}
+
 // --- Upsert Logic ---
 
 interface UpsertResult {
@@ -394,6 +469,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
         fulfillmentUpdate.hold_reason = null;
       }
 
+      const isSplit = shopeeOrder.split_up === true && (shopeeOrder.package_list || []).length > 1;
       await supabaseAdmin
         .from('orders')
         .update({
@@ -404,11 +480,20 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
           shipping_fee: updatedShippingFee,
           shipping_carrier: shopeeOrder.shipping_carrier || null,
           tracking_number: shopeeOrder.tracking_number || null,
+          is_split: isSplit,
           updated_at: new Date().toISOString(),
           ...(shopeeOrder.ship_by_date ? { delivery_date: new Date(shopeeOrder.ship_by_date * 1000).toISOString().split('T')[0] } : {}),
           ...fulfillmentUpdate,
         })
         .eq('id', existing.id);
+
+      // Create/update order_parcels for Shopee-side split orders
+      if (isSplit) {
+        await syncShopeeParcels(existing.id, companyId, shopeeOrder);
+      }
+
+      // Check can_split_order via get_package_detail (fire-and-forget)
+      syncCanSplitOrder(existing.id, creds, shopeeOrder).catch(() => {});
 
       // อัปเดตค่าส่งใน order_shipments ด้วย (ใส่ที่ shipment แรก)
       if (updatedShippingFee > 0) {
@@ -693,6 +778,8 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
     qty: number;
     price: number;
     total: number;
+    shopeeItemId: number;
+    shopeeModelId: number;
   }[] = [];
 
   for (const item of shopeeOrder.item_list || []) {
@@ -816,6 +903,8 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
       qty,
       price,
       total,
+      shopeeItemId: item.item_id,
+      shopeeModelId: item.model_id,
     });
   }
 
@@ -871,6 +960,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
         : null,
       shipping_carrier: shopeeOrder.shipping_carrier || null,
       tracking_number: shopeeOrder.tracking_number || null,
+      is_split: shopeeOrder.split_up === true && (shopeeOrder.package_list || []).length > 1,
       created_at: new Date(shopeeOrder.create_time * 1000).toISOString(),
     })
     .select()
@@ -975,6 +1065,64 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
       console.error(`[Shopee Sync] Failed to create order shipments:`, e);
     }
   }
+
+  // Create order_parcels for split orders from Shopee
+  if (shopeeOrder.split_up && (shopeeOrder.package_list || []).length > 1) {
+    try {
+      const parcelsToInsert = shopeeOrder.package_list!.map((pkg, idx) => ({
+        order_id: order.id,
+        parcel_number: idx + 1,
+        package_number: pkg.package_number,
+        shipping_carrier: pkg.shipping_carrier || shopeeOrder.shipping_carrier || null,
+        status: pkg.logistics_status === 'LOGISTICS_PICKUP_DONE' || pkg.logistics_status === 'LOGISTICS_DELIVERY_DONE'
+          ? 'shipped' : 'pending',
+      }));
+      await supabaseAdmin.from('order_parcels').insert(parcelsToInsert);
+
+      // Create order_parcel_items: map Shopee item_id+model_id → order_item_id
+      const { data: orderItemRows } = await supabaseAdmin
+        .from('order_items')
+        .select('id, variation_id')
+        .eq('order_id', order.id);
+
+      if (orderItemRows) {
+        // Build lookup: variation_id → order_item_id
+        const varToOrderItem = new Map(orderItemRows.map(oi => [oi.variation_id, oi.id]));
+
+        // Build lookup: "itemId:modelId" → variation_id (from resolvedItems)
+        const shopeeToVar = new Map(resolvedItems.map(ri => [`${ri.shopeeItemId}:${ri.shopeeModelId}`, ri.variation_id]));
+
+        const { data: parcelsCreated } = await supabaseAdmin
+          .from('order_parcels')
+          .select('id, parcel_number, package_number')
+          .eq('order_id', order.id)
+          .order('parcel_number');
+
+        const parcelItemsToInsert: { parcel_id: string; order_item_id: string; quantity: number }[] = [];
+        for (const pkg of shopeeOrder.package_list!) {
+          const parcel = parcelsCreated?.find(p => p.package_number === pkg.package_number);
+          if (!parcel || !pkg.item_list) continue;
+          for (const item of pkg.item_list) {
+            const varId = shopeeToVar.get(`${item.item_id}:${item.model_id}`);
+            if (!varId) continue;
+            const orderItemId = varToOrderItem.get(varId);
+            if (!orderItemId) continue;
+            // Shopee package_list.item_list doesn't include qty, default to 1
+            parcelItemsToInsert.push({ parcel_id: parcel.id, order_item_id: orderItemId, quantity: 1 });
+          }
+        }
+        if (parcelItemsToInsert.length > 0) {
+          await supabaseAdmin.from('order_parcel_items').insert(parcelItemsToInsert);
+        }
+      }
+      console.log(`[Shopee Sync] Created ${shopeeOrder.package_list!.length} parcels for split order ${shopeeOrder.order_sn}`);
+    } catch (e) {
+      console.error(`[Shopee Sync] Failed to create parcels for split order ${shopeeOrder.order_sn}:`, e);
+    }
+  }
+
+  // Check can_split_order via get_package_detail (fire-and-forget)
+  syncCanSplitOrder(order.id, creds, shopeeOrder).catch(() => {});
 
   // Fetch escrow detail for COMPLETED orders (fire-and-forget)
   if (shopeeOrder.order_status === 'COMPLETED') {

@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
-import { useFeatures } from '@/lib/features-context';
 import OrderCard from './OrderCard';
 import ActionMenu, { ActionItem } from './ActionMenu';
 import SplitParcelModal from './SplitParcelModal';
@@ -64,8 +63,6 @@ export default function ReadyToShipTab({
 }: ReadyToShipTabProps) {
   const router = useRouter();
   const { showToast } = useToast();
-  const { features } = useFeatures();
-
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{ type: 'accept' | 'cancel'; ids: string[] } | null>(null);
@@ -383,8 +380,8 @@ export default function ReadyToShipTab({
         </button>
       );
     } else {
-      // Primary: Split button (only if feature enabled, >1 piece, not already split)
-      if (features.parcel_splitting && order.item_count > 1 && !order.is_split) {
+      // Primary: Split button (>1 piece, not already split)
+      if (order.can_split_order && !order.is_split) {
         primaryActions.push(
           <button
             key="split"
@@ -428,7 +425,7 @@ export default function ReadyToShipTab({
     });
 
     // Menu: Unsplit (split orders that can be unsplit)
-    if (features.parcel_splitting && order.is_split) {
+    if (order.is_split) {
       menuItems.push({
         key: 'unsplit', label: 'ยกเลิกแบ่งกล่อง', icon: <Scissors className="w-4 h-4" />,
         onClick: async (e) => {

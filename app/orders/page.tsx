@@ -50,7 +50,7 @@ import OrderCard from './components/OrderCard';
 import ActionMenu, { ActionItem } from './components/ActionMenu';
 import PaymentModal from './components/PaymentModal';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
-import { generatePackingListPdf } from '@/lib/order-packing-pdf';
+import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
@@ -369,7 +369,34 @@ export default function OrdersPage() {
     setPdfMessage('กำลังสร้างใบจัดของ...');
     try {
       const orderData = await fetchOrderForPdf(orderId);
-      const blob = await generatePackingListPdf({ data: orderData });
+
+      // Build order list (expand split parcels as separate entries)
+      const ordersData: any[] = [];
+      if (orderData.is_split && orderData.parcels?.length > 0) {
+        for (const parcel of orderData.parcels) {
+          const parcelItems = (parcel.items || []).map((pi: any) => {
+            const fullItem = orderData.items?.find((i: any) => i.id === pi.order_item_id);
+            return {
+              product_name: pi.product_name || fullItem?.product_name || '',
+              variation_label: pi.variation_label || fullItem?.variation_label || null,
+              quantity: pi.quantity,
+              image: pi.image || fullItem?.image || null,
+              barcode: fullItem?.barcode || null,
+              sku: fullItem?.sku || null,
+              product_code: fullItem?.product_code || null,
+            };
+          });
+          ordersData.push({
+            ...orderData,
+            items: parcelItems.length > 0 ? parcelItems : orderData.items,
+            order_number: `${orderData.order_number} (กล่อง ${parcel.parcel_number}/${orderData.parcels.length})`,
+          });
+        }
+      } else {
+        ordersData.push(orderData);
+      }
+
+      const blob = await generatePackingPdf(ordersData);
       showPdfPreview(blob, 'ใบจัดของ');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
@@ -567,6 +594,7 @@ export default function OrdersPage() {
         <ProcessingTab
           carrierCounts={carrierCounts}
           onHoldCount={onHoldCount}
+          search={debouncedSearch}
           userProfile={userProfile}
           onRefresh={fetchOrders}
           onImageClick={(url) => setLightboxImage(url)}

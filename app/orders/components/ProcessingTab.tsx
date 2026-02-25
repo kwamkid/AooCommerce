@@ -18,8 +18,7 @@ import {
   CreditCard,
   Banknote,
 } from 'lucide-react';
-import { generatePackingListPdf } from '@/lib/order-packing-pdf';
-import { generatePickAndPackPdf } from '@/lib/order-pick-pack-pdf';
+import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
@@ -38,6 +37,8 @@ interface ProcessingTabProps {
   carrierCounts: Record<string, number>;
   /** On hold count (separate from carrier counts) */
   onHoldCount: number;
+  /** Search term from parent (passed through for filtering) */
+  search?: string;
   userProfile: any;
   onRefresh: () => void;
   onImageClick: (url: string) => void;
@@ -52,6 +53,7 @@ const NONE_KEY = '__none__';
 export default function ProcessingTab({
   carrierCounts,
   onHoldCount,
+  search,
   userProfile,
   onRefresh,
   onImageClick,
@@ -148,6 +150,7 @@ export default function ProcessingTab({
       params.set('sort_by', 'created_at');
       params.set('sort_dir', 'desc');
       params.set('shipping_carrier', activeCarrierGroup);
+      if (search) params.set('search', search);
 
       const response = await apiFetch(`/api/orders?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch orders');
@@ -162,17 +165,17 @@ export default function ProcessingTab({
     } finally {
       setLoading(false);
     }
-  }, [activeCarrierGroup, currentPage, recordsPerPage]);
+  }, [activeCarrierGroup, currentPage, recordsPerPage, search]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Reset page when switching carrier tab
+  // Reset page when switching carrier tab or search changes
   useEffect(() => {
     setCurrentPage(1);
     setSelectedIds(new Set());
-  }, [activeCarrierGroup]);
+  }, [activeCarrierGroup, search]);
 
   // Refresh handler — refresh parent + re-fetch our tab
   const handleRefresh = useCallback(() => {
@@ -219,6 +222,7 @@ export default function ProcessingTab({
       params.set('source', 'exclude_pos');
       params.set('shipping_carrier', activeCarrierGroup);
       params.set('ids_only', 'true');
+      if (search) params.set('search', search);
 
       const res = await apiFetch(`/api/orders?${params.toString()}`);
       if (!res.ok) throw new Error('Failed');
@@ -401,12 +405,50 @@ export default function ProcessingTab({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ order_ids: orderIds }),
     });
+
     if (!response.ok) {
       const err = await response.json();
       throw new Error(err.error || 'Failed to generate Shopee labels');
     }
-    const blob = await response.blob();
-    showPdfPreview(blob, 'ใบปะหน้า Shopee');
+
+    // SSE stream — read progress events until done
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response stream');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let pdfBlob: Blob | null = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let event;
+        try { event = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (event.type === 'progress') {
+          setOverlayMessage(event.detail ? `${event.label}: ${event.detail}` : event.label);
+          setOverlayProgress(event.progress);
+        } else if (event.type === 'done' && event.pdf) {
+          const bytes = Uint8Array.from(atob(event.pdf), c => c.charCodeAt(0));
+          pdfBlob = new Blob([bytes], { type: 'application/pdf' });
+        } else if (event.type === 'error') {
+          throw new Error(event.message || 'Shopee label generation failed');
+        }
+      }
+    }
+
+    if (pdfBlob) {
+      showPdfPreview(pdfBlob, 'ใบปะหน้า Shopee');
+    } else {
+      throw new Error('ไม่ได้รับ PDF จาก Shopee');
+    }
   };
 
   const handlePrintLabels = async (orderIds: string[]) => {
@@ -419,19 +461,17 @@ export default function ProcessingTab({
         return order?.source === 'shopee';
       });
       const otherIds = orderIds.filter(id => !shopeeIds.includes(id));
-      const total = orderIds.length;
 
       if (shopeeIds.length > 0) {
         setOverlayMessage(`Shopee ${shopeeIds.length} รายการ`);
         await handlePrintShopeeLabels(shopeeIds);
-        setOverlayProgress(Math.round((shopeeIds.length / total) * 100));
       }
 
       if (otherIds.length > 0) {
         const blobs: Blob[] = [];
         for (let i = 0; i < otherIds.length; i++) {
-          setOverlayMessage(`${shopeeIds.length + i + 1} / ${total}`);
-          setOverlayProgress(Math.round(((shopeeIds.length + i) / total) * 100));
+          setOverlayMessage(`${shopeeIds.length + i + 1} / ${orderIds.length}`);
+          setOverlayProgress(Math.round(((shopeeIds.length + i) / orderIds.length) * 100));
           const orderData = await fetchOrderForPdf(otherIds[i]);
 
           // Split orders: generate one label per parcel
@@ -460,7 +500,6 @@ export default function ProcessingTab({
         const merged = await mergePdfBlobs(blobs);
         showPdfPreview(merged, 'ใบปะหน้า');
       }
-      setOverlayProgress(100);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -473,40 +512,47 @@ export default function ProcessingTab({
   const handlePrintPackingSlips = async (orderIds: string[]) => {
     setActionLoading(true);
     setOverlayProgress(0);
+    const isMulti = orderIds.length > 1;
+    setOverlayTitle(isMulti ? 'กำลังสร้างใบหยิบของ + ใบจัดของ...' : 'กำลังสร้างใบจัดของ...');
 
-    // Single order → original full packing list
-    if (orderIds.length === 1) {
-      setOverlayTitle('กำลังสร้างใบจัดของ...');
-      try {
-        const orderData = await fetchOrderForPdf(orderIds[0]);
-        setOverlayProgress(100);
-        const blob = await generatePackingListPdf({ data: orderData });
-        showPdfPreview(blob, 'ใบจัดของ');
-      } catch (err) {
-        showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
-      } finally {
-        setActionLoading(false);
-        setOverlayProgress(undefined);
-        setOverlayMessage(undefined);
-      }
-      return;
-    }
-
-    // Multiple orders → combined pick list + compact packing lists
-    setOverlayTitle('กำลังสร้างใบหยิบของ + ใบจัดของ...');
     try {
       const ordersData = [];
       for (let i = 0; i < orderIds.length; i++) {
-        setOverlayMessage(`โหลดข้อมูล ${i + 1} / ${orderIds.length}`);
+        if (isMulti) setOverlayMessage(`โหลดข้อมูล ${i + 1} / ${orderIds.length}`);
         setOverlayProgress(Math.round((i / orderIds.length) * 80));
         const orderData = await fetchOrderForPdf(orderIds[i]);
-        ordersData.push(orderData);
+
+        // Split orders: expand parcels as separate entries
+        if (orderData.is_split && orderData.parcels?.length > 0) {
+          for (const parcel of orderData.parcels) {
+            const parcelItems = (parcel.items || []).map((pi: any) => {
+              const fullItem = orderData.items?.find((i: any) => i.id === pi.order_item_id);
+              return {
+                product_name: pi.product_name || fullItem?.product_name || '',
+                variation_label: pi.variation_label || fullItem?.variation_label || null,
+                quantity: pi.quantity,
+                image: pi.image || fullItem?.image || null,
+                barcode: fullItem?.barcode || null,
+                sku: fullItem?.sku || null,
+                product_code: fullItem?.product_code || null,
+              };
+            });
+            ordersData.push({
+              ...orderData,
+              items: parcelItems.length > 0 ? parcelItems : orderData.items,
+              order_number: `${orderData.order_number} (กล่อง ${parcel.parcel_number}/${orderData.parcels.length})`,
+            });
+          }
+        } else {
+          ordersData.push(orderData);
+        }
       }
+
       setOverlayMessage('กำลังสร้าง PDF...');
       setOverlayProgress(90);
-      const blob = await generatePickAndPackPdf(ordersData);
+      const blob = await generatePackingPdf(ordersData);
       setOverlayProgress(100);
-      showPdfPreview(blob, 'ใบหยิบของ + ใบจัดของ');
+      showPdfPreview(blob, isMulti ? 'ใบหยิบของ + ใบจัดของ' : 'ใบจัดของ');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {

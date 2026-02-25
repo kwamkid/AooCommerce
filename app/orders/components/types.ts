@@ -23,6 +23,7 @@ export interface Order {
   tracking_number?: string | null;
   shipping_carrier?: string | null;
   is_split?: boolean;
+  can_split_order?: boolean;
   parcel_count?: number;
   customer_id: string;
   customer_code: string;

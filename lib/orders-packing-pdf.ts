@@ -1,17 +1,17 @@
 /**
- * Combined Pick List + Compact Packing List PDF generation.
+ * Orders Packing List PDF generation (multi-order + single-order compact).
  *
- * ใบหยิบของ (Pick List):
+ * ใบหยิบของ (Pick List) — only when >1 orders:
  *   - Aggregated list of ALL products across all selected orders
  *   - Duplicates combined (quantity summed)
  *   - Has barcodes (CODE128, scannable) + checkboxes
  *   - Same style as existing packing list (indigo theme)
  *
- * ใบจัดของ (Compact Packing List):
+ * ใบจัดของ (Compact Packing List) — always generated:
  *   - Per-order packing list, compact version
- *   - Only: Logo + company name + order number + date + customer + notes
- *   - NO company address, customer address, or signature footer
- *   - Two orders per A4 page (half page each), unless items overflow
+ *   - Logo + company name (left) + "ใบจัดของ" title + info box (right)
+ *   - Two orders per A4 page (half page each) with dashed divider
+ *   - Used for both single and multi-order printing
  */
 
 import JsBarcode from 'jsbarcode';
@@ -21,10 +21,44 @@ import {
   setupPdfMake,
   loadLogoDataUrl,
   formatPdfDate,
-  buildCornerTriangle,
 } from './pdf-utils';
 
-import type { PackingListData } from './order-packing-pdf';
+// ─── Interfaces ──────────────────────────────────────────
+
+interface PackingItem {
+  product_name: string;
+  product_code?: string;
+  variation_label?: string;
+  quantity: number;
+  image?: string | null;
+  barcode?: string | null;
+  sku?: string | null;
+}
+
+export interface PackingListData {
+  order_number: string;
+  order_date?: string;
+  created_at: string;
+  order_status?: string;
+  notes?: string;
+  customer?: { name?: string; phone?: string } | null;
+  delivery_name?: string;
+  delivery_phone?: string;
+  delivery_address?: string;
+  delivery_district?: string;
+  delivery_amphoe?: string;
+  delivery_province?: string;
+  delivery_postal_code?: string;
+  source?: string;
+  items: PackingItem[];
+  is_split?: boolean;
+  parcels?: {
+    parcel_number: number;
+    tracking_number?: string;
+    shipping_carrier?: string;
+    items: { product_name: string; variation_label?: string | null; quantity: number }[];
+  }[];
+}
 
 // ─── Theme ───────────────────────────────────────────────
 
@@ -496,7 +530,7 @@ function buildCompactPackingContent(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const content: any[] = [];
 
-  // ── Mini header: Logo + Company name (left) + Order number + date + customer (right) ──
+  // ── Header: Logo + Company name (left) + "ใบจัดของ" title + info box (right) ──
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const leftStack: any[] = [];
   if (logoDataUrl) {
@@ -515,80 +549,88 @@ function buildCompactPackingContent(
       bold: true,
       fontSize: 10,
       color: '#333333',
-      margin: [0, logoDataUrl ? 0 : 0, 0, 0],
     });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rightStack: any[] = [
-    {
-      text: order.order_number,
-      fontSize: 12,
-      bold: true,
-      color: THEME.primary,
-      alignment: 'right',
-    },
-    {
-      text: dateStr,
-      fontSize: 9,
-      color: '#888888',
-      alignment: 'right',
-    },
-    {
-      text: customerName,
-      fontSize: 10,
-      color: '#333333',
-      alignment: 'right',
-      margin: [0, 2, 0, 0],
-    },
+  const infoRows: any[][] = [
+    [
+      { text: 'เลขที่', fontSize: 8, color: THEME.primary, bold: true },
+      { text: order.order_number, fontSize: 8, bold: true },
+    ],
+    [
+      { text: 'วันที่', fontSize: 8, color: THEME.primary, bold: true },
+      { text: dateStr, fontSize: 8 },
+    ],
   ];
-
-  const customerPhone = order.delivery_phone || order.customer?.phone || '';
-  if (customerPhone) {
-    rightStack.push({
-      text: `โทร: ${customerPhone}`,
-      fontSize: 9,
-      color: '#666666',
-      alignment: 'right',
-    });
-  }
 
   content.push({
     columns: [
       {
         width: '*',
-        stack:
-          leftStack.length > 0 ? leftStack : [{ text: '' }],
+        stack: leftStack.length > 0 ? leftStack : [{ text: '' }],
       },
       {
-        width: 'auto',
-        stack: rightStack,
+        width: 200,
+        stack: [
+          {
+            text: 'ใบจัดของ',
+            fontSize: 16,
+            bold: true,
+            color: THEME.primary,
+            alignment: 'right',
+            margin: [0, 0, 0, 4],
+          },
+          {
+            table: {
+              widths: [30, '*'],
+              body: infoRows,
+            },
+            layout: {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              hLineWidth: (i: number, node: any) =>
+                i === 0 || i === node.table.body.length ? 0.5 : 0,
+              vLineWidth: () => 0,
+              hLineColor: () => '#cccccc',
+              paddingTop: (i: number) => (i === 0 ? 4 : 1),
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              paddingBottom: (i: number, node: any) =>
+                i === node.table.body.length - 1 ? 4 : 1,
+              paddingLeft: () => 3,
+              paddingRight: () => 3,
+            },
+          },
+        ],
       },
     ],
-    margin: [0, 0, 0, 6],
+    margin: [0, 0, 0, 4],
   });
 
-  // ── Notes (if exists) ──
-  if (order.notes) {
-    content.push({
-      text: [
-        { text: 'หมายเหตุ: ', fontSize: 9, bold: true, color: THEME.primary },
-        { text: order.notes, fontSize: 9, color: '#555555' },
-      ],
-      margin: [0, 0, 0, 4],
-    });
-  }
+  // ── Customer name (left) + Notes (right) — same line ──
+  const customerPhone = order.delivery_phone || order.customer?.phone || '';
+  const customerLabel = customerPhone ? `${customerName}  โทร: ${customerPhone}` : customerName;
+  const noteSource = order.source === 'shopee' && !(order.notes || '').includes(order.order_number)
+    ? `Shopee: ${order.order_number}` : '';
+  const noteText = [order.notes, noteSource].filter(Boolean).join(' | ');
 
-  // ── Parcel info (split orders) ──
-  if (order.is_split && order.parcels && order.parcels.length > 0) {
+  if (customerLabel || noteText) {
     content.push({
-      text: `แบ่ง ${order.parcels.length} กล่อง: ${order.parcels.map(p => {
-        const qty = p.items.reduce((s: number, i: { quantity: number }) => s + i.quantity, 0);
-        return `กล่อง ${p.parcel_number} (${qty} ชิ้น)`;
-      }).join(', ')}`,
-      fontSize: 8,
-      color: '#7c3aed',
-      bold: true,
+      columns: [
+        {
+          width: '*',
+          text: customerLabel ? [
+            { text: 'จัดส่งถึง ', fontSize: 9, bold: true, color: THEME.primary },
+            { text: customerLabel, fontSize: 9, bold: true, color: '#333333' },
+          ] : '',
+        },
+        ...(noteText ? [{
+          width: 'auto',
+          text: [
+            { text: 'หมายเหตุ: ', fontSize: 8, bold: true, color: THEME.primary },
+            { text: noteText, fontSize: 8, color: '#555555' },
+          ],
+        }] : []),
+      ],
       margin: [0, 0, 0, 4],
     });
   }
@@ -778,7 +820,12 @@ function buildCompactPackingContent(
 
 // ─── Main Export ─────────────────────────────────────────
 
-export async function generatePickAndPackPdf(
+/**
+ * Generate packing list PDF.
+ * - 1 order: compact packing list only (no pick list)
+ * - >1 orders: pick list (aggregated) + compact packing lists (2 per page)
+ */
+export async function generatePackingPdf(
   orders: PackingListData[],
 ): Promise<Blob> {
   const company = (await fetchCompanyInfo()) || undefined;
@@ -813,75 +860,95 @@ export async function generatePickAndPackPdf(
 
   const checkboxDataUrl = generateCheckboxDataUrl();
 
-  // Build pick list content (page 1+)
-  const pickListContent = await buildPickListContent(
-    orders,
-    company,
-    logoDataUrl,
-  );
-
-  // Build compact packing list content (2 per page)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const compactContent: any[] = [];
+  const fullContent: any[] = [];
 
-  for (let i = 0; i < orders.length; i++) {
-    const order = orders[i];
-    const isFirstOnPage = i % 2 === 0;
-    const isLastOrder = i === orders.length - 1;
-
-    if (isFirstOnPage) {
-      // Page break before each new page pair (except the very first compact page)
-      compactContent.push({
-        text: '',
-        pageBreak: 'before',
-      });
-    }
-
-    const orderContent = buildCompactPackingContent(
-      order,
+  // Pick list only when multiple orders
+  if (orders.length > 1) {
+    const pickListContent = await buildPickListContent(
+      orders,
       company,
       logoDataUrl,
-      checkboxDataUrl,
-      allBarcodeMap,
-      allImageMap,
     );
+    fullContent.push(...pickListContent);
+  }
 
-    // Wrap in a container — if it's the first of a pair, add a separator after
-    for (const block of orderContent) {
-      compactContent.push(block);
+  // Build compact packing list content (2 per page, 50:50 split)
+  // A4 = 842pt, exact vertical center = 421pt
+  // Top half: fixed-height table = 381pt (421 - 40 top margin)
+  // Dashed divider: absolutePosition canvas at y=421 (pixel-perfect page center)
+  // Bottom half: content flows below divider
+  const PAGE_CENTER_Y = 421;
+  const TOP_HALF_HEIGHT = PAGE_CENTER_Y - 40; // 381pt
+  const PAGE_WIDTH = 595; // A4 width in pt
+  const H_MARGIN = 40;
+  const LINE_LENGTH = PAGE_WIDTH - H_MARGIN * 2; // 515pt
+
+  for (let i = 0; i < orders.length; i += 2) {
+    // Page break before each new page pair (except if first content)
+    if (fullContent.length > 0) {
+      fullContent.push({ text: '', pageBreak: 'before' });
     }
 
-    if (!isLastOrder && isFirstOnPage) {
-      // Add a dashed line separator + spacer between top and bottom order
-      compactContent.push({
+    const topOrder = orders[i];
+    const bottomOrder = i + 1 < orders.length ? orders[i + 1] : null;
+
+    const topContent = buildCompactPackingContent(
+      topOrder, company, logoDataUrl, checkboxDataUrl, allBarcodeMap, allImageMap,
+    );
+    const bottomContent = bottomOrder
+      ? buildCompactPackingContent(
+          bottomOrder, company, logoDataUrl, checkboxDataUrl, allBarcodeMap, allImageMap,
+        )
+      : null;
+
+    // Top half — fixed height container (no border, we draw divider separately)
+    fullContent.push({
+      table: {
+        widths: ['*'],
+        heights: [TOP_HALF_HEIGHT],
+        body: [[{ stack: topContent, margin: [0, 0, 0, 0] }]],
+      },
+      layout: {
+        hLineWidth: () => 0,
+        vLineWidth: () => 0,
+        paddingTop: () => 0,
+        paddingBottom: () => 0,
+        paddingLeft: () => 0,
+        paddingRight: () => 0,
+      },
+    });
+
+    // Dashed divider at exact page center using absolutePosition
+    if (bottomContent) {
+      fullContent.push({
         canvas: [
           {
             type: 'line',
             x1: 0,
             y1: 0,
-            x2: 515,
+            x2: LINE_LENGTH,
             y2: 0,
             lineWidth: 0.5,
             lineColor: '#cccccc',
             dash: { length: 4, space: 3 },
           },
         ],
-        margin: [0, 10, 0, 10],
+        absolutePosition: { x: H_MARGIN, y: PAGE_CENTER_Y },
+      });
+
+      // Bottom half content
+      fullContent.push({
+        stack: bottomContent,
+        margin: [0, 12, 0, 0],
       });
     }
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const fullContent: any[] = [
-    ...pickListContent,
-    ...compactContent,
-  ];
 
   const docDefinition = {
     defaultStyle: { font: 'IBMPlexSansThai', fontSize: 16 },
     pageSize: 'A4' as const,
     pageMargins: [40, 40, 40, 40] as [number, number, number, number],
-    background: () => buildCornerTriangle(THEME.primary),
     content: fullContent,
     styles: {
       tableHeader: { bold: true, fontSize: 11, color: '#333333' },

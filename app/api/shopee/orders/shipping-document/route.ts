@@ -12,6 +12,7 @@ import {
   createShippingDocument,
   getShippingDocumentResult,
   downloadShippingDocument,
+  getPackageNumberList,
 } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
     const creds = await ensureValidToken(account as ShopeeAccountRow);
     const orderSn = order.external_order_sn;
 
-    // For split orders, get parcel package_numbers
+    // For split orders, get parcel package_numbers from DB or Shopee API
     let packageNumbers: string[] = [];
     if (order.is_split) {
       const { data: parcels } = await supabaseAdmin
@@ -98,9 +99,34 @@ export async function POST(request: NextRequest) {
         .filter((pn): pn is string => !!pn);
     }
 
+    // If not marked as split in DB, check Shopee API (order may have been split on Seller Center)
+    if (packageNumbers.length === 0) {
+      const { packageNumbers: shopeePackages } = await getPackageNumberList(creds, orderSn);
+      if (shopeePackages.length > 1) {
+        packageNumbers = shopeePackages;
+        // Update DB
+        await supabaseAdmin.from('orders').update({ is_split: true }).eq('id', order_id);
+        const { count } = await supabaseAdmin
+          .from('order_parcels')
+          .select('id', { count: 'exact', head: true })
+          .eq('order_id', order_id);
+        if ((count || 0) === 0) {
+          await supabaseAdmin.from('order_parcels').insert(
+            shopeePackages.map((pn, idx) => ({
+              order_id: order_id,
+              parcel_number: idx + 1,
+              package_number: pn,
+              status: 'pending',
+            }))
+          );
+          console.log(`[Shopee Doc] Auto-created ${shopeePackages.length} parcels for split order ${orderSn}`);
+        }
+      }
+    }
+
     // 3. If order is still READY_TO_SHIP in our DB, auto-ship first
     if (order.external_status === 'READY_TO_SHIP') {
-      const shipError = await autoShipOrder(creds, orderSn, order.is_split ? packageNumbers : undefined);
+      const shipError = await autoShipOrder(creds, orderSn, packageNumbers.length > 0 ? packageNumbers : undefined);
       if (shipError) {
         logDoc(companyId, accountId, accountName, 'error', shipError, order_id, orderSn, startTime, '/api/v2/logistics/ship_order');
         return NextResponse.json({ error: shipError }, { status: 500 });
@@ -117,20 +143,22 @@ export async function POST(request: NextRequest) {
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
-    // 4. Get tracking number
-    const trackingResult = await getTrackingNumber(creds, orderSn);
+    // 4. Get tracking number (for split orders, get first package's tracking)
+    const hasPkgs = packageNumbers.length > 0;
+    const trackingResult = hasPkgs
+      ? await getTrackingNumber(creds, orderSn, packageNumbers[0])
+      : await getTrackingNumber(creds, orderSn);
     const trackingNumber = trackingResult.tracking_number || '';
-    console.log(`[Shopee Doc] Tracking for ${orderSn}: ${trackingNumber || 'none'}`);
+    console.log(`[Shopee Doc] Tracking for ${orderSn}${hasPkgs ? ` (pkg ${packageNumbers[0]})` : ''}: ${trackingNumber || 'none'}`);
 
     // 5. Get shipping document parameter — tells us which document type to use
     // For split orders, include package_number in the request
-    const docParamOrderList = order.is_split && packageNumbers.length > 0
+    const docParamOrderList = hasPkgs
       ? packageNumbers.map(pn => ({ order_sn: orderSn, package_number: pn }))
       : [{ order_sn: orderSn }];
 
-    // Use raw API for split orders since getShippingDocumentParameter only takes order_sn list
-    const docParamResult = await getShippingDocumentParameter(creds, [orderSn]);
-    const docParam = docParamResult.resultList?.find(r => r.order_sn === orderSn);
+    const docParamResult = await getShippingDocumentParameter(creds, [orderSn], docParamOrderList);
+    const docParam = docParamResult.resultList?.[0];
 
     if (docParam?.fail_error) {
       const failError = docParam.fail_error;
@@ -152,7 +180,7 @@ export async function POST(request: NextRequest) {
 
     // 6. Create shipping document with tracking_number and correct document type
     // For split orders, create document for each package
-    const createOrderList = order.is_split && packageNumbers.length > 0
+    const createOrderList = hasPkgs
       ? packageNumbers.map(pn => ({
           order_sn: orderSn,
           package_number: pn,
@@ -196,7 +224,7 @@ export async function POST(request: NextRequest) {
       for (let i = 0; i < MAX_POLLS; i++) {
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        const pollOrderList = order.is_split && packageNumbers.length > 0
+        const pollOrderList = hasPkgs
           ? packageNumbers.map(pn => ({
               order_sn: orderSn,
               package_number: pn,
@@ -226,7 +254,7 @@ export async function POST(request: NextRequest) {
         }
 
         // For split orders, check if ALL packages are ready
-        if (order.is_split && result.result_list) {
+        if (hasPkgs && result.result_list) {
           const allReady = result.result_list.every(r => r.status === 'READY');
           if (allReady) {
             documentReady = true;
@@ -247,8 +275,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 8. Download the PDF
-    // For split orders, Shopee returns all package labels in one download
-    const { pdfBuffer, error: downloadError } = await downloadShippingDocument(creds, [orderSn], suggestedDocType);
+    // For split orders, pass package_numbers so Shopee returns all package labels
+    const downloadOrderItems = hasPkgs
+      ? packageNumbers.map(pn => ({ order_sn: orderSn, package_number: pn }))
+      : undefined;
+    const { pdfBuffer, error: downloadError } = await downloadShippingDocument(creds, [orderSn], suggestedDocType, downloadOrderItems);
 
     if (downloadError || !pdfBuffer) {
       console.error('[Shopee Doc] downloadShippingDocument error:', downloadError);

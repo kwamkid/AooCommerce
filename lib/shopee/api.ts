@@ -631,17 +631,22 @@ export interface ShippingDocumentParameterItem {
  * Get selectable and suggested shipping document types for orders.
  * Must call BEFORE createShippingDocument to know which document_type to use.
  * Field name is "suggest_shipping_document_type" (no 'd' at end) per Shopee docs.
+ *
+ * For split orders, pass orderItems with package_number to get per-package results.
  */
 export async function getShippingDocumentParameter(
   creds: ShopeeCredentials,
-  orderSns: string[]
+  orderSns: string[],
+  /** Optional: specific order items with package_number for split orders */
+  orderItems?: { order_sn: string; package_number?: string }[]
 ): Promise<{
   data: unknown;
   error?: string;
   resultList?: ShippingDocumentParameterItem[];
 }> {
+  const orderList = orderItems || orderSns.map(sn => ({ order_sn: sn }));
   const { data, error } = await shopeeApiRequest(creds, 'POST', '/api/v2/logistics/get_shipping_document_parameter', {}, {
-    order_list: orderSns.map(sn => ({ order_sn: sn })),
+    order_list: orderList,
   });
 
   if (error) return { data: null, error };
@@ -708,15 +713,20 @@ export async function getShippingDocumentResult(
  * Download a shipping document (PDF) after it is READY.
  * shipping_document_type is a TOP-LEVEL parameter (not per-order).
  * Returns the raw PDF buffer.
+ *
+ * For split orders, pass orderItems with package_number per entry.
  */
 export async function downloadShippingDocument(
   creds: ShopeeCredentials,
   orderSns: string[],
-  shippingDocumentType: string = 'NORMAL_AIR_WAYBILL'
+  shippingDocumentType: string = 'NORMAL_AIR_WAYBILL',
+  /** Optional: specific order items with package_number for split orders */
+  orderItems?: { order_sn: string; package_number?: string }[]
 ): Promise<{ pdfBuffer: Buffer | null; error?: string }> {
   try {
+    const orderList = orderItems || orderSns.map(sn => ({ order_sn: sn }));
     const res = await shopeeApiRequestRaw(creds, 'POST', '/api/v2/logistics/download_shipping_document', {}, {
-      order_list: orderSns.map(sn => ({ order_sn: sn })),
+      order_list: orderList,
       shipping_document_type: shippingDocumentType,
     });
 
@@ -738,21 +748,80 @@ export async function downloadShippingDocument(
 }
 
 /**
- * Get tracking number for an order.
+ * Get tracking number for an order (optionally for a specific package of a split order).
  * Uses /api/v2/logistics/get_tracking_number
  */
 export async function getTrackingNumber(
   creds: ShopeeCredentials,
-  orderSn: string
+  orderSn: string,
+  packageNumber?: string
 ): Promise<{ tracking_number?: string; error?: string }> {
-  const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/logistics/get_tracking_number', {
-    order_sn: orderSn,
-  });
+  const params: Record<string, string> = { order_sn: orderSn };
+  if (packageNumber) params.package_number = packageNumber;
+
+  const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/logistics/get_tracking_number', params);
 
   if (error) return { error };
 
   const response = data as { tracking_number?: string; plp_number?: string; first_mile_tracking_number?: string };
   return { tracking_number: response?.tracking_number || response?.plp_number || '' };
+}
+
+/**
+ * Get package numbers for a split order.
+ * Uses /api/v2/order/get_order_detail with package_list optional field.
+ * Returns empty array if order is not split.
+ */
+export async function getPackageNumberList(
+  creds: ShopeeCredentials,
+  orderSn: string
+): Promise<{ packageNumbers: string[]; error?: string }> {
+  const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_order_detail', {
+    order_sn_list: orderSn,
+    response_optional_fields: 'package_list',
+  });
+
+  if (error) return { packageNumbers: [], error };
+
+  const response = data as { order_list?: { order_sn: string; package_list?: { package_number: string }[] }[] };
+  const order = response?.order_list?.[0];
+  if (!order?.package_list || order.package_list.length <= 1) {
+    return { packageNumbers: [] }; // not split
+  }
+
+  return { packageNumbers: order.package_list.map(p => p.package_number) };
+}
+
+/**
+ * Batch get package numbers for multiple orders in ONE API call.
+ * get_order_detail supports up to 50 order_sn in a single request.
+ * Returns a map of order_sn -> package_numbers[] (only includes split orders with >1 package).
+ */
+export async function getPackageNumberListBatch(
+  creds: ShopeeCredentials,
+  orderSns: string[]
+): Promise<{ packageMap: Map<string, string[]>; error?: string }> {
+  if (orderSns.length === 0) return { packageMap: new Map() };
+
+  const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_order_detail', {
+    order_sn_list: orderSns.join(','),
+    response_optional_fields: 'package_list',
+  });
+
+  if (error) return { packageMap: new Map(), error };
+
+  const response = data as {
+    order_list?: { order_sn: string; package_list?: { package_number: string }[] }[];
+  };
+
+  const packageMap = new Map<string, string[]>();
+  for (const order of response?.order_list || []) {
+    if (order.package_list && order.package_list.length > 1) {
+      packageMap.set(order.order_sn, order.package_list.map(p => p.package_number));
+    }
+  }
+
+  return { packageMap };
 }
 
 // ============================================
@@ -1194,12 +1263,50 @@ export async function initTierVariation(
 }
 
 // ============================================
+// Package Detail API
+// ============================================
+
+export interface PackageDetail {
+  order_sn: string;
+  package_number: string;
+  can_split_order?: boolean;
+  can_unsplit_order?: boolean;
+  is_split_up?: boolean;
+  item_list?: {
+    item_id: number;
+    model_id: number;
+    model_quantity: number;
+    order_item_id: number;
+    promotion_group_id: number;
+  }[];
+}
+
+/**
+ * Get package detail from Shopee — includes can_split_order flag.
+ * Requires package_number (from get_order_detail package_list).
+ */
+export async function getPackageDetail(
+  creds: ShopeeCredentials,
+  packageNumbers: string[],
+): Promise<{ packages: PackageDetail[]; error?: string }> {
+  const { data, error } = await shopeeApiRequest(creds, 'POST', '/api/v2/order/get_package_detail', {
+    package_number_list: packageNumbers.join(','),
+  });
+  if (error) return { packages: [], error };
+  const response = data as { package_list?: PackageDetail[] };
+  return { packages: response?.package_list || [] };
+}
+
+// ============================================
 // Order Split/Unsplit API Functions
 // ============================================
 
 export interface SplitOrderPackageItem {
   item_id: number;
   model_id: number;
+  order_item_id?: number;
+  promotion_group_id?: number;
+  model_quantity?: number;
 }
 
 export interface SplitOrderResultPackage {

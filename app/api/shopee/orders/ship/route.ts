@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     // 1. Fetch order
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status')
+      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status, is_split')
       .eq('id', order_id)
       .eq('company_id', companyId)
       .single();
@@ -136,12 +136,46 @@ export async function POST(request: NextRequest) {
       shipResult = await shipOrder(creds, order.external_order_sn, pickupParams);
     }
 
+    // For split orders, also ship each parcel with package_number
+    if (order.is_split) {
+      const { data: parcels } = await supabaseAdmin
+        .from('order_parcels')
+        .select('package_number')
+        .eq('order_id', order_id)
+        .order('parcel_number');
+      const packageNumbers = (parcels || []).map(p => p.package_number).filter(Boolean) as string[];
+      if (packageNumbers.length > 0) {
+        const errors: string[] = [];
+        for (const pn of packageNumbers) {
+          let parcelResult;
+          if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
+            const dropoffParams: Record<string, unknown> = {};
+            if (params.dropoff?.branch_list?.[0]) dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
+            parcelResult = await shipOrder(creds, order.external_order_sn, undefined, dropoffParams, pn);
+          } else {
+            const pickupAddress = params.pickup?.address_list?.[0];
+            if (!pickupAddress) { errors.push(`parcel ${pn}: ไม่พบที่อยู่รับพัสดุ`); continue; }
+            const timeSlots = pickupAddress.time_slot_list || [];
+            const recommended = timeSlots.find((s: any) => s.flags?.includes('recommended'));
+            const selectedTimeId = pickup_time_id || (recommended || timeSlots[0])?.pickup_time_id || '';
+            parcelResult = await shipOrder(creds, order.external_order_sn, { address_id: pickupAddress.address_id, pickup_time_id: selectedTimeId }, undefined, pn);
+          }
+          if (parcelResult.error) errors.push(`parcel ${pn}: ${parcelResult.error}`);
+        }
+        if (errors.length > 0) {
+          return NextResponse.json({ error: `บางกล่องรับออเดอร์ไม่สำเร็จ: ${errors.join(', ')}` }, { status: 500 });
+        }
+        // Skip the main shipResult check since we shipped per-parcel
+        shipResult = { error: null, data: null };
+      }
+    }
+
     if (shipResult.error) {
       console.error('[Shopee Ship] ship_order error:', shipResult.error);
       return NextResponse.json({ error: `รับออเดอร์ไม่สำเร็จ: ${shipResult.error}` }, { status: 500 });
     }
 
-    console.log('[Shopee Ship] ship_order success:', JSON.stringify(shipResult.data).substring(0, 500));
+    console.log('[Shopee Ship] ship_order success:', JSON.stringify(shipResult?.data || {}).substring(0, 500));
 
     // 6. Update order in DB
     await supabaseAdmin
