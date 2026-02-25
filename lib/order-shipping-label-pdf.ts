@@ -98,7 +98,7 @@ interface GenerateOptions {
   company?: CompanyInfo;
 }
 
-export async function generateShippingLabelPdf({ data, company }: GenerateOptions) {
+export async function generateShippingLabelPdf({ data, company }: GenerateOptions): Promise<Blob> {
   if (!company) {
     company = (await fetchCompanyInfo()) || undefined;
   }
@@ -392,5 +392,5 @@ export async function generateShippingLabelPdf({ data, company }: GenerateOption
   };
 
   const pdfDoc = pdfMake.createPdf(docDefinition);
-  return pdfDoc.getBlob();
+  return pdfDoc.getBlob() as Promise<Blob>;
 }

@@ -113,7 +113,7 @@ interface GeneratePdfOptions {
   company?: CompanyInfo;
 }
 
-export async function generateInventoryPdf({ type, data, company }: GeneratePdfOptions) {
+export async function generateInventoryPdf({ type, data, company }: GeneratePdfOptions): Promise<Blob> {
   // Auto-fetch company info if not provided
   if (!company) {
     company = (await fetchCompanyInfo()) || undefined;
@@ -462,5 +462,5 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
   };
 
   const pdfDoc = pdfMake.createPdf(docDefinition);
-  return pdfDoc.getBlob();
+  return pdfDoc.getBlob() as Promise<Blob>;
 }

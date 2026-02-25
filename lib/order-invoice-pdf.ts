@@ -121,7 +121,7 @@ interface GenerateOptions {
   company?: CompanyInfo;
 }
 
-export async function generateOrderInvoicePdf({ data, company }: GenerateOptions) {
+export async function generateOrderInvoicePdf({ data, company }: GenerateOptions): Promise<Blob> {
   if (!company) {
     company = (await fetchCompanyInfo()) || undefined;
   }
@@ -441,5 +441,5 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
   };
 
   const pdfDoc = pdfMake.createPdf(docDefinition);
-  return pdfDoc.getBlob();
+  return pdfDoc.getBlob() as Promise<Blob>;
 }
