@@ -50,6 +50,13 @@ export interface PackingListData {
   delivery_postal_code?: string;
   source?: string;
   items: PackingItem[];
+  is_split?: boolean;
+  parcels?: {
+    parcel_number: number;
+    tracking_number?: string;
+    shipping_carrier?: string;
+    items: { product_name: string; variation_label?: string | null; quantity: number }[];
+  }[];
 }
 
 // ─── Theme ───────────────────────────────────────────────

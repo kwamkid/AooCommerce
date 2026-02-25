@@ -601,10 +601,14 @@ export async function shipOrder(
   creds: ShopeeCredentials,
   orderSn: string,
   pickup?: { address_id: number; pickup_time_id: string },
-  dropoff?: Record<string, unknown>
+  dropoff?: Record<string, unknown>,
+  packageNumber?: string
 ): Promise<{ data: unknown; error?: string }> {
   const body: Record<string, unknown> = { order_sn: orderSn };
 
+  if (packageNumber) {
+    body.package_number = packageNumber;
+  }
   if (pickup) {
     body.pickup = pickup;
   } else if (dropoff) {
@@ -1186,5 +1190,59 @@ export async function initTierVariation(
     item_id: itemId,
     tier_variation: tierVariation,
     model: model,
+  });
+}
+
+// ============================================
+// Order Split/Unsplit API Functions
+// ============================================
+
+export interface SplitOrderPackageItem {
+  item_id: number;
+  model_id: number;
+}
+
+export interface SplitOrderResultPackage {
+  package_number: string;
+  item_list: SplitOrderPackageItem[];
+}
+
+/**
+ * Split an order into multiple parcels.
+ * Must be called when order is READY_TO_SHIP.
+ * Max 5 parcels for Thailand (30 for Taiwan).
+ * Each package_list entry contains items for one parcel.
+ */
+export async function splitOrder(
+  creds: ShopeeCredentials,
+  orderSn: string,
+  packageList: SplitOrderPackageItem[][]
+): Promise<{
+  data: unknown;
+  error?: string;
+  packageList?: SplitOrderResultPackage[];
+}> {
+  // Shopee split_order is a GET request with JSON-encoded package_list in query params
+  const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/split_order', {
+    order_sn: orderSn,
+    package_list: JSON.stringify(packageList.map(items => ({ item_list: items }))),
+  });
+
+  if (error) return { data, error };
+
+  const response = data as { package_list?: SplitOrderResultPackage[] };
+  return { data, packageList: response?.package_list };
+}
+
+/**
+ * Undo a split order — revert to single package.
+ * Only works when order is still READY_TO_SHIP.
+ */
+export async function unsplitOrder(
+  creds: ShopeeCredentials,
+  orderSn: string
+): Promise<{ data: unknown; error?: string }> {
+  return shopeeApiRequest(creds, 'GET', '/api/v2/order/unsplit_order', {
+    order_sn: orderSn,
   });
 }

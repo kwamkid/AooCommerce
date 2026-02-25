@@ -9,6 +9,7 @@ interface LoadingOverlayProps {
   progress?: number;         // 0-100
   onCancel?: () => void;
   cancelLabel?: string;
+  showWarning?: boolean;     // default true
 }
 
 export default function LoadingOverlay({
@@ -18,6 +19,7 @@ export default function LoadingOverlay({
   progress,
   onCancel,
   cancelLabel = 'ยกเลิก',
+  showWarning = true,
 }: LoadingOverlayProps) {
   if (!isOpen) return null;
 
@@ -57,9 +59,11 @@ export default function LoadingOverlay({
         )}
 
         {/* Warning */}
-        <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
-          กรุณาอย่าปิดหน้านี้ระหว่างดำเนินการ
-        </p>
+        {showWarning && (
+          <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
+            กรุณาอย่าปิดหน้านี้ระหว่างดำเนินการ
+          </p>
+        )}
 
         {/* Cancel button */}
         {onCancel && (

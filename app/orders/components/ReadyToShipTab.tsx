@@ -16,11 +16,14 @@ import {
   Pause,
   Play,
   Clock,
+  Scissors,
 } from 'lucide-react';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
+import { useFeatures } from '@/lib/features-context';
 import OrderCard from './OrderCard';
 import ActionMenu, { ActionItem } from './ActionMenu';
+import SplitParcelModal from './SplitParcelModal';
 import { Order } from './types';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 
@@ -40,6 +43,7 @@ interface TimeSlotModal {
 
 interface ReadyToShipTabProps {
   orders: Order[];
+  totalOrders: number;
   userProfile: any;
   onRefresh: () => void;
   onImageClick: (url: string) => void;
@@ -50,6 +54,7 @@ interface ReadyToShipTabProps {
 
 export default function ReadyToShipTab({
   orders,
+  totalOrders,
   userProfile,
   onRefresh,
   onImageClick,
@@ -59,6 +64,7 @@ export default function ReadyToShipTab({
 }: ReadyToShipTabProps) {
   const router = useRouter();
   const { showToast } = useToast();
+  const { features } = useFeatures();
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -69,10 +75,18 @@ export default function ReadyToShipTab({
   const [timeSlotModal, setTimeSlotModal] = useState<TimeSlotModal | null>(null);
   const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<string | null>(null);
   const [pendingTimeSlotOrders, setPendingTimeSlotOrders] = useState<TimeSlotModal[]>([]);
+  const [splitModal, setSplitModal] = useState<{
+    orderId: string;
+    orderNumber: string;
+    orderItems: { id: string; product_name: string; variation_label?: string | null; quantity: number; image?: string | null }[];
+    isShopee: boolean;
+  } | null>(null);
 
   // All orders can be bulk-selected (Shopee needs bulk accept too)
   const selectableOrders = useMemo(() => orders, [orders]);
-  const allSelected = selectableOrders.length > 0 && selectableOrders.every(o => selectedIds.has(o.id));
+  const allSelected = selectableOrders.length > 0 && (
+    selectedIds.size >= totalOrders || selectableOrders.every(o => selectedIds.has(o.id))
+  );
 
   // Auto-select recommended timeslot when modal opens
   useEffect(() => {
@@ -90,10 +104,31 @@ export default function ReadyToShipTab({
     });
   };
 
-  const toggleSelectAll = () => {
+  const toggleSelectAll = async () => {
     if (allSelected) {
       setSelectedIds(new Set());
-    } else {
+      return;
+    }
+
+    // If all orders fit in one page, just select locally
+    if (totalOrders <= orders.length) {
+      setSelectedIds(new Set(selectableOrders.map(o => o.id)));
+      return;
+    }
+
+    // Fetch ALL order IDs for ready_to_ship from server
+    try {
+      const params = new URLSearchParams();
+      params.set('status', 'ready_to_ship');
+      params.set('source', 'exclude_pos');
+      params.set('ids_only', 'true');
+
+      const res = await apiFetch(`/api/orders?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed');
+      const result = await res.json();
+      setSelectedIds(new Set(result.ids || []));
+    } catch {
+      // Fallback: select only current page
       setSelectedIds(new Set(selectableOrders.map(o => o.id)));
     }
   };
@@ -300,6 +335,32 @@ export default function ReadyToShipTab({
     } finally { setActionLoading(false); }
   };
 
+  const handleOpenSplit = async (order: Order) => {
+    setActionLoading(true);
+    try {
+      const res = await apiFetch(`/api/orders/${order.id}`);
+      if (!res.ok) throw new Error('Failed to fetch order');
+      const result = await res.json();
+      const items = (result.order?.items || []).map((i: any) => ({
+        id: i.id,
+        product_name: i.product_name,
+        variation_label: i.variation_label,
+        quantity: i.quantity,
+        image: i.image,
+      }));
+      setSplitModal({
+        orderId: order.id,
+        orderNumber: order.order_number,
+        orderItems: items,
+        isShopee: order.source === 'shopee',
+      });
+    } catch {
+      showToast('ไม่สามารถดึงข้อมูลสินค้าได้', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const renderCardActions = (order: Order) => {
     const isShopee = order.source === 'shopee';
     const isMarketplace = isMarketplaceSource(order.source);
@@ -322,6 +383,22 @@ export default function ReadyToShipTab({
         </button>
       );
     } else {
+      // Primary: Split button (only if feature enabled, >1 piece, not already split)
+      if (features.parcel_splitting && order.item_count > 1 && !order.is_split) {
+        primaryActions.push(
+          <button
+            key="split"
+            onClick={(e) => { e.stopPropagation(); handleOpenSplit(order); }}
+            disabled={actionLoading}
+            className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            title="แบ่งกล่อง"
+          >
+            <Scissors className="w-4 h-4" />
+            แบ่งกล่อง
+          </button>
+        );
+      }
+
       // Primary: Accept (same button for both Shopee and manual)
       primaryActions.push(
         <button
@@ -349,6 +426,31 @@ export default function ReadyToShipTab({
       onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
       className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
     });
+
+    // Menu: Unsplit (split orders that can be unsplit)
+    if (features.parcel_splitting && order.is_split) {
+      menuItems.push({
+        key: 'unsplit', label: 'ยกเลิกแบ่งกล่อง', icon: <Scissors className="w-4 h-4" />,
+        onClick: async (e) => {
+          e.stopPropagation();
+          if (!confirm('ยกเลิกการแบ่งกล่องออเดอร์นี้?')) return;
+          setActionLoading(true);
+          try {
+            const res = await apiFetch('/api/orders/unsplit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ order_id: order.id }),
+            });
+            if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
+            showToast('ยกเลิกแบ่งกล่องแล้ว', 'success');
+            onRefresh();
+          } catch (err) {
+            showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+          } finally { setActionLoading(false); }
+        },
+        className: 'p-1.5 text-gray-400 hover:text-amber-600 transition-colors rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/30',
+      });
+    }
 
     // Menu: Hold (any order, not already on hold)
     if (!isOnHold) {
@@ -407,15 +509,17 @@ export default function ReadyToShipTab({
       {/* Order Cards */}
       <div className="space-y-3">
         {selectableOrders.length > 1 && (
-          <div className="flex items-center gap-2 px-4">
+          <label className="flex items-center gap-2 px-4 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={allSelected}
               onChange={toggleSelectAll}
               className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E]"
             />
-            <span className="text-xs text-gray-400 dark:text-slate-500">เลือกทั้งหมด</span>
-          </div>
+            <span className="text-xs text-gray-400 dark:text-slate-500">
+              เลือกทั้งหมด{totalOrders > orders.length ? ` (${totalOrders})` : ''}
+            </span>
+          </label>
         )}
         {orders.map((order) => (
           <OrderCard
@@ -651,6 +755,23 @@ export default function ReadyToShipTab({
           <CheckCircle className="w-4 h-4 text-green-400" />
           {toast}
         </div>
+      )}
+
+      {/* Split Parcel Modal */}
+      {splitModal && (
+        <SplitParcelModal
+          show
+          orderId={splitModal.orderId}
+          orderNumber={splitModal.orderNumber}
+          orderItems={splitModal.orderItems}
+          isShopee={splitModal.isShopee}
+          onClose={() => setSplitModal(null)}
+          onSuccess={() => {
+            setSplitModal(null);
+            showToast('แบ่งกล่องสำเร็จ', 'success');
+            onRefresh();
+          }}
+        />
       )}
     </>
   );

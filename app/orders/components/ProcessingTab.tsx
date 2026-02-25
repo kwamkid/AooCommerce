@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -19,11 +19,14 @@ import {
   Banknote,
 } from 'lucide-react';
 import { generatePackingListPdf } from '@/lib/order-packing-pdf';
+import { generatePickAndPackPdf } from '@/lib/order-pick-pack-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import OrderCard from './OrderCard';
 import ActionMenu, { ActionItem } from './ActionMenu';
+import Pagination from '@/app/components/Pagination';
+import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import {
   Order,
   SHIPPING_CARRIERS,
@@ -31,7 +34,10 @@ import {
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 
 interface ProcessingTabProps {
-  orders: Order[];
+  /** Carrier counts from parent's initial fetch: { "SPX Express": 14, "__none__": 3, ... } */
+  carrierCounts: Record<string, number>;
+  /** On hold count (separate from carrier counts) */
+  onHoldCount: number;
   userProfile: any;
   onRefresh: () => void;
   onImageClick: (url: string) => void;
@@ -40,8 +46,12 @@ interface ProcessingTabProps {
   onDeleteOrder: (e: React.MouseEvent, order: Order) => void;
 }
 
+const ON_HOLD_KEY = '__on_hold__';
+const NONE_KEY = '__none__';
+
 export default function ProcessingTab({
-  orders,
+  carrierCounts,
+  onHoldCount,
   userProfile,
   onRefresh,
   onImageClick,
@@ -51,13 +61,29 @@ export default function ProcessingTab({
   const router = useRouter();
   const { showToast } = useToast();
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Sub-tab state
   const [activeCarrierGroup, setActiveCarrierGroup] = useState<string>('');
+  const isOnHoldTab = activeCarrierGroup === ON_HOLD_KEY;
+
+  // Self-fetched orders for active carrier tab
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [recordsPerPage, setRecordsPerPage] = useState(20);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [holdModal, setHoldModal] = useState<{ orderId: string; orderNumber: string } | null>(null);
   const [holdReason, setHoldReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState<{ ids: string[] } | null>(null);
   const [toast, setToast] = useState('');
+
+  // Loading overlay state
+  const [overlayTitle, setOverlayTitle] = useState('กำลังดำเนินการ...');
+  const [overlayMessage, setOverlayMessage] = useState<string | undefined>();
+  const [overlayProgress, setOverlayProgress] = useState<number | undefined>();
 
   // Ship modal (single)
   const [shipModal, setShipModal] = useState<{ order: Order } | null>(null);
@@ -74,66 +100,97 @@ export default function ProcessingTab({
     shipping_carrier: string;
   }>>([]);
 
-  // Group orders by shipping carrier
-  const { carrierGroups, carrierOrder, onHoldOrders } = useMemo(() => {
-    const groups = new Map<string, Order[]>();
-    const holdOrders: Order[] = [];
-    const ON_HOLD_KEY = '__on_hold__';
-    const UNSPECIFIED_KEY = 'ไม่ระบุขนส่ง';
+  // Build sorted carrier tabs from carrierCounts
+  const carrierTabs = useMemo(() => {
+    const tabs: { key: string; label: string; count: number }[] = [];
 
-    for (const order of orders) {
-      if (order.fulfillment_status === 'on_hold') {
-        holdOrders.push(order);
-        continue;
-      }
-      const carrier = order.shipping_carrier || UNSPECIFIED_KEY;
-      if (!groups.has(carrier)) groups.set(carrier, []);
-      groups.get(carrier)!.push(order);
-    }
-
-    // Sort: carriers with orders first, "ไม่ระบุขนส่ง" last
-    const sortedKeys = [...groups.keys()].sort((a, b) => {
-      if (a === UNSPECIFIED_KEY) return 1;
-      if (b === UNSPECIFIED_KEY) return -1;
-      return groups.get(b)!.length - groups.get(a)!.length;
+    // Sort carriers by count descending, "__none__" last
+    const entries = Object.entries(carrierCounts).sort((a, b) => {
+      if (a[0] === NONE_KEY) return 1;
+      if (b[0] === NONE_KEY) return -1;
+      return b[1] - a[1];
     });
 
-    // Add on_hold as last group if any
-    if (holdOrders.length > 0) sortedKeys.push(ON_HOLD_KEY);
-
-    return { carrierGroups: groups, carrierOrder: sortedKeys, onHoldOrders: holdOrders };
-  }, [orders]);
-
-  const ON_HOLD_KEY = '__on_hold__';
-  const isOnHoldTab = activeCarrierGroup === ON_HOLD_KEY;
-
-  // Auto-select first non-empty group
-  useEffect(() => {
-    if (carrierOrder.length === 0) return;
-    const currentOrders = isOnHoldTab ? onHoldOrders : carrierGroups.get(activeCarrierGroup);
-    if (!currentOrders || currentOrders.length === 0) {
-      setActiveCarrierGroup(carrierOrder[0]);
+    for (const [carrier, count] of entries) {
+      if (count === 0) continue;
+      tabs.push({
+        key: carrier,
+        label: carrier === NONE_KEY ? 'ไม่ระบุขนส่ง' : carrier,
+        count,
+      });
     }
-  }, [carrierOrder, activeCarrierGroup]);
 
-  // Set initial group on mount
-  useEffect(() => {
-    if (activeCarrierGroup === '' && carrierOrder.length > 0) {
-      setActiveCarrierGroup(carrierOrder[0]);
+    // On hold at the end
+    if (onHoldCount > 0) {
+      tabs.push({ key: ON_HOLD_KEY, label: 'พักไว้', count: onHoldCount });
     }
-  }, [carrierOrder]);
 
-  // Active group orders
-  const activeOrders = isOnHoldTab ? onHoldOrders : (carrierGroups.get(activeCarrierGroup) || []);
-  const selectableInActiveGroup = isOnHoldTab ? [] : activeOrders;
-  const allGroupSelected = selectableInActiveGroup.length > 0 && selectableInActiveGroup.every(o => selectedIds.has(o.id));
+    return tabs;
+  }, [carrierCounts, onHoldCount]);
 
-  // Count of selected non-marketplace orders (only these can be shipped manually)
+  // Auto-select first tab
+  useEffect(() => {
+    if (carrierTabs.length > 0 && (!activeCarrierGroup || !carrierTabs.find(t => t.key === activeCarrierGroup))) {
+      setActiveCarrierGroup(carrierTabs[0].key);
+    }
+  }, [carrierTabs]);
+
+  // Fetch orders when carrier tab or page changes
+  const fetchOrders = useCallback(async () => {
+    if (!activeCarrierGroup) return;
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('status', 'processing');
+      params.set('source', 'exclude_pos');
+      params.set('page', currentPage.toString());
+      params.set('limit', recordsPerPage.toString());
+      params.set('sort_by', 'created_at');
+      params.set('sort_dir', 'desc');
+      params.set('shipping_carrier', activeCarrierGroup);
+
+      const response = await apiFetch(`/api/orders?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch orders');
+
+      const result = await response.json();
+      setOrders(result.orders || []);
+      setTotalOrders(result.pagination?.total || 0);
+      setTotalPages(result.pagination?.totalPages || 0);
+    } catch (err) {
+      console.error('ProcessingTab fetch error:', err);
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeCarrierGroup, currentPage, recordsPerPage]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  // Reset page when switching carrier tab
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedIds(new Set());
+  }, [activeCarrierGroup]);
+
+  // Refresh handler — refresh parent + re-fetch our tab
+  const handleRefresh = useCallback(() => {
+    onRefresh(); // refresh parent (updates carrierCounts)
+    fetchOrders(); // refresh our tab
+  }, [onRefresh, fetchOrders]);
+
+  // Selection
+  const selectableOrders = isOnHoldTab ? [] : orders;
+  // Consider "all selected" if selected count >= total orders in this group (across all pages)
+  const allGroupSelected = selectableOrders.length > 0 && (
+    selectedIds.size >= totalOrders || selectableOrders.every(o => selectedIds.has(o.id))
+  );
+
   const shippableSelectedIds = useMemo(() => {
     return orders.filter(o => selectedIds.has(o.id) && !isMarketplaceSource(o.source)).map(o => o.id);
   }, [orders, selectedIds]);
 
-  // Selection
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -142,23 +199,44 @@ export default function ProcessingTab({
     });
   };
 
-  const toggleSelectGroup = () => {
-    const groupIds = selectableInActiveGroup.map(o => o.id);
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (allGroupSelected) {
-        groupIds.forEach(id => next.delete(id));
-      } else {
-        groupIds.forEach(id => next.add(id));
-      }
-      return next;
-    });
+  const toggleSelectGroup = async () => {
+    if (allGroupSelected) {
+      // Deselect all
+      setSelectedIds(new Set());
+      return;
+    }
+
+    // If all current page orders are already showing, and total fits in one page, just select locally
+    if (totalOrders <= orders.length) {
+      setSelectedIds(new Set(selectableOrders.map(o => o.id)));
+      return;
+    }
+
+    // Fetch ALL order IDs for this carrier group from server
+    try {
+      const params = new URLSearchParams();
+      params.set('status', 'processing');
+      params.set('source', 'exclude_pos');
+      params.set('shipping_carrier', activeCarrierGroup);
+      params.set('ids_only', 'true');
+
+      const res = await apiFetch(`/api/orders?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed');
+      const result = await res.json();
+      setSelectedIds(new Set(result.ids || []));
+    } catch {
+      // Fallback: select only current page
+      setSelectedIds(new Set(selectableOrders.map(o => o.id)));
+    }
   };
 
   // Actions
   const handleHold = async () => {
     if (!holdModal) return;
     setActionLoading(true);
+    setOverlayTitle('กำลังพักออเดอร์...');
+    setOverlayProgress(undefined);
+    setOverlayMessage(undefined);
     try {
       const res = await apiFetch('/api/orders', {
         method: 'PUT',
@@ -167,7 +245,7 @@ export default function ProcessingTab({
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
       showToast('พักออเดอร์แล้ว', 'success');
-      onRefresh();
+      handleRefresh();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -179,6 +257,9 @@ export default function ProcessingTab({
 
   const handleUnhold = async (orderId: string) => {
     setActionLoading(true);
+    setOverlayTitle('กำลังปลดการพัก...');
+    setOverlayProgress(undefined);
+    setOverlayMessage(undefined);
     try {
       const res = await apiFetch('/api/orders', {
         method: 'PUT',
@@ -187,7 +268,7 @@ export default function ProcessingTab({
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
       showToast('ปลดการพักแล้ว', 'success');
-      onRefresh();
+      handleRefresh();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally { setActionLoading(false); }
@@ -195,6 +276,9 @@ export default function ProcessingTab({
 
   const handleBulkCancel = async (ids: string[]) => {
     setActionLoading(true);
+    setOverlayTitle('กำลังยกเลิกออเดอร์...');
+    setOverlayProgress(undefined);
+    setOverlayMessage(`${ids.length} รายการ`);
     try {
       const res = await apiFetch('/api/orders', {
         method: 'PUT',
@@ -205,7 +289,7 @@ export default function ProcessingTab({
       const result = await res.json();
       showToast(`ยกเลิกสำเร็จ ${result.updated || ids.length} รายการ`, 'success');
       setSelectedIds(new Set());
-      onRefresh();
+      handleRefresh();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -217,6 +301,9 @@ export default function ProcessingTab({
   const handleShip = async () => {
     if (!shipModal) return;
     setActionLoading(true);
+    setOverlayTitle('กำลังจัดส่ง...');
+    setOverlayProgress(undefined);
+    setOverlayMessage(undefined);
     try {
       const res = await apiFetch('/api/orders', {
         method: 'PUT',
@@ -230,7 +317,7 @@ export default function ProcessingTab({
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
       showToast('จัดส่งสำเร็จ', 'success');
-      onRefresh();
+      handleRefresh();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -242,7 +329,6 @@ export default function ProcessingTab({
   };
 
   const openBulkShipModal = () => {
-    // Only non-marketplace orders can be shipped manually — NEVER change marketplace status to shipping
     const items = orders
       .filter(o => selectedIds.has(o.id) && !isMarketplaceSource(o.source))
       .map(o => ({
@@ -258,6 +344,9 @@ export default function ProcessingTab({
 
   const handleBulkShipWithTracking = async () => {
     setActionLoading(true);
+    setOverlayTitle('กำลังจัดส่ง...');
+    setOverlayProgress(undefined);
+    setOverlayMessage(`${bulkShipItems.length} รายการ`);
     try {
       const res = await apiFetch('/api/orders', {
         method: 'PUT',
@@ -276,7 +365,7 @@ export default function ProcessingTab({
       showToast(`จัดส่งสำเร็จ ${result.shipped || bulkShipItems.length} รายการ`, 'success');
       setSelectedIds(new Set());
       setBulkShipModal(false);
-      onRefresh();
+      handleRefresh();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -322,55 +411,116 @@ export default function ProcessingTab({
 
   const handlePrintLabels = async (orderIds: string[]) => {
     setActionLoading(true);
+    setOverlayTitle('กำลังสร้างใบปะหน้า...');
+    setOverlayProgress(0);
     try {
-      // Split by source: Shopee orders use bulk API, others use local PDF
       const shopeeIds = orderIds.filter(id => {
         const order = orders.find(o => o.id === id);
         return order?.source === 'shopee';
       });
       const otherIds = orderIds.filter(id => !shopeeIds.includes(id));
+      const total = orderIds.length;
 
-      // Print Shopee labels in one bulk call
       if (shopeeIds.length > 0) {
+        setOverlayMessage(`Shopee ${shopeeIds.length} รายการ`);
         await handlePrintShopeeLabels(shopeeIds);
+        setOverlayProgress(Math.round((shopeeIds.length / total) * 100));
       }
 
-      // Print non-Shopee labels — merge into single PDF
       if (otherIds.length > 0) {
         const blobs: Blob[] = [];
-        for (const id of otherIds) {
-          const orderData = await fetchOrderForPdf(id);
-          blobs.push(await generateShippingLabelPdf({ data: orderData }));
+        for (let i = 0; i < otherIds.length; i++) {
+          setOverlayMessage(`${shopeeIds.length + i + 1} / ${total}`);
+          setOverlayProgress(Math.round(((shopeeIds.length + i) / total) * 100));
+          const orderData = await fetchOrderForPdf(otherIds[i]);
+
+          // Split orders: generate one label per parcel
+          if (orderData.is_split && orderData.parcels?.length > 0) {
+            for (const parcel of orderData.parcels) {
+              const parcelItems = (parcel.items || []).map((pi: any) => ({
+                product_name: pi.product_name,
+                variation_label: pi.variation_label,
+                quantity: pi.quantity,
+              }));
+              blobs.push(await generateShippingLabelPdf({
+                data: {
+                  ...orderData,
+                  tracking_number: parcel.tracking_number || orderData.tracking_number,
+                  shipping_carrier: parcel.shipping_carrier || orderData.shipping_carrier,
+                  items: parcelItems.length > 0 ? parcelItems : orderData.items,
+                  parcel_number: parcel.parcel_number,
+                  total_parcels: orderData.parcels.length,
+                },
+              }));
+            }
+          } else {
+            blobs.push(await generateShippingLabelPdf({ data: orderData }));
+          }
         }
         const merged = await mergePdfBlobs(blobs);
         showPdfPreview(merged, 'ใบปะหน้า');
       }
+      setOverlayProgress(100);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
       setActionLoading(false);
+      setOverlayProgress(undefined);
+      setOverlayMessage(undefined);
     }
   };
 
   const handlePrintPackingSlips = async (orderIds: string[]) => {
     setActionLoading(true);
-    try {
-      const blobs: Blob[] = [];
-      for (const id of orderIds) {
-        const orderData = await fetchOrderForPdf(id);
-        blobs.push(await generatePackingListPdf({ data: orderData }));
+    setOverlayProgress(0);
+
+    // Single order → original full packing list
+    if (orderIds.length === 1) {
+      setOverlayTitle('กำลังสร้างใบจัดของ...');
+      try {
+        const orderData = await fetchOrderForPdf(orderIds[0]);
+        setOverlayProgress(100);
+        const blob = await generatePackingListPdf({ data: orderData });
+        showPdfPreview(blob, 'ใบจัดของ');
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+      } finally {
+        setActionLoading(false);
+        setOverlayProgress(undefined);
+        setOverlayMessage(undefined);
       }
-      const merged = await mergePdfBlobs(blobs);
-      showPdfPreview(merged, 'ใบจัดของ');
+      return;
+    }
+
+    // Multiple orders → combined pick list + compact packing lists
+    setOverlayTitle('กำลังสร้างใบหยิบของ + ใบจัดของ...');
+    try {
+      const ordersData = [];
+      for (let i = 0; i < orderIds.length; i++) {
+        setOverlayMessage(`โหลดข้อมูล ${i + 1} / ${orderIds.length}`);
+        setOverlayProgress(Math.round((i / orderIds.length) * 80));
+        const orderData = await fetchOrderForPdf(orderIds[i]);
+        ordersData.push(orderData);
+      }
+      setOverlayMessage('กำลังสร้าง PDF...');
+      setOverlayProgress(90);
+      const blob = await generatePickAndPackPdf(ordersData);
+      setOverlayProgress(100);
+      showPdfPreview(blob, 'ใบหยิบของ + ใบจัดของ');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
       setActionLoading(false);
+      setOverlayProgress(undefined);
+      setOverlayMessage(undefined);
     }
   };
 
-  const handlePrintInvoice = async (orderId: string) => {
+  const handlePrintInvoice = async (orderId: string, paymentStatus?: string) => {
     setActionLoading(true);
+    setOverlayTitle(paymentStatus === 'paid' ? 'กำลังสร้างใบเสร็จรับเงิน...' : 'กำลังสร้างใบแจ้งหนี้...');
+    setOverlayProgress(undefined);
+    setOverlayMessage(undefined);
     try {
       const orderData = await fetchOrderForPdf(orderId);
       const blob = await generateOrderInvoicePdf({ data: orderData });
@@ -389,81 +539,50 @@ export default function ProcessingTab({
     const primaryActions: React.ReactNode[] = [];
     const menuItems: ActionItem[] = [];
 
-    // Primary: Payment (non-marketplace, unpaid, not on hold)
     if (!isMarketplace && !isOnHold && order.payment_status === 'pending') {
       primaryActions.push(
-        <button
-          key="pay"
-          onClick={(e) => { e.stopPropagation(); onPaymentClick?.(order); }}
-          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1"
-          title="บันทึกชำระ"
-        >
-          <CreditCard className="w-3.5 h-3.5" />
-          บันทึกชำระ
+        <button key="pay" onClick={(e) => { e.stopPropagation(); onPaymentClick?.(order); }}
+          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1" title="บันทึกชำระ">
+          <CreditCard className="w-3.5 h-3.5" /> บันทึกชำระ
         </button>
       );
     }
 
-    // Primary: Ship action (non-marketplace only, not on hold)
     if (!isMarketplace && !isOnHold) {
       primaryActions.push(
-        <button
-          key="ship"
-          onClick={(e) => { e.stopPropagation(); setShipModal({ order }); }}
-          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1"
-          title="จัดส่งแล้ว"
-        >
-          <Package className="w-3.5 h-3.5" />
-          จัดส่งแล้ว
+        <button key="ship" onClick={(e) => { e.stopPropagation(); setShipModal({ order }); }}
+          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1" title="จัดส่งแล้ว">
+          <Package className="w-3.5 h-3.5" /> จัดส่งแล้ว
         </button>
       );
     }
 
-    // Primary: Unhold for on_hold
     if (isOnHold) {
       primaryActions.push(
-        <button
-          key="unhold"
-          onClick={(e) => { e.stopPropagation(); handleUnhold(order.id); }}
-          disabled={actionLoading}
-          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1 disabled:opacity-50"
-          title="กลับมา"
-        >
-          <Play className="w-3.5 h-3.5" />
-          กลับมา
+        <button key="unhold" onClick={(e) => { e.stopPropagation(); handleUnhold(order.id); }} disabled={actionLoading}
+          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1 disabled:opacity-50" title="กลับมา">
+          <Play className="w-3.5 h-3.5" /> กลับมา
         </button>
       );
     }
 
-    // Menu: Print invoice
     menuItems.push({
-      key: 'invoice',
-      label: order.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้',
-      icon: <Banknote className="w-4 h-4" />,
-      onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
+      key: 'invoice', label: order.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้', icon: <Banknote className="w-4 h-4" />,
+      onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
       className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
     });
 
-    // Menu: Print packing slip
     if (!isOnHold) {
       menuItems.push({
         key: 'packing', label: 'ใบจัดของ', icon: <ClipboardList className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintPackingSlips([order.id]); },
         className: 'p-1.5 text-gray-400 hover:text-indigo-600 transition-colors rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30',
       });
-    }
-
-    // Menu: Print label
-    if (!isOnHold) {
       menuItems.push({
         key: 'print', label: 'ใบปะหน้า', icon: <Printer className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintLabels([order.id]); },
         className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
       });
-    }
-
-    // Menu: Hold (any order, not already on hold)
-    if (!isOnHold) {
       menuItems.push({
         key: 'hold', label: 'พักไว้', icon: <Pause className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); setHoldModal({ orderId: order.id, orderNumber: order.order_number }); },
@@ -471,7 +590,6 @@ export default function ProcessingTab({
       });
     }
 
-    // Menu: Cancel (non-marketplace only)
     if (!isMarketplace) {
       menuItems.push({
         key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
@@ -481,24 +599,16 @@ export default function ProcessingTab({
       });
     }
 
-    // Menu: Bill link (manual)
     if (!order.source || order.source === 'manual') {
       menuItems.push({
         key: 'link', label: 'คัดลอกลิงก์', icon: <Link2 className="w-4 h-4" />,
         onClick: (e) => {
           e.stopPropagation();
           const billUrl = `${window.location.origin}/bills/${order.id}`;
-          navigator.clipboard.writeText(billUrl).then(() => {
-            setToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
-            setTimeout(() => setToast(''), 2500);
-          });
+          navigator.clipboard.writeText(billUrl).then(() => { setToast('คัดลอกลิงก์บิลออนไลน์แล้ว'); setTimeout(() => setToast(''), 2500); });
         },
         className: 'p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
       });
-    }
-
-    // Menu: Edit / Delete (manual only, no view icon — card click opens order)
-    if (!order.source || order.source === 'manual') {
       menuItems.push({
         key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); router.push(`/orders/${order.id}/edit`); },
@@ -514,52 +624,60 @@ export default function ProcessingTab({
     );
   };
 
+  const startIndex = (currentPage - 1) * recordsPerPage;
+  const endIndex = Math.min(startIndex + orders.length, totalOrders);
+
   return (
     <>
       {/* Sub-tabs for carrier groups */}
-      {orders.length > 0 && (
+      {carrierTabs.length > 0 && (
         <div className="flex gap-1.5 overflow-x-auto mb-4">
-          {carrierOrder.map((group) => {
-            const isHold = group === ON_HOLD_KEY;
-            const count = isHold ? onHoldOrders.length : (carrierGroups.get(group)?.length || 0);
-            if (count === 0) return null;
-            const isActive = activeCarrierGroup === group;
-            const label = isHold ? 'พักไว้' : group;
+          {carrierTabs.map((tab) => {
+            const isActive = activeCarrierGroup === tab.key;
             return (
               <button
-                key={group}
-                onClick={() => setActiveCarrierGroup(group)}
+                key={tab.key}
+                onClick={() => setActiveCarrierGroup(tab.key)}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                   isActive
-                    ? isHold
+                    ? tab.key === ON_HOLD_KEY
                       ? 'bg-gray-200 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'
                       : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
                     : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
                 }`}
               >
-                {label} ({count})
+                {tab.label} ({tab.count})
               </button>
             );
           })}
         </div>
       )}
 
-      {/* Active group cards */}
-      {activeOrders.length > 0 && (
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+        </div>
+      )}
+
+      {/* Orders list */}
+      {!loading && orders.length > 0 && (
         <div className="space-y-3">
-          {/* Select all for active group */}
-          {!isOnHoldTab && selectableInActiveGroup.length > 1 && (
-            <div className="flex items-center gap-2 px-4">
+          {/* Select all */}
+          {!isOnHoldTab && selectableOrders.length > 1 && (
+            <label className="flex items-center gap-2 px-4 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={allGroupSelected}
                 onChange={toggleSelectGroup}
                 className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E]"
               />
-              <span className="text-xs text-gray-400 dark:text-slate-500">เลือกทั้งหมด</span>
-            </div>
+              <span className="text-xs text-gray-400 dark:text-slate-500">
+                เลือกทั้งหมด{totalOrders > orders.length ? ` (${totalOrders})` : ''}
+              </span>
+            </label>
           )}
-          {activeOrders.map((order) => (
+          {orders.map((order) => (
             <OrderCard
               key={order.id}
               order={order}
@@ -572,13 +690,35 @@ export default function ProcessingTab({
               actions={renderCardActions(order)}
             />
           ))}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalRecords={totalOrders}
+              startIdx={startIndex}
+              endIdx={endIndex}
+              recordsPerPage={recordsPerPage}
+              setRecordsPerPage={setRecordsPerPage}
+              setPage={setCurrentPage}
+            />
+          )}
         </div>
       )}
 
-      {orders.length === 0 && (
+      {/* Empty state */}
+      {!loading && orders.length === 0 && carrierTabs.length === 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 py-16 text-center">
           <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
           <p className="text-gray-500 dark:text-slate-400">ไม่มีออเดอร์ที่ต้องจัดส่ง</p>
+        </div>
+      )}
+
+      {!loading && orders.length === 0 && carrierTabs.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 py-12 text-center">
+          <Package className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto mb-2" />
+          <p className="text-gray-400 dark:text-slate-500 text-sm">ไม่มีออเดอร์ในกลุ่มนี้</p>
         </div>
       )}
 
@@ -624,47 +764,21 @@ export default function ProcessingTab({
 
       {/* Hold Modal */}
       {holdModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => !actionLoading && setHoldModal(null)}
-        >
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !actionLoading && setHoldModal(null)}>
           <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-              พักออเดอร์
-            </h3>
-            <p className="text-gray-600 dark:text-slate-400 mb-4">
-              ออเดอร์ <span className="font-medium">{holdModal.orderNumber}</span> จะถูกย้ายไปกลุ่ม "พักไว้"
-            </p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">พักออเดอร์</h3>
+            <p className="text-gray-600 dark:text-slate-400 mb-4">ออเดอร์ <span className="font-medium">{holdModal.orderNumber}</span> จะถูกย้ายไปกลุ่ม "พักไว้"</p>
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                เหตุผล (ไม่บังคับ)
-              </label>
-              <input
-                type="text"
-                value={holdReason}
-                onChange={(e) => setHoldReason(e.target.value)}
-                placeholder="ระบุเหตุผล เช่น รอสินค้า, รอลูกค้ายืนยัน..."
-                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-              />
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เหตุผล (ไม่บังคับ)</label>
+              <input type="text" value={holdReason} onChange={(e) => setHoldReason(e.target.value)} placeholder="ระบุเหตุผล เช่น รอสินค้า, รอลูกค้ายืนยัน..."
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
             </div>
             <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => { setHoldModal(null); setHoldReason(''); }}
-                disabled={actionLoading}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleHold}
-                disabled={actionLoading}
-                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {actionLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>
-                ) : (
-                  <><Pause className="w-4 h-4" /> พักไว้</>
-                )}
+              <button onClick={() => { setHoldModal(null); setHoldReason(''); }} disabled={actionLoading}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50">ยกเลิก</button>
+              <button onClick={handleHold} disabled={actionLoading}
+                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2">
+                {actionLoading ? (<><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>) : (<><Pause className="w-4 h-4" /> พักไว้</>)}
               </button>
             </div>
           </div>
@@ -673,67 +787,31 @@ export default function ProcessingTab({
 
       {/* Ship Modal */}
       {shipModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => !actionLoading && (setShipModal(null), setShipCarrier(''), setShipTracking(''))}
-        >
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !actionLoading && (setShipModal(null), setShipCarrier(''), setShipTracking(''))}>
           <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-              จัดส่งออเดอร์
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-slate-400 mb-5">
-              {shipModal.order.order_number} — {shipModal.order.customer_name || shipModal.order.delivery_name || 'ลูกค้าทั่วไป'}
-            </p>
-
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">จัดส่งออเดอร์</h3>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-5">{shipModal.order.order_number} — {shipModal.order.customer_name || shipModal.order.delivery_name || 'ลูกค้าทั่วไป'}</p>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                  ขนส่ง
-                </label>
-                <select
-                  value={shipCarrier}
-                  onChange={(e) => setShipCarrier(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
-                >
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">ขนส่ง</label>
+                <select value={shipCarrier} onChange={(e) => setShipCarrier(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm">
                   <option value="">-- เลือกขนส่ง --</option>
-                  {SHIPPING_CARRIERS.map(c => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
-                  ))}
+                  {SHIPPING_CARRIERS.map(c => (<option key={c.value} value={c.value}>{c.label}</option>))}
                 </select>
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                  เลขพัสดุ
-                </label>
-                <input
-                  type="text"
-                  value={shipTracking}
-                  onChange={(e) => setShipTracking(e.target.value)}
-                  placeholder="กรอกเลขพัสดุ (ไม่บังคับ)"
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
-                />
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เลขพัสดุ</label>
+                <input type="text" value={shipTracking} onChange={(e) => setShipTracking(e.target.value)} placeholder="กรอกเลขพัสดุ (ไม่บังคับ)"
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm" />
               </div>
             </div>
-
             <div className="flex gap-3 justify-end mt-6">
-              <button
-                onClick={() => { setShipModal(null); setShipCarrier(''); setShipTracking(''); }}
-                disabled={actionLoading}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleShip}
-                disabled={actionLoading}
-                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {actionLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>
-                ) : (
-                  <><Package className="w-4 h-4" /> จัดส่งแล้ว</>
-                )}
+              <button onClick={() => { setShipModal(null); setShipCarrier(''); setShipTracking(''); }} disabled={actionLoading}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50">ยกเลิก</button>
+              <button onClick={handleShip} disabled={actionLoading}
+                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2">
+                {actionLoading ? (<><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>) : (<><Package className="w-4 h-4" /> จัดส่งแล้ว</>)}
               </button>
             </div>
           </div>
@@ -742,35 +820,16 @@ export default function ProcessingTab({
 
       {/* Cancel Confirm Modal */}
       {cancelConfirm && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => !actionLoading && setCancelConfirm(null)}
-        >
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !actionLoading && setCancelConfirm(null)}>
           <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-              ยืนยันยกเลิกออเดอร์
-            </h3>
-            <p className="text-gray-600 dark:text-slate-400 mb-6">
-              ยืนยันยกเลิก {cancelConfirm.ids.length} รายการ? การดำเนินการนี้ไม่สามารถย้อนกลับได้
-            </p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">ยืนยันยกเลิกออเดอร์</h3>
+            <p className="text-gray-600 dark:text-slate-400 mb-6">ยืนยันยกเลิก {cancelConfirm.ids.length} รายการ? การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
             <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setCancelConfirm(null)}
-                disabled={actionLoading}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={() => handleBulkCancel(cancelConfirm.ids)}
-                disabled={actionLoading}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {actionLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>
-                ) : (
-                  <span>ยืนยันยกเลิก</span>
-                )}
+              <button onClick={() => setCancelConfirm(null)} disabled={actionLoading}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50">ยกเลิก</button>
+              <button onClick={() => handleBulkCancel(cancelConfirm.ids)} disabled={actionLoading}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2">
+                {actionLoading ? (<><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>) : (<span>ยืนยันยกเลิก</span>)}
               </button>
             </div>
           </div>
@@ -779,36 +838,18 @@ export default function ProcessingTab({
 
       {/* Bulk Ship Modal */}
       {bulkShipModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => !actionLoading && setBulkShipModal(false)}
-        >
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !actionLoading && setBulkShipModal(false)}>
           <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-              จัดส่งออเดอร์ ({bulkShipItems.length} รายการ)
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
-              กรอกเลขพัสดุสำหรับแต่ละออเดอร์ (ไม่บังคับ) หรือวางจาก Excel
-            </p>
-
-            {/* Apply same carrier to all */}
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">จัดส่งออเดอร์ ({bulkShipItems.length} รายการ)</h3>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">กรอกเลขพัสดุสำหรับแต่ละออเดอร์ (ไม่บังคับ) หรือวางจาก Excel</p>
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xs text-gray-500 dark:text-slate-400">ใช้ขนส่งเดียวกัน:</span>
-              <select
-                onChange={(e) => {
-                  if (!e.target.value) return;
-                  setBulkShipItems(prev => prev.map(item => ({ ...item, shipping_carrier: e.target.value })));
-                }}
-                className="px-2 py-1 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded text-sm"
-                defaultValue=""
-              >
+              <select onChange={(e) => { if (!e.target.value) return; setBulkShipItems(prev => prev.map(item => ({ ...item, shipping_carrier: e.target.value }))); }}
+                className="px-2 py-1 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded text-sm" defaultValue="">
                 <option value="">-- เลือก --</option>
-                {SHIPPING_CARRIERS.map(c => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
+                {SHIPPING_CARRIERS.map(c => (<option key={c.value} value={c.value}>{c.label}</option>))}
               </select>
             </div>
-
             <div className="flex-1 overflow-y-auto space-y-2 mb-4">
               {bulkShipItems.map((item, idx) => (
                 <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-slate-700/50">
@@ -816,71 +857,38 @@ export default function ProcessingTab({
                     <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.order_number}</p>
                     <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{item.customer_name}</p>
                   </div>
-                  <select
-                    value={item.shipping_carrier}
-                    onChange={(e) => {
-                      setBulkShipItems(prev => {
-                        const next = [...prev];
-                        next[idx] = { ...next[idx], shipping_carrier: e.target.value };
-                        return next;
-                      });
-                    }}
-                    className="w-28 px-2 py-1.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg text-xs"
-                  >
+                  <select value={item.shipping_carrier} onChange={(e) => { setBulkShipItems(prev => { const next = [...prev]; next[idx] = { ...next[idx], shipping_carrier: e.target.value }; return next; }); }}
+                    className="w-28 px-2 py-1.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg text-xs">
                     <option value="">ขนส่ง</option>
-                    {SHIPPING_CARRIERS.map(c => (
-                      <option key={c.value} value={c.value}>{c.label}</option>
-                    ))}
+                    {SHIPPING_CARRIERS.map(c => (<option key={c.value} value={c.value}>{c.label}</option>))}
                   </select>
-                  <input
-                    type="text"
-                    value={item.tracking_number}
-                    onChange={(e) => {
-                      setBulkShipItems(prev => {
-                        const next = [...prev];
-                        next[idx] = { ...next[idx], tracking_number: e.target.value };
-                        return next;
-                      });
-                    }}
-                    onPaste={(e) => handleTrackingPaste(idx, e)}
-                    placeholder="เลขพัสดุ"
-                    className="w-40 px-2 py-1.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg text-sm font-mono"
-                  />
+                  <input type="text" value={item.tracking_number}
+                    onChange={(e) => { setBulkShipItems(prev => { const next = [...prev]; next[idx] = { ...next[idx], tracking_number: e.target.value }; return next; }); }}
+                    onPaste={(e) => handleTrackingPaste(idx, e)} placeholder="เลขพัสดุ"
+                    className="w-40 px-2 py-1.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg text-sm font-mono" />
                 </div>
               ))}
             </div>
-
             <div className="flex gap-3 justify-end pt-4 border-t dark:border-slate-700">
-              <button
-                onClick={() => setBulkShipModal(false)}
-                disabled={actionLoading}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleBulkShipWithTracking}
-                disabled={actionLoading}
-                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {actionLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>
-                ) : (
-                  <><Package className="w-4 h-4" /> จัดส่งทั้งหมด</>
-                )}
+              <button onClick={() => setBulkShipModal(false)} disabled={actionLoading}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50">ยกเลิก</button>
+              <button onClick={handleBulkShipWithTracking} disabled={actionLoading}
+                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2">
+                {actionLoading ? (<><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>) : (<><Package className="w-4 h-4" /> จัดส่งทั้งหมด</>)}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* PDF loading toast */}
-      {actionLoading && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm">
-          <Loader2 className="w-4 h-4 animate-spin text-[#F4511E]" />
-          กำลังสร้าง PDF...
-        </div>
-      )}
+      {/* PDF / action loading overlay */}
+      <LoadingOverlay
+        isOpen={actionLoading}
+        title={overlayTitle}
+        message={overlayMessage}
+        progress={overlayProgress}
+        showWarning={false}
+      />
 
       {/* Local toast */}
       {toast && (
@@ -889,7 +897,6 @@ export default function ProcessingTab({
           {toast}
         </div>
       )}
-
     </>
   );
 }

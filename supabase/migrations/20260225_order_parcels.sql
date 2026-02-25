@@ -1,6 +1,56 @@
--- Updated get_orders_list RPC for marketplace architecture
--- Changes: shopee_accounts → marketplace_accounts, shopee_account_id → marketplace_account_id
+-- Parcel splitting support: order_parcels + order_parcel_items tables
+-- Allows 1 order to have multiple parcels, each with own tracking number
 
+-- 1. Mark order as split
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_split BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- 2. Parcel table
+CREATE TABLE IF NOT EXISTS order_parcels (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  parcel_number INT NOT NULL,
+  tracking_number TEXT,
+  shipping_carrier TEXT,
+  package_number TEXT,                  -- Shopee package_number (from split_order API)
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(order_id, parcel_number)
+);
+
+-- 3. Parcel items (which items go in which parcel)
+CREATE TABLE IF NOT EXISTS order_parcel_items (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  parcel_id UUID NOT NULL REFERENCES order_parcels(id) ON DELETE CASCADE,
+  order_item_id UUID NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
+  quantity INT NOT NULL CHECK (quantity > 0),
+  UNIQUE(parcel_id, order_item_id)
+);
+
+-- 4. Indexes
+CREATE INDEX IF NOT EXISTS idx_order_parcels_order ON order_parcels(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_parcels_company ON order_parcels(company_id);
+CREATE INDEX IF NOT EXISTS idx_order_parcel_items_parcel ON order_parcel_items(parcel_id);
+
+-- 5. RLS
+ALTER TABLE order_parcels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_parcel_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "order_parcels_company" ON order_parcels
+  FOR ALL USING (
+    company_id = (current_setting('app.company_id', true))::uuid
+  );
+
+CREATE POLICY "order_parcel_items_via_parcel" ON order_parcel_items
+  FOR ALL USING (
+    parcel_id IN (
+      SELECT id FROM order_parcels
+      WHERE company_id = (current_setting('app.company_id', true))::uuid
+    )
+  );
+
+-- 6. Update get_orders_list to include is_split and parcel_count
 CREATE OR REPLACE FUNCTION get_orders_list(
   p_company_id         UUID,
   p_page               INT     DEFAULT 1,
@@ -23,10 +73,9 @@ LANGUAGE plpgsql STABLE
 AS $$
 DECLARE
   v_offset       INT := (COALESCE(p_page, 1) - 1) * COALESCE(p_limit, 20);
-  v_channel_type TEXT := NULL; -- 'none', 'marketplace', 'chat'
+  v_channel_type TEXT := NULL;
   v_result       jsonb;
 BEGIN
-  -- Sanitize sort params
   IF p_sort_by NOT IN ('order_date','created_at','delivery_date','total_amount','order_number') THEN
     p_sort_by := 'created_at';
   END IF;
@@ -34,7 +83,6 @@ BEGIN
     p_sort_dir := 'desc';
   END IF;
 
-  -- Determine channel filter type
   IF p_channel IS NOT NULL AND p_channel != '' AND p_channel != 'all' THEN
     IF p_channel = 'none' THEN
       v_channel_type := 'none';
@@ -48,7 +96,6 @@ BEGIN
   END IF;
 
   WITH
-  -- 1. All customer_ids linked to chat (LINE + FB) — used for channel filter
   chat_linked_customers AS (
     SELECT customer_id, chat_account_id
     FROM line_contacts
@@ -59,7 +106,6 @@ BEGIN
     WHERE company_id = p_company_id AND customer_id IS NOT NULL
   ),
 
-  -- 2. Base filtered orders (ALL filters EXCEPT status/payment — for accurate counts)
   base_filtered AS (
     SELECT o.id, o.order_number, o.order_date, o.created_at, o.delivery_date,
            o.subtotal, o.discount_amount, o.vat_amount, o.shipping_fee, o.total_amount,
@@ -68,23 +114,19 @@ BEGIN
            o.customer_id, o.marketplace_account_id, o.created_by,
            o.delivery_name, o.delivery_phone,
            o.fulfillment_status, o.hold_reason,
-           o.tracking_number, o.shipping_carrier
+           o.tracking_number, o.shipping_carrier,
+           o.is_split
     FROM orders o
     WHERE o.company_id = p_company_id
-      -- Source filter
       AND (
         p_source IS NULL OR p_source = '' OR p_source = 'all'
         OR (p_source = 'exclude_pos' AND o.source != 'pos')
         OR (p_source != 'exclude_pos' AND o.source = p_source)
       )
-      -- Created by
       AND (p_created_by IS NULL OR o.created_by = p_created_by)
-      -- Customer
       AND (p_customer_id IS NULL OR o.customer_id = p_customer_id)
-      -- Delivery date range
       AND (p_delivery_date_start IS NULL OR o.delivery_date >= p_delivery_date_start)
       AND (p_delivery_date_end IS NULL OR o.delivery_date <= p_delivery_date_end)
-      -- Search
       AND (
         p_search IS NULL OR p_search = ''
         OR o.order_number ILIKE '%' || p_search || '%'
@@ -94,7 +136,6 @@ BEGIN
           WHERE c.company_id = p_company_id AND c.name ILIKE '%' || p_search || '%'
         )
       )
-      -- Channel filter
       AND (
         v_channel_type IS NULL
         OR (v_channel_type = 'none'
@@ -110,7 +151,6 @@ BEGIN
       )
   ),
 
-  -- 3. Status + payment counts (from base, before status/payment filter)
   agg_counts AS (
     SELECT
       COUNT(*)::int AS total_all,
@@ -127,7 +167,6 @@ BEGIN
     FROM base_filtered
   ),
 
-  -- 3b. Carrier counts (only for processing orders, used by carrier sub-tabs)
   carrier_counts AS (
     SELECT
       COALESCE(shipping_carrier, '__none__') AS carrier,
@@ -138,7 +177,6 @@ BEGIN
     GROUP BY COALESCE(shipping_carrier, '__none__')
   ),
 
-  -- 4. Apply status/payment/carrier filter
   filtered_orders AS (
     SELECT * FROM base_filtered
     WHERE (p_order_status IS NULL OR p_order_status = '' OR p_order_status = 'all' OR order_status = p_order_status)
@@ -151,12 +189,10 @@ BEGIN
       )
   ),
 
-  -- 5. Total for pagination (after status/payment filter)
   filtered_total AS (
     SELECT COUNT(*)::int AS total FROM filtered_orders
   ),
 
-  -- 6. Paged orders with dynamic sort
   paged_orders AS (
     SELECT fo.*
     FROM filtered_orders fo
@@ -174,7 +210,6 @@ BEGIN
     LIMIT p_limit OFFSET v_offset
   ),
 
-  -- 7. Join customers
   order_with_customer AS (
     SELECT po.*,
            c.customer_code,
@@ -185,7 +220,6 @@ BEGIN
     LEFT JOIN customers c ON c.id = po.customer_id
   ),
 
-  -- 8. Order items + variation extras (sku, barcode, attributes) with row number
   order_items_enriched AS (
     SELECT
       oi.id AS item_id,
@@ -206,7 +240,6 @@ BEGIN
       AND oi.company_id = p_company_id
   ),
 
-  -- 9. Best image per variation (first by sort_order)
   var_images AS (
     SELECT DISTINCT ON (pi.variation_id)
       pi.variation_id,
@@ -217,7 +250,6 @@ BEGIN
     ORDER BY pi.variation_id, pi.sort_order ASC
   ),
 
-  -- 9b. Best image per product (fallback)
   prod_images AS (
     SELECT DISTINCT ON (pi.product_id)
       pi.product_id,
@@ -229,7 +261,6 @@ BEGIN
     ORDER BY pi.product_id, pi.sort_order ASC
   ),
 
-  -- 10. Items preview (first 3 per order) with cleaned variation label + subtitle + image
   items_preview AS (
     SELECT
       oie.order_id,
@@ -280,7 +311,6 @@ BEGIN
     GROUP BY oie.order_id
   ),
 
-  -- 11. Item counts per order
   item_counts AS (
     SELECT
       order_id,
@@ -290,7 +320,6 @@ BEGIN
     GROUP BY order_id
   ),
 
-  -- 12. Branch names per order
   branch_names AS (
     SELECT
       oi.order_id,
@@ -304,7 +333,6 @@ BEGIN
     GROUP BY oi.order_id
   ),
 
-  -- 13. Marketplace channel info (was: shopee_channel)
   marketplace_channel AS (
     SELECT ma.id AS account_id, ma.shop_name, ma.platform,
            ma.metadata->>'shop_logo' AS shop_logo
@@ -315,7 +343,6 @@ BEGIN
     )
   ),
 
-  -- 14. Chat channel info (LINE priority, then FB)
   chat_channel AS (
     SELECT DISTINCT ON (sub.customer_id)
       sub.customer_id,
@@ -354,14 +381,12 @@ BEGIN
     ORDER BY sub.customer_id, sub.priority
   ),
 
-  -- 15. Created by names for paged orders
   created_by_map AS (
     SELECT up.id, COALESCE(up.name, up.email, 'Unknown') AS name
     FROM user_profiles up
     WHERE up.id IN (SELECT created_by FROM paged_orders WHERE created_by IS NOT NULL)
   ),
 
-  -- 16. Channel filter options (all active accounts)
   channel_opts AS (
     SELECT ca.id::text, ca.platform, ca.account_name AS name,
            CASE
@@ -377,7 +402,6 @@ BEGIN
     WHERE ma.company_id = p_company_id AND ma.is_active = true
   ),
 
-  -- 17. Created by filter options (all active members)
   created_by_opts AS (
     SELECT up.id::text, COALESCE(up.name, up.email, 'Unknown') AS name
     FROM company_members cm
@@ -385,7 +409,14 @@ BEGIN
     WHERE cm.company_id = p_company_id AND cm.is_active = true
   ),
 
-  -- 18. Assemble each order as jsonb
+  -- NEW: parcel counts for split orders
+  parcel_counts AS (
+    SELECT op.order_id, COUNT(*)::int AS parcel_count
+    FROM order_parcels op
+    WHERE op.order_id IN (SELECT id FROM paged_orders)
+    GROUP BY op.order_id
+  ),
+
   orders_assembled AS (
     SELECT
       jsonb_build_object(
@@ -441,11 +472,12 @@ BEGIN
         'hold_reason', oc.hold_reason,
         'tracking_number', oc.tracking_number,
         'shipping_carrier', oc.shipping_carrier,
+        'is_split', COALESCE(oc.is_split, false),
+        'parcel_count', COALESCE(pc.parcel_count, 0),
         'items_preview', COALESCE(ip.preview, '[]'::jsonb),
         'item_count', COALESCE(ic.item_count, 0),
         'item_line_count', COALESCE(ic.item_line_count, 0)
       ) AS order_json,
-      -- Keep sort columns for final ordering
       oc.created_at AS _created_at,
       oc.order_date AS _order_date,
       oc.delivery_date AS _delivery_date,
@@ -455,12 +487,12 @@ BEGIN
     LEFT JOIN items_preview ip ON ip.order_id = oc.id
     LEFT JOIN item_counts ic ON ic.order_id = oc.id
     LEFT JOIN branch_names bn ON bn.order_id = oc.id
+    LEFT JOIN parcel_counts pc ON pc.order_id = oc.id
     LEFT JOIN chat_channel cc ON cc.customer_id = oc.customer_id
       AND oc.marketplace_account_id IS NULL
     LEFT JOIN created_by_map cbm ON cbm.id = oc.created_by
   )
 
-  -- Final assembly
   SELECT jsonb_build_object(
     'orders', COALESCE(
       (SELECT jsonb_agg(oa.order_json ORDER BY
@@ -503,21 +535,17 @@ BEGIN
         'cancelled', pay_canc
       ) FROM agg_counts
     ),
+    'carrierCounts', COALESCE(
+      (SELECT jsonb_object_agg(carrier, cnt) FROM carrier_counts),
+      '{}'::jsonb
+    ),
     'channelOptions', COALESCE(
-      (SELECT jsonb_agg(jsonb_build_object('id', co.id, 'platform', co.platform, 'name', co.name, 'picture_url', co.picture_url))
-       FROM channel_opts co), '[]'::jsonb
+      (SELECT jsonb_agg(jsonb_build_object('id', co.id, 'platform', co.platform, 'name', co.name, 'picture_url', co.picture_url)) FROM channel_opts co),
+      '[]'::jsonb
     ),
     'createdByOptions', COALESCE(
-      (SELECT jsonb_agg(jsonb_build_object('id', cbo.id, 'name', cbo.name))
-       FROM created_by_opts cbo), '[]'::jsonb
-    ),
-    'carrierCounts', COALESCE(
-      (SELECT jsonb_object_agg(cc.carrier, cc.cnt)
-       FROM carrier_counts cc), '{}'::jsonb
-    ),
-    'onHoldCount', (
-      SELECT COUNT(*)::int FROM base_filtered
-      WHERE order_status = 'processing' AND fulfillment_status = 'on_hold'
+      (SELECT jsonb_agg(jsonb_build_object('id', cbo.id, 'name', cbo.name)) FROM created_by_opts cbo),
+      '[]'::jsonb
     )
   ) INTO v_result;
 

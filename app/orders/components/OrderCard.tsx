@@ -41,6 +41,11 @@ function ChannelBadge({ channel }: { channel: Order['channel'] }) {
   );
 }
 
+// Carrier display name
+function getCarrierLabel(carrier: string): string {
+  return SHIPPING_CARRIERS.find(c => c.value === carrier)?.label || carrier;
+}
+
 interface OrderCardProps {
   order: Order;
   statusFilter: string;
@@ -76,6 +81,9 @@ export default function OrderCard({
   // On hold indicator
   const isOnHold = order.fulfillment_status === 'on_hold';
 
+  // Show status badge only if not on same-status tab (or if showOrderStatus explicitly set)
+  const shouldShowStatus = showOrderStatus || order.order_status !== statusFilter;
+
   return (
     <div
       onClick={() => window.open(`/orders/${order.id}`, '_blank')}
@@ -87,14 +95,19 @@ export default function OrderCard({
           : 'border-gray-200 dark:border-slate-700 hover:border-[#F4511E]/40 dark:hover:border-[#F4511E]/40 hover:shadow-md'
       }`}
     >
-      {/* 2-column layout with optional checkbox */}
-      <div className="flex">
-        {/* Checkbox */}
+      {/* ── Header bar ── colored by order status, click to toggle checkbox */}
+      <div
+        className={`flex items-center gap-2 px-4 py-2 ${orderStatusCfg.headerBg}`}
+        onClick={(e) => {
+          if (showCheckbox && onToggleSelect) {
+            e.stopPropagation();
+            onToggleSelect(order.id);
+          }
+        }}
+      >
+        {/* Checkbox in header */}
         {showCheckbox && (
-          <div
-            className="flex items-center justify-center pl-3 pr-1 flex-shrink-0 min-w-[44px] cursor-pointer"
-            onClick={(e) => { e.stopPropagation(); e.preventDefault(); onToggleSelect?.(order.id); }}
-          >
+          <div className="flex-shrink-0 -ml-0.5">
             <input
               type="checkbox"
               checked={selected || false}
@@ -104,34 +117,62 @@ export default function OrderCard({
           </div>
         )}
 
-        {/* Left column */}
-        <div className="flex-[7] min-w-0 py-3">
-          {/* Header: channel + order ID + date */}
-          <div className="px-4 pb-2 flex items-center gap-2">
-            <ChannelBadge channel={order.channel} />
-            <span
-              className="text-sm font-semibold text-gray-900 dark:text-white hover:text-[#F4511E] cursor-pointer transition-colors"
-              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(order.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
-              title="คัดลอกเลขคำสั่งซื้อ"
-            >{order.order_number}</span>
-            {order.source === 'pos' && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">POS</span>
-            )}
-            {isOnHold && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400">พักไว้</span>
-            )}
-            <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">
-              {relativeTime(order.created_at)}
+        {/* Left side: channel + order number + time + deadline */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <ChannelBadge channel={order.channel} />
+          <span
+            className={`text-sm font-semibold ${orderStatusCfg.headerText} hover:text-[#F4511E] cursor-pointer transition-colors truncate`}
+            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(order.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
+            title="คัดลอกเลขคำสั่งซื้อ"
+          >{order.order_number}</span>
+          {order.source === 'pos' && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400 flex-shrink-0">POS</span>
+          )}
+          {isOnHold && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400 flex-shrink-0">พักไว้</span>
+          )}
+          <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">
+            {relativeTime(order.created_at)}
+          </span>
+          {deadline && ['ready_to_ship', 'processing'].includes(order.order_status) && (
+            <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium flex items-center gap-0.5 flex-shrink-0 ${deadline.color}`}>
+              <Clock className="w-3 h-3" />
+              {deadline.label}
             </span>
-            {deadline && ['ready_to_ship', 'processing'].includes(order.order_status) && (
-              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium flex items-center gap-0.5 flex-shrink-0 ${deadline.color}`}>
-                <Clock className="w-3 h-3" />
-                {deadline.label}
-              </span>
-            )}
-          </div>
+          )}
+        </div>
 
-          {/* Items preview */}
+        {/* Right side: badges */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {shouldShowStatus && (
+            <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${orderStatusCfg.bg} ${orderStatusCfg.color}`}>
+              {orderStatusCfg.label}
+            </span>
+          )}
+          {showPaymentStatus && order.order_status !== 'cancelled' && (
+            <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${paymentStatusCfg.bg} ${paymentStatusCfg.color}`}>
+              {paymentStatusCfg.label}
+            </span>
+          )}
+          {order.is_split && order.parcel_count && order.parcel_count > 1 && (
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 flex items-center gap-1">
+              <Package className="w-3 h-3" />
+              {order.parcel_count} กล่อง
+            </span>
+          )}
+          {order.shipping_carrier && (
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 flex items-center gap-1">
+              <Truck className="w-3 h-3" />
+              {getCarrierLabel(order.shipping_carrier)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ── Body ── 2-column: items left, customer/total/actions right */}
+      <div className="flex">
+        {/* Left column: items */}
+        <div className="flex-[7] min-w-0 py-3">
           <div className="px-4 space-y-2">
             {(order.items_preview || []).map((item, idx) => (
               <div key={idx} className="flex items-start gap-3">
@@ -171,25 +212,17 @@ export default function OrderCard({
             )}
           </div>
 
-          {/* Tracking info */}
-          {(order.tracking_number || order.shipping_carrier) && (
+          {/* Tracking number (if exists, show below items) */}
+          {order.tracking_number && (
             <div className="px-4 pt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
-              <Truck className="w-3.5 h-3.5 flex-shrink-0" />
-              {order.shipping_carrier && (
-                <span className="font-medium">
-                  {SHIPPING_CARRIERS.find(c => c.value === order.shipping_carrier)?.label || order.shipping_carrier}
-                </span>
-              )}
-              {order.tracking_number && (
-                <span className="font-mono bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-[11px]">
-                  {order.tracking_number}
-                </span>
-              )}
+              <span className="font-mono bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-[11px]">
+                {order.tracking_number}
+              </span>
             </div>
           )}
         </div>
 
-        {/* Right column: customer / total / status + actions */}
+        {/* Right column: customer / total / actions */}
         <div className="flex-[3] py-3 px-4 flex flex-col justify-center items-end gap-2">
           {/* Customer */}
           <div className="flex items-center gap-1.5 min-w-0">
@@ -213,26 +246,12 @@ export default function OrderCard({
             ฿{formatPrice(order.total_amount)}
           </span>
 
-          {/* Badges + Actions */}
-          <div className="flex items-center gap-1.5 flex-nowrap justify-end">
-            {showOrderStatus && (
-              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${orderStatusCfg.bg} ${orderStatusCfg.color}`}>
-                {orderStatusCfg.label}
-              </span>
-            )}
-
-            {showPaymentStatus && order.order_status !== 'cancelled' && (
-              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${paymentStatusCfg.bg} ${paymentStatusCfg.color}`}>
-                {paymentStatusCfg.label}
-              </span>
-            )}
-
-            {actions && (
-              <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto" onClick={(e) => e.stopPropagation()}>
-                {actions}
-              </div>
-            )}
-          </div>
+          {/* Actions */}
+          {actions && (
+            <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {actions}
+            </div>
+          )}
         </div>
       </div>
     </div>

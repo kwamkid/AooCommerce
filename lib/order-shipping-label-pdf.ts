@@ -51,6 +51,8 @@ export interface ShippingLabelData {
   delivery_province?: string;
   delivery_postal_code?: string;
   items: LabelItem[];
+  parcel_number?: number;
+  total_parcels?: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -281,8 +283,14 @@ export async function generateShippingLabelPdf({ data, company }: GenerateOption
 
   infoBody.push([
     { text: 'Order No.', fontSize: 7, bold: true, color: '#666666' },
-    { text: data.order_number, fontSize: 8, bold: true, color: '#000000', colSpan: 3 },
-    {}, {},
+    { text: data.order_number, fontSize: 8, bold: true, color: '#000000', colSpan: data.parcel_number ? 1 : 3 },
+    ...(data.parcel_number
+      ? [
+          { text: 'พัสดุ', fontSize: 7, bold: true, color: '#666666' },
+          { text: `${data.parcel_number} / ${data.total_parcels || '?'}`, fontSize: 8, bold: true, color: '#7c3aed' },
+        ]
+      : [{}, {}]
+    ),
   ]);
 
   content.push({

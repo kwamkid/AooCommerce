@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     // 1. Fetch order
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status')
+      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status, is_split')
       .eq('id', order_id)
       .eq('company_id', companyId)
       .single();
@@ -84,9 +84,23 @@ export async function POST(request: NextRequest) {
     const creds = await ensureValidToken(account as ShopeeAccountRow);
     const orderSn = order.external_order_sn;
 
+    // For split orders, get parcel package_numbers
+    let packageNumbers: string[] = [];
+    if (order.is_split) {
+      const { data: parcels } = await supabaseAdmin
+        .from('order_parcels')
+        .select('id, parcel_number, package_number')
+        .eq('order_id', order_id)
+        .order('parcel_number');
+
+      packageNumbers = (parcels || [])
+        .map(p => p.package_number)
+        .filter((pn): pn is string => !!pn);
+    }
+
     // 3. If order is still READY_TO_SHIP in our DB, auto-ship first
     if (order.external_status === 'READY_TO_SHIP') {
-      const shipError = await autoShipOrder(creds, orderSn);
+      const shipError = await autoShipOrder(creds, orderSn, order.is_split ? packageNumbers : undefined);
       if (shipError) {
         logDoc(companyId, accountId, accountName, 'error', shipError, order_id, orderSn, startTime, '/api/v2/logistics/ship_order');
         return NextResponse.json({ error: shipError }, { status: 500 });
@@ -109,11 +123,16 @@ export async function POST(request: NextRequest) {
     console.log(`[Shopee Doc] Tracking for ${orderSn}: ${trackingNumber || 'none'}`);
 
     // 5. Get shipping document parameter — tells us which document type to use
+    // For split orders, include package_number in the request
+    const docParamOrderList = order.is_split && packageNumbers.length > 0
+      ? packageNumbers.map(pn => ({ order_sn: orderSn, package_number: pn }))
+      : [{ order_sn: orderSn }];
+
+    // Use raw API for split orders since getShippingDocumentParameter only takes order_sn list
     const docParamResult = await getShippingDocumentParameter(creds, [orderSn]);
     const docParam = docParamResult.resultList?.find(r => r.order_sn === orderSn);
 
     if (docParam?.fail_error) {
-      // Handle known errors
       const failError = docParam.fail_error;
       const failMessage = docParam.fail_message || failError;
 
@@ -132,11 +151,21 @@ export async function POST(request: NextRequest) {
     console.log(`[Shopee Doc] Suggested doc type for ${orderSn}: ${suggestedDocType}, selectable: ${JSON.stringify(docParam?.selectable_shipping_document_type)}`);
 
     // 6. Create shipping document with tracking_number and correct document type
-    const createResult = await createShippingDocument(creds, [{
-      order_sn: orderSn,
-      tracking_number: trackingNumber || undefined,
-      shipping_document_type: suggestedDocType,
-    }]);
+    // For split orders, create document for each package
+    const createOrderList = order.is_split && packageNumbers.length > 0
+      ? packageNumbers.map(pn => ({
+          order_sn: orderSn,
+          package_number: pn,
+          tracking_number: trackingNumber || undefined,
+          shipping_document_type: suggestedDocType,
+        }))
+      : [{
+          order_sn: orderSn,
+          tracking_number: trackingNumber || undefined,
+          shipping_document_type: suggestedDocType,
+        }];
+
+    const createResult = await createShippingDocument(creds, createOrderList);
 
     let skipPolling = false;
 
@@ -145,7 +174,6 @@ export async function POST(request: NextRequest) {
       const failError = resultItem?.fail_error || '';
       const failMessage = resultItem?.fail_message || createResult.error;
 
-      // Package already has a document created → try direct download
       if (failError.includes('package_can_not_print') || failMessage.includes('has been shipped')) {
         console.log(`[Shopee Doc] Document already exists for ${orderSn}, trying direct download`);
         skipPolling = true;
@@ -154,7 +182,6 @@ export async function POST(request: NextRequest) {
         logDoc(companyId, accountId, accountName, 'error', msg, order_id, orderSn, startTime, '/api/v2/logistics/create_shipping_document', resultItem);
         return NextResponse.json({ error: msg }, { status: 400 });
       } else {
-        // Real error
         console.error(`[Shopee Doc] createShippingDocument error for ${orderSn}:`, failError, failMessage);
         logDoc(companyId, accountId, accountName, 'error', `สร้างใบปะหน้าไม่สำเร็จ: ${failMessage}`, order_id, orderSn, startTime, '/api/v2/logistics/create_shipping_document', resultItem);
         return NextResponse.json({ error: `สร้างใบปะหน้าไม่สำเร็จ: ${failMessage}` }, { status: 500 });
@@ -169,10 +196,18 @@ export async function POST(request: NextRequest) {
       for (let i = 0; i < MAX_POLLS; i++) {
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        const { data: resultData, error: resultError } = await getShippingDocumentResult(creds, [{
-          order_sn: orderSn,
-          shipping_document_type: suggestedDocType,
-        }]);
+        const pollOrderList = order.is_split && packageNumbers.length > 0
+          ? packageNumbers.map(pn => ({
+              order_sn: orderSn,
+              package_number: pn,
+              shipping_document_type: suggestedDocType,
+            }))
+          : [{
+              order_sn: orderSn,
+              shipping_document_type: suggestedDocType,
+            }];
+
+        const { data: resultData, error: resultError } = await getShippingDocumentResult(creds, pollOrderList);
         if (resultError) {
           console.error(`[Shopee Doc] poll ${i + 1} error:`, resultError);
           continue;
@@ -190,6 +225,15 @@ export async function POST(request: NextRequest) {
           break;
         }
 
+        // For split orders, check if ALL packages are ready
+        if (order.is_split && result.result_list) {
+          const allReady = result.result_list.every(r => r.status === 'READY');
+          if (allReady) {
+            documentReady = true;
+            break;
+          }
+        }
+
         if (orderResult?.status === 'FAILED') {
           const msg = orderResult.fail_message || 'สร้างใบปะหน้าไม่สำเร็จ';
           logDoc(companyId, accountId, accountName, 'error', msg, order_id, orderSn, startTime, '/api/v2/logistics/get_shipping_document_result', orderResult);
@@ -203,6 +247,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 8. Download the PDF
+    // For split orders, Shopee returns all package labels in one download
     const { pdfBuffer, error: downloadError } = await downloadShippingDocument(creds, [orderSn], suggestedDocType);
 
     if (downloadError || !pdfBuffer) {
@@ -245,8 +290,8 @@ export async function POST(request: NextRequest) {
 
 // ─── Helpers ─────────────────────────────────────────
 
-/** Auto-ship an order that's still READY_TO_SHIP. Returns error string or null on success. */
-async function autoShipOrder(creds: ShopeeCredentials, orderSn: string): Promise<string | null> {
+/** Auto-ship an order that's still READY_TO_SHIP. Handles split orders by shipping each parcel. */
+async function autoShipOrder(creds: ShopeeCredentials, orderSn: string, packageNumbers?: string[]): Promise<string | null> {
   console.log(`[Shopee Doc] Order ${orderSn} is READY_TO_SHIP — auto-shipping`);
 
   const { data: shippingParams, error: paramError } = await getShippingParameter(creds, orderSn);
@@ -263,38 +308,46 @@ async function autoShipOrder(creds: ShopeeCredentials, orderSn: string): Promise
     dropoff?: { branch_list?: Array<{ branch_id: number }> };
   };
 
-  let shipResult: { data: unknown; error?: string };
+  // Ship each parcel (or single order if not split)
+  const parcelsToShip = packageNumbers && packageNumbers.length > 0
+    ? packageNumbers
+    : [undefined];
 
-  if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
-    const dropoffParams: Record<string, unknown> = {};
-    if (params.dropoff?.branch_list?.[0]) {
-      dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
+  for (const pkgNum of parcelsToShip) {
+    let shipResult: { data: unknown; error?: string };
+
+    if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
+      const dropoffParams: Record<string, unknown> = {};
+      if (params.dropoff?.branch_list?.[0]) {
+        dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
+      }
+      shipResult = await shipOrder(creds, orderSn, undefined, dropoffParams, pkgNum);
+    } else {
+      const pickupAddress = params.pickup?.address_list?.[0];
+      if (!pickupAddress) return 'ไม่พบที่อยู่รับพัสดุ กรุณาตั้งค่าใน Shopee Seller Center';
+
+      const timeSlots = pickupAddress.time_slot_list || [];
+      const recommendedSlot = timeSlots.find(s => s.flags?.includes('recommended'));
+      const pickupTimeSlot = recommendedSlot || timeSlots[0];
+
+      shipResult = await shipOrder(creds, orderSn, {
+        address_id: pickupAddress.address_id,
+        pickup_time_id: pickupTimeSlot?.pickup_time_id || '',
+      }, undefined, pkgNum);
     }
-    shipResult = await shipOrder(creds, orderSn, undefined, dropoffParams);
-  } else {
-    const pickupAddress = params.pickup?.address_list?.[0];
-    if (!pickupAddress) return 'ไม่พบที่อยู่รับพัสดุ กรุณาตั้งค่าใน Shopee Seller Center';
 
-    const timeSlots = pickupAddress.time_slot_list || [];
-    const recommendedSlot = timeSlots.find(s => s.flags?.includes('recommended'));
-    const pickupTimeSlot = recommendedSlot || timeSlots[0];
+    if (shipResult.error) {
+      const errText = String(shipResult.error);
+      if (errText.includes('already shipped') || errText.includes('order_status_error')) {
+        console.log(`[Shopee Doc] Order ${orderSn} parcel ${pkgNum || 'single'} already shipped on Shopee side`);
+        continue; // OK — already shipped, try next parcel
+      }
+      return `รับออเดอร์ไม่สำเร็จ: ${shipResult.error}`;
+    }
 
-    shipResult = await shipOrder(creds, orderSn, {
-      address_id: pickupAddress.address_id,
-      pickup_time_id: pickupTimeSlot?.pickup_time_id || '',
-    });
+    console.log(`[Shopee Doc] Order ${orderSn} parcel ${pkgNum || 'single'} shipped successfully`);
   }
 
-  if (shipResult.error) {
-    const errText = String(shipResult.error);
-    if (errText.includes('already shipped') || errText.includes('order_status_error')) {
-      console.log(`[Shopee Doc] Order ${orderSn} already shipped on Shopee side`);
-      return null; // OK — already shipped
-    }
-    return `รับออเดอร์ไม่สำเร็จ: ${shipResult.error}`;
-  }
-
-  console.log(`[Shopee Doc] Order ${orderSn} shipped successfully`);
   return null;
 }
 

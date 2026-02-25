@@ -22,6 +22,8 @@ export interface Order {
   hold_reason?: string | null;
   tracking_number?: string | null;
   shipping_carrier?: string | null;
+  is_split?: boolean;
+  parcel_count?: number;
   customer_id: string;
   customer_code: string;
   customer_name: string;
@@ -61,13 +63,13 @@ export interface CreatedByOption {
 }
 
 // Status config
-export const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  new: { label: 'ใหม่', color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/40' },
-  ready_to_ship: { label: 'รอกดรับ', color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
-  processing: { label: 'ที่ต้องจัดส่ง', color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40' },
-  shipping: { label: 'กำลังส่ง', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/40' },
-  completed: { label: 'สำเร็จ', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40' },
-  cancelled: { label: 'ยกเลิก', color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
+export const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; headerBg: string; headerText: string }> = {
+  new: { label: 'ใหม่', color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/40', headerBg: 'bg-blue-50 dark:bg-blue-950/40', headerText: 'text-blue-800 dark:text-blue-200' },
+  ready_to_ship: { label: 'รอกดรับ', color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40', headerBg: 'bg-orange-50 dark:bg-orange-950/40', headerText: 'text-orange-800 dark:text-orange-200' },
+  processing: { label: 'ที่ต้องจัดส่ง', color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40', headerBg: 'bg-indigo-50 dark:bg-indigo-950/40', headerText: 'text-indigo-800 dark:text-indigo-200' },
+  shipping: { label: 'กำลังส่ง', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/40', headerBg: 'bg-amber-50 dark:bg-amber-950/40', headerText: 'text-amber-800 dark:text-amber-200' },
+  completed: { label: 'สำเร็จ', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40', headerBg: 'bg-green-50 dark:bg-green-950/40', headerText: 'text-green-800 dark:text-green-200' },
+  cancelled: { label: 'ยกเลิก', color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40', headerBg: 'bg-gray-50 dark:bg-gray-800/40', headerText: 'text-gray-600 dark:text-gray-300' },
 };
 
 export const PAYMENT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {

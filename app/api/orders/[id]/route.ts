@@ -141,10 +141,45 @@ export async function GET(
       };
     });
 
+    // Fetch parcels if order is split
+    let parcels: any[] = [];
+    if (order.is_split) {
+      const { data: parcelData } = await supabaseAdmin
+        .from('order_parcels')
+        .select('id, parcel_number, tracking_number, shipping_carrier, package_number, status')
+        .eq('order_id', orderId)
+        .order('parcel_number');
+
+      if (parcelData && parcelData.length > 0) {
+        // Fetch parcel items
+        const parcelIds = parcelData.map(p => p.id);
+        const { data: parcelItems } = await supabaseAdmin
+          .from('order_parcel_items')
+          .select('parcel_id, order_item_id, quantity')
+          .in('parcel_id', parcelIds);
+
+        parcels = parcelData.map(p => ({
+          ...p,
+          items: (parcelItems || [])
+            .filter(pi => pi.parcel_id === p.id)
+            .map(pi => {
+              const orderItem = itemsEnriched.find(i => i.id === pi.order_item_id);
+              return {
+                ...pi,
+                product_name: orderItem?.product_name || '',
+                variation_label: orderItem?.variation_label || null,
+                image: orderItem?.image || null,
+              };
+            }),
+        }));
+      }
+    }
+
     // Combine order with enriched items
     const orderWithItems = {
       ...order,
-      items: itemsEnriched
+      items: itemsEnriched,
+      parcels,
     };
 
     return NextResponse.json({ order: orderWithItems });

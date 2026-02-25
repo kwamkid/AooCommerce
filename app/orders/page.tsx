@@ -8,7 +8,6 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
-import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
 import {
@@ -17,18 +16,15 @@ import {
   Loader2,
   Trash2,
   Edit2,
-  Phone,
   ChevronRight,
   Link2,
   CheckCircle,
   X,
   ChevronDown,
-  Clock,
   Package,
   CreditCard,
   User,
   Store,
-  Truck,
   Copy,
   Banknote,
   ClipboardList,
@@ -43,16 +39,14 @@ import {
   ChannelOption,
   CreatedByOption,
   ORDER_STATUS_CONFIG,
-  PAYMENT_STATUS_CONFIG,
   PLATFORM_ICONS,
   SHIPPING_CARRIERS,
-  relativeTime,
-  getDeadlineInfo,
 } from './components/types';
 
 // Tab components
 import ReadyToShipTab from './components/ReadyToShipTab';
 import ProcessingTab from './components/ProcessingTab';
+import OrderCard from './components/OrderCard';
 import ActionMenu, { ActionItem } from './components/ActionMenu';
 import PaymentModal from './components/PaymentModal';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
@@ -60,29 +54,7 @@ import { generatePackingListPdf } from '@/lib/order-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
-
-// Channel badge
-function ChannelBadge({ channel }: { channel: Order['channel'] }) {
-  if (!channel) return null;
-  const platformIcon = PLATFORM_ICONS[channel.platform];
-
-  return (
-    <div className="flex items-center gap-1.5 flex-shrink-0">
-      <div className="relative">
-        {channel.picture_url ? (
-          <img src={channel.picture_url} alt="" className="w-6 h-6 rounded-full object-cover" />
-        ) : (
-          <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center">
-            {platformIcon && <img src={platformIcon} alt="" className="w-3.5 h-3.5" />}
-          </div>
-        )}
-        {channel.picture_url && platformIcon && (
-          <img src={platformIcon} alt="" className="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded bg-white dark:bg-slate-800 p-[1px]" />
-        )}
-      </div>
-    </div>
-  );
-}
+import LoadingOverlay from '@/components/ui/LoadingOverlay';
 
 // Sort options
 const SORT_OPTIONS = [
@@ -159,6 +131,10 @@ export default function OrdersPage() {
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({ all: 0, new: 0, ready_to_ship: 0, processing: 0, shipping: 0, completed: 0, cancelled: 0 });
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [paymentCounts, setPaymentCounts] = useState<Record<string, number>>({ all: 0, pending: 0, verifying: 0, paid: 0, cancelled: 0 });
+
+  // Carrier counts for ProcessingTab sub-tabs
+  const [carrierCounts, setCarrierCounts] = useState<Record<string, number>>({});
+  const [onHoldCount, setOnHoldCount] = useState(0);
   const searchInputRef = useRef<SearchInputHandle>(null);
 
   // Close lightbox on ESC
@@ -249,6 +225,8 @@ export default function OrdersPage() {
       setTotalPages(result.pagination?.totalPages || 0);
       if (result.statusCounts) setStatusCounts(result.statusCounts);
       if (result.paymentCounts) setPaymentCounts(result.paymentCounts);
+      if (result.carrierCounts) setCarrierCounts(result.carrierCounts);
+      if (result.onHoldCount !== undefined) setOnHoldCount(result.onHoldCount);
       if (result.channelOptions) {
         setChannelDropdownOptions(result.channelOptions.map((ch: ChannelOption) => ({
           id: ch.id,
@@ -361,6 +339,7 @@ export default function OrdersPage() {
 
   // === PDF print handlers ===
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfMessage, setPdfMessage] = useState<string | undefined>();
 
   const fetchOrderForPdf = async (orderId: string) => {
     const res = await apiFetch(`/api/orders/${orderId}`);
@@ -369,8 +348,9 @@ export default function OrdersPage() {
     return result.order;
   };
 
-  const handlePrintInvoice = async (orderId: string) => {
+  const handlePrintInvoice = async (orderId: string, paymentStatus?: string) => {
     setPdfLoading(true);
+    setPdfMessage(paymentStatus === 'paid' ? 'กำลังสร้างใบเสร็จรับเงิน...' : 'กำลังสร้างใบแจ้งหนี้...');
     try {
       const orderData = await fetchOrderForPdf(orderId);
       const blob = await generateOrderInvoicePdf({ data: orderData });
@@ -380,11 +360,13 @@ export default function OrdersPage() {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
       setPdfLoading(false);
+      setPdfMessage(undefined);
     }
   };
 
   const handlePrintPackingList = async (orderId: string) => {
     setPdfLoading(true);
+    setPdfMessage('กำลังสร้างใบจัดของ...');
     try {
       const orderData = await fetchOrderForPdf(orderId);
       const blob = await generatePackingListPdf({ data: orderData });
@@ -393,11 +375,13 @@ export default function OrdersPage() {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
       setPdfLoading(false);
+      setPdfMessage(undefined);
     }
   };
 
   const handlePrintShippingLabel = async (orderId: string) => {
     setPdfLoading(true);
+    setPdfMessage('กำลังสร้างใบปะหน้า...');
     try {
       const orderData = await fetchOrderForPdf(orderId);
       const blob = await generateShippingLabelPdf({ data: orderData });
@@ -406,13 +390,14 @@ export default function OrdersPage() {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
       setPdfLoading(false);
+      setPdfMessage(undefined);
     }
   };
 
   const handlePrintShopeeLabel = async (orderId: string) => {
     setPdfLoading(true);
+    setPdfMessage('กำลังสร้างใบปะหน้า Shopee...');
     try {
-      showToast('กำลังสร้างใบปะหน้า Shopee...');
       const response = await apiFetch('/api/shopee/orders/shipping-document', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -428,281 +413,170 @@ export default function OrdersPage() {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
       setPdfLoading(false);
+      setPdfMessage(undefined);
     }
   };
 
   // === Render Default Order Card (for tabs without special components) ===
-  const renderDefaultOrderCard = (order: Order) => {
-    const deadline = getDeadlineInfo(order.delivery_date);
-    const isShopee = order.source === 'shopee';
+  const renderDefaultCardActions = (order: Order) => {
     const isMarketplace = isMarketplaceSource(order.source);
-    const customerName = order.customer_name || order.delivery_name || 'ลูกค้าทั่วไป';
-    const customerPhone = order.customer_phone || order.delivery_phone;
-    const orderStatusCfg = ORDER_STATUS_CONFIG[order.order_status] || ORDER_STATUS_CONFIG.new;
-    const paymentStatusCfg = PAYMENT_STATUS_CONFIG[order.payment_status] || PAYMENT_STATUS_CONFIG.pending;
+    const primaryActions: React.ReactNode[] = [];
+    const menuItems: ActionItem[] = [];
 
-    const renderActions = () => {
-      const primaryActions: React.ReactNode[] = [];
-      const menuItems: ActionItem[] = [];
+    // Primary: Payment action (manual, new tab, pending payment)
+    if (statusFilter === 'new' && !isMarketplace && order.payment_status === 'pending') {
+      primaryActions.push(
+        <button
+          key="pay"
+          onClick={(e) => { e.stopPropagation(); handlePaymentStatusClick(order); }}
+          className="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5"
+        >
+          <CreditCard className="w-4 h-4" />
+          บันทึกชำระ
+        </button>
+      );
+    }
 
-      // Primary: Payment action (manual, new tab, pending payment)
-      if (statusFilter === 'new' && !isMarketplace && order.payment_status === 'pending') {
-        primaryActions.push(
-          <button
-            key="pay"
-            onClick={(e) => { e.stopPropagation(); handlePaymentStatusClick(order); }}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5"
-          >
-            <CreditCard className="w-4 h-4" />
-            บันทึกชำระ
-          </button>
-        );
-      }
+    // Primary: Complete action (shipping tab)
+    if (statusFilter === 'shipping' && !isMarketplace) {
+      primaryActions.push(
+        <button
+          key="complete"
+          onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }}
+          className="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5"
+        >
+          <Package className="w-4 h-4" />
+          สำเร็จ
+        </button>
+      );
+    }
 
-      // Primary: Complete action (shipping tab)
-      if (statusFilter === 'shipping' && !isMarketplace) {
-        primaryActions.push(
-          <button
-            key="complete"
-            onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5"
-          >
-            <Package className="w-4 h-4" />
-            สำเร็จ
-          </button>
-        );
-      }
+    // Menu: Print invoice
+    menuItems.push({
+      key: 'invoice',
+      label: order.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้',
+      icon: <Banknote className="w-4 h-4" />,
+      onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
+      className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
+    });
 
-      // Menu: Print invoice
+    // Menu: Print packing list (processing and above)
+    if (['processing', 'shipping', 'completed'].includes(order.order_status)) {
       menuItems.push({
-        key: 'invoice',
-        label: order.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้',
-        icon: <Banknote className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
-        className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
+        key: 'packing', label: 'ใบจัดของ', icon: <ClipboardList className="w-4 h-4" />,
+        onClick: (e) => { e.stopPropagation(); handlePrintPackingList(order.id); },
+        className: 'p-1.5 text-gray-400 hover:text-indigo-600 transition-colors rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30',
       });
+    }
 
-      // Menu: Print packing list (processing and above)
-      if (['processing', 'shipping', 'completed'].includes(order.order_status)) {
+    // Menu: Print shipping label (processing and shipping only — not completed)
+    if (['processing', 'shipping'].includes(order.order_status)) {
+      if (order.source === 'shopee') {
         menuItems.push({
-          key: 'packing', label: 'ใบจัดของ', icon: <ClipboardList className="w-4 h-4" />,
-          onClick: (e) => { e.stopPropagation(); handlePrintPackingList(order.id); },
-          className: 'p-1.5 text-gray-400 hover:text-indigo-600 transition-colors rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30',
+          key: 'label', label: 'ใบปะหน้า Shopee', icon: <Printer className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); handlePrintShopeeLabel(order.id); },
+          className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
+        });
+      } else {
+        menuItems.push({
+          key: 'label', label: 'ใบปะหน้า', icon: <Printer className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); handlePrintShippingLabel(order.id); },
+          className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
         });
       }
+    }
 
-      // Menu: Print shipping label (processing and above)
-      if (['processing', 'shipping', 'completed'].includes(order.order_status)) {
-        if (order.source === 'shopee') {
-          // Shopee orders → fetch label from Shopee API
-          menuItems.push({
-            key: 'label', label: 'ใบปะหน้า Shopee', icon: <Printer className="w-4 h-4" />,
-            onClick: (e) => { e.stopPropagation(); handlePrintShopeeLabel(order.id); },
-            className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
+    // Menu: Bill link (manual)
+    if (!order.source || order.source === 'manual') {
+      menuItems.push({
+        key: 'link', label: 'คัดลอกลิงก์', icon: <Link2 className="w-4 h-4" />,
+        onClick: (e) => {
+          e.stopPropagation();
+          const billUrl = `${window.location.origin}/bills/${order.id}`;
+          navigator.clipboard.writeText(billUrl).then(() => {
+            setToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
+            setTimeout(() => setToast(''), 2500);
           });
-        } else {
-          // Manual orders → use our template
-          menuItems.push({
-            key: 'label', label: 'ใบปะหน้า', icon: <Printer className="w-4 h-4" />,
-            onClick: (e) => { e.stopPropagation(); handlePrintShippingLabel(order.id); },
-            className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
-          });
-        }
-      }
+        },
+        className: 'p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
+      });
+    }
 
-      // Menu: Bill link (manual)
-      if (!order.source || order.source === 'manual') {
+    // Menu: Edit, Duplicate, Cancel (manual only)
+    if (!order.source || order.source === 'manual') {
+      if (order.order_status !== 'cancelled') {
         menuItems.push({
-          key: 'link', label: 'คัดลอกลิงก์', icon: <Link2 className="w-4 h-4" />,
+          key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); router.push(`/orders/${order.id}/edit`); },
+          className: 'p-1.5 text-blue-500 hover:text-blue-700 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
+        });
+      }
+      if (!['ready_to_ship', 'processing', 'shipping'].includes(statusFilter)) {
+        menuItems.push({
+          key: 'duplicate', label: 'สั่งซ้ำ', icon: <Copy className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); router.push(`/orders/new?duplicate=${order.id}`); },
+          className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
+        });
+      }
+      if (!['cancelled', 'completed'].includes(order.order_status)) {
+        menuItems.push({
+          key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
           onClick: (e) => {
             e.stopPropagation();
-            const billUrl = `${window.location.origin}/bills/${order.id}`;
-            navigator.clipboard.writeText(billUrl).then(() => {
-              setToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
-              setTimeout(() => setToast(''), 2500);
-            });
+            setStatusUpdateModal({ show: true, order, nextStatus: 'cancelled', statusType: 'order' });
           },
-          className: 'p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
+          className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
+          danger: true,
         });
       }
-
-      // Menu: Edit, Duplicate, Cancel (manual only)
-      if (!order.source || order.source === 'manual') {
-        // Edit (non-cancelled only)
-        if (order.order_status !== 'cancelled') {
-          menuItems.push({
-            key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-4 h-4" />,
-            onClick: (e) => { e.stopPropagation(); router.push(`/orders/${order.id}/edit`); },
-            className: 'p-1.5 text-blue-500 hover:text-blue-700 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
-          });
-        }
-        // Duplicate (exclude shipping tab — ready_to_ship & processing have their own tabs)
-        if (!['ready_to_ship', 'processing', 'shipping'].includes(statusFilter)) {
-          menuItems.push({
-            key: 'duplicate', label: 'สั่งซ้ำ', icon: <Copy className="w-4 h-4" />,
-            onClick: (e) => { e.stopPropagation(); router.push(`/orders/new?duplicate=${order.id}`); },
-            className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
-          });
-        }
-        // Cancel (non-cancelled, non-completed only)
-        if (!['cancelled', 'completed'].includes(order.order_status)) {
-          menuItems.push({
-            key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
-            onClick: (e) => {
-              e.stopPropagation();
-              setStatusUpdateModal({ show: true, order, nextStatus: 'cancelled', statusType: 'order' });
-            },
-            className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
-            danger: true,
-          });
-        }
-        // Delete (cancelled only, owner/admin)
-        if (order.order_status === 'cancelled' && (userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('admin'))) {
-          menuItems.push({
-            key: 'del', label: 'ลบ', icon: <Trash2 className="w-4 h-4" />,
-            onClick: (e) => handleDeleteOrder(e, order),
-            className: 'p-1.5 text-red-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
-            danger: true,
-          });
-        }
+      if (order.order_status === 'cancelled' && (userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('admin'))) {
+        menuItems.push({
+          key: 'del', label: 'ลบ', icon: <Trash2 className="w-4 h-4" />,
+          onClick: (e) => handleDeleteOrder(e, order),
+          className: 'p-1.5 text-red-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
+          danger: true,
+        });
       }
-
-      return (
-        <>
-          {primaryActions}
-          <ActionMenu items={menuItems} />
-        </>
-      );
-    };
+    }
 
     return (
-      <div
-        key={order.id}
-        onClick={() => window.open(`/orders/${order.id}`, '_blank')}
-        className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 hover:border-[#F4511E]/40 dark:hover:border-[#F4511E]/40 hover:shadow-md transition-all cursor-pointer overflow-hidden"
-      >
-        <div className="flex">
-          <div className="flex-[7] min-w-0 py-3">
-            <div className="px-4 pb-2 flex items-center gap-2">
-              <ChannelBadge channel={order.channel} />
-              <span
-                className="text-sm font-semibold text-gray-900 dark:text-white hover:text-[#F4511E] cursor-pointer transition-colors"
-                onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(order.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
-                title="คัดลอกเลขคำสั่งซื้อ"
-              >{order.order_number}</span>
-              {order.source === 'pos' && (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">POS</span>
-              )}
-              <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">
-                {relativeTime(order.created_at)}
-              </span>
-              {deadline && ['ready_to_ship', 'processing'].includes(order.order_status) && (
-                <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium flex items-center gap-0.5 flex-shrink-0 ${deadline.color}`}>
-                  <Clock className="w-3 h-3" />
-                  {deadline.label}
-                </span>
-              )}
-            </div>
-
-            <div className="px-4 space-y-2">
-              {(order.items_preview || []).map((item, idx) => (
-                <div key={idx} className="flex items-start gap-3">
-                  <div
-                    className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-slate-700 overflow-hidden flex-shrink-0"
-                    onClick={item.image ? (e) => { e.stopPropagation(); setLightboxImage(item.image!); } : undefined}
-                    style={item.image ? { cursor: 'zoom-in' } : undefined}
-                  >
-                    {item.image ? (
-                      <img src={item.image} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Package className="w-5 h-5 text-gray-300 dark:text-slate-500" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-1.5">
-                      <p className="text-base text-gray-800 dark:text-slate-200 truncate min-w-0">
-                        {item.product_name}
-                        {item.variation_label && (
-                          <span className="text-gray-400 dark:text-slate-500"> ({item.variation_label})</span>
-                        )}
-                      </p>
-                      <span className="text-base text-gray-500 dark:text-slate-400 flex-shrink-0">x{item.quantity}</span>
-                    </div>
-                    {item.subtitle && (
-                      <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5 truncate">{item.subtitle}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {(order.item_line_count || 0) > 3 && (
-                <p className="text-sm text-gray-400 dark:text-slate-500 pl-[60px]">
-                  + อีก {order.item_line_count - 3} รายการ
-                </p>
-              )}
-            </div>
-
-            {/* Tracking info */}
-            {(order.tracking_number || order.shipping_carrier) && (
-              <div className="px-4 pt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
-                <Truck className="w-3.5 h-3.5 flex-shrink-0" />
-                {order.shipping_carrier && (
-                  <span className="font-medium">
-                    {SHIPPING_CARRIERS.find(c => c.value === order.shipping_carrier)?.label || order.shipping_carrier}
-                  </span>
-                )}
-                {order.tracking_number && (
-                  <span className="font-mono bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-[11px]">
-                    {order.tracking_number}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="flex-[3] py-3 px-4 flex flex-col justify-center items-end gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              {order.customer_picture_url ? (
-                <img src={order.customer_picture_url} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
-              ) : null}
-              <span className="text-sm text-gray-700 dark:text-slate-300 truncate max-w-[80px] sm:max-w-none">{customerName}</span>
-              {customerPhone && (
-                <a href={`tel:${customerPhone}`} onClick={(e) => e.stopPropagation()}
-                  className="text-gray-400 hover:text-emerald-500 transition-colors flex-shrink-0"
-                ><Phone className="w-3.5 h-3.5" /></a>
-              )}
-            </div>
-
-            <span className="text-lg font-semibold text-gray-900 dark:text-white">
-              ฿{formatPrice(order.total_amount)}
-            </span>
-
-            <div className="flex items-center gap-1.5 flex-nowrap justify-end">
-              {(statusFilter === 'all' || statusFilter === 'cancelled') && (
-                <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${orderStatusCfg.bg} ${orderStatusCfg.color}`}>
-                  {orderStatusCfg.label}
-                </span>
-              )}
-
-              {order.order_status !== 'cancelled' && (
-                <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${paymentStatusCfg.bg} ${paymentStatusCfg.color}`}>
-                  {paymentStatusCfg.label}
-                </span>
-              )}
-
-              <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto" onClick={(e) => e.stopPropagation()}>
-                {renderActions()}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <>
+        {primaryActions}
+        <ActionMenu items={menuItems} />
+      </>
     );
   };
 
+  const renderDefaultOrderCard = (order: Order) => (
+    <OrderCard
+      key={order.id}
+      order={order}
+      statusFilter={statusFilter}
+      onImageClick={(url) => setLightboxImage(url)}
+      showOrderStatus={statusFilter === 'all' || statusFilter === 'cancelled'}
+      showPaymentStatus={order.order_status !== 'cancelled'}
+      actions={renderDefaultCardActions(order)}
+    />
+  );
+
   // Decide which content to render based on active tab
   const renderOrderList = () => {
+    // ProcessingTab manages its own data fetching & empty state
+    if (statusFilter === 'processing') {
+      return (
+        <ProcessingTab
+          carrierCounts={carrierCounts}
+          onHoldCount={onHoldCount}
+          userProfile={userProfile}
+          onRefresh={fetchOrders}
+          onImageClick={(url) => setLightboxImage(url)}
+          onStatusClick={handleOrderStatusClick}
+          onPaymentClick={handlePaymentStatusClick}
+          onDeleteOrder={handleDeleteOrder}
+        />
+      );
+    }
+
     if (displayedOrders.length === 0) {
       return (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 py-16 text-center">
@@ -721,25 +595,12 @@ export default function OrdersPage() {
       return (
         <ReadyToShipTab
           orders={displayedOrders}
+          totalOrders={totalOrders}
           userProfile={userProfile}
           onRefresh={fetchOrders}
           onImageClick={(url) => setLightboxImage(url)}
           onPaymentClick={handlePaymentStatusClick}
           onStatusClick={handleOrderStatusClick}
-          onDeleteOrder={handleDeleteOrder}
-        />
-      );
-    }
-
-    if (statusFilter === 'processing') {
-      return (
-        <ProcessingTab
-          orders={displayedOrders}
-          userProfile={userProfile}
-          onRefresh={fetchOrders}
-          onImageClick={(url) => setLightboxImage(url)}
-          onStatusClick={handleOrderStatusClick}
-          onPaymentClick={handlePaymentStatusClick}
           onDeleteOrder={handleDeleteOrder}
         />
       );
@@ -869,51 +730,55 @@ export default function OrdersPage() {
           </div>
         ) : (
         <>
-          {/* Sort bar + count */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500 dark:text-slate-400">
-              {totalOrders > 0 ? `${startIndex + 1}-${endIndex} จาก ${totalOrders} รายการ` : 'ไม่พบรายการ'}
-            </p>
-            <div className="relative">
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowSortDropdown(!showSortDropdown); }}
-                className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600 transition-colors"
-              >
-                {SORT_OPTIONS.find(o => o.value === sortValue)?.label || 'เรียงตาม'}
-                <ChevronDown className="w-4 h-4" />
-              </button>
-              {showSortDropdown && (
-                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-20 min-w-[140px]">
-                  {SORT_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => { setSortValue(opt.value); setShowSortDropdown(false); setCurrentPage(1); }}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
-                        sortValue === opt.value ? 'text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+          {/* Sort bar + count (hidden for processing tab — it has own pagination) */}
+          {statusFilter !== 'processing' && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-500 dark:text-slate-400">
+                {totalOrders > 0 ? `${startIndex + 1}-${endIndex} จาก ${totalOrders} รายการ` : 'ไม่พบรายการ'}
+              </p>
+              <div className="relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowSortDropdown(!showSortDropdown); }}
+                  className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600 transition-colors"
+                >
+                  {SORT_OPTIONS.find(o => o.value === sortValue)?.label || 'เรียงตาม'}
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                {showSortDropdown && (
+                  <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-20 min-w-[140px]">
+                    {SORT_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => { setSortValue(opt.value); setShowSortDropdown(false); setCurrentPage(1); }}
+                        className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
+                          sortValue === opt.value ? 'text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Order list — tab-specific or default */}
           {renderOrderList()}
 
-          {/* Pagination */}
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalRecords={totalOrders}
-            startIdx={startIndex}
-            endIdx={endIndex}
-            recordsPerPage={recordsPerPage}
-            setRecordsPerPage={setRecordsPerPage}
-            setPage={setCurrentPage}
-          />
+          {/* Pagination (hidden for processing tab — it has own pagination) */}
+          {statusFilter !== 'processing' && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalRecords={totalOrders}
+              startIdx={startIndex}
+              endIdx={endIndex}
+              recordsPerPage={recordsPerPage}
+              setRecordsPerPage={setRecordsPerPage}
+              setPage={setCurrentPage}
+            />
+          )}
         </>
         )}
 
@@ -1053,6 +918,13 @@ export default function OrdersPage() {
           />
         </div>
       )}
+
+      {/* PDF Loading Overlay */}
+      <LoadingOverlay
+        isOpen={pdfLoading}
+        title={pdfMessage || 'กำลังสร้าง PDF...'}
+        showWarning={false}
+      />
     </Layout>
   );
 }

@@ -701,6 +701,40 @@ export async function GET(request: NextRequest) {
     const deliveryDateStart = searchParams.get('delivery_date_start') || null;
     const deliveryDateEnd = searchParams.get('delivery_date_end') || null;
     const customerId = searchParams.get('customer_id') || null;
+    const shippingCarrier = searchParams.get('shipping_carrier') || null;
+
+    // Lightweight: return only IDs matching the current filters (for "select all")
+    if (searchParams.get('ids_only') === 'true') {
+      let query = supabaseAdmin
+        .from('orders')
+        .select('id')
+        .eq('company_id', auth.companyId)
+        .neq('order_status', 'cancelled');
+
+      if (orderStatus) query = query.eq('order_status', orderStatus);
+      if (paymentStatus) query = query.eq('payment_status', paymentStatus);
+      if (source === 'exclude_pos') {
+        query = query.or('source.is.null,source.neq.pos');
+      } else if (source) {
+        query = query.eq('source', source);
+      }
+      if (customerId) query = query.eq('customer_id', customerId);
+
+      // Shipping carrier filter (matches RPC logic)
+      if (shippingCarrier === '__on_hold__') {
+        query = query.eq('fulfillment_status', 'on_hold');
+      } else if (shippingCarrier === '__none__') {
+        query = query.is('shipping_carrier', null).neq('fulfillment_status', 'on_hold');
+      } else if (shippingCarrier) {
+        query = query.eq('shipping_carrier', shippingCarrier).neq('fulfillment_status', 'on_hold');
+      }
+
+      const { data: rows, error: idsError } = await query.limit(5000);
+      if (idsError) {
+        return NextResponse.json({ error: idsError.message }, { status: 500 });
+      }
+      return NextResponse.json({ ids: (rows || []).map((r: { id: string }) => r.id) });
+    }
 
     const { data: result, error: rpcError } = await supabaseAdmin.rpc('get_orders_list', {
       p_company_id: auth.companyId,
@@ -717,6 +751,7 @@ export async function GET(request: NextRequest) {
       p_delivery_date_start: deliveryDateStart,
       p_delivery_date_end: deliveryDateEnd,
       p_customer_id: customerId,
+      p_shipping_carrier: shippingCarrier,
     });
 
     if (rpcError) {

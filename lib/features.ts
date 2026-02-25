@@ -9,6 +9,7 @@ export interface FeatureFlags {
   pos: boolean;
   consignment: boolean;
   product_brand: boolean;
+  parcel_splitting: boolean;
 }
 
 export type BusinessPreset = 'delivery' | 'ecommerce' | 'omnichannel';
@@ -34,6 +35,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     pos: false,
     consignment: false,
     product_brand: false,
+    parcel_splitting: false,
   },
   ecommerce: {
     customer_branches: false,
@@ -43,6 +45,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     pos: false,
     consignment: false,
     product_brand: false,
+    parcel_splitting: false,
   },
   omnichannel: {
     customer_branches: false,
@@ -52,6 +55,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     pos: true,
     consignment: true,
     product_brand: false,
+    parcel_splitting: false,
   },
 };
 
@@ -70,7 +74,8 @@ export function detectPreset(f: FeatureFlags): BusinessPreset | null {
       f.marketplace_sync === defaults.marketplace_sync &&
       f.pos === defaults.pos &&
       f.consignment === defaults.consignment &&
-      f.product_brand === defaults.product_brand;
+      f.product_brand === defaults.product_brand &&
+      f.parcel_splitting === defaults.parcel_splitting;
     if (match) return key;
   }
   return null;
@@ -103,6 +108,7 @@ export function parseFeatures(settings: Record<string, unknown> | null | undefin
     pos: stored.pos ?? DEFAULT_FEATURES.pos,
     consignment: stored.consignment ?? DEFAULT_FEATURES.consignment,
     product_brand: stored.product_brand ?? DEFAULT_FEATURES.product_brand,
+    parcel_splitting: stored.parcel_splitting ?? DEFAULT_FEATURES.parcel_splitting,
   };
 
   // Derive preset from features — not stored separately

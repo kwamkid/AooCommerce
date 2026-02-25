@@ -69,10 +69,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Maximum 50 orders per batch' }, { status: 400 });
     }
 
-    // Fetch all orders
+    // Fetch all orders (include is_split)
     const { data: orders, error: ordersError } = await supabaseAdmin
       .from('orders')
-      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status')
+      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status, is_split')
       .eq('company_id', companyId)
       .in('id', order_ids);
 
@@ -157,41 +157,66 @@ export async function POST(request: NextRequest) {
           dropoff?: { branch_list?: Array<{ branch_id: number }> };
         };
 
-        // Handle dropoff mode
-        if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
-          const dropoffParams: Record<string, unknown> = {};
-          if (params.dropoff?.branch_list?.[0]) {
-            dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
-          }
-          const shipResult = await shipOrder(creds, order.external_order_sn, undefined, dropoffParams);
-          if (shipResult.error) {
-            results.push({ order_id: orderId, order_sn: order.external_order_sn, success: false, error: `รับออเดอร์ไม่สำเร็จ: ${shipResult.error}` });
-          } else {
-            await supabaseAdmin.from('orders').update({
-              external_status: 'PROCESSED',
-              order_status: 'processing',
-              updated_at: new Date().toISOString(),
-            }).eq('id', orderId).eq('company_id', companyId);
-            results.push({ order_id: orderId, order_sn: order.external_order_sn, success: true });
-          }
-          continue;
+        // For split orders, get parcel package_numbers
+        let packageNumbers: string[] = [];
+        if (order.is_split) {
+          const { data: parcels } = await supabaseAdmin
+            .from('order_parcels')
+            .select('id, parcel_number, package_number')
+            .eq('order_id', orderId)
+            .order('parcel_number');
+
+          packageNumbers = (parcels || [])
+            .map(p => p.package_number)
+            .filter((pn): pn is string => !!pn);
         }
 
-        // Pickup mode
-        const pickupAddress = params.pickup?.address_list?.[0];
-        if (!pickupAddress) {
-          results.push({ order_id: orderId, order_sn: order.external_order_sn, success: false, error: 'ไม่พบที่อยู่รับพัสดุ' });
-          continue;
-        }
+        // Helper: ship a single order/parcel
+        const doShip = async (packageNumber?: string) => {
+          if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
+            const dropoffParams: Record<string, unknown> = {};
+            if (params.dropoff?.branch_list?.[0]) {
+              dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
+            }
+            return shipOrder(creds, order.external_order_sn, undefined, dropoffParams, packageNumber);
+          }
 
-        const timeSlots = pickupAddress.time_slot_list || [];
+          const pickupAddress = params.pickup?.address_list?.[0];
+          if (!pickupAddress) {
+            return { data: null, error: 'ไม่พบที่อยู่รับพัสดุ' };
+          }
 
-        // If user already selected a time slot (retry), use it directly
-        let selectedTimeSlotId = pickup_time_id as string | undefined;
+          const timeSlots = pickupAddress.time_slot_list || [];
+          let selectedTimeSlotId = pickup_time_id as string | undefined;
 
-        if (!selectedTimeSlotId) {
-          // Express delivery: multiple time slots → let user choose
-          if (timeSlots.length > 1) {
+          if (!selectedTimeSlotId) {
+            if (timeSlots.length > 1) {
+              return { data: null, error: '__needs_time_slot__', _timeSlots: timeSlots };
+            }
+            const recommendedSlot = timeSlots.find(s => s.flags?.includes('recommended'));
+            const pickupTimeSlot = recommendedSlot || timeSlots[0];
+            selectedTimeSlotId = pickupTimeSlot?.pickup_time_id || '';
+          }
+
+          return shipOrder(creds, order.external_order_sn, {
+            address_id: pickupAddress.address_id,
+            pickup_time_id: selectedTimeSlotId,
+          }, undefined, packageNumber);
+        };
+
+        // Ship each parcel (or single order if not split)
+        const parcelsToShip = order.is_split && packageNumbers.length > 0
+          ? packageNumbers
+          : [undefined]; // single ship without package_number
+
+        let allSuccess = true;
+        let shipError = '';
+
+        for (const pkgNum of parcelsToShip) {
+          const shipResult = await doShip(pkgNum) as { data: unknown; error?: string; _timeSlots?: unknown[] };
+
+          if (shipResult.error === '__needs_time_slot__') {
+            const timeSlots = (shipResult as { _timeSlots: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }> })._timeSlots;
             results.push({
               order_id: orderId,
               order_sn: order.external_order_sn,
@@ -199,24 +224,21 @@ export async function POST(request: NextRequest) {
               needs_time_slot: true,
               time_slots: timeSlots.map(formatTimeSlot),
             });
-            continue;
+            allSuccess = false;
+            break;
           }
 
-          // Standard delivery: 0-1 time slot → auto-pick recommended
-          const recommendedSlot = timeSlots.find(s => s.flags?.includes('recommended'));
-          const pickupTimeSlot = recommendedSlot || timeSlots[0];
-          selectedTimeSlotId = pickupTimeSlot?.pickup_time_id || '';
+          if (shipResult.error) {
+            shipError = shipResult.error;
+            allSuccess = false;
+            break;
+          }
         }
 
-        const pickupParams = {
-          address_id: pickupAddress.address_id,
-          pickup_time_id: selectedTimeSlotId,
-        };
-
-        const shipResult = await shipOrder(creds, order.external_order_sn, pickupParams);
-
-        if (shipResult.error) {
-          results.push({ order_id: orderId, order_sn: order.external_order_sn, success: false, error: `รับออเดอร์ไม่สำเร็จ: ${shipResult.error}` });
+        if (!allSuccess) {
+          if (shipError) {
+            results.push({ order_id: orderId, order_sn: order.external_order_sn, success: false, error: `รับออเดอร์ไม่สำเร็จ: ${shipError}` });
+          }
           continue;
         }
 
@@ -226,6 +248,14 @@ export async function POST(request: NextRequest) {
           order_status: 'processing',
           updated_at: new Date().toISOString(),
         }).eq('id', orderId).eq('company_id', companyId);
+
+        // Update parcel statuses if split
+        if (order.is_split) {
+          await supabaseAdmin.from('order_parcels').update({
+            status: 'shipped',
+            updated_at: new Date().toISOString(),
+          }).eq('order_id', orderId);
+        }
 
         results.push({ order_id: orderId, order_sn: order.external_order_sn, success: true });
       } catch (err) {

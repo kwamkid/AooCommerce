@@ -1199,7 +1199,49 @@ export default function OrderDetailPage() {
                     </div>
                   </div>
                 )}
-                {(fullOrderData.tracking_number || fullOrderData.shipping_carrier) && (
+                {fullOrderData.is_split && fullOrderData.parcels?.length > 0 ? (
+                  <div className="sm:col-span-2">
+                    <div className="text-xs text-gray-400 dark:text-slate-500 mb-2">กล่องพัสดุ ({fullOrderData.parcels.length} กล่อง)</div>
+                    <div className="space-y-2">
+                      {fullOrderData.parcels.map((parcel: any) => (
+                        <div key={parcel.id} className="p-3 rounded-lg bg-gray-50 dark:bg-slate-700/50 border border-gray-100 dark:border-slate-600">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-sm font-medium text-gray-700 dark:text-slate-200 flex items-center gap-1.5">
+                              <Package className="w-3.5 h-3.5 text-purple-500" />
+                              กล่องที่ {parcel.parcel_number}/{fullOrderData.parcels.length}
+                            </span>
+                            {parcel.status && (
+                              <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                                parcel.status === 'shipped' || parcel.status === 'delivered'
+                                  ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                  : 'bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-300'
+                              }`}>
+                                {parcel.status === 'pending' ? 'รอจัดส่ง' : parcel.status === 'shipped' ? 'จัดส่งแล้ว' : parcel.status === 'delivered' ? 'ส่งถึงแล้ว' : parcel.status}
+                              </span>
+                            )}
+                          </div>
+                          {(parcel.tracking_number || parcel.shipping_carrier) && (
+                            <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-slate-400">
+                              {parcel.shipping_carrier && (
+                                <span className="flex items-center gap-1">
+                                  <Truck className="w-3 h-3" /> {parcel.shipping_carrier}
+                                </span>
+                              )}
+                              {parcel.tracking_number && (
+                                <span className="font-mono">{parcel.tracking_number}</span>
+                              )}
+                            </div>
+                          )}
+                          {parcel.items?.length > 0 && (
+                            <div className="mt-1.5 text-xs text-gray-400 dark:text-slate-500">
+                              {parcel.items.map((pi: any) => `${pi.product_name} x${pi.quantity}`).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (fullOrderData.tracking_number || fullOrderData.shipping_carrier) && (
                   <>
                     {fullOrderData.shipping_carrier && (
                       <div>
