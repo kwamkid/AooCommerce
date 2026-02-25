@@ -405,5 +405,5 @@ export async function generatePackingListPdf({ data, company }: GenerateOptions)
   };
 
   const pdfDoc = pdfMake.createPdf(docDefinition);
-  return pdfDoc.getBlob() as Promise<Blob>;
+  return pdfDoc.getBlob() as unknown as Promise<Blob>;
 }

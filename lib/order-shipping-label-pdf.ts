@@ -392,5 +392,5 @@ export async function generateShippingLabelPdf({ data, company }: GenerateOption
   };
 
   const pdfDoc = pdfMake.createPdf(docDefinition);
-  return pdfDoc.getBlob() as Promise<Blob>;
+  return pdfDoc.getBlob() as unknown as Promise<Blob>;
 }
