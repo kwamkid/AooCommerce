@@ -29,6 +29,7 @@ import {
   Banknote,
   ClipboardList,
   Printer,
+  RefreshCw,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import SearchableDropdown, { DropdownOption } from '@/components/ui/SearchableDropdown';
@@ -662,13 +663,23 @@ export default function OrdersPage() {
             <ShoppingCart className="w-8 h-8 text-[#F4511E]" />
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">คำสั่งซื้อ</h1>
           </div>
-          <button
-            onClick={() => router.push('/orders/new')}
-            className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            สร้างคำสั่งซื้อ
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchOrders()}
+              disabled={fetching}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-white transition-colors disabled:opacity-50"
+              title="รีเฟรช"
+            >
+              <RefreshCw className={`w-5 h-5 ${fetching ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={() => router.push('/orders/new')}
+              className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              สร้างคำสั่งซื้อ
+            </button>
+          </div>
         </div>
 
         {/* Error */}

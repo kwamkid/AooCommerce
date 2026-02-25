@@ -543,7 +543,16 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
           .eq('id', existing.id);
         console.log(`[Shopee Sync] Repaired order ${shopeeOrder.order_sn}: order_status=${existing.order_status}→${expectedMapping.order_status}, fulfillment fix=${needsFulfillmentFix}`);
         statusUpdated = true;
+
+        // Also check can_split_order on repair (fire-and-forget)
+        syncCanSplitOrder(existing.id, creds, shopeeOrder).catch(() => {});
       }
+    }
+
+    // Always re-check can_split_order for READY_TO_SHIP orders that haven't been checked yet
+    // (covers manual re-sync, orders created before split feature, and retried webhook syncs)
+    if (!statusUpdated && shopeeOrder.order_status === 'READY_TO_SHIP') {
+      syncCanSplitOrder(existing.id, creds, shopeeOrder).catch(() => {});
     }
 
     // Fetch escrow for COMPLETED orders that don't have escrow_detail yet

@@ -50,6 +50,7 @@ interface MenuItem {
   icon: React.ReactNode;
   roles: string[];
   badge?: number;
+  badgeColor?: string; // tailwind bg class e.g. 'bg-orange-500'
 }
 
 interface MenuSection {
@@ -120,6 +121,7 @@ export default function Sidebar() {
   const [productsOpen, setProductsOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const [orderReadyCount, setOrderReadyCount] = useState(0);
   // Default เป็น true เพื่อไม่ให้เมนูกระพริบ → ถ้า API บอกปิดค่อยซ่อน
   const [stockEnabled, setStockEnabled] = useState(true);
   const pathname = usePathname();
@@ -204,6 +206,17 @@ export default function Sidebar() {
     } catch { /* ignore */ }
   }, []);
 
+  // Fetch order ready_to_ship count via API
+  const fetchOrderReadyCount = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/orders/ready-count');
+      if (res.ok) {
+        const data = await res.json();
+        setOrderReadyCount(data.count || 0);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   // Initial fetch + Supabase Realtime subscription for unread changes
   // Use stable IDs to prevent re-subscribing on every context re-render
   const userId = userProfile?.id;
@@ -248,6 +261,33 @@ export default function Sidebar() {
     };
   }, [userId, companyId, fetchChatUnread]);
 
+  // Initial fetch + Supabase Realtime for order ready_to_ship count
+  useEffect(() => {
+    if (!userId || !companyId) return;
+
+    fetchOrderReadyCount();
+
+    const channel = supabase
+      .channel('sidebar-order-ready')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+        filter: `company_id=eq.${companyId}`,
+      }, () => { fetchOrderReadyCount(); })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'orders',
+        filter: `company_id=eq.${companyId}`,
+      }, () => { fetchOrderReadyCount(); })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, companyId, fetchOrderReadyCount]);
+
   const filteredSections = menuSections
     .filter(section => {
       // Hide "คลังสินค้า" section when stock feature is not enabled
@@ -285,6 +325,18 @@ export default function Sidebar() {
       section.items.forEach(item => {
         if (item.href === '/chat') {
           item.badge = chatUnreadCount;
+        }
+      });
+    });
+  }
+
+  // Inject order ready_to_ship badge (orange = same as รอกดรับ tab)
+  if (orderReadyCount > 0) {
+    filteredSections.forEach(section => {
+      section.items.forEach(item => {
+        if (item.href === '/orders') {
+          item.badge = orderReadyCount;
+          item.badgeColor = 'bg-orange-500';
         }
       });
     });
@@ -512,7 +564,7 @@ export default function Sidebar() {
                           {item.icon}
                           <span className="text-[16px] font-medium ml-3">{item.label}</span>
                           {item.badge && (
-                            <span className="ml-2 bg-red-500 text-white text-xs font-medium px-2 py-0.5 rounded-full">
+                            <span className={`ml-2 ${item.badgeColor || 'bg-red-500'} text-white text-xs font-medium px-2 py-0.5 rounded-full`}>
                               {item.badge}
                             </span>
                           )}
@@ -558,7 +610,7 @@ export default function Sidebar() {
                         <span className={`ml-auto text-xs font-medium px-2 py-0.5 rounded-full ${
                           isActive
                             ? 'bg-white/90 text-[#F4511E]'
-                            : 'bg-red-500 text-white'
+                            : `${item.badgeColor || 'bg-red-500'} text-white`
                         }`}>
                           {item.badge}
                         </span>

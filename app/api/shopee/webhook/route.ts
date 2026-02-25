@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeAccountRow } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 import crypto from 'crypto';
 
-// Allow up to 60s for webhook processing (sync must complete before return)
-// New orders with many new products can take 30-50s due to product creation
+// Allow up to 60s — sync runs in background via waitUntil but Vercel
+// still needs the function alive for background work to complete.
 export const maxDuration = 60;
 
 function verifySignature(url: string, rawBody: string, signature: string, partnerKey: string): boolean {
@@ -95,12 +96,17 @@ export async function POST(request: NextRequest) {
           duration_ms: Date.now() - startTime,
         });
 
-        // Sync order BEFORE returning — must await to prevent Vercel from killing the process
-        try {
-          await syncSingleOrder(account as ShopeeAccountRow, orderSn, shopeeStatus || undefined);
-        } catch (err) {
-          console.error('Shopee webhook sync error:', err);
-        }
+        // Return 200 immediately to Shopee, run sync in background via after().
+        // after() keeps the serverless function alive after the response is sent.
+        const acct = account as ShopeeAccountRow;
+        const status = shopeeStatus || undefined;
+        after(async () => {
+          try {
+            await syncSingleOrder(acct, orderSn, status);
+          } catch (err) {
+            console.error('Shopee webhook sync error:', err);
+          }
+        });
       }
     }
 
