@@ -243,9 +243,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No PDF generated' }, { status: 500 });
     }
 
-    let finalBuffer: Uint8Array;
+    let finalBytes: Uint8Array;
     if (allPdfBuffers.length === 1) {
-      finalBuffer = new Uint8Array(allPdfBuffers[0]);
+      finalBytes = new Uint8Array(allPdfBuffers[0]);
     } else {
       const mergedPdf = await PDFDocument.create();
       for (const buf of allPdfBuffers) {
@@ -253,17 +253,23 @@ export async function POST(request: NextRequest) {
         const pages = await mergedPdf.copyPages(srcPdf, srcPdf.getPageIndices());
         for (const page of pages) mergedPdf.addPage(page);
       }
-      finalBuffer = await mergedPdf.save();
+      finalBytes = new Uint8Array(await mergedPdf.save());
     }
 
     console.log(`[Shopee Bulk Doc] ${orders.length} labels downloaded (${Date.now() - startTime}ms)`);
 
-    return new NextResponse(finalBuffer.buffer as ArrayBuffer, {
+    // Convert to ArrayBuffer for NextResponse (TS 5.7+ strict Uint8Array typing)
+    const responseBuffer = finalBytes.buffer.slice(
+      finalBytes.byteOffset,
+      finalBytes.byteOffset + finalBytes.byteLength
+    ) as ArrayBuffer;
+
+    return new NextResponse(responseBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename="shopee-labels-batch.pdf"`,
-        'Content-Length': String(finalBuffer.length),
+        'Content-Length': String(finalBytes.length),
       },
     });
   } catch (error) {
