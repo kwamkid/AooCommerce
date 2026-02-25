@@ -258,7 +258,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Shopee Bulk Doc] ${orders.length} labels downloaded (${Date.now() - startTime}ms)`);
 
-    return new NextResponse(new Uint8Array(finalBuffer), {
+    return new NextResponse(finalBuffer.buffer as ArrayBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',

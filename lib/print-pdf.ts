@@ -28,7 +28,7 @@ export async function mergePdfBlobs(blobs: Blob[]): Promise<Blob> {
   }
 
   const bytes = await merged.save();
-  return new Blob([bytes], { type: 'application/pdf' });
+  return new Blob([bytes.buffer], { type: 'application/pdf' });
 }
 
 let currentOverlay: HTMLDivElement | null = null;
