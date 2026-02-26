@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
-import CustomerForm, { CustomerFormData } from '@/components/customers/CustomerForm';
+import CustomerForm, { CustomerFormData, buildCustomerPayload } from '@/components/customers/CustomerForm';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
@@ -31,31 +31,7 @@ export default function NewCustomerPage() {
     setSaving(true);
 
     try {
-      const billingAddress = data.billing_same_as_shipping ? data.shipping_address : data.billing_address;
-      const billingDistrict = data.billing_same_as_shipping ? data.shipping_district : data.billing_district;
-      const billingAmphoe = data.billing_same_as_shipping ? data.shipping_amphoe : data.billing_amphoe;
-      const billingProvince = data.billing_same_as_shipping ? data.shipping_province : data.billing_province;
-      const billingPostalCode = data.billing_same_as_shipping ? data.shipping_postal_code : data.billing_postal_code;
-
-      const customerPayload = {
-        name: data.name,
-        contact_person: data.contact_person,
-        phone: data.phone,
-        email: data.email,
-        customer_type: data.customer_type,
-        credit_limit: data.credit_limit,
-        credit_days: data.credit_days,
-        is_active: data.is_active,
-        notes: data.notes,
-        tax_id: data.needs_tax_invoice ? data.tax_id : '',
-        tax_company_name: data.needs_tax_invoice ? data.tax_company_name : '',
-        tax_branch: data.needs_tax_invoice ? data.tax_branch : '',
-        address: billingAddress,
-        district: billingDistrict,
-        amphoe: billingAmphoe,
-        province: billingProvince,
-        postal_code: billingPostalCode
-      };
+      const customerPayload = buildCustomerPayload(data);
 
       const createResponse = await apiFetch('/api/customers', {
         method: 'POST',
@@ -144,7 +120,7 @@ export default function NewCustomerPage() {
 
   return (
     <Layout>
-      <div className="space-y-4 max-w-4xl">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center gap-3">
           <button

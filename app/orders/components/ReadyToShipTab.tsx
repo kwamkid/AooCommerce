@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -20,12 +20,19 @@ import {
 } from 'lucide-react';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
+import { useCompany } from '@/lib/company-context';
+import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import OrderCard from './OrderCard';
 import ActionMenu, { ActionItem } from './ActionMenu';
+import TaxInvoiceModal from './TaxInvoiceModal';
 import SplitParcelModal from './SplitParcelModal';
+import Pagination from '@/app/components/Pagination';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { Order } from './types';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
+
+const ON_HOLD_KEY = '__on_hold__';
+const ACTIVE_KEY = '__active__';
 
 interface TimeSlot {
   pickup_time_id: string;
@@ -42,8 +49,16 @@ interface TimeSlotModal {
 }
 
 interface ReadyToShipTabProps {
-  orders: Order[];
-  totalOrders: number;
+  /** Normal (non-hold) order count from parent status counts */
+  normalCount: number;
+  /** On hold count from parent */
+  onHoldCount: number;
+  /** Search term from parent */
+  search?: string;
+  /** Channel filter from parent */
+  channel?: string;
+  /** Created by filter from parent */
+  createdBy?: string;
   userProfile: any;
   onRefresh: () => void;
   onImageClick: (url: string) => void;
@@ -53,8 +68,11 @@ interface ReadyToShipTabProps {
 }
 
 export default function ReadyToShipTab({
-  orders,
-  totalOrders,
+  normalCount,
+  onHoldCount,
+  search,
+  channel,
+  createdBy,
   userProfile,
   onRefresh,
   onImageClick,
@@ -64,6 +82,21 @@ export default function ReadyToShipTab({
 }: ReadyToShipTabProps) {
   const router = useRouter();
   const { showToast } = useToast();
+  const { currentCompany } = useCompany();
+  const vatRegistered = currentCompany?.vat_registered || false;
+
+  // Sub-tab state
+  const [activeGroup, setActiveGroup] = useState<string>(ACTIVE_KEY);
+  const isOnHoldTab = activeGroup === ON_HOLD_KEY;
+
+  // Self-fetched orders
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [recordsPerPage, setRecordsPerPage] = useState(20);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [overlayOpen, setOverlayOpen] = useState(false);
@@ -84,8 +117,56 @@ export default function ReadyToShipTab({
     isShopee: boolean;
   } | null>(null);
 
-  // All orders can be bulk-selected (Shopee needs bulk accept too)
-  const selectableOrders = useMemo(() => orders, [orders]);
+  // Self-fetch orders
+  const fetchOrders = useCallback(async () => {
+    if (!activeGroup) return;
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('status', 'ready_to_ship');
+      params.set('source', 'exclude_pos');
+      params.set('page', currentPage.toString());
+      params.set('limit', recordsPerPage.toString());
+      params.set('sort_by', 'created_at');
+      params.set('sort_dir', 'desc');
+      params.set('shipping_carrier', activeGroup);
+      if (search) params.set('search', search);
+      if (channel && channel !== 'all') params.set('channel', channel);
+      if (createdBy && createdBy !== 'all') params.set('created_by', createdBy);
+
+      const response = await apiFetch(`/api/orders?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch orders');
+
+      const result = await response.json();
+      setOrders(result.orders || []);
+      setTotalOrders(result.pagination?.total || 0);
+      setTotalPages(result.pagination?.totalPages || 0);
+    } catch (err) {
+      console.error('ReadyToShipTab fetch error:', err);
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeGroup, currentPage, recordsPerPage, search, channel, createdBy]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  // Reset page when switching tab or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedIds(new Set());
+  }, [activeGroup, search, channel, createdBy]);
+
+  // Refresh handler — refresh parent + re-fetch our tab
+  const handleRefresh = useCallback(() => {
+    onRefresh();
+    fetchOrders();
+  }, [onRefresh, fetchOrders]);
+
+  // Selection — only selectable in normal tab
+  const selectableOrders = isOnHoldTab ? [] : orders;
   const allSelected = selectableOrders.length > 0 && (
     selectedIds.size >= totalOrders || selectableOrders.every(o => selectedIds.has(o.id))
   );
@@ -118,11 +199,12 @@ export default function ReadyToShipTab({
       return;
     }
 
-    // Fetch ALL order IDs for ready_to_ship from server
+    // Fetch ALL order IDs for ready_to_ship (active only) from server
     try {
       const params = new URLSearchParams();
       params.set('status', 'ready_to_ship');
       params.set('source', 'exclude_pos');
+      params.set('shipping_carrier', ACTIVE_KEY);
       params.set('ids_only', 'true');
 
       const res = await apiFetch(`/api/orders?${params.toString()}`);
@@ -226,7 +308,7 @@ export default function ReadyToShipTab({
         setTimeSlotModal(timeSlotQueue[0]);
         setPendingTimeSlotOrders(timeSlotQueue.slice(1));
       } else {
-        onRefresh();
+        handleRefresh();
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
@@ -251,7 +333,7 @@ export default function ReadyToShipTab({
       const result = await res.json();
       showToast(`ยกเลิกสำเร็จ ${result.updated || ids.length} รายการ`, 'success');
       setSelectedIds(new Set());
-      onRefresh();
+      handleRefresh();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -261,6 +343,7 @@ export default function ReadyToShipTab({
   };
 
   const [actionLoading, setActionLoading] = useState(false);
+  const [taxInvoiceModal, setTaxInvoiceModal] = useState<{ orderId: string; orderNumber: string; customerId?: string } | null>(null);
 
   const handlePrintInvoice = async (orderId: string) => {
     setActionLoading(true);
@@ -269,8 +352,7 @@ export default function ReadyToShipTab({
       if (!res.ok) throw new Error('Failed to fetch order');
       const result = await res.json();
       const blob = await generateOrderInvoicePdf({ data: result.order });
-      const title = result.order.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้';
-      showPdfPreview(blob, title);
+      showPdfPreview(blob, getInvoiceMenuLabel(result.order.payment_status, vatRegistered));
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -305,7 +387,7 @@ export default function ReadyToShipTab({
           setPendingTimeSlotOrders(prev => prev.slice(1));
         } else {
           setTimeSlotModal(null);
-          onRefresh();
+          handleRefresh();
         }
       } else if (r?.needs_time_slot && r.time_slots?.length > 0) {
         // Find matching order for display
@@ -340,7 +422,7 @@ export default function ReadyToShipTab({
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
       showToast('พักออเดอร์แล้ว', 'success');
-      onRefresh();
+      handleRefresh();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -360,7 +442,7 @@ export default function ReadyToShipTab({
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
       showToast('ปลดการพักแล้ว', 'success');
-      onRefresh();
+      handleRefresh();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally { setActionLoading(false); }
@@ -406,10 +488,10 @@ export default function ReadyToShipTab({
           key="unhold"
           onClick={(e) => { e.stopPropagation(); handleUnhold(order.id); }}
           disabled={actionLoading}
-          className="px-2.5 py-1.5 md:px-3 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
           title="กลับมา"
         >
-          <Play className="w-3.5 h-3.5" />
+          <Play className="w-4 h-4" />
           <span className="hidden md:inline">กลับมา</span>
         </button>
       );
@@ -452,16 +534,25 @@ export default function ReadyToShipTab({
     // Menu: Print invoice
     menuItems.push({
       key: 'invoice',
-      label: order.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้',
+      label: getInvoiceMenuLabel(order.payment_status, vatRegistered),
       icon: <Banknote className="w-4 h-4" />,
       onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
       className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
     });
 
+    // Full tax invoice option (only for VAT-registered + order doesn't have full invoice yet)
+    if (vatRegistered && order.payment_status === 'paid' && order.tax_invoice_requested !== true) {
+      menuItems.push({
+        key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />, dividerBefore: true,
+        onClick: (e) => { e.stopPropagation(); setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id }); },
+        className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
+      });
+    }
+
     // Menu: Unsplit (split orders that can be unsplit)
     if (order.is_split) {
       menuItems.push({
-        key: 'unsplit', label: 'ยกเลิกแบ่งกล่อง', icon: <Scissors className="w-4 h-4" />,
+        key: 'unsplit', label: 'ยกเลิกแบ่งกล่อง', icon: <Scissors className="w-4 h-4" />, dividerBefore: true,
         onClick: async (e) => {
           e.stopPropagation();
           if (!confirm('ยกเลิกการแบ่งกล่องออเดอร์นี้?')) return;
@@ -474,7 +565,7 @@ export default function ReadyToShipTab({
             });
             if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
             showToast('ยกเลิกแบ่งกล่องแล้ว', 'success');
-            onRefresh();
+            handleRefresh();
           } catch (err) {
             showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
           } finally { setActionLoading(false); }
@@ -486,7 +577,7 @@ export default function ReadyToShipTab({
     // Menu: Hold (any order, not already on hold)
     if (!isOnHold) {
       menuItems.push({
-        key: 'hold', label: 'พักไว้', icon: <Pause className="w-4 h-4" />,
+        key: 'hold', label: 'พักไว้', icon: <Pause className="w-4 h-4" />, dividerBefore: !order.is_split,
         onClick: (e) => { e.stopPropagation(); setHoldModal({ orderId: order.id, orderNumber: order.order_number }); },
         className: 'p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
       });
@@ -537,35 +628,91 @@ export default function ReadyToShipTab({
 
   return (
     <>
+      {/* Sub-tabs */}
+      {onHoldCount > 0 && (
+        <div className="flex gap-1.5 overflow-x-auto mb-4">
+          <button
+            onClick={() => setActiveGroup(ACTIVE_KEY)}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              !isOnHoldTab
+                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
+            }`}
+          >
+            ทั้งหมด ({normalCount})
+          </button>
+          <button
+            onClick={() => setActiveGroup(ON_HOLD_KEY)}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              isOnHoldTab
+                ? 'bg-gray-200 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'
+                : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
+            }`}
+          >
+            พักไว้ ({onHoldCount})
+          </button>
+        </div>
+      )}
+
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+        </div>
+      )}
+
       {/* Order Cards */}
-      <div className="space-y-3">
-        {selectableOrders.length > 1 && (
-          <label className="flex items-center gap-2 px-4 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={allSelected}
-              onChange={toggleSelectAll}
-              className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E]"
+      {!loading && orders.length > 0 && (
+        <div className="space-y-3">
+          {!isOnHoldTab && selectableOrders.length > 1 && (
+            <label className="flex items-center gap-2 px-4 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleSelectAll}
+                className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E]"
+              />
+              <span className="text-xs text-gray-400 dark:text-slate-500">
+                เลือกทั้งหมด{totalOrders > orders.length ? ` (${totalOrders})` : ''}
+              </span>
+            </label>
+          )}
+          {orders.map((order) => (
+            <OrderCard
+              key={order.id}
+              order={order}
+              statusFilter="ready_to_ship"
+              selected={!isOnHoldTab && selectedIds.has(order.id)}
+              showCheckbox={!isOnHoldTab}
+              onToggleSelect={toggleSelect}
+              onImageClick={onImageClick}
+              showPaymentStatus
+              actions={renderCardActions(order)}
             />
-            <span className="text-xs text-gray-400 dark:text-slate-500">
-              เลือกทั้งหมด{totalOrders > orders.length ? ` (${totalOrders})` : ''}
-            </span>
-          </label>
-        )}
-        {orders.map((order) => (
-          <OrderCard
-            key={order.id}
-            order={order}
-            statusFilter="ready_to_ship"
-            selected={selectedIds.has(order.id)}
-            showCheckbox
-            onToggleSelect={toggleSelect}
-            onImageClick={onImageClick}
-            showPaymentStatus
-            actions={renderCardActions(order)}
-          />
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && orders.length === 0 && (
+        <div className="text-center py-12 text-gray-400 dark:text-slate-500 text-sm">
+          ไม่มีออเดอร์
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalOrders}
+          startIdx={(currentPage - 1) * recordsPerPage}
+          endIdx={Math.min(currentPage * recordsPerPage, totalOrders)}
+          recordsPerPage={recordsPerPage}
+          setRecordsPerPage={setRecordsPerPage}
+          setPage={setCurrentPage}
+        />
+      )}
 
       {/* Floating bulk action bar */}
       {selectedIds.size > 0 && (
@@ -636,6 +783,38 @@ export default function ReadyToShipTab({
         </div>
       )}
 
+      {/* Tax Invoice Modal */}
+      {taxInvoiceModal && (
+        <TaxInvoiceModal
+          orderId={taxInvoiceModal.orderId}
+          orderNumber={taxInvoiceModal.orderNumber}
+          customerId={taxInvoiceModal.customerId}
+          onClose={() => setTaxInvoiceModal(null)}
+          onSaved={async (updatedOrder) => {
+            setTaxInvoiceModal(null);
+            try {
+              const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+              const res = await apiFetch(`/api/orders/${updatedOrder.id as string}`);
+              if (!res.ok) throw new Error('Failed to fetch order');
+              const result = await res.json();
+              const blob = await generateFullInvoicePdf({
+                ...result.order,
+                tax_invoice_number: updatedOrder.tax_invoice_number,
+                tax_invoice_date: updatedOrder.tax_invoice_date,
+                tax_invoice_name: updatedOrder.tax_invoice_name,
+                tax_invoice_tax_id: updatedOrder.tax_invoice_tax_id,
+                tax_invoice_address: updatedOrder.tax_invoice_address,
+                tax_invoice_branch: updatedOrder.tax_invoice_branch,
+              });
+              showPdfPreview(blob, 'ใบกำกับแบบเต็ม/ใบเสร็จรับเงิน');
+            } catch (err) {
+              showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+            }
+            fetchOrders();
+          }}
+        />
+      )}
+
       {/* Hold Modal */}
       {holdModal && (
         <div
@@ -689,7 +868,7 @@ export default function ReadyToShipTab({
       {timeSlotModal && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => !actionLoading && (() => { setTimeSlotModal(null); setSelectedTimeSlotId(null); onRefresh(); })()}
+          onClick={() => !actionLoading && (() => { setTimeSlotModal(null); setSelectedTimeSlotId(null); handleRefresh(); })()}
         >
           <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-1">
@@ -743,7 +922,7 @@ export default function ReadyToShipTab({
                     setPendingTimeSlotOrders(prev => prev.slice(1));
                   } else {
                     setTimeSlotModal(null);
-                    onRefresh();
+                    handleRefresh();
                   }
                 }}
                 disabled={actionLoading}
@@ -800,7 +979,7 @@ export default function ReadyToShipTab({
           onSuccess={() => {
             setSplitModal(null);
             showToast('แบ่งกล่องสำเร็จ', 'success');
-            onRefresh();
+            handleRefresh();
           }}
         />
       )}

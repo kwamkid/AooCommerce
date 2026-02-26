@@ -68,7 +68,9 @@ BEGIN
            o.customer_id, o.marketplace_account_id, o.created_by,
            o.delivery_name, o.delivery_phone,
            o.fulfillment_status, o.hold_reason,
-           o.tracking_number, o.shipping_carrier
+           o.tracking_number, o.shipping_carrier,
+           o.is_split, o.can_split_order,
+           o.tax_invoice_requested
     FROM orders o
     WHERE o.company_id = p_company_id
       -- Source filter
@@ -145,9 +147,10 @@ BEGIN
       AND (p_payment_status IS NULL OR p_payment_status = '' OR p_payment_status = 'all' OR payment_status = p_payment_status)
       AND (
         p_shipping_carrier IS NULL OR p_shipping_carrier = '' OR p_shipping_carrier = 'all'
-        OR (p_shipping_carrier = '__none__' AND shipping_carrier IS NULL)
+        OR (p_shipping_carrier = '__active__' AND (fulfillment_status IS NULL OR fulfillment_status != 'on_hold'))
+        OR (p_shipping_carrier = '__none__' AND shipping_carrier IS NULL AND (fulfillment_status IS NULL OR fulfillment_status != 'on_hold'))
         OR (p_shipping_carrier = '__on_hold__' AND fulfillment_status = 'on_hold')
-        OR shipping_carrier = p_shipping_carrier
+        OR (shipping_carrier = p_shipping_carrier AND (fulfillment_status IS NULL OR fulfillment_status != 'on_hold'))
       )
   ),
 
@@ -441,9 +444,12 @@ BEGIN
         'hold_reason', oc.hold_reason,
         'tracking_number', oc.tracking_number,
         'shipping_carrier', oc.shipping_carrier,
+        'is_split', COALESCE(oc.is_split, false),
+        'can_split_order', COALESCE(oc.can_split_order, false),
         'items_preview', COALESCE(ip.preview, '[]'::jsonb),
         'item_count', COALESCE(ic.item_count, 0),
-        'item_line_count', COALESCE(ic.item_line_count, 0)
+        'item_line_count', COALESCE(ic.item_line_count, 0),
+        'tax_invoice_requested', COALESCE(oc.tax_invoice_requested, false)
       ) AS order_json,
       -- Keep sort columns for final ordering
       oc.created_at AS _created_at,
@@ -518,6 +524,10 @@ BEGIN
     'onHoldCount', (
       SELECT COUNT(*)::int FROM base_filtered
       WHERE order_status = 'processing' AND fulfillment_status = 'on_hold'
+    ),
+    'rtsOnHoldCount', (
+      SELECT COUNT(*)::int FROM base_filtered
+      WHERE order_status = 'ready_to_ship' AND fulfillment_status = 'on_hold'
     )
   ) INTO v_result;
 

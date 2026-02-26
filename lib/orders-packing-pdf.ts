@@ -52,6 +52,7 @@ export interface PackingListData {
   source?: string;
   items: PackingItem[];
   is_split?: boolean;
+  tax_invoice_requested?: boolean;
   parcels?: {
     parcel_number: number;
     tracking_number?: string;
@@ -632,6 +633,17 @@ function buildCompactPackingContent(
         }] : []),
       ],
       margin: [0, 0, 0, 4],
+    });
+  }
+
+  // ── Tax invoice badge ──
+  if (order.tax_invoice_requested) {
+    content.push({
+      text: '** ขอใบกำกับภาษี **',
+      fontSize: 10,
+      bold: true,
+      color: '#dc2626',
+      margin: [0, 2, 0, 4],
     });
   }
 

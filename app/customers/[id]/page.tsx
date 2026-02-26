@@ -7,6 +7,7 @@ import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { parseThaiAddress } from '@/lib/address-parser';
+import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import {
   ArrowLeft,
   Edit2,
@@ -185,13 +186,10 @@ export default function CustomerEditPage() {
   // Sync billing with shipping when checkbox is on
   useEffect(() => {
     if (form.billing_same_as_shipping) {
+      const combined = [form.shipping_address, form.shipping_district, form.shipping_amphoe, form.shipping_province, form.shipping_postal_code].filter(Boolean).join(' ');
       setForm(prev => ({
         ...prev,
-        billing_address: prev.shipping_address,
-        billing_district: prev.shipping_district,
-        billing_amphoe: prev.shipping_amphoe,
-        billing_province: prev.shipping_province,
-        billing_postal_code: prev.shipping_postal_code,
+        billing_address: combined,
       }));
     }
   }, [form.billing_same_as_shipping, form.shipping_address, form.shipping_district,
@@ -231,13 +229,12 @@ export default function CustomerEditPage() {
       const defaultAddr = addrs.find(a => a.is_default) || addrs[0] || null;
       setDefaultAddressId(defaultAddr?.id || null);
 
-      // Check if billing == shipping
-      const billingSameAsShipping = !customerData.tax_address ||
-        (defaultAddr && customerData.tax_address === defaultAddr.address_line1 &&
-         (customerData.tax_district || '') === (defaultAddr.district || '') &&
-         (customerData.tax_amphoe || '') === (defaultAddr.amphoe || '') &&
-         (customerData.tax_province || '') === (defaultAddr.province || '') &&
-         (customerData.tax_postal_code || '') === (defaultAddr.postal_code || ''));
+      // Check if billing == shipping (compare combined address)
+      const shippingCombined = defaultAddr
+        ? [defaultAddr.address_line1, defaultAddr.district, defaultAddr.amphoe, defaultAddr.province, defaultAddr.postal_code].filter(Boolean).join(' ')
+        : '';
+      const storedBilling = [customerData.tax_address, customerData.tax_district, customerData.tax_amphoe, customerData.tax_province, customerData.tax_postal_code].filter(Boolean).join(' ');
+      const billingSameAsShipping = !storedBilling || storedBilling === shippingCombined;
 
       // Populate form
       setForm({
@@ -264,11 +261,11 @@ export default function CustomerEditPage() {
         tax_branch: customerData.tax_branch || 'สำนักงานใหญ่',
         // Billing
         billing_same_as_shipping: !!billingSameAsShipping,
-        billing_address: customerData.tax_address || '',
-        billing_district: customerData.tax_district || '',
-        billing_amphoe: customerData.tax_amphoe || '',
-        billing_province: customerData.tax_province || '',
-        billing_postal_code: customerData.tax_postal_code || '',
+        billing_address: storedBilling || '',
+        billing_district: '',
+        billing_amphoe: '',
+        billing_province: '',
+        billing_postal_code: '',
         // Credit
         credit_limit: customerData.credit_limit || 0,
         credit_days: customerData.credit_days || 0,
@@ -310,11 +307,9 @@ export default function CustomerEditPage() {
 
     try {
       // Determine billing address
-      const billingAddress = form.billing_same_as_shipping ? form.shipping_address : form.billing_address;
-      const billingDistrict = form.billing_same_as_shipping ? form.shipping_district : form.billing_district;
-      const billingAmphoe = form.billing_same_as_shipping ? form.shipping_amphoe : form.billing_amphoe;
-      const billingProvince = form.billing_same_as_shipping ? form.shipping_province : form.billing_province;
-      const billingPostalCode = form.billing_same_as_shipping ? form.shipping_postal_code : form.billing_postal_code;
+      const billingAddress = form.billing_same_as_shipping
+        ? [form.shipping_address, form.shipping_district, form.shipping_amphoe, form.shipping_province, form.shipping_postal_code].filter(Boolean).join(' ')
+        : form.billing_address;
 
       // 1. Update customer
       const customerPayload = {
@@ -332,10 +327,10 @@ export default function CustomerEditPage() {
         tax_company_name: form.needs_tax_invoice ? form.tax_company_name : '',
         tax_branch: form.needs_tax_invoice ? form.tax_branch : '',
         tax_address: billingAddress,
-        tax_district: billingDistrict,
-        tax_amphoe: billingAmphoe,
-        tax_province: billingProvince,
-        tax_postal_code: billingPostalCode,
+        tax_district: '',
+        tax_amphoe: '',
+        tax_province: '',
+        tax_postal_code: '',
       };
 
       const customerRes = await apiFetch('/api/customers', {
@@ -699,7 +694,7 @@ export default function CustomerEditPage() {
 
             {/* Section: Tax Invoice (Optional) */}
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-4 cursor-pointer" onClick={() => { if (canEdit) setForm(prev => ({ ...prev, needs_tax_invoice: !prev.needs_tax_invoice })); }}>
                 <Checkbox
                   checked={form.needs_tax_invoice}
                   onChange={(v) => setForm(prev => ({ ...prev, needs_tax_invoice: v }))}
@@ -712,7 +707,7 @@ export default function CustomerEditPage() {
               </div>
 
               {form.needs_tax_invoice && (
-                <div className="pl-6 border-l-2 border-[#F4511E] space-y-4">
+                <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
                     <input
@@ -763,62 +758,16 @@ export default function CustomerEditPage() {
                     </div>
 
                     {!form.billing_same_as_shipping && (
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่ออกบิล</label>
-                          <textarea
-                            value={form.billing_address}
-                            onChange={(e) => setForm(prev => ({ ...prev, billing_address: e.target.value }))}
-                            className={inputClass}
-                            disabled={!canEdit}
-                            rows={2}
-                            placeholder="บ้านเลขที่ ซอย ถนน"
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ตำบล/แขวง</label>
-                            <input
-                              type="text"
-                              value={form.billing_district}
-                              onChange={(e) => setForm(prev => ({ ...prev, billing_district: e.target.value }))}
-                              className={inputClass}
-                              disabled={!canEdit}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อำเภอ/เขต</label>
-                            <input
-                              type="text"
-                              value={form.billing_amphoe}
-                              onChange={(e) => setForm(prev => ({ ...prev, billing_amphoe: e.target.value }))}
-                              className={inputClass}
-                              disabled={!canEdit}
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">จังหวัด</label>
-                            <input
-                              type="text"
-                              value={form.billing_province}
-                              onChange={(e) => setForm(prev => ({ ...prev, billing_province: e.target.value }))}
-                              className={inputClass}
-                              disabled={!canEdit}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">รหัสไปรษณีย์</label>
-                            <input
-                              type="text"
-                              value={form.billing_postal_code}
-                              onChange={(e) => setForm(prev => ({ ...prev, billing_postal_code: e.target.value }))}
-                              className={inputClass}
-                              disabled={!canEdit}
-                            />
-                          </div>
-                        </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่ออกบิล</label>
+                        <textarea
+                          value={form.billing_address}
+                          onChange={(e) => setForm(prev => ({ ...prev, billing_address: e.target.value }))}
+                          className={inputClass}
+                          disabled={!canEdit}
+                          rows={3}
+                          placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์"
+                        />
                       </div>
                     )}
                   </div>
@@ -923,17 +872,19 @@ export default function CustomerEditPage() {
                       onChange={(e) => setForm(prev => ({ ...prev, shipping_address: e.target.value }))}
                       onPaste={(e) => {
                         const pasted = e.clipboardData.getData('text');
-                        const parsed = parseThaiAddress(pasted);
-                        if (parsed) {
-                          e.preventDefault();
-                          setForm(prev => ({
-                            ...prev,
-                            shipping_address: parsed.address || prev.shipping_address,
-                            shipping_district: parsed.district || prev.shipping_district,
-                            shipping_amphoe: parsed.amphoe || prev.shipping_amphoe,
-                            shipping_province: parsed.province || prev.shipping_province,
-                            shipping_postal_code: parsed.postal_code || prev.shipping_postal_code,
-                          }));
+                        if (pasted.length > 20) {
+                          const parsed = parseThaiAddress(pasted);
+                          if (parsed) {
+                            e.preventDefault();
+                            setForm(prev => ({
+                              ...prev,
+                              shipping_address: parsed.address || pasted,
+                              shipping_district: parsed.district || prev.shipping_district,
+                              shipping_amphoe: parsed.amphoe || prev.shipping_amphoe,
+                              shipping_province: parsed.province || prev.shipping_province,
+                              shipping_postal_code: parsed.postal_code || prev.shipping_postal_code,
+                            }));
+                          }
                         }
                       }}
                       className={inputClass}
@@ -943,51 +894,21 @@ export default function CustomerEditPage() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ตำบล/แขวง</label>
-                      <input
-                        type="text"
-                        value={form.shipping_district}
-                        onChange={(e) => setForm(prev => ({ ...prev, shipping_district: e.target.value }))}
-                        className={inputClass}
-                        disabled={!canEdit}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อำเภอ/เขต</label>
-                      <input
-                        type="text"
-                        value={form.shipping_amphoe}
-                        onChange={(e) => setForm(prev => ({ ...prev, shipping_amphoe: e.target.value }))}
-                        className={inputClass}
-                        disabled={!canEdit}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">จังหวัด</label>
-                      <input
-                        type="text"
-                        value={form.shipping_province}
-                        onChange={(e) => setForm(prev => ({ ...prev, shipping_province: e.target.value }))}
-                        className={inputClass}
-                        disabled={!canEdit}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">รหัสไปรษณีย์</label>
-                      <input
-                        type="text"
-                        value={form.shipping_postal_code}
-                        onChange={(e) => setForm(prev => ({ ...prev, shipping_postal_code: e.target.value }))}
-                        className={inputClass}
-                        disabled={!canEdit}
-                      />
-                    </div>
-                  </div>
+                  <ThaiAddressInput
+                    district={form.shipping_district}
+                    amphoe={form.shipping_amphoe}
+                    province={form.shipping_province}
+                    postalCode={form.shipping_postal_code}
+                    onAddressChange={(addr) => setForm(prev => ({
+                      ...prev,
+                      ...(addr.district !== undefined && { shipping_district: addr.district }),
+                      ...(addr.amphoe !== undefined && { shipping_amphoe: addr.amphoe }),
+                      ...(addr.province !== undefined && { shipping_province: addr.province }),
+                      ...(addr.postalCode !== undefined && { shipping_postal_code: addr.postalCode }),
+                    }))}
+                    disabled={!canEdit}
+                    inputClassName={inputClass}
+                  />
 
                   <div>
                     <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 flex items-center gap-1">
@@ -1188,17 +1109,19 @@ export default function CustomerEditPage() {
                       onChange={(e) => setAddressForm({ ...addressForm, address_line1: e.target.value })}
                       onPaste={(e) => {
                         const pasted = e.clipboardData.getData('text');
-                        const parsed = parseThaiAddress(pasted);
-                        if (parsed) {
-                          e.preventDefault();
-                          setAddressForm(prev => ({
-                            ...prev,
-                            address_line1: parsed.address || prev.address_line1,
-                            district: parsed.district || prev.district,
-                            amphoe: parsed.amphoe || prev.amphoe,
-                            province: parsed.province || prev.province,
-                            postal_code: parsed.postal_code || prev.postal_code,
-                          }));
+                        if (pasted.length > 20) {
+                          const parsed = parseThaiAddress(pasted);
+                          if (parsed) {
+                            e.preventDefault();
+                            setAddressForm(prev => ({
+                              ...prev,
+                              address_line1: parsed.address || pasted,
+                              district: parsed.district || prev.district,
+                              amphoe: parsed.amphoe || prev.amphoe,
+                              province: parsed.province || prev.province,
+                              postal_code: parsed.postal_code || prev.postal_code,
+                            }));
+                          }
                         }
                       }}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
@@ -1208,50 +1131,20 @@ export default function CustomerEditPage() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ตำบล/แขวง</label>
-                      <input
-                        type="text"
-                        value={addressForm.district}
-                        onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อำเภอ/เขต</label>
-                      <input
-                        type="text"
-                        value={addressForm.amphoe}
-                        onChange={(e) => setAddressForm({ ...addressForm, amphoe: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                        จังหวัด <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={addressForm.province}
-                        onChange={(e) => setAddressForm({ ...addressForm, province: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">รหัสไปรษณีย์</label>
-                      <input
-                        type="text"
-                        value={addressForm.postal_code}
-                        onChange={(e) => setAddressForm({ ...addressForm, postal_code: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                      />
-                    </div>
-                  </div>
+                  <ThaiAddressInput
+                    district={addressForm.district}
+                    amphoe={addressForm.amphoe}
+                    province={addressForm.province}
+                    postalCode={addressForm.postal_code}
+                    onAddressChange={(addr) => setAddressForm(prev => ({
+                      ...prev,
+                      ...(addr.district !== undefined && { district: addr.district }),
+                      ...(addr.amphoe !== undefined && { amphoe: addr.amphoe }),
+                      ...(addr.province !== undefined && { province: addr.province }),
+                      ...(addr.postalCode !== undefined && { postal_code: addr.postalCode }),
+                    }))}
+                    inputClassName="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                  />
 
                   <div>
                     <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 flex items-center gap-1">

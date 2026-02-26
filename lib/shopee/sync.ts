@@ -66,6 +66,16 @@ interface ShopeeOrder {
   // Split order fields
   split_up?: boolean;
   package_list?: { package_number: string; logistics_status?: string; shipping_carrier?: string; item_list?: { item_id: number; model_id: number }[] }[];
+  // Tax invoice (Buyer Tax Invoice feature)
+  invoice_data?: {
+    number?: string;
+    series_number?: string;
+    type?: string;
+    tax_code?: string;
+    buyer_cpf_id?: string;
+    // Allow additional fields from Shopee
+    [key: string]: unknown;
+  };
 }
 
 // --- Status Mapping ---
@@ -150,7 +160,7 @@ export async function syncOrdersByOrderSn(
     try {
       const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_order_detail', {
         order_sn_list: batch.join(','),
-        response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,item_list,pay_time,shipping_carrier,tracking_number,total_amount,payment_method,estimated_shipping_fee,actual_shipping_fee,actual_shipping_fee_confirmed,note,buyer_cancel_reason,cancel_by,cancel_reason,ship_by_date,days_to_ship,package_list',
+        response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,item_list,pay_time,shipping_carrier,tracking_number,total_amount,payment_method,estimated_shipping_fee,actual_shipping_fee,actual_shipping_fee_confirmed,note,buyer_cancel_reason,cancel_by,cancel_reason,ship_by_date,days_to_ship,package_list,invoice_data',
       });
 
       if (error) {
@@ -445,12 +455,13 @@ async function syncCanSplitOrder(
     }
 
     const canSplit = packages[0].can_split_order === true;
+    const isSplitUp = packages[0].is_split_up === true;
     await supabaseAdmin
       .from('orders')
-      .update({ can_split_order: canSplit })
+      .update({ can_split_order: canSplit, is_split: isSplitUp })
       .eq('id', orderId);
 
-    console.log(`[Shopee Sync] ${shopeeOrder.order_sn} can_split_order=${canSplit}`);
+    console.log(`[Shopee Sync] ${shopeeOrder.order_sn} can_split_order=${canSplit}, is_split_up=${isSplitUp}`);
   } catch (e) {
     console.error(`[Shopee Sync] Failed to check can_split_order for ${shopeeOrder.order_sn}:`, e);
   }
@@ -1010,6 +1021,13 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
       tracking_number: shopeeOrder.tracking_number || null,
       is_split: shopeeOrder.split_up === true && (shopeeOrder.package_list || []).length > 1,
       created_at: new Date(shopeeOrder.create_time * 1000).toISOString(),
+      // Tax invoice from Shopee Buyer Tax Invoice feature
+      ...(shopeeOrder.invoice_data?.tax_code ? {
+        tax_invoice_requested: true,
+        tax_invoice_type: 'full',
+        tax_invoice_tax_id: shopeeOrder.invoice_data.tax_code,
+        tax_invoice_name: shopeeOrder.recipient_address?.name || shopeeOrder.buyer_username || null,
+      } : {}),
     })
     .select()
     .single();

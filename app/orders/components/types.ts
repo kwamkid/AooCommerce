@@ -43,6 +43,7 @@ export interface Order {
   created_by_name?: string | null;
   items_preview?: ItemPreview[];
   customer_picture_url?: string | null;
+  tax_invoice_requested?: boolean;
   channel?: {
     platform: string;
     account_name: string;

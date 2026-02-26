@@ -11,6 +11,7 @@ export interface ActionItem {
   onClick: (e: React.MouseEvent) => void;
   className?: string;
   danger?: boolean;
+  dividerBefore?: boolean;
 }
 
 export default function ActionMenu({ items }: { items: ActionItem[] }) {
@@ -75,16 +76,18 @@ export default function ActionMenu({ items }: { items: ActionItem[] }) {
           }}
         >
           {items.map((item) => (
-            <button
-              key={item.key}
-              onClick={(e) => { e.stopPropagation(); setOpen(false); item.onClick(e); }}
-              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2.5 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
-                item.danger ? 'text-red-500' : 'text-gray-700 dark:text-slate-300'
-              }`}
-            >
-              {item.icon}
-              {item.label}
-            </button>
+            <div key={item.key}>
+              {item.dividerBefore && <div className="border-t border-gray-200 dark:border-slate-700 my-1" />}
+              <button
+                onClick={(e) => { e.stopPropagation(); setOpen(false); item.onClick(e); }}
+                className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2.5 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
+                  item.danger ? 'text-red-500' : 'text-gray-700 dark:text-slate-300'
+                }`}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            </div>
           ))}
         </div>,
         document.body

@@ -9,6 +9,8 @@ import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
+import { useCompany } from '@/lib/company-context';
+import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import {
   ArrowLeft,
   Loader2,
@@ -30,6 +32,7 @@ import {
   ClipboardList,
   Pencil,
   RefreshCw,
+  CheckCircle,
 } from 'lucide-react';
 import PaymentModal from '../components/PaymentModal';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
@@ -43,6 +46,8 @@ import { isMarketplaceSource } from '@/lib/marketplace/types';
 function OrderStatusBadge({ status }: { status: string }) {
   const statusConfig: Record<string, { label: string; color: string }> = {
     new: { label: 'ใหม่', color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-100' },
+    ready_to_ship: { label: 'รอกดรับออเดอร์', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/30 dark:text-cyan-100' },
+    processing: { label: 'ที่ต้องจัดส่ง', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/30 dark:text-indigo-100' },
     shipping: { label: 'กำลังส่ง', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-100' },
     completed: { label: 'สำเร็จ', color: 'bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-100' },
     cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-100' }
@@ -73,7 +78,7 @@ function PaymentStatusBadge({ status }: { status: string }) {
 function ShopeeExternalStatusBadge({ status }: { status: string }) {
   const statusConfig: Record<string, { label: string; color: string }> = {
     UNPAID: { label: 'ยังไม่ชำระ', color: 'bg-gray-100 text-gray-600 dark:bg-gray-500/30 dark:text-gray-100' },
-    READY_TO_SHIP: { label: 'รอรับออเดอร์', color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-100' },
+    READY_TO_SHIP: { label: 'รอกดรับออเดอร์', color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-100' },
     PROCESSED: { label: 'พร้อมส่ง', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/30 dark:text-indigo-100' },
     SHIPPED: { label: 'กำลังจัดส่ง', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-100' },
     TO_CONFIRM_RECEIVE: { label: 'รอยืนยันรับ', color: 'bg-purple-100 text-purple-700 dark:bg-purple-500/30 dark:text-purple-100' },
@@ -110,6 +115,8 @@ export default function OrderDetailPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const { features } = useFeatures();
+  const { currentCompany } = useCompany();
+  const vatRegistered = currentCompany?.vat_registered || false;
 
   // Order header info (loaded separately from OrderForm)
   const [orderNumber, setOrderNumber] = useState('');
@@ -155,6 +162,9 @@ export default function OrderDetailPage() {
 
   // Slip preview modal
   const [showSlipModal, setShowSlipModal] = useState(false);
+
+  // Shopee financial details toggle
+  const [showFinancial, setShowFinancial] = useState(false);
 
   // Delivery info edit
   const [editingDelivery, setEditingDelivery] = useState(false);
@@ -310,7 +320,7 @@ export default function OrderDetailPage() {
   };
 
   const getOrderStatusLabel = (status: string): string => {
-    const labels: Record<string, string> = { new: 'ใหม่', ready_to_ship: 'รอกดรับ', processing: 'ที่ต้องจัดส่ง', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
+    const labels: Record<string, string> = { new: 'ใหม่', ready_to_ship: 'รอกดรับออเดอร์', processing: 'ที่ต้องจัดส่ง', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
     return labels[status] || status;
   };
 
@@ -533,7 +543,7 @@ export default function OrderDetailPage() {
     setGeneratingPdf(true);
     try {
       const blob = await generateOrderInvoicePdf({ data: fullOrderData });
-      showPdfPreview(blob, fullOrderData.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้');
+      showPdfPreview(blob, getInvoiceMenuLabel(fullOrderData.payment_status, vatRegistered));
     } catch (err) {
       console.error('Error generating invoice PDF:', err);
       showToast('สร้าง PDF ไม่สำเร็จ', 'error');
@@ -726,6 +736,17 @@ export default function OrderDetailPage() {
                 รับออเดอร์
               </button>
             )}
+            {/* Shopee: Sync button */}
+            {isShopeeOrder && (
+              <button
+                onClick={handleResyncOrder}
+                disabled={shopeeActionLoading}
+                className="bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+                title="Sync ข้อมูลจาก Shopee ใหม่"
+              >
+                <RefreshCw className={`w-4 h-4 ${shopeeActionLoading ? 'animate-spin' : ''}`} />
+              </button>
+            )}
             {/* Print dropdown */}
             <div className="relative">
               <button
@@ -740,14 +761,16 @@ export default function OrderDetailPage() {
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowPrintMenu(false)} />
                   <div className="absolute right-0 mt-1 w-52 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg z-50 py-1">
-                    <button
-                      onClick={handlePrintInvoice}
-                      disabled={generatingPdf}
-                      className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
-                    >
-                      {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" /> : <Banknote className="w-4 h-4 text-gray-400" />}
-                      {paymentStatus === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้'}
-                    </button>
+                    {['processing', 'shipping', 'completed'].includes(orderStatus) && (
+                      <button
+                        onClick={handlePrintInvoice}
+                        disabled={generatingPdf}
+                        className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
+                      >
+                        {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" /> : <Banknote className="w-4 h-4 text-gray-400" />}
+                        {getInvoiceMenuLabel(paymentStatus, vatRegistered)}
+                      </button>
+                    )}
                     <button
                       onClick={() => handlePrint('order')}
                       className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
@@ -755,41 +778,45 @@ export default function OrderDetailPage() {
                       <FileText className="w-4 h-4 text-gray-400" />
                       ใบออเดอร์
                     </button>
-                    <button
-                      onClick={handlePrintPackingList}
-                      disabled={generatingPdf}
-                      className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
-                    >
-                      <ClipboardList className="w-4 h-4 text-gray-400" />
-                      ใบจัดของ
-                    </button>
-                    <div className="border-t border-gray-100 dark:border-slate-700 my-1" />
-                    {orderSource === 'manual' ? (
+                    {['processing', 'shipping', 'completed'].includes(orderStatus) && (
                       <button
-                        onClick={handlePrintShippingLabel}
+                        onClick={handlePrintPackingList}
                         disabled={generatingPdf}
                         className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
                       >
-                        <Package className="w-4 h-4 text-gray-400" />
-                        ใบปะหน้า
+                        <ClipboardList className="w-4 h-4 text-gray-400" />
+                        ใบจัดของ
                       </button>
-                    ) : isShopeeOrder ? (
-                      <button
-                        onClick={() => {
-                          setShowPrintMenu(false);
-                          handlePrintShopeeLabel();
-                        }}
-                        disabled={shopeeActionLoading || externalStatus !== 'PROCESSED'}
-                        className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={externalStatus !== 'PROCESSED' ? 'พิมพ์ใบปะหน้าได้เฉพาะสถานะ "พร้อมส่ง" เท่านั้น' : undefined}
-                      >
-                        <img src="/marketplace/shopee.svg" alt="Shopee" className="w-4 h-4" />
-                        ใบปะหน้า Shopee
-                        {externalStatus !== 'PROCESSED' && (
-                          <span className="text-xs text-gray-400 ml-auto">เฉพาะสถานะพร้อมส่ง</span>
-                        )}
-                      </button>
-                    ) : null}
+                    )}
+                    {orderSource === 'manual' && ['processing', 'shipping'].includes(orderStatus) && (
+                      <>
+                        <div className="border-t border-gray-100 dark:border-slate-700 my-1" />
+                        <button
+                          onClick={handlePrintShippingLabel}
+                          disabled={generatingPdf}
+                          className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
+                        >
+                          <Package className="w-4 h-4 text-gray-400" />
+                          ใบปะหน้า
+                        </button>
+                      </>
+                    )}
+                    {isShopeeOrder && externalStatus === 'PROCESSED' && (
+                      <>
+                        <div className="border-t border-gray-100 dark:border-slate-700 my-1" />
+                        <button
+                          onClick={() => {
+                            setShowPrintMenu(false);
+                            handlePrintShopeeLabel();
+                          }}
+                          disabled={shopeeActionLoading}
+                          className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
+                        >
+                          <img src="/marketplace/shopee.svg" alt="Shopee" className="w-4 h-4" />
+                          ใบปะหน้า Shopee
+                        </button>
+                      </>
+                    )}
                   </div>
                 </>
               )}
@@ -797,307 +824,456 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Shopee Order Info Block (hidden on print) */}
-        {isShopeeOrder && externalStatus && (
-          <div className="bg-orange-50 dark:bg-slate-800 rounded-xl p-4 space-y-3 print:hidden">
-            <div className="flex items-center gap-3">
-              <img src="/marketplace/shopee.svg" alt="Shopee" className="w-5 h-5" />
-              <div className="flex-1">
-                <span className="text-sm font-medium text-orange-800 dark:text-orange-300">
-                  Shopee Order: {externalOrderSn}
-                </span>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs text-gray-500 dark:text-slate-400">สถานะ Shopee:</span>
-                  <ShopeeExternalStatusBadge status={externalStatus} />
-                </div>
+        {/* Read-only warnings */}
+        {isShopeeOrder && (
+          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/40 text-orange-800 dark:text-orange-300 px-4 py-3 rounded-lg text-sm flex items-center gap-2 print:hidden">
+            <img src="/marketplace/shopee.svg" alt="Shopee" className="w-4 h-4" />
+            ออเดอร์จาก Shopee ไม่สามารถแก้ไขได้
+          </div>
+        )}
+        {!isMarketplaceOrder && (() => {
+          const isManualReadOnly = orderStatus !== 'new' || paymentStatus !== 'pending';
+          if (!isManualReadOnly) return null;
+          const statusLabels: Record<string, string> = { new: 'ใหม่', ready_to_ship: 'รอกดรับออเดอร์', processing: 'ที่ต้องจัดส่ง', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
+          const paymentLabels: Record<string, string> = { pending: 'รอชำระ', verifying: 'รอตรวจสอบ', paid: 'ชำระแล้ว', cancelled: 'ยกเลิก' };
+          const reasonMessage = orderStatus !== 'new'
+            ? `สถานะออเดอร์ "${statusLabels[orderStatus] || orderStatus}"`
+            : `สถานะชำระเงิน "${paymentLabels[paymentStatus] || paymentStatus}"`;
+          return (
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/40 text-yellow-800 dark:text-yellow-300 px-4 py-3 rounded-lg text-sm print:hidden">
+              คำสั่งซื้อ {orderNumber} ({reasonMessage}) — ไม่สามารถแก้ไขได้
+            </div>
+          );
+        })()}
+
+        {/* Status Management + Customer — 2-column layout (hidden on print) */}
+        {orderStatus !== 'cancelled' && !isMarketplaceOrder && !isPosOrder && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print:hidden">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-4">
+            {/* Status badges row */}
+            <div>
+              <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">สถานะ</div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <OrderStatusBadge status={orderStatus} />
+                <PaymentStatusBadge status={paymentStatus} />
               </div>
-              <button
-                onClick={handleResyncOrder}
-                disabled={shopeeActionLoading}
-                className="text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-slate-700 p-2 rounded-lg transition-colors disabled:opacity-50"
-                title="Sync ข้อมูลจาก Shopee ใหม่"
-              >
-                <RefreshCw className={`w-4 h-4 ${shopeeActionLoading ? 'animate-spin' : ''}`} />
-              </button>
             </div>
 
-            {/* Buyer's note */}
-            {fullOrderData?.external_data?.note && (
-              <div className="bg-white/60 dark:bg-slate-700/50 rounded-lg px-3 py-2">
-                <span className="text-sm text-gray-500 dark:text-slate-400">ข้อความจากผู้ซื้อ:</span>
-                <p className="text-sm text-gray-700 dark:text-slate-200 mt-0.5">{fullOrderData.external_data.note}</p>
+            {/* Divider between badges and actions/payment info */}
+            <div className="border-t border-gray-200 dark:border-slate-600" />
+
+            {/* Order status actions */}
+            {getNextOrderStatus(orderStatus) && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={handleOrderStatusClick}
+                  disabled={updating}
+                  className="px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                >
+                  <Truck className="w-4 h-4" />
+                  เปลี่ยนเป็น &quot;{getOrderStatusLabel(getNextOrderStatus(orderStatus)!)}&quot;
+                </button>
+                {orderStatus !== 'completed' && (
+                  <button
+                    onClick={handleCancelClick}
+                    disabled={updating}
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    ยกเลิกคำสั่งซื้อ
+                  </button>
+                )}
+              </div>
+            )}
+            {!getNextOrderStatus(orderStatus) && orderStatus !== 'completed' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCancelClick}
+                  disabled={updating}
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                >
+                  <XCircle className="w-4 h-4" />
+                  ยกเลิกคำสั่งซื้อ
+                </button>
               </div>
             )}
 
-            {/* Financial Breakdown (from escrow_detail) */}
-            {(() => {
-              const escrow = fullOrderData?.external_data?.escrow_detail;
-              const orderIncome = escrow?.order_income || escrow;
-              if (!escrow) {
-                // No escrow yet — show estimated shipping fee if available
-                const estShipping = fullOrderData?.external_data?.estimated_shipping_fee;
-                if (estShipping && estShipping > 0) {
-                  return (
-                    <div className="border-t border-orange-200/50 dark:border-slate-600 pt-2">
-                      <div className="flex justify-between text-sm text-gray-600 dark:text-slate-300">
-                        <span>ค่าส่ง (ประมาณ)</span>
-                        <span>฿{formatPrice(estShipping)}</span>
-                      </div>
-                      <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">ข้อมูลการเงินจะแสดงเมื่อ order เสร็จสิ้น</p>
-                    </div>
-                  );
-                }
-                return null;
-              }
-
-              const buyerTotal = Number(orderIncome?.buyer_total_amount ?? escrow?.buyer_total_amount ?? 0);
-              const actualShipping = Number(orderIncome?.actual_shipping_fee ?? escrow?.actual_shipping_fee ?? 0);
-              const originalPrice = Number(orderIncome?.original_price ?? escrow?.original_price ?? 0);
-              const voucherSeller = Number(orderIncome?.voucher_from_seller ?? escrow?.voucher_from_seller ?? 0);
-              const voucherShopee = Number(orderIncome?.voucher_from_shopee ?? escrow?.voucher_from_shopee ?? 0);
-              const coins = Number(orderIncome?.coins ?? escrow?.coins ?? 0);
-              const sellerDiscount = Number(orderIncome?.seller_discount ?? escrow?.seller_discount ?? 0);
-              const shopeeDiscount = Number(orderIncome?.shopee_discount ?? escrow?.shopee_discount ?? 0);
-              const commissionFee = Number(orderIncome?.commission_fee ?? escrow?.commission_fee ?? 0);
-              const serviceFee = Number(orderIncome?.service_fee ?? escrow?.service_fee ?? 0);
-              const escrowAmount = Number(orderIncome?.escrow_amount ?? escrow?.escrow_amount ?? 0);
-
-              // ราคาขายจริง = sum(model_discounted_price * qty) จาก item_list
-              const itemList = fullOrderData?.external_data?.item_list || [];
-              const sellingPrice = itemList.reduce((sum: number, item: any) => {
-                const price = item.model_discounted_price || item.model_original_price || 0;
-                const qty = item.model_quantity_purchased || 1;
-                return sum + (price * qty);
-              }, 0);
-
-              // ใช้ราคาขายจริง (sellingPrice) เป็นฐานคำนวณ %
-              const basePrice = sellingPrice > 0 ? sellingPrice : originalPrice;
-              const pct = (val: number) => basePrice > 0 ? ((val / basePrice) * 100).toFixed(1) : '0';
-              // รวมส่วนลดทั้งหมด (ร้าน + Shopee)
-              const totalSellerDiscount = voucherSeller + sellerDiscount;
-              const totalShopeeDiscount = voucherShopee + shopeeDiscount + coins;
-              const totalFees = commissionFee + serviceFee;
-
-              return (
-                <div className="border-t border-orange-200/50 dark:border-slate-600 pt-3 space-y-2">
-                  <div className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-2">รายละเอียดทางการเงิน</div>
-                  <div className="flex justify-between text-sm font-medium">
-                    <span className="text-gray-600 dark:text-slate-300">ราคาขาย</span>
-                    <span className="text-gray-800 dark:text-slate-200">฿{formatPrice(basePrice)}</span>
-                  </div>
-                  {totalSellerDiscount > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-slate-300">ส่วนลดจากร้าน</span>
-                      <span className="text-red-500 dark:text-red-400">-฿{formatPrice(totalSellerDiscount)} <span className="text-gray-400 dark:text-slate-500">({pct(totalSellerDiscount)}%)</span></span>
-                    </div>
-                  )}
-                  {totalShopeeDiscount > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-slate-300">ส่วนลดจาก Shopee</span>
-                      <span className="text-orange-500 dark:text-orange-400">-฿{formatPrice(totalShopeeDiscount)} <span className="text-gray-400 dark:text-slate-500">({pct(totalShopeeDiscount)}%)</span></span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm pt-1 border-t border-orange-200/30 dark:border-slate-700">
-                    <span className="text-gray-600 dark:text-slate-300">ยอดที่ผู้ซื้อจ่าย</span>
-                    <span className="text-gray-800 dark:text-slate-200">฿{formatPrice(buyerTotal)}</span>
-                  </div>
-                  {actualShipping > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-slate-300">ค่าส่ง (ผู้ซื้อจ่าย)</span>
-                      <span className="text-gray-800 dark:text-slate-200">฿{formatPrice(actualShipping)}</span>
-                    </div>
-                  )}
-                  {totalFees > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-slate-300">ค่าธรรมเนียม Shopee</span>
-                      <span className="text-red-500 dark:text-red-400">-฿{formatPrice(totalFees)} <span className="text-gray-400 dark:text-slate-500">({pct(totalFees)}%)</span></span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-base font-semibold pt-2 border-t border-orange-200/50 dark:border-slate-600">
-                    <span className="text-gray-700 dark:text-slate-200">ยอดที่ได้รับจริง</span>
-                    <span className="text-green-600 dark:text-green-400">฿{formatPrice(escrowAmount)} {basePrice > 0 && <span className="text-sm font-normal text-gray-400 dark:text-slate-500">({(escrowAmount / basePrice * 100).toFixed(1)}%)</span>}</span>
-                  </div>
-                  {basePrice > 0 && (() => {
-                    const totalDeducted = basePrice - escrowAmount;
-                    const deductedPct = (totalDeducted / basePrice * 100).toFixed(1);
-                    return (
-                      <div className="text-xs pt-1 text-right">
-                        <span className="text-gray-400 dark:text-slate-500">ขาย ฿{formatPrice(basePrice)} โดนหักรวม ฿{formatPrice(totalDeducted)} ({deductedPct}%)</span>
-                      </div>
-                    );
-                  })()}
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
-        {/* Status Management — prominent buttons (hidden on print) */}
-        {orderStatus !== 'cancelled' && !isMarketplaceOrder && !isPosOrder && (
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              {/* Order Status Section */}
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">สถานะออเดอร์</div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <OrderStatusBadge status={orderStatus} />
-                  {getNextOrderStatus(orderStatus) && (
-                    <>
-                      <ChevronRight className="w-4 h-4 text-gray-300" />
-                      <button
-                        onClick={handleOrderStatusClick}
-                        disabled={updating}
-                        className="px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
-                      >
-                        <Truck className="w-4 h-4" />
-                        เปลี่ยนเป็น &quot;{getOrderStatusLabel(getNextOrderStatus(orderStatus)!)}&quot;
-                      </button>
-                    </>
-                  )}
-                  {orderStatus !== 'completed' && (
+            {/* Payment actions */}
+            {paymentStatus === 'pending' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePaymentStatusClick}
+                  disabled={updating}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                >
+                  <Banknote className="w-4 h-4" />
+                  บันทึกชำระเงิน
+                </button>
+              </div>
+            )}
+            {paymentStatus === 'verifying' && paymentRecord && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
+                    {paymentRecord.payment_method === 'transfer' ? 'โอนเงิน' : 'เงินสด'}
+                    {paymentRecord.transfer_date && ` ${new Date(paymentRecord.transfer_date).toLocaleDateString('th-TH')}`}
+                  </span>
+                  {paymentRecord.slip_image_url && (
                     <button
-                      onClick={handleCancelClick}
-                      disabled={updating}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                      onClick={() => setShowSlipModal(true)}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline flex items-center gap-1"
                     >
-                      <XCircle className="w-4 h-4" />
-                      ยกเลิกคำสั่งซื้อ
+                      <Eye className="w-3 h-3" />
+                      ดูสลิป
                     </button>
                   )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleRejectPayment}
+                    disabled={updating}
+                    className="px-3 py-1.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <ShieldX className="w-4 h-4" />
+                    ปฏิเสธ
+                  </button>
+                  <button
+                    onClick={handleApprovePayment}
+                    disabled={updating}
+                    className="px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    ยืนยันการชำระเงิน
+                  </button>
                 </div>
               </div>
+            )}
+            {paymentStatus === 'paid' && paymentRecord && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-green-700 bg-green-50 dark:bg-green-900/30 dark:text-green-300 px-2 py-1 rounded">
+                  {paymentRecord.payment_method === 'cash' && 'เงินสด'}
+                  {paymentRecord.payment_method === 'transfer' && 'โอนเงิน'}
+                  {paymentRecord.payment_method === 'credit' && 'เครดิต'}
+                  {paymentRecord.payment_method === 'cheque' && 'เช็ค'}
+                  {paymentRecord.amount > 0 && ` ฿${formatPrice(paymentRecord.amount)}`}
+                </span>
+                {paymentRecord.payment_method === 'cash' && paymentRecord.collected_by && (
+                  <span className="text-xs text-gray-500 dark:text-slate-400">คนเก็บ: {paymentRecord.collected_by}</span>
+                )}
+                {paymentRecord.payment_method === 'transfer' && paymentRecord.transfer_date && (
+                  <span className="text-xs text-gray-500 dark:text-slate-400">{new Date(paymentRecord.transfer_date).toLocaleDateString('th-TH')}</span>
+                )}
+                {paymentRecord.slip_image_url && (
+                  <button
+                    onClick={() => setShowSlipModal(true)}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline flex items-center gap-1"
+                  >
+                    <Eye className="w-3 h-3" />
+                    ดูสลิป
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
-              {/* Divider */}
-              <div className="hidden sm:block w-px h-12 bg-gray-200 dark:bg-slate-600" />
-              <div className="block sm:hidden w-full h-px bg-gray-200 dark:bg-slate-600" />
-
-              {/* Payment Status Section */}
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">การชำระเงิน</div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <PaymentStatusBadge status={paymentStatus} />
-                  {paymentStatus === 'pending' && (
-                    <>
-                      <ChevronRight className="w-4 h-4 text-gray-300" />
-                      <button
-                        onClick={handlePaymentStatusClick}
-                        disabled={updating}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
-                      >
-                        <Banknote className="w-4 h-4" />
-                        บันทึกชำระเงิน
-                      </button>
-                    </>
-                  )}
-                  {paymentStatus === 'verifying' && paymentRecord && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
-                        {paymentRecord.payment_method === 'transfer' ? 'โอนเงิน' : 'เงินสด'}
-                        {paymentRecord.transfer_date && ` ${new Date(paymentRecord.transfer_date).toLocaleDateString('th-TH')}`}
-                      </span>
-                      {paymentRecord.slip_image_url && (
-                        <button
-                          onClick={() => setShowSlipModal(true)}
-                          className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline flex items-center gap-1"
-                        >
-                          <Eye className="w-3 h-3" />
-                          ดูสลิป
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {paymentStatus === 'paid' && paymentRecord && (
-                    <span className="text-xs text-green-700 bg-green-50 px-2 py-1 rounded">
-                      {paymentRecord.payment_method === 'cash' && paymentRecord.collected_by && `เงินสด: ${paymentRecord.collected_by}`}
-                      {paymentRecord.payment_method === 'transfer' && paymentRecord.transfer_date && `โอนเงิน: ${new Date(paymentRecord.transfer_date).toLocaleDateString('th-TH')}`}
-                      {paymentRecord.payment_method === 'credit' && 'เครดิต'}
-                      {paymentRecord.payment_method === 'cheque' && 'เช็ค'}
-                    </span>
-                  )}
-                </div>
-                {/* Approve/Reject buttons for verifying */}
-                {paymentStatus === 'verifying' && paymentRecord && (
-                  <div className="flex items-center gap-2 mt-3">
-                    <button
-                      onClick={handleRejectPayment}
-                      disabled={updating}
-                      className="px-3 py-1.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm flex items-center gap-1.5 disabled:opacity-50"
-                    >
-                      <ShieldX className="w-4 h-4" />
-                      ปฏิเสธ
-                    </button>
-                    <button
-                      onClick={handleApprovePayment}
-                      disabled={updating}
-                      className="px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
-                    >
-                      <ShieldCheck className="w-4 h-4" />
-                      ยืนยันการชำระเงิน
-                    </button>
+          {/* Right: Customer + Delivery Info */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">ลูกค้า</div>
+              {['new', 'ready_to_ship'].includes(orderStatus) && !editingDelivery && (
+                <button
+                  onClick={handleEditDelivery}
+                  className="text-xs text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 flex items-center gap-1 transition-colors"
+                >
+                  <Pencil className="w-3 h-3" />
+                  แก้ไข
+                </button>
+              )}
+            </div>
+            {fullOrderData?.customer && (
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
+                <span className="text-sm font-medium text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
+                {fullOrderData.customer.phone && (
+                  <span className="text-xs text-gray-400 dark:text-slate-500">· {fullOrderData.customer.phone}</span>
+                )}
+              </div>
+            )}
+            {/* Delivery Info */}
+            {(fullOrderData?.delivery_name || fullOrderData?.delivery_address) && (
+              <div className="space-y-1.5 text-sm">
+                <div className="text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wide">ข้อมูลจัดส่ง</div>
+                {fullOrderData.delivery_name && (
+                  <div className="text-gray-800 dark:text-slate-200 font-medium">{fullOrderData.delivery_name}{fullOrderData.delivery_phone ? ` · ${fullOrderData.delivery_phone}` : ''}</div>
+                )}
+                {fullOrderData.delivery_address && (
+                  <div className="text-gray-600 dark:text-slate-400">
+                    {[fullOrderData.delivery_address, fullOrderData.delivery_district, fullOrderData.delivery_amphoe, fullOrderData.delivery_province, fullOrderData.delivery_postal_code].filter(Boolean).join(' ')}
                   </div>
                 )}
               </div>
-
-            </div>
+            )}
+            {!fullOrderData?.customer && !fullOrderData?.delivery_name && !fullOrderData?.delivery_address && (
+              <div className="text-sm text-gray-400 dark:text-slate-500">ไม่มีข้อมูลลูกค้า</div>
+            )}
+            {/* Tracking / Parcels */}
+            {fullOrderData?.is_split && fullOrderData?.parcels?.length > 0 ? (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600">
+                <div className="text-xs font-medium text-gray-400 dark:text-slate-500 mb-2">กล่องพัสดุ ({fullOrderData.parcels.length} กล่อง)</div>
+                <div className="space-y-2">
+                  {fullOrderData.parcels.map((parcel: any) => (
+                    <div key={parcel.id} className="p-2.5 rounded-lg bg-gray-50 dark:bg-slate-700/50 border border-gray-100 dark:border-slate-600">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-gray-700 dark:text-slate-200 flex items-center gap-1">
+                          <Package className="w-3 h-3 text-purple-500" />
+                          กล่องที่ {parcel.parcel_number}/{fullOrderData.parcels.length}
+                        </span>
+                        {parcel.status && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                            parcel.status === 'shipped' || parcel.status === 'delivered'
+                              ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                              : 'bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-300'
+                          }`}>
+                            {parcel.status === 'pending' ? 'รอจัดส่ง' : parcel.status === 'shipped' ? 'จัดส่งแล้ว' : parcel.status === 'delivered' ? 'ส่งถึงแล้ว' : parcel.status}
+                          </span>
+                        )}
+                      </div>
+                      {(parcel.tracking_number || parcel.shipping_carrier) && (
+                        <div className="flex items-center gap-3 text-xs text-gray-600 dark:text-slate-400">
+                          {parcel.shipping_carrier && <span className="flex items-center gap-1"><Truck className="w-3 h-3" /> {parcel.shipping_carrier}</span>}
+                          {parcel.tracking_number && <span className="font-mono">{parcel.tracking_number}</span>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (fullOrderData?.tracking_number || fullOrderData?.shipping_carrier) ? (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 flex items-center gap-4 text-sm">
+                {fullOrderData.shipping_carrier && (
+                  <span className="text-gray-700 dark:text-slate-300 flex items-center gap-1.5"><Truck className="w-3.5 h-3.5" /> {fullOrderData.shipping_carrier}</span>
+                )}
+                {fullOrderData.tracking_number && (
+                  <span className="font-mono text-gray-600 dark:text-slate-400">{fullOrderData.tracking_number}</span>
+                )}
+              </div>
+            ) : null}
+            {/* Tax Invoice */}
+            {fullOrderData?.tax_invoice_requested && (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 space-y-1.5">
+                <span className="text-xs font-medium text-[#F4511E] bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded">ขอใบกำกับภาษี</span>
+                {fullOrderData.tax_invoice_name && (
+                  <div className="text-sm text-gray-700 dark:text-slate-300">{fullOrderData.tax_invoice_name}</div>
+                )}
+                {fullOrderData.tax_invoice_tax_id && (
+                  <div className="text-xs text-gray-500 dark:text-slate-400">เลขผู้เสียภาษี: {fullOrderData.tax_invoice_tax_id}</div>
+                )}
+              </div>
+            )}
+          </div>
           </div>
         )}
 
-        {/* Marketplace Status Management — read-only display (hidden on print) */}
+        {/* Marketplace Status + Customer — 2-column layout (hidden on print) */}
         {orderStatus !== 'cancelled' && isMarketplaceOrder && (
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">สถานะออเดอร์</div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print:hidden">
+            {/* Left: Status */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-4">
+              <div>
+                <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">สถานะ</div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <OrderStatusBadge status={orderStatus} />
-                  <span className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400">
-                    <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3.5 h-3.5" />
-                    จัดการผ่าน Shopee
-                  </span>
-                </div>
-              </div>
-
-              <div className="hidden sm:block w-px h-12 bg-gray-200 dark:bg-slate-600" />
-              <div className="block sm:hidden w-full h-px bg-gray-200 dark:bg-slate-600" />
-
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">การชำระเงิน</div>
-                <div className="flex items-center gap-2">
                   <PaymentStatusBadge status={paymentStatus} />
-                  <span className="inline-flex items-center gap-1 text-xs text-orange-600 bg-orange-50 dark:bg-orange-900/30 dark:text-orange-300 px-2 py-1 rounded">
-                    <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3 h-3" />
-                    ชำระผ่าน Shopee
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-900/20 text-xs font-medium text-orange-600 dark:text-orange-400">
+                    <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3.5 h-3.5" />
+                    Shopee
                   </span>
                 </div>
               </div>
+
+              {/* Buyer's note */}
+              {fullOrderData?.external_data?.note && (
+                <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2">
+                  <span className="text-sm text-gray-500 dark:text-slate-400">ข้อความจากผู้ซื้อ:</span>
+                  <p className="text-sm text-gray-700 dark:text-slate-200 mt-0.5">{fullOrderData.external_data.note}</p>
+                </div>
+              )}
+
+              {/* Financial Breakdown (collapsible) */}
+              {(() => {
+                const escrow = fullOrderData?.external_data?.escrow_detail;
+                const orderIncome = escrow?.order_income || escrow;
+                if (!escrow) {
+                  const estShipping = fullOrderData?.external_data?.estimated_shipping_fee;
+                  if (estShipping && estShipping > 0) {
+                    return (
+                      <div className="border-t border-gray-200 dark:border-slate-600 pt-3">
+                        <div className="flex justify-between text-sm text-gray-600 dark:text-slate-300">
+                          <span>ค่าส่ง (ประมาณ)</span>
+                          <span>฿{formatPrice(estShipping)}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }
+
+                const buyerTotal = Number(orderIncome?.buyer_total_amount ?? escrow?.buyer_total_amount ?? 0);
+                const actualShipping = Number(orderIncome?.actual_shipping_fee ?? escrow?.actual_shipping_fee ?? 0);
+                const originalPrice = Number(orderIncome?.original_price ?? escrow?.original_price ?? 0);
+                const voucherSeller = Number(orderIncome?.voucher_from_seller ?? escrow?.voucher_from_seller ?? 0);
+                const voucherShopee = Number(orderIncome?.voucher_from_shopee ?? escrow?.voucher_from_shopee ?? 0);
+                const coins = Number(orderIncome?.coins ?? escrow?.coins ?? 0);
+                const sellerDiscount = Number(orderIncome?.seller_discount ?? escrow?.seller_discount ?? 0);
+                const shopeeDiscount = Number(orderIncome?.shopee_discount ?? escrow?.shopee_discount ?? 0);
+                const commissionFee = Number(orderIncome?.commission_fee ?? escrow?.commission_fee ?? 0);
+                const serviceFee = Number(orderIncome?.service_fee ?? escrow?.service_fee ?? 0);
+                const escrowAmount = Number(orderIncome?.escrow_amount ?? escrow?.escrow_amount ?? 0);
+
+                const itemList = fullOrderData?.external_data?.item_list || [];
+                const sellingPrice = itemList.reduce((sum: number, item: any) => {
+                  const price = item.model_discounted_price || item.model_original_price || 0;
+                  const qty = item.model_quantity_purchased || 1;
+                  return sum + (price * qty);
+                }, 0);
+
+                const basePrice = sellingPrice > 0 ? sellingPrice : originalPrice;
+                const pct = (val: number) => basePrice > 0 ? ((val / basePrice) * 100).toFixed(1) : '0';
+                const totalSellerDiscount = voucherSeller + sellerDiscount;
+                const totalShopeeDiscount = voucherShopee + shopeeDiscount + coins;
+                const totalFees = commissionFee + serviceFee;
+
+                return (
+                  <div className="border-t border-gray-200 dark:border-slate-600 pt-3">
+                    <button
+                      onClick={() => setShowFinancial(!showFinancial)}
+                      className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-slate-300 hover:text-gray-800 dark:hover:text-slate-100 transition-colors w-full"
+                    >
+                      <ChevronDown className={`w-4 h-4 transition-transform ${showFinancial ? 'rotate-0' : '-rotate-90'}`} />
+                      <span>รายละเอียดทางการเงิน</span>
+                      <span className="ml-auto text-green-600 dark:text-green-400 font-semibold">฿{formatPrice(escrowAmount)}</span>
+                    </button>
+                    {showFinancial && (
+                      <div className="mt-3 space-y-2 pl-6">
+                        <div className="flex justify-between text-sm font-medium">
+                          <span className="text-gray-600 dark:text-slate-300">ราคาขาย</span>
+                          <span className="text-gray-800 dark:text-slate-200">฿{formatPrice(basePrice)}</span>
+                        </div>
+                        {totalSellerDiscount > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600 dark:text-slate-300">ส่วนลดจากร้าน</span>
+                            <span className="text-red-500 dark:text-red-400">-฿{formatPrice(totalSellerDiscount)} <span className="text-gray-400 dark:text-slate-500">({pct(totalSellerDiscount)}%)</span></span>
+                          </div>
+                        )}
+                        {totalShopeeDiscount > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600 dark:text-slate-300">ส่วนลดจาก Shopee</span>
+                            <span className="text-orange-500 dark:text-orange-400">-฿{formatPrice(totalShopeeDiscount)} <span className="text-gray-400 dark:text-slate-500">({pct(totalShopeeDiscount)}%)</span></span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-sm pt-1 border-t border-gray-100 dark:border-slate-700">
+                          <span className="text-gray-600 dark:text-slate-300">ยอดที่ผู้ซื้อจ่าย</span>
+                          <span className="text-gray-800 dark:text-slate-200">฿{formatPrice(buyerTotal)}</span>
+                        </div>
+                        {actualShipping > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600 dark:text-slate-300">ค่าส่ง (ผู้ซื้อจ่าย)</span>
+                            <span className="text-gray-800 dark:text-slate-200">฿{formatPrice(actualShipping)}</span>
+                          </div>
+                        )}
+                        {totalFees > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600 dark:text-slate-300">ค่าธรรมเนียม Shopee</span>
+                            <span className="text-red-500 dark:text-red-400">-฿{formatPrice(totalFees)} <span className="text-gray-400 dark:text-slate-500">({pct(totalFees)}%)</span></span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-base font-semibold pt-2 border-t border-gray-200 dark:border-slate-600">
+                          <span className="text-gray-700 dark:text-slate-200">ยอดที่ได้รับจริง</span>
+                          <span className="text-green-600 dark:text-green-400">฿{formatPrice(escrowAmount)} {basePrice > 0 && <span className="text-sm font-normal text-gray-400 dark:text-slate-500">({(escrowAmount / basePrice * 100).toFixed(1)}%)</span>}</span>
+                        </div>
+                        {basePrice > 0 && (() => {
+                          const totalDeducted = basePrice - escrowAmount;
+                          const deductedPct = (totalDeducted / basePrice * 100).toFixed(1);
+                          return (
+                            <div className="text-xs pt-1 text-right">
+                              <span className="text-gray-400 dark:text-slate-500">ขาย ฿{formatPrice(basePrice)} โดนหักรวม ฿{formatPrice(totalDeducted)} ({deductedPct}%)</span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Right: Customer Info */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+              <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">ลูกค้า</div>
+              {fullOrderData?.customer ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
+                    <span className="text-sm font-medium text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
+                  </div>
+                  {fullOrderData.customer.phone && (
+                    <div className="text-sm text-gray-600 dark:text-slate-400 pl-6">{fullOrderData.customer.phone}</div>
+                  )}
+                  {fullOrderData.delivery_address && (
+                    <div className="text-sm text-gray-600 dark:text-slate-400 pl-6">
+                      {[fullOrderData.delivery_address, fullOrderData.delivery_district, fullOrderData.delivery_amphoe, fullOrderData.delivery_province, fullOrderData.delivery_postal_code].filter(Boolean).join(' ')}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-400 dark:text-slate-500">ไม่มีข้อมูลลูกค้า</div>
+              )}
+              {fullOrderData?.tax_invoice_requested && (
+                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 space-y-1.5">
+                  <span className="text-xs font-medium text-[#F4511E] bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded">ขอใบกำกับภาษี</span>
+                  {fullOrderData.tax_invoice_name && (
+                    <div className="text-sm text-gray-700 dark:text-slate-300">{fullOrderData.tax_invoice_name}</div>
+                  )}
+                  {fullOrderData.tax_invoice_tax_id && (
+                    <div className="text-xs text-gray-500 dark:text-slate-400">เลขผู้เสียภาษี: {fullOrderData.tax_invoice_tax_id}</div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* POS Order Status — read-only display */}
+        {/* POS Order Status + Customer — 2-column layout */}
         {orderStatus !== 'cancelled' && isPosOrder && (
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">สถานะออเดอร์</div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <OrderStatusBadge status={orderStatus} />
-                  <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                    POS — ชำระเงินแล้ว
-                  </span>
-                </div>
-              </div>
-
-              <div className="hidden sm:block w-px h-12 bg-gray-200 dark:bg-slate-600" />
-              <div className="block sm:hidden w-full h-px bg-gray-200 dark:bg-slate-600" />
-
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">การชำระเงิน</div>
-                <div className="flex items-center gap-2">
-                  <PaymentStatusBadge status={paymentStatus} />
-                </div>
-              </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print:hidden">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">สถานะ</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <OrderStatusBadge status={orderStatus} />
+              <PaymentStatusBadge status={paymentStatus} />
+              <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                POS — ชำระเงินแล้ว
+              </span>
             </div>
+          </div>
+
+          {/* Right: Customer Info */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">ลูกค้า</div>
+            {fullOrderData?.customer ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
+                  <span className="text-sm font-medium text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
+                </div>
+                {fullOrderData.customer.phone && (
+                  <div className="text-sm text-gray-600 dark:text-slate-400 pl-6">{fullOrderData.customer.phone}</div>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-400 dark:text-slate-500">ลูกค้าหน้าร้าน</div>
+            )}
+          </div>
           </div>
         )}
 
@@ -1111,26 +1287,19 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        {/* Delivery Info — for orders without customer or with delivery fields */}
-        {fullOrderData && (!fullOrderData.customer_id || fullOrderData.delivery_name || fullOrderData.delivery_phone || fullOrderData.delivery_address) && !isMarketplaceOrder && !isPosOrder && (() => {
+        {/* Delivery Edit Form — only show when editing or delivery info incomplete */}
+        {fullOrderData && !isMarketplaceOrder && !isPosOrder && (() => {
           const deliveryComplete = !!(fullOrderData.delivery_name && fullOrderData.delivery_phone && fullOrderData.delivery_address);
+          // Only show this section when editing OR when delivery info is incomplete and status allows editing
+          if (deliveryComplete && !editingDelivery) return null;
+          if (!deliveryComplete && !['new', 'ready_to_ship'].includes(orderStatus)) return null;
           return (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
             <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">ข้อมูลจัดส่ง</div>
-              {deliveryComplete && !editingDelivery && (
-                <button
-                  onClick={handleEditDelivery}
-                  className="text-xs text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 flex items-center gap-1 transition-colors"
-                >
-                  <Pencil className="w-3 h-3" />
-                  แก้ไข
-                </button>
-              )}
+              <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">{editingDelivery ? 'แก้ไขข้อมูลจัดส่ง' : 'กรอกข้อมูลจัดส่ง'}</div>
             </div>
 
-            {(editingDelivery || !deliveryComplete) ? (
-              <div className="space-y-3">
+            <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ชื่อผู้รับ *</label>
@@ -1199,95 +1368,6 @@ export default function OrderDetailPage() {
                   </button>
                 </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="text-xs text-gray-400 dark:text-slate-500">ชื่อผู้รับ</div>
-                  <div className="text-sm font-medium text-gray-900 dark:text-white">{fullOrderData.delivery_name}</div>
-                </div>
-                {fullOrderData.delivery_phone && (
-                  <div>
-                    <div className="text-xs text-gray-400 dark:text-slate-500">เบอร์โทร</div>
-                    <div className="text-sm text-gray-700 dark:text-slate-300">{fullOrderData.delivery_phone}</div>
-                  </div>
-                )}
-                {fullOrderData.delivery_email && (
-                  <div>
-                    <div className="text-xs text-gray-400 dark:text-slate-500">อีเมล</div>
-                    <div className="text-sm text-gray-700 dark:text-slate-300">{fullOrderData.delivery_email}</div>
-                  </div>
-                )}
-                {fullOrderData.delivery_address && (
-                  <div className="sm:col-span-2">
-                    <div className="text-xs text-gray-400 dark:text-slate-500">ที่อยู่</div>
-                    <div className="text-sm text-gray-700 dark:text-slate-300">
-                      {[fullOrderData.delivery_address, fullOrderData.delivery_district, fullOrderData.delivery_amphoe, fullOrderData.delivery_province, fullOrderData.delivery_postal_code].filter(Boolean).join(' ')}
-                    </div>
-                  </div>
-                )}
-                {fullOrderData.is_split && fullOrderData.parcels?.length > 0 ? (
-                  <div className="sm:col-span-2">
-                    <div className="text-xs text-gray-400 dark:text-slate-500 mb-2">กล่องพัสดุ ({fullOrderData.parcels.length} กล่อง)</div>
-                    <div className="space-y-2">
-                      {fullOrderData.parcels.map((parcel: any) => (
-                        <div key={parcel.id} className="p-3 rounded-lg bg-gray-50 dark:bg-slate-700/50 border border-gray-100 dark:border-slate-600">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-sm font-medium text-gray-700 dark:text-slate-200 flex items-center gap-1.5">
-                              <Package className="w-3.5 h-3.5 text-purple-500" />
-                              กล่องที่ {parcel.parcel_number}/{fullOrderData.parcels.length}
-                            </span>
-                            {parcel.status && (
-                              <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
-                                parcel.status === 'shipped' || parcel.status === 'delivered'
-                                  ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                  : 'bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-300'
-                              }`}>
-                                {parcel.status === 'pending' ? 'รอจัดส่ง' : parcel.status === 'shipped' ? 'จัดส่งแล้ว' : parcel.status === 'delivered' ? 'ส่งถึงแล้ว' : parcel.status}
-                              </span>
-                            )}
-                          </div>
-                          {(parcel.tracking_number || parcel.shipping_carrier) && (
-                            <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-slate-400">
-                              {parcel.shipping_carrier && (
-                                <span className="flex items-center gap-1">
-                                  <Truck className="w-3 h-3" /> {parcel.shipping_carrier}
-                                </span>
-                              )}
-                              {parcel.tracking_number && (
-                                <span className="font-mono">{parcel.tracking_number}</span>
-                              )}
-                            </div>
-                          )}
-                          {parcel.items?.length > 0 && (
-                            <div className="mt-1.5 text-xs text-gray-400 dark:text-slate-500">
-                              {parcel.items.map((pi: any) => `${pi.product_name} x${pi.quantity}`).join(', ')}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (fullOrderData.tracking_number || fullOrderData.shipping_carrier) && (
-                  <>
-                    {fullOrderData.shipping_carrier && (
-                      <div>
-                        <div className="text-xs text-gray-400 dark:text-slate-500">ขนส่ง</div>
-                        <div className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-1.5">
-                          <Truck className="w-3.5 h-3.5" />
-                          {fullOrderData.shipping_carrier}
-                        </div>
-                      </div>
-                    )}
-                    {fullOrderData.tracking_number && (
-                      <div>
-                        <div className="text-xs text-gray-400 dark:text-slate-500">เลขพัสดุ</div>
-                        <div className="text-sm font-mono text-gray-700 dark:text-slate-300">{fullOrderData.tracking_number}</div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
           </div>
           );
         })()}

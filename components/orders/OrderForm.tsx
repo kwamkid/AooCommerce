@@ -200,6 +200,11 @@ export default function OrderForm({
   const [internalNotes, setInternalNotes] = useState('');
   const [orderDiscount, setOrderDiscount] = useState(0);
   const [orderDiscountType, setOrderDiscountType] = useState<'percent' | 'amount'>('amount');
+  const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
+  const [taxName, setTaxName] = useState('');
+  const [taxTaxId, setTaxTaxId] = useState('');
+  const [taxBranch, setTaxBranch] = useState('สำนักงานใหญ่');
+  const [taxAddress, setTaxAddress] = useState('');
 
   // Delivery info (for new customer / no customer / selected address)
   const [deliveryName, setDeliveryName] = useState('');
@@ -445,6 +450,13 @@ export default function OrderForm({
         if (order.internal_notes) setInternalNotes(order.internal_notes);
         if (order.discount_amount) setOrderDiscount(order.discount_amount);
         if (order.order_discount_type) setOrderDiscountType(order.order_discount_type);
+        if (order.tax_invoice_requested) {
+          setTaxInvoiceRequested(true);
+          if (order.tax_invoice_name) setTaxName(order.tax_invoice_name);
+          if (order.tax_invoice_tax_id) setTaxTaxId(order.tax_invoice_tax_id);
+          if (order.tax_invoice_branch) setTaxBranch(order.tax_invoice_branch);
+          if (order.tax_invoice_address) setTaxAddress(order.tax_invoice_address);
+        }
 
         // For marketplace orders, skip unnecessary fetches (read-only)
         const isMarketplace = (order.source || 'manual') !== 'manual';
@@ -744,6 +756,22 @@ export default function OrderForm({
       }
     } catch (error) {
       console.error('Error fetching customer prices:', error);
+    }
+
+    // Pre-fill tax invoice fields from customer
+    try {
+      const res = await apiFetch(`/api/customers/${customer.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        const c = data.customer || data;
+        if (c.tax_company_name) setTaxName(c.tax_company_name);
+        if (c.tax_id) setTaxTaxId(c.tax_id);
+        if (c.tax_branch) setTaxBranch(c.tax_branch);
+        const addrParts = [c.tax_address, c.tax_district, c.tax_amphoe, c.tax_province, c.tax_postal_code].filter(Boolean).join(' ');
+        if (addrParts) setTaxAddress(addrParts);
+      }
+    } catch {
+      // Ignore tax pre-fill errors
     }
   };
 
@@ -1212,6 +1240,13 @@ export default function OrderForm({
         order_discount_type: orderDiscountType,
         notes: notes || undefined,
         internal_notes: internalNotes || undefined,
+        tax_invoice_requested: taxInvoiceRequested || undefined,
+        ...(taxInvoiceRequested ? {
+          tax_invoice_name: taxName.trim() || undefined,
+          tax_invoice_tax_id: taxTaxId.trim() || undefined,
+          tax_invoice_branch: taxBranch.trim() || undefined,
+          tax_invoice_address: taxAddress.trim() || undefined,
+        } : {}),
         items,
         ...(stockEnabled && selectedWarehouseId ? { warehouse_id: selectedWarehouseId } : {}),
         // Non-customer: send shipping fee directly
@@ -1286,14 +1321,8 @@ export default function OrderForm({
   // Read-only banner (shown when order can't be edited)
   const readOnlyBanner = (() => {
     if (!isReadOnly) return null;
-    if (editOrderSource === 'shopee') {
-      return (
-        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/40 text-orange-800 dark:text-orange-300 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-          <img src="/marketplace/shopee.svg" alt="Shopee" className="w-4 h-4" />
-          คำสั่งซื้อ {editOrderNumber} — ออเดอร์จาก Shopee ไม่สามารถแก้ไขได้
-        </div>
-      );
-    }
+    // Shopee banner is shown in the order detail page header instead
+    if (editOrderSource === 'shopee') return null;
     const statusLabels: Record<string, string> = { new: 'ใหม่', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
     const paymentLabels: Record<string, string> = { pending: 'รอชำระ', verifying: 'รอตรวจสอบ', paid: 'ชำระแล้ว', cancelled: 'ยกเลิก' };
     const reasonMessage = editOrderStatus !== 'new'
@@ -1489,8 +1518,6 @@ export default function OrderForm({
     <>
     {printView}
     <form onSubmit={handleSubmit} className={`space-y-4 ${printMode ? 'print:hidden' : ''}`}>
-      {readOnlyBanner}
-
       {/* Header actions portal — copy order button in parent header */}
       {headerActionsRef?.current && !isEditMode && selectedCustomer && createPortal(
         <button
@@ -2036,7 +2063,8 @@ export default function OrderForm({
         </div>
       )}
 
-      {/* Customer + Delivery section — 2 columns when wide enough */}
+      {/* Customer + Delivery section — hidden in edit mode (shown in top card instead) */}
+      {!isEditMode && (
       <div ref={deliverySectionRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
         {/* Delivery info — show when NOT in multi-branch mode */}
         {!multiBranch ? (
@@ -2073,7 +2101,7 @@ export default function OrderForm({
                     </button>
                   )}
                   {!isReadOnly && !preselectedCustomerId && (
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedCustomer(null); setCustomerSearch(''); setShippingAddresses([]); setSelectedAddressId(''); setCustomerPrices({}); setShowAddressDropdown(false); }} className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedCustomer(null); setCustomerSearch(''); setShippingAddresses([]); setSelectedAddressId(''); setCustomerPrices({}); setShowAddressDropdown(false); setTaxName(''); setTaxTaxId(''); setTaxBranch('สำนักงานใหญ่'); setTaxAddress(''); setTaxInvoiceRequested(false); }} className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors">
                       <X className="w-3.5 h-3.5 text-gray-400" />
                     </button>
                   )}
@@ -2173,6 +2201,47 @@ export default function OrderForm({
             <ThaiAddressInput district={deliveryDistrict} amphoe={deliveryAmphoe} province={deliveryProvince} postalCode={deliveryPostalCode} onAddressChange={(addr) => { if (addr.district !== undefined) setDeliveryDistrict(addr.district); if (addr.amphoe !== undefined) setDeliveryAmphoe(addr.amphoe); if (addr.province !== undefined) setDeliveryProvince(addr.province); if (addr.postalCode !== undefined) setDeliveryPostalCode(addr.postalCode); }} disabled={isReadOnly} />
           </div>
 
+          {/* Tax Invoice Request — full width */}
+          {vatRegistered && (
+          <div className={wideEnough ? 'col-span-2' : ''}>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={taxInvoiceRequested}
+                onChange={(e) => setTaxInvoiceRequested(e.target.checked)}
+                disabled={isReadOnly}
+                className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E] accent-[#F4511E]"
+              />
+              <span className="text-base font-medium text-[#F4511E] dark:text-orange-400">ขอใบกำกับภาษี</span>
+            </label>
+            {taxInvoiceRequested && (
+              <div className="mt-3 p-4 border border-orange-300 dark:border-orange-700/50 rounded-lg bg-orange-50 dark:bg-orange-900/10 space-y-3">
+                {/* Row 1: ชื่อกิจการ */}
+                <div>
+                  <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
+                  <input type="text" value={taxName} onChange={(e) => setTaxName(e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="บริษัท XXX จำกัด" />
+                </div>
+                {/* Row 2: เลขผู้เสียภาษี + สาขา */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เลขประจำตัวผู้เสียภาษี</label>
+                    <input type="text" value={taxTaxId} onChange={(e) => setTaxTaxId(e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">สาขา</label>
+                    <input type="text" value={taxBranch} onChange={(e) => setTaxBranch(e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="สำนักงานใหญ่" />
+                  </div>
+                </div>
+                {/* Row 3: ที่อยู่ออกบิล */}
+                <div>
+                  <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">ที่อยู่ออกบิล</label>
+                  <textarea value={taxAddress} onChange={(e) => setTaxAddress(e.target.value)} rows={2} disabled={isReadOnly} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-[#F4511E] resize-none disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์" />
+                </div>
+              </div>
+            )}
+          </div>
+          )}
+
           {/* Delivery Date — full width */}
           {features.delivery_date.enabled && (
           <div ref={deliveryDateRef} className={wideEnough ? 'col-span-2' : ''}>
@@ -2211,7 +2280,7 @@ export default function OrderForm({
                   หลายสาขา
                 </button>
                 {!isReadOnly && !preselectedCustomerId && (
-                  <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerSearch(''); setShippingAddresses([]); setSelectedAddressId(''); setCustomerPrices({}); handleMultiBranchToggle(false); }} className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors">
+                  <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerSearch(''); setShippingAddresses([]); setSelectedAddressId(''); setCustomerPrices({}); handleMultiBranchToggle(false); setTaxName(''); setTaxTaxId(''); setTaxBranch('สำนักงานใหญ่'); setTaxAddress(''); setTaxInvoiceRequested(false); }} className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors">
                     <X className="w-3.5 h-3.5 text-gray-400" />
                   </button>
                 )}
@@ -2233,6 +2302,7 @@ export default function OrderForm({
         </div>
         )}
       </div>
+      )}
 
       {/* Action Buttons */}
       {!isReadOnly && branchOrders.length > 0 && branchOrders.some(b => b.products.length > 0) && (

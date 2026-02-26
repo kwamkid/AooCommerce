@@ -40,6 +40,11 @@ interface OrderData {
   delivery_postal_code?: string;
   delivery_email?: string;
   address_action?: 'update' | 'new';
+  tax_invoice_requested?: boolean;
+  tax_invoice_name?: string;
+  tax_invoice_tax_id?: string;
+  tax_invoice_branch?: string;
+  tax_invoice_address?: string;
   items: OrderItemInput[];
 }
 
@@ -208,6 +213,11 @@ export async function POST(request: NextRequest) {
         delivery_province: orderData.delivery_province || null,
         delivery_postal_code: orderData.delivery_postal_code || null,
         delivery_email: orderData.delivery_email || null,
+        tax_invoice_requested: orderData.tax_invoice_requested || false,
+        tax_invoice_name: orderData.tax_invoice_name || null,
+        tax_invoice_tax_id: orderData.tax_invoice_tax_id || null,
+        tax_invoice_branch: orderData.tax_invoice_branch || null,
+        tax_invoice_address: orderData.tax_invoice_address || null,
         created_by: auth.userId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -1167,6 +1177,97 @@ export async function PUT(request: NextRequest) {
         { error: 'Order not found' },
         { status: 404 }
       );
+    }
+
+    // --- set_tax_invoice action (single order) ---
+    if (body.action === 'set_tax_invoice') {
+      const { tax_invoice_name, tax_invoice_tax_id, tax_invoice_branch, tax_invoice_address } = body;
+      if (!tax_invoice_name || !tax_invoice_tax_id) {
+        return NextResponse.json({ error: 'ชื่อกิจการและเลขผู้เสียภาษีจำเป็นต้องกรอก' }, { status: 400 });
+      }
+
+      // Generate running invoice number: INV-YYMMDD-NNNN
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(2);
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const prefix = `INV-${yy}${mm}${dd}-`;
+
+      const { data: lastInv } = await supabaseAdmin
+        .from('orders')
+        .select('tax_invoice_number')
+        .eq('company_id', auth.companyId)
+        .like('tax_invoice_number', `${prefix}%`)
+        .order('tax_invoice_number', { ascending: false })
+        .limit(1)
+        .single();
+
+      let seq = 1;
+      if (lastInv?.tax_invoice_number) {
+        const lastSeq = parseInt(lastInv.tax_invoice_number.replace(prefix, ''), 10);
+        if (!isNaN(lastSeq)) seq = lastSeq + 1;
+      }
+      const invoiceNumber = `${prefix}${String(seq).padStart(4, '0')}`;
+
+      // Check if retroactive (order paid_at month != today)
+      const { data: orderForRetro } = await supabaseAdmin
+        .from('orders')
+        .select('created_at, payment_status')
+        .eq('id', id)
+        .single();
+      const orderMonth = orderForRetro?.created_at ? new Date(orderForRetro.created_at).getMonth() : now.getMonth();
+      const isRetroactive = orderMonth !== now.getMonth();
+
+      // Save to order
+      const { error: updateErr } = await supabaseAdmin
+        .from('orders')
+        .update({
+          tax_invoice_requested: true,
+          tax_invoice_type: 'full',
+          tax_invoice_number: invoiceNumber,
+          tax_invoice_date: now.toISOString().split('T')[0],
+          tax_invoice_name,
+          tax_invoice_tax_id,
+          tax_invoice_branch: tax_invoice_branch || null,
+          tax_invoice_address: tax_invoice_address || null,
+          is_retroactive: isRetroactive,
+          updated_at: now.toISOString(),
+        })
+        .eq('id', id)
+        .eq('company_id', auth.companyId);
+
+      if (updateErr) {
+        return NextResponse.json({ error: updateErr.message }, { status: 500 });
+      }
+
+      // Also update customer tax fields (for future pre-fill)
+      if (existingOrder.customer_id) {
+        await supabaseAdmin
+          .from('customers')
+          .update({
+            tax_company_name: tax_invoice_name,
+            tax_id: tax_invoice_tax_id,
+            tax_branch: tax_invoice_branch || null,
+            tax_address: tax_invoice_address || null,
+            updated_at: now.toISOString(),
+          })
+          .eq('id', existingOrder.customer_id);
+      }
+
+      return NextResponse.json({
+        success: true,
+        order: {
+          id,
+          tax_invoice_requested: true,
+          tax_invoice_type: 'full',
+          tax_invoice_number: invoiceNumber,
+          tax_invoice_date: now.toISOString().split('T')[0],
+          tax_invoice_name,
+          tax_invoice_tax_id,
+          tax_invoice_branch,
+          tax_invoice_address,
+        },
+      });
     }
 
     // Allow editing only for 'new' orders, or allow simple status updates for any order

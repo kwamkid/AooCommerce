@@ -15,6 +15,7 @@ export default function Checkbox({ checked, onChange, label, disabled, className
       className={`flex items-center gap-2 cursor-pointer select-none ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className || ''}`}
       onClick={e => {
         e.preventDefault();
+        e.stopPropagation();
         if (!disabled) onChange(!checked);
       }}
     >

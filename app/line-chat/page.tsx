@@ -44,7 +44,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import OrderForm from '@/components/orders/OrderForm';
-import CustomerForm, { CustomerFormData } from '@/components/customers/CustomerForm';
+import CustomerForm, { CustomerFormData, buildCustomerPayload } from '@/components/customers/CustomerForm';
 
 interface LineContact {
   id: string;
@@ -964,35 +964,8 @@ function LineChatPageContent() {
     setCustomerError('');
 
     try {
-      // Determine billing address (use shipping if same_as_shipping is checked)
-      const billingAddress = formData.billing_same_as_shipping ? formData.shipping_address : formData.billing_address;
-      const billingDistrict = formData.billing_same_as_shipping ? formData.shipping_district : formData.billing_district;
-      const billingAmphoe = formData.billing_same_as_shipping ? formData.shipping_amphoe : formData.billing_amphoe;
-      const billingProvince = formData.billing_same_as_shipping ? formData.shipping_province : formData.billing_province;
-      const billingPostalCode = formData.billing_same_as_shipping ? formData.shipping_postal_code : formData.billing_postal_code;
-
       // 1. Create customer with billing address and tax info
-      const customerPayload = {
-        name: formData.name,
-        contact_person: formData.contact_person,
-        phone: formData.phone,
-        email: formData.email,
-        customer_type: formData.customer_type,
-        credit_limit: formData.credit_limit,
-        credit_days: formData.credit_days,
-        is_active: formData.is_active,
-        notes: formData.notes,
-        // Tax invoice info (if needed)
-        tax_id: formData.needs_tax_invoice ? formData.tax_id : '',
-        tax_company_name: formData.needs_tax_invoice ? formData.tax_company_name : '',
-        tax_branch: formData.needs_tax_invoice ? formData.tax_branch : '',
-        // Billing address fields (tax invoice address)
-        tax_address: billingAddress,
-        tax_district: billingDistrict,
-        tax_amphoe: billingAmphoe,
-        tax_province: billingProvince,
-        tax_postal_code: billingPostalCode
-      };
+      const customerPayload = buildCustomerPayload(formData);
 
       const createResponse = await apiFetch('/api/customers', {
         method: 'POST',
@@ -1182,35 +1155,7 @@ function LineChatPageContent() {
     setEditCustomerError('');
 
     try {
-      // Determine billing address (use shipping if same_as_shipping is checked)
-      const billingAddress = formData.billing_same_as_shipping ? formData.shipping_address : formData.billing_address;
-      const billingDistrict = formData.billing_same_as_shipping ? formData.shipping_district : formData.billing_district;
-      const billingAmphoe = formData.billing_same_as_shipping ? formData.shipping_amphoe : formData.billing_amphoe;
-      const billingProvince = formData.billing_same_as_shipping ? formData.shipping_province : formData.billing_province;
-      const billingPostalCode = formData.billing_same_as_shipping ? formData.shipping_postal_code : formData.billing_postal_code;
-
-      const payload = {
-        id: selectedContact.customer.id,
-        name: formData.name,
-        contact_person: formData.contact_person,
-        phone: formData.phone,
-        email: formData.email,
-        customer_type: formData.customer_type,
-        credit_limit: formData.credit_limit,
-        credit_days: formData.credit_days,
-        is_active: formData.is_active,
-        notes: formData.notes,
-        // Tax invoice info (if needed)
-        tax_id: formData.needs_tax_invoice ? formData.tax_id : '',
-        tax_company_name: formData.needs_tax_invoice ? formData.tax_company_name : '',
-        tax_branch: formData.needs_tax_invoice ? formData.tax_branch : '',
-        // Billing address fields (tax invoice address)
-        tax_address: billingAddress,
-        tax_district: billingDistrict,
-        tax_amphoe: billingAmphoe,
-        tax_province: billingProvince,
-        tax_postal_code: billingPostalCode
-      };
+      const payload = buildCustomerPayload(formData, selectedContact.customer.id);
 
       const response = await apiFetch('/api/customers', {
         method: 'PUT',
@@ -1224,25 +1169,26 @@ function LineChatPageContent() {
       }
 
       // Update local state with new customer data
+      const builtPayload = buildCustomerPayload(formData, selectedContact.customer.id);
       const updatedCustomer = {
         ...selectedContact.customer,
-        name: formData.name,
-        contact_person: formData.contact_person,
-        phone: formData.phone,
-        email: formData.email,
-        customer_type: formData.customer_type as 'retail' | 'wholesale' | 'distributor',
-        tax_address: billingAddress,
-        tax_district: billingDistrict,
-        tax_amphoe: billingAmphoe,
-        tax_province: billingProvince,
-        tax_postal_code: billingPostalCode,
-        tax_id: formData.needs_tax_invoice ? formData.tax_id : '',
-        tax_company_name: formData.needs_tax_invoice ? formData.tax_company_name : '',
-        tax_branch: formData.needs_tax_invoice ? formData.tax_branch : '',
-        credit_limit: formData.credit_limit,
-        credit_days: formData.credit_days,
-        notes: formData.notes,
-        is_active: formData.is_active
+        name: builtPayload.name,
+        contact_person: builtPayload.contact_person,
+        phone: builtPayload.phone,
+        email: builtPayload.email,
+        customer_type: builtPayload.customer_type as 'retail' | 'wholesale' | 'distributor',
+        tax_address: builtPayload.tax_address,
+        tax_district: builtPayload.tax_district,
+        tax_amphoe: builtPayload.tax_amphoe,
+        tax_province: builtPayload.tax_province,
+        tax_postal_code: builtPayload.tax_postal_code,
+        tax_id: builtPayload.tax_id,
+        tax_company_name: builtPayload.tax_company_name,
+        tax_branch: builtPayload.tax_branch,
+        credit_limit: builtPayload.credit_limit,
+        credit_days: builtPayload.credit_days,
+        notes: builtPayload.notes,
+        is_active: builtPayload.is_active
       };
 
       setSelectedContact(prev => prev ? {

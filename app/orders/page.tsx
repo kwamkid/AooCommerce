@@ -50,11 +50,14 @@ import ProcessingTab from './components/ProcessingTab';
 import OrderCard from './components/OrderCard';
 import ActionMenu, { ActionItem } from './components/ActionMenu';
 import PaymentModal from './components/PaymentModal';
+import TaxInvoiceModal from './components/TaxInvoiceModal';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
+import { useCompany } from '@/lib/company-context';
+import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 
 // Sort options
@@ -80,6 +83,8 @@ export default function OrdersPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const { features } = useFeatures();
+  const { currentCompany } = useCompany();
+  const vatRegistered = currentCompany?.vat_registered || false;
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,6 +141,7 @@ export default function OrdersPage() {
   // Carrier counts for ProcessingTab sub-tabs
   const [carrierCounts, setCarrierCounts] = useState<Record<string, number>>({});
   const [onHoldCount, setOnHoldCount] = useState(0);
+  const [rtsOnHoldCount, setRtsOnHoldCount] = useState(0);
   const searchInputRef = useRef<SearchInputHandle>(null);
 
   // Close lightbox on ESC
@@ -228,6 +234,7 @@ export default function OrdersPage() {
       if (result.paymentCounts) setPaymentCounts(result.paymentCounts);
       if (result.carrierCounts) setCarrierCounts(result.carrierCounts);
       if (result.onHoldCount !== undefined) setOnHoldCount(result.onHoldCount);
+      if (result.rtsOnHoldCount !== undefined) setRtsOnHoldCount(result.rtsOnHoldCount);
       if (result.channelOptions) {
         setChannelDropdownOptions(result.channelOptions.map((ch: ChannelOption) => ({
           id: ch.id,
@@ -341,6 +348,7 @@ export default function OrdersPage() {
   // === PDF print handlers ===
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfMessage, setPdfMessage] = useState<string | undefined>();
+  const [taxInvoiceModal, setTaxInvoiceModal] = useState<{ orderId: string; orderNumber: string; customerId?: string } | null>(null);
 
   const fetchOrderForPdf = async (orderId: string) => {
     const res = await apiFetch(`/api/orders/${orderId}`);
@@ -351,12 +359,12 @@ export default function OrdersPage() {
 
   const handlePrintInvoice = async (orderId: string, paymentStatus?: string) => {
     setPdfLoading(true);
-    setPdfMessage(paymentStatus === 'paid' ? 'กำลังสร้างใบเสร็จรับเงิน...' : 'กำลังสร้างใบแจ้งหนี้...');
+    const label = getInvoiceMenuLabel(paymentStatus || 'pending', vatRegistered);
+    setPdfMessage(`กำลังสร้าง${label}...`);
     try {
       const orderData = await fetchOrderForPdf(orderId);
       const blob = await generateOrderInvoicePdf({ data: orderData });
-      const title = orderData.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้';
-      showPdfPreview(blob, title);
+      showPdfPreview(blob, label);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -484,11 +492,20 @@ export default function OrdersPage() {
     // Menu: Print invoice
     menuItems.push({
       key: 'invoice',
-      label: order.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้',
+      label: getInvoiceMenuLabel(order.payment_status, vatRegistered),
       icon: <Banknote className="w-4 h-4" />,
       onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
       className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
     });
+
+    // Full tax invoice option (only for VAT-registered + order doesn't have full invoice yet)
+    if (vatRegistered && order.payment_status === 'paid' && order.tax_invoice_requested !== true) {
+      menuItems.push({
+        key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />, dividerBefore: true,
+        onClick: (e) => { e.stopPropagation(); setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id }); },
+        className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
+      });
+    }
 
     // Menu: Print packing list (processing and above)
     if (['processing', 'shipping', 'completed'].includes(order.order_status)) {
@@ -501,9 +518,10 @@ export default function OrdersPage() {
 
     // Menu: Print shipping label (processing and shipping only — not completed)
     if (['processing', 'shipping'].includes(order.order_status)) {
-      if (order.source === 'shopee') {
+      const sourceLabel = isMarketplace ? ` ${order.source === 'tiktok' ? 'TikTok Shop' : order.source === 'line_shopping' ? 'LINE Shopping' : order.source?.charAt(0).toUpperCase() + (order.source?.slice(1) || '')}` : '';
+      if (isMarketplace) {
         menuItems.push({
-          key: 'label', label: 'ใบปะหน้า Shopee', icon: <Printer className="w-4 h-4" />,
+          key: 'label', label: `ใบปะหน้า${sourceLabel}`, icon: <Printer className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); handlePrintShopeeLabel(order.id); },
           className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
         });
@@ -598,6 +616,8 @@ export default function OrdersPage() {
           carrierCounts={carrierCounts}
           onHoldCount={onHoldCount}
           search={debouncedSearch}
+          channel={channelFilter}
+          createdBy={createdByFilter}
           userProfile={userProfile}
           onRefresh={fetchOrders}
           onImageClick={(url) => setLightboxImage(url)}
@@ -625,8 +645,11 @@ export default function OrdersPage() {
     if (statusFilter === 'ready_to_ship') {
       return (
         <ReadyToShipTab
-          orders={displayedOrders}
-          totalOrders={totalOrders}
+          normalCount={(statusCounts.ready_to_ship || 0) - rtsOnHoldCount}
+          onHoldCount={rtsOnHoldCount}
+          search={debouncedSearch}
+          channel={channelFilter}
+          createdBy={createdByFilter}
           userProfile={userProfile}
           onRefresh={fetchOrders}
           onImageClick={(url) => setLightboxImage(url)}
@@ -807,8 +830,8 @@ export default function OrdersPage() {
           {/* Order list — tab-specific or default */}
           {renderOrderList()}
 
-          {/* Pagination (hidden for processing tab — it has own pagination) */}
-          {statusFilter !== 'processing' && (
+          {/* Pagination (hidden for processing & ready_to_ship tabs — they have own pagination) */}
+          {statusFilter !== 'processing' && statusFilter !== 'ready_to_ship' && (
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -928,6 +951,36 @@ export default function OrdersPage() {
           onClose={() => setPaymentModalOrder(null)}
           onSuccess={() => { setPaymentModalOrder(null); fetchOrders(); }}
         />
+
+        {/* Tax Invoice Modal */}
+        {taxInvoiceModal && (
+          <TaxInvoiceModal
+            orderId={taxInvoiceModal.orderId}
+            orderNumber={taxInvoiceModal.orderNumber}
+            customerId={taxInvoiceModal.customerId}
+            onClose={() => setTaxInvoiceModal(null)}
+            onSaved={async (updatedOrder) => {
+              setTaxInvoiceModal(null);
+              try {
+                const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+                const orderData = await fetchOrderForPdf(updatedOrder.id as string);
+                const blob = await generateFullInvoicePdf({
+                  ...orderData,
+                  tax_invoice_number: updatedOrder.tax_invoice_number,
+                  tax_invoice_date: updatedOrder.tax_invoice_date,
+                  tax_invoice_name: updatedOrder.tax_invoice_name,
+                  tax_invoice_tax_id: updatedOrder.tax_invoice_tax_id,
+                  tax_invoice_address: updatedOrder.tax_invoice_address,
+                  tax_invoice_branch: updatedOrder.tax_invoice_branch,
+                });
+                showPdfPreview(blob, 'ใบกำกับแบบเต็ม/ใบเสร็จรับเงิน');
+              } catch (err) {
+                showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+              }
+              fetchOrders();
+            }}
+          />
+        )}
       </div>
 
       {/* Toast */}

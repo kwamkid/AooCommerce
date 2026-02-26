@@ -21,9 +21,13 @@ import {
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
+import { generateAbbreviatedInvoicePdf } from '@/lib/order-invoice-abbreviated-pdf';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
+import { useCompany } from '@/lib/company-context';
+import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import OrderCard from './OrderCard';
 import ActionMenu, { ActionItem } from './ActionMenu';
+import TaxInvoiceModal from './TaxInvoiceModal';
 import Pagination from '@/app/components/Pagination';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import {
@@ -39,6 +43,10 @@ interface ProcessingTabProps {
   onHoldCount: number;
   /** Search term from parent (passed through for filtering) */
   search?: string;
+  /** Channel filter from parent (marketplace account id, chat account id, or 'none') */
+  channel?: string;
+  /** Created by filter from parent */
+  createdBy?: string;
   userProfile: any;
   onRefresh: () => void;
   onImageClick: (url: string) => void;
@@ -54,6 +62,8 @@ export default function ProcessingTab({
   carrierCounts,
   onHoldCount,
   search,
+  channel,
+  createdBy,
   userProfile,
   onRefresh,
   onImageClick,
@@ -62,6 +72,8 @@ export default function ProcessingTab({
 }: ProcessingTabProps) {
   const router = useRouter();
   const { showToast } = useToast();
+  const { currentCompany } = useCompany();
+  const vatRegistered = currentCompany?.vat_registered || false;
 
   // Sub-tab state
   const [activeCarrierGroup, setActiveCarrierGroup] = useState<string>('');
@@ -86,6 +98,9 @@ export default function ProcessingTab({
   const [overlayTitle, setOverlayTitle] = useState('กำลังดำเนินการ...');
   const [overlayMessage, setOverlayMessage] = useState<string | undefined>();
   const [overlayProgress, setOverlayProgress] = useState<number | undefined>();
+
+  // Tax invoice modal
+  const [taxInvoiceModal, setTaxInvoiceModal] = useState<{ orderId: string; orderNumber: string; customerId?: string } | null>(null);
 
   // Ship modal (single)
   const [shipModal, setShipModal] = useState<{ order: Order } | null>(null);
@@ -151,6 +166,8 @@ export default function ProcessingTab({
       params.set('sort_dir', 'desc');
       params.set('shipping_carrier', activeCarrierGroup);
       if (search) params.set('search', search);
+      if (channel && channel !== 'all') params.set('channel', channel);
+      if (createdBy && createdBy !== 'all') params.set('created_by', createdBy);
 
       const response = await apiFetch(`/api/orders?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch orders');
@@ -165,7 +182,7 @@ export default function ProcessingTab({
     } finally {
       setLoading(false);
     }
-  }, [activeCarrierGroup, currentPage, recordsPerPage, search]);
+  }, [activeCarrierGroup, currentPage, recordsPerPage, search, channel, createdBy]);
 
   useEffect(() => {
     fetchOrders();
@@ -175,7 +192,7 @@ export default function ProcessingTab({
   useEffect(() => {
     setCurrentPage(1);
     setSelectedIds(new Set());
-  }, [activeCarrierGroup, search]);
+  }, [activeCarrierGroup, search, channel, createdBy]);
 
   // Refresh handler — refresh parent + re-fetch our tab
   const handleRefresh = useCallback(() => {
@@ -568,17 +585,70 @@ export default function ProcessingTab({
 
   const handlePrintInvoice = async (orderId: string, paymentStatus?: string) => {
     setActionLoading(true);
-    setOverlayTitle(paymentStatus === 'paid' ? 'กำลังสร้างใบเสร็จรับเงิน...' : 'กำลังสร้างใบแจ้งหนี้...');
+    const label = getInvoiceMenuLabel(paymentStatus || 'pending', vatRegistered);
+    setOverlayTitle(`กำลังสร้าง${label}...`);
     setOverlayProgress(undefined);
     setOverlayMessage(undefined);
     try {
       const orderData = await fetchOrderForPdf(orderId);
       const blob = await generateOrderInvoicePdf({ data: orderData });
-      showPdfPreview(blob, orderData.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้');
+      showPdfPreview(blob, label);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleBulkPrintInvoices = async (orderIds: string[]) => {
+    setActionLoading(true);
+    setOverlayTitle('กำลังสร้างใบกำกับ/ใบเสร็จ...');
+    setOverlayProgress(0);
+    try {
+      const fullBlobs: Blob[] = [];
+      const abbreviatedOrders: Parameters<typeof generateAbbreviatedInvoicePdf>[0] = [];
+
+      for (let i = 0; i < orderIds.length; i++) {
+        setOverlayMessage(`โหลดข้อมูล ${i + 1} / ${orderIds.length}`);
+        setOverlayProgress(Math.round((i / orderIds.length) * 70));
+        const orderData = await fetchOrderForPdf(orderIds[i]);
+
+        if (orderData.tax_invoice_requested && orderData.tax_invoice_type === 'full') {
+          // Full tax invoice (A4)
+          const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+          const blob = await generateFullInvoicePdf(orderData);
+          fullBlobs.push(blob);
+        } else {
+          // Abbreviated / receipt (half A4)
+          abbreviatedOrders.push(orderData);
+        }
+      }
+
+      setOverlayMessage('กำลังสร้าง PDF...');
+      setOverlayProgress(80);
+
+      const allBlobs: Blob[] = [...fullBlobs];
+      if (abbreviatedOrders.length > 0) {
+        const abbrevBlob = await generateAbbreviatedInvoicePdf(abbreviatedOrders);
+        allBlobs.push(abbrevBlob);
+      }
+
+      setOverlayProgress(95);
+
+      if (allBlobs.length === 0) {
+        showToast('ไม่มีรายการที่จะพิมพ์', 'error');
+        return;
+      }
+
+      const mergedBlob = allBlobs.length === 1 ? allBlobs[0] : await mergePdfBlobs(allBlobs);
+      setOverlayProgress(100);
+      showPdfPreview(mergedBlob, 'ใบกำกับ/ใบเสร็จ');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setActionLoading(false);
+      setOverlayProgress(undefined);
+      setOverlayMessage(undefined);
     }
   };
 
@@ -610,17 +680,26 @@ export default function ProcessingTab({
     if (isOnHold) {
       primaryActions.push(
         <button key="unhold" onClick={(e) => { e.stopPropagation(); handleUnhold(order.id); }} disabled={actionLoading}
-          className="px-2.5 py-1.5 md:px-3 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1 disabled:opacity-50" title="กลับมา">
-          <Play className="w-3.5 h-3.5" /> <span className="hidden md:inline">กลับมา</span>
+          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5 disabled:opacity-50" title="กลับมา">
+          <Play className="w-4 h-4" /> <span className="hidden md:inline">กลับมา</span>
         </button>
       );
     }
 
     menuItems.push({
-      key: 'invoice', label: order.payment_status === 'paid' ? 'ใบเสร็จรับเงิน' : 'ใบแจ้งหนี้', icon: <Banknote className="w-4 h-4" />,
+      key: 'invoice', label: getInvoiceMenuLabel(order.payment_status, vatRegistered), icon: <Banknote className="w-4 h-4" />,
       onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
       className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
     });
+
+    // Full tax invoice option (only for VAT-registered + order doesn't have full invoice yet)
+    if (vatRegistered && order.payment_status === 'paid' && order.tax_invoice_requested !== true) {
+      menuItems.push({
+        key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />, dividerBefore: true,
+        onClick: (e) => { e.stopPropagation(); setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id }); },
+        className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
+      });
+    }
 
     if (!isOnHold) {
       menuItems.push({
@@ -629,12 +708,12 @@ export default function ProcessingTab({
         className: 'p-1.5 text-gray-400 hover:text-indigo-600 transition-colors rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30',
       });
       menuItems.push({
-        key: 'print', label: 'ใบปะหน้า', icon: <Printer className="w-4 h-4" />,
+        key: 'print', label: `ใบปะหน้า${isMarketplace ? ` ${order.source === 'tiktok' ? 'TikTok Shop' : order.source === 'line_shopping' ? 'LINE Shopping' : order.source?.charAt(0).toUpperCase() + (order.source?.slice(1) || '')}` : ''}`, icon: <Printer className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintLabels([order.id]); },
         className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
       });
       menuItems.push({
-        key: 'hold', label: 'พักไว้', icon: <Pause className="w-4 h-4" />,
+        key: 'hold', label: 'พักไว้', icon: <Pause className="w-4 h-4" />, dividerBefore: true,
         onClick: (e) => { e.stopPropagation(); setHoldModal({ orderId: order.id, orderNumber: order.order_number }); },
         className: 'p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
       });
@@ -797,6 +876,13 @@ export default function ProcessingTab({
                 <ClipboardList className="w-4 h-4" />
                 <span className="hidden md:inline">ใบจัดของ</span> ({selectedIds.size})
               </button>
+              <button
+                onClick={() => handleBulkPrintInvoices(Array.from(selectedIds))}
+                className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5"
+              >
+                <Banknote className="w-4 h-4" />
+                <span className="hidden md:inline">ใบกำกับ/ใบเสร็จ</span> ({selectedIds.size})
+              </button>
               {shippableSelectedIds.length > 0 && (
                 <button
                   onClick={openBulkShipModal}
@@ -810,6 +896,37 @@ export default function ProcessingTab({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Tax Invoice Modal */}
+      {taxInvoiceModal && (
+        <TaxInvoiceModal
+          orderId={taxInvoiceModal.orderId}
+          orderNumber={taxInvoiceModal.orderNumber}
+          customerId={taxInvoiceModal.customerId}
+          onClose={() => setTaxInvoiceModal(null)}
+          onSaved={async (updatedOrder) => {
+            setTaxInvoiceModal(null);
+            // Auto-generate and preview full invoice PDF
+            try {
+              const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+              const orderData = await fetchOrderForPdf(updatedOrder.id as string);
+              const blob = await generateFullInvoicePdf({
+                ...orderData,
+                tax_invoice_number: updatedOrder.tax_invoice_number,
+                tax_invoice_date: updatedOrder.tax_invoice_date,
+                tax_invoice_name: updatedOrder.tax_invoice_name,
+                tax_invoice_tax_id: updatedOrder.tax_invoice_tax_id,
+                tax_invoice_address: updatedOrder.tax_invoice_address,
+                tax_invoice_branch: updatedOrder.tax_invoice_branch,
+              });
+              showPdfPreview(blob, 'ใบกำกับแบบเต็ม/ใบเสร็จรับเงิน');
+            } catch (err) {
+              showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+            }
+            fetchOrders();
+          }}
+        />
       )}
 
       {/* Hold Modal */}
