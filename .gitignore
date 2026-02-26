@@ -44,3 +44,6 @@ certificates
 
 # API reference docs
 /API/
+
+# supabase migrations (run directly on Supabase)
+supabase/migrations/
