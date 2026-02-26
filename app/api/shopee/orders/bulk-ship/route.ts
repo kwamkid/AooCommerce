@@ -206,9 +206,9 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Build pickup/dropoff for mass_ship_order
-      let pickupInfo: MassShipPackage['pickup'];
-      let dropoffInfo: MassShipPackage['dropoff'];
+      // Build pickup/dropoff for mass_ship_order (top-level params)
+      let pickupInfo: { address_id: number; pickup_time_id: string } | undefined;
+      let dropoffInfo: { branch_id?: number; sender_real_name?: string; tracking_number?: string } | undefined;
 
       if (isDropoff) {
         const branchId = params.dropoff?.branch_list?.[0]?.branch_id;
@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
       // Step 3: Build package list for mass_ship_order
       // Group by logistics_channel_id (mass_ship_order requires same channel per batch)
       const channelGroups = new Map<number, { pkg: MassShipPackage; order: typeof accountOrders[0] }[]>();
-      const fallbackOrders: typeof accountOrders[0][] = []; // orders without package_number
+      const fallbackOrders: typeof accountOrders[0][] = []; // orders without package info at all
 
       for (const order of accountOrders) {
         const sn = order.external_order_sn!;
@@ -235,13 +235,15 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        const isAdvancePackage = pkgInfos[0]?.advance_package === true;
+
         for (const pkgInfo of pkgInfos) {
           const channelId = pkgInfo.logistics_channel_id || 0;
-          const massShipPkg: MassShipPackage = {
-            package_number: pkgInfo.package_number,
-            ...(pickupInfo ? { pickup: pickupInfo } : {}),
-            ...(dropoffInfo ? { dropoff: dropoffInfo } : {}),
-          };
+          // Only include package_number for split orders (advance_package=true)
+          // Unsplit orders: omit package_number per Shopee API doc
+          const massShipPkg: MassShipPackage = isAdvancePackage
+            ? { package_number: pkgInfo.package_number }
+            : {};
 
           if (!channelGroups.has(channelId)) channelGroups.set(channelId, []);
           channelGroups.get(channelId)!.push({ pkg: massShipPkg, order });
@@ -251,19 +253,23 @@ export async function POST(request: NextRequest) {
       console.log(`[Shopee Bulk Ship] ${accountOrders.length} orders → ${[...channelGroups.entries()].map(([ch, items]) => `channel=${ch}:${items.length}pkg`).join(', ')}${fallbackOrders.length > 0 ? ` + ${fallbackOrders.length} fallback` : ''}`);
 
       // Step 4: Mass ship per channel group
+      // pickup/dropoff are top-level params per Shopee API (not per-package)
       const orderSuccessSet = new Set<string>(); // order IDs that succeeded
       const orderErrorMap = new Map<string, string>(); // order ID → error
 
       for (const [channelId, items] of channelGroups) {
         const packages = items.map(i => i.pkg);
         const { successList, failList, error: massError } = await massShipOrder(
-          creds, packages,
-          channelId || undefined,
+          creds, packages, {
+            logisticsChannelId: channelId || undefined,
+            pickup: pickupInfo,
+            dropoff: dropoffInfo,
+          },
         );
 
         if (massError) {
           console.error(`[Shopee Bulk Ship] mass_ship_order error for channel ${channelId}:`, massError);
-          // Fall back to individual ship_order for this group
+          // Fall back to individual ship_order
           for (const item of items) {
             const result = await individualShipOrder(creds, item.order, pickupInfo, dropoffInfo, item.pkg.package_number);
             if (result.success) {
@@ -281,9 +287,9 @@ export async function POST(request: NextRequest) {
 
         for (const item of items) {
           const pn = item.pkg.package_number;
-          if (successPns.has(pn)) {
+          if (pn && successPns.has(pn)) {
             orderSuccessSet.add(item.order.id);
-          } else if (failPnMap.has(pn)) {
+          } else if (pn && failPnMap.has(pn)) {
             const reason = failPnMap.get(pn)!;
             // Already shipped is OK
             if (reason.includes('already shipped') || reason.includes('order_status_error')) {
@@ -291,6 +297,9 @@ export async function POST(request: NextRequest) {
             } else {
               orderErrorMap.set(item.order.id, `รับออเดอร์ไม่สำเร็จ: ${reason}`);
             }
+          } else if (!pn) {
+            // Unsplit order (no package_number) — if mass_ship didn't error, assume success
+            orderSuccessSet.add(item.order.id);
           }
         }
 

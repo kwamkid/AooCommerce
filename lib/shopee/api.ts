@@ -620,21 +620,23 @@ export async function shipOrder(
 
 /**
  * Batch ship up to 50 packages in one API call.
- * Uses /api/v2/logistics/mass_ship_order (new API, 2025-02-24).
+ * Uses /api/v2/logistics/mass_ship_order.
  * CONSTRAINT: All packages must have the SAME logistics_channel_id and product_location_id.
- * Each package can have individual pickup/dropoff params.
+ * pickup/dropoff are top-level params (apply to all packages), NOT per-package.
  */
 export interface MassShipPackage {
-  package_number: string;
-  pickup?: { address_id: number; pickup_time_id: string };
-  dropoff?: { branch_id?: number; sender_real_name?: string; tracking_number?: string };
+  package_number?: string; // omit for unsplit orders
 }
 
 export async function massShipOrder(
   creds: ShopeeCredentials,
   packages: MassShipPackage[],
-  logisticsChannelId?: number,
-  productLocationId?: string
+  options?: {
+    logisticsChannelId?: number;
+    productLocationId?: string;
+    pickup?: { address_id: number; pickup_time_id: string };
+    dropoff?: { branch_id?: number; sender_real_name?: string; tracking_number?: string };
+  },
 ): Promise<{
   successList: { package_number: string }[];
   failList: { package_number: string; fail_reason: string }[];
@@ -645,8 +647,10 @@ export async function massShipOrder(
   const body: Record<string, unknown> = {
     package_list: packages,
   };
-  if (logisticsChannelId) body.logistics_channel_id = logisticsChannelId;
-  if (productLocationId) body.product_location_id = productLocationId;
+  if (options?.logisticsChannelId) body.logistics_channel_id = options.logisticsChannelId;
+  if (options?.productLocationId) body.product_location_id = options.productLocationId;
+  if (options?.pickup) body.pickup = options.pickup;
+  if (options?.dropoff) body.dropoff = options.dropoff;
 
   const { data, error } = await shopeeApiRequest(creds, 'POST', '/api/v2/logistics/mass_ship_order', {}, body);
 
@@ -912,6 +916,7 @@ export interface PackageInfo {
   package_number: string;
   logistics_channel_id?: number;
   shipping_carrier?: string;
+  advance_package?: boolean;
 }
 
 /**
@@ -943,6 +948,7 @@ export async function getAllPackageNumbersBatch(
     const response = data as {
       order_list?: {
         order_sn: string;
+        advance_package?: boolean;
         package_list?: {
           package_number: string;
           logistics_channel_id?: number;
@@ -957,6 +963,7 @@ export async function getAllPackageNumbersBatch(
           package_number: p.package_number,
           logistics_channel_id: p.logistics_channel_id,
           shipping_carrier: p.shipping_carrier,
+          advance_package: order.advance_package || false,
         })));
       }
     }
