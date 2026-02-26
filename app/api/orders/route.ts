@@ -45,6 +45,8 @@ interface OrderData {
   tax_invoice_tax_id?: string;
   tax_invoice_branch?: string;
   tax_invoice_address?: string;
+  source?: string;
+  source_name?: string;
   items: OrderItemInput[];
 }
 
@@ -218,6 +220,8 @@ export async function POST(request: NextRequest) {
         tax_invoice_tax_id: orderData.tax_invoice_tax_id || null,
         tax_invoice_branch: orderData.tax_invoice_branch || null,
         tax_invoice_address: orderData.tax_invoice_address || null,
+        source: orderData.source || 'manual',
+        source_name: orderData.source_name || null,
         created_by: auth.userId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()

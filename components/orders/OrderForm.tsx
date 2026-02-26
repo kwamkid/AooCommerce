@@ -126,6 +126,9 @@ interface OrderFormProps {
   warehousePortalRef?: RefObject<HTMLDivElement | null>;
   // Portal target for header actions (copy order button)
   headerActionsRef?: RefObject<HTMLDivElement | null>;
+  // Order source (e.g., 'line', 'facebook') and channel name
+  source?: string;
+  sourceName?: string;
 }
 
 export default function OrderForm({
@@ -140,6 +143,8 @@ export default function OrderForm({
   printMode = null,
   warehousePortalRef,
   headerActionsRef,
+  source,
+  sourceName,
 }: OrderFormProps) {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
@@ -1264,6 +1269,8 @@ export default function OrderForm({
         } : {}),
         // Tell API how to handle address: 'update' = update existing, 'new' = create new
         ...(addressAction !== 'auto' ? { address_action: addressAction } : {}),
+        // Source channel info (from chat)
+        ...(source ? { source, source_name: sourceName || undefined } : {}),
       };
 
       if (isEditMode) {

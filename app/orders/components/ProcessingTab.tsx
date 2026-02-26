@@ -685,8 +685,8 @@ export default function ProcessingTab({
     if (!isMarketplace && !isOnHold) {
       primaryActions.push(
         <button key="ship" onClick={(e) => { e.stopPropagation(); setShipModal({ order }); }}
-          className="px-2.5 py-1.5 md:px-3 text-xs font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1" title="จัดส่งแล้ว">
-          <Package className="w-3.5 h-3.5" /> <span className="hidden md:inline">จัดส่งแล้ว</span>
+          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1.5" title="จัดส่งแล้ว">
+          <Package className="w-4 h-4" /> <span className="hidden md:inline">จัดส่งแล้ว</span>
         </button>
       );
     }
@@ -700,21 +700,7 @@ export default function ProcessingTab({
       );
     }
 
-    menuItems.push({
-      key: 'invoice', label: getInvoiceMenuLabel(order.payment_status, vatRegistered), icon: <Banknote className="w-4 h-4" />,
-      onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
-      className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
-    });
-
-    // Full tax invoice option (only for VAT-registered + order doesn't have full invoice yet)
-    if (vatRegistered && order.payment_status === 'paid' && order.tax_invoice_requested !== true) {
-      menuItems.push({
-        key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />, dividerBefore: true,
-        onClick: (e) => { e.stopPropagation(); setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id }); },
-        className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
-      });
-    }
-
+    // === Section 1: เอกสารจัดส่ง ===
     if (!isOnHold) {
       menuItems.push({
         key: 'packing', label: 'ใบจัดของ', icon: <ClipboardList className="w-4 h-4" />,
@@ -726,23 +712,43 @@ export default function ProcessingTab({
         onClick: (e) => { e.stopPropagation(); handlePrintLabels([order.id]); },
         className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
       });
-      menuItems.push({
-        key: 'hold', label: 'พักไว้', icon: <Pause className="w-4 h-4" />, dividerBefore: true,
-        onClick: (e) => { e.stopPropagation(); setHoldModal({ orderId: order.id, orderNumber: order.order_number }); },
-        className: 'p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
-      });
     }
 
-    if (!isMarketplace) {
+    // === Section 2: เอกสารการเงิน ===
+    const section2Start = menuItems.length;
+    if (order.payment_status !== 'paid') {
       menuItems.push({
-        key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); setCancelConfirm({ ids: [order.id] }); },
-        className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
-        danger: true,
+        key: 'invoice', label: 'ใบแจ้งหนี้', icon: <Banknote className="w-4 h-4" />,
+        onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
+        className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
       });
     }
+    if (order.payment_status === 'paid') {
+      menuItems.push({
+        key: 'receipt', label: 'ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
+        onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
+        className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
+      });
+    }
+    if (vatRegistered && order.payment_status === 'paid' && order.tax_invoice_requested !== true) {
+      menuItems.push({
+        key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
+        onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
+        className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
+      });
+      menuItems.push({
+        key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />,
+        onClick: (e) => { e.stopPropagation(); setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id }); },
+        className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
+      });
+    }
+    if (menuItems.length > section2Start && section2Start > 0) {
+      menuItems[section2Start].dividerBefore = true;
+    }
 
+    // === Section 3: อื่นๆ ===
     if (!order.source || order.source === 'manual') {
+      const section3Start = menuItems.length;
       menuItems.push({
         key: 'link', label: 'คัดลอกลิงก์', icon: <Link2 className="w-4 h-4" />,
         onClick: (e) => {
@@ -757,6 +763,30 @@ export default function ProcessingTab({
         onClick: (e) => { e.stopPropagation(); router.push(`/orders/${order.id}/edit`); },
         className: 'p-1.5 text-blue-500 hover:text-blue-700 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
       });
+      if (section3Start > 0) menuItems[section3Start].dividerBefore = true;
+    }
+
+    // === Section 4: สถานะ ===
+    {
+      const section4Start = menuItems.length;
+      if (!isOnHold) {
+        menuItems.push({
+          key: 'hold', label: 'พักไว้', icon: <Pause className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); setHoldModal({ orderId: order.id, orderNumber: order.order_number }); },
+          className: 'p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
+        });
+      }
+      if (!isMarketplace) {
+        menuItems.push({
+          key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); setCancelConfirm({ ids: [order.id] }); },
+          className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
+          danger: true,
+        });
+      }
+      if (menuItems.length > section4Start && section4Start > 0) {
+        menuItems[section4Start].dividerBefore = true;
+      }
     }
 
     return (

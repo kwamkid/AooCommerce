@@ -35,15 +35,16 @@ import {
   Clock,
   Bell,
   FileText,
-  Play,
   ArrowUpDown,
   Trash2,
-  Unlink
+  Unlink,
+  ExternalLink
 } from 'lucide-react';
 import Image from 'next/image';
 import OrderForm from '@/components/orders/OrderForm';
 import CustomerForm, { CustomerFormData } from '@/components/customers/CustomerForm';
 import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact } from './lib/chatTypes';
+import MessageBubble from './components/MessageBubble';
 import { FbIcon, IgIcon, LineIcon, PlatformIcon, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
 
 // Dynamic imports for components that are not needed on initial load
@@ -203,6 +204,7 @@ function UnifiedChatPageContent() {
   useEffect(() => {
     if (!authLoading && userProfile) {
       const id = ++fetchIdRef.current;
+      setLoadingContacts(true);
       (async () => {
         try {
           const params = new URLSearchParams();
@@ -1066,8 +1068,13 @@ function UnifiedChatPageContent() {
                             {selectedPic ? (
                               <Image src={selectedPic} alt={selectedAccount.account_name} width={20} height={20} className="w-5 h-5 rounded-full object-cover flex-shrink-0" unoptimized />
                             ) : (
-                              <span className="flex-shrink-0 flex items-center gap-0.5">
-                                {selectedAccount.platform === 'line' ? <LineIcon size={20} /> : <><FbIcon size={20} /><IgIcon size={14} /></>}
+                              <span className="flex-shrink-0">
+                                {selectedAccount.platform === 'line' ? <LineIcon size={20} /> : selectedAccount.credentials?.ig_account_id ? (
+                                  <span className="relative inline-flex w-7 h-5">
+                                    <span className="absolute left-3 top-0 z-0 rounded-full bg-white dark:bg-slate-800 p-[1px]"><IgIcon size={16} /></span>
+                                    <span className="absolute left-0 top-0 z-10 rounded-full bg-white dark:bg-slate-800 p-[1px]"><FbIcon size={16} /></span>
+                                  </span>
+                                ) : <FbIcon size={20} />}
                               </span>
                             )}
                             <span className="flex-1 text-left text-gray-900 dark:text-white truncate text-sm">{selectedAccount.account_name}</span>
@@ -1108,7 +1115,12 @@ function UnifiedChatPageContent() {
                                     acc.platform === 'line' ? <LineIcon size={20} /> : <FbIcon size={20} />
                                   )}
                                   <span className="text-gray-900 dark:text-white truncate flex-1 text-left">{acc.account_name}</span>
-                                  {acc.platform === 'line' ? <LineIcon size={16} /> : <span className="flex items-center gap-0.5"><FbIcon size={16} /><IgIcon size={14} /></span>}
+                                  {acc.platform === 'line' ? <LineIcon size={16} /> : acc.credentials?.ig_account_id ? (
+                                    <span className="relative inline-flex w-6 h-[18px] flex-shrink-0">
+                                      <span className="absolute left-[10px] top-0 z-0 rounded-full bg-white dark:bg-slate-800 p-[1px]"><IgIcon size={14} /></span>
+                                      <span className="absolute left-0 top-0 z-10 rounded-full bg-white dark:bg-slate-800 p-[1px]"><FbIcon size={14} /></span>
+                                    </span>
+                                  ) : <FbIcon size={16} />}
                                   {isActive && <Check className="w-4 h-4 text-[#F4511E] flex-shrink-0" />}
                                 </button>
                               );
@@ -1253,16 +1265,16 @@ function UnifiedChatPageContent() {
                       </div>
                       <div className="flex items-center gap-1 mt-0.5">
                         <PlatformIcon contact={contact} size={12} />
-                        {contact.account_name && (<span className="text-[10px] text-gray-400 dark:text-slate-500 truncate">{contact.account_name}</span>)}
+                        {contact.account_name && (<span className="text-[10px] text-gray-400 dark:text-slate-300 truncate">{contact.account_name}</span>)}
                       </div>
                       {contact.last_message ? (
-                        <div className="text-xs text-gray-500 truncate">{contact.last_message}</div>
+                        <div className="text-xs text-gray-500 dark:text-slate-400 truncate mt-0.5">{contact.last_message}</div>
                       ) : contact.customer ? (
-                        <div className="text-xs truncate flex items-center gap-1" style={{ color: contact.source === 'instagram' ? '#E4405F' : contact.platform === 'line' ? '#06C755' : '#1877F2' }}>
+                        <div className="text-xs truncate flex items-center gap-1 mt-0.5" style={{ color: contact.source === 'instagram' ? '#E4405F' : contact.platform === 'line' ? '#06C755' : '#1877F2' }}>
                           <LinkIcon className="w-3 h-3" />{contact.customer.customer_code} - {contact.customer.name}
                         </div>
                       ) : (
-                        <div className="text-xs text-gray-400 dark:text-slate-500">ยังไม่มีข้อความ</div>
+                        <div className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">ยังไม่มีข้อความ</div>
                       )}
                       {filterLinked === 'linked' && (
                         <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
@@ -1289,29 +1301,70 @@ function UnifiedChatPageContent() {
               <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between min-h-[81px]">
                 <div className="flex items-center gap-3">
                   <button onClick={() => { setSelectedContact(null); setMobileView('contacts'); }} className="md:hidden p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button>
-                  {getAvatarUrl(selectedContact) ? (
-                    <Image src={getAvatarUrl(selectedContact)!} alt={selectedContact.display_name} width={40} height={40} className="w-10 h-10 rounded-full object-cover" unoptimized />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: platformColor }}>{getInitials(selectedContact.display_name)}</div>
-                  )}
-                  <div>
-                    <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
-                      <PlatformIcon contact={selectedContact} size={16} />
-                      {selectedContact.display_name}
-                    </h3>
-                    {selectedContact.account_name && (<p className="text-[10px] text-gray-400 max-w-[200px] truncate">{selectedContact.account_name}</p>)}
-                    {selectedContact.customer ? (
-                      <div className="flex flex-col">
-                        <p className="text-xs" style={{ color: platformColor }}>{selectedContact.customer.name}</p>
-                        <p className="text-[10px] text-gray-500 dark:text-slate-400">
-                          {selectedContact.last_order_date ? (<>สั่งล่าสุด: {new Date(selectedContact.last_order_created_at || selectedContact.last_order_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} {selectedContact.last_order_created_at && new Date(selectedContact.last_order_created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</>) : (<span className="text-orange-500">ยังไม่เคยสั่ง</span>)}
-                        </p>
-                        {selectedContact.avg_order_frequency != null && (<p className="text-[10px] text-gray-400 dark:text-slate-500">{selectedContact.avg_order_frequency <= 1 ? 'สั่งทุกวัน' : `~${selectedContact.avg_order_frequency} วัน/ออเดอร์`}</p>)}
-                      </div>
+                  {(() => {
+                    const profileUrl = selectedContact.platform === 'facebook' && selectedContact.source !== 'instagram'
+                      ? `https://www.facebook.com/messages/t/${selectedContact.platform_user_id}` : null;
+                    const avatar = getAvatarUrl(selectedContact);
+                    const avatarEl = avatar ? (
+                      <Image src={avatar} alt={selectedContact.display_name} width={40} height={40} className="w-10 h-10 rounded-full object-cover" unoptimized />
                     ) : (
-                      <button onClick={() => { setShowLinkModal(true); }} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"><LinkIcon className="w-3 h-3" />เชื่อมกับลูกค้าในระบบ</button>
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: platformColor }}>{getInitials(selectedContact.display_name)}</div>
+                    );
+                    return (<>
+                      {profileUrl ? (
+                        <a href={profileUrl} target="_blank" rel="noopener noreferrer" className="relative group flex-shrink-0" title="ดูโปรไฟล์">
+                          {avatarEl}
+                          <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                            <ExternalLink className="w-3.5 h-3.5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        </a>
+                      ) : avatarEl}
+                      <div>
+                        <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
+                          <PlatformIcon contact={selectedContact} size={16} />
+                          {profileUrl ? (
+                            <a href={profileUrl} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1">
+                              {selectedContact.display_name}
+                              <ExternalLink className="w-3 h-3 text-gray-400" />
+                            </a>
+                          ) : selectedContact.display_name}
+                        </h3>
+                    {selectedContact.account_name && (<p className="text-xs text-gray-400 max-w-[200px] truncate">{selectedContact.account_name}</p>)}
+                    {selectedContact.referral_ad_title && (() => {
+                      const adData = selectedContact.referral_data?.ads_context_data;
+                      const postId = adData?.post_id;
+                      const adPhotoUrl = adData?.photo_url;
+                      const adUrl = postId ? `https://www.facebook.com/${postId}` : null;
+                      const sourceLabel = selectedContact.referral_source === 'ADS' ? 'Ads'
+                        : selectedContact.referral_source === 'SHORTLINK' ? 'Shortlink'
+                        : selectedContact.referral_source === 'CUSTOMER_CHAT_PLUGIN' ? 'Chat Plugin'
+                        : selectedContact.referral_source || 'Referral';
+                      return (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {adPhotoUrl && (
+                            <Image src={adPhotoUrl} alt="ad" width={28} height={28} className="w-7 h-7 rounded object-cover flex-shrink-0" unoptimized />
+                          )}
+                          {adUrl ? (
+                            <a href={adUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 dark:text-blue-400 hover:underline truncate max-w-[220px] flex items-center gap-0.5">
+                              📣 {sourceLabel}: {selectedContact.referral_ad_title}
+                              <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
+                            </a>
+                          ) : (
+                            <p className="text-xs text-blue-500 dark:text-blue-400 truncate max-w-[220px]">
+                              📣 {sourceLabel}: {selectedContact.referral_ad_title}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    {selectedContact.customer && (
+                      <p className="text-[10px] text-gray-500 dark:text-slate-400">
+                        {selectedContact.last_order_date ? (<>สั่งล่าสุด: {new Date(selectedContact.last_order_created_at || selectedContact.last_order_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} {selectedContact.last_order_created_at && new Date(selectedContact.last_order_created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</>) : (<span className="text-orange-500">ยังไม่เคยสั่ง</span>)}
+                      </p>
                     )}
                   </div>
+                    </>);
+                  })()}
                 </div>
                 <div className="flex items-center gap-1 md:gap-2">
                   {selectedContact.customer ? (
@@ -1359,48 +1412,18 @@ function UnifiedChatPageContent() {
                                 </div>
                               </div>
                             )}
-                            <div className={`rounded-2xl max-w-[75vw] md:max-w-[min(70vw,400px)] ${msg.message_type === 'sticker' ? 'bg-transparent' : msg.direction === 'outgoing'
+                            <div className={`rounded-2xl max-w-[75vw] md:max-w-[min(70vw,400px)] ${['sticker', 'image', 'video', 'flex', 'template', 'imagemap', 'story_mention'].includes(msg.message_type) ? 'bg-transparent' : msg.direction === 'outgoing'
                               ? msg._status === 'failed' ? 'bg-red-400 text-white rounded-br-sm px-3 py-1.5 md:px-4 md:py-2'
                               : msg._status === 'sending' ? 'text-white rounded-br-sm px-3 py-1.5 md:px-4 md:py-2' : 'text-white rounded-br-sm px-3 py-1.5 md:px-4 md:py-2'
                               : 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-bl-sm shadow-sm px-3 py-1.5 md:px-4 md:py-2'}`}
-                              style={msg.message_type !== 'sticker' && msg.direction === 'outgoing' && msg._status !== 'failed' ? { backgroundColor: msg._status === 'sending' ? platformColor + 'B3' : platformColor } : undefined}>
-                              {msg.message_type === 'sticker' && msg.raw_message?.stickerId ? (
-                                <img src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${msg.raw_message.stickerId}/iPhone/sticker@2x.png`} alt="sticker" className="w-24 h-24 object-contain"
-                                  onError={(e) => { const img = e.target as HTMLImageElement; const sid = msg.raw_message?.stickerId; if (img.src.includes('sticker@2x.png')) img.src = `https://stickershop.line-scdn.net/stickershop/v1/sticker/${sid}/iPhone/sticker.png`; else if (img.src.includes('sticker.png')) img.src = `https://stickershop.line-scdn.net/stickershop/v1/sticker/${sid}/android/sticker.png`; }} />
-                              ) : msg.message_type === 'image' && msg.raw_message?.imageUrl ? (
-                                <img src={msg.raw_message.imageUrl} alt="image" className="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity" onClick={() => openLightbox(msg.raw_message!.imageUrl!)} onLoad={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })} />
-                              ) : msg.message_type === 'video' && msg.raw_message?.videoUrl ? (
-                                <div className="relative max-w-full max-h-64 rounded-lg cursor-pointer overflow-hidden group" onClick={() => openLightbox(msg.raw_message!.videoUrl!)}>
-                                  {msg.raw_message.previewUrl ? (<img src={msg.raw_message.previewUrl} alt="video preview" className="max-w-full max-h-64 rounded-lg" onLoad={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })} />) : (<div className="w-48 h-32 bg-gray-800 rounded-lg flex items-center justify-center"><Play className="w-10 h-10 text-white" /></div>)}
-                                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors"><div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center shadow-lg"><Play className="w-6 h-6 text-gray-800 ml-0.5" /></div></div>
-                                </div>
-                              ) : msg.message_type === 'location' && msg.raw_message?.latitude && msg.raw_message?.longitude ? (
-                                <a href={`https://www.google.com/maps?q=${msg.raw_message.latitude},${msg.raw_message.longitude}`} target="_blank" rel="noopener noreferrer" className="block">
-                                  <div className="flex items-center gap-2"><span className="text-xl">📍</span><span className="underline">{msg.content}</span></div>
-                                  {msg.raw_message.address && (<p className="text-xs opacity-70 mt-1">{msg.raw_message.address}</p>)}
-                                </a>
-                              ) : (msg.message_type === 'fallback' || msg.message_type === 'template') && (msg.raw_message?.linkUrl || msg.raw_message?.templateUrl) ? (
-                                <a href={(msg.raw_message.linkUrl || msg.raw_message.templateUrl) as string} target="_blank" rel="noopener noreferrer" className="block">
-                                  <div className="flex items-center gap-2"><span className="text-xl">🔗</span><span className="underline break-all">{msg.content}</span></div>
-                                </a>
-                              ) : msg.message_type === 'template' && msg.raw_message?.buttons ? (
-                                <div>
-                                  <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-                                  <div className="mt-2 space-y-1">
-                                    {(msg.raw_message.buttons as Array<{ title: string; url?: string; type: string }>).map((btn, bi) => (
-                                      btn.url ? (
-                                        <a key={bi} href={btn.url} target="_blank" rel="noopener noreferrer" className={`block text-center text-sm px-3 py-1.5 rounded-lg border ${msg.direction === 'incoming' ? 'border-gray-300 text-blue-600 hover:bg-gray-50' : 'border-white/30 text-white/90 hover:bg-white/10'}`}>
-                                          {btn.title}
-                                        </a>
-                                      ) : (
-                                        <span key={bi} className={`block text-center text-sm px-3 py-1.5 rounded-lg border ${msg.direction === 'incoming' ? 'border-gray-200 text-gray-500' : 'border-white/20 text-white/70'}`}>
-                                          {btn.title}
-                                        </span>
-                                      )
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : (<p className="whitespace-pre-wrap break-words">{msg.content}</p>)}
+                              style={!['sticker', 'image', 'video', 'flex', 'template', 'imagemap', 'story_mention'].includes(msg.message_type) && msg.direction === 'outgoing' && msg._status !== 'failed' ? { backgroundColor: msg._status === 'sending' ? platformColor + 'B3' : platformColor } : undefined}>
+                              <MessageBubble
+                                msg={msg}
+                                platform={selectedContact?.platform || 'line'}
+                                direction={msg.direction}
+                                onOpenLightbox={openLightbox}
+                                onImageLoad={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                              />
                             </div>
                             {msg.direction === 'incoming' && (<span className="text-[10px] text-gray-400 self-end mb-0.5 whitespace-nowrap">{formatTime(msg.created_at)}</span>)}
                           </div>
@@ -1527,7 +1550,7 @@ function UnifiedChatPageContent() {
                 <button onClick={() => setRightPanel(null)} className="hidden md:block p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><OrderForm key={orderFormKey} {...(selectedContact.customer ? { preselectedCustomerId: selectedContact.customer.id } : {})} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} onSuccess={(orderId, customerId, deliveryInfo) => { setRightPanel(null); if (customerId && selectedContact && !selectedContact.customer_id) { linkCustomer(customerId); } else if (!customerId && selectedContact && !selectedContact.customer_id) { autoCreateAndLinkCustomer(orderId, deliveryInfo); } }} onSendBillToChat={sendBillToCustomer} onCancel={() => setRightPanel(null)} /></div>
+            <div className="flex-1 overflow-y-auto p-4"><OrderForm key={orderFormKey} {...(selectedContact.customer ? { preselectedCustomerId: selectedContact.customer.id } : {})} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} source={selectedContact.source || selectedContact.platform} sourceName={selectedContact.account_name} onSuccess={(orderId, customerId, deliveryInfo) => { setRightPanel(null); if (customerId && selectedContact && !selectedContact.customer_id) { linkCustomer(customerId); } else if (!customerId && selectedContact && !selectedContact.customer_id) { autoCreateAndLinkCustomer(orderId, deliveryInfo); } }} onSendBillToChat={sendBillToCustomer} onCancel={() => setRightPanel(null)} /></div>
           </div>
         )}
 

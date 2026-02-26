@@ -95,6 +95,10 @@ export async function GET(request: NextRequest) {
       chat_account_id?: string;
       account_name?: string;
       account_picture_url?: string;
+      referral_source?: string;
+      referral_ad_id?: string;
+      referral_ad_title?: string;
+      referral_data?: Record<string, unknown>;
     };
 
     const unified: UnifiedContact[] = [];
@@ -147,6 +151,10 @@ export async function GET(request: NextRequest) {
         chat_account_id: c.chat_account_id,
         account_name: acc?.name,
         account_picture_url: acc?.picture_url,
+        referral_source: c.referral_source,
+        referral_ad_id: c.referral_ad_id,
+        referral_ad_title: c.referral_ad_title,
+        referral_data: c.referral_data,
       });
     }
 

@@ -89,6 +89,19 @@ export async function POST(request: NextRequest) {
       }
 
       for (const event of entry.messaging) {
+        // Handle referral events (from ads, shops, etc.) — can come with or without message
+        if (event.referral && !event.message) {
+          const senderId = event.sender.id;
+          if (isInstagram && senderId === entryId) continue;
+          if (!isInstagram && senderId === pageId) continue;
+
+          const contact = await fbService.getOrCreateContact(senderId, pageId, pageAccessToken, companyId, chatAccountId, isInstagram);
+          if (contact) {
+            await fbService.saveReferralData(contact.id, event.referral);
+          }
+          continue;
+        }
+
         if (!event.message && !event.postback) continue;
         if (!event.message) continue; // postback handling can be added later
 
@@ -116,6 +129,11 @@ export async function POST(request: NextRequest) {
 
           const contact = await fbService.getOrCreateContact(senderId, pageId, pageAccessToken, companyId, chatAccountId, isInstagram);
           if (!contact) continue;
+
+          // Save referral data if present alongside the first message
+          if (event.referral) {
+            await fbService.saveReferralData(contact.id, event.referral);
+          }
 
           await fbService.saveIncomingMessage(contact, event, companyId);
         }

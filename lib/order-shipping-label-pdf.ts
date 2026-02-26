@@ -1,24 +1,23 @@
 /**
- * Shipping Label PDF — Shopee-style layout
+ * Shipping Label PDF — Compact 2-column layout
  *
- * ┌─────────────────────────────────────────────┐
- * │  ||||||||||||||||||||||||||||||||||||||||    │ ← Large barcode (tracking)
- * │            TRACKING-NUMBER                  │
- * ├─────────────────────────────────────────────┤
- * │ ผู้ส่ง (FROM)     Company Name              │
- * │ ที่อยู่ / เบอร์โทร                           │ ← Sender box (bordered)
- * ├─────────────────────────────────────────────┤
- * │ ผู้รับ (TO)       Receiver Name             │
- * │ ที่อยู่ / เบอร์โทร (larger, bold)            │ ← Receiver box (bordered)
- * ├─────────────────────────────────────────────┤
- * │ ขนส่ง: xxx          วันที่: xx/xx/xxxx      │
- * │ Order No: xxx                               │
- * ├─────────────────────────────────────────────┤
- * │ # │ ชื่อสินค้า                    │ จำนวน  │ ← Items table
- * │ 1 │ Product name...               │   1    │
- * ├─────────────────────────────────────────────┤
- * │                              จำนวนรวม   x  │
- * └─────────────────────────────────────────────┘
+ * ┌──────────────────────────────────────────────┐
+ * │ เลขพัสดุ: TRACKING-NUMBER (left-aligned)     │
+ * │ ||||||||||||||||||||||||||||||||||||||||||    │
+ * ├──────────────────────┬───────────────────────┤
+ * │ ผู้ส่ง (FROM)        │ ผู้รับ (TO)            │
+ * │ Company Name         │ Receiver Name (bold)  │
+ * │ ที่อยู่               │ ที่อยู่ (larger)        │
+ * │ เบอร์โทร             │ เบอร์โทร              │
+ * ├──────────────────────┴───────────────────────┤
+ * │ Order No: xxx   ขนส่ง: xxx   วันที่: xxx     │
+ * │ Source: LINE : xxx                           │
+ * ├──────────────────────────────────────────────┤
+ * │ # │ ชื่อสินค้า                    │ จำนวน    │
+ * │ 1 │ Product name...               │   1      │
+ * ├──────────────────────────────────────────────┤
+ * │                              จำนวนรวม   x   │
+ * └──────────────────────────────────────────────┘
  */
 
 import JsBarcode from 'jsbarcode';
@@ -53,6 +52,8 @@ export interface ShippingLabelData {
   items: LabelItem[];
   parcel_number?: number;
   total_parcels?: number;
+  source?: string;
+  source_name?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -70,6 +71,17 @@ const SHIPPING_CARRIERS: Record<string, string> = {
   lalamove: 'Lalamove',
   self: 'จัดส่งเอง',
   other: 'อื่นๆ',
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  line: 'LINE',
+  facebook: 'FB Page',
+  instagram: 'Instagram',
+  shopee: 'Shopee',
+  lazada: 'Lazada',
+  tiktok: 'TikTok',
+  pos: 'POS',
+  manual: 'Manual',
 };
 
 /** Generate CODE128 barcode as data URL */
@@ -122,45 +134,51 @@ export async function generateShippingLabelPdf({ data, company }: GenerateOption
   const dateStr = formatPdfDate(data.order_date || data.created_at);
   const carrierLabel = data.shipping_carrier ? (SHIPPING_CARRIERS[data.shipping_carrier] || data.shipping_carrier) : '';
 
+  // Source label — only show when there's a channel name or non-manual source
+  const sourceLabel = data.source && data.source !== 'manual' ? (SOURCE_LABELS[data.source] || data.source) : '';
+  const sourceDisplay = data.source_name
+    ? (sourceLabel ? `${sourceLabel} : ${data.source_name}` : data.source_name)
+    : sourceLabel;
+
   // A6 in points: 105mm × 148mm → 297.64 × 419.53
   const pageWidth = 297.64;
   const pageHeight = 419.53;
   const margin = 12;
   const innerWidth = pageWidth - margin * 2;
+  const halfWidth = (innerWidth - 6) / 2; // 6pt gap between columns
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const content: any[] = [];
 
   // ══════════════════════════════════════════════════
-  // Section 1 — Large Barcode (tracking number)
+  // Section 1 — Tracking number (left-aligned) + barcode
   // ══════════════════════════════════════════════════
 
   if (data.tracking_number) {
-    const barcodeDataUrl = generateBarcodeDataUrl(data.tracking_number, { width: 2, height: 55 });
+    content.push({
+      text: `เลขพัสดุ: ${data.tracking_number}`,
+      fontSize: 9,
+      bold: true,
+      alignment: 'left' as const,
+      color: '#000000',
+      margin: [0, 2, 0, 2],
+    });
+    const barcodeDataUrl = generateBarcodeDataUrl(data.tracking_number, { width: 2, height: 45 });
     if (barcodeDataUrl) {
       content.push({
         image: barcodeDataUrl,
-        width: innerWidth,
+        width: innerWidth * 0.85,
         alignment: 'center' as const,
-        margin: [0, 0, 0, 2],
+        margin: [0, 0, 0, 4],
       });
     }
-    content.push({
-      text: data.tracking_number,
-      fontSize: 10,
-      bold: true,
-      alignment: 'center' as const,
-      color: '#000000',
-      margin: [0, 0, 0, 6],
-    });
   } else {
-    // Blank tracking field
     content.push({
       text: 'เลขพัสดุ: ___________________________',
-      fontSize: 10,
+      fontSize: 9,
       color: '#999999',
-      alignment: 'center' as const,
-      margin: [0, 8, 0, 8],
+      alignment: 'left' as const,
+      margin: [0, 6, 0, 6],
     });
   }
 
@@ -171,90 +189,56 @@ export async function generateShippingLabelPdf({ data, company }: GenerateOption
   });
 
   // ══════════════════════════════════════════════════
-  // Section 2 — Sender (FROM) box
+  // Section 2 — Sender (FROM) + Receiver (TO) side by side
   // ══════════════════════════════════════════════════
 
+  // Build sender column content
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const senderBody: any[][] = [];
-
-  // Row 1: label + name
-  senderBody.push([
-    { text: 'ผู้ส่ง (FROM)', fontSize: 7, bold: true, color: '#666666' },
-    { text: senderName, fontSize: 9, bold: true, color: '#000000' },
-  ]);
-
-  // Row 2: address
-  const senderDetails = [senderAddress, senderPhone ? `โทร ${senderPhone}` : ''].filter(Boolean).join(', ');
-  if (senderDetails) {
-    senderBody.push([
-      { text: '', fontSize: 7 },
-      { text: senderDetails, fontSize: 7, color: '#444444' },
-    ]);
+  const senderCol: any[] = [
+    { text: 'ผู้ส่ง (FROM)', fontSize: 6, bold: true, color: '#888888', margin: [0, 0, 0, 1] },
+    { text: senderName, fontSize: 8, bold: true, color: '#000000', lineHeight: 1.0 },
+  ];
+  if (senderAddress) {
+    senderCol.push({ text: senderAddress, fontSize: 6.5, color: '#444444', lineHeight: 1.0, margin: [0, 1, 0, 0] });
+  }
+  if (senderPhone) {
+    senderCol.push({ text: `โทร ${senderPhone}`, fontSize: 6.5, color: '#444444', lineHeight: 1.0 });
   }
 
-  content.push({
-    table: {
-      widths: [55, '*'],
-      body: senderBody,
-    },
-    layout: {
-      hLineWidth: (i: number) => i === 0 ? 0 : 0,
-      vLineWidth: () => 0,
-      paddingTop: () => 4,
-      paddingBottom: () => 3,
-      paddingLeft: () => 4,
-      paddingRight: () => 4,
-    },
-    margin: [0, 0, 0, 0],
-  });
-
-  // Divider
-  content.push({
-    canvas: [{ type: 'line', x1: 0, y1: 0, x2: innerWidth, y2: 0, lineWidth: 0.5, lineColor: '#999999' }],
-    margin: [0, 0, 0, 0],
-  });
-
-  // ══════════════════════════════════════════════════
-  // Section 3 — Receiver (TO) box — LARGER
-  // ══════════════════════════════════════════════════
-
+  // Build receiver column content
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const receiverBody: any[][] = [];
-
-  // Row 1: label + name (BOLD, LARGE)
-  receiverBody.push([
-    { text: 'ผู้รับ (TO)', fontSize: 8, bold: true, color: '#000000' },
-    { text: receiverName, fontSize: 12, bold: true, color: '#000000' },
-  ]);
-
-  // Row 2: address
+  const receiverCol: any[] = [
+    {
+      columns: [
+        { text: 'ผู้รับ (TO)', fontSize: 6, bold: true, color: '#888888', width: 'auto' },
+        receiverPhone
+          ? { text: `Tel. ${receiverPhone}`, fontSize: 6.5, bold: true, color: '#555555', alignment: 'right' as const, width: '*' }
+          : { text: '', width: '*' },
+      ],
+      margin: [0, 0, 0, 1],
+    },
+    { text: receiverName, fontSize: 10, bold: true, color: '#000000', lineHeight: 1.0 },
+  ];
   if (receiverAddress) {
-    receiverBody.push([
-      { text: '', fontSize: 7 },
-      { text: receiverAddress, fontSize: 9, color: '#333333' },
-    ]);
-  }
-
-  // Row 3: phone
-  if (receiverPhone) {
-    receiverBody.push([
-      { text: '', fontSize: 7 },
-      { text: `โทร ${receiverPhone}`, fontSize: 9, color: '#333333' },
-    ]);
+    receiverCol.push({ text: receiverAddress, fontSize: 7.5, color: '#333333', lineHeight: 0.85, margin: [0, 1, 0, 0] });
   }
 
   content.push({
     table: {
-      widths: [55, '*'],
-      body: receiverBody,
+      widths: [halfWidth, '*'],
+      body: [[
+        { stack: senderCol },
+        { stack: receiverCol },
+      ]],
     },
     layout: {
       hLineWidth: () => 0,
-      vLineWidth: () => 0,
+      vLineWidth: (i: number) => i === 1 ? 0.5 : 0,
+      vLineColor: () => '#cccccc',
       paddingTop: () => 4,
-      paddingBottom: () => 3,
-      paddingLeft: () => 4,
-      paddingRight: () => 4,
+      paddingBottom: () => 4,
+      paddingLeft: (i: number) => i === 0 ? 0 : 5,
+      paddingRight: (i: number) => i === 0 ? 3 : 0,
     },
     margin: [0, 0, 0, 0],
   });
@@ -266,47 +250,77 @@ export async function generateShippingLabelPdf({ data, company }: GenerateOption
   });
 
   // ══════════════════════════════════════════════════
-  // Section 4 — Order info row
+  // Section 3 — Order info row
   // ══════════════════════════════════════════════════
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const infoBody: any[][] = [];
 
+  // Label style: small font, vertically centered with value via margin
+  const lbl = (t: string) => ({ text: t, fontSize: 6, bold: true, color: '#666666', margin: [0, 1, 0, 0] });
+
+  // Row 1: Order No + carrier or date
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row1: any[] = [
+    lbl('Order No.'),
+    { text: data.order_number, fontSize: 7, bold: true, color: '#000000' },
+  ];
   if (carrierLabel) {
+    row1.push(lbl('ขนส่ง'));
+    row1.push({ text: carrierLabel, fontSize: 7, color: '#000000' });
+  } else {
+    row1.push(lbl('วันที่'));
+    row1.push({ text: dateStr, fontSize: 7, color: '#000000' });
+  }
+  infoBody.push(row1);
+
+  // Row 2: date (if carrier shown) or parcel or source
+  if (carrierLabel) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const row2: any[] = [
+      lbl('วันที่'),
+      { text: dateStr, fontSize: 7, color: '#000000' },
+    ];
+    if (data.parcel_number) {
+      row2.push(lbl('พัสดุ'));
+      row2.push({ text: `${data.parcel_number} / ${data.total_parcels || '?'}`, fontSize: 7, bold: true, color: '#7c3aed' });
+    } else {
+      row2.push({ text: '', fontSize: 6 });
+      row2.push({ text: '', fontSize: 6 });
+    }
+    infoBody.push(row2);
+  } else if (data.parcel_number) {
     infoBody.push([
-      { text: 'ขนส่ง', fontSize: 7, bold: true, color: '#666666' },
-      { text: carrierLabel, fontSize: 8, color: '#000000' },
-      { text: 'วันที่', fontSize: 7, bold: true, color: '#666666' },
-      { text: dateStr, fontSize: 8, color: '#000000' },
+      lbl('พัสดุ'),
+      { text: `${data.parcel_number} / ${data.total_parcels || '?'}`, fontSize: 7, bold: true, color: '#7c3aed' },
+      { text: '', fontSize: 6 },
+      { text: '', fontSize: 6 },
     ]);
   }
 
-  infoBody.push([
-    { text: 'Order No.', fontSize: 7, bold: true, color: '#666666' },
-    { text: data.order_number, fontSize: 8, bold: true, color: '#000000', colSpan: data.parcel_number ? 1 : 3 },
-    ...(data.parcel_number
-      ? [
-          { text: 'พัสดุ', fontSize: 7, bold: true, color: '#666666' },
-          { text: `${data.parcel_number} / ${data.total_parcels || '?'}`, fontSize: 8, bold: true, color: '#7c3aed' },
-        ]
-      : [{}, {}]
-    ),
-  ]);
+  // Source row
+  if (sourceDisplay) {
+    infoBody.push([
+      lbl('ช่องทาง'),
+      { text: sourceDisplay, fontSize: 7, color: '#555555', colSpan: 3 },
+      {}, {},
+    ]);
+  }
 
   content.push({
     table: {
-      widths: [40, '*', 25, '*'],
+      widths: [35, '*', 25, '*'],
       body: infoBody,
     },
     layout: {
       hLineWidth: () => 0,
       vLineWidth: () => 0,
-      paddingTop: () => 3,
-      paddingBottom: () => 2,
+      paddingTop: () => 2,
+      paddingBottom: () => 1,
       paddingLeft: () => 4,
       paddingRight: () => 4,
     },
-    margin: [0, 0, 0, 0],
+    margin: [0, 4, 0, 0],
   });
 
   // Divider (dashed)
@@ -316,7 +330,7 @@ export async function generateShippingLabelPdf({ data, company }: GenerateOption
   });
 
   // ══════════════════════════════════════════════════
-  // Section 5 — Items table
+  // Section 4 — Items table
   // ══════════════════════════════════════════════════
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -346,11 +360,12 @@ export async function generateShippingLabelPdf({ data, company }: GenerateOption
     layout: {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       hLineWidth: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? 0.5 : 0,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vLineWidth: (i: number, _node: any) => (i === 0 || i === _node.table.widths.length) ? 0.5 : 0,
       hLineColor: () => '#cccccc',
       vLineColor: () => '#cccccc',
-      paddingTop: () => 3,
-      paddingBottom: () => 3,
+      paddingTop: () => 2,
+      paddingBottom: () => 2,
       paddingLeft: () => 4,
       paddingRight: () => 4,
     },
@@ -358,7 +373,7 @@ export async function generateShippingLabelPdf({ data, company }: GenerateOption
   });
 
   // ══════════════════════════════════════════════════
-  // Section 6 — Total
+  // Section 5 — Total
   // ══════════════════════════════════════════════════
 
   content.push({

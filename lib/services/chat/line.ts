@@ -295,10 +295,20 @@ export class LineChatService {
       if (contentProvider?.previewImageUrl) metadata.previewUrl = contentProvider.previewImageUrl;
     } else if (msgType === 'audio') {
       messageContent = '[เสียง]';
+      const contentProvider = message.contentProvider as { type: string; originalContentUrl?: string } | undefined;
+      if (contentProvider?.type === 'line') {
+        const audioUrl = await this.fetchAndStoreMedia(message.id as string, 'audio', accessToken);
+        if (audioUrl) metadata.audioUrl = audioUrl;
+      } else if (contentProvider?.originalContentUrl) {
+        metadata.audioUrl = contentProvider.originalContentUrl;
+      }
+      if (message.duration) metadata.duration = message.duration;
     } else if (msgType === 'file') {
       messageContent = `[ไฟล์: ${message.fileName || 'unknown'}]`;
       metadata.fileName = message.fileName;
       metadata.fileSize = message.fileSize;
+      const fileUrl = await this.fetchAndStoreMedia(message.id as string, 'file', accessToken);
+      if (fileUrl) metadata.fileUrl = fileUrl;
     } else if (msgType === 'sticker') {
       messageContent = '[สติกเกอร์]';
       metadata.stickerId = message.stickerId;
@@ -309,6 +319,17 @@ export class LineChatService {
       metadata.latitude = message.latitude;
       metadata.longitude = message.longitude;
       metadata.address = message.address;
+    } else if (msgType === 'flex') {
+      messageContent = (message.altText as string) || '[Flex Message]';
+      metadata.flexContents = message.contents;
+    } else if (msgType === 'template') {
+      messageContent = (message.altText as string) || '[Template]';
+      metadata.template = message.template;
+      metadata.template_type = (message.template as Record<string, unknown>)?.type;
+    } else if (msgType === 'imagemap') {
+      messageContent = (message.altText as string) || '[Imagemap]';
+      metadata.baseUrl = message.baseUrl;
+      metadata.baseSize = message.baseSize;
     } else {
       messageContent = `[${msgType}]`;
     }

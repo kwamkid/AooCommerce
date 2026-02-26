@@ -15,7 +15,7 @@ export interface FbMessagingEvent {
     is_echo?: boolean;
     app_id?: number;
     attachments?: Array<{
-      type: string; // 'image' | 'video' | 'audio' | 'file' | 'fallback' | 'template'
+      type: string; // 'image' | 'video' | 'audio' | 'file' | 'fallback' | 'template' | 'story_mention' | 'story_reply'
       title?: string;
       url?: string;
       payload?: {
@@ -30,15 +30,47 @@ export interface FbMessagingEvent {
           title?: string;
           subtitle?: string;
           image_url?: string;
+          quantity?: number;
+          price?: number;
+          currency?: string;
           buttons?: Array<{ type: string; title: string; url?: string; payload?: string }>;
         }>;
+        // Receipt template
+        recipient_name?: string;
+        order_number?: string;
+        currency?: string;
+        payment_method?: string;
+        order_url?: string;
+        timestamp?: string;
+        summary?: { subtotal?: number; shipping_cost?: number; total_tax?: number; total_cost?: number };
+        address?: { street_1?: string; street_2?: string; city?: string; postal_code?: string; state?: string; country?: string };
+        adjustments?: Array<{ name?: string; amount?: number }>;
+        // Coupon template
+        coupon_url?: string;
+        coupon_code?: string;
       };
     }>;
     sticker_id?: number;
+    // Instagram story reply context
+    reply_to?: { story?: { url?: string; id?: string } };
   };
   postback?: {
     title: string;
     payload: string;
+  };
+  // Facebook/Instagram referral (from ads, shops, etc.)
+  referral?: {
+    source?: string;      // 'MESSENGER' | 'ADS' | 'SHORTLINK' | 'CUSTOMER_CHAT_PLUGIN'
+    type?: string;        // 'OPEN_THREAD'
+    ref?: string;         // custom ref param
+    ad_id?: string;
+    ads_context_data?: {
+      ad_title?: string;
+      photo_url?: string;
+      video_url?: string;
+      post_id?: string;
+      product_id?: string;
+    };
   };
 }
 
@@ -437,6 +469,30 @@ export class FacebookChatService {
       .eq('id', contact.id);
   }
 
+  // ─── Webhook: Save Referral Data (from ads, shops, etc.) ───────────
+
+  async saveReferralData(contactId: string, referral: NonNullable<FbMessagingEvent['referral']>) {
+    const updateData: Record<string, unknown> = {
+      referral_source: referral.source || 'unknown',
+      referral_data: referral,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (referral.ad_id) {
+      updateData.referral_ad_id = referral.ad_id;
+    }
+    if (referral.ads_context_data?.ad_title) {
+      updateData.referral_ad_title = referral.ads_context_data.ad_title;
+    }
+
+    const { error } = await supabaseAdmin
+      .from('fb_contacts')
+      .update(updateData)
+      .eq('id', contactId);
+
+    if (error) console.error('Failed to save referral data:', error);
+  }
+
   // ─── Profile Fetching ───────────────────────────────────────────────
 
   async fetchProfile(psid: string, accessToken: string): Promise<PlatformProfile | null> {
@@ -521,6 +577,11 @@ export class FacebookChatService {
     if (message.text) {
       messageContent = message.text;
       messageType = 'text';
+      // Instagram: text reply to our Story — include story context
+      if (message.reply_to?.story) {
+        messageType = 'story_reply';
+        if (message.reply_to.story.url) metadata.storyUrl = message.reply_to.story.url;
+      }
     } else if (message.attachments && message.attachments.length > 0) {
       const attachment = message.attachments[0];
       messageType = attachment.type;
@@ -543,12 +604,16 @@ export class FacebookChatService {
         messageContent = '[ไฟล์]';
         if (attachment.payload?.url) metadata.fileUrl = attachment.payload.url;
       } else if (attachment.type === 'template') {
-        // Rich messages: receipts, buttons, generic templates
+        // Rich messages: receipts, buttons, generic, coupon templates
         messageType = 'template';
         const payload = attachment.payload;
         // Extract meaningful text from template
         if (payload?.text) {
           messageContent = payload.text;
+        } else if (payload?.template_type === 'receipt') {
+          messageContent = payload.recipient_name
+            ? `ใบเสร็จสำหรับ ${payload.recipient_name}`
+            : '[ใบเสร็จ]';
         } else if (payload?.elements && payload.elements.length > 0) {
           // Generic template — use first element's title + subtitle
           const el = payload.elements[0];
@@ -564,6 +629,33 @@ export class FacebookChatService {
         if (payload?.url) metadata.templateUrl = payload.url;
         if (attachment.url) metadata.templateUrl = attachment.url;
         metadata.template_type = payload?.template_type;
+        // Receipt template fields
+        if (payload?.template_type === 'receipt') {
+          if (payload.recipient_name) metadata.recipient_name = payload.recipient_name;
+          if (payload.order_number) metadata.order_number = payload.order_number;
+          if (payload.currency) metadata.currency = payload.currency;
+          if (payload.payment_method) metadata.payment_method = payload.payment_method;
+          if (payload.order_url) metadata.order_url = payload.order_url;
+          if (payload.timestamp) metadata.timestamp = payload.timestamp;
+          if (payload.summary) metadata.summary = payload.summary;
+          if (payload.address) metadata.receipt_address = payload.address;
+          if (payload.adjustments) metadata.adjustments = payload.adjustments;
+        }
+        // Coupon template fields
+        if (payload?.template_type === 'coupon') {
+          if (payload.coupon_url) metadata.coupon_url = payload.coupon_url;
+          if (payload.coupon_code) metadata.coupon_code = payload.coupon_code;
+        }
+      } else if (attachment.type === 'story_mention') {
+        // Instagram: someone mentioned our account in their Story
+        messageType = 'story_mention';
+        messageContent = '[กล่าวถึงในสตอรี่]';
+        if (attachment.payload?.url) metadata.storyUrl = attachment.payload.url;
+      } else if (attachment.type === 'story_reply') {
+        // Instagram: someone replied to our Story
+        messageType = 'story_reply';
+        messageContent = message.text || '[ตอบกลับสตอรี่]';
+        if (attachment.payload?.url) metadata.storyUrl = attachment.payload.url;
       } else if (attachment.type === 'fallback') {
         // URL shares, link previews, rich content from Facebook
         messageContent = attachment.title || attachment.url || '[ลิงก์]';
