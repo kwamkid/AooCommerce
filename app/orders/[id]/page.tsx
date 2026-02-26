@@ -665,7 +665,7 @@ export default function OrderDetailPage() {
     <Layout>
       <div className="space-y-6 print:space-y-3 print:bg-white print:text-black">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/orders')}
@@ -710,6 +710,28 @@ export default function OrderDetailPage() {
             </div>
           </div>
           <div className="flex gap-2 print:hidden">
+            {/* Manual: Record payment button (new + pending) */}
+            {orderSource === 'manual' && orderStatus === 'new' && paymentStatus === 'pending' && (
+              <button
+                onClick={handlePaymentStatusClick}
+                disabled={updating}
+                className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
+              >
+                <Banknote className="w-4 h-4" />
+                บันทึกชำระเงิน
+              </button>
+            )}
+            {/* Manual: Accept Order button (ready_to_ship → processing) */}
+            {orderSource === 'manual' && orderStatus === 'ready_to_ship' && (
+              <button
+                onClick={handleOrderStatusClick}
+                disabled={updating}
+                className="bg-orange-500 text-white px-3 py-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
+              >
+                {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackageCheck className="w-4 h-4" />}
+                รับออเดอร์
+              </button>
+            )}
             {/* Bill online - only for manual orders */}
             {orderSource === 'manual' && (
               <button
@@ -723,6 +745,17 @@ export default function OrderDetailPage() {
               >
                 <Link2 className="w-4 h-4" />
                 บิลออนไลน์
+              </button>
+            )}
+            {/* Manual: Cancel order icon button */}
+            {orderSource === 'manual' && orderStatus !== 'completed' && orderStatus !== 'cancelled' && (
+              <button
+                onClick={handleCancelClick}
+                disabled={updating}
+                className="text-red-500 dark:text-red-400 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                title="ยกเลิกคำสั่งซื้อ"
+              >
+                <XCircle className="w-4 h-4" />
               </button>
             )}
             {/* Shopee: Accept Order button */}
@@ -862,8 +895,8 @@ export default function OrderDetailPage() {
             {/* Divider between badges and actions/payment info */}
             <div className="border-t border-gray-200 dark:border-slate-600" />
 
-            {/* Order status actions */}
-            {getNextOrderStatus(orderStatus) && (
+            {/* Order status actions — advance button (skip new & ready_to_ship, handled by header) */}
+            {getNextOrderStatus(orderStatus) && orderStatus !== 'ready_to_ship' && orderStatus !== 'new' && (
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={handleOrderStatusClick}
@@ -873,33 +906,11 @@ export default function OrderDetailPage() {
                   <Truck className="w-4 h-4" />
                   เปลี่ยนเป็น &quot;{getOrderStatusLabel(getNextOrderStatus(orderStatus)!)}&quot;
                 </button>
-                {orderStatus !== 'completed' && (
-                  <button
-                    onClick={handleCancelClick}
-                    disabled={updating}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    ยกเลิกคำสั่งซื้อ
-                  </button>
-                )}
-              </div>
-            )}
-            {!getNextOrderStatus(orderStatus) && orderStatus !== 'completed' && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleCancelClick}
-                  disabled={updating}
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                >
-                  <XCircle className="w-4 h-4" />
-                  ยกเลิกคำสั่งซื้อ
-                </button>
               </div>
             )}
 
-            {/* Payment actions */}
-            {paymentStatus === 'pending' && (
+            {/* Payment actions (skip for 'new' — header handles it) */}
+            {paymentStatus === 'pending' && orderStatus !== 'new' && (
               <div className="flex items-center gap-2">
                 <button
                   onClick={handlePaymentStatusClick}
@@ -1458,10 +1469,18 @@ export default function OrderDetailPage() {
           orderNumber={orderNumber}
           totalAmount={fullOrderData?.total_amount || 0}
           onClose={() => setPaymentModalShow(false)}
-          onSuccess={() => {
+          onSuccess={async () => {
             setPaymentModalShow(false);
             setPaymentStatus('paid');
             fetchPaymentRecord();
+            // Refetch order to get updated order_status (auto-advance new → ready_to_ship)
+            const freshRes = await apiFetch(`/api/orders?id=${orderId}&_t=${Date.now()}`);
+            if (freshRes.ok) {
+              const freshResult = await freshRes.json();
+              const freshOrder = freshResult.order;
+              setOrderStatus(freshOrder.order_status);
+              setFullOrderData(freshOrder);
+            }
           }}
         />
         {/* Slip Preview Modal */}

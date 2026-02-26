@@ -49,6 +49,7 @@ interface TransferItem {
 interface InventoryRecord {
   variation_id: string;
   quantity: number;
+  available: number;
 }
 
 export default function StockTransferPage() {
@@ -201,6 +202,7 @@ export default function StockTransferPage() {
         const records: InventoryRecord[] = (data.items || []).map((inv: any) => ({
           variation_id: inv.variation_id,
           quantity: inv.quantity ?? 0,
+          available: inv.available ?? (inv.quantity ?? 0) - (inv.reserved_quantity ?? 0),
         }));
         setSourceInventory(records);
       } else {
@@ -222,6 +224,7 @@ export default function StockTransferPage() {
         const records: InventoryRecord[] = (data.items || []).map((inv: any) => ({
           variation_id: inv.variation_id,
           quantity: inv.quantity ?? 0,
+          available: inv.available ?? (inv.quantity ?? 0) - (inv.reserved_quantity ?? 0),
         }));
         setDestInventory(records);
       } else {
@@ -237,7 +240,7 @@ export default function StockTransferPage() {
   const getStockForVariation = (variationId: string): number | null => {
     if (!sourceWarehouseId) return null;
     const record = sourceInventory.find(inv => inv.variation_id === variationId);
-    return record ? record.quantity : 0;
+    return record ? record.available : 0;
   };
 
   const getDestStockForVariation = (variationId: string): number | null => {

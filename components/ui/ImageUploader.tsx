@@ -377,8 +377,8 @@ export default function ImageUploader({
       } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
     >
       {images.length > 0 && (
-        <div className={compact ? 'p-1' : 'flex flex-wrap gap-3 p-3'}>
-          {images.map((image, index) => (
+        <div className={compact ? 'p-1' : 'flex flex-wrap gap-3 p-3 overflow-hidden'}>
+          {(compact && maxImages === 1 ? images.slice(0, 1) : images).map((image, index) => (
             <div
               key={image.id || `staged-${index}`}
               draggable={!disabled}

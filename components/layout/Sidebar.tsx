@@ -267,6 +267,10 @@ export default function Sidebar() {
 
     fetchOrderReadyCount();
 
+    // Listen for custom event from order pages (e.g. after accepting orders)
+    const handler = () => fetchOrderReadyCount();
+    window.addEventListener('orders-count-changed', handler);
+
     const channel = supabase
       .channel('sidebar-order-ready')
       .on('postgres_changes', {
@@ -284,6 +288,7 @@ export default function Sidebar() {
       .subscribe();
 
     return () => {
+      window.removeEventListener('orders-count-changed', handler);
       supabase.removeChannel(channel);
     };
   }, [userId, companyId, fetchOrderReadyCount]);

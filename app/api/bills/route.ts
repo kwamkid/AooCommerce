@@ -379,7 +379,7 @@ export async function POST(request: NextRequest) {
     // Validate order exists and payment_status is pending
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, total_amount, payment_status, order_status')
+      .select('id, total_amount, payment_status, order_status, company_id')
       .eq('id', orderId)
       .single();
 
@@ -433,11 +433,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Create payment record with status 'pending' (customer-initiated)
+    // Map bank_transfer/promptpay → transfer (DB constraint: cash, transfer, credit, cheque)
+    const dbPaymentMethod = (paymentMethod === 'bank_transfer' || paymentMethod === 'promptpay') ? 'transfer' : paymentMethod;
     const { error: insertError } = await supabaseAdmin
       .from('payment_records')
       .insert({
         order_id: orderId,
-        payment_method: paymentMethod,
+        company_id: order.company_id,
+        payment_method: dbPaymentMethod,
         amount: order.total_amount,
         transfer_date: (paymentMethod === 'transfer' || paymentMethod === 'bank_transfer') ? transferDate : null,
         transfer_time: (paymentMethod === 'transfer' || paymentMethod === 'bank_transfer') ? transferTime : null,
@@ -451,13 +454,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่สามารถบันทึกข้อมูลได้' }, { status: 500 });
     }
 
-    // Update order payment_status to 'verifying'
+    // Update order payment_status to 'verifying' + auto-advance to ready_to_ship
+    const updateData: Record<string, any> = {
+      payment_status: 'verifying',
+      updated_at: new Date().toISOString(),
+    };
+    if (order.order_status === 'new') {
+      updateData.order_status = 'ready_to_ship';
+    }
     const { error: updateError } = await supabaseAdmin
       .from('orders')
-      .update({
-        payment_status: 'verifying',
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', orderId);
 
     if (updateError) {

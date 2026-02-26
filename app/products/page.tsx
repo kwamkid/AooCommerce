@@ -625,7 +625,7 @@ export default function ProductsPage() {
                         {isCol('actions') && (
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                             <button
-                              onClick={() => router.push(`/products/${product.product_id}/edit`)}
+                              onClick={() => window.open(`/products/${product.product_id}/edit`, '_blank')}
                               className="text-[#F4511E] hover:text-[#D63B0E] inline-flex items-center"
                               title="แก้ไข"
                             >

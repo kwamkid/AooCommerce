@@ -129,39 +129,15 @@ async function mergeVariation(
     .update({ variation_id: targetVarId, product_id: targetProductId })
     .eq('variation_id', sourceVarId);
 
-  // 2. inventory: merge quantities per warehouse
+  // 2. inventory: keep master (target) stock, delete source stock
   const { data: sourceInventory } = await supabaseAdmin
     .from('inventory')
-    .select('id, warehouse_id, quantity, reserved_quantity')
+    .select('id, warehouse_id')
     .eq('variation_id', sourceVarId);
 
   for (const srcInv of sourceInventory || []) {
-    const { data: targetInv } = await supabaseAdmin
-      .from('inventory')
-      .select('id, quantity, reserved_quantity')
-      .eq('variation_id', targetVarId)
-      .eq('warehouse_id', srcInv.warehouse_id)
-      .single();
-
-    if (targetInv) {
-      // Target has inventory in same warehouse — sum quantities
-      await supabaseAdmin
-        .from('inventory')
-        .update({
-          quantity: Number(targetInv.quantity) + Number(srcInv.quantity),
-          reserved_quantity: Number(targetInv.reserved_quantity) + Number(srcInv.reserved_quantity),
-          updated_at: now,
-        })
-        .eq('id', targetInv.id);
-      // Delete source inventory record
-      await supabaseAdmin.from('inventory').delete().eq('id', srcInv.id);
-    } else {
-      // Target doesn't have inventory in this warehouse — reassign
-      await supabaseAdmin
-        .from('inventory')
-        .update({ variation_id: targetVarId, updated_at: now })
-        .eq('id', srcInv.id);
-    }
+    // Always delete source inventory — master's stock is the correct one
+    await supabaseAdmin.from('inventory').delete().eq('id', srcInv.id);
   }
 
   // 3. inventory_transactions: reassign

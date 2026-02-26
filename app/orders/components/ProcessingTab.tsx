@@ -23,6 +23,7 @@ import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { generateAbbreviatedInvoicePdf } from '@/lib/order-invoice-abbreviated-pdf';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
+import { markOrdersPrinted, updateLocalPrintStatus } from '@/lib/print-tracking';
 import { useCompany } from '@/lib/company-context';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import OrderCard from './OrderCard';
@@ -78,6 +79,7 @@ export default function ProcessingTab({
   // Sub-tab state
   const [activeCarrierGroup, setActiveCarrierGroup] = useState<string>('');
   const isOnHoldTab = activeCarrierGroup === ON_HOLD_KEY;
+  const [printFilter, setPrintFilter] = useState<string>('');
 
   // Self-fetched orders for active carrier tab
   const [orders, setOrders] = useState<Order[]>([]);
@@ -168,6 +170,7 @@ export default function ProcessingTab({
       if (search) params.set('search', search);
       if (channel && channel !== 'all') params.set('channel', channel);
       if (createdBy && createdBy !== 'all') params.set('created_by', createdBy);
+      if (printFilter) params.set('print_filter', printFilter);
 
       const response = await apiFetch(`/api/orders?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch orders');
@@ -182,22 +185,23 @@ export default function ProcessingTab({
     } finally {
       setLoading(false);
     }
-  }, [activeCarrierGroup, currentPage, recordsPerPage, search, channel, createdBy]);
+  }, [activeCarrierGroup, currentPage, recordsPerPage, search, channel, createdBy, printFilter]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Reset page when switching carrier tab or search changes
+  // Reset page when switching carrier tab or search/filter changes
   useEffect(() => {
     setCurrentPage(1);
     setSelectedIds(new Set());
-  }, [activeCarrierGroup, search, channel, createdBy]);
+  }, [activeCarrierGroup, search, channel, createdBy, printFilter]);
 
   // Refresh handler — refresh parent + re-fetch our tab
   const handleRefresh = useCallback(() => {
     onRefresh(); // refresh parent (updates carrierCounts)
     fetchOrders(); // refresh our tab
+    window.dispatchEvent(new Event('orders-count-changed'));
   }, [onRefresh, fetchOrders]);
 
   // Selection
@@ -486,6 +490,8 @@ export default function ProcessingTab({
       if (shopeeIds.length > 0) {
         setOverlayMessage(`Shopee ${shopeeIds.length} รายการ`);
         await handlePrintShopeeLabels(shopeeIds);
+        markOrdersPrinted(shopeeIds, 'label');
+        updateLocalPrintStatus(setOrders, shopeeIds, 'label');
       }
 
       if (otherIds.length > 0) {
@@ -520,6 +526,8 @@ export default function ProcessingTab({
         }
         const merged = await mergePdfBlobs(blobs);
         showPdfPreview(merged, 'ใบปะหน้า');
+        markOrdersPrinted(otherIds, 'label');
+        updateLocalPrintStatus(setOrders, otherIds, 'label');
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
@@ -574,6 +582,8 @@ export default function ProcessingTab({
       const blob = await generatePackingPdf(ordersData);
       setOverlayProgress(100);
       showPdfPreview(blob, isMulti ? 'ใบหยิบของ + ใบจัดของ' : 'ใบจัดของ');
+      markOrdersPrinted(orderIds, 'packing');
+      updateLocalPrintStatus(setOrders, orderIds, 'packing');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -593,6 +603,8 @@ export default function ProcessingTab({
       const orderData = await fetchOrderForPdf(orderId);
       const blob = await generateOrderInvoicePdf({ data: orderData });
       showPdfPreview(blob, label);
+      markOrdersPrinted([orderId], 'invoice');
+      updateLocalPrintStatus(setOrders, [orderId], 'invoice');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -643,6 +655,8 @@ export default function ProcessingTab({
       const mergedBlob = allBlobs.length === 1 ? allBlobs[0] : await mergePdfBlobs(allBlobs);
       setOverlayProgress(100);
       showPdfPreview(mergedBlob, 'ใบกำกับ/ใบเสร็จ');
+      markOrdersPrinted(orderIds, 'invoice');
+      updateLocalPrintStatus(setOrders, orderIds, 'invoice');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -758,27 +772,48 @@ export default function ProcessingTab({
 
   return (
     <>
-      {/* Sub-tabs for carrier groups */}
+      {/* Sub-tabs for carrier groups + print filter */}
       {carrierTabs.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto mb-4">
-          {carrierTabs.map((tab) => {
-            const isActive = activeCarrierGroup === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveCarrierGroup(tab.key)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive
-                    ? tab.key === ON_HOLD_KEY
-                      ? 'bg-gray-200 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'
-                      : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-                    : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
-                }`}
-              >
-                {tab.label} ({tab.count})
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex gap-1.5 overflow-x-auto flex-1">
+            {carrierTabs.map((tab) => {
+              const isActive = activeCarrierGroup === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveCarrierGroup(tab.key)}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    isActive
+                      ? tab.key === ON_HOLD_KEY
+                        ? 'bg-gray-200 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'
+                        : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                      : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {tab.label} ({tab.count})
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex-shrink-0">
+            <select
+              value={printFilter}
+              onChange={(e) => setPrintFilter(e.target.value)}
+              className={`text-sm px-3 py-2 rounded-lg border transition-colors ${
+                printFilter
+                  ? 'border-[#F4511E] text-[#F4511E] bg-orange-50 dark:bg-orange-900/20'
+                  : 'border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800'
+              }`}
+            >
+              <option value="">สถานะพิมพ์</option>
+              <option value="label_not_printed">ยังไม่พิมพ์ใบปะหน้า</option>
+              <option value="label_printed">พิมพ์ใบปะหน้าแล้ว</option>
+              <option value="packing_not_printed">ยังไม่พิมพ์ใบจัดของ</option>
+              <option value="packing_printed">พิมพ์ใบจัดของแล้ว</option>
+              <option value="invoice_not_printed">ยังไม่พิมพ์ใบกำกับ</option>
+              <option value="invoice_printed">พิมพ์ใบกำกับแล้ว</option>
+            </select>
+          </div>
         </div>
       )}
 
@@ -921,6 +956,8 @@ export default function ProcessingTab({
                 tax_invoice_branch: updatedOrder.tax_invoice_branch,
               });
               showPdfPreview(blob, 'ใบกำกับแบบเต็ม/ใบเสร็จรับเงิน');
+              markOrdersPrinted([updatedOrder.id as string], 'invoice');
+              updateLocalPrintStatus(setOrders, [updatedOrder.id as string], 'invoice');
             } catch (err) {
               showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
             }

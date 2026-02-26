@@ -17,6 +17,7 @@ import {
   relativeTime,
   getDeadlineInfo,
 } from './types';
+import PrintStatusDots from './PrintStatusDots';
 
 // Channel badge
 function ChannelBadge({ channel }: { channel: Order['channel'] }) {
@@ -97,7 +98,7 @@ export default function OrderCard({
     >
       {/* ── Header bar ── colored by order status, click to toggle checkbox */}
       <div
-        className={`flex items-center gap-2 px-4 py-2 ${orderStatusCfg.headerBg}`}
+        className={`flex items-start gap-2 px-4 py-2 ${orderStatusCfg.headerBg}`}
         onClick={(e) => {
           if (showCheckbox && onToggleSelect) {
             e.stopPropagation();
@@ -105,60 +106,77 @@ export default function OrderCard({
           }
         }}
       >
-        {/* Checkbox in header */}
-        {showCheckbox && (
-          <div className="flex-shrink-0 -ml-0.5">
-            <input
-              type="checkbox"
-              checked={selected || false}
-              readOnly
-              className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E] pointer-events-none"
-            />
+        {/* Left side: 2 rows — line 1: order info, line 2: badges */}
+        <div className="flex-1 min-w-0">
+          {/* Line 1: order info */}
+          <div className="flex items-center gap-2">
+            {showCheckbox && (
+              <div className="flex-shrink-0 -ml-0.5">
+                <input
+                  type="checkbox"
+                  checked={selected || false}
+                  readOnly
+                  className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E] pointer-events-none"
+                />
+              </div>
+            )}
+            <ChannelBadge channel={order.channel} />
+            <span
+              className={`text-sm font-semibold ${orderStatusCfg.headerText} hover:text-[#F4511E] cursor-pointer transition-colors truncate`}
+              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(order.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
+              title="คัดลอกเลขคำสั่งซื้อ"
+            >{order.order_number}</span>
+            {order.source === 'pos' && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400 flex-shrink-0">POS</span>
+            )}
+            {isOnHold && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400 flex-shrink-0">พักไว้</span>
+            )}
           </div>
-        )}
-
-        {/* Left side: channel + order number + time + deadline */}
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <ChannelBadge channel={order.channel} />
-          <span
-            className={`text-sm font-semibold ${orderStatusCfg.headerText} hover:text-[#F4511E] cursor-pointer transition-colors truncate`}
-            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(order.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
-            title="คัดลอกเลขคำสั่งซื้อ"
-          >{order.order_number}</span>
-          {order.source === 'pos' && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400 flex-shrink-0">POS</span>
-          )}
-          {isOnHold && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400 flex-shrink-0">พักไว้</span>
-          )}
-          <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">
-            {relativeTime(order.created_at)}
-          </span>
-          {deadline && ['ready_to_ship', 'processing'].includes(order.order_status) && (
-            <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium flex items-center gap-0.5 flex-shrink-0 ${deadline.color}`}>
-              <Clock className="w-3 h-3" />
-              {deadline.label}
+          {/* Line 2: time + badges */}
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">
+              {relativeTime(order.created_at)}
             </span>
-          )}
+            {deadline && ['ready_to_ship', 'processing'].includes(order.order_status) && (
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium flex items-center gap-0.5 flex-shrink-0 ${deadline.color}`}>
+                <Clock className="w-3 h-3" />
+                {deadline.label}
+              </span>
+            )}
+            {shouldShowStatus && (
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${orderStatusCfg.bg} ${orderStatusCfg.color}`}>
+                {orderStatusCfg.label}
+              </span>
+            )}
+            {showPaymentStatus && order.order_status !== 'cancelled' && (
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${paymentStatusCfg.bg} ${paymentStatusCfg.color}`}>
+                {paymentStatusCfg.label}
+              </span>
+            )}
+            {showPaymentStatus && order.payment_status === 'verifying' && order.last_transfer_date && (
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300">
+                โอน {new Date(order.last_transfer_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                {order.last_transfer_time ? ` ${order.last_transfer_time.slice(0, 5)}` : ''}
+              </span>
+            )}
+            {order.is_split && order.parcel_count && order.parcel_count > 1 && (
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 flex items-center gap-1">
+                <Package className="w-3 h-3" />
+                {order.parcel_count} กล่อง
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Right side: badges */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {shouldShowStatus && (
-            <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${orderStatusCfg.bg} ${orderStatusCfg.color}`}>
-              {orderStatusCfg.label}
-            </span>
-          )}
-          {showPaymentStatus && order.order_status !== 'cancelled' && (
-            <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${paymentStatusCfg.bg} ${paymentStatusCfg.color}`}>
-              {paymentStatusCfg.label}
-            </span>
-          )}
-          {order.is_split && order.parcel_count && order.parcel_count > 1 && (
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 flex items-center gap-1">
-              <Package className="w-3 h-3" />
-              {order.parcel_count} กล่อง
-            </span>
+        {/* Right side: carrier + print dots — stacked, pinned right */}
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          {['processing', 'shipping', 'completed'].includes(order.order_status) && (
+            <PrintStatusDots
+              printedLabelAt={order.printed_label_at}
+              printedPackingAt={order.printed_packing_at}
+              printedInvoiceAt={order.printed_invoice_at}
+            />
           )}
           {order.shipping_carrier && (
             <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 flex items-center gap-1">
@@ -190,8 +208,8 @@ export default function OrderCard({
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-1.5">
-                    <p className="text-base text-gray-800 dark:text-slate-200 truncate min-w-0">
+                  <div className="flex items-start gap-1.5">
+                    <p className="text-base text-gray-800 dark:text-slate-200 line-clamp-2 min-w-0">
                       {item.product_name}
                       {item.variation_label && (
                         <span className="text-gray-400 dark:text-slate-500"> ({item.variation_label})</span>

@@ -12,7 +12,7 @@ import { apiFetch } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
-import { ArrowLeft, Loader2, ExternalLink, Unlink2, Package2, Camera, Merge, Search, X, ChevronRight, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, ExternalLink, Unlink2, Package2, Camera, Merge, Search, X, ChevronRight, Trash2, HelpCircle } from 'lucide-react';
 import ShopeeCategoryPicker from '@/components/shopee/ShopeeCategoryPicker';
 
 interface MarketplaceLink {
@@ -145,6 +145,7 @@ export default function EditProductPage() {
   const [mergeFieldChoices, setMergeFieldChoices] = useState<Record<string, 'current' | 'source'>>({});
   const [mergeVarMapping, setMergeVarMapping] = useState<{ source_id: string; target_id: string | null }[]>([]);
   const [merging, setMerging] = useState(false);
+  const [mergeHelpModal, setMergeHelpModal] = useState(false);
 
   // Shopee export
 
@@ -1137,14 +1138,24 @@ export default function EditProductPage() {
             <span className="text-sm text-gray-400 font-mono">{product.code}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={openMergeModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-            >
-              <Merge className="w-4 h-4" />
-              รวมกับสินค้าอื่น
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={openMergeModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                <Merge className="w-4 h-4" />
+                รวมกับสินค้าอื่น
+              </button>
+              <button
+                type="button"
+                onClick={() => setMergeHelpModal(true)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+                title="ดูคำอธิบาย"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
+            </div>
             <button
               type="button"
               onClick={handleDeleteProduct}
@@ -1496,6 +1507,56 @@ export default function EditProductPage() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Merge Help Modal */}
+      {mergeHelpModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setMergeHelpModal(false)}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl max-w-md w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Merge className="w-5 h-5 text-[#F4511E]" />
+                รวมสินค้าคืออะไร?
+              </h3>
+              <button onClick={() => setMergeHelpModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="text-sm text-gray-600 dark:text-slate-300 space-y-3">
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white mb-1">ใช้เมื่อไหร่?</p>
+                <p>เมื่อมีสินค้าซ้ำกันในระบบ เช่น Sync จาก Shopee มาแล้วสร้างสินค้าใหม่ เพราะ SKU ไม่ตรงกัน ทำให้ข้อมูลกระจาย</p>
+              </div>
+
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white mb-1">ทำงานยังไง?</p>
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>เลือก <strong>สินค้าหลัก</strong> (master) ที่จะเก็บไว้</li>
+                  <li>เลือกว่าจะใช้ข้อมูล (ชื่อ, รหัส, รูป) จากตัวไหน</li>
+                  <li>จับคู่ variation ที่ตรงกัน หรือย้ายเป็น variation ใหม่</li>
+                </ul>
+              </div>
+
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white mb-1">ข้อมูลอะไรจะถูกย้าย?</p>
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>ประวัติการขาย (order items)</li>
+                  <li>ประวัติรับเข้า / เบิกออก / โอนย้าย</li>
+                  <li>เชื่อมต่อ Marketplace (Shopee, etc.)</li>
+                  <li>รูปภาพสินค้า</li>
+                </ul>
+              </div>
+
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg p-3 text-amber-800 dark:text-amber-300">
+                <p className="font-medium mb-1">Stock</p>
+                <p>ระบบจะเก็บ stock ของสินค้าหลัก (master) ไว้ เพราะเป็นสินค้าตัวเดียวกัน stock ไม่ควรบวกกัน</p>
+              </div>
+
+              <p className="text-xs text-gray-400 dark:text-slate-500">สินค้าที่ถูกรวมเข้ามา (ไม่ใช่ master) จะถูกปิดการใช้งานอัตโนมัติ</p>
             </div>
           </div>
         </div>

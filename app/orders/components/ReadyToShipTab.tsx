@@ -17,9 +17,13 @@ import {
   Play,
   Clock,
   Scissors,
+  XCircle,
+  ImageIcon,
+  X,
 } from 'lucide-react';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
+import { markOrdersPrinted, updateLocalPrintStatus } from '@/lib/print-tracking';
 import { useCompany } from '@/lib/company-context';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import OrderCard from './OrderCard';
@@ -33,6 +37,7 @@ import { isMarketplaceSource } from '@/lib/marketplace/types';
 
 const ON_HOLD_KEY = '__on_hold__';
 const ACTIVE_KEY = '__active__';
+const VERIFYING_KEY = '__verifying__';
 
 interface TimeSlot {
   pickup_time_id: string;
@@ -85,9 +90,12 @@ export default function ReadyToShipTab({
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
 
-  // Sub-tab state
-  const [activeGroup, setActiveGroup] = useState<string>(ACTIVE_KEY);
+  // Sub-tab state — default to verifying tab first (like processing tab)
+  const [activeGroup, setActiveGroup] = useState<string>(VERIFYING_KEY);
   const isOnHoldTab = activeGroup === ON_HOLD_KEY;
+  const isVerifyingTab = activeGroup === VERIFYING_KEY;
+  const [verifyingCount, setVerifyingCount] = useState(0);
+  const [verifyingCountLoaded, setVerifyingCountLoaded] = useState(false);
 
   // Self-fetched orders
   const [orders, setOrders] = useState<Order[]>([]);
@@ -116,6 +124,29 @@ export default function ReadyToShipTab({
     orderItems: { id: string; product_name: string; variation_label?: string | null; quantity: number; image?: string | null }[];
     isShopee: boolean;
   } | null>(null);
+  const [slipModal, setSlipModal] = useState<{ orderId: string; orderNumber: string; imageUrl: string } | null>(null);
+  const [slipLoading, setSlipLoading] = useState(false);
+
+  // Fetch verifying count (for sub-tab badge)
+  const fetchVerifyingCount = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      params.set('status', 'ready_to_ship');
+      params.set('source', 'exclude_pos');
+      params.set('payment_status', 'verifying');
+      params.set('page', '1');
+      params.set('limit', '1');
+      if (search) params.set('search', search);
+      if (channel && channel !== 'all') params.set('channel', channel);
+      if (createdBy && createdBy !== 'all') params.set('created_by', createdBy);
+      const res = await apiFetch(`/api/orders?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setVerifyingCount(data.pagination?.total || 0);
+        setVerifyingCountLoaded(true);
+      }
+    } catch { /* silent */ }
+  }, [search, channel, createdBy]);
 
   // Self-fetch orders
   const fetchOrders = useCallback(async () => {
@@ -129,7 +160,18 @@ export default function ReadyToShipTab({
       params.set('limit', recordsPerPage.toString());
       params.set('sort_by', 'created_at');
       params.set('sort_dir', 'desc');
-      params.set('shipping_carrier', activeGroup);
+
+      if (activeGroup === VERIFYING_KEY) {
+        // Show only verifying payment orders
+        params.set('payment_status', 'verifying');
+      } else if (activeGroup === ON_HOLD_KEY) {
+        params.set('shipping_carrier', ON_HOLD_KEY);
+      } else {
+        // Normal tab: exclude verifying + on_hold
+        params.set('shipping_carrier', ACTIVE_KEY);
+        params.set('exclude_payment_status', 'verifying');
+      }
+
       if (search) params.set('search', search);
       if (channel && channel !== 'all') params.set('channel', channel);
       if (createdBy && createdBy !== 'all') params.set('created_by', createdBy);
@@ -153,6 +195,17 @@ export default function ReadyToShipTab({
     fetchOrders();
   }, [fetchOrders]);
 
+  useEffect(() => {
+    fetchVerifyingCount();
+  }, [fetchVerifyingCount]);
+
+  // Auto-switch to active tab when no more verifying orders (only after count is loaded)
+  useEffect(() => {
+    if (isVerifyingTab && verifyingCountLoaded && verifyingCount === 0) {
+      setActiveGroup(ACTIVE_KEY);
+    }
+  }, [isVerifyingTab, verifyingCountLoaded, verifyingCount]);
+
   // Reset page when switching tab or search changes
   useEffect(() => {
     setCurrentPage(1);
@@ -163,10 +216,100 @@ export default function ReadyToShipTab({
   const handleRefresh = useCallback(() => {
     onRefresh();
     fetchOrders();
-  }, [onRefresh, fetchOrders]);
+    fetchVerifyingCount();
+    window.dispatchEvent(new Event('orders-count-changed'));
+  }, [onRefresh, fetchOrders, fetchVerifyingCount]);
 
-  // Selection — only selectable in normal tab
-  const selectableOrders = isOnHoldTab ? [] : orders;
+  // View slip for verifying orders
+  const handleViewSlip = async (orderId: string, orderNumber: string) => {
+    setSlipLoading(true);
+    try {
+      const res = await apiFetch(`/api/payment-records?order_id=${orderId}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
+      const record = data.payment_records?.[0];
+      if (record?.slip_image_url) {
+        setSlipModal({ orderId, orderNumber, imageUrl: record.slip_image_url });
+      } else {
+        showToast('ไม่พบรูปสลิป', 'error');
+      }
+    } catch {
+      showToast('โหลดสลิปไม่สำเร็จ', 'error');
+    } finally {
+      setSlipLoading(false);
+    }
+  };
+
+  // Reject slip → payment_status: pending → auto-reverse to order_status: new
+  const handleRejectSlip = async (orderId: string) => {
+    if (!confirm('ต้องการปฏิเสธสลิปนี้หรือไม่?\n\nออเดอร์จะกลับไปสถานะ "ใหม่" ให้ลูกค้าแจ้งชำระใหม่')) return;
+    setActionLoading(true);
+    try {
+      // Reject payment record
+      const prRes = await apiFetch(`/api/payment-records?order_id=${orderId}`);
+      if (prRes.ok) {
+        const prData = await prRes.json();
+        const record = prData.payment_records?.[0];
+        if (record) {
+          await apiFetch('/api/payment-records/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ payment_record_id: record.id, action: 'reject' }),
+          });
+        }
+      }
+      // Update payment_status → pending (auto-reverse will set order_status → new)
+      const res = await apiFetch('/api/orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: orderId, payment_status: 'pending' }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      showToast('ปฏิเสธสลิปแล้ว — ออเดอร์กลับไปสถานะ "ใหม่"', 'success');
+      setSlipModal(null);
+      handleRefresh();
+    } catch {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Approve slip → payment_status: paid (order moves to "รอกดรับออเดอร์" sub-tab)
+  const handleApproveSlip = async (orderId: string) => {
+    setActionLoading(true);
+    try {
+      // Verify payment record
+      const prRes = await apiFetch(`/api/payment-records?order_id=${orderId}`);
+      if (prRes.ok) {
+        const prData = await prRes.json();
+        const record = prData.payment_records?.[0];
+        if (record) {
+          await apiFetch('/api/payment-records/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ payment_record_id: record.id, action: 'verify' }),
+          });
+        }
+      }
+      // Update payment_status → paid
+      const res = await apiFetch('/api/orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: orderId, payment_status: 'paid' }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      showToast('ยืนยันสลิปแล้ว', 'success');
+      handleRefresh();
+    } catch {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Selection — only selectable in normal (non-verifying, non-hold) tab
+  const selectableOrders = (isOnHoldTab || isVerifyingTab) ? [] : orders;
   const allSelected = selectableOrders.length > 0 && (
     selectedIds.size >= totalOrders || selectableOrders.every(o => selectedIds.has(o.id))
   );
@@ -199,12 +342,13 @@ export default function ReadyToShipTab({
       return;
     }
 
-    // Fetch ALL order IDs for ready_to_ship (active only) from server
+    // Fetch ALL order IDs for ready_to_ship (active only, exclude verifying) from server
     try {
       const params = new URLSearchParams();
       params.set('status', 'ready_to_ship');
       params.set('source', 'exclude_pos');
       params.set('shipping_carrier', ACTIVE_KEY);
+      params.set('exclude_payment_status', 'verifying');
       params.set('ids_only', 'true');
 
       const res = await apiFetch(`/api/orders?${params.toString()}`);
@@ -353,6 +497,8 @@ export default function ReadyToShipTab({
       const result = await res.json();
       const blob = await generateOrderInvoicePdf({ data: result.order });
       showPdfPreview(blob, getInvoiceMenuLabel(result.order.payment_status, vatRegistered));
+      markOrdersPrinted([orderId], 'invoice');
+      updateLocalPrintStatus(setOrders, [orderId], 'invoice');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -495,7 +641,34 @@ export default function ReadyToShipTab({
           <span className="hidden md:inline">กลับมา</span>
         </button>
       );
+    } else if (isVerifyingTab && order.payment_status === 'verifying') {
+      // Verifying tab: Approve + Reject slip
+      primaryActions.push(
+        <button
+          key="view-slip"
+          onClick={(e) => { e.stopPropagation(); handleViewSlip(order.id, order.order_number); }}
+          disabled={actionLoading || slipLoading}
+          className="px-2.5 py-2 md:px-3 text-sm font-medium rounded-lg border border-purple-300 dark:border-purple-600 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          title="ดูสลิป"
+        >
+          <ImageIcon className="w-4 h-4" />
+          <span className="hidden md:inline">ดูสลิป</span>
+        </button>
+      );
+      primaryActions.push(
+        <button
+          key="approve-slip"
+          onClick={(e) => { e.stopPropagation(); handleApproveSlip(order.id); }}
+          disabled={actionLoading}
+          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          title="ยืนยันสลิป"
+        >
+          <CheckCircle className="w-4 h-4" />
+          <span className="hidden md:inline">ยืนยัน</span>
+        </button>
+      );
     } else {
+      // Normal tab: Split + Accept
       // Primary: Split button (>1 piece, not already split)
       if (order.can_split_order && !order.is_split) {
         primaryActions.push(
@@ -546,6 +719,21 @@ export default function ReadyToShipTab({
         key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />, dividerBefore: true,
         onClick: (e) => { e.stopPropagation(); setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id }); },
         className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
+      });
+    }
+
+    // Menu: View slip + Reject slip (verifying orders only)
+    if (order.payment_status === 'verifying') {
+      menuItems.push({
+        key: 'view-slip', label: 'ดูสลิป', icon: <ImageIcon className="w-4 h-4" />, dividerBefore: true,
+        onClick: (e) => { e.stopPropagation(); handleViewSlip(order.id, order.order_number); },
+        className: 'p-1.5 text-gray-400 hover:text-purple-600 transition-colors rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30',
+      });
+      menuItems.push({
+        key: 'reject-slip', label: 'ปฏิเสธสลิป', icon: <XCircle className="w-4 h-4" />,
+        onClick: (e) => { e.stopPropagation(); handleRejectSlip(order.id); },
+        className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
+        danger: true,
       });
     }
 
@@ -629,28 +817,42 @@ export default function ReadyToShipTab({
   return (
     <>
       {/* Sub-tabs */}
-      {onHoldCount > 0 && (
+      {(verifyingCount > 0 || onHoldCount > 0) && (
         <div className="flex gap-1.5 overflow-x-auto mb-4">
+          {verifyingCount > 0 && (
+            <button
+              onClick={() => setActiveGroup(VERIFYING_KEY)}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                isVerifyingTab
+                  ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
+                  : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              รอตรวจสลิป ({verifyingCount})
+            </button>
+          )}
           <button
             onClick={() => setActiveGroup(ACTIVE_KEY)}
             className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              !isOnHoldTab
+              activeGroup === ACTIVE_KEY
                 ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
                 : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
             }`}
           >
-            ทั้งหมด ({normalCount})
+            รอกดรับออเดอร์ ({normalCount - verifyingCount})
           </button>
-          <button
-            onClick={() => setActiveGroup(ON_HOLD_KEY)}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              isOnHoldTab
-                ? 'bg-gray-200 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'
-                : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
-            }`}
-          >
-            พักไว้ ({onHoldCount})
-          </button>
+          {onHoldCount > 0 && (
+            <button
+              onClick={() => setActiveGroup(ON_HOLD_KEY)}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                isOnHoldTab
+                  ? 'bg-gray-200 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'
+                  : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              พักไว้ ({onHoldCount})
+            </button>
+          )}
         </div>
       )}
 
@@ -664,7 +866,7 @@ export default function ReadyToShipTab({
       {/* Order Cards */}
       {!loading && orders.length > 0 && (
         <div className="space-y-3">
-          {!isOnHoldTab && selectableOrders.length > 1 && (
+          {!isOnHoldTab && !isVerifyingTab && selectableOrders.length > 1 && (
             <label className="flex items-center gap-2 px-4 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -683,7 +885,7 @@ export default function ReadyToShipTab({
               order={order}
               statusFilter="ready_to_ship"
               selected={!isOnHoldTab && selectedIds.has(order.id)}
-              showCheckbox={!isOnHoldTab}
+              showCheckbox={!isOnHoldTab && !isVerifyingTab}
               onToggleSelect={toggleSelect}
               onImageClick={onImageClick}
               showPaymentStatus
@@ -807,6 +1009,8 @@ export default function ReadyToShipTab({
                 tax_invoice_branch: updatedOrder.tax_invoice_branch,
               });
               showPdfPreview(blob, 'ใบกำกับแบบเต็ม/ใบเสร็จรับเงิน');
+              markOrdersPrinted([updatedOrder.id as string], 'invoice');
+              updateLocalPrintStatus(setOrders, [updatedOrder.id as string], 'invoice');
             } catch (err) {
               showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
             }
@@ -982,6 +1186,48 @@ export default function ReadyToShipTab({
             handleRefresh();
           }}
         />
+      )}
+
+      {/* Slip Preview Modal */}
+      {slipModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
+          onClick={() => setSlipModal(null)}
+        >
+          <div className="bg-white dark:bg-slate-800 rounded-lg max-w-md w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                สลิปโอนเงิน — {slipModal.orderNumber}
+              </h3>
+              <button onClick={() => setSlipModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4 flex items-center justify-center">
+              <img
+                src={slipModal.imageUrl}
+                alt="สลิปโอนเงิน"
+                className="max-w-full max-h-[60vh] object-contain rounded-lg"
+              />
+            </div>
+            <div className="flex gap-2 p-4 border-t border-gray-200 dark:border-slate-700">
+              <button
+                onClick={() => handleRejectSlip(slipModal.orderId)}
+                disabled={actionLoading}
+                className="flex-1 px-3 py-2.5 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 font-medium text-sm"
+              >
+                <XCircle className="w-4 h-4" /> ปฏิเสธ
+              </button>
+              <button
+                onClick={() => { handleApproveSlip(slipModal.orderId); setSlipModal(null); }}
+                disabled={actionLoading}
+                className="flex-1 px-3 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 font-medium text-sm"
+              >
+                <CheckCircle className="w-4 h-4" /> ยืนยัน
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Loading Overlay */}

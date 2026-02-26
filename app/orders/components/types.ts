@@ -44,6 +44,12 @@ export interface Order {
   items_preview?: ItemPreview[];
   customer_picture_url?: string | null;
   tax_invoice_requested?: boolean;
+  printed_label_at?: string | null;
+  printed_packing_at?: string | null;
+  printed_invoice_at?: string | null;
+  last_transfer_date?: string | null;
+  last_transfer_time?: string | null;
+  last_pr_payment_method?: string | null;
   channel?: {
     platform: string;
     account_name: string;

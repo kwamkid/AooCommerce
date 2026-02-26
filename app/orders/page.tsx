@@ -55,6 +55,7 @@ import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
+import { markOrdersPrinted, updateLocalPrintStatus } from '@/lib/print-tracking';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { useCompany } from '@/lib/company-context';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
@@ -249,6 +250,8 @@ export default function OrdersPage() {
           label: u.name,
         })));
       }
+      // Notify sidebar to refresh ready_to_ship count
+      window.dispatchEvent(new Event('orders-count-changed'));
     } catch (error) {
       console.error('Error fetching orders:', error);
       setError('ไม่สามารถโหลดข้อมูลคำสั่งซื้อได้');
@@ -299,6 +302,7 @@ export default function OrdersPage() {
       if (!response.ok) throw new Error('Failed to update status');
 
       await fetchOrders();
+      window.dispatchEvent(new Event('orders-count-changed'));
       setStatusUpdateModal({ show: false, order: null, nextStatus: '', statusType: 'order' });
     } catch (error) {
       console.error('Error updating status:', error);
@@ -365,6 +369,8 @@ export default function OrdersPage() {
       const orderData = await fetchOrderForPdf(orderId);
       const blob = await generateOrderInvoicePdf({ data: orderData });
       showPdfPreview(blob, label);
+      markOrdersPrinted([orderId], 'invoice');
+      updateLocalPrintStatus(setOrders, [orderId], 'invoice');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -407,6 +413,8 @@ export default function OrdersPage() {
 
       const blob = await generatePackingPdf(ordersData);
       showPdfPreview(blob, 'ใบจัดของ');
+      markOrdersPrinted([orderId], 'packing');
+      updateLocalPrintStatus(setOrders, [orderId], 'packing');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -422,6 +430,8 @@ export default function OrdersPage() {
       const orderData = await fetchOrderForPdf(orderId);
       const blob = await generateShippingLabelPdf({ data: orderData });
       showPdfPreview(blob, 'ใบปะหน้า');
+      markOrdersPrinted([orderId], 'label');
+      updateLocalPrintStatus(setOrders, [orderId], 'label');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -445,6 +455,8 @@ export default function OrdersPage() {
       }
       const blob = await response.blob();
       showPdfPreview(blob, 'ใบปะหน้า Shopee');
+      markOrdersPrinted([orderId], 'label');
+      updateLocalPrintStatus(setOrders, [orderId], 'label');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -974,6 +986,8 @@ export default function OrdersPage() {
                   tax_invoice_branch: updatedOrder.tax_invoice_branch,
                 });
                 showPdfPreview(blob, 'ใบกำกับแบบเต็ม/ใบเสร็จรับเงิน');
+                markOrdersPrinted([updatedOrder.id as string], 'invoice');
+                updateLocalPrintStatus(setOrders, [updatedOrder.id as string], 'invoice');
               } catch (err) {
                 showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
               }

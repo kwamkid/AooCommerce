@@ -712,6 +712,8 @@ export async function GET(request: NextRequest) {
     const deliveryDateEnd = searchParams.get('delivery_date_end') || null;
     const customerId = searchParams.get('customer_id') || null;
     const shippingCarrier = searchParams.get('shipping_carrier') || null;
+    const printFilter = searchParams.get('print_filter') || null;
+    const excludePaymentStatus = searchParams.get('exclude_payment_status') || null;
 
     // Lightweight: return only IDs matching the current filters (for "select all")
     if (searchParams.get('ids_only') === 'true') {
@@ -723,6 +725,7 @@ export async function GET(request: NextRequest) {
 
       if (orderStatus) query = query.eq('order_status', orderStatus);
       if (paymentStatus) query = query.eq('payment_status', paymentStatus);
+      if (excludePaymentStatus) query = query.neq('payment_status', excludePaymentStatus);
       if (source === 'exclude_pos') {
         query = query.or('source.is.null,source.neq.pos');
       } else if (source) {
@@ -762,6 +765,8 @@ export async function GET(request: NextRequest) {
       p_delivery_date_end: deliveryDateEnd,
       p_customer_id: customerId,
       p_shipping_carrier: shippingCarrier,
+      p_print_filter: printFilter,
+      p_exclude_payment_status: excludePaymentStatus,
     });
 
     if (rpcError) {
@@ -808,27 +813,53 @@ export async function PUT(request: NextRequest) {
         // Separate Shopee vs manual orders
         const { data: ordersToAccept } = await supabaseAdmin
           .from('orders')
-          .select('id, source, external_order_sn, external_status, marketplace_account_id, is_split')
+          .select('id, source, external_order_sn, external_status, marketplace_account_id, is_split, payment_status')
           .in('id', validIds)
           .eq('company_id', auth.companyId)
           .eq('order_status', 'ready_to_ship');
 
-        const manualIds = (ordersToAccept || []).filter(o => o.source !== 'shopee').map(o => o.id);
+        const manualOrders = (ordersToAccept || []).filter(o => o.source !== 'shopee');
+        const manualIds = manualOrders.map(o => o.id);
         const shopeeOrders = (ordersToAccept || []).filter(o => o.source === 'shopee');
+
+        // Split manual orders: verifying vs others
+        const verifyingIds = manualOrders.filter(o => o.payment_status === 'verifying').map(o => o.id);
+        const nonVerifyingIds = manualOrders.filter(o => o.payment_status !== 'verifying').map(o => o.id);
 
         let updatedCount = 0;
         const errors: string[] = [];
 
-        // Manual orders: just update DB
-        if (manualIds.length > 0) {
+        // Manual orders (non-verifying): just update order_status
+        if (nonVerifyingIds.length > 0) {
           const { data: updated, error } = await supabaseAdmin
             .from('orders')
             .update({ order_status: 'processing', updated_at: new Date().toISOString() })
-            .in('id', manualIds)
+            .in('id', nonVerifyingIds)
             .eq('company_id', auth.companyId)
             .select('id');
           if (error) errors.push(error.message);
           else updatedCount += (updated || []).length;
+        }
+
+        // Manual orders (verifying): update order_status + payment_status
+        if (verifyingIds.length > 0) {
+          const { data: updated, error } = await supabaseAdmin
+            .from('orders')
+            .update({ order_status: 'processing', payment_status: 'paid', updated_at: new Date().toISOString() })
+            .in('id', verifyingIds)
+            .eq('company_id', auth.companyId)
+            .select('id');
+          if (error) errors.push(error.message);
+          else updatedCount += (updated || []).length;
+
+          // Also mark payment records as verified
+          if (!error) {
+            await supabaseAdmin
+              .from('payment_records')
+              .update({ status: 'verified', updated_at: new Date().toISOString() })
+              .in('order_id', verifyingIds)
+              .eq('status', 'pending');
+          }
         }
 
         // Shopee orders: call Shopee ship API for each
@@ -1505,9 +1536,14 @@ export async function PUT(request: NextRequest) {
       }
       if (body.payment_status !== undefined) {
         updateData.payment_status = body.payment_status;
-        // Auto-sync: when paid and still 'new', advance to 'ready_to_ship'
-        if (body.payment_status === 'paid' && existingOrder.order_status === 'new' && !body.order_status) {
+        // Auto-sync: when paid/verifying and still 'new', advance to 'ready_to_ship'
+        if ((body.payment_status === 'paid' || body.payment_status === 'verifying')
+            && existingOrder.order_status === 'new' && !body.order_status) {
           updateData.order_status = 'ready_to_ship';
+        }
+        // Auto-reverse: when rejected (pending) and still 'ready_to_ship', revert to 'new'
+        if (body.payment_status === 'pending' && existingOrder.order_status === 'ready_to_ship' && !body.order_status) {
+          updateData.order_status = 'new';
         }
       }
       if (body.customer_id !== undefined) updateData.customer_id = body.customer_id || null;
