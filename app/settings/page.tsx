@@ -5,7 +5,7 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
-import { Users, Plus, X, Save, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle } from 'lucide-react';
+import { Users, Plus, X, Save, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock } from 'lucide-react';
 
 interface DayRange {
   minDays: number;
@@ -49,10 +49,17 @@ export default function SettingsPage() {
   const [clearConfirmText, setClearConfirmText] = useState('');
   const [clearing, setClearing] = useState(false);
 
-  // Fetch CRM settings + Variation Types (once)
+  // Bill Expiry Settings
+  const [billExpiryEnabled, setBillExpiryEnabled] = useState(false);
+  const [billExpiryDays, setBillExpiryDays] = useState(7);
+  const [loadingBillExpiry, setLoadingBillExpiry] = useState(true);
+  const [savingBillExpiry, setSavingBillExpiry] = useState(false);
+
+  // Fetch CRM settings + Variation Types + Bill Expiry (once)
   useFetchOnce(() => {
     fetchCRMSettings();
     fetchVariationTypes();
+    fetchBillExpiry();
   }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')));
 
   const fetchCRMSettings = async () => {
@@ -273,6 +280,54 @@ export default function SettingsPage() {
       else setError('ไม่สามารถลบข้อมูลได้');
     } finally {
       setClearing(false);
+    }
+  };
+
+  // --- Bill Expiry Functions ---
+  const fetchBillExpiry = async () => {
+    try {
+      setLoadingBillExpiry(true);
+      const res = await apiFetch('/api/settings/features');
+      const data = await res.json();
+      const days = data.bill_expiry_days;
+      if (days === 0) {
+        // Explicitly disabled
+        setBillExpiryEnabled(false);
+      } else {
+        // null (not configured) = default 7 days, or user-set value
+        setBillExpiryEnabled(true);
+        setBillExpiryDays(days && days > 0 ? days : 7);
+      }
+    } catch {
+      // default to enabled 7 days
+      setBillExpiryEnabled(true);
+      setBillExpiryDays(7);
+    } finally {
+      setLoadingBillExpiry(false);
+    }
+  };
+
+  const handleSaveBillExpiry = async () => {
+    setSavingBillExpiry(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await apiFetch('/api/settings/bill-expiry', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bill_expiry_days: billExpiryEnabled ? billExpiryDays : 0 }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'ไม่สามารถบันทึกได้');
+      }
+      setSuccess('บันทึกการตั้งค่าบิลหมดอายุสำเร็จ');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      if (err instanceof Error) setError(err.message);
+      else setError('ไม่สามารถบันทึกได้');
+    } finally {
+      setSavingBillExpiry(false);
     }
   };
 
@@ -523,6 +578,63 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+        {/* Bill Expiry Settings */}
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+          <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-slate-700">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-[#F4511E]" />
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">บิลหมดอายุ</h2>
+            </div>
+            <button
+              onClick={handleSaveBillExpiry}
+              disabled={savingBillExpiry}
+              className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium disabled:opacity-50"
+            >
+              {savingBillExpiry ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              บันทึก
+            </button>
+          </div>
+
+          <div className="p-4">
+            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
+              กำหนดวันหมดอายุบิลสำหรับ manual order ที่ยังไม่ชำระ เมื่อหมดอายุบิลจะถูกยกเลิกอัตโนมัติ
+            </p>
+
+            {loadingBillExpiry ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={billExpiryEnabled}
+                    onChange={(e) => setBillExpiryEnabled(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
+                  />
+                  <span className="text-sm font-medium text-gray-700 dark:text-slate-300">เปิดใช้งานบิลหมดอายุ</span>
+                </label>
+
+                {billExpiryEnabled && (
+                  <div className="flex items-center gap-2 ml-7">
+                    <span className="text-sm text-gray-600 dark:text-slate-400">หมดอายุหลัง</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={90}
+                      value={billExpiryDays}
+                      onChange={(e) => setBillExpiryDays(Math.max(1, Math.min(90, Number(e.target.value) || 1)))}
+                      className="w-20 px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-center focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                    />
+                    <span className="text-sm text-gray-600 dark:text-slate-400">วัน</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Danger Zone: Clear All Data */}
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border-2 border-red-200 dark:border-red-900/50">
           <div className="flex items-center justify-between p-4 border-b border-red-100 dark:border-red-900/30">

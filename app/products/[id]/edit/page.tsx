@@ -734,53 +734,39 @@ export default function EditProductPage() {
           </div>
         </div>
 
-        {/* Category + Weight (3-col aligned with row below) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-              หมวดหมู่ Shopee
-            </label>
-            <ShopeeCategoryPicker
-              accountId={link.account_id}
-              value={categoryIdValues[link.id] ?? null}
-              categoryName={categoryNameValues[link.id] || ''}
-              onChange={(catId, catName) => {
-                setCategoryIdValues(prev => ({ ...prev, [link.id]: catId }));
-                setCategoryNameValues(prev => ({ ...prev, [link.id]: catName }));
-                markDirty(link.id);
-              }}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-              น้ำหนัก (kg)
-            </label>
-            <input
-              type="number"
-              value={weightValues[link.id] || ''}
-              onChange={e => { setWeightValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
-              step="0.1"
-              min="0"
-              placeholder="0.5"
-              className="w-full px-3 h-[42px] text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
-            />
-          </div>
+        {/* Category — full width */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            หมวดหมู่ Shopee
+          </label>
+          <ShopeeCategoryPicker
+            accountId={link.account_id}
+            value={categoryIdValues[link.id] ?? null}
+            categoryName={categoryNameValues[link.id] || ''}
+            onChange={(catId, catName) => {
+              setCategoryIdValues(prev => ({ ...prev, [link.id]: catId }));
+              setCategoryNameValues(prev => ({ ...prev, [link.id]: catName }));
+              markDirty(link.id);
+            }}
+          />
         </div>
 
-        {/* Barcode + Price + Discount — same row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-              Barcode
-            </label>
-            <input
-              type="text"
-              value={barcodeValues[link.id] || ''}
-              onChange={e => { setBarcodeValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
-              placeholder="-"
-              className="w-full px-3 h-[42px] text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
-            />
-          </div>
+        {/* Price + Weight + (Barcode, Discount for non-Shopee) */}
+        <div className={`grid grid-cols-1 gap-4 ${link.platform === 'shopee' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+          {link.platform !== 'shopee' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                Barcode
+              </label>
+              <input
+                type="text"
+                value={barcodeValues[link.id] || ''}
+                onChange={e => { setBarcodeValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
+                placeholder="-"
+                className="w-full px-3 h-[42px] text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+              />
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
               ราคา Platform (฿)
@@ -801,22 +787,38 @@ export default function EditProductPage() {
               ราคาในระบบ: {formatPriceValue(systemPrice)}
             </p>
           </div>
+          {link.platform !== 'shopee' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                ราคาลด (฿)
+              </label>
+              <input
+                type="number"
+                value={discountValues[link.id] || ''}
+                onChange={e => { setDiscountValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
+                min="0"
+                step="0.01"
+                placeholder="0"
+                className="w-full px-3 h-[42px] text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+              />
+              <p className="text-[11px] text-blue-500 dark:text-blue-400 mt-1 font-medium">
+                ราคาลดในระบบ: {formatPriceValue(systemDiscountPrice)}
+              </p>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-              ราคาลด (฿)
+              น้ำหนัก (kg)
             </label>
             <input
               type="number"
-              value={discountValues[link.id] || ''}
-              onChange={e => { setDiscountValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
+              value={weightValues[link.id] || ''}
+              onChange={e => { setWeightValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
+              step="0.1"
               min="0"
-              step="0.01"
-              placeholder="0"
+              placeholder="0.5"
               className="w-full px-3 h-[42px] text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
             />
-            <p className="text-[11px] text-blue-500 dark:text-blue-400 mt-1 font-medium">
-              ราคาลดในระบบ: {formatPriceValue(systemDiscountPrice)}
-            </p>
           </div>
         </div>
 
@@ -922,21 +924,23 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          {/* Category + Weight (same layout as simple product) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมวดหมู่ Shopee</label>
-              <ShopeeCategoryPicker
-                accountId={firstLink.account_id}
-                value={categoryIdValues[firstLink.id] ?? null}
-                categoryName={categoryNameValues[firstLink.id] || ''}
-                onChange={(catId, catName) => {
-                  setCategoryIdValues(prev => ({ ...prev, [firstLink.id]: catId }));
-                  setCategoryNameValues(prev => ({ ...prev, [firstLink.id]: catName }));
-                  markDirty(firstLink.id);
-                }}
-              />
-            </div>
+          {/* Category — full width */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมวดหมู่ Shopee</label>
+            <ShopeeCategoryPicker
+              accountId={firstLink.account_id}
+              value={categoryIdValues[firstLink.id] ?? null}
+              categoryName={categoryNameValues[firstLink.id] || ''}
+              onChange={(catId, catName) => {
+                setCategoryIdValues(prev => ({ ...prev, [firstLink.id]: catId }));
+                setCategoryNameValues(prev => ({ ...prev, [firstLink.id]: catName }));
+                markDirty(firstLink.id);
+              }}
+            />
+          </div>
+
+          {/* Weight */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">น้ำหนัก (kg)</label>
               <input
@@ -962,9 +966,9 @@ export default function EditProductPage() {
                   <th className="data-th w-[72px]">รูป</th>
                   <th className="data-th">ตัวเลือก</th>
                   <th className="data-th">SKU (Shopee)</th>
-                  <th className="data-th">Barcode</th>
+                  {firstLink.platform !== 'shopee' && <th className="data-th">Barcode</th>}
                   <th className="data-th">ราคา Platform (฿)</th>
-                  <th className="data-th">ราคาลด (฿)</th>
+                  {firstLink.platform !== 'shopee' && <th className="data-th">ราคาลด (฿)</th>}
                   <th className="data-th text-right">จัดการ</th>
                 </tr>
               </thead>
@@ -997,15 +1001,17 @@ export default function EditProductPage() {
                       <td className="px-4 py-3 text-xs text-gray-600 dark:text-slate-300 font-mono">
                         <div className="pt-1.5">{link.external_sku || '-'}</div>
                       </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          value={barcodeValues[link.id] || ''}
-                          onChange={e => { setBarcodeValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
-                          placeholder="-"
-                          className="w-32 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
-                        />
-                      </td>
+                      {firstLink.platform !== 'shopee' && (
+                        <td className="px-4 py-3">
+                          <input
+                            type="text"
+                            value={barcodeValues[link.id] || ''}
+                            onChange={e => { setBarcodeValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
+                            placeholder="-"
+                            className="w-32 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                          />
+                        </td>
+                      )}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <input
@@ -1023,20 +1029,22 @@ export default function EditProductPage() {
                           ราคาในระบบ: {formatPriceValue(systemPrice)}
                         </p>
                       </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="number"
-                          value={discountValues[link.id] || ''}
-                          onChange={e => { setDiscountValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
-                          min="0"
-                          step="0.01"
-                          placeholder="0"
-                          className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
-                        />
-                        <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-0.5 font-medium">
-                          ราคาลดในระบบ: {formatPriceValue(systemDiscountPrice)}
-                        </p>
-                      </td>
+                      {firstLink.platform !== 'shopee' && (
+                        <td className="px-4 py-3">
+                          <input
+                            type="number"
+                            value={discountValues[link.id] || ''}
+                            onChange={e => { setDiscountValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
+                            min="0"
+                            step="0.01"
+                            placeholder="0"
+                            className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                          />
+                          <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-0.5 font-medium">
+                            ราคาลดในระบบ: {formatPriceValue(systemDiscountPrice)}
+                          </p>
+                        </td>
+                      )}
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           {shopId && (

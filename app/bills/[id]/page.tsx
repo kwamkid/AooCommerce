@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
-import { Loader2, Printer, FileText, MapPin, Package, Camera, Upload, Clock, CheckCircle2, CreditCard, Banknote, Globe, Copy, Check, Sun, Moon, QrCode, Download, Pencil, Calendar } from 'lucide-react';
+import { Loader2, Printer, FileText, MapPin, Package, Camera, Upload, Clock, CheckCircle2, CreditCard, Banknote, Globe, Copy, Check, Sun, Moon, QrCode, Download, Pencil, Calendar, AlertTriangle } from 'lucide-react';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import { getBankByCode } from '@/lib/constants/banks';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
@@ -107,6 +107,7 @@ interface BillData {
   } | null;
   needs_delivery_info?: boolean;
   customer_id?: string | null;
+  is_expired?: boolean;
   items: BillItem[];
   branches: BillBranch[];
 }
@@ -374,10 +375,13 @@ export default function BillOnlinePage() {
 
   const billTitle = 'ใบสั่งซื้อ / Purchase Order';
 
+  const isExpired = bill.is_expired === true;
+
   const orderStatusConfig: Record<string, { label: string; color: string; darkColor: string }> = {
     new: { label: 'รอดำเนินการ', color: 'bg-blue-100 text-blue-700', darkColor: 'bg-blue-900/40 text-blue-400' },
     shipping: { label: 'กำลังจัดส่ง', color: 'bg-yellow-100 text-yellow-700', darkColor: 'bg-yellow-900/40 text-yellow-400' },
     completed: { label: 'จัดส่งแล้ว', color: 'bg-green-100 text-green-700', darkColor: 'bg-green-900/40 text-green-400' },
+    cancelled: { label: 'ยกเลิก', color: 'bg-gray-100 text-gray-600', darkColor: 'bg-gray-800/40 text-gray-400' },
   };
 
   const paymentStatusConfig: Record<string, { label: string; color: string; darkColor: string }> = {
@@ -557,15 +561,32 @@ export default function BillOnlinePage() {
               <div className={`font-bold text-base ${dark ? 'text-white' : 'text-gray-900'}`}>{bill.order_number}</div>
               <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-600'}`} suppressHydrationWarning>{formatDate(bill.order_date)}</div>
               <div className="flex items-center justify-end gap-1.5 mt-1 print:hidden">
-                {orderStatusInfo && (
-                  <StatusPill label={orderStatusInfo.label} color={dark ? orderStatusInfo.darkColor : orderStatusInfo.color} />
-                )}
-                {paymentStatusInfo && (
-                  <StatusPill label={paymentStatusInfo.label} color={dark ? paymentStatusInfo.darkColor : paymentStatusInfo.color} />
+                {isExpired ? (
+                  <StatusPill label="หมดอายุ" color={dark ? 'bg-red-900/40 text-red-400' : 'bg-red-100 text-red-700'} />
+                ) : (
+                  <>
+                    {orderStatusInfo && (
+                      <StatusPill label={orderStatusInfo.label} color={dark ? orderStatusInfo.darkColor : orderStatusInfo.color} />
+                    )}
+                    {paymentStatusInfo && (
+                      <StatusPill label={paymentStatusInfo.label} color={dark ? paymentStatusInfo.darkColor : paymentStatusInfo.color} />
+                    )}
+                  </>
                 )}
               </div>
             </div>
           </div>
+
+          {/* Expired banner */}
+          {isExpired && (
+            <div className={`rounded-lg p-4 mb-5 flex items-start gap-3 ${dark ? 'bg-red-900/20 border border-red-800' : 'bg-red-50 border border-red-200'}`}>
+              <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${dark ? 'text-red-400' : 'text-red-500'}`} />
+              <div>
+                <div className={`font-semibold text-base ${dark ? 'text-red-400' : 'text-red-700'}`}>บิลนี้หมดอายุแล้ว</div>
+                <p className={`text-sm mt-0.5 ${dark ? 'text-red-500/80' : 'text-red-600/80'}`}>กรุณาติดต่อร้านค้าเพื่อสร้างบิลใหม่</p>
+              </div>
+            </div>
+          )}
 
           {/* Delivery Info Form — shown when no customer and no delivery info yet, or when editing */}
           {(bill.needs_delivery_info || editingDelivery) && (
@@ -873,7 +894,8 @@ export default function BillOnlinePage() {
 
         </div>
 
-          {/* Right column: Payment — sticky on desktop */}
+          {/* Right column: Payment — sticky on desktop, hidden when expired */}
+          {!isExpired && (
           <div className="print:hidden mt-4 lg:mt-0 lg:sticky lg:top-20 lg:self-start">
           <div className={`rounded-xl shadow-sm p-5 md:p-6 transition-colors space-y-4 ${dark ? 'bg-[#16213E] shadow-black/20' : 'bg-white'}`}>
             <h3 className={`font-bold text-lg flex items-center gap-2 ${dark ? 'text-white' : 'text-gray-900'}`}>
@@ -1350,6 +1372,7 @@ export default function BillOnlinePage() {
             )}
           </div>
           </div>
+          )}
         </div>
       </div>
     </div>

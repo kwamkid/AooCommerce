@@ -30,7 +30,9 @@ import {
   CheckCircle,
   Send,
   Warehouse,
-  AlertTriangle
+  AlertTriangle,
+  Settings,
+  Clock
 } from 'lucide-react';
 
 // Interfaces
@@ -149,7 +151,7 @@ export default function OrderForm({
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
-  const { features } = useFeatures();
+  const { features, billExpiryDays } = useFeatures();
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
 
@@ -210,6 +212,11 @@ export default function OrderForm({
   const [taxTaxId, setTaxTaxId] = useState('');
   const [taxBranch, setTaxBranch] = useState('สำนักงานใหญ่');
   const [taxAddress, setTaxAddress] = useState('');
+
+  // Bill expiry advance settings
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [expiryMode, setExpiryMode] = useState<'default' | 'custom' | 'none'>('default');
+  const [customExpiryDays, setCustomExpiryDays] = useState(7);
 
   // Delivery info (for new customer / no customer / selected address)
   const [deliveryName, setDeliveryName] = useState('');
@@ -1271,6 +1278,12 @@ export default function OrderForm({
         ...(addressAction !== 'auto' ? { address_action: addressAction } : {}),
         // Source channel info (from chat)
         ...(source ? { source, source_name: sourceName || undefined } : {}),
+        // Bill expiry: compute expires_at based on mode
+        ...(expiryMode === 'custom' ? {
+          expires_at: new Date(Date.now() + customExpiryDays * 86400000).toISOString(),
+        } : expiryMode === 'none' ? {
+          expires_at: null, // explicitly no expiry
+        } : {}), // 'default' = let API use company setting
       };
 
       if (isEditMode) {
@@ -1990,6 +2003,83 @@ export default function OrderForm({
                   placeholder="หมายเหตุภายใน..."
                 />
               </div>
+
+              {/* Advance settings toggle */}
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                  className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors mt-1"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  ตั้งค่าขั้นสูง
+                  <ChevronDown className={`w-3 h-3 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`} />
+                </button>
+              )}
+
+              {/* Advance settings panel */}
+              {showAdvancedSettings && !isReadOnly && (
+                <div className="border border-gray-200 dark:border-slate-600 rounded-lg p-3 space-y-2 bg-gray-50 dark:bg-slate-700/30">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-slate-300">
+                    <Clock className="w-4 h-4" />
+                    วันหมดอายุบิล
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name="expiryMode"
+                        checked={expiryMode === 'default'}
+                        onChange={() => setExpiryMode('default')}
+                        className="accent-[#F4511E]"
+                      />
+                      <span className="text-gray-700 dark:text-slate-300">
+                        ใช้ที่ตั้งค่าไว้
+                        {billExpiryDays && billExpiryDays > 0 ? (
+                          <span className="text-gray-400 dark:text-slate-500 ml-1">({billExpiryDays} วัน)</span>
+                        ) : billExpiryDays === 0 ? (
+                          <span className="text-gray-400 dark:text-slate-500 ml-1">(ปิดใช้งาน)</span>
+                        ) : (
+                          <span className="text-gray-400 dark:text-slate-500 ml-1">(7 วัน)</span>
+                        )}
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name="expiryMode"
+                        checked={expiryMode === 'custom'}
+                        onChange={() => setExpiryMode('custom')}
+                        className="accent-[#F4511E]"
+                      />
+                      <span className="text-gray-700 dark:text-slate-300">กำหนดเอง</span>
+                      {expiryMode === 'custom' && (
+                        <span className="flex items-center gap-1 ml-1">
+                          <input
+                            type="number"
+                            min={1}
+                            max={90}
+                            value={customExpiryDays}
+                            onChange={(e) => setCustomExpiryDays(Math.max(1, Math.min(90, parseInt(e.target.value) || 1)))}
+                            className="w-14 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-sm text-center bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
+                          />
+                          <span className="text-gray-500 dark:text-slate-400 text-xs">วัน</span>
+                        </span>
+                      )}
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name="expiryMode"
+                        checked={expiryMode === 'none'}
+                        onChange={() => setExpiryMode('none')}
+                        className="accent-[#F4511E]"
+                      />
+                      <span className="text-gray-700 dark:text-slate-300">ไม่หมดอายุ</span>
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Order Summary */}

@@ -3,15 +3,15 @@ import { after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeAccountRow } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
+import { getPushLabel } from '@/lib/shopee/webhook-codes';
 import crypto from 'crypto';
 
-// Allow up to 60s — sync runs in background via waitUntil but Vercel
+// Allow up to 60s — sync runs in background via after() but Vercel
 // still needs the function alive for background work to complete.
 export const maxDuration = 60;
 
 function verifySignature(url: string, rawBody: string, signature: string, partnerKey: string): boolean {
   try {
-    // Shopee webhook signature: HMAC-SHA256(partner_key, url + "|" + body)
     const baseString = `${url}|${rawBody}`;
     const expectedSig = crypto
       .createHmac('sha256', partnerKey)
@@ -44,7 +44,9 @@ export async function POST(request: NextRequest) {
       return new NextResponse('', { status: 200 });
     }
 
-    // Look up account by shop_id
+    const pushCode = payload.code ?? -1;
+
+    // Look up account by shop_id (best-effort, don't fail if not found)
     const { data: account } = await supabaseAdmin
       .from('marketplace_accounts')
       .select('*')
@@ -52,63 +54,42 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true)
       .single();
 
-    if (!account) {
-      console.error('Shopee webhook: no account for shop_id:', shopId);
-      return new NextResponse('', { status: 200 });
-    }
-
-    // Verify signature using partner_key from env
-    // Shopee signs: HMAC-SHA256(partner_key, callback_url + "|" + body)
+    // Verify signature (record but don't block)
+    let signatureValid: boolean | null = null;
     const partnerKey = process.env.SHOPEE_PARTNER_KEY || '';
     if (authorization && partnerKey) {
-      // Try verifying with the public callback URL
       const publicUrl = 'https://aoocommerce.vercel.app/api/shopee/webhook';
-      const verified = verifySignature(publicUrl, rawBody, authorization, partnerKey)
+      signatureValid = verifySignature(publicUrl, rawBody, authorization, partnerKey)
         || verifySignature(request.url, rawBody, authorization, partnerKey);
-      if (!verified) {
-        console.error('Shopee webhook: invalid signature for shop_id:', shopId, 'request.url:', request.url);
-      }
-      // Log but don't block — allow webhook to proceed even if signature fails
-    }
-
-    // Handle order_status_push (code=3)
-    if (payload.code === 3) {
-      const orderSn = payload.data?.ordersn as string;
-      const shopeeStatus = (payload.data?.status as string) || '';
-      if (orderSn) {
-        // Log incoming webhook
-        logIntegration({
-          company_id: account.company_id,
-          integration: 'shopee',
-          account_id: account.id,
-          account_name: account.shop_name,
-          direction: 'incoming',
-          action: 'webhook_order_status',
-          method: 'POST',
-          api_path: '/api/shopee/webhook',
-          request_body: payload,
-          status: 'success',
-          reference_type: 'order',
-          reference_id: orderSn,
-          reference_label: shopeeStatus
-            ? `Order ${orderSn} → ${shopeeStatus}`
-            : `Order ${orderSn}`,
-          duration_ms: Date.now() - startTime,
-        });
-
-        // Return 200 immediately to Shopee, run sync in background via after().
-        // after() keeps the serverless function alive after the response is sent.
-        const acct = account as ShopeeAccountRow;
-        const status = shopeeStatus || undefined;
-        after(async () => {
-          try {
-            await syncSingleOrder(acct, orderSn, status);
-          } catch (err) {
-            console.error('Shopee webhook sync error:', err);
-          }
-        });
+      if (!signatureValid) {
+        console.error('Shopee webhook: invalid signature for shop_id:', shopId);
       }
     }
+
+    // === SAVE TO DB IMMEDIATELY ===
+    const { data: webhookLog } = await supabaseAdmin
+      .from('shopee_webhook_log')
+      .insert({
+        shop_id: shopId,
+        company_id: account?.company_id || null,
+        account_id: account?.id || null,
+        push_code: pushCode,
+        push_label: getPushLabel(pushCode),
+        raw_payload: payload,
+        signature: authorization || null,
+        signature_valid: signatureValid,
+        processing_status: 'pending',
+      })
+      .select('id')
+      .single();
+
+    const logId = webhookLog?.id;
+
+    // === RETURN 200 FAST → process in background ===
+    const acct = account as ShopeeAccountRow | null;
+    after(async () => {
+      await processWebhook(logId, pushCode, payload, acct, startTime);
+    });
 
     return new NextResponse('', { status: 200 });
   } catch (error) {
@@ -121,6 +102,98 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   return NextResponse.json({ status: 'ok' });
 }
+
+// ─── Background processing ───────────────────────────────────────────
+
+async function processWebhook(
+  logId: string | undefined,
+  pushCode: number,
+  payload: { shop_id?: number; code?: number; data?: Record<string, unknown> },
+  account: ShopeeAccountRow | null,
+  startTime: number,
+) {
+  const updateLog = async (status: string, error?: string) => {
+    if (!logId) return;
+    await supabaseAdmin
+      .from('shopee_webhook_log')
+      .update({
+        processing_status: status,
+        processing_error: error || null,
+        processing_duration_ms: Date.now() - startTime,
+        processed_at: new Date().toISOString(),
+      })
+      .eq('id', logId);
+  };
+
+  try {
+    if (logId) {
+      await supabaseAdmin
+        .from('shopee_webhook_log')
+        .update({ processing_status: 'processing' })
+        .eq('id', logId);
+    }
+
+    // Handle order-related pushes: code=3 (order_status), code=14 (return/refund)
+    if (pushCode === 3 || pushCode === 14) {
+      if (!account) {
+        await updateLog('skipped', 'No matching marketplace account');
+        return;
+      }
+
+      const orderSn = payload.data?.ordersn as string;
+      const shopeeStatus = (payload.data?.status as string) || '';
+      const actionLabel = pushCode === 3 ? 'webhook_order_status' : 'webhook_return_refund';
+
+      if (!orderSn) {
+        await updateLog('skipped', 'No ordersn in payload');
+        return;
+      }
+
+      // Log incoming webhook to integration_logs (per-company visibility)
+      logIntegration({
+        company_id: account.company_id,
+        integration: 'shopee',
+        account_id: account.id,
+        account_name: account.shop_name,
+        direction: 'incoming',
+        action: actionLabel,
+        method: 'POST',
+        api_path: '/api/shopee/webhook',
+        request_body: payload,
+        status: 'success',
+        reference_type: 'order',
+        reference_id: orderSn,
+        reference_label: shopeeStatus
+          ? `Order ${orderSn} → ${shopeeStatus}`
+          : `Order ${orderSn}`,
+        duration_ms: Date.now() - startTime,
+      });
+
+      try {
+        await syncSingleOrder(account, orderSn, shopeeStatus || undefined);
+        await updateLog('processed');
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown sync error';
+        console.error('Shopee webhook sync error:', err);
+        await updateLog('failed', errorMsg);
+      }
+      return;
+    }
+
+    // All other push codes — not handled yet, mark as skipped
+    if (!account) {
+      await updateLog('skipped', 'No matching marketplace account');
+    } else {
+      await updateLog('skipped', `Unhandled push code: ${pushCode}`);
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('Shopee webhook processing error:', err);
+    await updateLog('failed', errorMsg);
+  }
+}
+
+// ─── Order sync (unchanged) ──────────────────────────────────────────
 
 async function syncSingleOrder(account: ShopeeAccountRow, orderSn: string, webhookStatus?: string) {
   const { syncOrdersByOrderSn } = await import('@/lib/shopee/sync');
@@ -189,7 +262,6 @@ async function syncSingleOrder(account: ShopeeAccountRow, orderSn: string, webho
       });
     }
   } catch (err) {
-    // Persist error to sync_log even on unhandled exceptions
     const errorMsg = err instanceof Error ? err.message : 'Unknown sync error';
     if (log) {
       await supabaseAdmin
@@ -202,7 +274,6 @@ async function syncSingleOrder(account: ShopeeAccountRow, orderSn: string, webho
         .eq('id', log.id);
     }
 
-    // Log to integration_logs for UI visibility
     logIntegration({
       company_id: account.company_id,
       integration: 'shopee',
@@ -219,6 +290,6 @@ async function syncSingleOrder(account: ShopeeAccountRow, orderSn: string, webho
       reference_label: `Sync failed: ${orderSn}`,
     });
 
-    throw err; // Re-throw so the outer .catch() still logs to console
+    throw err;
   }
 }

@@ -16,8 +16,8 @@ export default function SuperAdminLayout({ children, title, subtitle }: SuperAdm
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-slate-950">
-        <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+      <div className="flex items-center justify-center h-screen bg-slate-950">
+        <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
       </div>
     );
   }
@@ -27,17 +27,17 @@ export default function SuperAdminLayout({ children, title, subtitle }: SuperAdm
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
+    <div className="flex h-screen bg-slate-950 overflow-hidden text-base">
       <SuperAdminSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-4">
+        <header className="bg-slate-900 border-b border-slate-700/50 px-4 lg:px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="pl-10 lg:pl-0">
-              <h1 className="text-xl lg:text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
-              {subtitle && <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">{subtitle}</p>}
+              <h1 className="text-xl lg:text-2xl font-bold text-white">{title}</h1>
+              {subtitle && <p className="text-sm text-slate-400 mt-0.5">{subtitle}</p>}
             </div>
-            <span className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-semibold rounded-full">
+            <span className="px-3 py-1 bg-violet-500/20 text-violet-400 text-xs font-semibold rounded-full border border-violet-500/30">
               SUPER ADMIN
             </span>
           </div>

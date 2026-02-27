@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeAccountRow } from '@/lib/shopee/api';
-import { pushStockToShopee, pushPriceToShopee, pushInfoToShopee } from '@/lib/shopee/product-sync';
+import { pushStockToShopee, pushPriceToShopee, pushInfoToShopee, pushCategoryToShopee } from '@/lib/shopee/product-sync';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
 
@@ -210,4 +210,65 @@ async function _doInfoSync(productId: string, productName: string): Promise<void
       console.error(`[Shopee Auto-Sync] Info push failed for product ${productId}:`, err);
     }
   }, 5);
+}
+
+/**
+ * Fire-and-forget: trigger category sync to Shopee for a specific link.
+ * Fetches mandatory attributes and fills N/A defaults.
+ */
+export function triggerShopeeCategorySync(linkId: string, categoryId: number): void {
+  if (!linkId || !categoryId) return;
+  _doCategorySync(linkId, categoryId).catch(err => {
+    console.error('[Shopee Auto-Sync] Category sync error:', err);
+  });
+}
+
+async function _doCategorySync(linkId: string, categoryId: number): Promise<void> {
+  const { data: link } = await supabaseAdmin
+    .from('marketplace_product_links')
+    .select('account_id, external_item_id, company_id, product_id')
+    .eq('id', linkId)
+    .eq('sync_enabled', true)
+    .eq('platform', 'shopee')
+    .single();
+
+  if (!link) return;
+
+  const { data: account } = await supabaseAdmin
+    .from('marketplace_accounts')
+    .select('*')
+    .eq('id', link.account_id)
+    .eq('is_active', true)
+    .single();
+
+  if (!account) return;
+  if (account.auto_sync_product_info === false) return;
+
+  const startMs = Date.now();
+  const result = await pushCategoryToShopee(
+    account as ShopeeAccountRow,
+    parseInt(link.external_item_id),
+    categoryId,
+    linkId,
+    link.company_id
+  );
+  const durationMs = Date.now() - startMs;
+
+  logIntegration({
+    company_id: account.company_id,
+    integration: 'shopee',
+    account_id: account.id,
+    account_name: account.shop_name,
+    direction: 'outgoing',
+    action: 'auto_push_category',
+    method: 'POST',
+    api_path: '/api/v2/product/update_item',
+    request_body: { link_id: linkId, category_id: categoryId, trigger: 'auto_sync' },
+    response_body: result,
+    status: result.success ? 'success' : 'error',
+    error_message: result.error || undefined,
+    duration_ms: durationMs,
+  });
+
+  console.log(`[Shopee Auto-Sync] Category pushed for item ${link.external_item_id}: category=${categoryId} success=${result.success}`);
 }

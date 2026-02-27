@@ -60,64 +60,59 @@ export default function SuperAdminUsers() {
   return (
     <SuperAdminLayout title="Users" subtitle={`ทั้งหมด ${total} คน`}>
       <div className="space-y-4">
-        {/* Search */}
         <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
             value={search}
             onChange={e => handleSearch(e.target.value)}
             placeholder="ค้นหาชื่อ, email..."
-            className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
+            className="w-full pl-9 pr-3 py-2 border border-slate-600 rounded-lg bg-slate-800 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
           />
         </div>
 
-        {/* Table */}
         {loading ? (
-          <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" /></div>
+          <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-violet-500 animate-spin" /></div>
         ) : users.length === 0 ? (
           <div className="text-center py-16">
-            <Users className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-            <p className="text-gray-500 dark:text-slate-400 text-sm">ไม่พบผู้ใช้</p>
+            <Users className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+            <p className="text-slate-400">ไม่พบผู้ใช้</p>
           </div>
         ) : (
           <>
-            {/* Desktop Table */}
-            <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="hidden md:block bg-slate-800/50 rounded-lg border border-slate-700/50 overflow-hidden">
+              <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">ผู้ใช้</th>
-                    <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Companies</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">สถานะ</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">สร้างเมื่อ</th>
+                  <tr className="border-b border-slate-700/50 bg-slate-800/80">
+                    <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase">ผู้ใช้</th>
+                    <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase">Companies</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase">สถานะ</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase">สร้างเมื่อ</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                <tbody className="divide-y divide-slate-700/50">
                   {users.map(u => (
-                    <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
+                    <tr key={u.id} className="hover:bg-slate-700/30">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <p className="font-medium text-gray-900 dark:text-white">{u.name || '-'}</p>
-                              {u.is_super_admin && <Shield className="w-3.5 h-3.5 text-red-500" />}
+                              <p className="font-medium text-white">{u.name || '-'}</p>
+                              {u.is_super_admin && <Shield className="w-3.5 h-3.5 text-violet-400" />}
                             </div>
-                            <p className="text-xs text-gray-500 dark:text-slate-400">{u.email}</p>
+                            <p className="text-xs text-slate-400">{u.email}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-center font-medium text-gray-900 dark:text-white">{u.company_count}</td>
+                      <td className="px-4 py-3 text-center font-medium text-white">{u.company_count}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full font-medium ${
-                          u.is_active
-                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                          u.is_active ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
                         }`}>
                           {u.is_active ? 'Active' : 'Inactive'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
+                      <td className="px-4 py-3 text-slate-400">
                         {new Date(u.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </td>
                     </tr>
@@ -126,27 +121,24 @@ export default function SuperAdminUsers() {
               </table>
             </div>
 
-            {/* Mobile Cards */}
             <div className="md:hidden space-y-2">
               {users.map(u => (
-                <div key={u.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4">
+                <div key={u.id} className="bg-slate-800/50 rounded-lg border border-slate-700/50 p-4">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <p className="font-medium text-gray-900 dark:text-white">{u.name || '-'}</p>
-                        {u.is_super_admin && <Shield className="w-3.5 h-3.5 text-red-500" />}
+                        <p className="font-medium text-white">{u.name || '-'}</p>
+                        {u.is_super_admin && <Shield className="w-3.5 h-3.5 text-violet-400" />}
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-slate-400">{u.email}</p>
+                      <p className="text-xs text-slate-400">{u.email}</p>
                     </div>
                     <span className={`px-2 py-0.5 text-xs rounded-full font-medium flex-shrink-0 ${
-                      u.is_active
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-red-100 text-red-700'
+                      u.is_active ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
                     }`}>
                       {u.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>Companies: {u.company_count}</span>
                     <span>{new Date(u.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                   </div>
@@ -154,17 +146,16 @@ export default function SuperAdminUsers() {
               ))}
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between pt-2">
-                <p className="text-sm text-gray-500 dark:text-slate-400">
+                <p className="text-slate-400">
                   แสดง {(page - 1) * limit + 1}-{Math.min(page * limit, total)} จาก {total}
                 </p>
                 <div className="flex gap-1">
-                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-2 border border-gray-300 dark:border-slate-600 rounded-lg disabled:opacity-50">
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-2 border border-slate-600 rounded-lg disabled:opacity-50 text-slate-300 hover:bg-slate-700">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-2 border border-gray-300 dark:border-slate-600 rounded-lg disabled:opacity-50">
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-2 border border-slate-600 rounded-lg disabled:opacity-50 text-slate-300 hover:bg-slate-700">
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>

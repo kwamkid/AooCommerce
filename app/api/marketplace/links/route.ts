@@ -237,6 +237,18 @@ export async function PATCH(request: NextRequest) {
       triggerShopeePriceSync(data.product_id);
     }
 
+    // Auto-sync product name to Shopee if platform_product_name changed
+    if (platform_product_name !== undefined && data?.product_id && platform_product_name) {
+      const { triggerShopeeInfoSync } = await import('@/lib/shopee/auto-sync');
+      triggerShopeeInfoSync(data.product_id, platform_product_name);
+    }
+
+    // Auto-sync category to Shopee if shopee_category_id changed
+    if (shopee_category_id !== undefined && shopee_category_id && data?.id) {
+      const { triggerShopeeCategorySync } = await import('@/lib/shopee/auto-sync');
+      triggerShopeeCategorySync(data.id, shopee_category_id);
+    }
+
     return NextResponse.json({ success: true, link: data });
   } catch (error) {
     console.error('Patch marketplace link error:', error);

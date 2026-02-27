@@ -47,6 +47,7 @@ interface OrderData {
   tax_invoice_address?: string;
   source?: string;
   source_name?: string;
+  expires_at?: string | null;
   items: OrderItemInput[];
 }
 
@@ -188,6 +189,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Calculate expires_at for manual orders
+    let expiresAt: string | null = null;
+    const isManualSource = !orderData.source || orderData.source === 'manual';
+    if (isManualSource) {
+      if ('expires_at' in orderData && orderData.expires_at === null) {
+        // Explicitly no expiry — user chose "ไม่หมดอายุ"
+        expiresAt = null;
+      } else if (orderData.expires_at) {
+        expiresAt = orderData.expires_at;
+      } else {
+        // Use company default bill_expiry_days (null = default 7 days, 0 = disabled)
+        const { data: companySettings } = await supabaseAdmin
+          .from('companies')
+          .select('settings')
+          .eq('id', auth.companyId)
+          .single();
+        const rawExpiryDays = (companySettings?.settings as Record<string, unknown>)?.bill_expiry_days;
+        const billExpiryDays = rawExpiryDays === 0 ? 0 : (typeof rawExpiryDays === 'number' && rawExpiryDays > 0 ? rawExpiryDays : 7);
+        if (billExpiryDays > 0) {
+          const d = new Date();
+          d.setDate(d.getDate() + billExpiryDays);
+          expiresAt = d.toISOString();
+        }
+      }
+    }
+
     // Create order
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
@@ -222,6 +249,7 @@ export async function POST(request: NextRequest) {
         tax_invoice_address: orderData.tax_invoice_address || null,
         source: orderData.source || 'manual',
         source_name: orderData.source_name || null,
+        expires_at: expiresAt,
         created_by: auth.userId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()

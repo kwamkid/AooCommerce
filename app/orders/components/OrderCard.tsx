@@ -145,8 +145,12 @@ export default function OrderCard({
               </span>
             )}
             {shouldShowStatus && (
-              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${orderStatusCfg.bg} ${orderStatusCfg.color}`}>
-                {orderStatusCfg.label}
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                order.cancellation_reason === 'expired'
+                  ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                  : `${orderStatusCfg.bg} ${orderStatusCfg.color}`
+              }`}>
+                {order.cancellation_reason === 'expired' ? 'หมดอายุ' : orderStatusCfg.label}
               </span>
             )}
             {showPaymentStatus && order.order_status !== 'cancelled' && (

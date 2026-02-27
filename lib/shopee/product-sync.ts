@@ -6,7 +6,9 @@ import {
   updatePrice,
   updateStock,
   updateItemInfo,
+  getShopeeCategoryAttributes,
   ShopeeAccountRow,
+  ShopeeCredentials,
   ShopeeItemFullDetail,
   ShopeeItemAttribute,
 } from '@/lib/shopee/api';
@@ -1085,6 +1087,134 @@ export async function pushInfoToShopee(
   try {
     const creds = await ensureValidToken(account);
     const { error } = await updateItemInfo(creds, itemId, { item_name: itemName });
+    if (error) return { success: false, error };
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
+  }
+}
+
+// ============================================
+// Export: Push Category to Shopee
+// ============================================
+
+interface AttributeEntry {
+  attribute_id: number;
+  attribute_value_list: Array<{ value_id: number; original_value_name: string }>;
+}
+
+/**
+ * Build attribute_list for category update.
+ * 1. Start with existing attributes from the link (user's current data)
+ * 2. For mandatory attrs in the new category that are missing, fill with N/A
+ */
+async function buildAttributesForCategoryUpdate(
+  creds: ShopeeCredentials,
+  categoryId: number,
+  existingAttributes: AttributeEntry[],
+  companyId?: string
+): Promise<AttributeEntry[]> {
+  // Build a map of existing attribute_id → entry (from the link's current shopee_attributes)
+  const existingMap = new Map<number, AttributeEntry>();
+  for (const attr of existingAttributes) {
+    existingMap.set(attr.attribute_id, attr);
+  }
+
+  // Try stored attributes from another link with same category (as reference)
+  if (companyId) {
+    try {
+      const { data } = await supabaseAdmin
+        .from('marketplace_product_links')
+        .select('shopee_attributes')
+        .eq('company_id', companyId)
+        .eq('shopee_category_id', categoryId)
+        .not('shopee_attributes', 'is', null)
+        .limit(1)
+        .single();
+
+      if (data?.shopee_attributes && Array.isArray(data.shopee_attributes)) {
+        // Merge: use existing values first, fill missing from stored reference
+        const storedAttrs = data.shopee_attributes as AttributeEntry[];
+        for (const sa of storedAttrs) {
+          if (!existingMap.has(sa.attribute_id)) {
+            existingMap.set(sa.attribute_id, sa);
+          }
+        }
+      }
+    } catch { /* no stored attrs */ }
+  }
+
+  // Fetch mandatory attributes for the new category from API
+  try {
+    const { data, error } = await getShopeeCategoryAttributes(creds, categoryId);
+    if (error || !data) return Array.from(existingMap.values());
+
+    const response = data as { attribute_list?: Array<{
+      attribute_id: number;
+      original_attribute_name: string;
+      is_mandatory: boolean;
+      attribute_value_list?: Array<{ value_id: number; original_value_name: string }>;
+    }> };
+    const attributes = response.attribute_list || [];
+    const result: AttributeEntry[] = [];
+
+    for (const attr of attributes.filter(a => a.is_mandatory)) {
+      // Use existing value if we have it
+      const existing = existingMap.get(attr.attribute_id);
+      if (existing && existing.attribute_value_list?.length > 0) {
+        result.push(existing);
+        continue;
+      }
+
+      // Otherwise fill with N/A
+      const values = attr.attribute_value_list || [];
+      if (values.length > 0) {
+        result.push({
+          attribute_id: attr.attribute_id,
+          attribute_value_list: [{ value_id: values[0].value_id, original_value_name: values[0].original_value_name }],
+        });
+      } else {
+        result.push({
+          attribute_id: attr.attribute_id,
+          attribute_value_list: [{ value_id: 0, original_value_name: 'N/A' }],
+        });
+      }
+    }
+    return result;
+  } catch {
+    return Array.from(existingMap.values());
+  }
+}
+
+export async function pushCategoryToShopee(
+  account: ShopeeAccountRow,
+  itemId: number,
+  categoryId: number,
+  linkId: string,
+  companyId?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const creds = await ensureValidToken(account);
+
+    // Get existing attributes from this link
+    let existingAttributes: AttributeEntry[] = [];
+    try {
+      const { data: linkData } = await supabaseAdmin
+        .from('marketplace_product_links')
+        .select('shopee_attributes')
+        .eq('id', linkId)
+        .single();
+      if (linkData?.shopee_attributes && Array.isArray(linkData.shopee_attributes)) {
+        existingAttributes = linkData.shopee_attributes as AttributeEntry[];
+      }
+    } catch { /* no existing attrs */ }
+
+    const attributeList = await buildAttributesForCategoryUpdate(creds, categoryId, existingAttributes, companyId);
+
+    const { error } = await updateItemInfo(creds, itemId, {
+      category_id: categoryId,
+      attribute_list: attributeList,
+    });
     if (error) return { success: false, error };
     return { success: true };
   } catch (e) {

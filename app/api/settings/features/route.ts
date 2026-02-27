@@ -28,7 +28,10 @@ export async function GET(request: NextRequest) {
     const settings = (data?.settings as Record<string, unknown>) || {};
     const result = parseFeatures(settings);
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      bill_expiry_days: settings.bill_expiry_days ?? null,
+    });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
         order_status, payment_status, notes, company_id, customer_id,
         delivery_name, delivery_phone, delivery_address,
         delivery_district, delivery_amphoe, delivery_province, delivery_postal_code, delivery_email,
+        expires_at, cancellation_reason,
         customer:customers (
           name, contact_person, phone, email,
           tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code,
@@ -46,9 +47,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    // Don't show cancelled orders
+    // Auto-cancel expired orders on load
+    let isExpired = false;
+    if (order.expires_at && order.order_status === 'new' && order.payment_status === 'pending') {
+      if (new Date(order.expires_at) < new Date()) {
+        await supabaseAdmin
+          .from('orders')
+          .update({ order_status: 'cancelled', cancellation_reason: 'expired', updated_at: new Date().toISOString() })
+          .eq('id', orderId);
+        order.order_status = 'cancelled';
+        order.cancellation_reason = 'expired';
+        isExpired = true;
+      }
+    }
+
+    // Don't show cancelled orders (except expired ones)
     if (order.order_status === 'cancelled') {
-      return NextResponse.json({ error: 'Order has been cancelled' }, { status: 404 });
+      if (order.cancellation_reason === 'expired') {
+        isExpired = true;
+      } else {
+        return NextResponse.json({ error: 'Order has been cancelled' }, { status: 404 });
+      }
     }
 
     // Wave 2: Fetch company, items, payment records, payment channels in parallel
@@ -343,6 +362,7 @@ export async function GET(request: NextRequest) {
         customer_type: customerType,
         customer: billCustomer,
         needs_delivery_info: !order.delivery_name || !order.delivery_phone || !order.delivery_address,
+        is_expired: isExpired,
         shipping_addresses: branches.map(b => ({
           address_name: b.address_name,
           contact_person: b.contact_person,

@@ -1238,7 +1238,7 @@ export async function updateStock(
 export async function updateItemInfo(
   creds: ShopeeCredentials,
   itemId: number,
-  updates: { item_name?: string; description?: string }
+  updates: { item_name?: string; description?: string; category_id?: number; attribute_list?: Array<{ attribute_id: number; attribute_value_list: Array<{ value_id: number; original_value_name: string }> }> }
 ): Promise<{ data: unknown; error?: string }> {
   return shopeeApiRequest(creds, 'POST', '/api/v2/product/update_item', {}, {
     item_id: itemId,

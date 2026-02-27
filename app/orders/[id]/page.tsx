@@ -320,6 +320,7 @@ export default function OrderDetailPage() {
   };
 
   const getOrderStatusLabel = (status: string): string => {
+    if (status === 'cancelled' && fullOrderData?.cancellation_reason === 'expired') return 'หมดอายุ';
     const labels: Record<string, string> = { new: 'ใหม่', ready_to_ship: 'รอกดรับออเดอร์', processing: 'ที่ต้องจัดส่ง', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
     return labels[status] || status;
   };
@@ -867,7 +868,7 @@ export default function OrderDetailPage() {
         {!isMarketplaceOrder && (() => {
           const isManualReadOnly = orderStatus !== 'new' || paymentStatus !== 'pending';
           if (!isManualReadOnly) return null;
-          const statusLabels: Record<string, string> = { new: 'ใหม่', ready_to_ship: 'รอกดรับออเดอร์', processing: 'ที่ต้องจัดส่ง', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
+          const statusLabels: Record<string, string> = { new: 'ใหม่', ready_to_ship: 'รอกดรับออเดอร์', processing: 'ที่ต้องจัดส่ง', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: fullOrderData?.cancellation_reason === 'expired' ? 'หมดอายุ' : 'ยกเลิก' };
           const paymentLabels: Record<string, string> = { pending: 'รอชำระ', verifying: 'รอตรวจสอบ', paid: 'ชำระแล้ว', cancelled: 'ยกเลิก' };
           const reasonMessage = orderStatus !== 'new'
             ? `สถานะออเดอร์ "${statusLabels[orderStatus] || orderStatus}"`

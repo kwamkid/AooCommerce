@@ -43,6 +43,8 @@ export interface Order {
   created_by_name?: string | null;
   items_preview?: ItemPreview[];
   customer_picture_url?: string | null;
+  expires_at?: string | null;
+  cancellation_reason?: string | null;
   tax_invoice_requested?: boolean;
   printed_label_at?: string | null;
   printed_packing_at?: string | null;
