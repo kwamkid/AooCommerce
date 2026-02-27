@@ -20,6 +20,9 @@ export async function GET(
         name: result.context.supplierName,
         type: result.context.supplierType,
       },
+      company: {
+        name: result.context.companyName,
+      },
     });
   } catch (error) {
     console.error('Portal validate error:', error);

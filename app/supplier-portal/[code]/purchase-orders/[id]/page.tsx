@@ -62,8 +62,17 @@ export default function PortalPODetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Auth gate — redirect to portal login if not authenticated
   useEffect(() => {
-    fetchData();
+    const stored = sessionStorage.getItem(`portal-auth-${code}`);
+    if (stored !== code) {
+      router.replace(`/supplier-portal/${code}`);
+    }
+  }, [code, router]);
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem(`portal-auth-${code}`);
+    if (stored === code) fetchData();
   }, [code, poId]);
 
   const fetchData = async () => {

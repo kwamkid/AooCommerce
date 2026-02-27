@@ -8,9 +8,10 @@ export interface ActionItem {
   key: string;
   label: string;
   icon: React.ReactNode;
-  onClick: (e: React.MouseEvent) => void;
+  onClick?: (e: React.MouseEvent) => void;
   className?: string;
   danger?: boolean;
+  disabled?: boolean;
   dividerBefore?: boolean;
 }
 
@@ -67,11 +68,11 @@ export default function ActionMenu({ items }: { items: ActionItem[] }) {
       {open && menuPos && createPortal(
         <div
           ref={menuRef}
-          className="fixed w-44 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg py-1"
+          className="fixed w-max min-w-[11rem] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg py-1"
           style={{
             top: menuPos.top,
-            left: menuPos.left - 176, // 176 = w-44 = 11rem
-            transform: 'translateY(-100%)',
+            left: menuPos.left,
+            transform: 'translate(-100%, -100%)',
             zIndex: 9999,
           }}
         >
@@ -79,9 +80,13 @@ export default function ActionMenu({ items }: { items: ActionItem[] }) {
             <div key={item.key}>
               {item.dividerBefore && <div className="border-t border-gray-200 dark:border-slate-700 my-1" />}
               <button
-                onClick={(e) => { e.stopPropagation(); setOpen(false); item.onClick(e); }}
-                className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2.5 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
-                  item.danger ? 'text-red-500' : 'text-gray-700 dark:text-slate-300'
+                onClick={(e) => { e.stopPropagation(); if (item.disabled) return; setOpen(false); item.onClick?.(e); }}
+                className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2.5 whitespace-nowrap transition-colors ${
+                  item.disabled
+                    ? 'text-gray-400 dark:text-slate-500 cursor-default'
+                    : item.danger
+                      ? 'text-red-500 hover:bg-gray-50 dark:hover:bg-slate-700'
+                      : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                 }`}
               >
                 {item.icon}

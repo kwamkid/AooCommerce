@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 interface PortalContext {
   supplierId: string;
   companyId: string;
+  companyName: string;
   supplierName: string;
   supplierType: string;
 }
@@ -36,7 +37,7 @@ export async function validatePortalAccess(code: string): Promise<ValidationResu
   // Layer 3: Company feature enabled
   const { data: company } = await supabaseAdmin
     .from('companies')
-    .select('settings')
+    .select('name, settings')
     .eq('id', supplier.company_id)
     .single();
 
@@ -50,6 +51,7 @@ export async function validatePortalAccess(code: string): Promise<ValidationResu
     context: {
       supplierId: supplier.id,
       companyId: supplier.company_id,
+      companyName: company?.name || '',
       supplierName: supplier.name,
       supplierType: supplier.supplier_type,
     },

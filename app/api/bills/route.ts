@@ -61,12 +61,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Don't show cancelled orders (except expired ones)
+    // Mark cancelled orders
+    let isCancelled = false;
     if (order.order_status === 'cancelled') {
       if (order.cancellation_reason === 'expired') {
         isExpired = true;
       } else {
-        return NextResponse.json({ error: 'Order has been cancelled' }, { status: 404 });
+        isCancelled = true;
       }
     }
 
@@ -363,6 +364,7 @@ export async function GET(request: NextRequest) {
         customer: billCustomer,
         needs_delivery_info: !order.delivery_name || !order.delivery_phone || !order.delivery_address,
         is_expired: isExpired,
+        is_cancelled: isCancelled,
         shipping_addresses: branches.map(b => ({
           address_name: b.address_name,
           contact_person: b.contact_person,

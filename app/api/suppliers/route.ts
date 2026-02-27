@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, contact_name, phone, email, address, tax_id, supplier_type, payment_terms, bank_name, bank_account, notes } = body;
+    const { name, contact_name, phone, email, address, tax_id, supplier_type, payment_terms, bank_code, bank_name, bank_account, bank_account_name, branch, is_vat_registered, notes } = body;
 
     if (!name?.trim()) {
       return NextResponse.json({ error: 'กรุณากรอกชื่อซัพพลายเออร์' }, { status: 400 });
@@ -52,8 +52,12 @@ export async function POST(request: NextRequest) {
         tax_id: tax_id?.trim() || null,
         supplier_type: supplier_type || 'cash',
         payment_terms: payment_terms || 0,
+        bank_code: bank_code?.trim() || null,
         bank_name: bank_name?.trim() || null,
         bank_account: bank_account?.trim() || null,
+        bank_account_name: bank_account_name?.trim() || null,
+        branch: branch?.trim() || null,
+        is_vat_registered: is_vat_registered ?? false,
         notes: notes?.trim() || null,
         created_by: auth.userId,
       })
@@ -90,7 +94,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const updateData: Record<string, unknown> = {};
-    const stringFields = ['name', 'contact_name', 'phone', 'email', 'address', 'tax_id', 'supplier_type', 'bank_name', 'bank_account', 'notes'] as const;
+    const stringFields = ['name', 'contact_name', 'phone', 'email', 'address', 'tax_id', 'supplier_type', 'bank_code', 'bank_name', 'bank_account', 'bank_account_name', 'branch', 'notes'] as const;
     for (const key of stringFields) {
       if (fields[key] !== undefined) {
         updateData[key] = typeof fields[key] === 'string' ? fields[key].trim() || null : fields[key];
@@ -99,6 +103,7 @@ export async function PUT(request: NextRequest) {
     if (fields.name !== undefined) updateData.name = fields.name.trim(); // name can't be null
     if (fields.payment_terms !== undefined) updateData.payment_terms = fields.payment_terms;
     if (fields.portal_enabled !== undefined) updateData.portal_enabled = fields.portal_enabled;
+    if (fields.is_vat_registered !== undefined) updateData.is_vat_registered = fields.is_vat_registered;
 
     const { data, error } = await supabaseAdmin
       .from('suppliers')

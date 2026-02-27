@@ -43,10 +43,10 @@ export async function POST(
     while (retries > 0) {
       const { data, error } = await supabaseAdmin
         .from('suppliers')
-        .update({ access_code: accessCode, portal_enabled: true })
+        .update({ access_code: accessCode, portal_enabled: true, portal_enabled_at: new Date().toISOString() })
         .eq('id', id)
         .eq('company_id', auth.companyId)
-        .select('id, access_code, portal_enabled')
+        .select('id, access_code, portal_enabled, portal_enabled_at')
         .single();
 
       if (!error && data) {

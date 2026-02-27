@@ -1,17 +1,50 @@
+// Path: app/settings/suppliers/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import SearchInput from '@/components/ui/SearchInput';
+import Checkbox from '@/components/ui/Checkbox';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Plus, X, Factory, Edit2, Trash2, Phone, Mail,
-  Building2, CreditCard, Handshake, Banknote, RefreshCw, Copy, ExternalLink,
-  ChevronDown,
+  Factory,
+  Plus,
+  Loader2,
+  Phone,
+  Trash2,
+  Copy,
+  ExternalLink,
+  RefreshCw,
+  Clock,
 } from 'lucide-react';
+import Pagination from '@/app/components/Pagination';
+import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { getBankByCode } from '@/lib/constants/banks';
+
+// Column toggle system
+type ColumnKey = 'name' | 'type' | 'contact' | 'phone' | 'email' | 'bank';
+
+const COLUMN_CONFIGS: { key: ColumnKey; label: string; defaultVisible: boolean; alwaysVisible?: boolean }[] = [
+  { key: 'name', label: 'ซัพพลายเออร์', defaultVisible: true, alwaysVisible: true },
+  { key: 'type', label: 'ประเภท', defaultVisible: true },
+  { key: 'contact', label: 'ผู้ติดต่อ', defaultVisible: true },
+  { key: 'phone', label: 'เบอร์โทร', defaultVisible: true },
+  { key: 'email', label: 'อีเมล', defaultVisible: true },
+  { key: 'bank', label: 'ธนาคาร', defaultVisible: true },
+];
+
+const STORAGE_KEY = 'suppliers-visible-columns';
+
+function getDefaultColumns(): ColumnKey[] {
+  return COLUMN_CONFIGS.filter(c => c.defaultVisible).map(c => c.key);
+}
 
 interface Supplier {
   id: string;
@@ -23,147 +56,129 @@ interface Supplier {
   tax_id: string | null;
   supplier_type: 'cash' | 'credit' | 'consignment';
   payment_terms: number;
+  bank_code: string | null;
   bank_name: string | null;
   bank_account: string | null;
   notes: string | null;
   access_code: string | null;
   portal_enabled: boolean;
+  portal_enabled_at: string | null;
 }
 
-const SUPPLIER_TYPES = [
-  { value: 'cash', label: 'Cash (เงินสด)', icon: Banknote, color: 'text-green-600 bg-green-50 dark:bg-green-900/20' },
-  { value: 'credit', label: 'Credit (เครดิต)', icon: CreditCard, color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' },
-  { value: 'consignment', label: 'Consignment (ฝากขาย)', icon: Handshake, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' },
-] as const;
-
-const emptyForm: {
-  name: string; contact_name: string; phone: string; email: string; address: string; tax_id: string;
-  supplier_type: 'cash' | 'credit' | 'consignment'; payment_terms: number;
-  bank_name: string; bank_account: string; notes: string;
-} = {
-  name: '', contact_name: '', phone: '', email: '', address: '', tax_id: '',
-  supplier_type: 'cash', payment_terms: 0,
-  bank_name: '', bank_account: '', notes: '',
+const SUPPLIER_TYPES: Record<string, { label: string; color: string }> = {
+  cash: { label: 'Cash', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
+  credit: { label: 'Credit', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
+  consignment: { label: 'ฝากขาย', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' },
 };
 
+function SupplierTypeBadge({ type }: { type: string }) {
+  const config = SUPPLIER_TYPES[type] || { label: type, color: 'bg-gray-100 text-gray-800' };
+  return (
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+      {config.label}
+    </span>
+  );
+}
+
 export default function SuppliersPage() {
-  const router = useRouter();
-  const { userProfile } = useAuth();
+  const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const { features } = useFeatures();
+  const router = useRouter();
 
-  const [loading, setLoading] = useState(true);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<string>('all');
 
-  // Modal form
-  const [showForm, setShowForm] = useState(false);
-  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  // Selection & bulk delete
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
-  // Expanded card
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Confirm dialogs
+  const [regenerateTarget, setRegenerateTarget] = useState<Supplier | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
-  useEffect(() => {
-    if (userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')) {
-      fetchSuppliers();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userProfile]);
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
 
-  // Feature gate — redirect to /inventory/receives if supplier feature is off
-  useEffect(() => {
-    if (features && !features.supplier) {
-      router.replace('/inventory/receives');
-    }
-  }, [features, router]);
-
-  const fetchSuppliers = async () => {
-    try {
-      const res = await apiFetch('/api/suppliers');
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
-      setSuppliers(data.data || []);
-    } catch {
-      showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const openAddForm = () => {
-    setEditingSupplier(null);
-    setForm(emptyForm);
-    setShowForm(true);
-  };
-
-  const openEditForm = (supplier: Supplier) => {
-    setEditingSupplier(supplier);
-    setForm({
-      name: supplier.name,
-      contact_name: supplier.contact_name || '',
-      phone: supplier.phone || '',
-      email: supplier.email || '',
-      address: supplier.address || '',
-      tax_id: supplier.tax_id || '',
-      supplier_type: supplier.supplier_type,
-      payment_terms: supplier.payment_terms || 0,
-      bank_name: supplier.bank_name || '',
-      bank_account: supplier.bank_account || '',
-      notes: supplier.notes || '',
-    });
-    setShowForm(true);
-  };
-
-  const handleSave = async () => {
-    if (!form.name.trim()) {
-      showToast('กรุณากรอกชื่อซัพพลายเออร์', 'error');
-      return;
-    }
-    setSaving(true);
-    try {
-      const payload = editingSupplier ? { id: editingSupplier.id, ...form } : form;
-      const res = await apiFetch('/api/suppliers', {
-        method: editingSupplier ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed');
+  // Column visibility
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try { return new Set(JSON.parse(stored) as ColumnKey[]); } catch { /* use defaults */ }
       }
-      showToast(editingSupplier ? 'อัปเดตสำเร็จ' : 'เพิ่มซัพพลายเออร์สำเร็จ');
-      setShowForm(false);
-      await fetchSuppliers();
-    } catch (error: unknown) {
-      showToast(error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ', 'error');
+    }
+    return new Set(getDefaultColumns());
+  });
+
+  const toggleColumn = (key: ColumnKey) => {
+    setVisibleColumns(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const isCol = (key: ColumnKey) => visibleColumns.has(key);
+
+  // Selection helpers
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // Bulk delete handler
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    try {
+      for (const id of selectedIds) {
+        const res = await apiFetch(`/api/suppliers?id=${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('ไม่สามารถลบได้');
+      }
+      showToast(`ลบซัพพลายเออร์ ${selectedIds.size} รายการสำเร็จ`);
+      setSuppliers(prev => prev.filter(s => !selectedIds.has(s.id)));
+      setSelectedIds(new Set());
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'ไม่สามารถลบได้', 'error');
     } finally {
-      setSaving(false);
+      setBulkDeleting(false);
+      setBulkDeleteOpen(false);
     }
   };
 
-  const handleDelete = async (supplier: Supplier) => {
-    if (!confirm(`ต้องการลบ "${supplier.name}"?`)) return;
-    setDeletingId(supplier.id);
+  // Single delete handler
+  const handleDelete = async (id: string) => {
     try {
-      const res = await apiFetch(`/api/suppliers?id=${supplier.id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/suppliers?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete');
       showToast('ลบสำเร็จ');
-      await fetchSuppliers();
+      setSuppliers(prev => prev.filter(s => s.id !== id));
+      setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
     } catch {
       showToast('ลบไม่สำเร็จ', 'error');
     } finally {
-      setDeletingId(null);
+      setDeleteTarget(null);
     }
   };
 
+  // Portal helpers
   const handleRegenerateCode = async (supplier: Supplier) => {
     try {
       const res = await apiFetch(`/api/suppliers/${supplier.id}/regenerate-code`, { method: 'POST' });
       if (!res.ok) throw new Error('Failed');
-      showToast('สร้างรหัสใหม่สำเร็จ');
-      await fetchSuppliers();
+      const data = await res.json();
+      const newCode = data.data?.access_code || data.access_code;
+      if (newCode) navigator.clipboard.writeText(newCode);
+      showToast(newCode ? `สร้างรหัสใหม่สำเร็จ — คัดลอก ${newCode} แล้ว` : 'สร้างรหัสใหม่สำเร็จ');
+      setSuppliers(prev => prev.map(s => s.id === supplier.id ? { ...s, access_code: newCode, portal_enabled: true, portal_enabled_at: data.data?.portal_enabled_at || new Date().toISOString() } : s));
     } catch {
       showToast('สร้างรหัสไม่สำเร็จ', 'error');
     }
@@ -174,12 +189,80 @@ export default function SuppliersPage() {
     showToast('คัดลอกรหัสแล้ว');
   };
 
-  const getTypeConfig = (type: string) => SUPPLIER_TYPES.find(t => t.value === type) || SUPPLIER_TYPES[0];
+  // Clear selection when filters change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [searchTerm, filterType, currentPage]);
+
+  // Feature gate
+  useEffect(() => {
+    if (features && !features.supplier) {
+      router.replace('/inventory/receives');
+    }
+  }, [features, router]);
+
+  // Fetch suppliers
+  useFetchOnce(async () => {
+    try {
+      setLoading(true);
+      const res = await apiFetch('/api/suppliers');
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
+      setSuppliers(data.data || []);
+    } catch {
+      showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, !authLoading && !!userProfile);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  // Filter suppliers
+  const filteredSuppliers = suppliers.filter(supplier => {
+    const matchesSearch = searchTerm === '' ||
+      supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      supplier.contact_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      supplier.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      supplier.email?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesType = filterType === 'all' || supplier.supplier_type === filterType;
+
+    return matchesSearch && matchesType;
+  });
+
+  // Types that exist
+  const activeTypes = useMemo(() => {
+    const types = new Set(suppliers.map(s => s.supplier_type));
+    return Object.entries(SUPPLIER_TYPES).filter(([key]) => types.has(key as Supplier['supplier_type']));
+  }, [suppliers]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredSuppliers.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedSuppliers = filteredSuppliers.slice(startIndex, endIndex);
+
+  const allPageSelected = paginatedSuppliers.length > 0 &&
+    paginatedSuppliers.every(s => selectedIds.has(s.id));
+
+  const toggleSelectAll = () => {
+    const pageIds = paginatedSuppliers.map(s => s.id);
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allPageSelected) pageIds.forEach(id => next.delete(id));
+      else pageIds.forEach(id => next.add(id));
+      return next;
+    });
+  };
 
   // Admin guard
   if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
     return (
-      <Layout title="ซัพพลายเออร์">
+      <Layout>
         <div className="text-center py-16 text-gray-500 dark:text-slate-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
       </Layout>
     );
@@ -187,337 +270,288 @@ export default function SuppliersPage() {
 
   if (!features.supplier) return null;
 
+  if (authLoading || loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+        </div>
+      </Layout>
+    );
+  }
+
   return (
-    <Layout
-      title="ซัพพลายเออร์"
-      breadcrumbs={[
-        { label: 'ตั้งค่าระบบ', href: '/settings' },
-        { label: 'ซัพพลายเออร์' },
-      ]}
-    >
-      <div className="max-w-4xl">
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+    <Layout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+              <Factory className="w-8 h-8 mr-3 text-[#F4511E]" />
+              ซัพพลายเออร์
+            </h1>
+            <p className="text-gray-600 dark:text-slate-400 mt-1">จัดการข้อมูลซัพพลายเออร์และผู้จัดจำหน่าย</p>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500 dark:text-slate-400">
-                {suppliers.length} ซัพพลายเออร์
-              </p>
-              <button
-                onClick={openAddForm}
-                className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                เพิ่มซัพพลายเออร์
-              </button>
+
+          <button
+            onClick={() => router.push('/settings/suppliers/new')}
+            className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center font-medium"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            เพิ่มซัพพลายเออร์
+          </button>
+        </div>
+
+        {/* Filters and Search */}
+        <div className="data-filter-card">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ, ผู้ติดต่อ, เบอร์โทร..." className="py-2" />
             </div>
 
-            {/* Supplier Cards */}
-            {suppliers.map(supplier => {
-              const typeConfig = getTypeConfig(supplier.supplier_type);
-              const TypeIcon = typeConfig.icon;
-              const isExpanded = expandedId === supplier.id;
+            <select
+              value={filterType}
+              onChange={(e) => { setFilterType(e.target.value); setCurrentPage(1); }}
+              className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+            >
+              <option value="all">ประเภททั้งหมด</option>
+              {activeTypes.map(([key, { label }]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-              return (
-                <div key={supplier.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
-                  <div
-                    className="flex items-center gap-3 p-4 cursor-pointer"
-                    onClick={() => setExpandedId(isExpanded ? null : supplier.id)}
+        {/* Bulk Action Bar */}
+        {selectedIds.size > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-lg px-6 py-3">
+            <div className="max-w-screen-xl mx-auto flex items-center justify-between">
+              <button onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors">
+                clear all
+              </button>
+              <button
+                onClick={() => setBulkDeleteOpen(true)}
+                disabled={bulkDeleting}
+                className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm rounded-lg font-medium transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                {bulkDeleting ? 'กำลังลบ...' : `ลบ ${selectedIds.size} รายการ`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Supplier Table */}
+        <div className="data-table-wrap">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="data-thead">
+                <tr>
+                  <th className="w-[44px] px-3 py-3 text-center">
+                    <Checkbox checked={allPageSelected} onChange={toggleSelectAll} />
+                  </th>
+                  {isCol('name') && <th className="data-th min-w-[200px]">ซัพพลายเออร์</th>}
+                  {isCol('type') && <th className="data-th w-[100px]">ประเภท</th>}
+                  {isCol('contact') && <th className="data-th min-w-[130px]">ผู้ติดต่อ</th>}
+                  {isCol('phone') && <th className="data-th w-[120px]">เบอร์โทร</th>}
+                  {isCol('email') && <th className="data-th min-w-[160px]">อีเมล</th>}
+                  {isCol('bank') && <th className="data-th min-w-[150px]">ธนาคาร</th>}
+                  <th className="w-[44px]"></th>
+                </tr>
+              </thead>
+              <tbody className="data-tbody">
+                {paginatedSuppliers.map((supplier) => (
+                  <tr
+                    key={supplier.id}
+                    onClick={() => router.push(`/settings/suppliers/${supplier.id}/edit`)}
+                    className="data-tr cursor-pointer"
                   >
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${typeConfig.color}`}>
-                      <TypeIcon className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900 dark:text-white">{supplier.name}</p>
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${typeConfig.color}`}>
-                          {typeConfig.label}
-                        </span>
-                      </div>
-                      {supplier.contact_name && (
-                        <p className="text-sm text-gray-500 dark:text-slate-400 truncate">{supplier.contact_name}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); openEditForm(supplier); }}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
-                        title="แก้ไข"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(supplier); }}
-                        disabled={deletingId === supplier.id}
-                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                        title="ลบ"
-                      >
-                        {deletingId === supplier.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      </button>
-                      <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                    </div>
-                  </div>
+                    <td className="w-[44px] px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox checked={selectedIds.has(supplier.id)} onChange={() => toggleSelect(supplier.id)} />
+                    </td>
 
-                  {/* Expanded detail */}
-                  {isExpanded && (
-                    <div className="border-t border-gray-100 dark:border-slate-700 px-4 py-3 space-y-2 text-sm">
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-                        {supplier.phone && (
-                          <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
-                            <Phone className="w-3.5 h-3.5" /> {supplier.phone}
-                          </div>
-                        )}
-                        {supplier.email && (
-                          <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
-                            <Mail className="w-3.5 h-3.5" /> {supplier.email}
-                          </div>
-                        )}
-                        {supplier.tax_id && (
-                          <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
-                            <Building2 className="w-3.5 h-3.5" /> เลขผู้เสียภาษี: {supplier.tax_id}
-                          </div>
-                        )}
-                        {supplier.supplier_type === 'credit' && (
-                          <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
-                            <CreditCard className="w-3.5 h-3.5" /> เครดิต {supplier.payment_terms} วัน
-                          </div>
-                        )}
-                        {supplier.bank_name && (
-                          <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
-                            <Banknote className="w-3.5 h-3.5" /> {supplier.bank_name} {supplier.bank_account}
-                          </div>
-                        )}
-                      </div>
-                      {supplier.address && (
-                        <p className="text-gray-500 dark:text-slate-400 text-xs">{supplier.address}</p>
-                      )}
-                      {supplier.notes && (
-                        <p className="text-gray-400 dark:text-slate-500 text-xs italic">{supplier.notes}</p>
-                      )}
+                    {isCol('name') && (
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-[15px] text-gray-900 dark:text-white">{supplier.name}</div>
+                      {supplier.address && <div className="text-xs text-gray-400 dark:text-slate-500 line-clamp-1">{supplier.address}</div>}
+                    </td>
+                    )}
 
-                      {/* Portal section */}
-                      <div className="pt-2 border-t border-gray-100 dark:border-slate-700">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium text-gray-500 dark:text-slate-400 flex items-center gap-1">
-                            <ExternalLink className="w-3 h-3" /> Supplier Portal
-                          </span>
-                          {supplier.access_code ? (
-                            <div className="flex items-center gap-2">
-                              <code className="text-xs font-mono bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">{supplier.access_code}</code>
-                              <button onClick={() => copyCode(supplier.access_code!)} className="p-1 text-gray-400 hover:text-gray-600" title="คัดลอก">
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => handleRegenerateCode(supplier)} className="p-1 text-gray-400 hover:text-amber-600" title="สร้างรหัสใหม่">
-                                <RefreshCw className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleRegenerateCode(supplier)}
-                              className="text-xs text-[#F4511E] hover:underline"
-                            >
-                              เปิด Portal
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                    {isCol('type') && (
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <SupplierTypeBadge type={supplier.supplier_type} />
+                    </td>
+                    )}
 
-            {suppliers.length === 0 && (
-              <div className="text-center py-12 text-gray-400 dark:text-slate-500">
-                <Factory className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>ยังไม่มีซัพพลายเออร์</p>
-                <button onClick={openAddForm} className="mt-3 text-sm text-[#F4511E] hover:underline">
-                  เพิ่มซัพพลายเออร์ตัวแรก
-                </button>
-              </div>
+                    {isCol('contact') && (
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className="text-sm text-gray-700 dark:text-slate-300">{supplier.contact_name || '-'}</span>
+                    </td>
+                    )}
+
+                    {isCol('phone') && (
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      {supplier.phone ? (
+                        <a href={`tel:${supplier.phone}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                          <Phone className="w-3.5 h-3.5" />{supplier.phone}
+                        </a>
+                      ) : <span className="text-gray-300 text-sm">-</span>}
+                    </td>
+                    )}
+
+                    {isCol('email') && (
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className="text-sm text-gray-700 dark:text-slate-300">{supplier.email || '-'}</span>
+                    </td>
+                    )}
+
+                    {isCol('bank') && (
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      {supplier.bank_name ? (() => {
+                        const bank = supplier.bank_code ? getBankByCode(supplier.bank_code) : null;
+                        return (
+                          <div className="flex items-center gap-2">
+                            {bank && (bank.logo ? (
+                              <img src={bank.logo} alt="" className="w-5 h-5 rounded-full flex-shrink-0 object-contain" />
+                            ) : (
+                              <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[8px] font-bold" style={{ backgroundColor: bank.color }}>
+                                {bank.code.slice(0, 2)}
+                              </div>
+                            ))}
+                            <span className="text-sm text-gray-700 dark:text-slate-300">{supplier.bank_name} {supplier.bank_account ? `(${supplier.bank_account})` : ''}</span>
+                          </div>
+                        );
+                      })() : <span className="text-gray-300 text-sm">-</span>}
+                    </td>
+                    )}
+
+                    <td className="w-[44px] px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <ActionMenu items={(() => {
+                        const items: ActionItem[] = [];
+                        if (supplier.access_code) {
+                          items.push({
+                            key: 'portal',
+                            label: 'ลิงก์ซัพออนไลน์',
+                            icon: <ExternalLink className="w-4 h-4" />,
+                            onClick: () => { navigator.clipboard.writeText(`${window.location.origin}/supplier-portal/${supplier.access_code}`); showToast('คัดลอกลิงก์แล้ว'); },
+                          });
+                          items.push({
+                            key: 'copy-code',
+                            label: 'รหัส Portal',
+                            icon: <Copy className="w-4 h-4" />,
+                            onClick: () => copyCode(supplier.access_code!),
+                          });
+                          items.push({
+                            key: 'regenerate',
+                            label: 'สร้างรหัสใหม่',
+                            icon: <RefreshCw className="w-4 h-4" />,
+                            onClick: () => setRegenerateTarget(supplier),
+                          });
+                          if (supplier.portal_enabled_at) {
+                            items.push({
+                              key: 'portal-date',
+                              label: `เปิด Portal เมื่อ ${new Date(supplier.portal_enabled_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} ${new Date(supplier.portal_enabled_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`,
+                              icon: <Clock className="w-4 h-4" />,
+                              disabled: true,
+                              dividerBefore: true,
+                            });
+                          }
+                        } else {
+                          items.push({
+                            key: 'enable-portal',
+                            label: 'เปิด Portal',
+                            icon: <ExternalLink className="w-4 h-4" />,
+                            onClick: () => handleRegenerateCode(supplier),
+                          });
+                        }
+                        items.push({
+                          key: 'delete',
+                          label: 'ลบ',
+                          icon: <Trash2 className="w-4 h-4" />,
+                          onClick: () => setDeleteTarget({ id: supplier.id, name: supplier.name }),
+                          danger: true,
+                          dividerBefore: true,
+                        });
+                        return items;
+                      })()} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={filteredSuppliers.length}
+          startIdx={startIndex}
+          endIdx={Math.min(endIndex, filteredSuppliers.length)}
+          recordsPerPage={rowsPerPage}
+          setRecordsPerPage={setRowsPerPage}
+          setPage={setCurrentPage}
+        >
+          <ColumnSettingsDropdown
+            configs={COLUMN_CONFIGS}
+            visible={visibleColumns}
+            toggle={toggleColumn}
+            buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+            dropUp
+          />
+        </Pagination>
+
+        {/* Confirm Dialogs */}
+        <ConfirmDialog
+          open={!!regenerateTarget}
+          onClose={() => setRegenerateTarget(null)}
+          onConfirm={() => { if (regenerateTarget) handleRegenerateCode(regenerateTarget); setRegenerateTarget(null); }}
+          icon={<RefreshCw className="w-6 h-6 text-[#F4511E]" />}
+          title="สร้างรหัส Portal ใหม่?"
+          description="รหัสเดิมจะถูกยกเลิกทันที ซัพพลายเออร์ต้องใช้รหัสใหม่ในการเข้า Portal"
+          confirmLabel="สร้างรหัสใหม่"
+          confirmIcon={<RefreshCw className="w-4 h-4" />}
+        />
+
+        <ConfirmDialog
+          open={!!deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => { if (deleteTarget) handleDelete(deleteTarget.id); }}
+          icon={<Trash2 className="w-6 h-6 text-red-600" />}
+          title={`ลบ "${deleteTarget?.name}"?`}
+          description="การลบจะไม่สามารถกู้คืนได้"
+          variant="danger"
+          confirmLabel="ลบ"
+          confirmIcon={<Trash2 className="w-4 h-4" />}
+        />
+
+        <ConfirmDialog
+          open={bulkDeleteOpen}
+          onClose={() => setBulkDeleteOpen(false)}
+          onConfirm={handleBulkDelete}
+          icon={<Trash2 className="w-6 h-6 text-red-600" />}
+          title={`ลบซัพพลายเออร์ ${selectedIds.size} รายการ?`}
+          description="การลบจะไม่สามารถกู้คืนได้"
+          variant="danger"
+          confirmLabel={bulkDeleting ? 'กำลังลบ...' : 'ลบทั้งหมด'}
+          confirmIcon={<Trash2 className="w-4 h-4" />}
+        />
+
+        {/* Empty State */}
+        {filteredSuppliers.length === 0 && !loading && (
+          <div className="text-center py-12">
+            <Factory className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500 text-lg">ไม่พบซัพพลายเออร์</p>
+            {searchTerm ? (
+              <p className="text-gray-400 text-sm mt-2">ลองค้นหาด้วยคำอื่น</p>
+            ) : (
+              <button onClick={() => router.push('/settings/suppliers/new')} className="mt-3 text-sm text-[#F4511E] hover:underline">
+                เพิ่มซัพพลายเออร์ตัวแรก
+              </button>
             )}
           </div>
         )}
       </div>
-
-      {/* Modal Form */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <Factory className="w-5 h-5 text-[#F4511E]" />
-                {editingSupplier ? 'แก้ไขซัพพลายเออร์' : 'เพิ่มซัพพลายเออร์'}
-              </h3>
-              <button onClick={() => setShowForm(false)} className="p-1 text-gray-400 hover:text-gray-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-4">
-              {/* Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อ <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-                  placeholder="ชื่อบริษัท/ซัพพลายเออร์"
-                  autoFocus
-                />
-              </div>
-
-              {/* Type */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ประเภท</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {SUPPLIER_TYPES.map(type => {
-                    const Icon = type.icon;
-                    const isSelected = form.supplier_type === type.value;
-                    return (
-                      <button
-                        key={type.value}
-                        type="button"
-                        onClick={() => setForm(prev => ({ ...prev, supplier_type: type.value }))}
-                        className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-all text-xs ${
-                          isSelected
-                            ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 text-[#F4511E]'
-                            : 'border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-300'
-                        }`}
-                      >
-                        <Icon className="w-5 h-5" />
-                        {type.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Credit terms — show only for credit type */}
-              {form.supplier_type === 'credit' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เครดิต (วัน)</label>
-                  <input
-                    type="number"
-                    value={form.payment_terms}
-                    onChange={e => setForm(prev => ({ ...prev, payment_terms: parseInt(e.target.value) || 0 }))}
-                    className="w-32 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-                    placeholder="30"
-                    min={0}
-                  />
-                </div>
-              )}
-
-              {/* Contact */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อผู้ติดต่อ</label>
-                  <input
-                    type="text"
-                    value={form.contact_name}
-                    onChange={e => setForm(prev => ({ ...prev, contact_name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทร</label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อีเมล</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่</label>
-                <textarea
-                  value={form.address}
-                  onChange={e => setForm(prev => ({ ...prev, address: e.target.value }))}
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 resize-none"
-                />
-              </div>
-
-              {/* Tax & Bank */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เลขผู้เสียภาษี</label>
-                  <input
-                    type="text"
-                    value={form.tax_id}
-                    onChange={e => setForm(prev => ({ ...prev, tax_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ธนาคาร</label>
-                  <input
-                    type="text"
-                    value={form.bank_name}
-                    onChange={e => setForm(prev => ({ ...prev, bank_name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-                    placeholder="เช่น กสิกร, กรุงเทพ"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เลขบัญชีธนาคาร</label>
-                <input
-                  type="text"
-                  value={form.bank_account}
-                  onChange={e => setForm(prev => ({ ...prev, bank_account: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุ</label>
-                <textarea
-                  value={form.notes}
-                  onChange={e => setForm(prev => ({ ...prev, notes: e.target.value }))}
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 resize-none"
-                />
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-slate-700">
-              <button
-                onClick={() => setShowForm(false)}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {editingSupplier ? 'บันทึก' : 'เพิ่ม'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </Layout>
   );
 }

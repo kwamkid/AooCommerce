@@ -108,6 +108,7 @@ interface BillData {
   needs_delivery_info?: boolean;
   customer_id?: string | null;
   is_expired?: boolean;
+  is_cancelled?: boolean;
   items: BillItem[];
   branches: BillBranch[];
 }
@@ -376,6 +377,7 @@ export default function BillOnlinePage() {
   const billTitle = 'ใบสั่งซื้อ / Purchase Order';
 
   const isExpired = bill.is_expired === true;
+  const isCancelled = bill.is_cancelled === true;
 
   const orderStatusConfig: Record<string, { label: string; color: string; darkColor: string }> = {
     new: { label: 'รอดำเนินการ', color: 'bg-blue-100 text-blue-700', darkColor: 'bg-blue-900/40 text-blue-400' },
@@ -563,6 +565,8 @@ export default function BillOnlinePage() {
               <div className="flex items-center justify-end gap-1.5 mt-1 print:hidden">
                 {isExpired ? (
                   <StatusPill label="หมดอายุ" color={dark ? 'bg-red-900/40 text-red-400' : 'bg-red-100 text-red-700'} />
+                ) : isCancelled ? (
+                  <StatusPill label="ยกเลิกแล้ว" color={dark ? 'bg-gray-700/60 text-gray-400' : 'bg-gray-200 text-gray-600'} />
                 ) : (
                   <>
                     {orderStatusInfo && (
@@ -588,8 +592,19 @@ export default function BillOnlinePage() {
             </div>
           )}
 
-          {/* Delivery Info Form — shown when no customer and no delivery info yet, or when editing */}
-          {(bill.needs_delivery_info || editingDelivery) && (
+          {/* Cancelled banner */}
+          {isCancelled && (
+            <div className={`rounded-lg p-4 mb-5 flex items-start gap-3 ${dark ? 'bg-gray-800/50 border border-gray-700' : 'bg-gray-100 border border-gray-300'}`}>
+              <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${dark ? 'text-gray-400' : 'text-gray-500'}`} />
+              <div>
+                <div className={`font-semibold text-base ${dark ? 'text-gray-300' : 'text-gray-700'}`}>บิลนี้ถูกยกเลิกแล้ว</div>
+                <p className={`text-sm mt-0.5 ${dark ? 'text-gray-500' : 'text-gray-500'}`}>กรุณาติดต่อร้านค้าหากมีข้อสงสัย</p>
+              </div>
+            </div>
+          )}
+
+          {/* Delivery Info Form — shown when no customer and no delivery info yet, or when editing (hidden for cancelled/expired) */}
+          {!isCancelled && !isExpired && (bill.needs_delivery_info || editingDelivery) && (
             <div className={`rounded-lg p-4 mb-5 border-2 border-dashed ${dark ? 'border-orange-500/50 bg-orange-900/10' : 'border-orange-300 bg-orange-50'}`}>
               <div className={`text-sm font-medium mb-3 ${dark ? 'text-orange-400' : 'text-orange-700'}`}>
                 {editingDelivery ? 'แก้ไขข้อมูลจัดส่ง' : 'กรุณากรอกข้อมูลจัดส่ง'}
@@ -894,8 +909,8 @@ export default function BillOnlinePage() {
 
         </div>
 
-          {/* Right column: Payment — sticky on desktop, hidden when expired */}
-          {!isExpired && (
+          {/* Right column: Payment — sticky on desktop, hidden when expired/cancelled */}
+          {!isExpired && !isCancelled && (
           <div className="print:hidden mt-4 lg:mt-0 lg:sticky lg:top-20 lg:self-start">
           <div className={`rounded-xl shadow-sm p-5 md:p-6 transition-colors space-y-4 ${dark ? 'bg-[#16213E] shadow-black/20' : 'bg-white'}`}>
             <h3 className={`font-bold text-lg flex items-center gap-2 ${dark ? 'text-white' : 'text-gray-900'}`}>

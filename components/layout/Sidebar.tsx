@@ -85,8 +85,9 @@ const menuSections: MenuSection[] = [
     ]
   },
   {
-    title: 'ลูกค้า',
+    title: 'Contact',
     items: [
+      { label: 'ซัพพลายเออร์', href: '/settings/suppliers', icon: <Factory className="w-5 h-5" />, roles: ['admin'] },
       { label: 'ลูกค้า', href: '/customers', icon: <UserCircle className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
       { label: 'ติดตามลูกค้า', href: '/crm/follow-up', icon: <UserCheck className="w-5 h-5" />, roles: ['admin', 'sales'] },
       { label: 'ติดตามหนี้', href: '/crm/payment-followup', icon: <DollarSign className="w-5 h-5" />, roles: ['admin', 'sales'] },
@@ -312,6 +313,7 @@ export default function Sidebar() {
         if (item.href === '/reports/delivery-summary' && !features.delivery_date.enabled) return false;
         if (item.href === '/crm/payment-followup' && !features.billing_cycle) return false;
         if (item.href === '/reports/supplier' && !features.supplier) return false;
+        if (item.href === '/settings/suppliers' && !features.supplier) return false;
         return true;
       })
     }))
@@ -585,6 +587,12 @@ export default function Sidebar() {
                               <Warehouse className="w-4 h-4" />
                               <span className="text-[16px] font-medium">สต๊อกสินค้า</span>
                             </Link>
+                            {features.supplier && (
+                            <Link href="/inventory/purchase-orders" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/purchase-orders' || pathname === '/inventory/purchase-order' || pathname?.startsWith('/inventory/purchase-orders/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <ClipboardList className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">ใบสั่งซื้อ (PO)</span>
+                            </Link>
+                            )}
                             <Link href="/inventory/receives" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/receives' || pathname === '/inventory/receive' || pathname?.startsWith('/inventory/receives/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                               <ArrowDownToLine className="w-4 h-4" />
                               <span className="text-[16px] font-medium">รายการรับเข้า</span>
@@ -597,12 +605,6 @@ export default function Sidebar() {
                               <ArrowLeftRight className="w-4 h-4" />
                               <span className="text-[16px] font-medium">รายการโอนย้าย</span>
                             </Link>
-                            {features.supplier && (
-                            <Link href="/inventory/purchase-orders" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/purchase-orders' || pathname === '/inventory/purchase-order' || pathname?.startsWith('/inventory/purchase-orders/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
-                              <ClipboardList className="w-4 h-4" />
-                              <span className="text-[16px] font-medium">ใบสั่งซื้อ (PO)</span>
-                            </Link>
-                            )}
                           </div>
                         )}
                       </div>
@@ -684,12 +686,6 @@ export default function Sidebar() {
                     <Link href="/settings/pos-terminals" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/pos-terminals' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                       <Monitor className="w-4 h-4" />
                       <span className="text-[16px] font-medium">เครื่อง POS</span>
-                    </Link>
-                    )}
-                    {features.supplier && (
-                    <Link href="/settings/suppliers" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/suppliers' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
-                      <Factory className="w-4 h-4" />
-                      <span className="text-[16px] font-medium">ซัพพลายเออร์</span>
                     </Link>
                     )}
                     {features.marketplace_sync && (
