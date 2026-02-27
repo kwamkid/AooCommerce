@@ -180,6 +180,52 @@ async function processWebhook(
       return;
     }
 
+    // Handle order_tracking: code=4 — update tracking_number on order
+    if (pushCode === 4) {
+      if (!account) {
+        await updateLog('skipped', 'No matching marketplace account');
+        return;
+      }
+
+      const orderSn = payload.data?.ordersn as string;
+      const trackingNo = (payload.data?.tracking_no as string) || '';
+      const packageNumber = (payload.data?.package_number as string) || '';
+
+      if (!orderSn) {
+        await updateLog('skipped', 'No ordersn in payload');
+        return;
+      }
+
+      logIntegration({
+        company_id: account.company_id,
+        integration: 'shopee',
+        account_id: account.id,
+        account_name: account.shop_name,
+        direction: 'incoming',
+        action: 'webhook_order_tracking',
+        method: 'POST',
+        api_path: '/api/shopee/webhook',
+        request_body: payload,
+        status: 'success',
+        reference_type: 'order',
+        reference_id: orderSn,
+        reference_label: trackingNo
+          ? `Order ${orderSn} → tracking: ${trackingNo}`
+          : `Order ${orderSn}`,
+        duration_ms: Date.now() - startTime,
+      });
+
+      try {
+        await handleOrderTracking(account, orderSn, trackingNo, packageNumber);
+        await updateLog('processed');
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown tracking update error';
+        console.error('Shopee webhook tracking error:', err);
+        await updateLog('failed', errorMsg);
+      }
+      return;
+    }
+
     // All other push codes — not handled yet, mark as skipped
     if (!account) {
       await updateLog('skipped', 'No matching marketplace account');
@@ -190,6 +236,78 @@ async function processWebhook(
     const errorMsg = err instanceof Error ? err.message : 'Unknown error';
     console.error('Shopee webhook processing error:', err);
     await updateLog('failed', errorMsg);
+  }
+}
+
+// ─── Order tracking update ───────────────────────────────────────────
+
+async function handleOrderTracking(
+  account: ShopeeAccountRow,
+  orderSn: string,
+  trackingNo: string,
+  packageNumber: string,
+) {
+  // Find the order
+  const { data: order } = await supabaseAdmin
+    .from('orders')
+    .select('id, is_split')
+    .eq('company_id', account.company_id)
+    .eq('external_order_sn', orderSn)
+    .maybeSingle();
+
+  if (!order) {
+    console.log(`[Shopee Webhook] order_tracking: order ${orderSn} not found, skipping`);
+    return;
+  }
+
+  // For split orders with package_number → update the specific parcel
+  if (order.is_split && packageNumber) {
+    const { error: parcelErr } = await supabaseAdmin
+      .from('order_parcels')
+      .update({
+        tracking_number: trackingNo || undefined,
+        status: 'shipped',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('order_id', order.id)
+      .eq('package_number', packageNumber);
+
+    if (parcelErr) {
+      console.error(`[Shopee Webhook] Failed to update parcel tracking for ${orderSn}/${packageNumber}:`, parcelErr.message);
+    } else {
+      console.log(`[Shopee Webhook] Updated parcel tracking: ${orderSn} pkg=${packageNumber} → ${trackingNo}`);
+    }
+  }
+
+  // Always update tracking on the main order too (latest tracking wins for non-split, or primary for split)
+  const updatePayload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (trackingNo) updatePayload.tracking_number = trackingNo;
+
+  // Also advance to shipping if still in processing (tracking = ขนส่งรับพัสดุแล้ว)
+  if (trackingNo) {
+    const { data: currentOrder } = await supabaseAdmin
+      .from('orders')
+      .select('order_status')
+      .eq('id', order.id)
+      .single();
+
+    if (currentOrder && currentOrder.order_status === 'processing') {
+      updatePayload.order_status = 'shipping';
+      updatePayload.external_status = 'SHIPPED';
+    }
+  }
+
+  const { error: orderErr } = await supabaseAdmin
+    .from('orders')
+    .update(updatePayload)
+    .eq('id', order.id);
+
+  if (orderErr) {
+    console.error(`[Shopee Webhook] Failed to update order tracking for ${orderSn}:`, orderErr.message);
+  } else {
+    console.log(`[Shopee Webhook] Updated order tracking: ${orderSn} → ${trackingNo}${updatePayload.order_status ? ' (→ shipping)' : ''}`);
   }
 }
 

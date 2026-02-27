@@ -67,6 +67,26 @@ export async function GET(request: NextRequest) {
         (data as Record<string, unknown>).created_by_user = profile || null;
       }
 
+      // Fetch PO reference if linked
+      if (receiveHeader.po_id) {
+        const { data: po } = await supabaseAdmin
+          .from('purchase_orders')
+          .select('po_number')
+          .eq('id', receiveHeader.po_id)
+          .single();
+        data.po = po || null;
+      }
+
+      // Fetch supplier reference if linked
+      if (receiveHeader.supplier_id) {
+        const { data: supplier } = await supabaseAdmin
+          .from('suppliers')
+          .select('id, name')
+          .eq('id', receiveHeader.supplier_id)
+          .single();
+        data.supplier = supplier || null;
+      }
+
       return NextResponse.json({ receive: data });
     }
 
@@ -127,7 +147,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { warehouse_id, items, notes } = body;
+    const { warehouse_id, items, notes, po_id, supplier_id } = body;
 
     if (!warehouse_id) {
       return NextResponse.json({ error: 'กรุณาเลือกคลังสินค้า' }, { status: 400 });
@@ -154,15 +174,19 @@ export async function POST(request: NextRequest) {
     const receiveNumber = rvNum || `RV-${Date.now()}`;
 
     // Create header
+    const insertData: Record<string, unknown> = {
+      company_id: auth.companyId,
+      receive_number: receiveNumber,
+      warehouse_id,
+      notes: notes || null,
+      created_by: auth.userId,
+    };
+    if (po_id) insertData.po_id = po_id;
+    if (supplier_id) insertData.supplier_id = supplier_id;
+
     const { data: receive, error: headerError } = await supabaseAdmin
       .from('inventory_receives')
-      .insert({
-        company_id: auth.companyId,
-        receive_number: receiveNumber,
-        warehouse_id,
-        notes: notes || null,
-        created_by: auth.userId,
-      })
+      .insert(insertData)
       .select('id, receive_number')
       .single();
 
@@ -225,6 +249,49 @@ export async function POST(request: NextRequest) {
         .insert(txInsert);
 
       results.push({ variation_id, quantity, new_balance: newQuantity });
+    }
+
+    // Update PO received quantities if po_id provided
+    if (po_id) {
+      for (const item of items) {
+        const { variation_id, quantity: qty } = item;
+        if (!variation_id || !qty || qty <= 0) continue;
+
+        // Find the PO item and increment received_quantity
+        const { data: poItem } = await supabaseAdmin
+          .from('purchase_order_items')
+          .select('id, received_quantity')
+          .eq('po_id', po_id)
+          .eq('variation_id', variation_id)
+          .single();
+
+        if (poItem) {
+          await supabaseAdmin
+            .from('purchase_order_items')
+            .update({ received_quantity: (poItem.received_quantity || 0) + qty })
+            .eq('id', poItem.id);
+        }
+      }
+
+      // Check if all PO items are fully received → auto update PO status
+      const { data: allPoItems } = await supabaseAdmin
+        .from('purchase_order_items')
+        .select('quantity, received_quantity')
+        .eq('po_id', po_id);
+
+      if (allPoItems && allPoItems.length > 0) {
+        const allReceived = allPoItems.every(i => i.received_quantity >= i.quantity);
+        const someReceived = allPoItems.some(i => i.received_quantity > 0);
+        const newPoStatus = allReceived ? 'received' : someReceived ? 'partial_received' : null;
+
+        if (newPoStatus) {
+          await supabaseAdmin
+            .from('purchase_orders')
+            .update({ status: newPoStatus })
+            .eq('id', po_id)
+            .in('status', ['sent', 'partial_received']);
+        }
+      }
     }
 
     return NextResponse.json({ success: true, receive_id: receive.id, receive_number: receiveNumber, results });

@@ -29,6 +29,7 @@ interface CategoryOption {
 interface BrandOption {
   id: string;
   name: string;
+  supplier?: { id: string; name: string; supplier_type: string } | null;
 }
 
 // Variation Type (from DB)
@@ -848,6 +849,15 @@ export default function ProductForm({
                     <button type="button" onClick={handleCreateBrand} className="px-2 py-1.5 bg-[#F4511E] text-white rounded text-xs">เพิ่ม</button>
                   </div>
                 )}
+                {features.supplier && (() => {
+                  const selectedBrand = brands.find(b => b.id === formData.brand_id);
+                  if (!selectedBrand?.supplier) return null;
+                  return (
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                      Supplier: {selectedBrand.supplier.name}
+                    </p>
+                  );
+                })()}
               </div>
             )}
           </div>

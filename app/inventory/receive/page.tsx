@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Package, Package2, Trash2,
-  Save, Warehouse, ChevronDown, FileText, CheckCircle2,
+  Save, Warehouse, ChevronDown, FileText, CheckCircle2, ClipboardList,
 } from 'lucide-react';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -50,14 +51,29 @@ interface ReceiveItem {
 const getDisplayName = (item: ReceiveItem) => productDisplayName({ product_name: item.name, product_code: item.code, variation_label: item.variation_label, sku: item.sku });
 const getSubtitle = (item: ReceiveItem) => productSubtitle({ product_code: item.code, sku: item.sku });
 
+interface POOption {
+  id: string;
+  po_number: string;
+  supplier_id: string;
+  supplier_name: string;
+  warehouse_id: string;
+  items: { variation_id: string; quantity: number; received_quantity: number; unit_cost: number; variation: { id: string; variation_label: string; sku: string | null; product: { id: string; code: string; name: string; image: string | null } } }[];
+}
+
 export default function StockReceivePage() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
+  const { features } = useFeatures();
   const { showToast } = useToast();
 
   // State
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  // PO integration (feature-gated)
+  const [availablePOs, setAvailablePOs] = useState<POOption[]>([]);
+  const [selectedPOId, setSelectedPOId] = useState('');
+  const [selectedPO, setSelectedPO] = useState<POOption | null>(null);
 
   // Warehouses
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
@@ -79,13 +95,14 @@ export default function StockReceivePage() {
   // Confirm dialog
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // Fetch warehouses and products on mount
+  // Fetch warehouses, products, and POs on mount
   useEffect(() => {
     if (!authLoading && userProfile) {
       fetchWarehouses();
       fetchProducts();
+      if (features.supplier) fetchPOs();
     }
-  }, [authLoading, userProfile]);
+  }, [authLoading, userProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch stock when warehouse changes
   useEffect(() => {
@@ -185,6 +202,77 @@ export default function StockReceivePage() {
     }
   };
 
+  // Fetch open POs for PO selector
+  const fetchPOs = async () => {
+    try {
+      const res = await apiFetch('/api/inventory/purchase-orders?status=sent');
+      if (!res.ok) return;
+      const data = await res.json();
+      const pos = (data.purchase_orders || []);
+      // Also fetch partial_received POs
+      const res2 = await apiFetch('/api/inventory/purchase-orders?status=partial_received');
+      if (res2.ok) {
+        const data2 = await res2.json();
+        pos.push(...(data2.purchase_orders || []));
+      }
+      // Map to POOption — we need to fetch detail for items when selected
+      setAvailablePOs(pos.map((po: any) => ({
+        id: po.id,
+        po_number: po.po_number,
+        supplier_id: po.supplier?.id || '',
+        supplier_name: po.supplier?.name || '',
+        warehouse_id: po.warehouse?.id || '',
+        items: [],
+      })));
+    } catch { /* ignore */ }
+  };
+
+  // Handle PO selection — fetch detail and auto-populate items
+  const handleSelectPO = async (poId: string) => {
+    setSelectedPOId(poId);
+    if (!poId) {
+      setSelectedPO(null);
+      setReceiveItems([]);
+      return;
+    }
+    try {
+      const res = await apiFetch(`/api/inventory/purchase-orders/${poId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const po = data.purchase_order;
+      setSelectedPO({
+        id: po.id,
+        po_number: po.po_number,
+        supplier_id: po.supplier?.id || '',
+        supplier_name: po.supplier?.name || '',
+        warehouse_id: po.warehouse_id,
+        items: po.items || [],
+      });
+      // Auto-select warehouse
+      if (po.warehouse_id) setSelectedWarehouseId(po.warehouse_id);
+      // Auto-populate items (only items that still have remaining qty)
+      const newItems: ReceiveItem[] = [];
+      for (const item of (po.items || [])) {
+        const remaining = item.quantity - (item.received_quantity || 0);
+        if (remaining <= 0) continue;
+        newItems.push({
+          variation_id: item.variation_id,
+          product_id: item.variation?.product?.id || '',
+          code: item.variation?.product?.code || '',
+          name: item.variation?.product?.name || '',
+          image: item.variation?.product?.image,
+          variation_label: item.variation?.variation_label,
+          sku: item.variation?.sku || undefined,
+          quantity: remaining,
+          unit_cost: item.unit_cost || 0,
+        });
+      }
+      setReceiveItems(newItems);
+    } catch {
+      showToast('โหลดข้อมูล PO ไม่สำเร็จ', 'error');
+    }
+  };
+
   // Add product to receive list
   const handleAddProduct = (product: Product) => {
     const existingIndex = receiveItems.findIndex(
@@ -248,7 +336,7 @@ export default function StockReceivePage() {
     try {
       setSubmitting(true);
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         warehouse_id: selectedWarehouseId,
         items: receiveItems.map(item => ({
           variation_id: item.variation_id,
@@ -257,6 +345,10 @@ export default function StockReceivePage() {
         })),
         notes: batchNotes || undefined,
       };
+      if (selectedPO) {
+        payload.po_id = selectedPO.id;
+        payload.supplier_id = selectedPO.supplier_id;
+      }
 
       const res = await apiFetch('/api/inventory/receives', {
         method: 'POST',
@@ -310,6 +402,35 @@ export default function StockReceivePage() {
       breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า', href: '/inventory/receives' }, { label: 'รับเข้าสินค้า' }]}
     >
       <div className="space-y-4">
+        {/* PO Selection (feature-gated) */}
+        {features.supplier && availablePOs.length > 0 && (
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+              <ClipboardList className="w-4 h-4 inline mr-1" />
+              ใบสั่งซื้อ (PO)
+            </label>
+            <div className="relative inline-block w-full sm:w-96">
+              <select
+                value={selectedPOId}
+                onChange={e => handleSelectPO(e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+              >
+                <option value="">-- ไม่เลือก PO (รับเข้าปกติ) --</option>
+                {availablePOs.map(po => (
+                  <option key={po.id} value={po.id}>
+                    {po.po_number} — {po.supplier_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedPO && (
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1.5">
+                Supplier: {selectedPO.supplier_name} | คลังจะถูกเลือกอัตโนมัติตาม PO
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Warehouse Selection */}
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">

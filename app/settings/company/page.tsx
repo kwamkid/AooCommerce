@@ -13,7 +13,7 @@ import { PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS, detectPreset, type
 import {
   Building2, FileText, Phone, Mail, MapPin, Receipt, Upload, X,
   AlertCircle, Loader2, Save, User, Briefcase, Landmark,
-  Truck, ShoppingBag, Store, CalendarDays, CreditCard, ShoppingCart, Monitor, Handshake, Tag,
+  Truck, ShoppingBag, Store, CalendarDays, CreditCard, ShoppingCart, Monitor, Handshake, Tag, Factory,
 } from 'lucide-react';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 
@@ -55,8 +55,9 @@ const FEATURE_CONFIGS: FeatureConfig[] = [
   { key: 'billing_cycle', label: 'วางบิล / เครดิต', description: 'ระบบวางบิลสิ้นเดือน', icon: <CreditCard className="w-5 h-5" /> },
   { key: 'marketplace_sync', label: 'Marketplace', description: 'เชื่อม Shopee, Lazada ฯลฯ', icon: <ShoppingCart className="w-5 h-5" /> },
   { key: 'pos', label: 'POS', description: 'ขายหน้าร้าน', icon: <Monitor className="w-5 h-5" /> },
-  { key: 'consignment', label: 'ฝากขาย', description: 'Consignment', icon: <Handshake className="w-5 h-5" />, comingSoon: true },
+  { key: 'consignment', label: 'ฝากขาย', description: 'Consignment', icon: <Handshake className="w-5 h-5" /> },
   { key: 'product_brand', label: 'แบรนด์สินค้า', description: 'จัดกลุ่มสินค้าตามแบรนด์', icon: <Tag className="w-5 h-5" /> },
+  { key: 'supplier', label: 'ซัพพลายเออร์', description: 'จัดการ Supplier, PO, รายงานฝากขาย', icon: <Factory className="w-5 h-5" /> },
 ];
 
 export default function CompanySettingsPage() {
@@ -150,7 +151,17 @@ export default function CompanySettingsPage() {
         const dd = prev.delivery_date;
         return { ...prev, delivery_date: { enabled: !dd.enabled, required: !dd.enabled ? dd.required : false } };
       }
-      return { ...prev, [key]: !prev[key as keyof Omit<FeatureFlags, 'delivery_date'>] };
+      const newValue = !prev[key as keyof Omit<FeatureFlags, 'delivery_date'>];
+      const next = { ...prev, [key]: newValue };
+      // เปิด consignment → ต้องเปิด supplier ด้วยอัตโนมัติ
+      if (key === 'consignment' && newValue) {
+        next.supplier = true;
+      }
+      // ปิด supplier → ต้องปิด consignment ด้วย (dependency)
+      if (key === 'supplier' && !newValue) {
+        next.consignment = false;
+      }
+      return next;
     });
   };
 

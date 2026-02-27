@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
-// GET - Fetch all brands (flat list)
+// GET - Fetch all active suppliers
 export async function GET(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
@@ -10,22 +10,22 @@ export async function GET(request: NextRequest) {
     }
 
     const { data, error } = await supabaseAdmin
-      .from('product_brands')
-      .select('*, supplier:suppliers(id, name, supplier_type)')
+      .from('suppliers')
+      .select('*')
       .eq('company_id', auth.companyId)
       .eq('is_active', true)
-      .order('sort_order', { ascending: true });
+      .order('name', { ascending: true });
 
     if (error) throw error;
 
     return NextResponse.json({ data: data || [] });
   } catch (error) {
-    console.error('GET brands error:', error);
-    return NextResponse.json({ error: 'Failed to fetch brands' }, { status: 500 });
+    console.error('GET suppliers error:', error);
+    return NextResponse.json({ error: 'Failed to fetch suppliers' }, { status: 500 });
   }
 }
 
-// POST - Create brand
+// POST - Create supplier
 export async function POST(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
@@ -34,48 +34,47 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name } = body;
+    const { name, contact_name, phone, email, address, tax_id, supplier_type, payment_terms, bank_name, bank_account, notes } = body;
 
     if (!name?.trim()) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+      return NextResponse.json({ error: 'กรุณากรอกชื่อซัพพลายเออร์' }, { status: 400 });
     }
 
-    // Get max sort_order
-    const { data: maxData } = await supabaseAdmin
-      .from('product_brands')
-      .select('sort_order')
-      .eq('company_id', auth.companyId)
-      .order('sort_order', { ascending: false })
-      .limit(1)
-      .single();
-
-    const nextOrder = (maxData?.sort_order || 0) + 1;
-
     const { data, error } = await supabaseAdmin
-      .from('product_brands')
+      .from('suppliers')
       .insert({
         company_id: auth.companyId,
         name: name.trim(),
-        sort_order: nextOrder,
+        contact_name: contact_name?.trim() || null,
+        phone: phone?.trim() || null,
+        email: email?.trim() || null,
+        address: address?.trim() || null,
+        tax_id: tax_id?.trim() || null,
+        supplier_type: supplier_type || 'cash',
+        payment_terms: payment_terms || 0,
+        bank_name: bank_name?.trim() || null,
+        bank_account: bank_account?.trim() || null,
+        notes: notes?.trim() || null,
+        created_by: auth.userId,
       })
       .select()
       .single();
 
     if (error) {
       if (error.code === '23505') {
-        return NextResponse.json({ error: 'แบรนด์นี้มีอยู่แล้ว' }, { status: 400 });
+        return NextResponse.json({ error: 'ซัพพลายเออร์นี้มีอยู่แล้ว' }, { status: 400 });
       }
       throw error;
     }
 
     return NextResponse.json({ data });
   } catch (error) {
-    console.error('POST brands error:', error);
-    return NextResponse.json({ error: 'Failed to create brand' }, { status: 500 });
+    console.error('POST suppliers error:', error);
+    return NextResponse.json({ error: 'Failed to create supplier' }, { status: 500 });
   }
 }
 
-// PUT - Update brand
+// PUT - Update supplier
 export async function PUT(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
@@ -84,19 +83,25 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, sort_order, supplier_id } = body;
+    const { id, ...fields } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
 
     const updateData: Record<string, unknown> = {};
-    if (name !== undefined) updateData.name = name.trim();
-    if (sort_order !== undefined) updateData.sort_order = sort_order;
-    if (supplier_id !== undefined) updateData.supplier_id = supplier_id || null;
+    const stringFields = ['name', 'contact_name', 'phone', 'email', 'address', 'tax_id', 'supplier_type', 'bank_name', 'bank_account', 'notes'] as const;
+    for (const key of stringFields) {
+      if (fields[key] !== undefined) {
+        updateData[key] = typeof fields[key] === 'string' ? fields[key].trim() || null : fields[key];
+      }
+    }
+    if (fields.name !== undefined) updateData.name = fields.name.trim(); // name can't be null
+    if (fields.payment_terms !== undefined) updateData.payment_terms = fields.payment_terms;
+    if (fields.portal_enabled !== undefined) updateData.portal_enabled = fields.portal_enabled;
 
     const { data, error } = await supabaseAdmin
-      .from('product_brands')
+      .from('suppliers')
       .update(updateData)
       .eq('id', id)
       .eq('company_id', auth.companyId)
@@ -105,19 +110,19 @@ export async function PUT(request: NextRequest) {
 
     if (error) {
       if (error.code === '23505') {
-        return NextResponse.json({ error: 'แบรนด์นี้มีอยู่แล้ว' }, { status: 400 });
+        return NextResponse.json({ error: 'ซัพพลายเออร์นี้มีอยู่แล้ว' }, { status: 400 });
       }
       throw error;
     }
 
     return NextResponse.json({ data });
   } catch (error) {
-    console.error('PUT brands error:', error);
-    return NextResponse.json({ error: 'Failed to update brand' }, { status: 500 });
+    console.error('PUT suppliers error:', error);
+    return NextResponse.json({ error: 'Failed to update supplier' }, { status: 500 });
   }
 }
 
-// DELETE - Soft delete brand
+// DELETE - Soft delete supplier
 export async function DELETE(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
@@ -133,7 +138,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { error } = await supabaseAdmin
-      .from('product_brands')
+      .from('suppliers')
       .update({ is_active: false })
       .eq('id', id)
       .eq('company_id', auth.companyId);
@@ -142,7 +147,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('DELETE brands error:', error);
-    return NextResponse.json({ error: 'Failed to delete brand' }, { status: 500 });
+    console.error('DELETE suppliers error:', error);
+    return NextResponse.json({ error: 'Failed to delete supplier' }, { status: 500 });
   }
 }

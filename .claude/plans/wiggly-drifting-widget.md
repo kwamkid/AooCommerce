@@ -9,6 +9,27 @@
 **Feature flag**: `supplier` (เปิด/ปิดได้ที่หน้าข้อมูลบริษัท)
 **Backward compatible**: ปิด feature = ทุกอย่างทำงานเหมือนเดิม, เปิดแล้วไม่ใช้ PO ก็รับของปกติได้
 
+### Feature Toggle Safety (เปิด/ปิดได้ตลอด ไม่พังข้อมูล)
+
+**หลักการ: Soft Hide** — ปิด feature = UI ซ่อน, ข้อมูลใน DB ยังอยู่ครบ, เปิดใหม่ = กลับมาทั้งหมด
+
+| สถานการณ์ | ผลลัพธ์ |
+|---|---|
+| เปิด → สร้าง supplier/PO/snapshot → ปิด | ข้อมูลยังอยู่ใน DB, UI ซ่อนทั้งหมด |
+| ปิด → เปิดใหม่ | ข้อมูลเก่ากลับมาแสดงครบ |
+| เปิด → ผูก brand กับ supplier → ปิด | FK ยังอยู่, แค่ UI ไม่แสดง supplier column |
+| เปิด → เปิด portal → ปิด feature | **Portal ปิดด้วย** (เช็ค company feature ก่อน) |
+
+**เมื่อปิด feature:**
+- ทุกหน้าที่เกี่ยวกับ supplier เช็ค `features.supplier` → ถ้า false:
+  - **Sidebar**: ซ่อน menu supplier/PO/report ทั้งหมด
+  - **หน้า supplier-related** (`/settings/suppliers`, `/inventory/purchase-orders`, `/reports/supplier`): **redirect ไปหน้ารับของ** (`/inventory/receives`)
+  - **หน้ารับของ**: ไม่แสดง PO selector / supplier filter → ทำงานเหมือนเดิม 100%
+  - **Supplier Portal**: API return 403 "Portal unavailable" (เช็ค 3 ชั้น: access_code + portal_enabled + company feature)
+  - **ข้อมูลใน DB**: ไม่ลบ ไม่แก้ไข ไม่ cascade
+
+**ไม่มี data migration เมื่อ toggle** — ไม่ต้อง cleanup อะไรเลย
+
 ### Supplier Types (3 ประเภท)
 
 | Type | ความหมาย | Payment Flow | Report สิ้นเดือน |
@@ -418,10 +439,12 @@ draft → sent → partial_received → received → closed
 - `/supplier-portal/[access_code]` — public page
 - เช่น: `https://app.aoo.co/supplier-portal/SUP-A3X9K7`
 
-### Security
-- Access code: random `SUP-XXXXXX` เก็บใน `suppliers.access_code`
-- Regenerate ได้ → code เก่าใช้ไม่ได้ทันที
-- `portal_enabled = false` → access code ใช้ไม่ได้
+### Security (3-Layer Validation)
+- **Layer 1**: `access_code` valid → ต้องตรงกับ record ใน suppliers table
+- **Layer 2**: `portal_enabled = true` → supplier ต้องเปิด portal ไว้
+- **Layer 3**: `company.settings.features.supplier = true` → company ต้องเปิด feature supplier
+- ถ้า Layer ใดไม่ผ่าน → return 403 "Portal unavailable"
+- Regenerate code → code เก่าใช้ไม่ได้ทันที
 - **Read-only ทั้งหมด** — ไม่แสดงข้อมูลลูกค้า
 
 ### Portal Pages (Public — no auth required)
@@ -465,7 +488,11 @@ access_code → suppliers table → company_id + supplier_id
 
 **Security Note**: Portal API ใช้ access_code เป็น auth แทน — ไม่ผ่าน Supabase auth
 - API routes ใช้ service_role key (bypass RLS)
-- Validate access_code + portal_enabled ก่อนทุก request
+- **ทุก request ต้องผ่าน 3-layer validation**:
+  1. `access_code` ตรงกับ record → ได้ `supplier_id` + `company_id`
+  2. `suppliers.portal_enabled = true`
+  3. `companies.settings.features.supplier = true` (query company settings)
+- ถ้า layer ใดไม่ผ่าน → 403 "Portal unavailable"
 - ไม่ return ข้อมูลลูกค้า, ราคาขาย (ยกเว้น consignment ที่ต้องรู้ยอดขาย)
 
 ---
@@ -564,15 +591,26 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4
 
 ## Verification
 
+### Feature Toggle Safety
 1. `next build` passes ทุก phase
 2. **Feature OFF** → ไม่มี supplier/PO/report menu ใน sidebar, รับของทำงานปกติ
 3. **Feature ON** → เห็น supplier settings, PO menu, report
-4. สร้าง supplier (3 types) → ผูก brand → สร้าง PO → รับของจาก PO → PO status auto-update
-5. รับของโดยไม่เลือก PO → ทำงานเหมือนเดิม
-6. **Credit Report**: สรุปรับของ + ยอดค้างจ่ายถูกต้อง
-7. **Consignment Report**: freeze stock + ยอดขาย ถูกต้องตาม supplier's brands
-8. Report แยก channel/POS terminal ได้ (toggle)
-9. **Supplier Portal**: access code → เห็น stock, ยอดขาย, PO, report (read-only)
-10. Regenerate code → code เก่าใช้ไม่ได้
-11. Portal disabled → access code ใช้ไม่ได้
-12. PDF: PO + Report สร้างได้ถูกต้อง
+4. **เข้า URL ตรง** (`/settings/suppliers`) ขณะ feature OFF → **redirect ไป `/inventory/receives`**
+5. **เปิด → สร้างข้อมูล → ปิด → เปิดใหม่** → ข้อมูลเก่ากลับมาครบ ไม่หาย
+6. **ปิด feature** → Portal return 403 แม้ access_code ถูกต้อง
+
+### Core Features
+7. สร้าง supplier (3 types: cash/credit/consignment) → ผูก brand → สร้าง PO → รับของจาก PO → PO status auto-update
+8. รับของโดยไม่เลือก PO → ทำงานเหมือนเดิม
+9. **Credit Report**: สรุปรับของ + ยอดค้างจ่ายถูกต้อง
+10. **Consignment Report**: freeze stock + ยอดขาย ถูกต้องตาม supplier's brands
+11. Report แยก channel/POS terminal ได้ (toggle)
+
+### Supplier Portal
+12. access code → เห็น stock, ยอดขาย, PO, report (read-only)
+13. Regenerate code → code เก่าใช้ไม่ได้
+14. `portal_enabled = false` → return 403
+15. `features.supplier = false` → return 403 (แม้ portal_enabled = true)
+
+### PDF
+16. PO + Report สร้างได้ถูกต้อง

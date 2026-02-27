@@ -42,6 +42,8 @@ import {
   Award,
   Monitor,
   Receipt,
+  Factory,
+  ClipboardList,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -94,7 +96,8 @@ const menuSections: MenuSection[] = [
     title: 'รายงาน',
     items: [
       { label: 'รายงานยอดขาย', href: '/reports/sales', icon: <BarChart3 className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
-      { label: 'รายงานยอดค้าง', href: '/reports/pending', icon: <FileText className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] }
+      { label: 'รายงานยอดค้าง', href: '/reports/pending', icon: <FileText className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
+      { label: 'รายงานซัพพลายเออร์', href: '/reports/supplier', icon: <Factory className="w-5 h-5" />, roles: ['admin', 'account'] }
     ]
   }
 ];
@@ -308,6 +311,7 @@ export default function Sidebar() {
         // Hide delivery-only menus when feature is off
         if (item.href === '/reports/delivery-summary' && !features.delivery_date.enabled) return false;
         if (item.href === '/crm/payment-followup' && !features.billing_cycle) return false;
+        if (item.href === '/reports/supplier' && !features.supplier) return false;
         return true;
       })
     }))
@@ -593,6 +597,12 @@ export default function Sidebar() {
                               <ArrowLeftRight className="w-4 h-4" />
                               <span className="text-[16px] font-medium">รายการโอนย้าย</span>
                             </Link>
+                            {features.supplier && (
+                            <Link href="/inventory/purchase-orders" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/purchase-orders' || pathname === '/inventory/purchase-order' || pathname?.startsWith('/inventory/purchase-orders/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <ClipboardList className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">ใบสั่งซื้อ (PO)</span>
+                            </Link>
+                            )}
                           </div>
                         )}
                       </div>
@@ -674,6 +684,12 @@ export default function Sidebar() {
                     <Link href="/settings/pos-terminals" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/pos-terminals' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                       <Monitor className="w-4 h-4" />
                       <span className="text-[16px] font-medium">เครื่อง POS</span>
+                    </Link>
+                    )}
+                    {features.supplier && (
+                    <Link href="/settings/suppliers" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/suppliers' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                      <Factory className="w-4 h-4" />
+                      <span className="text-[16px] font-medium">ซัพพลายเออร์</span>
                     </Link>
                     )}
                     {features.marketplace_sync && (

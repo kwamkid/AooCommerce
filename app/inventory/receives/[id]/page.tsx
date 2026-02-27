@@ -36,9 +36,13 @@ interface ReceiveData {
   status: string;
   notes: string | null;
   created_at: string;
+  po_id?: string | null;
+  supplier_id?: string | null;
   warehouse: { id: string; name: string; code: string | null } | null;
   created_by_user: { id: string; name: string; email: string } | null;
   items: ReceiveItem[];
+  po?: { po_number: string } | null;
+  supplier?: { name: string } | null;
 }
 
 export default function ReceiveDetailPage() {
@@ -208,6 +212,23 @@ export default function ReceiveDetailPage() {
               <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">วันที่</label>
               <span className="text-sm text-gray-700 dark:text-slate-300">{formatDate(data.created_at)}</span>
             </div>
+            {(data.po || data.po_id) && (
+              <div>
+                <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">ใบสั่งซื้อ (PO)</label>
+                <button
+                  onClick={() => data.po_id && router.push(`/inventory/purchase-orders/${data.po_id}`)}
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  {data.po?.po_number || data.po_id}
+                </button>
+              </div>
+            )}
+            {data.supplier && (
+              <div>
+                <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">Supplier</label>
+                <span className="text-sm text-gray-700 dark:text-slate-300">{data.supplier.name}</span>
+              </div>
+            )}
           </div>
 
           {/* Editable Notes */}

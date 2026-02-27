@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
         .order('sort_order', { ascending: true }),
       supabaseAdmin
         .from('product_brands')
-        .select('*')
+        .select('*, supplier:suppliers(id, name, supplier_type)')
         .eq('company_id', auth.companyId)
         .eq('is_active', true)
         .order('sort_order', { ascending: true }),

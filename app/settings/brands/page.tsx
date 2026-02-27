@@ -7,13 +7,21 @@ import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Plus, Check, X, Edit2, Trash2, Award
+  Loader2, Plus, Check, X, Edit2, Trash2, Award, Factory
 } from 'lucide-react';
+
+interface SupplierRef {
+  id: string;
+  name: string;
+  supplier_type: string;
+}
 
 interface BrandItem {
   id: string;
   name: string;
   sort_order: number;
+  supplier_id?: string | null;
+  supplier?: SupplierRef | null;
 }
 
 export default function BrandsPage() {
@@ -23,6 +31,7 @@ export default function BrandsPage() {
 
   const [loading, setLoading] = useState(true);
   const [brands, setBrands] = useState<BrandItem[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierRef[]>([]);
 
   // Inline edit
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -37,9 +46,10 @@ export default function BrandsPage() {
   useEffect(() => {
     if (userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')) {
       fetchBrands();
+      if (features.supplier) fetchSuppliers();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userProfile]);
+  }, [userProfile, features.supplier]);
 
   const fetchBrands = async () => {
     try {
@@ -52,6 +62,30 @@ export default function BrandsPage() {
       showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSuppliers = async () => {
+    try {
+      const res = await apiFetch('/api/suppliers');
+      if (res.ok) {
+        const data = await res.json();
+        setSuppliers(data.data || []);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const handleSupplierChange = async (brandId: string, supplierId: string | null) => {
+    try {
+      const res = await apiFetch('/api/brands', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: brandId, supplier_id: supplierId }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      await fetchBrands();
+    } catch {
+      showToast('บันทึกไม่สำเร็จ', 'error');
     }
   };
 
@@ -219,7 +253,25 @@ export default function BrandsPage() {
                         </button>
                       </div>
                     ) : (
-                      <p className="font-medium text-gray-900 dark:text-white">{brand.name}</p>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">{brand.name}</p>
+                        {features.supplier && (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <Factory className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                            <select
+                              value={brand.supplier_id || ''}
+                              onChange={e => handleSupplierChange(brand.id, e.target.value || null)}
+                              onClick={e => e.stopPropagation()}
+                              className="text-xs border-0 bg-transparent text-gray-500 dark:text-slate-400 p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-gray-700 dark:hover:text-slate-300"
+                            >
+                              <option value="">-- ไม่ระบุ supplier --</option>
+                              {suppliers.map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                   {editingId !== brand.id && (
