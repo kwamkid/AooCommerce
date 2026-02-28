@@ -12,6 +12,7 @@ import { useToast } from '@/lib/toast-context';
 import { getImageUrl } from '@/lib/utils/image';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
 import { useFeatures } from '@/lib/features-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import {
   Plus,
   Edit2,
@@ -120,6 +121,7 @@ export default function ProductsPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { features } = useFeatures();
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   const [productsList, setProductsList] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -269,7 +271,7 @@ export default function ProductsPage() {
 
   // Handle delete
   const handleDelete = async (product: ProductItem) => {
-    if (!confirm(`คุณต้องการลบ ${product.name} หรือไม่?`)) return;
+    const ok = await confirm({ title: `ต้องการลบ "${product.name}"?`, variant: 'danger' }); if (!ok) return;
     try {
       const response = await apiFetch(`/api/products?id=${product.product_id}`, {
         method: 'DELETE',
@@ -288,7 +290,7 @@ export default function ProductsPage() {
   // Bulk delete
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`คุณต้องการลบสินค้า ${selectedIds.size} รายการ หรือไม่?`)) return;
+    const ok = await confirm({ title: `ต้องการลบสินค้า ${selectedIds.size} รายการ?`, variant: 'danger' }); if (!ok) return;
     setBulkDeleting(true);
     try {
       const ids = [...selectedIds].join(',');
@@ -803,6 +805,7 @@ export default function ProductsPage() {
         </div>
       )}
 
+      {confirmDialog}
     </Layout>
   );
 }

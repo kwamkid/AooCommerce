@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { parseThaiAddress } from '@/lib/address-parser';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
@@ -98,6 +99,7 @@ const normalizePhone = (phone: string): string => {
 
 export default function CustomerEditPage() {
   const { userProfile, loading: authLoading } = useAuth();
+  const { confirmDialog, confirm } = useConfirmDialog();
   const router = useRouter();
   const params = useParams();
   const customerId = params.id as string;
@@ -477,7 +479,7 @@ export default function CustomerEditPage() {
   };
 
   const handleDeleteAddress = async (addressId: string) => {
-    if (!confirm('คุณต้องการลบที่อยู่นี้ใช่หรือไม่?')) return;
+    const ok = await confirm({ title: 'ต้องการลบที่อยู่นี้?', variant: 'danger' }); if (!ok) return;
     try {
       const res = await apiFetch(`/api/shipping-addresses?id=${addressId}`, {
         method: 'DELETE',
@@ -1198,6 +1200,7 @@ export default function CustomerEditPage() {
           </div>
         </div>
       )}
+      {confirmDialog}
     </Layout>
   );
 }

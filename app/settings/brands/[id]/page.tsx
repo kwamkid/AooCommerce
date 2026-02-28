@@ -1,16 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { getImageUrl } from '@/lib/utils/image';
 import EntitySearchInput, { EntitySearchOption } from '@/components/ui/EntitySearchInput';
 import {
-  Loader2, Award, Package2, X, ArrowLeft, Factory,
+  Loader2, Award, Package2, X, ArrowLeft, Factory, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
 interface BrandDetail {
@@ -26,7 +28,6 @@ interface BrandProduct {
   code: string;
   name: string;
   image?: string | null;
-  product_type: 'simple' | 'variation';
 }
 
 interface SearchProduct {
@@ -38,24 +39,30 @@ interface SearchProduct {
   brand_id?: string | null;
 }
 
+const PAGE_SIZE = 10;
+
 export default function BrandDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { userProfile } = useAuth();
   const { showToast } = useToast();
   const { features } = useFeatures();
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   const [brand, setBrand] = useState<BrandDetail | null>(null);
   const [products, setProducts] = useState<BrandProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [removing, setRemoving] = useState<string | null>(null);
 
+  // Product list filter & pagination
+  const [filterText, setFilterText] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+
   // Product search (for adding)
   const [searchResults, setSearchResults] = useState<EntitySearchOption[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const searchAbortRef = useRef<AbortController | null>(null);
-  // Keep full search results for brand check
   const searchProductsRef = useRef<SearchProduct[]>([]);
 
   const fetchBrand = useCallback(async () => {
@@ -84,6 +91,24 @@ export default function BrandDetailPage() {
     if (userProfile && id) fetchBrand();
   }, [userProfile, id, fetchBrand]);
 
+  // Filtered + paginated products
+  const filteredProducts = useMemo(() => {
+    if (!filterText) return products;
+    const q = filterText.toLowerCase();
+    return products.filter(p =>
+      p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
+    );
+  }, [products, filterText]);
+
+  const totalPages = Math.ceil(filteredProducts.length / PAGE_SIZE);
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredProducts.slice(start, start + PAGE_SIZE);
+  }, [filteredProducts, currentPage]);
+
+  // Reset page when filter changes
+  useEffect(() => { setCurrentPage(1); }, [filterText]);
+
   const handleSearchChange = useCallback(async (search: string) => {
     if (search.length < 2) {
       setSearchResults([]);
@@ -104,7 +129,6 @@ export default function BrandDetailPage() {
       const items: SearchProduct[] = data.products || [];
       searchProductsRef.current = items;
 
-      // Filter out products already in this brand
       const existingIds = new Set(products.map(p => p.id));
       setSearchResults(
         items
@@ -114,10 +138,10 @@ export default function BrandDetailPage() {
             label: p.name,
             subtitle: p.code + (p.brand_id && p.brand_id !== id ? ' (มี Brand อื่น)' : ''),
             icon: p.main_image_url || p.image ? (
-              <img src={getImageUrl(p.main_image_url || p.image)} alt="" className="w-8 h-8 rounded object-cover" />
+              <img src={getImageUrl(p.main_image_url || p.image)} alt="" className="w-10 h-10 rounded object-cover" />
             ) : (
-              <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
-                <Package2 className="w-4 h-4 text-gray-400" />
+              <div className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
+                <Package2 className="w-5 h-5 text-gray-400" />
               </div>
             ),
           }))
@@ -131,10 +155,9 @@ export default function BrandDetailPage() {
   }, [id, products]);
 
   const handleAddProduct = useCallback(async (productId: string) => {
-    // Check if product has another brand
     const searchProduct = searchProductsRef.current.find(p => p.product_id === productId);
     if (searchProduct?.brand_id && searchProduct.brand_id !== id) {
-      if (!confirm('สินค้านี้มี Brand อื่นอยู่แล้ว ต้องการเปลี่ยนมาเป็น Brand นี้หรือไม่?')) {
+      const ok = await confirm({ title: 'สินค้านี้มี Brand อื่นอยู่แล้ว', description: 'ต้องการเปลี่ยนมาเป็น Brand นี้หรือไม่?' }); if (!ok) {
         return;
       }
     }
@@ -153,7 +176,7 @@ export default function BrandDetailPage() {
       showToast('เพิ่มสินค้าสำเร็จ');
       setSearchResults([]);
       searchProductsRef.current = [];
-      fetchBrand();
+      await fetchBrand();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'ไม่สามารถเพิ่มสินค้าได้', 'error');
     } finally {
@@ -162,7 +185,7 @@ export default function BrandDetailPage() {
   }, [id, fetchBrand, showToast]);
 
   const handleRemoveProduct = useCallback(async (productId: string, productName: string) => {
-    if (!confirm(`ต้องการนำ "${productName}" ออกจากแบรนด์นี้?`)) return;
+    const ok = await confirm({ title: `ต้องการนำ "${productName}" ออกจากแบรนด์นี้?`, variant: 'danger' }); if (!ok) return;
 
     setRemoving(productId);
     try {
@@ -207,7 +230,7 @@ export default function BrandDetailPage() {
         { label: brand.name },
       ]}
     >
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-3xl space-y-6">
         {/* Back button */}
         <button
           onClick={() => router.push('/settings/brands')}
@@ -256,10 +279,20 @@ export default function BrandDetailPage() {
 
         {/* Product List */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
-          <div className="px-5 py-3 border-b border-gray-100 dark:border-slate-700">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+          {/* Header + Search */}
+          <div className="px-5 py-3 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex-shrink-0">
               สินค้าใน Brand ({products.length})
             </h3>
+            {products.length > 0 && (
+              <div className="w-64">
+                <SearchInput
+                  value={filterText}
+                  onChange={setFilterText}
+                  placeholder="ค้นหาในรายการ..."
+                />
+              </div>
+            )}
           </div>
 
           {products.length === 0 ? (
@@ -268,48 +301,83 @@ export default function BrandDetailPage() {
               <p className="text-sm text-gray-400 dark:text-slate-500">ยังไม่มีสินค้าใน Brand นี้</p>
               <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">ค้นหาและเพิ่มสินค้าด้านบน</p>
             </div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-slate-700">
-              {products.map(product => (
-                <div key={product.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
-                  {/* Product image */}
-                  {product.image ? (
-                    <img
-                      src={getImageUrl(product.image)}
-                      alt={product.name}
-                      className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                      <Package2 className="w-5 h-5 text-gray-400" />
-                    </div>
-                  )}
-
-                  {/* Product info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{product.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{product.code}</p>
-                  </div>
-
-                  {/* Remove button */}
-                  <button
-                    onClick={() => handleRemoveProduct(product.id, product.name)}
-                    disabled={removing === product.id}
-                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
-                    title="นำออกจากแบรนด์"
-                  >
-                    {removing === product.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <X className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              ))}
+          ) : filteredProducts.length === 0 ? (
+            <div className="px-5 py-8 text-center">
+              <p className="text-sm text-gray-400 dark:text-slate-500">ไม่พบสินค้าที่ตรงกับ &quot;{filterText}&quot;</p>
             </div>
+          ) : (
+            <>
+              <div className="divide-y divide-gray-100 dark:divide-slate-700">
+                {paginatedProducts.map(product => (
+                  <div key={product.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                    {/* Product image */}
+                    {product.image ? (
+                      <img
+                        src={getImageUrl(product.image)}
+                        alt={product.name}
+                        className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                        <Package2 className="w-7 h-7 text-gray-400" />
+                      </div>
+                    )}
+
+                    {/* Product info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-base font-medium text-gray-900 dark:text-white truncate">{product.name}</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400 truncate">{product.code}</p>
+                    </div>
+
+                    {/* Remove button */}
+                    <button
+                      onClick={() => handleRemoveProduct(product.id, product.name)}
+                      disabled={removing === product.id}
+                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
+                      title="นำออกจากแบรนด์"
+                    >
+                      {removing === product.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <X className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="px-5 py-3 border-t border-gray-100 dark:border-slate-700 flex items-center justify-between">
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                    แสดง {(currentPage - 1) * PAGE_SIZE + 1}-{Math.min(currentPage * PAGE_SIZE, filteredProducts.length)} จาก {filteredProducts.length} รายการ
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 disabled:opacity-30 transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs text-gray-600 dark:text-slate-300 px-2">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 disabled:opacity-30 transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
+      {confirmDialog}
     </Layout>
   );
 }

@@ -8,6 +8,7 @@ import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { formatPrice } from '@/lib/utils/format';
 import { supabase } from '@/lib/supabase';
 import {
@@ -57,6 +58,7 @@ function UnifiedChatPageContent() {
   const searchParams = useSearchParams();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesTopRef = useRef<HTMLDivElement>(null);
@@ -788,7 +790,7 @@ function UnifiedChatPageContent() {
   // Unlink customer from contact (ไม่ลบ customer)
   const handleUnlinkCustomer = async () => {
     if (!selectedContact?.customer) return;
-    if (!confirm('ยกเลิกการเชื่อมต่อลูกค้าจาก contact นี้?')) return;
+    const ok = await confirm({ title: 'ยกเลิกการเชื่อมต่อลูกค้าจาก contact นี้?' }); if (!ok) return;
 
     try {
       const res = await apiFetch('/api/chat/contacts', {
@@ -813,7 +815,7 @@ function UnifiedChatPageContent() {
   // Hard delete customer + unlink
   const handleDeleteCustomer = async () => {
     if (!selectedContact?.customer) return;
-    if (!confirm(`ลบลูกค้า "${selectedContact.customer.name}" ถาวร?\n\n- ที่อยู่จัดส่งจะถูกลบ\n- ออเดอร์จะถูก unlink\n- contact จะกลับเป็นสถานะไม่มีลูกค้า`)) return;
+    const ok = await confirm({ title: `ลบลูกค้า "${selectedContact.customer.name}" ถาวร?`, description: 'ที่อยู่จัดส่งจะถูกลบ, ออเดอร์จะถูก unlink, contact จะกลับเป็นสถานะไม่มีลูกค้า', variant: 'danger' }); if (!ok) return;
 
     try {
       const res = await apiFetch(`/api/customers?id=${selectedContact.customer.id}&hard=true`, {
@@ -1633,6 +1635,7 @@ function UnifiedChatPageContent() {
           onChangeIndex={(idx) => setLightboxIndex(idx)}
         />
       )}
+      {confirmDialog}
     </Layout>
   );
 }

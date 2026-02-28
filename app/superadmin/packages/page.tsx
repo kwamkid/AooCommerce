@@ -5,6 +5,7 @@ import SuperAdminLayout from '../components/SuperAdminLayout';
 import { apiFetch } from '@/lib/api-client';
 import { formatNumber } from '@/lib/utils/format';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { Package, Plus, Edit2, Trash2, Users, Loader2, X } from 'lucide-react';
 
 interface PackageItem {
@@ -45,6 +46,7 @@ const emptyForm: FormData = {
 
 export default function SuperAdminPackages() {
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
   const [loading, setLoading] = useState(true);
   const [packages, setPackages] = useState<PackageItem[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -138,7 +140,7 @@ export default function SuperAdminPackages() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`ต้องการปิดการใช้งาน package "${name}" หรือไม่?`)) return;
+    const ok = await confirm({ title: `ต้องการปิดการใช้งาน package "${name}"?`, variant: 'danger' }); if (!ok) return;
     try {
       const res = await apiFetch(`/api/superadmin/packages?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
@@ -314,6 +316,7 @@ export default function SuperAdminPackages() {
           </div>
         </div>
       )}
+      {confirmDialog}
     </SuperAdminLayout>
   );
 }

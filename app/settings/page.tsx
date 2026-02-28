@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { Users, Plus, X, Save, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock } from 'lucide-react';
 
@@ -28,6 +29,7 @@ const colorPresets = [
 
 export default function SettingsPage() {
   const { userProfile } = useAuth();
+  const { confirmDialog, confirm } = useConfirmDialog();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -243,7 +245,7 @@ export default function SettingsPage() {
   };
 
   const handleDeleteVariationType = async (id: string, name: string) => {
-    if (!confirm(`ลบ "${name}" หรือไม่?`)) return;
+    const ok = await confirm({ title: `ลบ "${name}" หรือไม่?`, variant: 'danger' }); if (!ok) return;
     setError('');
     try {
       const response = await apiFetch(`/api/variation-types?id=${id}`, {
@@ -719,6 +721,7 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+      {confirmDialog}
     </Layout>
   );
 }

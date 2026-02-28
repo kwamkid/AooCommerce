@@ -61,6 +61,7 @@ import { useCompany } from '@/lib/company-context';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FormSelect from '@/components/ui/FormSelect';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 
 // Sort options
 const SORT_OPTIONS = [
@@ -87,6 +88,7 @@ export default function OrdersPage() {
   const { features } = useFeatures();
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -315,7 +317,7 @@ export default function OrdersPage() {
 
   const handleDeleteOrder = async (e: React.MouseEvent, order: Order) => {
     e.stopPropagation();
-    if (!confirm(`คุณต้องการลบคำสั่งซื้อ "${order.order_number}" หรือไม่?\n\nการลบจะเป็นการลบถาวร ไม่สามารถกู้คืนได้`)) return;
+    const ok = await confirm({ title: `ต้องการลบคำสั่งซื้อ "${order.order_number}"?`, description: 'การลบจะเป็นการลบถาวร ไม่สามารถกู้คืนได้', variant: 'danger' }); if (!ok) return;
 
     try {
       const response = await apiFetch(`/api/orders?id=${order.id}`, { method: 'DELETE' });
@@ -1049,6 +1051,7 @@ export default function OrdersPage() {
         title={pdfMessage || 'กำลังสร้าง PDF...'}
         showWarning={false}
       />
+      {confirmDialog}
     </Layout>
   );
 }

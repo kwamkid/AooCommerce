@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import {
   Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check,
   Loader2, CheckCircle, Clock, Copy, Phone,
@@ -119,6 +120,7 @@ export default function MembersPage() {
   const { userProfile } = useAuth();
   const { features } = useFeatures();
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -411,7 +413,7 @@ export default function MembersPage() {
 
   // Handle remove member
   const handleRemoveMember = async (memberId: string) => {
-    if (!confirm('คุณต้องการลบสมาชิกคนนี้หรือไม่?')) return;
+    const ok = await confirm({ title: 'ต้องการลบสมาชิกคนนี้?', variant: 'danger' }); if (!ok) return;
 
     try {
       const response = await apiFetch(`/api/companies/members?id=${memberId}&type=member`, {
@@ -433,7 +435,7 @@ export default function MembersPage() {
 
   // Handle cancel invitation
   const handleCancelInvitation = async (invitationId: string) => {
-    if (!confirm('คุณต้องการยกเลิกคำเชิญนี้หรือไม่?')) return;
+    const ok = await confirm({ title: 'ต้องการยกเลิกคำเชิญนี้?' }); if (!ok) return;
 
     try {
       const response = await apiFetch(`/api/companies/members?id=${invitationId}&type=invitation`, {
@@ -1110,6 +1112,7 @@ export default function MembersPage() {
           </div>
         </div>
       )}
+      {confirmDialog}
     </Layout>
   );
 }

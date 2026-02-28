@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Plus, Check, X, Edit2, Trash2, Monitor, AlertTriangle, Warehouse,
@@ -74,6 +75,7 @@ export default function PosTerminalsPage() {
   const { userProfile } = useAuth();
   const { features } = useFeatures();
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   const [activeTab, setActiveTab] = useState<'terminals' | 'channels'>('terminals');
   const [loading, setLoading] = useState(true);
@@ -498,9 +500,7 @@ export default function PosTerminalsPage() {
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => {
-                                  if (confirm('ลบจุดขายนี้?')) handleDelete(t.id);
-                                }}
+                                onClick={async () => { const ok = await confirm({ title: 'ต้องการลบจุดขายนี้?', variant: 'danger' }); if (ok) handleDelete(t.id); }}
                                 disabled={deletingId === t.id}
                                 className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
                               >
@@ -604,9 +604,7 @@ export default function PosTerminalsPage() {
                                 )}
                                 {canDelete && !isEditing && (
                                   <button
-                                    onClick={() => {
-                                      if (confirm('ลบช่องทางชำระเงินนี้?')) handleDeleteChannel(ch.id);
-                                    }}
+                                    onClick={async () => { const ok = await confirm({ title: 'ต้องการลบช่องทางชำระเงินนี้?', variant: 'danger' }); if (ok) handleDeleteChannel(ch.id); }}
                                     disabled={deletingChannelId === ch.id}
                                     className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
                                   >
@@ -645,6 +643,7 @@ export default function PosTerminalsPage() {
           </div>
         ) : null}
       </div>
+      {confirmDialog}
     </Layout>
   );
 

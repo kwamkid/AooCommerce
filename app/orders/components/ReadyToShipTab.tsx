@@ -34,6 +34,7 @@ import Pagination from '@/app/components/Pagination';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { Order } from './types';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 
 const ON_HOLD_KEY = '__on_hold__';
 const ACTIVE_KEY = '__active__';
@@ -89,6 +90,7 @@ export default function ReadyToShipTab({
   const { showToast } = useToast();
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   // Sub-tab state — default to verifying tab first (like processing tab)
   const [activeGroup, setActiveGroup] = useState<string>(VERIFYING_KEY);
@@ -242,7 +244,7 @@ export default function ReadyToShipTab({
 
   // Reject slip → payment_status: pending → auto-reverse to order_status: new
   const handleRejectSlip = async (orderId: string) => {
-    if (!confirm('ต้องการปฏิเสธสลิปนี้หรือไม่?\n\nออเดอร์จะกลับไปสถานะ "ใหม่" ให้ลูกค้าแจ้งชำระใหม่')) return;
+    const ok = await confirm({ title: 'ต้องการปฏิเสธสลิปนี้?', description: 'ออเดอร์จะกลับไปสถานะ "ใหม่" ให้ลูกค้าแจ้งชำระใหม่', variant: 'danger' }); if (!ok) return;
     setActionLoading(true);
     try {
       // Reject payment record
@@ -723,7 +725,7 @@ export default function ReadyToShipTab({
         key: 'unsplit', label: 'ยกเลิกแบ่งกล่อง', icon: <Scissors className="w-4 h-4" />, dividerBefore: menuItems.length > 0,
         onClick: async (e) => {
           e.stopPropagation();
-          if (!confirm('ยกเลิกการแบ่งกล่องออเดอร์นี้?')) return;
+          const ok = await confirm({ title: 'ยกเลิกการแบ่งกล่องออเดอร์นี้?' }); if (!ok) return;
           setActionLoading(true);
           try {
             const res = await apiFetch('/api/orders/unsplit', {
@@ -1251,6 +1253,7 @@ export default function ReadyToShipTab({
         message={overlayMessage}
         progress={overlayProgress}
       />
+      {confirmDialog}
     </>
   );
 }

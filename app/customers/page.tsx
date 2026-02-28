@@ -9,6 +9,7 @@ import SearchInput from '@/components/ui/SearchInput';
 import Checkbox from '@/components/ui/Checkbox';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import {
@@ -109,6 +110,7 @@ function CustomerTypeBadge({ type }: { type: string }) {
 export default function CustomersPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
   const router = useRouter();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -162,7 +164,7 @@ export default function CustomersPage() {
   // Bulk delete handler
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`ลบลูกค้า ${selectedIds.size} รายการ ถาวร?\n\nที่อยู่จัดส่ง, กิจกรรม จะถูกลบ\nออเดอร์จะถูก unlink`)) return;
+    const ok = await confirm({ title: `ลบลูกค้า ${selectedIds.size} รายการ ถาวร?`, description: 'ที่อยู่จัดส่ง, กิจกรรม จะถูกลบ และออเดอร์จะถูก unlink', variant: 'danger' }); if (!ok) return;
 
     setBulkDeleting(true);
     try {
@@ -182,7 +184,7 @@ export default function CustomersPage() {
 
   // Single delete handler
   const handleDeleteCustomer = async (customerId: string, customerName: string) => {
-    if (!confirm(`ลบลูกค้า "${customerName}" ถาวร?`)) return;
+    const ok = await confirm({ title: `ลบลูกค้า "${customerName}" ถาวร?`, variant: 'danger' }); if (!ok) return;
 
     try {
       const res = await apiFetch(`/api/customers?id=${customerId}&hard=true`, { method: 'DELETE' });
@@ -598,6 +600,7 @@ export default function CustomersPage() {
           </div>
         )}
       </div>
+      {confirmDialog}
     </Layout>
   );
 }

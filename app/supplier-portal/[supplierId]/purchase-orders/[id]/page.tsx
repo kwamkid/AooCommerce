@@ -55,7 +55,7 @@ function getDisplayName(v: POItem['variation']) {
 export default function PortalPODetailPage() {
   const params = useParams();
   const router = useRouter();
-  const code = params.code as string;
+  const supplierId = params.supplierId as string;
   const poId = params.id as string;
 
   const [data, setData] = useState<POData | null>(null);
@@ -64,21 +64,21 @@ export default function PortalPODetailPage() {
 
   // Auth gate — redirect to portal login if not authenticated
   useEffect(() => {
-    const stored = sessionStorage.getItem(`portal-auth-${code}`);
-    if (stored !== code) {
-      router.replace(`/supplier-portal/${code}`);
+    const stored = sessionStorage.getItem(`portal-auth-${supplierId}`);
+    if (!stored) {
+      router.replace(`/supplier-portal/${supplierId}`);
     }
-  }, [code, router]);
+  }, [supplierId, router]);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem(`portal-auth-${code}`);
-    if (stored === code) fetchData();
-  }, [code, poId]);
+    const stored = sessionStorage.getItem(`portal-auth-${supplierId}`);
+    if (stored) fetchData();
+  }, [supplierId, poId]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/supplier-portal/${code}/purchase-orders/${poId}`);
+      const res = await fetch(`/api/supplier-portal/${supplierId}/purchase-orders/${poId}`);
       if (!res.ok) {
         setError(res.status === 403 ? 'ไม่สามารถเข้าถึงได้' : 'ไม่พบใบสั่งซื้อ');
         return;
@@ -116,7 +116,7 @@ export default function PortalPODetailPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
-      <button onClick={() => router.push(`/supplier-portal/${code}`)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700">
+      <button onClick={() => router.push(`/supplier-portal/${supplierId}`)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700">
         <ArrowLeft className="w-4 h-4" /> กลับ
       </button>
 

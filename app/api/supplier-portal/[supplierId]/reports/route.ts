@@ -1,4 +1,4 @@
-// Path: app/api/supplier-portal/[code]/reports/route.ts
+// Path: app/api/supplier-portal/[supplierId]/reports/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { validatePortalAccess } from '@/lib/supplier-portal/validate';
@@ -6,17 +6,17 @@ import { validatePortalAccess } from '@/lib/supplier-portal/validate';
 // GET - Snapshot list for this supplier
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ code: string }> }
+  { params }: { params: Promise<{ supplierId: string }> }
 ) {
   try {
-    const { code } = await params;
-    const result = await validatePortalAccess(code);
+    const { supplierId } = await params;
+    const result = await validatePortalAccess(supplierId);
 
     if (!result.valid || !result.context) {
       return NextResponse.json({ error: 'Portal unavailable' }, { status: 403 });
     }
 
-    const { supplierId, companyId } = result.context;
+    const { companyId } = result.context;
 
     // Only show confirmed/sent snapshots (not drafts)
     const { data, error } = await supabaseAdmin

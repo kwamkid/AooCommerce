@@ -1,15 +1,15 @@
-// Path: app/api/supplier-portal/[code]/route.ts
+// Path: app/api/supplier-portal/[supplierId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { validatePortalAccess } from '@/lib/supplier-portal/validate';
 
-// GET - Validate code + return supplier basic info
+// GET - Validate supplier + return basic info
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ code: string }> }
+  { params }: { params: Promise<{ supplierId: string }> }
 ) {
   try {
-    const { code } = await params;
-    const result = await validatePortalAccess(code);
+    const { supplierId } = await params;
+    const result = await validatePortalAccess(supplierId);
 
     if (!result.valid || !result.context) {
       return NextResponse.json({ error: result.error || 'Portal unavailable' }, { status: 403 });

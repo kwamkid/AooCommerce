@@ -433,7 +433,7 @@ export default function SuppliersPage() {
                             key: 'portal',
                             label: 'ลิงก์ซัพออนไลน์',
                             icon: <ExternalLink className="w-4 h-4" />,
-                            onClick: () => { navigator.clipboard.writeText(`${window.location.origin}/supplier-portal/${supplier.access_code}`); showToast('คัดลอกลิงก์แล้ว'); },
+                            onClick: () => { navigator.clipboard.writeText(`${window.location.origin}/supplier-portal/${supplier.id}`); showToast('คัดลอกลิงก์แล้ว'); },
                           });
                           items.push({
                             key: 'copy-code',

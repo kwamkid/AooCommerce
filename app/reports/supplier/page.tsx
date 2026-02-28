@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import Pagination from '@/app/components/Pagination';
 import {
@@ -68,6 +69,7 @@ export default function SupplierReportsPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { features, fetched: featuresFetched } = useFeatures();
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
@@ -162,7 +164,7 @@ export default function SupplierReportsPage() {
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('ลบรายงาน (ร่าง) นี้?')) return;
+    const ok = await confirm({ title: 'ลบรายงาน (ร่าง) นี้?', variant: 'danger' }); if (!ok) return;
     try {
       const res = await apiFetch(`/api/reports/supplier/${id}`, { method: 'DELETE' });
       if (!res.ok) {
@@ -421,6 +423,7 @@ export default function SupplierReportsPage() {
           </>
         )}
       </div>
+      {confirmDialog}
     </Layout>
   );
 }

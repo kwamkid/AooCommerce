@@ -54,11 +54,45 @@ export default function EntitySearchInput({
   const [open, setOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  // Internal flag: true from the moment user types until parent loading cycle completes
+  const [pendingSearch, setPendingSearch] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const selected = options.find(o => o.id === value);
+
+  // Track when parent loading has started so we only clear pendingSearch after loading completes
+  const loadingStartedRef = useRef(false);
+  useEffect(() => {
+    if (loading) {
+      loadingStartedRef.current = true;
+    } else if (loadingStartedRef.current) {
+      // loading went true→false: API call finished
+      loadingStartedRef.current = false;
+      setPendingSearch(false);
+    }
+  }, [loading]);
+
+  // Also clear pendingSearch when options change (for parents that don't use loading prop)
+  const prevOptionsLenRef = useRef(options.length);
+  useEffect(() => {
+    if (pendingSearch && options.length !== prevOptionsLenRef.current) {
+      setPendingSearch(false);
+    }
+    prevOptionsLenRef.current = options.length;
+  }, [options.length, pendingSearch]);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  // Effective loading: either parent says loading, or we just fired onSearchChange and parent hasn't responded yet
+  const isLoading = loading || (pendingSearch && onSearchChange != null);
 
   // When onSearchChange is provided (API mode), skip internal filtering — options are already filtered
   const filtered = onSearchChange
@@ -75,6 +109,8 @@ export default function EntitySearchInput({
     if (!open) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        setPendingSearch(false);
         setOpen(false);
         setSearch('');
       }
@@ -117,12 +153,16 @@ export default function EntitySearchInput({
   }, [highlightIdx]);
 
   const handleSelect = useCallback((option: EntitySearchOption) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setPendingSearch(false);
     onChange(option.id, option);
     setOpen(false);
     setSearch('');
   }, [onChange]);
 
   const handleClear = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setPendingSearch(false);
     onClear?.();
     setSearch('');
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -148,6 +188,8 @@ export default function EntitySearchInput({
         break;
       case 'Escape':
         e.preventDefault();
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        setPendingSearch(false);
         setOpen(false);
         setSearch('');
         break;
@@ -211,7 +253,15 @@ export default function EntitySearchInput({
             const val = e.target.value;
             setSearch(val);
             if (!open) setOpen(true);
-            onSearchChange?.(val);
+            if (onSearchChange) {
+              // Mark as pending immediately so loading spinner shows
+              setPendingSearch(val.length >= minSearchLength);
+              // Debounce the actual API call (300ms)
+              if (debounceRef.current) clearTimeout(debounceRef.current);
+              debounceRef.current = setTimeout(() => {
+                onSearchChange(val);
+              }, 300);
+            }
           }}
           onFocus={() => {
             if (search || options.length <= 20) setOpen(true);
@@ -229,40 +279,37 @@ export default function EntitySearchInput({
       {open && (search.length >= minSearchLength) && (search || options.length <= 20) && (
         <div style={dropdownStyle} className="z-[100] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg overflow-hidden">
           <div ref={listRef} className="max-h-60 overflow-y-auto py-1">
-            {loading ? (
+            {isLoading ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
               </div>
+            ) : filtered.length === 0 ? (
+              <div className="px-3 py-4 text-sm text-gray-400 dark:text-slate-500 text-center">
+                {emptyMessage || 'ไม่พบผลลัพธ์'}
+              </div>
             ) : (
-              <>
-                {filtered.map((o, idx) => (
-                  <button
-                    key={o.id}
-                    data-option
-                    type="button"
-                    onClick={() => handleSelect(o)}
-                    onMouseEnter={() => setHighlightIdx(idx)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
-                      idx === highlightIdx
-                        ? 'bg-gray-50 dark:bg-slate-700'
-                        : ''
-                    } text-gray-700 dark:text-slate-300`}
-                  >
-                    {o.icon && <span className="flex-shrink-0">{o.icon}</span>}
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="truncate font-medium">{o.label}</div>
-                      {o.subtitle && (
-                        <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{o.subtitle}</div>
-                      )}
-                    </div>
-                  </button>
-                ))}
-                {filtered.length === 0 && (
-                  <div className="px-3 py-4 text-sm text-gray-400 dark:text-slate-500 text-center">
-                    {emptyMessage || 'ไม่พบผลลัพธ์'}
+              filtered.map((o, idx) => (
+                <button
+                  key={o.id}
+                  data-option
+                  type="button"
+                  onClick={() => handleSelect(o)}
+                  onMouseEnter={() => setHighlightIdx(idx)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                    idx === highlightIdx
+                      ? 'bg-gray-50 dark:bg-slate-700'
+                      : ''
+                  } text-gray-700 dark:text-slate-300`}
+                >
+                  {o.icon && <span className="flex-shrink-0">{o.icon}</span>}
+                  <div className="flex-1 min-w-0 text-left">
+                    <div className="truncate font-medium">{o.label}</div>
+                    {o.subtitle && (
+                      <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{o.subtitle}</div>
+                    )}
                   </div>
-                )}
-              </>
+                </button>
+              ))
             )}
           </div>
         </div>

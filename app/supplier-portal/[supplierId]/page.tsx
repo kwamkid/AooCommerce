@@ -92,7 +92,7 @@ function getDisplayName(v: VariationInfo | null) {
 export default function SupplierPortalPage() {
   const params = useParams();
   const router = useRouter();
-  const code = params.code as string;
+  const supplierId = params.supplierId as string;
 
   // Auth gate
   const [authenticated, setAuthenticated] = useState(false);
@@ -165,19 +165,19 @@ export default function SupplierPortalPage() {
 
   // Check sessionStorage for existing auth
   useEffect(() => {
-    const stored = sessionStorage.getItem(`portal-auth-${code}`);
-    if (stored === code) {
+    const stored = sessionStorage.getItem(`portal-auth-${supplierId}`);
+    if (stored) {
       setAuthenticated(true);
     }
     setAuthChecking(false);
-  }, [code]);
+  }, [supplierId]);
 
   // Fetch data only after authenticated
   useEffect(() => {
     if (authenticated) {
       validateAndFetch();
     }
-  }, [authenticated, code]);
+  }, [authenticated, supplierId]);
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,20 +188,26 @@ export default function SupplierPortalPage() {
     setAuthError('');
 
     try {
-      // Validate the entered code matches by calling API
-      const res = await fetch(`/api/supplier-portal/${trimmed}`);
+      // Validate access code via auth API
+      const res = await fetch('/api/supplier-portal/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_code: trimmed }),
+      });
       if (!res.ok) {
         setAuthError('รหัสไม่ถูกต้อง กรุณาลองใหม่');
         return;
       }
 
-      // Check that entered code matches the URL code
-      if (trimmed !== code) {
-        setAuthError('รหัสไม่ถูกต้อง กรุณาลองใหม่');
+      const data = await res.json();
+      // If the access code belongs to a different supplier, redirect
+      if (data.supplier_id !== supplierId) {
+        sessionStorage.setItem(`portal-auth-${data.supplier_id}`, 'true');
+        router.replace(`/supplier-portal/${data.supplier_id}`);
         return;
       }
 
-      sessionStorage.setItem(`portal-auth-${code}`, code);
+      sessionStorage.setItem(`portal-auth-${supplierId}`, 'true');
       setAuthenticated(true);
     } catch {
       setAuthError('เกิดข้อผิดพลาด กรุณาลองใหม่');
@@ -211,7 +217,7 @@ export default function SupplierPortalPage() {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem(`portal-auth-${code}`);
+    sessionStorage.removeItem(`portal-auth-${supplierId}`);
     setAuthenticated(false);
     setAuthCode('');
     setSupplierName('');
@@ -226,7 +232,7 @@ export default function SupplierPortalPage() {
   const validateAndFetch = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/supplier-portal/${code}`);
+      const res = await fetch(`/api/supplier-portal/${supplierId}`);
       if (!res.ok) {
         setError('ลิงก์นี้ไม่สามารถเข้าถึงได้');
         return;
@@ -238,9 +244,9 @@ export default function SupplierPortalPage() {
 
       // Fetch all data in parallel
       const [stockRes, poRes, reportRes] = await Promise.all([
-        fetch(`/api/supplier-portal/${code}/stock`),
-        fetch(`/api/supplier-portal/${code}/purchase-orders`),
-        fetch(`/api/supplier-portal/${code}/reports`),
+        fetch(`/api/supplier-portal/${supplierId}/stock`),
+        fetch(`/api/supplier-portal/${supplierId}/purchase-orders`),
+        fetch(`/api/supplier-portal/${supplierId}/reports`),
       ]);
 
       if (stockRes.ok) {
@@ -270,7 +276,7 @@ export default function SupplierPortalPage() {
   const fetchSales = async (year: number, month: number) => {
     try {
       setSalesLoading(true);
-      const res = await fetch(`/api/supplier-portal/${code}/sales?year=${year}&month=${month}`);
+      const res = await fetch(`/api/supplier-portal/${supplierId}/sales?year=${year}&month=${month}`);
       if (res.ok) {
         const d = await res.json();
         setSales(d.sales || []);
@@ -575,7 +581,7 @@ export default function SupplierPortalPage() {
               return (
                 <div
                   key={po.id}
-                  onClick={() => router.push(`/supplier-portal/${code}/purchase-orders/${po.id}`)}
+                  onClick={() => router.push(`/supplier-portal/${supplierId}/purchase-orders/${po.id}`)}
                   className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 cursor-pointer hover:border-[#F4511E]/50 transition-colors"
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -610,7 +616,7 @@ export default function SupplierPortalPage() {
               return (
                 <div
                   key={snap.id}
-                  onClick={() => router.push(`/supplier-portal/${code}/reports/${snap.id}`)}
+                  onClick={() => router.push(`/supplier-portal/${supplierId}/reports/${snap.id}`)}
                   className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 cursor-pointer hover:border-[#F4511E]/50 transition-colors"
                 >
                   <div className="flex items-center justify-between mb-1">

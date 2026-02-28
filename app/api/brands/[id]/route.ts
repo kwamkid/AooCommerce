@@ -30,7 +30,7 @@ export async function GET(
     // Fetch products in this brand
     const { data: products, error: productsError } = await supabaseAdmin
       .from('products')
-      .select('id, code, name, image, product_type, created_at')
+      .select('id, code, name, image, created_at')
       .eq('brand_id', id)
       .eq('company_id', auth.companyId)
       .eq('is_active', true)

@@ -5,6 +5,7 @@ import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Plus, Check, X, Edit2, Trash2, Warehouse, Star, StarOff, AlertTriangle
@@ -45,6 +46,7 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
 export default function WarehouseSettingsPage() {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
@@ -313,9 +315,7 @@ export default function WarehouseSettingsPage() {
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm('ลบคลังนี้?')) handleDelete(wh.id);
-                        }}
+                        onClick={async () => { const ok = await confirm({ title: 'ต้องการลบคลังนี้?', variant: 'danger' }); if (ok) handleDelete(wh.id); }}
                         disabled={deletingId === wh.id}
                         className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
                       >
@@ -345,6 +345,7 @@ export default function WarehouseSettingsPage() {
           </div>
         ) : null}
       </div>
+      {confirmDialog}
     </Layout>
   );
 

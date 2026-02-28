@@ -1,5 +1,5 @@
 // Path: lib/supplier-portal/validate.ts
-// 3-layer portal validation: access_code → portal_enabled → company feature
+// 3-layer portal validation: supplier_id → portal_enabled → company feature
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 interface PortalContext {
@@ -16,12 +16,13 @@ interface ValidationResult {
   context?: PortalContext;
 }
 
-export async function validatePortalAccess(code: string): Promise<ValidationResult> {
-  // Layer 1: Validate access code
+/** Validate portal access by supplier ID (used by all data endpoints) */
+export async function validatePortalAccess(supplierId: string): Promise<ValidationResult> {
+  // Layer 1: Find supplier by ID
   const { data: supplier } = await supabaseAdmin
     .from('suppliers')
     .select('id, company_id, name, supplier_type, portal_enabled')
-    .eq('access_code', code)
+    .eq('id', supplierId)
     .eq('is_active', true)
     .single();
 
@@ -56,6 +57,22 @@ export async function validatePortalAccess(code: string): Promise<ValidationResu
       supplierType: supplier.supplier_type,
     },
   };
+}
+
+/** Validate access code for login — returns supplier ID if valid */
+export async function validateAccessCode(accessCode: string): Promise<{ valid: boolean; supplierId?: string; error?: string }> {
+  const { data: supplier } = await supabaseAdmin
+    .from('suppliers')
+    .select('id, portal_enabled')
+    .eq('access_code', accessCode)
+    .eq('is_active', true)
+    .single();
+
+  if (!supplier || !supplier.portal_enabled) {
+    return { valid: false, error: 'Invalid access code' };
+  }
+
+  return { valid: true, supplierId: supplier.id };
 }
 
 // Get supplier's variation IDs (supplier → brands → products → variations)

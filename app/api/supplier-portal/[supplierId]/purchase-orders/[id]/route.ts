@@ -1,4 +1,4 @@
-// Path: app/api/supplier-portal/[code]/purchase-orders/[id]/route.ts
+// Path: app/api/supplier-portal/[supplierId]/purchase-orders/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { validatePortalAccess } from '@/lib/supplier-portal/validate';
@@ -6,17 +6,17 @@ import { validatePortalAccess } from '@/lib/supplier-portal/validate';
 // GET - PO detail (read-only)
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ code: string; id: string }> }
+  { params }: { params: Promise<{ supplierId: string; id: string }> }
 ) {
   try {
-    const { code, id } = await params;
-    const result = await validatePortalAccess(code);
+    const { supplierId, id } = await params;
+    const result = await validatePortalAccess(supplierId);
 
     if (!result.valid || !result.context) {
       return NextResponse.json({ error: 'Portal unavailable' }, { status: 403 });
     }
 
-    const { supplierId, companyId } = result.context;
+    const { companyId } = result.context;
 
     // Fetch PO header (verify supplier_id matches)
     const { data: po } = await supabaseAdmin

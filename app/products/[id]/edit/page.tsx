@@ -12,6 +12,7 @@ import { apiFetch } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { ArrowLeft, Loader2, ExternalLink, Unlink2, Package2, Camera, Merge, Search, X, ChevronRight, Trash2, HelpCircle } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import ShopeeCategoryPicker from '@/components/shopee/ShopeeCategoryPicker';
@@ -123,6 +124,7 @@ export default function EditProductPage() {
     window.history.replaceState(null, '', `#${tab}`);
   };
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   // Platform fields local state — track edited values per link
   const [platformNameValues, setPlatformNameValues] = useState<Record<string, string>>({});
@@ -303,7 +305,7 @@ export default function EditProductPage() {
 
   // Actions
   const handleUnlink = async (linkId: string) => {
-    if (!confirm('ต้องการยกเลิกการเชื่อมโยงสินค้านี้?')) return;
+    const ok = await confirm({ title: 'ต้องการยกเลิกการเชื่อมโยงสินค้านี้?', variant: 'danger' }); if (!ok) return;
     try {
       const res = await apiFetch(`/api/shopee/products/link?link_id=${linkId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -320,7 +322,7 @@ export default function EditProductPage() {
   };
 
   const handleDeleteProduct = async () => {
-    if (!confirm('ต้องการลบสินค้านี้? สินค้าจะถูกปิดใช้งานและไม่แสดงในรายการ')) return;
+    const ok = await confirm({ title: 'ต้องการลบสินค้านี้?', description: 'สินค้าจะถูกปิดใช้งานและไม่แสดงในรายการ', variant: 'danger' }); if (!ok) return;
     try {
       const res = await apiFetch(`/api/products?id=${productId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -1569,6 +1571,7 @@ export default function EditProductPage() {
         </div>
       )}
 
+      {confirmDialog}
     </Layout>
   );
 }

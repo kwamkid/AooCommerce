@@ -5,6 +5,7 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { THAI_BANKS, getBankByCode } from '@/lib/constants/banks';
 import { BEAM_CHANNELS, BEAM_CHANNEL_CATEGORIES, CUSTOMER_TYPES, FEE_PAYERS } from '@/lib/constants/payment-gateway';
@@ -54,6 +55,7 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
 export default function PaymentChannelsPage() {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   // Data
   const [channels, setChannels] = useState<PaymentChannel[]>([]);
@@ -229,7 +231,7 @@ export default function PaymentChannelsPage() {
   };
 
   const handleDeleteBank = async (id: string, name: string) => {
-    if (!confirm(`ลบบัญชี "${name}" หรือไม่?`)) return;
+    const ok = await confirm({ title: `ลบบัญชี "${name}" หรือไม่?`, variant: 'danger' }); if (!ok) return;
     try {
       await apiCall('DELETE', undefined, `?id=${id}`);
       showToast('ลบบัญชีสำเร็จ');
@@ -269,7 +271,7 @@ export default function PaymentChannelsPage() {
   };
 
   const handleDeletePromptPay = async (id: string) => {
-    if (!confirm('ลบ PromptPay QR นี้หรือไม่?')) return;
+    const ok = await confirm({ title: 'ลบ PromptPay QR นี้หรือไม่?', variant: 'danger' }); if (!ok) return;
     try {
       await apiCall('DELETE', undefined, `?id=${id}`);
       showToast('ลบ PromptPay QR สำเร็จ');
@@ -1092,6 +1094,7 @@ export default function PaymentChannelsPage() {
           </div>
         )}
       </div>
+      {confirmDialog}
     </Layout>
   );
 }

@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import {
   Users,
   Plus,
@@ -99,7 +100,8 @@ interface UserFormData {
 export default function UsersPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
-  
+  const { confirmDialog, confirm } = useConfirmDialog();
+
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [dataFetched, setDataFetched] = useState(false);
@@ -278,7 +280,7 @@ export default function UsersPage() {
     const newStatus = !user.is_active;
     const action = newStatus ? 'เปิดใช้งาน' : 'ระงับ';
 
-    if (!confirm(`คุณต้องการ${action}ผู้ใช้นี้หรือไม่?`)) return;
+    const ok = await confirm({ title: `ต้องการ${action}ผู้ใช้นี้?` }); if (!ok) return;
 
     try {
       const response = await apiFetch('/api/users', {
@@ -316,7 +318,7 @@ export default function UsersPage() {
 
   // Handle delete user permanently
   const handleDeleteUser = async (user: User) => {
-    if (!confirm(`⚠️ คุณแน่ใจหรือไม่ที่จะลบผู้ใช้ "${user.name}" ถาวร?\n\nการดำเนินการนี้ไม่สามารถย้อนกลับได้!`)) return;
+    const ok = await confirm({ title: `ลบผู้ใช้ "${user.name}" ถาวร?`, description: 'การดำเนินการนี้ไม่สามารถย้อนกลับได้', variant: 'danger' }); if (!ok) return;
 
     try {
       const response = await apiFetch(`/api/users?id=${user.id}&hard=true`, {
@@ -758,6 +760,7 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+      {confirmDialog}
     </Layout>
   );
 }

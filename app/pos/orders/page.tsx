@@ -5,6 +5,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import Layout from '@/components/layout/Layout';
 import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker from '@/components/ui/DateRangePicker';
@@ -40,6 +41,7 @@ function toDateStr(d: unknown): string | null {
 
 export default function PosOrdersPage() {
   const { loading: authLoading, userProfile } = useAuth();
+  const { confirmDialog, confirm } = useConfirmDialog();
   const [orders, setOrders] = useState<PosOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateValueType>({ startDate: new Date(), endDate: new Date() });
@@ -115,7 +117,7 @@ export default function PosOrdersPage() {
     : warehouses;
 
   const handleVoid = async (orderId: string) => {
-    if (!confirm('ต้องการ Void รายการนี้?')) return;
+    const ok = await confirm({ title: 'ต้องการ Void รายการนี้?', variant: 'danger' }); if (!ok) return;
     setVoidingId(orderId);
     try {
       const res = await apiFetch('/api/pos/orders/void', {
@@ -306,6 +308,8 @@ export default function PosOrdersPage() {
           )}
         </div>
       </div>
+
+      {confirmDialog}
 
       {/* Receipt modal */}
       {receiptData && (

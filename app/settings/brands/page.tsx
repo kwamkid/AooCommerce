@@ -5,6 +5,7 @@ import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Plus, Check, X, Edit2, Trash2, Award, Factory, ChevronRight,
@@ -29,7 +30,8 @@ interface BrandItem {
 export default function BrandsPage() {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
-  const { features } = useFeatures();
+  const { features, fetched: featuresFetched } = useFeatures();
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [brands, setBrands] = useState<BrandItem[]>([]);
@@ -152,7 +154,7 @@ export default function BrandsPage() {
   };
 
   const handleDelete = async (brand: BrandItem) => {
-    if (!confirm(`ต้องการลบแบรนด์ "${brand.name}"?`)) return;
+    const ok = await confirm({ title: `ต้องการลบแบรนด์ "${brand.name}"?`, variant: 'danger' }); if (!ok) return;
     setDeletingId(brand.id);
     try {
       const res = await apiFetch(`/api/brands?id=${brand.id}`, { method: 'DELETE' });
@@ -177,7 +179,7 @@ export default function BrandsPage() {
   }
 
   // Feature gate
-  if (!features.product_brand) {
+  if (featuresFetched && !features.product_brand) {
     return (
       <Layout
         title="แบรนด์"
@@ -356,6 +358,7 @@ export default function BrandsPage() {
           </div>
         )}
       </div>
+      {confirmDialog}
     </Layout>
   );
 }

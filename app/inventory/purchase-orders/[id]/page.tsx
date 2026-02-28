@@ -6,6 +6,7 @@ import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { generatePOPdf } from '@/lib/supplier-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
@@ -84,6 +85,7 @@ export default function PurchaseOrderDetailPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { features, fetched: featuresFetched } = useFeatures();
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
   const poId = params.id as string;
 
   const [po, setPO] = useState<PurchaseOrderDetail | null>(null);
@@ -121,7 +123,7 @@ export default function PurchaseOrderDetailPage() {
   };
 
   const updateStatus = async (newStatus: string, confirmMsg: string) => {
-    if (!confirm(confirmMsg)) return;
+    const ok = await confirm({ title: confirmMsg, ...(newStatus === 'cancelled' ? { variant: 'danger' as const } : {}) }); if (!ok) return;
     setUpdating(true);
     try {
       const res = await apiFetch(`/api/inventory/purchase-orders/${poId}`, {
@@ -499,6 +501,7 @@ export default function PurchaseOrderDetailPage() {
           </div>
         )}
       </div>
+      {confirmDialog}
     </Layout>
   );
 }

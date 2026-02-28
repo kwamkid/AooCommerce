@@ -72,7 +72,7 @@ function getDisplayName(v: VariationInfo | null) {
 export default function PortalReportDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const code = params.code as string;
+  const supplierId = params.supplierId as string;
   const reportId = params.id as string;
 
   const [data, setData] = useState<SnapshotData | null>(null);
@@ -81,21 +81,21 @@ export default function PortalReportDetailPage() {
 
   // Auth gate — redirect to portal login if not authenticated
   useEffect(() => {
-    const stored = sessionStorage.getItem(`portal-auth-${code}`);
-    if (stored !== code) {
-      router.replace(`/supplier-portal/${code}`);
+    const stored = sessionStorage.getItem(`portal-auth-${supplierId}`);
+    if (!stored) {
+      router.replace(`/supplier-portal/${supplierId}`);
     }
-  }, [code, router]);
+  }, [supplierId, router]);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem(`portal-auth-${code}`);
-    if (stored === code) fetchData();
-  }, [code, reportId]);
+    const stored = sessionStorage.getItem(`portal-auth-${supplierId}`);
+    if (stored) fetchData();
+  }, [supplierId, reportId]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/supplier-portal/${code}/reports/${reportId}`);
+      const res = await fetch(`/api/supplier-portal/${supplierId}/reports/${reportId}`);
       if (!res.ok) {
         setError(res.status === 403 ? 'ไม่สามารถเข้าถึงได้' : 'ไม่พบรายงาน');
         return;
@@ -143,7 +143,7 @@ export default function PortalReportDetailPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
-      <button onClick={() => router.push(`/supplier-portal/${code}`)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700">
+      <button onClick={() => router.push(`/supplier-portal/${supplierId}`)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700">
         <ArrowLeft className="w-4 h-4" /> กลับ
       </button>
 

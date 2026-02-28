@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { ImagePlus, X, Loader2, GripVertical, ChevronLeft, ChevronRight } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 
@@ -135,6 +136,7 @@ export default function ImageUploader({
   compact = false
 }: ImageUploaderProps) {
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
@@ -343,7 +345,7 @@ export default function ImageUploader({
     }
 
     if (!imageToDelete.id) return;
-    if (!confirm('ต้องการลบรูปภาพนี้?')) return;
+    const ok = await confirm({ title: 'ต้องการลบรูปภาพนี้?', variant: 'danger' }); if (!ok) return;
 
     try {
       const response = await apiFetch(`/api/product-images?id=${imageToDelete.id}`, {
@@ -563,6 +565,7 @@ export default function ImageUploader({
           )}
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 }

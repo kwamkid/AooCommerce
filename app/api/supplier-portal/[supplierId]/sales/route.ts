@@ -1,4 +1,4 @@
-// Path: app/api/supplier-portal/[code]/sales/route.ts
+// Path: app/api/supplier-portal/[supplierId]/sales/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { validatePortalAccess, getSupplierVariationIds } from '@/lib/supplier-portal/validate';
@@ -6,17 +6,17 @@ import { validatePortalAccess, getSupplierVariationIds } from '@/lib/supplier-po
 // GET - Sales data (consignment only)
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ code: string }> }
+  { params }: { params: Promise<{ supplierId: string }> }
 ) {
   try {
-    const { code } = await params;
-    const result = await validatePortalAccess(code);
+    const { supplierId } = await params;
+    const result = await validatePortalAccess(supplierId);
 
     if (!result.valid || !result.context) {
       return NextResponse.json({ error: 'Portal unavailable' }, { status: 403 });
     }
 
-    const { supplierId, companyId, supplierType } = result.context;
+    const { companyId, supplierType } = result.context;
 
     if (supplierType !== 'consignment') {
       return NextResponse.json({ error: 'Sales data available for consignment suppliers only' }, { status: 400 });

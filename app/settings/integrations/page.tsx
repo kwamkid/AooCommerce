@@ -6,6 +6,7 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, ShoppingBag, RefreshCw, Unlink, CheckCircle2,
@@ -36,6 +37,7 @@ export default function IntegrationsPage() {
   const router = useRouter();
   const { userProfile } = useAuth();
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
   const [accounts, setAccounts] = useState<ShopeeAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
@@ -136,8 +138,8 @@ export default function IntegrationsPage() {
     }
   };
 
-  const handleCancelSync = () => {
-    if (!confirm('ต้องการยกเลิกการ sync?')) return;
+  const handleCancelSync = async () => {
+    const ok = await confirm({ title: 'ต้องการยกเลิกการ sync?' }); if (!ok) return;
     syncAbortRef.current?.abort();
   };
 
@@ -288,7 +290,7 @@ export default function IntegrationsPage() {
   };
 
   const handleDisconnect = async (accountId: string) => {
-    if (!confirm('ต้องการยกเลิกการเชื่อมต่อร้านนี้?')) return;
+    const ok = await confirm({ title: 'ต้องการยกเลิกการเชื่อมต่อร้านนี้?', variant: 'danger' }); if (!ok) return;
     setDisconnectingId(accountId);
     try {
       const res = await apiFetch(`/api/shopee/accounts?id=${accountId}`, {
@@ -630,6 +632,7 @@ export default function IntegrationsPage() {
         progress={syncProgress}
         onCancel={handleCancelSync}
       />
+      {confirmDialog}
     </Layout>
   );
 }

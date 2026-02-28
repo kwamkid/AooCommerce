@@ -5,6 +5,7 @@ import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Plus, Check, X, Edit2, Trash2, Tag, ChevronRight
@@ -22,6 +23,7 @@ interface CategoryItem {
 export default function CategoriesPage() {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -168,7 +170,7 @@ export default function CategoriesPage() {
     const msg = childCount > 0
       ? `หมวดหมู่ "${cat.name}" มีหมวดย่อย ${childCount} รายการ จะถูกลบด้วย ต้องการลบ?`
       : `ต้องการลบหมวดหมู่ "${cat.name}"?`;
-    if (!confirm(msg)) return;
+    const ok = await confirm({ title: msg, variant: 'danger' }); if (!ok) return;
 
     setDeletingId(cat.id);
     try {
@@ -191,7 +193,7 @@ export default function CategoriesPage() {
   };
 
   const handleDeleteChild = async (child: CategoryItem) => {
-    if (!confirm(`ต้องการลบหมวดย่อย "${child.name}"?`)) return;
+    const ok = await confirm({ title: `ต้องการลบหมวดย่อย "${child.name}"?`, variant: 'danger' }); if (!ok) return;
     setDeletingId(child.id);
     try {
       const res = await apiFetch(`/api/categories?id=${child.id}`, { method: 'DELETE' });
@@ -436,6 +438,7 @@ export default function CategoriesPage() {
           </div>
         )}
       </div>
+      {confirmDialog}
     </Layout>
   );
 }

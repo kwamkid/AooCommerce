@@ -41,6 +41,7 @@ import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 
 // Status badge components
 function OrderStatusBadge({ status }: { status: string }) {
@@ -117,6 +118,7 @@ export default function OrderDetailPage() {
   const { features } = useFeatures();
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   // Order header info (loaded separately from OrderForm)
   const [orderNumber, setOrderNumber] = useState('');
@@ -424,7 +426,7 @@ export default function OrderDetailPage() {
   // Reject customer-initiated payment
   const handleRejectPayment = async () => {
     if (!paymentRecord) return;
-    if (!confirm('ต้องการปฏิเสธการชำระเงินนี้หรือไม่?\n\nสถานะจะกลับเป็น "รอชำระ" ให้ลูกค้าแจ้งใหม่ได้')) return;
+    const ok = await confirm({ title: 'ต้องการปฏิเสธการชำระเงินนี้?', description: 'สถานะจะกลับเป็น "รอชำระ" ให้ลูกค้าแจ้งใหม่ได้', variant: 'danger' }); if (!ok) return;
 
     try {
       setUpdating(true);
@@ -1508,6 +1510,7 @@ export default function OrderDetailPage() {
 
       </div>
 
+      {confirmDialog}
     </Layout>
   );
 }
