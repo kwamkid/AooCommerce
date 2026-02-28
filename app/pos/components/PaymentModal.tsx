@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { X, Loader2, Plus, Trash2, Download } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 import { QRCodeSVG } from 'qrcode.react';
 import generatePayload from 'promptpay-qr';
 import { formatPrice } from '@/lib/utils/format';
@@ -345,22 +346,19 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
             <div className="space-y-3 mb-4">
               {tenders.map((t, idx) => (
                 <div key={idx} className="bg-gray-50 dark:bg-white/5 rounded-xl p-3 flex items-center gap-3">
-                  <select
+                  <FormSelect
                     value={t.payment_channel_id}
-                    onChange={(e) => {
-                      const ch = channels.find(c => c.id === e.target.value);
+                    onChange={(val) => {
+                      const ch = channels.find(c => c.id === val);
                       if (ch) {
                         updateSplitTender(idx, 'payment_channel_id', ch.id);
                         updateSplitTender(idx, 'payment_method', ch.type === 'cash' ? 'cash' : ch.type);
                         updateSplitTender(idx, 'channel_name', ch.name);
                       }
                     }}
-                    className="bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 text-gray-900 dark:text-white text-sm focus:outline-none"
-                  >
-                    {channels.map(ch => (
-                      <option key={ch.id} value={ch.id}>{ch.name}</option>
-                    ))}
-                  </select>
+                    options={channels.map(ch => ({ id: ch.id, label: ch.name }))}
+                    searchThreshold={99}
+                  />
                   <input
                     type="number"
                     value={t.amount || ''}

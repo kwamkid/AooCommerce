@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { Loader2, X, Upload, CheckCircle2, ShoppingBag, AlertTriangle } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 import ShopeeCategoryPicker from './ShopeeCategoryPicker';
 
 interface ShopeeAccount {
@@ -246,21 +247,17 @@ export default function ShopeeExportModal({
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                 เลือกร้าน Shopee
               </label>
-              <select
+              <FormSelect
                 value={selectedAccountId}
-                onChange={e => {
-                  setSelectedAccountId(e.target.value);
+                onChange={val => {
+                  setSelectedAccountId(val);
                   // Don't reset category if pre-filled from existing link
                 }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EE4D2D]/50"
-              >
-                <option value="">-- เลือกร้าน --</option>
-                {accounts.map(acc => (
-                  <option key={acc.id} value={acc.id}>
-                    {acc.shop_name || `Shop #${acc.shop_id}`}
-                  </option>
-                ))}
-              </select>
+                options={accounts.map(acc => ({ id: acc.id, label: acc.shop_name || `Shop #${acc.shop_id}` }))}
+                placeholder="-- เลือกร้าน --"
+                icon={<ShoppingBag className="w-4 h-4" />}
+                searchThreshold={99}
+              />
             </div>
           )}
 

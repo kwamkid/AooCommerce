@@ -22,11 +22,14 @@ import {
   Package2,
   Wine,
   Loader2,
+  Award,
+  AlertCircle,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Checkbox from '@/components/ui/Checkbox';
 import SearchableDropdown, { DropdownOption } from '@/components/ui/SearchableDropdown';
+import FormSelect from '@/components/ui/FormSelect';
 
 // Product interface (from API view)
 interface ProductItem {
@@ -59,7 +62,7 @@ interface ProductItem {
 }
 
 // Column toggle system
-type ColumnKey = 'image' | 'nameCode' | 'type' | 'price' | 'sku' | 'barcode' | 'status' | 'actions';
+type ColumnKey = 'image' | 'nameCode' | 'type' | 'price' | 'sku' | 'barcode' | 'brand' | 'status' | 'actions';
 
 interface ColumnConfig {
   key: ColumnKey;
@@ -87,6 +90,7 @@ const COLUMN_CONFIGS: ColumnConfig[] = [
   { key: 'price', label: 'ราคา', defaultVisible: true },
   { key: 'sku', label: 'SKU', defaultVisible: false },
   { key: 'barcode', label: 'Barcode', defaultVisible: false },
+  { key: 'brand', label: 'Brand', defaultVisible: false },
   { key: 'status', label: 'สถานะ', defaultVisible: true },
   { key: 'actions', label: 'จัดการ', defaultVisible: true, alwaysVisible: true },
 ];
@@ -122,9 +126,9 @@ export default function ProductsPage() {
   const [fetching, setFetching] = useState(false); // loading indicator for page changes
   const [dataFetched, setDataFetched] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'simple' | 'variation'>('all');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [brandFilter, setBrandFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [brandFilter, setBrandFilter] = useState('');
   const [shopAccountFilter, setShopAccountFilter] = useState<string>('all');
   const [shopOptions, setShopOptions] = useState<DropdownOption[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -153,6 +157,9 @@ export default function ProductsPage() {
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showBrandModal, setShowBrandModal] = useState(false);
+  const [bulkBrandId, setBulkBrandId] = useState('');
+  const [bulkBrandSaving, setBulkBrandSaving] = useState(false);
 
 
   // Lightbox state
@@ -195,8 +202,8 @@ export default function ProductsPage() {
       const l = perPage ?? rowsPerPage;
       const params = new URLSearchParams({ page: String(p), limit: String(l), include_shop_options: '1' });
       if (searchTerm) params.set('search', searchTerm);
-      if (categoryFilter !== 'all') params.set('category_id', categoryFilter);
-      if (brandFilter !== 'all') params.set('brand_id', brandFilter);
+      if (categoryFilter !== '') params.set('category_id', categoryFilter);
+      if (brandFilter !== '') params.set('brand_id', brandFilter);
       if (shopAccountFilter !== 'all') params.set('shop_account_id', shopAccountFilter);
 
       const response = await apiFetch(`/api/products?${params.toString()}`);
@@ -300,6 +307,32 @@ export default function ProductsPage() {
     }
   };
 
+  // Bulk assign brand
+  const existingBrandCount = productsList.filter(p => selectedIds.has(p.product_id) && p.brand_id).length;
+
+  const handleBulkAssignBrand = async () => {
+    if (!bulkBrandId || selectedIds.size === 0) return;
+    setBulkBrandSaving(true);
+    try {
+      const response = await apiFetch('/api/products/bulk-brand', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_ids: [...selectedIds], brand_id: bulkBrandId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'ไม่สามารถกำหนด Brand ได้');
+      const brandName = brands.find(b => b.id === bulkBrandId)?.name || '';
+      showToast(`กำหนด Brand "${brandName}" ให้สินค้า ${selectedIds.size} รายการสำเร็จ`);
+      setSelectedIds(new Set());
+      setShowBrandModal(false);
+      fetchData();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'ไม่สามารถกำหนด Brand ได้', 'error');
+    } finally {
+      setBulkBrandSaving(false);
+    }
+  };
+
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -314,12 +347,12 @@ export default function ProductsPage() {
 
   // Client-side filter (only type filter — rest is server-side)
   const filteredProducts = productsList.filter(product => {
-    if (typeFilter !== 'all' && product.product_type !== typeFilter) return false;
+    if (typeFilter !== '' && product.product_type !== typeFilter) return false;
     return true;
   });
 
   // Pagination — server provides total count, products are already paginated
-  const totalFiltered = typeFilter === 'all' ? totalProducts : filteredProducts.length;
+  const totalFiltered = typeFilter === '' ? totalProducts : filteredProducts.length;
   const totalPages = Math.ceil(totalFiltered / rowsPerPage);
   const startIndex = (currentPage - 1) * rowsPerPage;
   // Products are already paginated from server — no need to slice again
@@ -399,48 +432,50 @@ export default function ProductsPage() {
                 <div className="flex-1">
                   <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ, รหัส, SKU, Barcode..." className="py-2" />
                 </div>
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value as 'all' | 'simple' | 'variation')}
-                  className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                >
-                  <option value="all">ทั้งหมด</option>
-                  <option value="simple">สินค้าปกติ</option>
-                  <option value="variation">สินค้าย่อย</option>
-                </select>
+                <div className="w-36">
+                  <FormSelect
+                    value={typeFilter}
+                    onChange={setTypeFilter}
+                    options={[
+                      { id: 'simple', label: 'สินค้าปกติ' },
+                      { id: 'variation', label: 'สินค้าย่อย' },
+                    ]}
+                    clearLabel="ทั้งหมด"
+                    placeholder="ประเภท"
+                    searchThreshold={99}
+                  />
+                </div>
                 {/* Category filter */}
-                <select
-                  value={categoryFilter}
-                  onChange={e => setCategoryFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                >
-                  <option value="all">ทุกหมวดหมู่</option>
-                  {categories.map(parent => (
-                    parent.children && parent.children.length > 0 ? (
-                      <optgroup key={parent.id} label={parent.name}>
-                        <option value={parent.id}>{parent.name} (ทั้งหมด)</option>
-                        {parent.children.map(child => (
-                          <option key={child.id} value={child.id}>{child.name}</option>
-                        ))}
-                      </optgroup>
-                    ) : (
-                      <option key={parent.id} value={parent.id}>{parent.name}</option>
-                    )
-                  ))}
-                </select>
+                <div className="w-44">
+                  <FormSelect
+                    value={categoryFilter}
+                    onChange={setCategoryFilter}
+                    options={categories.flatMap(parent =>
+                      parent.children && parent.children.length > 0
+                        ? [
+                            { id: parent.id, label: parent.name },
+                            ...parent.children.map(child => ({ id: child.id, label: child.name, subtitle: parent.name })),
+                          ]
+                        : [{ id: parent.id, label: parent.name }]
+                    )}
+                    clearLabel="ทุกหมวดหมู่"
+                    placeholder="หมวดหมู่"
+                    searchPlaceholder="ค้นหาหมวดหมู่..."
+                  />
+                </div>
 
                 {/* Brand filter — only when feature enabled */}
                 {features.product_brand && (
-                  <select
-                    value={brandFilter}
-                    onChange={e => setBrandFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                  >
-                    <option value="all">ทุกแบรนด์</option>
-                    {brands.map(b => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
+                  <div className="w-40">
+                    <FormSelect
+                      value={brandFilter}
+                      onChange={setBrandFilter}
+                      options={brands.map(b => ({ id: b.id, label: b.name }))}
+                      clearLabel="ทุกแบรนด์"
+                      placeholder="แบรนด์"
+                      searchPlaceholder="ค้นหาแบรนด์..."
+                    />
+                  </div>
                 )}
 
                 {/* Shop account filter */}
@@ -468,6 +503,15 @@ export default function ProductsPage() {
                     clear all
                   </button>
                   <div className="flex items-center gap-2">
+                    {features.product_brand && brands.length > 0 && (
+                      <button
+                        onClick={() => { setBulkBrandId(''); setShowBrandModal(true); }}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium transition-colors"
+                      >
+                        <Award className="w-4 h-4" />
+                        กำหนด Brand
+                      </button>
+                    )}
                     <button
                       onClick={handleBulkDelete}
                       disabled={bulkDeleting}
@@ -475,6 +519,52 @@ export default function ProductsPage() {
                     >
                       <Trash2 className="w-4 h-4" />
                       {bulkDeleting ? 'กำลังลบ...' : `ลบ ${selectedIds.size} รายการ`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Bulk Assign Brand Modal */}
+            {showBrandModal && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setShowBrandModal(false)}>
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+                    กำหนด Brand ให้สินค้า {selectedIds.size} รายการ
+                  </h3>
+
+                  {existingBrandCount > 0 && (
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2.5 mb-4">
+                      <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-amber-700 dark:text-amber-300">
+                        สินค้า {selectedIds.size} รายการที่เลือก มี {existingBrandCount} รายการที่มี Brand อยู่แล้ว — จะถูกเปลี่ยนเป็น Brand ใหม่
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">เลือก Brand</label>
+                    <FormSelect
+                      value={bulkBrandId}
+                      onChange={setBulkBrandId}
+                      options={brands.map(b => ({ id: b.id, label: b.name }))}
+                      placeholder="เลือกแบรนด์..."
+                    />
+                  </div>
+
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => setShowBrandModal(false)}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      onClick={handleBulkAssignBrand}
+                      disabled={!bulkBrandId || bulkBrandSaving}
+                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors"
+                    >
+                      {bulkBrandSaving ? 'กำลังบันทึก...' : 'ยืนยัน'}
                     </button>
                   </div>
                 </div>
@@ -500,6 +590,7 @@ export default function ProductsPage() {
                     {isCol('nameCode') && <th className={thClass}>ชื่อ/รหัส</th>}
                     {isCol('type') && <th className={thClass}>ประเภท</th>}
                     {isCol('price') && <th className={thClass}>ราคา</th>}
+                    {isCol('brand') && <th className={thClass}>Brand</th>}
                     {isCol('status') && <th className={thClass}>สถานะ</th>}
                     {isCol('actions') && <th className={`${thClass} text-right`}>จัดการ</th>}
                   </tr>
@@ -610,6 +701,20 @@ export default function ProductsPage() {
                                   <span className="text-sm text-gray-400 dark:text-slate-500">ไม่มีสินค้าย่อย</span>
                                 )}
                               </div>
+                            )}
+                          </td>
+                        )}
+
+                        {/* Brand */}
+                        {isCol('brand') && (
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {product.brand_id ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
+                                <Award className="w-3 h-3" />
+                                {brands.find(b => b.id === product.brand_id)?.name || '-'}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400 dark:text-slate-500">-</span>
                             )}
                           </td>
                         )}

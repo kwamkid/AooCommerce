@@ -120,7 +120,7 @@ export default function SnapshotDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
-  const { features } = useFeatures();
+  const { features, fetched: featuresFetched } = useFeatures();
   const { showToast } = useToast();
   const snapshotId = params.id as string;
 
@@ -137,7 +137,7 @@ export default function SnapshotDetailPage() {
       return;
     }
     fetchData();
-  }, !authLoading && !!userProfile);
+  }, !authLoading && !!userProfile && featuresFetched);
 
   const fetchData = async () => {
     if (fetchingRef.current) return;

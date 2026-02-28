@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import SuperAdminLayout from '../components/SuperAdminLayout';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { Search, Building2, Loader2, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { Search, Building2, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 
 interface Company {
   id: string;
@@ -180,18 +181,12 @@ export default function SuperAdminCompanies() {
                         <p className="text-white">{c.owner_name || '-'}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="relative">
-                          <select
-                            value={c.package_id || ''}
-                            onChange={e => handleChangePackage(c.id, e.target.value)}
-                            className="appearance-none bg-slate-700 border border-slate-600 text-white text-sm rounded-lg pl-3 pr-8 py-1.5 cursor-pointer hover:border-violet-500/50 focus:outline-none focus:ring-2 focus:ring-violet-500/50 transition-colors"
-                          >
-                            {activePackages.map(p => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                          </select>
-                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                        </div>
+                        <FormSelect
+                          value={c.package_id || ''}
+                          onChange={val => handleChangePackage(c.id, val)}
+                          options={activePackages.map(p => ({ id: p.id, label: p.name }))}
+                          searchThreshold={99}
+                        />
                       </td>
                       <td className="px-4 py-3 text-center font-medium text-white">{c.member_count}</td>
                       <td className="px-4 py-3 text-center">
@@ -249,18 +244,12 @@ export default function SuperAdminCompanies() {
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <select
-                          value={c.package_id || ''}
-                          onChange={e => handleChangePackage(c.id, e.target.value)}
-                          className="appearance-none bg-slate-700 border border-slate-600 text-white text-xs rounded-lg pl-2.5 pr-7 py-1 cursor-pointer hover:border-violet-500/50 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
-                        >
-                          {activePackages.map(p => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
-                      </div>
+                      <FormSelect
+                        value={c.package_id || ''}
+                        onChange={val => handleChangePackage(c.id, val)}
+                        options={activePackages.map(p => ({ id: p.id, label: p.name }))}
+                        searchThreshold={99}
+                      />
                       <span className="text-slate-400">สมาชิก: {c.member_count}</span>
                     </div>
                   </div>

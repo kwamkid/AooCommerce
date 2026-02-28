@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useRef, DragEvent } from 'react';
 import { Package, Plus, Trash2, X, Loader2, GripVertical } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
+import FormSelect from '@/components/ui/FormSelect';
 
 interface OrderItem {
   id: string;
@@ -395,23 +396,22 @@ export default function SplitParcelModal({
 
                         {/* Move to other parcel dropdown */}
                         {parcels.length > 1 && (
-                          <select
-                            className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-pointer"
-                            value=""
-                            onChange={(e) => {
-                              const toIdx = parseInt(e.target.value);
-                              if (!isNaN(toIdx) && toIdx !== parcelIdx) {
-                                moveItem(parcelIdx, toIdx, pi.order_item_id, pi.quantity);
-                              }
-                            }}
-                          >
-                            <option value="" disabled>ย้ายไป...</option>
-                            {parcels.map((_, i) =>
-                              i !== parcelIdx ? (
-                                <option key={i} value={i}>กล่อง {i + 1}</option>
-                              ) : null
-                            )}
-                          </select>
+                          <div className="w-[110px]">
+                            <FormSelect
+                              value=""
+                              onChange={(val) => {
+                                const toIdx = parseInt(val);
+                                if (!isNaN(toIdx) && toIdx !== parcelIdx) {
+                                  moveItem(parcelIdx, toIdx, pi.order_item_id, pi.quantity);
+                                }
+                              }}
+                              options={parcels
+                                .map((_, i) => ({ id: String(i), label: `กล่อง ${i + 1}` }))
+                                .filter((_, i) => i !== parcelIdx)}
+                              placeholder="ย้ายไป..."
+                              searchThreshold={99}
+                            />
+                          </div>
                         )}
                       </div>
                     );

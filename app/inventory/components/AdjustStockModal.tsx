@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Package2, X } from 'lucide-react';
+import { Loader2, Package2, X, Warehouse } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { InventoryItem, WarehouseItem, getVariationLabel } from './types';
@@ -126,14 +127,14 @@ export default function AdjustStockModal({ item, warehouses, initialWarehouseId,
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">คลังสินค้า</label>
-            <select
+            <FormSelect
               value={warehouseId}
-              onChange={e => handleWarehouseChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-            >
-              <option value="">เลือกคลัง</option>
-              {warehouses.map(wh => <option key={wh.id} value={wh.id}>{wh.name}</option>)}
-            </select>
+              onChange={v => handleWarehouseChange(v)}
+              options={warehouses.map(wh => ({ id: wh.id, label: wh.name }))}
+              placeholder="เลือกคลัง"
+              icon={<Warehouse className="w-4 h-4" />}
+              searchThreshold={99}
+            />
           </div>
 
           {warehouseId && (

@@ -13,6 +13,7 @@ import {
   Loader2, FileText, Factory, Calendar, CheckCircle2, Clock, Send,
   Plus, Trash2, Filter,
 } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 
 interface Supplier {
   id: string;
@@ -65,7 +66,7 @@ function supplierTypeBadge(type: string) {
 export default function SupplierReportsPage() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
-  const { features } = useFeatures();
+  const { features, fetched: featuresFetched } = useFeatures();
   const { showToast } = useToast();
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -77,7 +78,7 @@ export default function SupplierReportsPage() {
   const [selectedSupplier, setSelectedSupplier] = useState('');
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(0); // 0 = all
+  const [selectedMonth, setSelectedMonth] = useState<number | ''>(0); // 0 = all
 
   // Create form
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -95,7 +96,7 @@ export default function SupplierReportsPage() {
       return;
     }
     fetchAll();
-  }, !authLoading && !!userProfile);
+  }, !authLoading && !!userProfile && featuresFetched);
 
   const fetchAll = async () => {
     try {
@@ -207,38 +208,32 @@ export default function SupplierReportsPage() {
         {/* Action bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              <select
+            <div className="w-48">
+              <FormSelect
                 value={selectedSupplier}
-                onChange={e => { setSelectedSupplier(e.target.value); setPage(1); }}
-                className="pl-10 pr-8 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] appearance-none"
-              >
-                <option value="">ทุก Supplier</option>
-                {suppliers.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+                onChange={value => { setSelectedSupplier(value); setPage(1); }}
+                options={suppliers.map(s => ({ id: s.id, label: s.name }))}
+                clearLabel="ทุก Supplier"
+                icon={<Filter className="w-4 h-4" />}
+              />
             </div>
-            <select
-              value={selectedYear}
-              onChange={e => { setSelectedYear(parseInt(e.target.value)); setPage(1); }}
-              className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] appearance-none"
-            >
-              {years.map(y => (
-                <option key={y} value={y}>{y + 543}</option>
-              ))}
-            </select>
-            <select
-              value={selectedMonth}
-              onChange={e => { setSelectedMonth(parseInt(e.target.value)); setPage(1); }}
-              className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] appearance-none"
-            >
-              <option value={0}>ทุกเดือน</option>
-              {MONTHS.map((m, i) => (
-                <option key={i + 1} value={i + 1}>{m}</option>
-              ))}
-            </select>
+            <div className="w-36">
+              <FormSelect
+                value={String(selectedYear)}
+                onChange={value => { setSelectedYear(parseInt(value)); setPage(1); }}
+                options={years.map(y => ({ id: String(y), label: String(y + 543) }))}
+                searchThreshold={99}
+              />
+            </div>
+            <div className="w-36">
+              <FormSelect
+                value={selectedMonth ? String(selectedMonth) : ''}
+                onChange={value => { setSelectedMonth(value ? parseInt(value) : 0); setPage(1); }}
+                options={MONTHS.map((m, i) => ({ id: String(i + 1), label: m }))}
+                clearLabel="ทุกเดือน"
+                searchThreshold={99}
+              />
+            </div>
           </div>
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
@@ -256,40 +251,31 @@ export default function SupplierReportsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
                 <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Supplier</label>
-                <select
+                <FormSelect
                   value={createSupplierId}
-                  onChange={e => setCreateSupplierId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                >
-                  <option value="">เลือก...</option>
-                  {suppliers.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({supplierTypeBadge(s.supplier_type).label})</option>
-                  ))}
-                </select>
+                  onChange={value => setCreateSupplierId(value)}
+                  options={suppliers.map(s => ({ id: s.id, label: s.name, subtitle: supplierTypeBadge(s.supplier_type).label }))}
+                  placeholder="เลือก..."
+                  icon={<Factory className="w-4 h-4" />}
+                />
               </div>
               <div>
                 <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">ปี</label>
-                <select
-                  value={createYear}
-                  onChange={e => setCreateYear(parseInt(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                >
-                  {years.map(y => (
-                    <option key={y} value={y}>{y + 543}</option>
-                  ))}
-                </select>
+                <FormSelect
+                  value={String(createYear)}
+                  onChange={value => setCreateYear(parseInt(value))}
+                  options={years.map(y => ({ id: String(y), label: String(y + 543) }))}
+                  searchThreshold={99}
+                />
               </div>
               <div>
                 <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">เดือน</label>
-                <select
-                  value={createMonth}
-                  onChange={e => setCreateMonth(parseInt(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                >
-                  {MONTHS.map((m, i) => (
-                    <option key={i + 1} value={i + 1}>{m}</option>
-                  ))}
-                </select>
+                <FormSelect
+                  value={String(createMonth)}
+                  onChange={value => setCreateMonth(parseInt(value))}
+                  options={MONTHS.map((m, i) => ({ id: String(i + 1), label: m }))}
+                  searchThreshold={99}
+                />
               </div>
               <div className="flex items-end">
                 <button

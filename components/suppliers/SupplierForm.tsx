@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { THAI_BANKS, getBankByCode } from '@/lib/constants/banks';
 import Checkbox from '@/components/ui/Checkbox';
+import FormSelect from '@/components/ui/FormSelect';
 import { apiFetch } from '@/lib/api-client';
 
 const SUPPLIER_TYPES = [
@@ -465,16 +466,12 @@ export default function SupplierForm({
 
             {/* Add existing brand */}
             {availableBrands.length > 0 && (
-              <select
+              <FormSelect
                 value=""
-                onChange={e => { if (e.target.value) addBrandId(e.target.value); }}
-                className={`${inputClass} text-base sm:text-sm`}
-              >
-                <option value="">เลือกแบรนด์ที่มีอยู่...</option>
-                {availableBrands.map(b => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
+                onChange={value => { if (value) addBrandId(value); }}
+                options={availableBrands.map(b => ({ id: b.id, label: b.name }))}
+                placeholder="เลือกแบรนด์ที่มีอยู่..."
+              />
             )}
 
             {/* Create new brand inline */}

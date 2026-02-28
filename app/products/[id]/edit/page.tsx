@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
 import { ArrowLeft, Loader2, ExternalLink, Unlink2, Package2, Camera, Merge, Search, X, ChevronRight, Trash2, HelpCircle } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 import ShopeeCategoryPicker from '@/components/shopee/ShopeeCategoryPicker';
 
 interface MarketplaceLink {
@@ -1453,23 +1454,21 @@ export default function EditProductPage() {
                                       {sv.sku && <div className="text-xs text-gray-500">SKU: {sv.sku}</div>}
                                     </td>
                                     <td className="px-3 py-2">
-                                      <select
+                                      <FormSelect
                                         value={currentMapping?.target_id || ''}
-                                        onChange={e => {
-                                          const val = e.target.value || null;
+                                        onChange={val => {
                                           setMergeVarMapping(prev =>
-                                            prev.map(m => m.source_id === sv.variation_id ? { ...m, target_id: val } : m)
+                                            prev.map(m => m.source_id === sv.variation_id ? { ...m, target_id: val || null } : m)
                                           );
                                         }}
-                                        className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white"
-                                      >
-                                        <option value="">ย้ายมาเลย (ไม่จับคู่)</option>
-                                        {masterVars.map(mv => (
-                                          <option key={mv.variation_id} value={mv.variation_id}>
-                                            {mv.variation_label}{mv.sku ? ` (SKU: ${mv.sku})` : ''}
-                                          </option>
-                                        ))}
-                                      </select>
+                                        options={masterVars.map(mv => ({
+                                          id: mv.variation_id!,
+                                          label: mv.variation_label,
+                                          subtitle: mv.sku ? `SKU: ${mv.sku}` : undefined,
+                                        }))}
+                                        clearLabel="ย้ายมาเลย (ไม่จับคู่)"
+                                        searchThreshold={99}
+                                      />
                                     </td>
                                   </tr>
                                 );

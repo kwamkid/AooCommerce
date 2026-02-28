@@ -19,6 +19,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 
 interface WebhookLog {
   id: string;
@@ -164,15 +165,15 @@ export default function SuperAdminWebhooks() {
               className="w-full pl-9 pr-3 py-2 border border-slate-600 rounded-lg bg-slate-800 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
             />
           </div>
-          <select
-            value={codeFilter}
-            onChange={e => { setCodeFilter(e.target.value); setPage(1); }}
-            className="px-3 py-2 border border-slate-600 rounded-lg bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50"
-          >
-            {PUSH_CODE_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+          <div className="w-52">
+            <FormSelect
+              value={codeFilter}
+              onChange={val => { setCodeFilter(val); setPage(1); }}
+              options={PUSH_CODE_OPTIONS.filter(o => o.value !== '').map(o => ({ id: o.value, label: o.label }))}
+              clearLabel="ทุกประเภท"
+              searchThreshold={99}
+            />
+          </div>
         </div>
 
         {/* Content */}

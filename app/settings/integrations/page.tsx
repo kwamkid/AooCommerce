@@ -12,6 +12,7 @@ import {
   XCircle, Clock, ExternalLink, AlertTriangle, ChevronDown, ChevronUp,
   Plus, Trash2, Upload, Download, Package
 } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 
 interface ShopeeAccount {
@@ -538,17 +539,20 @@ export default function IntegrationsPage() {
 
                       {/* Sync Controls */}
                       <div className="flex items-center gap-2 pt-1">
-                        <select
-                          value={syncRange[account.id] || 1}
-                          onChange={e => setSyncRange(prev => ({ ...prev, [account.id]: parseInt(e.target.value) }))}
-                          className="px-2 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#EE4D2D]/50"
-                        >
-                          <option value={1}>ย้อนหลัง 1 วัน</option>
-                          <option value={3}>ย้อนหลัง 3 วัน</option>
-                          <option value={7}>ย้อนหลัง 7 วัน</option>
-                          <option value={15}>ย้อนหลัง 15 วัน</option>
-                          <option value={30}>ย้อนหลัง 30 วัน</option>
-                        </select>
+                        <div className="w-44">
+                          <FormSelect
+                            value={String(syncRange[account.id] || 1)}
+                            onChange={value => setSyncRange(prev => ({ ...prev, [account.id]: parseInt(value) }))}
+                            options={[
+                              { id: '1', label: 'ย้อนหลัง 1 วัน' },
+                              { id: '3', label: 'ย้อนหลัง 3 วัน' },
+                              { id: '7', label: 'ย้อนหลัง 7 วัน' },
+                              { id: '15', label: 'ย้อนหลัง 15 วัน' },
+                              { id: '30', label: 'ย้อนหลัง 30 วัน' },
+                            ]}
+                            searchThreshold={99}
+                          />
+                        </div>
                         <button
                           onClick={() => handleSync(account.id)}
                           disabled={isSyncing || account.connection_status === 'expired'}

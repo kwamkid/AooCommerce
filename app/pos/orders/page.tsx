@@ -10,6 +10,7 @@ import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
 import { Loader2, Printer, Ban, Eye, Search, Receipt as ReceiptIcon, Store } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 import ReceiptComponent from '../components/Receipt';
 
 interface WarehouseItem {
@@ -183,21 +184,14 @@ export default function PosOrdersPage() {
             </div>
             {availableWarehouses.length > 0 && (
               <div className="w-44 flex-shrink-0">
-                <div className="relative">
-                  <Store className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <select
-                    value={selectedWarehouse}
-                    onChange={(e) => handleWarehouseChange(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700 appearance-none"
-                  >
-                    <option value="">ทุกสาขา</option>
-                    {availableWarehouses.map(wh => (
-                      <option key={wh.id} value={wh.id}>
-                        {wh.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <FormSelect
+                  value={selectedWarehouse}
+                  onChange={(val) => handleWarehouseChange(val)}
+                  options={availableWarehouses.map(wh => ({ id: wh.id, label: wh.name }))}
+                  clearLabel="ทุกสาขา"
+                  icon={<Store className="w-4 h-4" />}
+                  searchThreshold={99}
+                />
               </div>
             )}
             <div className="w-64 flex-shrink-0">

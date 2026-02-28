@@ -60,6 +60,7 @@ import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { useCompany } from '@/lib/company-context';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
+import FormSelect from '@/components/ui/FormSelect';
 
 // Sort options
 const SORT_OPTIONS = [
@@ -919,16 +920,13 @@ export default function OrdersPage() {
                     <h4 className="font-medium text-gray-900 dark:text-white">ข้อมูลจัดส่ง</h4>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">ขนส่ง</label>
-                      <select
+                      <FormSelect
                         value={shippingDetails.carrier}
-                        onChange={(e) => setShippingDetails({ ...shippingDetails, carrier: e.target.value })}
-                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
-                      >
-                        <option value="">-- เลือกขนส่ง --</option>
-                        {SHIPPING_CARRIERS.map(c => (
-                          <option key={c.value} value={c.value}>{c.label}</option>
-                        ))}
-                      </select>
+                        onChange={(val) => setShippingDetails({ ...shippingDetails, carrier: val })}
+                        options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
+                        placeholder="-- เลือกขนส่ง --"
+                        searchThreshold={99}
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เลขพัสดุ</label>

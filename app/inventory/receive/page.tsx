@@ -9,10 +9,11 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Package, Package2, Trash2,
-  Save, Warehouse, ChevronDown, FileText, CheckCircle2, ClipboardList,
+  Save, Warehouse, FileText, CheckCircle2, ClipboardList, Star,
 } from 'lucide-react';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import FormSelect from '@/components/ui/FormSelect';
 import { productDisplayName, productSubtitle } from '../components/types';
 
 // Interfaces
@@ -409,19 +410,19 @@ export default function StockReceivePage() {
               <ClipboardList className="w-4 h-4 inline mr-1" />
               ใบสั่งซื้อ (PO)
             </label>
-            <div className="relative inline-block w-full sm:w-96">
-              <select
+            <div className="w-full sm:w-96">
+              <FormSelect
                 value={selectedPOId}
-                onChange={e => handleSelectPO(e.target.value)}
-                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
-              >
-                <option value="">-- ไม่เลือก PO (รับเข้าปกติ) --</option>
-                {availablePOs.map(po => (
-                  <option key={po.id} value={po.id}>
-                    {po.po_number} — {po.supplier_name}
-                  </option>
-                ))}
-              </select>
+                onChange={handleSelectPO}
+                options={availablePOs.map(po => ({
+                  id: po.id,
+                  label: `${po.po_number} — ${po.supplier_name}`,
+                }))}
+                placeholder="-- ไม่เลือก PO (รับเข้าปกติ) --"
+                clearLabel="ไม่เลือก PO (รับเข้าปกติ)"
+                searchPlaceholder="ค้นหา PO..."
+                icon={<ClipboardList className="w-4 h-4" />}
+              />
             </div>
             {selectedPO && (
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-1.5">
@@ -436,21 +437,19 @@ export default function StockReceivePage() {
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
             คลังสินค้า <span className="text-red-500">*</span>
           </label>
-          <div className="relative inline-block w-full sm:w-72">
-            <Warehouse className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            <select
+          <div className="w-full sm:w-72">
+            <FormSelect
               value={selectedWarehouseId}
-              onChange={e => setSelectedWarehouseId(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none"
-            >
-              <option value="">-- เลือกคลังสินค้า --</option>
-              {warehouses.map(wh => (
-                <option key={wh.id} value={wh.id}>
-                  {wh.is_default ? '⭐ ' : ''}{wh.name}{wh.code ? ` (${wh.code})` : ''}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              onChange={setSelectedWarehouseId}
+              options={warehouses.map(wh => ({
+                id: wh.id,
+                label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}`,
+                icon: wh.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined,
+              }))}
+              placeholder="-- เลือกคลังสินค้า --"
+              searchPlaceholder="ค้นหาคลัง..."
+              icon={<Warehouse className="w-4 h-4" />}
+            />
           </div>
         </div>
 

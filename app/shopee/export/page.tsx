@@ -13,6 +13,7 @@ import {
   ChevronLeft, ChevronRight, CheckCircle2, XCircle, ShoppingBag,
   AlertTriangle, ArrowLeft, Pencil,
 } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 
 interface ProductItem {
   product_id: string;
@@ -65,8 +66,8 @@ function ShopeeExportContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProducts, setSelectedProducts] = useState<Map<string, ProductItem>>(new Map());
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [brandFilter, setBrandFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [brandFilter, setBrandFilter] = useState<string>('');
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [brands, setBrands] = useState<BrandOption[]>([]);
   const [leftPage, setLeftPage] = useState(1);
@@ -222,8 +223,8 @@ function ShopeeExportContent() {
         return false;
       }
     }
-    if (categoryFilter !== 'all' && p.category_id !== categoryFilter) return false;
-    if (brandFilter !== 'all' && p.brand_id !== brandFilter) return false;
+    if (categoryFilter !== '' && p.category_id !== categoryFilter) return false;
+    if (brandFilter !== '' && p.brand_id !== brandFilter) return false;
     return true;
   });
 
@@ -542,28 +543,26 @@ function ShopeeExportContent() {
                   />
                 </div>
                 {categories.length > 0 && (
-                  <select
-                    value={categoryFilter}
-                    onChange={e => setCategoryFilter(e.target.value)}
-                    className="flex-1 min-w-0 px-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-[#EE4D2D]/50"
-                  >
-                    <option value="all">หมวดหมู่ทั้งหมด</option>
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <div className="flex-1 min-w-0">
+                    <FormSelect
+                      value={categoryFilter}
+                      onChange={val => setCategoryFilter(val)}
+                      options={categories.map(c => ({ id: c.id, label: c.name }))}
+                      clearLabel="หมวดหมู่ทั้งหมด"
+                      searchThreshold={5}
+                    />
+                  </div>
                 )}
                 {brands.length > 0 && (
-                  <select
-                    value={brandFilter}
-                    onChange={e => setBrandFilter(e.target.value)}
-                    className="flex-1 min-w-0 px-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-[#EE4D2D]/50"
-                  >
-                    <option value="all">แบรนด์ทั้งหมด</option>
-                    {brands.map(b => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
+                  <div className="flex-1 min-w-0">
+                    <FormSelect
+                      value={brandFilter}
+                      onChange={val => setBrandFilter(val)}
+                      options={brands.map(b => ({ id: b.id, label: b.name }))}
+                      clearLabel="แบรนด์ทั้งหมด"
+                      searchThreshold={5}
+                    />
+                  </div>
                 )}
                 <button
                   onClick={addCheckedToSelected}

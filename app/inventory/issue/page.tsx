@@ -8,11 +8,12 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Package2, X, Trash2, ChevronDown,
-  Warehouse, AlertTriangle, PackageMinus, CheckCircle2,
+  Loader2, Package2, X, Trash2,
+  Warehouse, AlertTriangle, PackageMinus, CheckCircle2, Star,
 } from 'lucide-react';
 import ProductSearchInput from '@/components/ui/ProductSearchInput';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import FormSelect from '@/components/ui/FormSelect';
 import { productDisplayName, productSubtitle } from '../components/types';
 
 // ─── Interfaces ──────────────────────────────────────────────
@@ -363,21 +364,19 @@ export default function StockIssuePage() {
             <p className="text-sm text-gray-500 dark:text-slate-400">ไม่พบคลังสินค้า</p>
           ) : (
             <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-sm">
-                <Warehouse className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                <select
+              <div className="flex-1 max-w-sm">
+                <FormSelect
                   value={selectedWarehouse}
-                  onChange={e => setSelectedWarehouse(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none"
-                >
-                  <option value="">เลือกคลังสินค้า</option>
-                  {warehouses.map(wh => (
-                    <option key={wh.id} value={wh.id}>
-                      {wh.is_default ? '⭐ ' : ''}{wh.name}{wh.code ? ` (${wh.code})` : ''}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  onChange={setSelectedWarehouse}
+                  options={warehouses.map(wh => ({
+                    id: wh.id,
+                    label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}`,
+                    icon: wh.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined,
+                  }))}
+                  placeholder="เลือกคลังสินค้า"
+                  searchPlaceholder="ค้นหาคลัง..."
+                  icon={<Warehouse className="w-4 h-4" />}
+                />
               </div>
               {loadingStock && (
                 <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-slate-500">
@@ -465,15 +464,13 @@ export default function StockIssuePage() {
                           </td>
                           <td className="px-6 py-3">
                             <div className="space-y-1.5">
-                              <select
+                              <FormSelect
                                 value={item.reason}
-                                onChange={e => handleUpdateReason(index, e.target.value)}
-                                className="w-full px-2.5 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none"
-                              >
-                                {COMMON_REASONS.map(r => (
-                                  <option key={r.value} value={r.value}>{r.label}</option>
-                                ))}
-                              </select>
+                                onChange={v => handleUpdateReason(index, v)}
+                                options={COMMON_REASONS.map(r => ({ id: r.value, label: r.label }))}
+                                placeholder="เลือกเหตุผล"
+                                searchThreshold={99}
+                              />
                               {item.reason === 'อื่นๆ' && (
                                 <input
                                   type="text"
@@ -603,15 +600,13 @@ export default function StockIssuePage() {
 
                     <div>
                       <span className="text-xs text-gray-500 dark:text-slate-400 mb-1 block">เหตุผล:</span>
-                      <select
+                      <FormSelect
                         value={item.reason}
-                        onChange={e => handleUpdateReason(index, e.target.value)}
-                        className="w-full px-2.5 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
-                      >
-                        {COMMON_REASONS.map(r => (
-                          <option key={r.value} value={r.value}>{r.label}</option>
-                        ))}
-                      </select>
+                        onChange={v => handleUpdateReason(index, v)}
+                        options={COMMON_REASONS.map(r => ({ id: r.value, label: r.label }))}
+                        placeholder="เลือกเหตุผล"
+                        searchThreshold={99}
+                      />
                       {item.reason === 'อื่นๆ' && (
                         <input
                           type="text"

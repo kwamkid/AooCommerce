@@ -5,6 +5,7 @@ import { apiFetch } from '@/lib/api-client';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
 import { Loader2, Search, Warehouse, ArrowDownUp, ExternalLink, X } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
 import {
@@ -173,25 +174,31 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
       <div className="data-filter-card">
         <div className="flex items-center gap-2 flex-wrap">
           {warehouses.length > 1 && (
-            <select
-              value={warehouseFilter}
-              onChange={e => { setWarehouseFilter(e.target.value); setPage(1); }}
-              className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-            >
-              <option value="">ทุกคลัง</option>
-              {warehouses.map(wh => <option key={wh.id} value={wh.id}>{wh.name}</option>)}
-            </select>
+            <div className="w-40">
+              <FormSelect
+                value={warehouseFilter}
+                onChange={v => { setWarehouseFilter(v); setPage(1); }}
+                options={warehouses.map(wh => ({ id: wh.id, label: wh.name }))}
+                clearLabel="ทุกคลัง"
+                placeholder="คลัง"
+                icon={<Warehouse className="w-4 h-4" />}
+                searchThreshold={99}
+              />
+            </div>
           )}
-          <select
-            value={type}
-            onChange={e => { setType(e.target.value); setPage(1); }}
-            className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-          >
-            <option value="">ทุกประเภท</option>
-            {(Object.keys(TYPE_CONFIG) as TransactionType[]).map(t => (
-              <option key={t} value={t}>{TYPE_CONFIG[t].label}</option>
-            ))}
-          </select>
+          <div className="w-40">
+            <FormSelect
+              value={type}
+              onChange={v => { setType(v); setPage(1); }}
+              options={(Object.keys(TYPE_CONFIG) as TransactionType[]).map(t => ({
+                id: t,
+                label: TYPE_CONFIG[t].label,
+              }))}
+              clearLabel="ทุกประเภท"
+              placeholder="ประเภท"
+              searchThreshold={99}
+            />
+          </div>
           <div className="w-64">
             <DateRangePicker
               value={dateRange}

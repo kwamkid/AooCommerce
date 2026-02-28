@@ -36,6 +36,7 @@ import {
   SHIPPING_CARRIERS,
 } from './types';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
+import FormSelect from '@/components/ui/FormSelect';
 
 interface ProcessingTabProps {
   /** Carrier counts from parent's initial fetch: { "SPX Express": 14, "__none__": 3, ... } */
@@ -825,24 +826,21 @@ export default function ProcessingTab({
               );
             })}
           </div>
-          <div className="flex-shrink-0">
-            <select
+          <div className="flex-shrink-0 w-[180px]">
+            <FormSelect
               value={printFilter}
-              onChange={(e) => setPrintFilter(e.target.value)}
-              className={`text-sm px-3 py-2 rounded-lg border transition-colors ${
-                printFilter
-                  ? 'border-[#F4511E] text-[#F4511E] bg-orange-50 dark:bg-orange-900/20'
-                  : 'border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800'
-              }`}
-            >
-              <option value="">สถานะพิมพ์</option>
-              <option value="label_not_printed">ยังไม่พิมพ์ใบปะหน้า</option>
-              <option value="label_printed">พิมพ์ใบปะหน้าแล้ว</option>
-              <option value="packing_not_printed">ยังไม่พิมพ์ใบจัดของ</option>
-              <option value="packing_printed">พิมพ์ใบจัดของแล้ว</option>
-              <option value="invoice_not_printed">ยังไม่พิมพ์ใบกำกับ</option>
-              <option value="invoice_printed">พิมพ์ใบกำกับแล้ว</option>
-            </select>
+              onChange={(val) => setPrintFilter(val)}
+              options={[
+                { id: 'label_not_printed', label: 'ยังไม่พิมพ์ใบปะหน้า' },
+                { id: 'label_printed', label: 'พิมพ์ใบปะหน้าแล้ว' },
+                { id: 'packing_not_printed', label: 'ยังไม่พิมพ์ใบจัดของ' },
+                { id: 'packing_printed', label: 'พิมพ์ใบจัดของแล้ว' },
+                { id: 'invoice_not_printed', label: 'ยังไม่พิมพ์ใบกำกับ' },
+                { id: 'invoice_printed', label: 'พิมพ์ใบกำกับแล้ว' },
+              ]}
+              clearLabel="สถานะพิมพ์"
+              searchThreshold={99}
+            />
           </div>
         </div>
       )}
@@ -1028,11 +1026,13 @@ export default function ProcessingTab({
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">ขนส่ง</label>
-                <select value={shipCarrier} onChange={(e) => setShipCarrier(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm">
-                  <option value="">-- เลือกขนส่ง --</option>
-                  {SHIPPING_CARRIERS.map(c => (<option key={c.value} value={c.value}>{c.label}</option>))}
-                </select>
+                <FormSelect
+                  value={shipCarrier}
+                  onChange={(val) => setShipCarrier(val)}
+                  options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
+                  placeholder="-- เลือกขนส่ง --"
+                  searchThreshold={99}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เลขพัสดุ</label>
@@ -1078,11 +1078,15 @@ export default function ProcessingTab({
             <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">กรอกเลขพัสดุสำหรับแต่ละออเดอร์ (ไม่บังคับ) หรือวางจาก Excel</p>
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xs text-gray-500 dark:text-slate-400">ใช้ขนส่งเดียวกัน:</span>
-              <select onChange={(e) => { if (!e.target.value) return; setBulkShipItems(prev => prev.map(item => ({ ...item, shipping_carrier: e.target.value }))); }}
-                className="px-2 py-1 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded text-sm" defaultValue="">
-                <option value="">-- เลือก --</option>
-                {SHIPPING_CARRIERS.map(c => (<option key={c.value} value={c.value}>{c.label}</option>))}
-              </select>
+              <div className="w-[140px]">
+                <FormSelect
+                  value=""
+                  onChange={(val) => { if (!val) return; setBulkShipItems(prev => prev.map(item => ({ ...item, shipping_carrier: val }))); }}
+                  options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
+                  placeholder="-- เลือก --"
+                  searchThreshold={99}
+                />
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto space-y-2 mb-4">
               {bulkShipItems.map((item, idx) => (
@@ -1091,11 +1095,15 @@ export default function ProcessingTab({
                     <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.order_number}</p>
                     <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{item.customer_name}</p>
                   </div>
-                  <select value={item.shipping_carrier} onChange={(e) => { setBulkShipItems(prev => { const next = [...prev]; next[idx] = { ...next[idx], shipping_carrier: e.target.value }; return next; }); }}
-                    className="w-28 px-2 py-1.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg text-xs">
-                    <option value="">ขนส่ง</option>
-                    {SHIPPING_CARRIERS.map(c => (<option key={c.value} value={c.value}>{c.label}</option>))}
-                  </select>
+                  <div className="w-28">
+                    <FormSelect
+                      value={item.shipping_carrier}
+                      onChange={(val) => { setBulkShipItems(prev => { const next = [...prev]; next[idx] = { ...next[idx], shipping_carrier: val }; return next; }); }}
+                      options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
+                      placeholder="ขนส่ง"
+                      searchThreshold={99}
+                    />
+                  </div>
                   <input type="text" value={item.tracking_number}
                     onChange={(e) => { setBulkShipItems(prev => { const next = [...prev]; next[idx] = { ...next[idx], tracking_number: e.target.value }; return next; }); }}
                     onPaste={(e) => handleTrackingPaste(idx, e)} placeholder="เลขพัสดุ"

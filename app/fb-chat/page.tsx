@@ -9,15 +9,12 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import {
-  Search,
   Send,
   User,
   Loader2,
   ChevronLeft,
   Link as LinkIcon,
   X,
-  Check,
-  Phone,
   AlertCircle,
   RotateCcw,
   ImagePlus,
@@ -26,6 +23,8 @@ import {
   Bell,
   Facebook
 } from 'lucide-react';
+import EntitySearchInput from '@/components/ui/EntitySearchInput';
+import type { EntitySearchOption } from '@/components/ui/EntitySearchInput';
 
 interface FbContact {
   id: string;
@@ -108,7 +107,6 @@ function FbChatPageContent() {
   // Link customer modal
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerSearch, setCustomerSearch] = useState('');
   const [loadingCustomers, setLoadingCustomers] = useState(false);
 
   // Image upload
@@ -533,12 +531,22 @@ function FbChatPageContent() {
     }
   }, []);
 
-  // Debounce customer search
-  useEffect(() => {
-    if (!showLinkModal) return;
-    const timer = setTimeout(() => fetchCustomers(customerSearch), 300);
-    return () => clearTimeout(timer);
-  }, [customerSearch, showLinkModal, fetchCustomers]);
+  const customerSearchTimer = useRef<NodeJS.Timeout | null>(null);
+  const handleCustomerSearchChange = useCallback((search: string) => {
+    if (customerSearchTimer.current) clearTimeout(customerSearchTimer.current);
+    if (search.length >= 2) {
+      customerSearchTimer.current = setTimeout(() => fetchCustomers(search), 300);
+    } else {
+      setCustomers([]);
+      setLoadingCustomers(false);
+    }
+  }, [fetchCustomers]);
+
+  const customerOptions: EntitySearchOption[] = customers.map(c => ({
+    id: c.id,
+    label: c.name,
+    subtitle: c.customer_code + (c.phone ? ` | ${c.phone}` : ''),
+  }));
 
   // Format time
   const formatTime = (dateStr: string) => {
@@ -780,7 +788,7 @@ function FbChatPageContent() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => { setShowLinkModal(true); setCustomerSearch(''); }}
+                      onClick={() => { setShowLinkModal(true); setCustomers([]); }}
                       className="p-2 text-gray-400 hover:text-[#1877F2] transition-colors"
                       title="เชื่อมกับลูกค้า"
                     >
@@ -887,48 +895,20 @@ function FbChatPageContent() {
               </button>
             </div>
             <div className="p-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร..."
-                  value={customerSearch}
-                  onChange={e => setCustomerSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#1877F2]"
-                  autoFocus
-                />
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 pb-4">
-              {loadingCustomers ? (
-                <div className="flex justify-center py-4">
-                  <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-                </div>
-              ) : customers.length === 0 ? (
-                <p className="text-center text-gray-400 text-sm py-4">ไม่พบลูกค้า</p>
-              ) : (
-                <div className="space-y-1">
-                  {customers.map(customer => (
-                    <button
-                      key={customer.id}
-                      onClick={() => linkCustomer(customer.id)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#1877F2]/5 transition-colors text-left"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                        <User className="w-4 h-4 text-gray-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{customer.name}</p>
-                        <p className="text-xs text-gray-400">
-                          {customer.customer_code}
-                          {customer.phone && ` | ${customer.phone}`}
-                        </p>
-                      </div>
-                      <Check className="w-4 h-4 text-transparent group-hover:text-[#1877F2]" />
-                    </button>
-                  ))}
-                </div>
-              )}
+              <EntitySearchInput
+                value=""
+                onChange={(id) => {
+                  linkCustomer(id);
+                  setShowLinkModal(false);
+                }}
+                options={customerOptions}
+                onSearchChange={handleCustomerSearchChange}
+                loading={loadingCustomers}
+                minSearchLength={2}
+                autoFocus
+                placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร..."
+                emptyMessage="พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหา"
+              />
             </div>
           </div>
         </div>

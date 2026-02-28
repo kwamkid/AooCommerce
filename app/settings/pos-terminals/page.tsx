@@ -12,6 +12,7 @@ import {
   Loader2, Plus, Check, X, Edit2, Trash2, Monitor, AlertTriangle, Warehouse,
   CreditCard, Banknote, Building2, MoreHorizontal, ArrowUp, ArrowDown, Info, QrCode,
 } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 
 interface TerminalItem {
   id: string;
@@ -680,16 +681,15 @@ export default function PosTerminalsPage() {
 
         <div>
           <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">คลังสินค้า (ตัดสต็อก)</label>
-          <select
+          <FormSelect
             value={formWarehouseId}
-            onChange={e => setFormWarehouseId(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
-          >
-            <option value="">ไม่ตัดสต็อก</option>
-            {warehouses.map(wh => (
-              <option key={wh.id} value={wh.id}>{wh.name}{wh.code ? ` (${wh.code})` : ''}</option>
-            ))}
-          </select>
+            onChange={value => setFormWarehouseId(value)}
+            options={warehouses.map(wh => ({ id: wh.id, label: wh.name + (wh.code ? ` (${wh.code})` : '') }))}
+            placeholder="ไม่ตัดสต็อก"
+            clearLabel="ไม่ตัดสต็อก"
+            icon={<Warehouse className="w-4 h-4" />}
+            searchThreshold={99}
+          />
         </div>
 
         <div className="flex gap-2 pt-1">

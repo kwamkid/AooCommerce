@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Loader2, Monitor, DollarSign, Warehouse, Plus } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 
@@ -209,18 +210,15 @@ export default function SessionModal({
 
                   <div>
                     <label className="text-gray-500 dark:text-gray-400 text-xs mb-1 block">คลังสินค้า (ตัดสต็อก)</label>
-                    <select
+                    <FormSelect
                       value={newTerminalWarehouseId}
-                      onChange={(e) => setNewTerminalWarehouseId(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                    >
-                      <option value="">ไม่ตัดสต็อก</option>
-                      {warehouses.map(wh => (
-                        <option key={wh.id} value={wh.id}>
-                          {wh.name}{wh.code ? ` (${wh.code})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setNewTerminalWarehouseId(val)}
+                      options={warehouses.map(wh => ({ id: wh.id, label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}` }))}
+                      placeholder="ไม่ตัดสต็อก"
+                      clearLabel="ไม่ตัดสต็อก"
+                      icon={<Warehouse className="w-4 h-4" />}
+                      searchThreshold={99}
+                    />
                   </div>
                 </div>
 

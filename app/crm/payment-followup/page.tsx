@@ -9,6 +9,7 @@ import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { DateValueType } from 'react-tailwindcss-datepicker';
+import FormSelect from '@/components/ui/FormSelect';
 import {
   DollarSign,
   Loader2,
@@ -209,7 +210,7 @@ export default function PaymentFollowupPage() {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filterDays, setFilterDays] = useState<string>('all');
+  const [filterDays, setFilterDays] = useState('');
   const [dateRange, setDateRange] = useState<DateValueType>({ startDate: null, endDate: null });
   const [sortBy, setSortBy] = useState<string>('days_overdue');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -266,7 +267,7 @@ export default function PaymentFollowupPage() {
       params.set('limit', rowsPerPage.toString());
 
       // Apply filter
-      if (filterDays !== 'all') {
+      if (filterDays !== '') {
         const [minStr, maxStr] = filterDays.split('-');
         params.set('min_days', minStr);
         if (maxStr !== 'null') {
@@ -407,8 +408,8 @@ export default function PaymentFollowupPage() {
           <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
             {/* All */}
             <button
-              onClick={() => { setFilterDays('all'); setCurrentPage(1); }}
-              className={`bg-white dark:bg-slate-800 rounded-lg border p-3 text-left transition-all hover:shadow-md ${filterDays === 'all' ? 'border-[#F4511E] ring-2 ring-[#F4511E]/20' : 'border-gray-200 dark:border-slate-700'}`}
+              onClick={() => { setFilterDays(''); setCurrentPage(1); }}
+              className={`bg-white dark:bg-slate-800 rounded-lg border p-3 text-left transition-all hover:shadow-md ${filterDays === '' ? 'border-[#F4511E] ring-2 ring-[#F4511E]/20' : 'border-gray-200 dark:border-slate-700'}`}
             >
               <div className="text-xs text-gray-500 dark:text-slate-400 mb-1">ทั้งหมด</div>
               <div className="text-xl font-bold text-gray-900 dark:text-white">{summary.totalCustomers}</div>
@@ -462,22 +463,18 @@ export default function PaymentFollowupPage() {
             </div>
 
             {/* Filter by days */}
-            <div className="flex items-center gap-2">
-              <select
+            <div className="w-44">
+              <FormSelect
                 value={filterDays}
-                onChange={(e) => { setFilterDays(e.target.value); setCurrentPage(1); }}
-                className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm"
-              >
-                <option value="all">ทั้งหมด</option>
-                {summary?.dayRanges.map((range) => {
-                  const rangeKey = `${range.minDays}-${range.maxDays ?? 'null'}`;
-                  return (
-                    <option key={rangeKey} value={rangeKey}>
-                      {range.label}
-                    </option>
-                  );
-                })}
-              </select>
+                onChange={(v) => { setFilterDays(v); setCurrentPage(1); }}
+                options={(summary?.dayRanges || []).map((range) => ({
+                  id: `${range.minDays}-${range.maxDays ?? 'null'}`,
+                  label: range.label,
+                }))}
+                clearLabel="ทั้งหมด"
+                placeholder="ช่วงวัน"
+                searchThreshold={99}
+              />
             </div>
 
           </div>

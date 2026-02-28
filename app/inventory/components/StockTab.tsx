@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { Loader2, Search, Package2, Pencil, Eye, EyeOff, ClipboardList, X } from 'lucide-react';
+import { Loader2, Search, Package2, Pencil, Eye, EyeOff, ClipboardList, X, Warehouse } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
 import AdjustStockModal from './AdjustStockModal';
@@ -176,14 +177,15 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             />
           </div>
           {warehouses.length > 1 && (
-            <select
-              value={warehouse}
-              onChange={e => { setWarehouse(e.target.value); setPage(1); }}
-              className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-            >
-              <option value="">ทุกคลัง</option>
-              {warehouses.map(wh => <option key={wh.id} value={wh.id}>{wh.name}</option>)}
-            </select>
+            <div className="w-40">
+              <FormSelect
+                value={warehouse}
+                onChange={v => { setWarehouse(v); setPage(1); }}
+                options={warehouses.map(wh => ({ id: wh.id, label: wh.name }))}
+                clearLabel="ทุกคลัง"
+                icon={<Warehouse className="w-4 h-4" />}
+              />
+            </div>
           )}
           <button
             onClick={() => setHideEmpty(!hideEmpty)}

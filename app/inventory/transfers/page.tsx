@@ -11,6 +11,7 @@ import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import FormSelect from '@/components/ui/FormSelect';
 import {
   Loader2, ArrowRightLeft, Plus, Warehouse, Pencil, Printer, User,
   CheckCircle2, Clock, XCircle, AlertTriangle, Truck, Search,
@@ -283,33 +284,25 @@ export default function TransferListPage() {
           </div>
           <div className="flex items-center gap-2">
             {warehouses.length > 1 && (
-              <div className="relative">
-                <select
+              <div className="w-40">
+                <FormSelect
                   value={warehouseFilter}
-                  onChange={e => { setWarehouseFilter(e.target.value); setPage(1); }}
-                  className="pl-8 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 appearance-none"
-                >
-                  <option value="">ทุกคลัง</option>
-                  {warehouses.map(wh => (
-                    <option key={wh.id} value={wh.id}>{wh.name}</option>
-                  ))}
-                </select>
-                <Warehouse className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  onChange={v => { setWarehouseFilter(v); setPage(1); }}
+                  options={warehouses.map(wh => ({ id: wh.id, label: wh.name }))}
+                  clearLabel="ทุกคลัง"
+                  icon={<Warehouse className="w-4 h-4" />}
+                />
               </div>
             )}
             {users.length > 1 && (
-              <div className="relative">
-                <select
+              <div className="w-40">
+                <FormSelect
                   value={userFilter}
-                  onChange={e => { setUserFilter(e.target.value); setPage(1); }}
-                  className="pl-8 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 appearance-none"
-                >
-                  <option value="">ทุกคน</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
-                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  onChange={v => { setUserFilter(v); setPage(1); }}
+                  options={users.map(u => ({ id: u.id, label: u.name }))}
+                  clearLabel="ทุกคน"
+                  icon={<User className="w-4 h-4" />}
+                />
               </div>
             )}
             <button

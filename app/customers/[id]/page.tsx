@@ -29,6 +29,7 @@ import {
   User
 } from 'lucide-react';
 import Checkbox from '@/components/ui/Checkbox';
+import FormSelect from '@/components/ui/FormSelect';
 
 // Customer interface
 interface Customer {
@@ -598,29 +599,30 @@ export default function CustomerEditPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ประเภทลูกค้า</label>
-                    <select
+                    <FormSelect
                       value={form.customer_type}
-                      onChange={(e) => setForm(prev => ({ ...prev, customer_type: e.target.value }))}
-                      className={inputClass}
+                      onChange={(val) => setForm(prev => ({ ...prev, customer_type: val }))}
                       disabled={!canEdit}
-                    >
-                      <option value="retail">ลูกค้าปลีก</option>
-                      <option value="wholesale">ลูกค้าส่ง</option>
-                      <option value="cash_dealer">ตัวแทนฯ เงินสด</option>
-                      <option value="credit_dealer">ตัวแทนฯ เครดิต</option>
-                      <option value="consignment_dealer">ตัวแทนฯ ฝากขาย</option>
-                      <option value="sub_dealer">ตัวแทนย่อย</option>
-                      <option value="department_store">ห้าง/Modern Trade</option>
-                      <option value="distributor">ตัวกระจายสินค้า</option>
-                      <option value="corporate">องค์กร/B2B</option>
-                      <option value="project">ลูกค้าโครงการ</option>
-                      <option value="marketplace_dealer">ตัวแทน Marketplace</option>
-                      <option value="dropship">Dropship</option>
-                      <option value="affiliate">Affiliate/KOL</option>
-                      <option value="oem_odm">OEM/ODM</option>
-                      <option value="regional_agent">ตัวแทนภูมิภาค</option>
-                      <option value="government">ราชการ/หน่วยงานรัฐ</option>
-                    </select>
+                      options={[
+                        { id: 'retail', label: 'ลูกค้าปลีก' },
+                        { id: 'wholesale', label: 'ลูกค้าส่ง' },
+                        { id: 'cash_dealer', label: 'ตัวแทนฯ เงินสด' },
+                        { id: 'credit_dealer', label: 'ตัวแทนฯ เครดิต' },
+                        { id: 'consignment_dealer', label: 'ตัวแทนฯ ฝากขาย' },
+                        { id: 'sub_dealer', label: 'ตัวแทนย่อย' },
+                        { id: 'department_store', label: 'ห้าง/Modern Trade' },
+                        { id: 'distributor', label: 'ตัวกระจายสินค้า' },
+                        { id: 'corporate', label: 'องค์กร/B2B' },
+                        { id: 'project', label: 'ลูกค้าโครงการ' },
+                        { id: 'marketplace_dealer', label: 'ตัวแทน Marketplace' },
+                        { id: 'dropship', label: 'Dropship' },
+                        { id: 'affiliate', label: 'Affiliate/KOL' },
+                        { id: 'oem_odm', label: 'OEM/ODM' },
+                        { id: 'regional_agent', label: 'ตัวแทนภูมิภาค' },
+                        { id: 'government', label: 'ราชการ/หน่วยงานรัฐ' },
+                      ]}
+                      placeholder="-- เลือกประเภท --"
+                    />
                   </div>
 
                   <div>

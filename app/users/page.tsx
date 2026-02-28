@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import Checkbox from '@/components/ui/Checkbox';
+import FormSelect from '@/components/ui/FormSelect';
 
 // User interface
 interface User {
@@ -356,8 +357,8 @@ export default function UsersPage() {
   };
 
   // Handle role change
-  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setFormData({ ...formData, roles: [e.target.value] });
+  const handleRoleChange = (value: string) => {
+    setFormData({ ...formData, roles: [value] });
   };
 
   // Filter users based on search
@@ -702,18 +703,19 @@ export default function UsersPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       ตำแหน่ง *
                     </label>
-                    <select
+                    <FormSelect
                       value={formData.roles[0] || 'sales'}
                       onChange={handleRoleChange}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                      required
-                    >
-                      <option value="sales">แอดมินออนไลน์</option>
-                      <option value="cashier">แคชเชียร์</option>
-                      <option value="warehouse">คลังสินค้า</option>
-                      <option value="account">บัญชี</option>
-                      <option value="admin">ผู้ดูแลระบบ</option>
-                    </select>
+                      options={[
+                        { id: 'sales', label: 'แอดมินออนไลน์' },
+                        { id: 'cashier', label: 'แคชเชียร์' },
+                        { id: 'warehouse', label: 'คลังสินค้า' },
+                        { id: 'account', label: 'บัญชี' },
+                        { id: 'admin', label: 'ผู้ดูแลระบบ' },
+                      ]}
+                      icon={<Shield className="w-4 h-4" />}
+                      searchThreshold={99}
+                    />
                   </div>
 
                   <div>

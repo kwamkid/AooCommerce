@@ -12,6 +12,7 @@ import { generatePOPdf } from '@/lib/supplier-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import FormSelect from '@/components/ui/FormSelect';
 import {
   Loader2, Plus, Search, ClipboardList, Factory, Warehouse,
   CheckCircle2, Clock, Package, XCircle, Send, Pencil, Printer, User,
@@ -53,13 +54,12 @@ function getDefaultColumns(): ColumnKey[] {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'all', label: 'ทุกสถานะ' },
-  { value: 'draft', label: 'ร่าง' },
-  { value: 'sent', label: 'ส่งแล้ว' },
-  { value: 'partial_received', label: 'รับบางส่วน' },
-  { value: 'received', label: 'รับครบ' },
-  { value: 'closed', label: 'ปิด' },
-  { value: 'cancelled', label: 'ยกเลิก' },
+  { id: 'draft', label: 'ร่าง' },
+  { id: 'sent', label: 'ส่งแล้ว' },
+  { id: 'partial_received', label: 'รับบางส่วน' },
+  { id: 'received', label: 'รับครบ' },
+  { id: 'closed', label: 'ปิด' },
+  { id: 'cancelled', label: 'ยกเลิก' },
 ];
 
 function statusBadge(status: string) {
@@ -89,13 +89,13 @@ function statusIcon(status: string) {
 export default function PurchaseOrdersPage() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
-  const { features } = useFeatures();
+  const { features, fetched: featuresFetched } = useFeatures();
   const { showToast } = useToast();
 
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -131,7 +131,7 @@ export default function PurchaseOrdersPage() {
       return;
     }
     fetchData();
-  }, !authLoading && !!userProfile);
+  }, !authLoading && !!userProfile && featuresFetched);
 
   const fetchData = async () => {
     try {
@@ -174,7 +174,7 @@ export default function PurchaseOrdersPage() {
 
   // Filter
   const filtered = purchaseOrders.filter(po => {
-    if (statusFilter !== 'all' && po.status !== statusFilter) return false;
+    if (statusFilter !== '' && po.status !== statusFilter) return false;
     if (supplierFilter && po.supplier?.id !== supplierFilter) return false;
     if (warehouseFilter && po.warehouse?.id !== warehouseFilter) return false;
     if (search) {
@@ -230,45 +230,35 @@ export default function PurchaseOrdersPage() {
             />
           </div>
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <select
+            <div className="w-40">
+              <FormSelect
                 value={statusFilter}
-                onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                className="pl-3 pr-8 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 appearance-none"
-              >
-                {STATUS_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
+                onChange={v => { setStatusFilter(v); setPage(1); }}
+                options={STATUS_OPTIONS}
+                clearLabel="ทุกสถานะ"
+                searchThreshold={99}
+              />
             </div>
             {suppliers.length > 1 && (
-              <div className="relative">
-                <select
+              <div className="w-40">
+                <FormSelect
                   value={supplierFilter}
-                  onChange={e => { setSupplierFilter(e.target.value); setPage(1); }}
-                  className="pl-8 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 appearance-none"
-                >
-                  <option value="">ทุก Supplier</option>
-                  {suppliers.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-                <Factory className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  onChange={v => { setSupplierFilter(v); setPage(1); }}
+                  options={suppliers.map(s => ({ id: s.id, label: s.name }))}
+                  clearLabel="ทุก Supplier"
+                  icon={<Factory className="w-4 h-4" />}
+                />
               </div>
             )}
             {warehouses.length > 1 && (
-              <div className="relative">
-                <select
+              <div className="w-40">
+                <FormSelect
                   value={warehouseFilter}
-                  onChange={e => { setWarehouseFilter(e.target.value); setPage(1); }}
-                  className="pl-8 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 appearance-none"
-                >
-                  <option value="">ทุกคลัง</option>
-                  {warehouses.map(wh => (
-                    <option key={wh.id} value={wh.id}>{wh.name}</option>
-                  ))}
-                </select>
-                <Warehouse className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  onChange={v => { setWarehouseFilter(v); setPage(1); }}
+                  options={warehouses.map(wh => ({ id: wh.id, label: wh.name }))}
+                  clearLabel="ทุกคลัง"
+                  icon={<Warehouse className="w-4 h-4" />}
+                />
               </div>
             )}
             <button

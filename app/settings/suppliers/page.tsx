@@ -22,6 +22,7 @@ import {
   RefreshCw,
   Clock,
 } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
@@ -89,7 +90,7 @@ export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
+  const [filterType, setFilterType] = useState<string>('');
 
   // Selection & bulk delete
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -229,7 +230,7 @@ export default function SuppliersPage() {
       supplier.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       supplier.email?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesType = filterType === 'all' || supplier.supplier_type === filterType;
+    const matchesType = filterType === '' || supplier.supplier_type === filterType;
 
     return matchesSearch && matchesType;
   });
@@ -309,16 +310,15 @@ export default function SuppliersPage() {
               <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ, ผู้ติดต่อ, เบอร์โทร..." className="py-2" />
             </div>
 
-            <select
-              value={filterType}
-              onChange={(e) => { setFilterType(e.target.value); setCurrentPage(1); }}
-              className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-            >
-              <option value="all">ประเภททั้งหมด</option>
-              {activeTypes.map(([key, { label }]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
+            <div className="w-44">
+              <FormSelect
+                value={filterType}
+                onChange={value => { setFilterType(value); setCurrentPage(1); }}
+                options={activeTypes.map(([key, { label }]) => ({ id: key, label }))}
+                clearLabel="ประเภททั้งหมด"
+                searchThreshold={99}
+              />
+            </div>
           </div>
         </div>
 

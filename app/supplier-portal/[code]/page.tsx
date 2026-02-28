@@ -7,6 +7,7 @@ import {
   Loader2, Warehouse, Package, BarChart3, ClipboardList, FileText,
   Calendar, Factory, AlertTriangle, KeyRound, LogOut, Sun, Moon,
 } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 
 interface VariationInfo {
   id: string;
@@ -499,23 +500,22 @@ export default function SupplierPortalPage() {
       {/* Sales Tab (Consignment) */}
       {tab === 'sales' && supplierType === 'consignment' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            <select
+          <div className="flex items-center gap-2 w-64">
+            <FormSelect
               value={`${salesYear}-${salesMonth}`}
-              onChange={e => {
-                const [y, m] = e.target.value.split('-').map(Number);
+              onChange={val => {
+                const [y, m] = val.split('-').map(Number);
                 handleSalesMonthChange(y, m);
               }}
-              className="px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-            >
-              {Array.from({ length: 12 }, (_, i) => {
+              options={Array.from({ length: 12 }, (_, i) => {
                 const m = now.getMonth() - i;
                 const y = now.getFullYear() + Math.floor(m / 12);
                 const month = ((m % 12) + 12) % 12 + 1;
-                return <option key={i} value={`${y}-${month}`}>{MONTHS_FULL[month - 1]} {y + 543}</option>;
+                return { id: `${y}-${month}`, label: `${MONTHS_FULL[month - 1]} ${y + 543}` };
               })}
-            </select>
+              icon={<Calendar className="w-4 h-4" />}
+              searchThreshold={99}
+            />
           </div>
 
           {salesLoading ? (

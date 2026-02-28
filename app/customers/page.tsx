@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import FormSelect from '@/components/ui/FormSelect';
 
 // Column toggle system
 type ColumnKey = 'customer' | 'type' | 'phone' | 'email' | 'address' | 'totalOrder' | 'orderCount' | 'branch';
@@ -115,9 +116,9 @@ export default function CustomersPage() {
   const [dataFetched, setDataFetched] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
-  const [filterAmount, setFilterAmount] = useState<string>('all');
-  const [filterOrderCount, setFilterOrderCount] = useState<string>('all');
+  const [filterType, setFilterType] = useState<string>('');
+  const [filterAmount, setFilterAmount] = useState<string>('');
+  const [filterOrderCount, setFilterOrderCount] = useState<string>('');
 
   // Selection & bulk delete
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -256,10 +257,10 @@ export default function CustomersPage() {
       customer.customer_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer.phone?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesType = filterType === 'all' || customer.customer_type === filterType;
+    const matchesType = filterType === '' || customer.customer_type === filterType;
 
     const amt = customer.total_order_amount || 0;
-    const matchesAmount = filterAmount === 'all' ||
+    const matchesAmount = filterAmount === '' ||
       (filterAmount === '0' ? amt === 0 :
        filterAmount === '<10000' ? amt > 0 && amt < 10000 :
        filterAmount === '10000-50000' ? amt >= 10000 && amt <= 50000 :
@@ -267,7 +268,7 @@ export default function CustomersPage() {
        filterAmount === '>100000' ? amt > 100000 : true);
 
     const cnt = customer.order_count || 0;
-    const matchesOrderCount = filterOrderCount === 'all' ||
+    const matchesOrderCount = filterOrderCount === '' ||
       (filterOrderCount === '0' ? cnt === 0 :
        filterOrderCount === '1-5' ? cnt >= 1 && cnt <= 5 :
        filterOrderCount === '6-20' ? cnt >= 6 && cnt <= 20 :
@@ -350,43 +351,48 @@ export default function CustomersPage() {
             </div>
 
             {/* Type Filter */}
-            <select
-              value={filterType}
-              onChange={(e) => { setFilterType(e.target.value); setCurrentPage(1); }}
-              className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-            >
-              <option value="all">ประเภททั้งหมด</option>
-              {activeTypes.map(([key, { label }]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
+            <div className="w-[180px]">
+              <FormSelect
+                value={filterType}
+                onChange={(val) => { setFilterType(val); setCurrentPage(1); }}
+                options={activeTypes.map(([key, { label }]) => ({ id: key, label }))}
+                clearLabel="ประเภททั้งหมด"
+                searchThreshold={99}
+              />
+            </div>
 
             {/* Order Amount Filter */}
-            <select
-              value={filterAmount}
-              onChange={(e) => { setFilterAmount(e.target.value); setCurrentPage(1); }}
-              className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-            >
-              <option value="all">ยอดทั้งหมด</option>
-              <option value="0">ยังไม่มียอด</option>
-              <option value="<10000">น้อยกว่า ฿10,000</option>
-              <option value="10000-50000">฿10,000 - ฿50,000</option>
-              <option value="50000-100000">฿50,000 - ฿100,000</option>
-              <option value=">100000">มากกว่า ฿100,000</option>
-            </select>
+            <div className="w-[180px]">
+              <FormSelect
+                value={filterAmount}
+                onChange={(val) => { setFilterAmount(val); setCurrentPage(1); }}
+                options={[
+                  { id: '0', label: 'ยังไม่มียอด' },
+                  { id: '<10000', label: 'น้อยกว่า ฿10,000' },
+                  { id: '10000-50000', label: '฿10,000 - ฿50,000' },
+                  { id: '50000-100000', label: '฿50,000 - ฿100,000' },
+                  { id: '>100000', label: 'มากกว่า ฿100,000' },
+                ]}
+                clearLabel="ยอดทั้งหมด"
+                searchThreshold={99}
+              />
+            </div>
 
             {/* Order Count Filter */}
-            <select
-              value={filterOrderCount}
-              onChange={(e) => { setFilterOrderCount(e.target.value); setCurrentPage(1); }}
-              className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-            >
-              <option value="all">จำนวนบิลทั้งหมด</option>
-              <option value="0">ยังไม่มีบิล</option>
-              <option value="1-5">1 - 5 บิล</option>
-              <option value="6-20">6 - 20 บิล</option>
-              <option value=">20">มากกว่า 20 บิล</option>
-            </select>
+            <div className="w-[180px]">
+              <FormSelect
+                value={filterOrderCount}
+                onChange={(val) => { setFilterOrderCount(val); setCurrentPage(1); }}
+                options={[
+                  { id: '0', label: 'ยังไม่มีบิล' },
+                  { id: '1-5', label: '1 - 5 บิล' },
+                  { id: '6-20', label: '6 - 20 บิล' },
+                  { id: '>20', label: 'มากกว่า 20 บิล' },
+                ]}
+                clearLabel="จำนวนบิลทั้งหมด"
+                searchThreshold={99}
+              />
+            </div>
 
 
           </div>

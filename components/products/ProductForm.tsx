@@ -10,6 +10,7 @@ import { useToast } from '@/lib/toast-context';
 import { getImageUrl } from '@/lib/utils/image';
 import ImageUploader, { type ProductImage, uploadStagedImages } from '@/components/ui/ImageUploader';
 import Checkbox from '@/components/ui/Checkbox';
+import FormSelect from '@/components/ui/FormSelect';
 import {
   Plus,
   Trash2,
@@ -770,25 +771,22 @@ export default function ProductForm({
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมวดหมู่</label>
               <div className="flex gap-2">
-                <select
-                  value={formData.category_id}
-                  onChange={e => setFormData(prev => ({ ...prev, category_id: e.target.value }))}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                >
-                  <option value="">ไม่ระบุ</option>
-                  {categories.map(parent => (
-                    parent.children && parent.children.length > 0 ? (
-                      <optgroup key={parent.id} label={parent.name}>
-                        <option value={parent.id}>{parent.name} (ทั้งหมด)</option>
-                        {parent.children.map(child => (
-                          <option key={child.id} value={child.id}>{child.name}</option>
-                        ))}
-                      </optgroup>
-                    ) : (
-                      <option key={parent.id} value={parent.id}>{parent.name}</option>
-                    )
-                  ))}
-                </select>
+                <div className="flex-1">
+                  <FormSelect
+                    value={formData.category_id || ''}
+                    onChange={value => setFormData(prev => ({ ...prev, category_id: value }))}
+                    options={categories.flatMap(parent =>
+                      parent.children && parent.children.length > 0
+                        ? [
+                            { id: parent.id, label: parent.name, subtitle: 'หมวดหลัก' },
+                            ...parent.children.map(child => ({ id: child.id, label: child.name, subtitle: parent.name })),
+                          ]
+                        : [{ id: parent.id, label: parent.name }]
+                    )}
+                    placeholder="ไม่ระบุ"
+                    clearLabel="ไม่ระบุ"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => setShowNewCategory(!showNewCategory)}
@@ -799,14 +797,16 @@ export default function ProductForm({
               {/* Quick-add category inline form */}
               {showNewCategory && (
                 <div className="mt-2 flex gap-2">
-                  <select
-                    value={newCategoryParentId}
-                    onChange={e => setNewCategoryParentId(e.target.value)}
-                    className="px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">หมวดหมู่หลัก</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>ภายใต้: {c.name}</option>)}
-                  </select>
+                  <div className="w-40">
+                    <FormSelect
+                      value={newCategoryParentId}
+                      onChange={value => setNewCategoryParentId(value)}
+                      options={categories.map(c => ({ id: c.id, label: c.name }))}
+                      placeholder="หมวดหมู่หลัก"
+                      clearLabel="หมวดหมู่หลัก"
+                      searchThreshold={99}
+                    />
+                  </div>
                   <input
                     value={newCategoryName}
                     onChange={e => setNewCategoryName(e.target.value)}
@@ -823,14 +823,15 @@ export default function ProductForm({
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">แบรนด์</label>
                 <div className="flex gap-2">
-                  <select
-                    value={formData.brand_id}
-                    onChange={e => setFormData(prev => ({ ...prev, brand_id: e.target.value }))}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-                  >
-                    <option value="">ไม่ระบุ</option>
-                    {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
+                  <div className="flex-1">
+                    <FormSelect
+                      value={formData.brand_id || ''}
+                      onChange={value => setFormData(prev => ({ ...prev, brand_id: value }))}
+                      options={brands.map(b => ({ id: b.id, label: b.name }))}
+                      placeholder="ไม่ระบุ"
+                      clearLabel="ไม่ระบุ"
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowNewBrand(!showNewBrand)}

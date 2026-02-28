@@ -7,8 +7,10 @@ import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Plus, Check, X, Edit2, Trash2, Award, Factory
+  Loader2, Plus, Check, X, Edit2, Trash2, Award, Factory, ChevronRight,
 } from 'lucide-react';
+import Link from 'next/link';
+import EntitySearchInput, { EntitySearchOption } from '@/components/ui/EntitySearchInput';
 
 interface SupplierRef {
   id: string;
@@ -36,6 +38,7 @@ export default function BrandsPage() {
   // Inline edit
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [editingSupplierId, setEditingSupplierId] = useState('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -75,19 +78,6 @@ export default function BrandsPage() {
     } catch { /* ignore */ }
   };
 
-  const handleSupplierChange = async (brandId: string, supplierId: string | null) => {
-    try {
-      const res = await apiFetch('/api/brands', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: brandId, supplier_id: supplierId }),
-      });
-      if (!res.ok) throw new Error('Failed');
-      await fetchBrands();
-    } catch {
-      showToast('บันทึกไม่สำเร็จ', 'error');
-    }
-  };
 
   const resetAddForm = () => {
     setShowAddForm(false);
@@ -97,11 +87,13 @@ export default function BrandsPage() {
   const cancelEdit = () => {
     setEditingId(null);
     setEditingName('');
+    setEditingSupplierId('');
   };
 
   const startEdit = (brand: BrandItem) => {
     setEditingId(brand.id);
     setEditingName(brand.name);
+    setEditingSupplierId(brand.supplier_id || '');
     resetAddForm();
   };
 
@@ -115,7 +107,7 @@ export default function BrandsPage() {
       const res = await apiFetch('/api/brands', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingId, name: editingName.trim() }),
+        body: JSON.stringify({ id: editingId, name: editingName.trim(), supplier_id: editingSupplierId || null }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -242,33 +234,45 @@ export default function BrandsPage() {
                           value={editingName}
                           onChange={e => setEditingName(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') cancelEdit(); }}
-                          className="flex-1 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
+                          placeholder="ชื่อแบรนด์"
+                          className="w-40 pl-3 pr-2 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
                           autoFocus
                         />
-                        <button onClick={handleSaveEdit} disabled={saving} className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50">
+                        {features.supplier && (
+                          <div className="flex-1 min-w-0">
+                            <EntitySearchInput
+                              value={editingSupplierId}
+                              onChange={(id) => setEditingSupplierId(id)}
+                              onClear={() => setEditingSupplierId('')}
+                              options={suppliers.map(s => ({ id: s.id, label: s.name, subtitle: s.supplier_type }))}
+                              placeholder="ค้นหา Supplier..."
+                              selectedDisplay={
+                                editingSupplierId ? (
+                                  <div className="flex items-center gap-2 px-3 py-2.5 border border-[#F4511E]/30 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-sm">
+                                    <Factory className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                    <span className="truncate text-gray-900 dark:text-slate-200">{suppliers.find(s => s.id === editingSupplierId)?.name}</span>
+                                  </div>
+                                ) : undefined
+                              }
+                            />
+                          </div>
+                        )}
+                        <button onClick={handleSaveEdit} disabled={saving} className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50 flex-shrink-0">
                           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                         </button>
-                        <button onClick={cancelEdit} className="p-1 text-gray-400 hover:text-gray-600">
+                        <button onClick={cancelEdit} className="p-1 text-gray-400 hover:text-gray-600 flex-shrink-0">
                           <X className="w-4 h-4" />
                         </button>
                       </div>
                     ) : (
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white">{brand.name}</p>
-                        {features.supplier && (
-                          <div className="flex items-center gap-1.5 mt-1">
+                      <div className="flex items-center gap-3">
+                        <Link href={`/settings/brands/${brand.id}`} className="font-medium text-gray-900 dark:text-white hover:text-[#F4511E] dark:hover:text-[#F4511E] transition-colors">
+                          {brand.name}
+                        </Link>
+                        {features.supplier && brand.supplier && (
+                          <div className="flex items-center gap-1.5">
                             <Factory className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                            <select
-                              value={brand.supplier_id || ''}
-                              onChange={e => handleSupplierChange(brand.id, e.target.value || null)}
-                              onClick={e => e.stopPropagation()}
-                              className="text-xs border-0 bg-transparent text-gray-500 dark:text-slate-400 p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-gray-700 dark:hover:text-slate-300"
-                            >
-                              <option value="">-- ไม่ระบุ supplier --</option>
-                              {suppliers.map(s => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
-                              ))}
-                            </select>
+                            <span className="text-xs text-gray-500 dark:text-slate-400">{brand.supplier.name}</span>
                           </div>
                         )}
                       </div>
@@ -291,6 +295,13 @@ export default function BrandsPage() {
                       >
                         {deletingId === brand.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                       </button>
+                      <Link
+                        href={`/settings/brands/${brand.id}`}
+                        className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
+                        title="ดูรายละเอียด"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </Link>
                     </div>
                   )}
                 </div>

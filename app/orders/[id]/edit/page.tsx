@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
+import FormSelect from '@/components/ui/FormSelect';
 
 // Interfaces
 interface Customer {
@@ -785,17 +786,16 @@ export default function EditOrderPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         สาขา <span className="text-red-500">*</span>
                       </label>
-                      <select
+                      <FormSelect
                         value={branch.shipping_address_id}
-                        onChange={(e) => handleUpdateBranchAddress(branchIndex, e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                      >
-                        {shippingAddresses.map(addr => (
-                          <option key={addr.id} value={addr.id}>
-                            {addr.address_name} - {addr.address_line1}, {addr.district}, {addr.amphoe}, {addr.province}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => handleUpdateBranchAddress(branchIndex, val)}
+                        options={shippingAddresses.map(addr => ({
+                          id: addr.id,
+                          label: addr.address_name,
+                          subtitle: `${addr.address_line1}, ${addr.district}, ${addr.amphoe}, ${addr.province}`,
+                        }))}
+                        placeholder="-- เลือกสาขา --"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">

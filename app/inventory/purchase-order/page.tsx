@@ -10,10 +10,15 @@ import { apiFetch } from '@/lib/api-client';
 import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { productDisplayName, productSubtitle } from '../components/types';
+import FormSelect from '@/components/ui/FormSelect';
+import EntitySearchInput, { type EntitySearchOption } from '@/components/ui/EntitySearchInput';
+import DateRangePicker from '@/components/ui/DateRangePicker';
+import { type DateValueType } from 'react-tailwindcss-datepicker';
+import Link from 'next/link';
 import {
   Loader2, Factory, Warehouse as WarehouseIcon, Trash2,
   Package, Package2, CalendarDays, ClipboardList, CheckCircle2,
-  Save, ChevronDown, FileText, AlertCircle,
+  Save, FileText, AlertCircle, Star, Tag, ExternalLink,
 } from 'lucide-react';
 
 interface Supplier {
@@ -47,7 +52,7 @@ const getSubtitle = (item: POItem) => productSubtitle({ product_code: item.code,
 export default function CreatePurchaseOrderPage() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
-  const { features } = useFeatures();
+  const { features, fetched: featuresFetched } = useFeatures();
   const { showToast } = useToast();
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -55,11 +60,15 @@ export default function CreatePurchaseOrderPage() {
   const [supplierProducts, setSupplierProducts] = useState<ProductSearchItem[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
 
+  const [allBrands, setAllBrands] = useState<{ id: string; name: string; supplier_id: string | null }[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [items, setItems] = useState<POItem[]>([]);
   const [notes, setNotes] = useState('');
-  const [expectedDate, setExpectedDate] = useState('');
+  const [expectedDateValue, setExpectedDateValue] = useState<DateValueType>({ startDate: null, endDate: null });
+  const expectedDate = expectedDateValue?.startDate
+    ? new Date(expectedDateValue.startDate).toISOString().split('T')[0]
+    : '';
   const [saving, setSaving] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -67,10 +76,14 @@ export default function CreatePurchaseOrderPage() {
   // Stock data for current warehouse
   const [stockMap, setStockMap] = useState<Record<string, number>>({});
 
+  // Derived: selected supplier info + brands
+  const selectedSupplier = suppliers.find(s => s.id === selectedSupplierId);
+  const supplierBrands = allBrands.filter(b => b.supplier_id === selectedSupplierId);
+
   const fetchedRef = useRef(false);
 
   useEffect(() => {
-    if (authLoading || !userProfile) return;
+    if (authLoading || !userProfile || !featuresFetched) return;
     if (!features.supplier) {
       router.replace('/inventory/receives');
       return;
@@ -80,7 +93,8 @@ export default function CreatePurchaseOrderPage() {
 
     fetchSuppliers();
     fetchWarehouses();
-  }, [authLoading, userProfile, features.supplier, router]);
+    fetchBrands();
+  }, [authLoading, userProfile, featuresFetched, features.supplier, router]);
 
   // Fetch stock when warehouse changes
   useEffect(() => {
@@ -113,6 +127,18 @@ export default function CreatePurchaseOrderPage() {
       if (res.ok) {
         const data = await res.json();
         setSuppliers(data.data || []);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const fetchBrands = async () => {
+    try {
+      const res = await apiFetch('/api/brands');
+      if (res.ok) {
+        const data = await res.json();
+        setAllBrands((data.data || []).map((b: { id: string; name: string; supplier_id: string | null }) => ({
+          id: b.id, name: b.name, supplier_id: b.supplier_id,
+        })));
       }
     } catch { /* ignore */ }
   };
@@ -264,7 +290,6 @@ export default function CreatePurchaseOrderPage() {
   };
 
   const canSubmit = selectedSupplierId && selectedWarehouseId && items.length > 0 && !saving;
-  const selectedSupplier = suppliers.find(s => s.id === selectedSupplierId);
   const selectedWarehouse = warehouses.find(w => w.id === selectedWarehouseId);
 
   if (authLoading || loading) {
@@ -294,67 +319,129 @@ export default function CreatePurchaseOrderPage() {
       ]}
     >
       <div className="space-y-4">
-        {/* Supplier Selection */}
+        {/* Supplier + Warehouse + Expected Date — single card, 3 columns */}
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-            <Factory className="w-4 h-4 inline mr-1" />
-            Supplier <span className="text-red-500">*</span>
-          </label>
-          <div className="relative inline-block w-full sm:w-72">
-            <Factory className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            <select
-              value={selectedSupplierId}
-              onChange={e => {
-                setSelectedSupplierId(e.target.value);
-                setItems([]);
-              }}
-              className="w-full pl-9 pr-8 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none"
-            >
-              <option value="">-- เลือก Supplier --</option>
-              {suppliers.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Supplier */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                <Factory className="w-4 h-4 inline mr-1" />
+                Supplier <span className="text-red-500">*</span>
+              </label>
+              <EntitySearchInput
+                value={selectedSupplierId}
+                onChange={(id) => {
+                  setSelectedSupplierId(id);
+                  setItems([]);
+                }}
+                onClear={() => {
+                  setSelectedSupplierId('');
+                  setItems([]);
+                  setSupplierProducts([]);
+                }}
+                options={suppliers.map(s => ({
+                  id: s.id,
+                  label: s.name,
+                  subtitle: s.supplier_type === 'manufacturer' ? 'ผู้ผลิต' : s.supplier_type === 'distributor' ? 'ผู้จัดจำหน่าย' : s.supplier_type === 'wholesaler' ? 'ขายส่ง' : s.supplier_type,
+                }))}
+                placeholder="ค้นหาชื่อ Supplier..."
+                icon={<Factory className="w-4 h-4" />}
+              />
+            </div>
+
+            {/* Warehouse */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                เข้าคลังสินค้า <span className="text-red-500">*</span>
+              </label>
+              <FormSelect
+                value={selectedWarehouseId}
+                onChange={setSelectedWarehouseId}
+                options={warehouses.map(w => ({
+                  id: w.id,
+                  label: `${w.name}${w.code ? ` (${w.code})` : ''}`,
+                  icon: w.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined,
+                }))}
+                placeholder="-- เลือกคลัง --"
+                searchPlaceholder="ค้นหาคลัง..."
+                icon={<WarehouseIcon className="w-4 h-4" />}
+              />
+            </div>
+
+            {/* Expected Date */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                <CalendarDays className="w-4 h-4 inline mr-1" />
+                วันที่คาดว่าจะได้รับ
+              </label>
+              <DateRangePicker
+                value={expectedDateValue}
+                onChange={setExpectedDateValue}
+                asSingle={true}
+                useRange={false}
+                showShortcuts={false}
+                showFooter={false}
+                placeholder="เลือกวันที่"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Warehouse Selection */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-            คลังสินค้า <span className="text-red-500">*</span>
-          </label>
-          <div className="relative inline-block w-full sm:w-72">
-            <WarehouseIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            <select
-              value={selectedWarehouseId}
-              onChange={e => setSelectedWarehouseId(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none"
-            >
-              <option value="">-- เลือกคลังสินค้า --</option>
-              {warehouses.map(w => (
-                <option key={w.id} value={w.id}>
-                  {w.is_default ? '⭐ ' : ''}{w.name}{w.code ? ` (${w.code})` : ''}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
+        {/* Supplier Info Card — แสดงเมื่อเลือก supplier แล้ว */}
+        {selectedSupplierId && selectedSupplier && (
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Factory className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+                <span className="text-sm font-medium text-gray-900 dark:text-white">{selectedSupplier.name}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400">
+                  {selectedSupplier.supplier_type === 'manufacturer' ? 'ผู้ผลิต' : selectedSupplier.supplier_type === 'distributor' ? 'ผู้จัดจำหน่าย' : selectedSupplier.supplier_type === 'wholesaler' ? 'ขายส่ง' : selectedSupplier.supplier_type}
+                </span>
+              </div>
+              <Link
+                href={`/settings/suppliers/${selectedSupplierId}/edit`}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+              >
+                แก้ไข Supplier <ExternalLink className="w-3 h-3" />
+              </Link>
+            </div>
 
-        {/* Expected Date */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-            <CalendarDays className="w-4 h-4 inline mr-1" />
-            วันที่คาดว่าจะได้รับ
-          </label>
-          <input
-            type="date"
-            value={expectedDate}
-            onChange={e => setExpectedDate(e.target.value)}
-            className="w-full sm:w-72 px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
-          />
-        </div>
+            {/* แบรนด์ที่ผูกกับ Supplier นี้ */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
+                <Tag className="w-3 h-3" /> แบรนด์:
+              </span>
+              {supplierBrands.length > 0 ? (
+                supplierBrands.map(b => (
+                  <span
+                    key={b.id}
+                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                  >
+                    {b.name}
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-gray-400 dark:text-slate-500">ยังไม่มีแบรนด์ผูกกับ Supplier นี้</span>
+              )}
+            </div>
+
+            {/* Warning: ไม่มีสินค้า */}
+            {!loadingProducts && supplierProducts.length === 0 && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="text-amber-800 dark:text-amber-200 font-medium">Supplier นี้ยังไม่มีสินค้า</p>
+                  <p className="text-amber-600 dark:text-amber-400 text-xs mt-0.5">
+                    {supplierBrands.length > 0
+                      ? <>ต้องผูกสินค้ากับ Brand ของ Supplier นี้ก่อน → <Link href="/products" className="underline font-medium hover:text-amber-700 dark:hover:text-amber-300">ไปหน้าสินค้า</Link></>
+                      : <>ต้องเพิ่ม Brand ให้กับ Supplier ก่อน → <Link href={`/settings/suppliers/${selectedSupplierId}/edit`} className="underline font-medium hover:text-amber-700 dark:hover:text-amber-300">ไปแก้ไข Supplier</Link></>
+                    }
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Desktop: Table + Search in one card */}
         <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700">
@@ -464,12 +551,6 @@ export default function CreatePurchaseOrderPage() {
                 placeholder="ค้นหาสินค้าของ supplier นี้..."
                 isAlreadyAdded={(p) => items.some(i => i.variation_id === p.id)}
               />
-              {!loadingProducts && supplierProducts.length === 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  Supplier นี้ยังไม่มีสินค้า (ต้องผูก Brand กับ Supplier ก่อน)
-                </p>
-              )}
             </div>
           ) : (
             <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700">
@@ -612,12 +693,6 @@ export default function CreatePurchaseOrderPage() {
                 placeholder="ค้นหาสินค้าของ supplier นี้..."
                 isAlreadyAdded={(p) => items.some(i => i.variation_id === p.id)}
               />
-              {!loadingProducts && supplierProducts.length === 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  Supplier นี้ยังไม่มีสินค้า
-                </p>
-              )}
               {items.length === 0 && supplierProducts.length > 0 && (
                 <div className="text-center py-8 text-gray-400 dark:text-slate-500">
                   <Package2 className="w-10 h-10 mx-auto mb-2" />

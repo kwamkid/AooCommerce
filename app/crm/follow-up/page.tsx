@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import FormSelect from '@/components/ui/FormSelect';
 
 // Column toggle system
 type ColumnKey = 'customer' | 'type' | 'lastOrder' | 'daysSince' | 'frequency' | 'totalOrders' | 'totalSpent' | 'actions';
@@ -221,7 +222,7 @@ export default function CRMFollowUpPage() {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filterDays, setFilterDays] = useState<string>('all');
+  const [filterDays, setFilterDays] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('days_since_last_order');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -287,7 +288,7 @@ export default function CRMFollowUpPage() {
       // Apply filter
       if (filterDays === 'never') {
         params.set('has_orders', 'false');
-      } else if (filterDays !== 'all') {
+      } else if (filterDays !== '') {
         const [minStr, maxStr] = filterDays.split('-');
         params.set('min_days', minStr);
         if (maxStr !== 'null') {
@@ -391,8 +392,8 @@ export default function CRMFollowUpPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {/* Total customers */}
             <button
-              onClick={() => { setFilterDays('all'); setCurrentPage(1); }}
-              className={`bg-white dark:bg-slate-800 rounded-lg border p-4 text-left transition-all hover:shadow-md ${filterDays === 'all' ? 'border-[#F4511E] ring-2 ring-[#F4511E]/20' : 'border-gray-200 dark:border-slate-700'}`}
+              onClick={() => { setFilterDays(''); setCurrentPage(1); }}
+              className={`bg-white dark:bg-slate-800 rounded-lg border p-4 text-left transition-all hover:shadow-md ${filterDays === '' ? 'border-[#F4511E] ring-2 ring-[#F4511E]/20' : 'border-gray-200 dark:border-slate-700'}`}
             >
               <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400 mb-1">
                 <Users className="w-4 h-4" />
@@ -454,24 +455,21 @@ export default function CRMFollowUpPage() {
             </div>
 
             {/* Filter by days */}
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-400" />
-              <select
+            <div className="flex items-center gap-2 w-52">
+              <FormSelect
                 value={filterDays}
-                onChange={(e) => { setFilterDays(e.target.value); setCurrentPage(1); }}
-                className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm"
-              >
-                <option value="all">ทั้งหมด</option>
-                <option value="never">ยังไม่เคยสั่ง</option>
-                {summary?.dayRanges.map((range) => {
-                  const rangeKey = `${range.minDays}-${range.maxDays ?? 'null'}`;
-                  return (
-                    <option key={rangeKey} value={rangeKey}>
-                      {range.label}
-                    </option>
-                  );
-                })}
-              </select>
+                onChange={(val) => { setFilterDays(val); setCurrentPage(1); }}
+                options={[
+                  { id: 'never', label: 'ยังไม่เคยสั่ง' },
+                  ...(summary?.dayRanges.map((range) => ({
+                    id: `${range.minDays}-${range.maxDays ?? 'null'}`,
+                    label: range.label,
+                  })) || []),
+                ]}
+                clearLabel="ทั้งหมด"
+                icon={<Filter className="w-4 h-4" />}
+                searchThreshold={99}
+              />
             </div>
 
           </div>

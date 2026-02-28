@@ -9,6 +9,7 @@ import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Plus, Check, X, Edit2, Trash2, Tag, ChevronRight
 } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 
 interface CategoryItem {
   id: string;
@@ -398,16 +399,13 @@ export default function CategoriesPage() {
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">หมวดหมู่หลัก (ไม่ระบุ = เป็นหมวดหลักเอง)</label>
-                  <select
+                  <FormSelect
                     value={addParentId || ''}
-                    onChange={e => setAddParentId(e.target.value || null)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
-                  >
-                    <option value="">-- ไม่มี (เป็นหมวดหลัก) --</option>
-                    {categories.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                    onChange={value => setAddParentId(value || null)}
+                    options={categories.map(p => ({ id: p.id, label: p.name }))}
+                    clearLabel="-- ไม่มี (เป็นหมวดหลัก) --"
+                    searchThreshold={99}
+                  />
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button

@@ -82,7 +82,7 @@ export default function PurchaseOrderDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
-  const { features } = useFeatures();
+  const { features, fetched: featuresFetched } = useFeatures();
   const { showToast } = useToast();
   const poId = params.id as string;
 
@@ -93,7 +93,7 @@ export default function PurchaseOrderDetailPage() {
   const fetchedRef = useRef(false);
 
   useEffect(() => {
-    if (authLoading || !userProfile) return;
+    if (authLoading || !userProfile || !featuresFetched) return;
     if (!features.supplier) {
       router.replace('/inventory/receives');
       return;
@@ -101,7 +101,7 @@ export default function PurchaseOrderDetailPage() {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
     fetchPO();
-  }, [authLoading, userProfile, features.supplier, router, poId]);
+  }, [authLoading, userProfile, featuresFetched, features.supplier, router, poId]);
 
   const fetchPO = async () => {
     try {

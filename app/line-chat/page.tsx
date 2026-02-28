@@ -45,6 +45,8 @@ import {
 import Image from 'next/image';
 import OrderForm from '@/components/orders/OrderForm';
 import CustomerForm, { CustomerFormData, buildCustomerPayload } from '@/components/customers/CustomerForm';
+import EntitySearchInput from '@/components/ui/EntitySearchInput';
+import type { EntitySearchOption } from '@/components/ui/EntitySearchInput';
 
 interface LineContact {
   id: string;
@@ -165,7 +167,6 @@ function LineChatPageContent() {
   // Link customer modal
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerSearch, setCustomerSearch] = useState('');
   const [loadingCustomers, setLoadingCustomers] = useState(false);
 
   // Image upload
@@ -910,6 +911,23 @@ function LineChatPageContent() {
       setLoadingCustomers(false);
     }
   };
+
+  const customerSearchTimer = useRef<NodeJS.Timeout | null>(null);
+  const handleCustomerSearchChange = useCallback((search: string) => {
+    if (customerSearchTimer.current) clearTimeout(customerSearchTimer.current);
+    if (search.length >= 2) {
+      customerSearchTimer.current = setTimeout(() => fetchCustomers(search), 300);
+    } else {
+      setCustomers([]);
+      setLoadingCustomers(false);
+    }
+  }, []);
+
+  const customerOptions: EntitySearchOption[] = customers.map(c => ({
+    id: c.id,
+    label: c.name,
+    subtitle: c.customer_code + (c.phone ? ` • ${c.phone}` : ''),
+  }));
 
   const linkCustomer = async (customerId: string | null) => {
     if (!selectedContact) return;
@@ -1661,7 +1679,6 @@ function LineChatPageContent() {
                       <button
                         onClick={() => {
                           setShowLinkModal(true);
-                          setCustomerSearch('');
                           setCustomers([]);
                         }}
                         className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
@@ -1741,7 +1758,6 @@ function LineChatPageContent() {
                       <button
                         onClick={() => {
                           setShowLinkModal(true);
-                          setCustomerSearch('');
                           setCustomers([]);
                         }}
                         className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600"
@@ -2968,55 +2984,20 @@ function LineChatPageContent() {
             </div>
 
             <div className="p-4">
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="text"
-                  value={customerSearch}
-                  onChange={(e) => {
-                    setCustomerSearch(e.target.value);
-                    if (e.target.value.length >= 2) {
-                      fetchCustomers(e.target.value);
-                    }
-                  }}
-                  placeholder="ค้นหาชื่อหรือรหัสลูกค้า..."
-                  className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                />
-              </div>
-
-              <div className="max-h-64 overflow-y-auto">
-                {loadingCustomers ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-                  </div>
-                ) : customers.length === 0 ? (
-                  <div className="text-center py-4 text-gray-500 text-sm">
-                    {customerSearch.length >= 2 ? 'ไม่พบลูกค้า' : 'พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหา'}
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {customers.map((customer) => (
-                      <button
-                        key={customer.id}
-                        onClick={() => linkCustomer(customer.id)}
-                        className="w-full p-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors flex items-center justify-between"
-                      >
-                        <div>
-                          <div className="text-xs text-gray-400 dark:text-slate-500">{customer.customer_code}</div>
-                          <div className="font-medium text-gray-900 dark:text-white">{customer.name}</div>
-                          {customer.phone && (
-                            <div className="text-xs text-gray-500 flex items-center gap-1">
-                              <Phone className="w-3 h-3" />
-                              {customer.phone}
-                            </div>
-                          )}
-                        </div>
-                        <Check className="w-5 h-5 text-[#06C755]" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <EntitySearchInput
+                value=""
+                onChange={(id) => {
+                  linkCustomer(id);
+                  setShowLinkModal(false);
+                }}
+                options={customerOptions}
+                onSearchChange={handleCustomerSearchChange}
+                loading={loadingCustomers}
+                minSearchLength={2}
+                autoFocus
+                placeholder="ค้นหาชื่อหรือรหัสลูกค้า..."
+                emptyMessage="พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหา"
+              />
 
               {selectedContact?.customer && (
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700">

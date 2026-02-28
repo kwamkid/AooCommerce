@@ -24,6 +24,7 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   session: Session | null;
   loading: boolean;
+  connectionError: boolean;
   hasCompany: boolean;
   companies: CompanyMembershipRaw[];
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -32,6 +33,7 @@ interface AuthContextType {
   signInWithLINE: (inviteToken?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  retryConnection: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,19 +48,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // loading = true until we know auth state + company state
   const [loading, setLoading] = useState(true);
   const [hasCompany, setHasCompany] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
   const [companies, setCompanies] = useState<CompanyMembershipRaw[]>([]);
   const router = useRouter();
   const pathname = usePathname();
 
   const fetchUserProfile = useCallback(async (authUser: User, accessToken: string): Promise<UserProfile | null> => {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
       const response = await fetch('/api/auth/me', {
         method: 'GET',
-        headers: { 'Authorization': `Bearer ${accessToken}` }
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
+
+      if (response.status === 500) {
+        // Server error (likely Supabase connection timeout)
+        setConnectionError(true);
+        return null;
+      }
 
       const result = await response.json();
       if (!response.ok || !result.profile) return null;
+      setConnectionError(false);
 
       const data = result.profile;
       const companiesData: CompanyMembershipRaw[] = result.companies || [];
@@ -82,6 +97,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
     } catch (error) {
       console.error('Error fetching user profile:', error);
+      // Network error (fetch failed, timeout, DNS, etc.)
+      setConnectionError(true);
       return null;
     }
   }, []);
@@ -174,6 +191,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Routing — only runs after loading is done
   useEffect(() => {
     if (loading) return;
+    // Don't redirect when there's a connection error — show error UI instead
+    if (connectionError) return;
 
     const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route));
     const isInvitePage = pathname.startsWith('/invite/');
@@ -321,15 +340,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const retryConnection = () => {
+    setConnectionError(false);
+    setLoading(true);
+    profileFetchedRef.current = false;
+    // Re-run init by reloading the page
+    window.location.reload();
+  };
+
   const value = useMemo(() => ({
-    user, userProfile, session, loading, hasCompany, companies,
-    signIn, signUp, signInWithGoogle, signInWithLINE, signOut, refreshProfile,
+    user, userProfile, session, loading, connectionError, hasCompany, companies,
+    signIn, signUp, signInWithGoogle, signInWithLINE, signOut, refreshProfile, retryConnection,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [user, userProfile, session, loading, hasCompany, companies]);
+  }), [user, userProfile, session, loading, connectionError, hasCompany, companies]);
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {connectionError && !loading ? (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900 px-4">
+          <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700 p-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636a9 9 0 11-12.728 0M12 9v4m0 4h.01" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
+              ระบบไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ในขณะนี้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตของคุณแล้วลองใหม่อีกครั้ง
+            </p>
+            <button
+              onClick={retryConnection}
+              className="w-full py-3 px-4 bg-[#F4511E] hover:bg-[#E64A19] text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              ลองใหม่อีกครั้ง
+            </button>
+            <p className="text-xs text-gray-400 dark:text-slate-500 mt-4">
+              หากปัญหายังคงอยู่ กรุณาติดต่อผู้ดูแลระบบ
+            </p>
+          </div>
+        </div>
+      ) : children}
     </AuthContext.Provider>
   );
 }

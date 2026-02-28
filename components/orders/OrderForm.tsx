@@ -12,14 +12,15 @@ import { apiFetch } from '@/lib/api-client';
 import { parseThaiAddress } from '@/lib/address-parser';
 import { productSubtitle } from '@/app/inventory/components/types';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
+import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import DateRangePicker from '@/components/ui/DateRangePicker';
+import FormSelect from '@/components/ui/FormSelect';
 import { DateValueType } from 'react-tailwindcss-datepicker';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
 import {
   Plus,
   Trash2,
-  Search,
   Loader2,
   Package,
   MapPin,
@@ -178,7 +179,6 @@ export default function OrderForm({
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
-  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   // Shipping addresses
   const [shippingAddresses, setShippingAddresses] = useState<ShippingAddress[]>([]);
@@ -710,7 +710,6 @@ export default function OrderForm({
   const handleSelectCustomer = async (customer: Customer) => {
     setSelectedCustomer(customer);
     setCustomerSearch(customer.name);
-    setShowCustomerDropdown(false);
     setShippingAddresses([]);
     // Reset delivery info — will be filled when user picks an address
     setDeliveryName('');
@@ -1355,13 +1354,6 @@ export default function OrderForm({
     );
   })();
 
-  const filteredCustomers = customers.filter(c => {
-    const q = customerSearch.toLowerCase();
-    return c.name.toLowerCase().includes(q) ||
-      c.customer_code.toLowerCase().includes(q) ||
-      (c.phone && c.phone.replace(/[-\s]/g, '').includes(q.replace(/[-\s]/g, '')));
-  });
-
   const getVariationLabelDisplay = (variationLabel?: string) => {
     return variationLabel || '';
   };
@@ -1555,24 +1547,22 @@ export default function OrderForm({
       {/* Warehouse Picker — portal into header or inline fallback */}
       {!features.customer_branches && stockEnabled && warehouses.length > 1 && (() => {
         const warehousePicker = (
-          <div className="relative inline-block">
-            <Warehouse className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500 pointer-events-none" />
-            <select
+          <div className="inline-block min-w-[160px]">
+            <FormSelect
               value={selectedWarehouseId}
-              onChange={(e) => {
-                setSelectedWarehouseId(e.target.value);
-                fetchInventoryForWarehouse(e.target.value);
+              onChange={(val) => {
+                setSelectedWarehouseId(val);
+                fetchInventoryForWarehouse(val);
               }}
               disabled={isReadOnly}
-              className="pl-9 pr-8 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 disabled:bg-gray-100 disabled:text-gray-500 appearance-none"
-            >
-              {warehouses.map(wh => (
-                <option key={wh.id} value={wh.id}>
-                  {wh.is_default ? '⭐ ' : ''}{wh.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500 pointer-events-none" />
+              options={warehouses.map(wh => ({
+                id: wh.id,
+                label: `${wh.is_default ? '⭐ ' : ''}${wh.name}`,
+              }))}
+              icon={<Warehouse className="w-4 h-4" />}
+              placeholder="-- เลือกคลัง --"
+              searchThreshold={99}
+            />
           </div>
         );
         if (warehousePortalRef?.current) {
@@ -2243,24 +2233,20 @@ export default function OrderForm({
                 )}
               </div>
             ) : (
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input type="text" value={customerSearch} onChange={(e) => { setCustomerSearch(e.target.value); setShowCustomerDropdown(true); }} onFocus={() => setShowCustomerDropdown(true)} placeholder="ค้นหาชื่อ, รหัส, หรือเบอร์โทร..." className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200" disabled={(!!preselectedCustomerId || isEditMode) && !!selectedCustomer} />
-              </div>
-            )}
-            {showCustomerDropdown && customerSearch && !selectedCustomer && !preselectedCustomerId && (
-              <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-auto">
-                {filteredCustomers.length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">ไม่พบลูกค้า</div>
-                ) : (
-                  filteredCustomers.map(customer => (
-                    <button key={customer.id} type="button" onClick={() => handleSelectCustomer(customer)} className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
-                      <div className="text-sm font-medium text-gray-900 dark:text-slate-200">{customer.name}</div>
-                      <div className="text-xs text-gray-500 dark:text-slate-400">{customer.customer_code}{customer.phone ? ` · ${customer.phone}` : ''}</div>
-                    </button>
-                  ))
-                )}
-              </div>
+              <EntitySearchInput
+                value=""
+                onChange={(id) => {
+                  const customer = customers.find(c => c.id === id);
+                  if (customer) handleSelectCustomer(customer);
+                }}
+                options={customers.map(c => ({
+                  id: c.id,
+                  label: c.name,
+                  subtitle: `${c.customer_code}${c.phone ? ' · ' + c.phone : ''}`,
+                }))}
+                placeholder="ค้นหาชื่อ, รหัส, หรือเบอร์โทร..."
+                disabled={(!!preselectedCustomerId || isEditMode) && !!selectedCustomer}
+              />
             )}
             {!selectedCustomer && (
               <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">ไม่เลือกลูกค้า = ส่ง Bill Online ให้ลูกค้ากรอกเอง</p>

@@ -8,10 +8,11 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Package, Package2, Trash2, X,
-  Save, Warehouse, ChevronDown, FileText, ArrowRightLeft,
-  AlertTriangle
+  Save, Warehouse, FileText, ArrowRightLeft,
+  AlertTriangle, Star,
 } from 'lucide-react';
 import ProductSearchInput from '@/components/ui/ProductSearchInput';
+import FormSelect from '@/components/ui/FormSelect';
 import { productDisplayName, productSubtitle } from '../components/types';
 
 // Interfaces
@@ -420,22 +421,18 @@ export default function StockTransferPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
                 คลังต้นทาง <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <Warehouse className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                <select
-                  value={sourceWarehouseId}
-                  onChange={e => setSourceWarehouseId(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none"
-                >
-                  <option value="">-- เลือกคลังต้นทาง --</option>
-                  {warehouses.filter(wh => wh.id !== destWarehouseId).map(wh => (
-                    <option key={wh.id} value={wh.id}>
-                      {wh.is_default ? '⭐ ' : ''}{wh.name}{wh.code ? ` (${wh.code})` : ''}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              </div>
+              <FormSelect
+                value={sourceWarehouseId}
+                onChange={setSourceWarehouseId}
+                options={warehouses.filter(wh => wh.id !== destWarehouseId).map(wh => ({
+                  id: wh.id,
+                  label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}`,
+                  icon: wh.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined,
+                }))}
+                placeholder="-- เลือกคลังต้นทาง --"
+                searchPlaceholder="ค้นหาคลัง..."
+                icon={<Warehouse className="w-4 h-4" />}
+              />
             </div>
 
             {/* Arrow */}
@@ -448,22 +445,18 @@ export default function StockTransferPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
                 คลังปลายทาง <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <Warehouse className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                <select
-                  value={destWarehouseId}
-                  onChange={e => setDestWarehouseId(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] appearance-none"
-                >
-                  <option value="">-- เลือกคลังปลายทาง --</option>
-                  {warehouses.filter(wh => wh.id !== sourceWarehouseId).map(wh => (
-                    <option key={wh.id} value={wh.id}>
-                      {wh.is_default ? '⭐ ' : ''}{wh.name}{wh.code ? ` (${wh.code})` : ''}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              </div>
+              <FormSelect
+                value={destWarehouseId}
+                onChange={setDestWarehouseId}
+                options={warehouses.filter(wh => wh.id !== sourceWarehouseId).map(wh => ({
+                  id: wh.id,
+                  label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}`,
+                  icon: wh.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined,
+                }))}
+                placeholder="-- เลือกคลังปลายทาง --"
+                searchPlaceholder="ค้นหาคลัง..."
+                icon={<Warehouse className="w-4 h-4" />}
+              />
             </div>
           </div>
           {inventoryLoading && (

@@ -1,9 +1,11 @@
 // Path: app/pos/components/CustomerSearch.tsx
 'use client';
 
-import { useState } from 'react';
-import { Search, X, User } from 'lucide-react';
+import { useState, useRef, useCallback } from 'react';
+import { X, User } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
+import EntitySearchInput from '@/components/ui/EntitySearchInput';
+import type { EntitySearchOption } from '@/components/ui/EntitySearchInput';
 
 interface Customer {
   id: string;
@@ -19,28 +21,40 @@ interface CustomerSearchProps {
 }
 
 export default function CustomerSearch({ selectedCustomer, onSelect, onClose }: CustomerSearchProps) {
-  const [search, setSearch] = useState('');
   const [results, setResults] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
+  const searchTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const handleSearch = async (query: string) => {
-    setSearch(query);
+  const handleSearchChange = useCallback((query: string) => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
     if (query.length < 2) {
       setResults([]);
       return;
     }
+    searchTimer.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await apiFetch(`/api/customers?search=${encodeURIComponent(query)}&limit=10`);
+        const data = await res.json();
+        setResults(data.customers || []);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+  }, []);
 
-    setLoading(true);
-    try {
-      const res = await apiFetch(`/api/customers?search=${encodeURIComponent(query)}&limit=10`);
-      const data = await res.json();
-      setResults(data.customers || []);
-    } catch {
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const customerOptions: EntitySearchOption[] = results.map(c => ({
+    id: c.id,
+    label: c.name,
+    subtitle: c.customer_code + (c.phone ? ` • ${c.phone}` : ''),
+    icon: (
+      <div className="w-8 h-8 rounded-full bg-[#F4511E]/10 dark:bg-[#F4511E]/20 flex items-center justify-center">
+        <User className="w-4 h-4 text-[#F4511E]" />
+      </div>
+    ),
+  }));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
@@ -66,45 +80,21 @@ export default function CustomerSearch({ selectedCustomer, onSelect, onClose }: 
           <span className="text-gray-900 dark:text-white">ลูกค้าทั่วไป (Walk-in)</span>
         </button>
 
-        {/* Search input */}
-        <div className="relative mb-3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร..."
-            className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-            autoFocus
-          />
-        </div>
-
-        {/* Results */}
-        <div className="flex-1 overflow-y-auto space-y-2">
-          {loading && <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-4">กำลังค้นหา...</p>}
-          {!loading && search.length >= 2 && results.length === 0 && (
-            <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-4">ไม่พบลูกค้า</p>
-          )}
-          {results.map(c => (
-            <button
-              key={c.id}
-              onClick={() => { onSelect(c); onClose(); }}
-              className={`w-full p-3 rounded-lg text-left flex items-center gap-3 transition-colors ${
-                selectedCustomer?.id === c.id
-                  ? 'bg-[#F4511E]/10 dark:bg-[#F4511E]/20 border border-[#F4511E]'
-                  : 'bg-gray-50 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/20'
-              }`}
-            >
-              <div className="w-8 h-8 rounded-full bg-[#F4511E]/10 dark:bg-[#F4511E]/20 flex items-center justify-center">
-                <User className="w-4 h-4 text-[#F4511E]" />
-              </div>
-              <div>
-                <p className="text-gray-900 dark:text-white text-sm font-medium">{c.name}</p>
-                <p className="text-gray-500 dark:text-gray-400 text-xs">{c.customer_code}{c.phone ? ` • ${c.phone}` : ''}</p>
-              </div>
-            </button>
-          ))}
-        </div>
+        {/* Customer search */}
+        <EntitySearchInput
+          value=""
+          onChange={(id, option) => {
+            const customer = results.find(c => c.id === id);
+            if (customer) { onSelect(customer); onClose(); }
+          }}
+          options={customerOptions}
+          onSearchChange={handleSearchChange}
+          loading={loading}
+          minSearchLength={2}
+          autoFocus
+          placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร..."
+          emptyMessage="พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหา"
+        />
       </div>
     </div>
   );

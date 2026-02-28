@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { ReactNode } from 'react';
+import FormSelect from '@/components/ui/FormSelect';
 
 function getPageNumbers(currentPage: number, totalPages: number): (number | string)[] {
   const pages: (number | string)[] = [];
@@ -50,15 +51,18 @@ export default function Pagination({
     <div className="data-pagination">
       <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
         <span>{startIdx + 1} - {endIdx} จาก {totalRecords} รายการ</span>
-        <select
-          value={recordsPerPage}
-          onChange={(e) => { setRecordsPerPage(Number(e.target.value)); setPage(1); }}
-          className="mx-1 px-1 py-0.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
-        >
-          <option value={20}>20</option>
-          <option value={50}>50</option>
-          <option value={100}>100</option>
-        </select>
+        <div className="mx-1 w-[70px]">
+          <FormSelect
+            value={String(recordsPerPage)}
+            onChange={(val) => { setRecordsPerPage(Number(val)); setPage(1); }}
+            options={[
+              { id: '20', label: '20' },
+              { id: '50', label: '50' },
+              { id: '100', label: '100' },
+            ]}
+            searchThreshold={99}
+          />
+        </div>
         <span>/หน้า</span>
         {loadTime != null && (
           <span className="text-xs text-gray-400 dark:text-slate-500 ml-1">({loadTime.toFixed(1)}s)</span>
