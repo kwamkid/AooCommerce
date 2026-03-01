@@ -414,7 +414,7 @@ export default function ProductsPage() {
             className="flex items-center space-x-2 px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white rounded-lg font-semibold transition-colors"
           >
             <Plus className="w-5 h-5" />
-            <span>เพิ่มสินค้า</span>
+            <span>เพิ่ม<span className="hidden md:inline">สินค้า</span></span>
           </button>
         </div>
 
@@ -430,11 +430,11 @@ export default function ProductsPage() {
         {/* Products Table */}
             {/* Search + Type Filter + Column Settings */}
             <div className="data-filter-card">
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="w-full md:flex-1 md:w-auto">
                   <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ, รหัส, SKU, Barcode..." className="py-2" />
                 </div>
-                <div className="w-36">
+                <div className="w-[calc(50%-0.25rem)] md:w-36">
                   <FormSelect
                     value={typeFilter}
                     onChange={setTypeFilter}
@@ -448,7 +448,7 @@ export default function ProductsPage() {
                   />
                 </div>
                 {/* Category filter */}
-                <div className="w-44">
+                <div className="w-[calc(50%-0.25rem)] md:w-44">
                   <FormSelect
                     value={categoryFilter}
                     onChange={setCategoryFilter}
@@ -468,7 +468,7 @@ export default function ProductsPage() {
 
                 {/* Brand filter — only when feature enabled */}
                 {features.product_brand && (
-                  <div className="w-40">
+                  <div className="w-[calc(50%-0.25rem)] md:w-40">
                     <FormSelect
                       value={brandFilter}
                       onChange={setBrandFilter}

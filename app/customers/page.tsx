@@ -332,7 +332,7 @@ export default function CustomersPage() {
             className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center font-medium"
           >
             <Plus className="w-5 h-5 mr-2" />
-            เพิ่มลูกค้า
+            เพิ่ม<span className="hidden md:inline">ลูกค้า</span>
           </button>
         </div>
 
@@ -346,57 +346,56 @@ export default function CustomersPage() {
 
         {/* Filters and Search */}
         <div className="data-filter-card">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร..." className="py-2" />
+          <div className="flex flex-col gap-3">
+            {/* Row 1: Search */}
+            <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร..." className="py-2" />
+
+            {/* Row 2: Filters */}
+            <div className="flex gap-2">
+              {/* Type Filter */}
+              <div className="flex-1 min-w-0">
+                <FormSelect
+                  value={filterType}
+                  onChange={(val) => { setFilterType(val); setCurrentPage(1); }}
+                  options={activeTypes.map(([key, { label }]) => ({ id: key, label }))}
+                  clearLabel="ประเภท"
+                  searchThreshold={99}
+                />
+              </div>
+
+              {/* Order Amount Filter */}
+              <div className="flex-1 min-w-0">
+                <FormSelect
+                  value={filterAmount}
+                  onChange={(val) => { setFilterAmount(val); setCurrentPage(1); }}
+                  options={[
+                    { id: '0', label: 'ยังไม่มียอด' },
+                    { id: '<10000', label: 'น้อยกว่า ฿10,000' },
+                    { id: '10000-50000', label: '฿10,000 - ฿50,000' },
+                    { id: '50000-100000', label: '฿50,000 - ฿100,000' },
+                    { id: '>100000', label: 'มากกว่า ฿100,000' },
+                  ]}
+                  clearLabel="ยอด"
+                  searchThreshold={99}
+                />
+              </div>
+
+              {/* Order Count Filter */}
+              <div className="flex-1 min-w-0">
+                <FormSelect
+                  value={filterOrderCount}
+                  onChange={(val) => { setFilterOrderCount(val); setCurrentPage(1); }}
+                  options={[
+                    { id: '0', label: 'ยังไม่มีบิล' },
+                    { id: '1-5', label: '1 - 5 บิล' },
+                    { id: '6-20', label: '6 - 20 บิล' },
+                    { id: '>20', label: 'มากกว่า 20 บิล' },
+                  ]}
+                  clearLabel="บิล"
+                  searchThreshold={99}
+                />
+              </div>
             </div>
-
-            {/* Type Filter */}
-            <div className="w-[180px]">
-              <FormSelect
-                value={filterType}
-                onChange={(val) => { setFilterType(val); setCurrentPage(1); }}
-                options={activeTypes.map(([key, { label }]) => ({ id: key, label }))}
-                clearLabel="ประเภททั้งหมด"
-                searchThreshold={99}
-              />
-            </div>
-
-            {/* Order Amount Filter */}
-            <div className="w-[180px]">
-              <FormSelect
-                value={filterAmount}
-                onChange={(val) => { setFilterAmount(val); setCurrentPage(1); }}
-                options={[
-                  { id: '0', label: 'ยังไม่มียอด' },
-                  { id: '<10000', label: 'น้อยกว่า ฿10,000' },
-                  { id: '10000-50000', label: '฿10,000 - ฿50,000' },
-                  { id: '50000-100000', label: '฿50,000 - ฿100,000' },
-                  { id: '>100000', label: 'มากกว่า ฿100,000' },
-                ]}
-                clearLabel="ยอดทั้งหมด"
-                searchThreshold={99}
-              />
-            </div>
-
-            {/* Order Count Filter */}
-            <div className="w-[180px]">
-              <FormSelect
-                value={filterOrderCount}
-                onChange={(val) => { setFilterOrderCount(val); setCurrentPage(1); }}
-                options={[
-                  { id: '0', label: 'ยังไม่มีบิล' },
-                  { id: '1-5', label: '1 - 5 บิล' },
-                  { id: '6-20', label: '6 - 20 บิล' },
-                  { id: '>20', label: 'มากกว่า 20 บิล' },
-                ]}
-                clearLabel="จำนวนบิลทั้งหมด"
-                searchThreshold={99}
-              />
-            </div>
-
-
           </div>
         </div>
 

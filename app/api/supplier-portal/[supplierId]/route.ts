@@ -22,6 +22,7 @@ export async function GET(
       },
       company: {
         name: result.context.companyName,
+        logo_url: result.context.companyLogo,
       },
     });
   } catch (error) {

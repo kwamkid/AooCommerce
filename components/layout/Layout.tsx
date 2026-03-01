@@ -8,13 +8,14 @@ import Header from './Header';
 interface LayoutProps {
   children: ReactNode;
   title?: string;
+  noPadding?: boolean;
   breadcrumbs?: {
     label: string;
     href?: string;
   }[];
 }
 
-export default function Layout({ children, title, breadcrumbs }: LayoutProps) {
+export default function Layout({ children, title, breadcrumbs, noPadding }: LayoutProps) {
   // ไม่มี loading check ใดๆ - ให้ page component จัดการเอง
   
   return (
@@ -25,14 +26,14 @@ export default function Layout({ children, title, breadcrumbs }: LayoutProps) {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden print:block print:overflow-visible">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden print:block print:overflow-visible">
         {/* Header — hidden on print */}
         <div className="print:hidden">
           <Header />
         </div>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto print:overflow-visible">
+        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden print:overflow-visible">
           {/* Page Header — hidden on print */}
           {(title || breadcrumbs) && (
             <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-4 print:hidden">
@@ -71,7 +72,7 @@ export default function Layout({ children, title, breadcrumbs }: LayoutProps) {
           )}
 
           {/* Page Body */}
-          <div className="p-4 lg:p-6 pb-24 lg:pb-6 print:p-0">
+          <div className={noPadding ? 'print:p-0' : 'p-4 lg:p-6 pb-24 lg:pb-6 print:p-0'}>
             {children}
           </div>
         </main>

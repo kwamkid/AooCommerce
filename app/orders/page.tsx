@@ -735,7 +735,7 @@ export default function OrdersPage() {
               className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />
-              สร้างคำสั่งซื้อ
+              สร้าง<span className="hidden md:inline">คำสั่งซื้อ</span>
             </button>
           </div>
         </div>

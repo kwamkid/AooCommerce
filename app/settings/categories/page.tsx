@@ -432,7 +432,7 @@ export default function CategoriesPage() {
                 className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                เพิ่มหมวดหมู่
+                เพิ่ม<span className="hidden md:inline">หมวดหมู่</span>
               </button>
             )}
           </div>

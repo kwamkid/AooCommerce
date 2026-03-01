@@ -271,48 +271,47 @@ export default function TransferListPage() {
         </div>
 
         {/* Search & Filters */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <div className="relative flex-1">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
-              placeholder="ค้นหาเลขที่, คลัง..."
+              placeholder="ค้นหา..."
               className="w-full pl-9 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
             />
           </div>
-          <div className="flex items-center gap-2">
-            {warehouses.length > 1 && (
-              <div className="w-40">
-                <FormSelect
-                  value={warehouseFilter}
-                  onChange={v => { setWarehouseFilter(v); setPage(1); }}
-                  options={warehouses.map(wh => ({ id: wh.id, label: wh.name }))}
-                  clearLabel="ทุกคลัง"
-                  icon={<Warehouse className="w-4 h-4" />}
-                />
-              </div>
-            )}
-            {users.length > 1 && (
-              <div className="w-40">
-                <FormSelect
-                  value={userFilter}
-                  onChange={v => { setUserFilter(v); setPage(1); }}
-                  options={users.map(u => ({ id: u.id, label: u.name }))}
-                  clearLabel="ทุกคน"
-                  icon={<User className="w-4 h-4" />}
-                />
-              </div>
-            )}
-            <button
-              onClick={() => router.push('/inventory/transfer')}
-              className="bg-[#F4511E] text-white px-4 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4" />
-              สร้างใบโอนย้าย
-            </button>
-          </div>
+          {warehouses.length > 1 && (
+            <div className="w-28 md:w-40 flex-shrink-0">
+              <FormSelect
+                value={warehouseFilter}
+                onChange={v => { setWarehouseFilter(v); setPage(1); }}
+                options={warehouses.map(wh => ({ id: wh.id, label: wh.name }))}
+                clearLabel="ทุกคลัง"
+                icon={<Warehouse className="w-4 h-4" />}
+              />
+            </div>
+          )}
+          {users.length > 1 && (
+            <div className="hidden md:block w-40 flex-shrink-0">
+              <FormSelect
+                value={userFilter}
+                onChange={v => { setUserFilter(v); setPage(1); }}
+                options={users.map(u => ({ id: u.id, label: u.name }))}
+                clearLabel="ทุกคน"
+                icon={<User className="w-4 h-4" />}
+              />
+            </div>
+          )}
+          <button
+            onClick={() => router.push('/inventory/transfer')}
+            className="bg-[#F4511E] text-white p-2.5 md:px-4 md:py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap flex-shrink-0"
+            title="สร้างใบโอนย้าย"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden md:inline">สร้างใบโอนย้าย</span>
+          </button>
         </div>
 
         {/* Desktop Table */}

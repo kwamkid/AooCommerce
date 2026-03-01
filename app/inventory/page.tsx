@@ -57,17 +57,17 @@ export default function InventoryPage() {
               <Package2 className="w-8 h-8 text-[#F4511E]" />
               สินค้าคงคลัง
             </h1>
-            <p className="text-gray-600 dark:text-slate-400 mt-1">จัดการสต็อกสินค้าและดูประวัติการเคลื่อนไหว</p>
+            <p className="text-gray-600 dark:text-slate-400 mt-1 hidden md:block">จัดการสต็อกสินค้าและดูประวัติการเคลื่อนไหว</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/inventory/receive" className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white rounded-lg text-sm font-medium transition-colors">
-              <ArrowDownToLine className="w-4 h-4" /> รับเข้า
+          <div className="flex gap-2">
+            <Link href="/inventory/receive" className="flex items-center gap-2 px-3 md:px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white rounded-lg text-sm font-medium transition-colors" title="รับเข้า">
+              <ArrowDownToLine className="w-4 h-4" /> <span className="hidden md:inline">รับเข้า</span>
             </Link>
-            <Link href="/inventory/issue" className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg text-sm font-medium transition-colors">
-              <ArrowUpFromLine className="w-4 h-4" /> เบิกออก
+            <Link href="/inventory/issue" className="flex items-center gap-2 px-3 md:px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg text-sm font-medium transition-colors" title="เบิกออก">
+              <ArrowUpFromLine className="w-4 h-4" /> <span className="hidden md:inline">เบิกออก</span>
             </Link>
-            <Link href="/inventory/transfer" className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg text-sm font-medium transition-colors">
-              <ArrowLeftRight className="w-4 h-4" /> โอนย้าย
+            <Link href="/inventory/transfer" className="flex items-center gap-2 px-3 md:px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg text-sm font-medium transition-colors" title="โอนย้าย">
+              <ArrowLeftRight className="w-4 h-4" /> <span className="hidden md:inline">โอนย้าย</span>
             </Link>
           </div>
         </div>

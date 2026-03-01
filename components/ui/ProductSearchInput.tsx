@@ -56,6 +56,7 @@ export default function ProductSearchInput({
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const internalRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchRef = externalRef || internalRef;
 
   // Filter products client-side
@@ -86,6 +87,11 @@ export default function ProductSearchInput({
   }, [highlightIndex]);
 
   const handleSelect = useCallback((product: ProductSearchItem) => {
+    // Cancel any pending blur timeout so it doesn't interfere with re-focus
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+      blurTimeoutRef.current = null;
+    }
     onSelect(product);
     setSearch('');
     setShowDropdown(false);
@@ -93,7 +99,7 @@ export default function ProductSearchInput({
     // Re-focus for next search/scan
     setTimeout(() => {
       searchRef.current?.focus();
-    }, 100);
+    }, 50);
   }, [onSelect, searchRef]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -138,9 +144,10 @@ export default function ProductSearchInput({
           }}
           onFocus={() => setShowDropdown(true)}
           onBlur={() => {
-            setTimeout(() => {
+            blurTimeoutRef.current = setTimeout(() => {
               setShowDropdown(false);
               setHighlightIndex(-1);
+              blurTimeoutRef.current = null;
             }, 200);
           }}
           onKeyDown={handleKeyDown}

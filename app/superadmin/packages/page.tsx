@@ -165,7 +165,7 @@ export default function SuperAdminPackages() {
         {/* Add Button */}
         <div className="flex justify-end">
           <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-colors">
-            <Plus className="w-4 h-4" /> เพิ่ม Package
+            <Plus className="w-4 h-4" /> เพิ่ม<span className="hidden md:inline"> Package</span>
           </button>
         </div>
 

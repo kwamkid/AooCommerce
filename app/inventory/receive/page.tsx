@@ -669,18 +669,9 @@ export default function StockReceivePage() {
               </div>
             ))}
 
-            {/* Mobile summary */}
-            <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2.5 flex items-center justify-between">
-              <span className="text-sm text-gray-500 dark:text-slate-400">
-                รวม {receiveItems.length} รายการ
-              </span>
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                จำนวนรวม: {receiveItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
-              </span>
-            </div>
           </div>
         )}
-        {/* Mobile: Search + empty state */}
+        {/* Mobile: Search + empty state — before summary so order matches desktop */}
         <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
           <ProductSearchInput
             products={products}
@@ -695,6 +686,17 @@ export default function StockReceivePage() {
             </div>
           )}
         </div>
+        {/* Mobile summary */}
+        {receiveItems.length > 0 && (
+          <div className="md:hidden bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2.5 flex items-center justify-between">
+            <span className="text-sm text-gray-500 dark:text-slate-400">
+              รวม {receiveItems.length} รายการ
+            </span>
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              จำนวนรวม: {receiveItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
+            </span>
+          </div>
+        )}
 
         {/* Batch Notes */}
         {receiveItems.length > 0 && (

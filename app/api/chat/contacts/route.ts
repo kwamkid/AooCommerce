@@ -352,29 +352,32 @@ async function fetchLineContacts(companyId: string, filters: {
 
   const contactIds = contacts.map(c => c.id);
 
-  // Get last message preview
+  // Get last message preview — one per contact via parallel queries
   const lastMessageMap = new Map<string, string>();
   if (contactIds.length > 0) {
-    const { data: msgs } = await supabaseAdmin
-      .from('line_messages')
-      .select('line_contact_id, content, message_type')
-      .eq('company_id', companyId)
-      .in('line_contact_id', contactIds)
-      .order('created_at', { ascending: false })
-      .limit(contactIds.length * 3);
-
-    (msgs || []).forEach(msg => {
-      if (!lastMessageMap.has(msg.line_contact_id)) {
-        let preview = msg.content;
-        if (msg.message_type === 'sticker') preview = '🎭 สติกเกอร์';
-        else if (msg.message_type === 'image') preview = '🖼️ รูปภาพ';
-        else if (msg.message_type === 'video') preview = '🎬 วิดีโอ';
-        else if (msg.message_type === 'audio') preview = '🎵 เสียง';
-        else if (msg.message_type === 'location') preview = '📍 ตำแหน่ง';
-        else if (msg.message_type === 'file') preview = '📎 ไฟล์';
-        lastMessageMap.set(msg.line_contact_id, preview);
-      }
-    });
+    const results = await Promise.all(
+      contactIds.map(cid =>
+        supabaseAdmin
+          .from('line_messages')
+          .select('line_contact_id, content, message_type')
+          .eq('company_id', companyId)
+          .eq('line_contact_id', cid)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      )
+    );
+    for (const { data: msg } of results) {
+      if (!msg) continue;
+      let preview = msg.content;
+      if (msg.message_type === 'sticker') preview = '🎭 สติกเกอร์';
+      else if (msg.message_type === 'image') preview = '🖼️ รูปภาพ';
+      else if (msg.message_type === 'video') preview = '🎬 วิดีโอ';
+      else if (msg.message_type === 'audio') preview = '🎵 เสียง';
+      else if (msg.message_type === 'location') preview = '📍 ตำแหน่ง';
+      else if (msg.message_type === 'file') preview = '📎 ไฟล์';
+      lastMessageMap.set(msg.line_contact_id, preview);
+    }
   }
 
   return contacts.map(c => ({
@@ -460,27 +463,30 @@ async function fetchFbContacts(companyId: string, filters: {
 
   const contactIds = contacts.map(c => c.id);
 
-  // Get last message preview
+  // Get last message preview — one per contact via parallel queries
   const lastMessageMap = new Map<string, string>();
   if (contactIds.length > 0) {
-    const { data: msgs } = await supabaseAdmin
-      .from('fb_messages')
-      .select('fb_contact_id, content, message_type')
-      .eq('company_id', companyId)
-      .in('fb_contact_id', contactIds)
-      .order('created_at', { ascending: false })
-      .limit(contactIds.length * 3);
-
-    (msgs || []).forEach(msg => {
-      if (!lastMessageMap.has(msg.fb_contact_id)) {
-        let preview = msg.content;
-        if (msg.message_type === 'image') preview = '🖼️ รูปภาพ';
-        else if (msg.message_type === 'video') preview = '🎬 วิดีโอ';
-        else if (msg.message_type === 'audio') preview = '🎵 เสียง';
-        else if (msg.message_type === 'file') preview = '📎 ไฟล์';
-        lastMessageMap.set(msg.fb_contact_id, preview);
-      }
-    });
+    const results = await Promise.all(
+      contactIds.map(cid =>
+        supabaseAdmin
+          .from('fb_messages')
+          .select('fb_contact_id, content, message_type')
+          .eq('company_id', companyId)
+          .eq('fb_contact_id', cid)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      )
+    );
+    for (const { data: msg } of results) {
+      if (!msg) continue;
+      let preview = msg.content;
+      if (msg.message_type === 'image') preview = '🖼️ รูปภาพ';
+      else if (msg.message_type === 'video') preview = '🎬 วิดีโอ';
+      else if (msg.message_type === 'audio') preview = '🎵 เสียง';
+      else if (msg.message_type === 'file') preview = '📎 ไฟล์';
+      lastMessageMap.set(msg.fb_contact_id, preview);
+    }
   }
 
   return contacts.map(c => ({

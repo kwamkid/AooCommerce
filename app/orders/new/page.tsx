@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import OrderForm from '@/components/orders/OrderForm';
 import { apiFetch } from '@/lib/api-client';
-import { ArrowLeft, Loader2, Copy } from 'lucide-react';
+import { ArrowLeft, Loader2, Copy, Repeat } from 'lucide-react';
 
 interface InitialOrderData {
   customer_id: string;
@@ -32,6 +32,12 @@ interface InitialOrderData {
   }[];
 }
 
+export interface ExchangeData {
+  from_order_id: string;
+  items: { order_item_id: string; quantity: number }[];
+  reason: string;
+}
+
 export default function NewOrderPage() {
   return (
     <Suspense fallback={
@@ -50,13 +56,79 @@ function NewOrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const duplicateId = searchParams.get('duplicate');
+  const exchangeDataParam = searchParams.get('exchange_data');
+  const fromOrderId = searchParams.get('from_order');
   const warehouseRef = useRef<HTMLDivElement>(null);
 
+  const isExchange = !!exchangeDataParam && !!fromOrderId;
+
   const [initialData, setInitialData] = useState<InitialOrderData | undefined>(undefined);
-  const [loadingDuplicate, setLoadingDuplicate] = useState(!!duplicateId);
+  const [loadingDuplicate, setLoadingDuplicate] = useState(!!duplicateId || !!fromOrderId);
   const [duplicateError, setDuplicateError] = useState('');
   const [sourceOrderNumber, setSourceOrderNumber] = useState('');
+  const [exchangeData, setExchangeData] = useState<ExchangeData | undefined>(undefined);
+  const [exchangeCreditAmount, setExchangeCreditAmount] = useState(0);
 
+  // Exchange: decode exchange_data, fetch original order for customer + calculate credit amount
+  useEffect(() => {
+    if (!isExchange || !fromOrderId || !exchangeDataParam) return;
+
+    const fetchExchangeSource = async () => {
+      try {
+        setLoadingDuplicate(true);
+
+        // Decode exchange data from URL
+        const decoded = JSON.parse(decodeURIComponent(atob(exchangeDataParam))) as {
+          items: { order_item_id: string; quantity: number }[];
+          reason: string;
+        };
+
+        setExchangeData({
+          from_order_id: fromOrderId,
+          items: decoded.items,
+          reason: decoded.reason,
+        });
+
+        // Fetch original order for customer info + items to calculate credit
+        const res = await apiFetch(`/api/orders/${fromOrderId}`);
+        if (!res.ok) throw new Error('ไม่พบคำสั่งซื้อต้นทาง');
+
+        const { order } = await res.json();
+        setSourceOrderNumber(order.order_number);
+
+        // Calculate credit amount from returned items
+        const orderItems = order.items || [];
+        let creditAmount = 0;
+        for (const exchangeItem of decoded.items) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const oi = orderItems.find((i: any) => i.id === exchangeItem.order_item_id);
+          if (oi) {
+            const lineTotal = Number(oi.unit_price || 0) * exchangeItem.quantity;
+            const lineDiscount = oi.discount_percent
+              ? lineTotal * Number(oi.discount_percent) / 100
+              : 0;
+            creditAmount += lineTotal - lineDiscount;
+          }
+        }
+        setExchangeCreditAmount(creditAmount);
+
+        // Only fill customer (no products — user picks new items)
+        setInitialData({
+          customer_id: order.customer?.id || order.customer_id,
+          branches: [],
+        });
+      } catch (err) {
+        console.error('Error fetching exchange source:', err);
+        setDuplicateError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+      } finally {
+        setLoadingDuplicate(false);
+      }
+    };
+
+    fetchExchangeSource();
+  }, [fromOrderId, exchangeDataParam, isExchange]);
+
+  // Duplicate: fetch source order for full copy
   useEffect(() => {
     if (!duplicateId) return;
 
@@ -194,9 +266,15 @@ function NewOrderContent() {
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {duplicateId ? 'สั่งซ้ำ' : 'สร้างคำสั่งซื้อใหม่'}
+                {isExchange ? 'เปลี่ยนสินค้า' : duplicateId ? 'สั่งซ้ำ' : 'สร้างคำสั่งซื้อใหม่'}
               </h1>
-              {sourceOrderNumber && (
+              {isExchange && sourceOrderNumber && (
+                <p className="text-sm text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                  <Repeat className="w-3.5 h-3.5" />
+                  เปลี่ยนสินค้าจากบิล #{sourceOrderNumber}
+                </p>
+              )}
+              {!isExchange && sourceOrderNumber && (
                 <p className="text-sm text-gray-500 dark:text-slate-400 flex items-center gap-1">
                   <Copy className="w-3.5 h-3.5" />
                   คัดลอกจาก #{sourceOrderNumber}
@@ -211,6 +289,8 @@ function NewOrderContent() {
         <OrderForm
           warehousePortalRef={warehouseRef}
           initialOrderData={initialData}
+          exchangeData={exchangeData}
+          exchangeCreditAmount={exchangeCreditAmount}
         />
       </div>
     </Layout>

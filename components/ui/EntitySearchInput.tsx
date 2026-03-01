@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Search, X, Check, Loader2 } from 'lucide-react';
+import { Search, X, Check, Loader2, ChevronDown } from 'lucide-react';
 
 export interface EntitySearchOption {
   id: string;
@@ -56,12 +56,16 @@ export default function EntitySearchInput({
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   // Internal flag: true from the moment user types until parent loading cycle completes
   const [pendingSearch, setPendingSearch] = useState(false);
+  // Mobile fullscreen modal mode
+  const [mobileModal, setMobileModal] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const selected = options.find(o => o.id === value);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   // Track when parent loading has started so we only clear pendingSearch after loading completes
   const loadingStartedRef = useRef(false);
@@ -104,9 +108,9 @@ export default function EntitySearchInput({
         )
       : options;
 
-  // Click outside to close
+  // Click outside to close (desktop only)
   useEffect(() => {
-    if (!open) return;
+    if (!open || mobileModal) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -117,18 +121,19 @@ export default function EntitySearchInput({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [open]);
+  }, [open, mobileModal]);
 
   // Reset highlight when search changes
   useEffect(() => {
     setHighlightIdx(search ? 0 : -1);
   }, [search]);
 
-  // Calculate dropdown position (fixed, so it floats above everything)
+  // Calculate dropdown position — desktop only (fixed, so it floats above everything)
   useEffect(() => {
-    if (!open || !inputRef.current) return;
+    if (!open || mobileModal || !inputRef.current) return;
     const update = () => {
-      const rect = inputRef.current!.getBoundingClientRect();
+      if (!inputRef.current) return;
+      const rect = inputRef.current.getBoundingClientRect();
       setDropdownStyle({
         position: 'fixed',
         top: rect.bottom + 4,
@@ -143,7 +148,21 @@ export default function EntitySearchInput({
       window.removeEventListener('scroll', update, true);
       window.removeEventListener('resize', update);
     };
-  }, [open]);
+  }, [open, mobileModal]);
+
+  // Lock body scroll when mobile modal is open
+  useEffect(() => {
+    if (!mobileModal) return;
+    document.body.style.overflow = 'hidden';
+    // Transfer focus from proxy input to modal input.
+    // On iOS, keyboard stays open if focus moves between inputs without delay.
+    requestAnimationFrame(() => {
+      mobileInputRef.current?.focus();
+    });
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileModal]);
 
   // Scroll highlighted into view
   useEffect(() => {
@@ -157,6 +176,7 @@ export default function EntitySearchInput({
     setPendingSearch(false);
     onChange(option.id, option);
     setOpen(false);
+    setMobileModal(false);
     setSearch('');
   }, [onChange]);
 
@@ -167,6 +187,26 @@ export default function EntitySearchInput({
     setSearch('');
     setTimeout(() => inputRef.current?.focus(), 50);
   }, [onClear]);
+
+  const closeMobileModal = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setPendingSearch(false);
+    setMobileModal(false);
+    setOpen(false);
+    setSearch('');
+  }, []);
+
+  const handleSearchChange = useCallback((val: string) => {
+    setSearch(val);
+    if (!open) setOpen(true);
+    if (onSearchChange) {
+      setPendingSearch(val.length >= minSearchLength);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        onSearchChange(val);
+      }, 300);
+    }
+  }, [open, onSearchChange, minSearchLength]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!open) return;
@@ -188,13 +228,57 @@ export default function EntitySearchInput({
         break;
       case 'Escape':
         e.preventDefault();
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        setPendingSearch(false);
-        setOpen(false);
-        setSearch('');
+        if (mobileModal) {
+          closeMobileModal();
+        } else {
+          if (debounceRef.current) clearTimeout(debounceRef.current);
+          setPendingSearch(false);
+          setOpen(false);
+          setSearch('');
+        }
         break;
     }
-  }, [open, filtered, highlightIdx, handleSelect]);
+  }, [open, filtered, highlightIdx, handleSelect, mobileModal, closeMobileModal]);
+
+  // Shared option list renderer
+  const renderOptions = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+        </div>
+      );
+    }
+    if (filtered.length === 0) {
+      return (
+        <div className="px-3 py-4 text-sm text-gray-400 dark:text-slate-500 text-center">
+          {emptyMessage || 'ไม่พบผลลัพธ์'}
+        </div>
+      );
+    }
+    return filtered.map((o, idx) => (
+      <button
+        key={o.id}
+        data-option
+        type="button"
+        onClick={() => handleSelect(o)}
+        onMouseEnter={() => setHighlightIdx(idx)}
+        className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors ${
+          idx === highlightIdx
+            ? 'bg-gray-50 dark:bg-slate-700'
+            : ''
+        } text-gray-700 dark:text-slate-300`}
+      >
+        {o.icon && <span className="flex-shrink-0">{o.icon}</span>}
+        <div className="flex-1 min-w-0 text-left">
+          <div className="truncate font-medium">{o.label}</div>
+          {o.subtitle && (
+            <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{o.subtitle}</div>
+          )}
+        </div>
+      </button>
+    ));
+  };
 
   // Show selected state
   if (value && selected) {
@@ -249,22 +333,20 @@ export default function EntitySearchInput({
           ref={inputRef}
           type="text"
           value={search}
-          onChange={e => {
-            const val = e.target.value;
-            setSearch(val);
-            if (!open) setOpen(true);
-            if (onSearchChange) {
-              // Mark as pending immediately so loading spinner shows
-              setPendingSearch(val.length >= minSearchLength);
-              // Debounce the actual API call (300ms)
-              if (debounceRef.current) clearTimeout(debounceRef.current);
-              debounceRef.current = setTimeout(() => {
-                onSearchChange(val);
-              }, 300);
+          onChange={e => handleSearchChange(e.target.value)}
+          onFocus={() => {
+            if (!isMobile) {
+              if (search || options.length <= 20) setOpen(true);
             }
           }}
-          onFocus={() => {
-            if (search || options.length <= 20) setOpen(true);
+          onClick={() => {
+            if (isMobile && !disabled) {
+              // On iOS, the keyboard opens because this input gets focus from tap.
+              // We open the modal and transfer focus to modal input via requestAnimationFrame
+              // so the keyboard stays open.
+              setMobileModal(true);
+              setOpen(true);
+            }
           }}
           placeholder={placeholder}
           disabled={disabled}
@@ -275,44 +357,61 @@ export default function EntitySearchInput({
         />
       </div>
 
-      {/* Dropdown — fixed, floats above everything */}
-      {open && (search.length >= minSearchLength) && (search || options.length <= 20) && (
-        <div style={dropdownStyle} className="z-[100] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg overflow-hidden">
-          <div ref={listRef} className="max-h-60 overflow-y-auto py-1">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-gray-400 dark:text-slate-500 text-center">
-                {emptyMessage || 'ไม่พบผลลัพธ์'}
-              </div>
-            ) : (
-              filtered.map((o, idx) => (
-                <button
-                  key={o.id}
-                  data-option
-                  type="button"
-                  onClick={() => handleSelect(o)}
-                  onMouseEnter={() => setHighlightIdx(idx)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
-                    idx === highlightIdx
-                      ? 'bg-gray-50 dark:bg-slate-700'
-                      : ''
-                  } text-gray-700 dark:text-slate-300`}
-                >
-                  {o.icon && <span className="flex-shrink-0">{o.icon}</span>}
-                  <div className="flex-1 min-w-0 text-left">
-                    <div className="truncate font-medium">{o.label}</div>
-                    {o.subtitle && (
-                      <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{o.subtitle}</div>
-                    )}
-                  </div>
-                </button>
-              ))
-            )}
+      {/* Desktop Dropdown — fixed, floats above everything */}
+      {open && !mobileModal && (search.length >= minSearchLength) && (search || options.length <= 20) && (
+        <div style={dropdownStyle} className="z-[100] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg overflow-hidden flex flex-col">
+          <div ref={listRef} className="max-h-60 overflow-y-auto py-1 flex-1">
+            {renderOptions()}
           </div>
         </div>
+      )}
+
+      {/* Mobile Modal (top sheet with backdrop) */}
+      {mobileModal && (
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 z-[199] bg-black/40" onClick={closeMobileModal} />
+          {/* Panel — centered */}
+          <div className="fixed inset-x-4 top-[15vh] z-[200] bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-h-[55vh] flex flex-col">
+            {/* Search input */}
+            <div className="flex items-center gap-2 p-3 border-b border-gray-200 dark:border-slate-700">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500">
+                  {icon || <Search className="w-4 h-4" />}
+                </span>
+                <input
+                  ref={mobileInputRef}
+                  type="text"
+                  value={search}
+                  onChange={e => handleSearchChange(e.target.value)}
+                  placeholder={placeholder}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={closeMobileModal}
+                className="p-2 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Result list */}
+            <div ref={listRef} className="flex-1 overflow-y-auto">
+              {(search.length >= minSearchLength) && (search || options.length <= 20)
+                ? renderOptions()
+                : (
+                  <div className="px-3 py-8 text-sm text-gray-400 dark:text-slate-500 text-center">
+                    พิมพ์เพื่อค้นหา...
+                  </div>
+                )
+              }
+            </div>
+          </div>
+        </>
       )}
 
       {helperText && !open && (

@@ -242,7 +242,7 @@ export default function SupplierReportsPage() {
             className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
-            สร้างรายงาน
+            สร้าง<span className="hidden md:inline">รายงาน</span>
           </button>
         </div>
 

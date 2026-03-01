@@ -540,7 +540,7 @@ export default function IntegrationsPage() {
                       </div>
 
                       {/* Sync Controls */}
-                      <div className="flex items-center gap-2 pt-1">
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
                         <div className="w-44">
                           <FormSelect
                             value={String(syncRange[account.id] || 1)}

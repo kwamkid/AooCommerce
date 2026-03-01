@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
+import { createCreditNote } from '@/lib/credit-notes/auto-cn';
 
 // Type definitions
 interface OrderItemInput {
@@ -49,6 +50,11 @@ interface OrderData {
   source_name?: string;
   expires_at?: string | null;
   items: OrderItemInput[];
+  exchange?: {
+    from_order_id: string;
+    items: { order_item_id: string; quantity: number }[];
+    reason: string;
+  };
 }
 
 
@@ -546,6 +552,34 @@ export async function POST(request: NextRequest) {
     }
     // --- End stock reservation ---
 
+    // --- Exchange: create CN for returned items from original order ---
+    let creditNote: { cn_id: string; cn_number: string } | null = null;
+    if (orderData.exchange) {
+      try {
+        const cnResult = await createCreditNote({
+          companyId: auth.companyId!,
+          orderId: orderData.exchange.from_order_id,
+          type: 'exchange',
+          reason: orderData.exchange.reason,
+          items: orderData.exchange.items,
+          createdBy: auth.userId,
+        });
+
+        if (cnResult) {
+          creditNote = cnResult;
+          // Link CN to this new exchange order
+          await supabaseAdmin
+            .from('credit_notes')
+            .update({ exchange_order_id: order.id, updated_at: new Date().toISOString() })
+            .eq('id', cnResult.cn_id);
+        }
+      } catch (cnErr) {
+        console.error('[EXCHANGE CN] Error creating credit note:', cnErr);
+        // Non-blocking — order is already created, CN failure shouldn't rollback
+      }
+    }
+    // --- End exchange CN ---
+
     // Fetch complete order details (rpc returns array)
     const { data: completeOrder } = await supabaseAdmin
       .rpc('get_order_details', { p_order_id: order.id });
@@ -557,7 +591,8 @@ export async function POST(request: NextRequest) {
       success: true,
       order: orderResult || order,
       id: order.id,
-      order_number: order.order_number
+      order_number: order.order_number,
+      ...(creditNote ? { credit_note: creditNote } : {}),
     });
   } catch (error) {
     console.error('Server error:', error);
@@ -1011,50 +1046,77 @@ export async function PUT(request: NextRequest) {
             .eq('company_id', auth.companyId);
           if (!error) cancelledCount++;
 
-          // Stock unreserve for new/ready_to_ship orders
-          if (!error && order.warehouse_id && ['new', 'ready_to_ship', 'processing'].includes(order.order_status)) {
-            try {
-              const { data: orderItems } = await supabaseAdmin
-                .from('order_items')
-                .select('variation_id, quantity')
-                .eq('order_id', order.id)
-                .eq('company_id', auth.companyId);
-              for (const oi of orderItems || []) {
-                if (!oi.variation_id) continue;
-                const { data: inv } = await supabaseAdmin
-                  .from('inventory')
-                  .select('id, quantity, reserved_quantity')
-                  .eq('warehouse_id', order.warehouse_id)
-                  .eq('variation_id', oi.variation_id)
-                  .eq('company_id', auth.companyId)
-                  .single();
-                if (inv) {
-                  await supabaseAdmin
+          // Stock return/unreserve based on order status
+          if (!error && order.warehouse_id) {
+            const wasShipped = ['shipping', 'completed'].includes(order.order_status);
+            const wasReserved = ['new', 'ready_to_ship', 'processing'].includes(order.order_status);
+            if (wasShipped || wasReserved) {
+              try {
+                const { data: orderItems } = await supabaseAdmin
+                  .from('order_items')
+                  .select('variation_id, quantity')
+                  .eq('order_id', order.id)
+                  .eq('company_id', auth.companyId);
+                for (const oi of orderItems || []) {
+                  if (!oi.variation_id) continue;
+                  const { data: inv } = await supabaseAdmin
                     .from('inventory')
-                    .update({
-                      reserved_quantity: Math.max(0, (inv.reserved_quantity || 0) - oi.quantity),
-                      updated_at: new Date().toISOString(),
-                    })
-                    .eq('id', inv.id);
-                  await supabaseAdmin
-                    .from('inventory_transactions')
-                    .insert({
-                      company_id: auth.companyId,
-                      warehouse_id: order.warehouse_id,
-                      variation_id: oi.variation_id,
-                      type: 'unreserve',
-                      quantity: oi.quantity,
-                      balance_after: inv.quantity,
-                      reference_type: 'order',
-                      reference_id: order.id,
-                      notes: 'Unreserve for bulk cancelled order',
-                      created_by: auth.userId,
-                      created_at: new Date().toISOString(),
-                    });
+                    .select('id, quantity, reserved_quantity')
+                    .eq('warehouse_id', order.warehouse_id)
+                    .eq('variation_id', oi.variation_id)
+                    .eq('company_id', auth.companyId)
+                    .single();
+                  if (!inv) continue;
+
+                  if (wasShipped) {
+                    // Stock was deducted → return quantity
+                    const newQty = (inv.quantity || 0) + oi.quantity;
+                    await supabaseAdmin
+                      .from('inventory')
+                      .update({ quantity: newQty, updated_at: new Date().toISOString() })
+                      .eq('id', inv.id);
+                    await supabaseAdmin
+                      .from('inventory_transactions')
+                      .insert({
+                        company_id: auth.companyId,
+                        warehouse_id: order.warehouse_id,
+                        variation_id: oi.variation_id,
+                        type: 'return',
+                        quantity: oi.quantity,
+                        balance_after: newQty,
+                        reference_type: 'order',
+                        reference_id: order.id,
+                        notes: 'Return stock for cancelled order',
+                        created_by: auth.userId,
+                        created_at: new Date().toISOString(),
+                      });
+                  } else {
+                    // Stock was only reserved → unreserve
+                    const newReserved = Math.max(0, (inv.reserved_quantity || 0) - oi.quantity);
+                    await supabaseAdmin
+                      .from('inventory')
+                      .update({ reserved_quantity: newReserved, updated_at: new Date().toISOString() })
+                      .eq('id', inv.id);
+                    await supabaseAdmin
+                      .from('inventory_transactions')
+                      .insert({
+                        company_id: auth.companyId,
+                        warehouse_id: order.warehouse_id,
+                        variation_id: oi.variation_id,
+                        type: 'unreserve',
+                        quantity: oi.quantity,
+                        balance_after: inv.quantity,
+                        reference_type: 'order',
+                        reference_id: order.id,
+                        notes: 'Unreserve for cancelled order',
+                        created_by: auth.userId,
+                        created_at: new Date().toISOString(),
+                      });
+                  }
                 }
+              } catch (e) {
+                console.error('[BULK CANCEL] Stock error for order', order.id, e);
               }
-            } catch (e) {
-              console.error('[BULK CANCEL] Stock error for order', order.id, e);
             }
           }
         }

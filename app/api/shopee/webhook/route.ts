@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeAccountRow } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 import { getPushLabel } from '@/lib/shopee/webhook-codes';
+import { createCreditNote, hasCreditNote } from '@/lib/credit-notes/auto-cn';
 import crypto from 'crypto';
 
 // Allow up to 60s — sync runs in background via after() but Vercel
@@ -171,6 +172,14 @@ async function processWebhook(
 
       try {
         await syncSingleOrder(account, orderSn, shopeeStatus || undefined);
+
+        // Auto-create Credit Note for cancelled/refunded orders
+        try {
+          await tryAutoCreditNote(account, orderSn, pushCode, shopeeStatus);
+        } catch (cnErr) {
+          console.error('[Shopee Webhook] Auto-CN error:', cnErr);
+        }
+
         await updateLog('processed');
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown sync error';
@@ -409,5 +418,78 @@ async function syncSingleOrder(account: ShopeeAccountRow, orderSn: string, webho
     });
 
     throw err;
+  }
+}
+
+// ─── Auto Credit Note for Shopee cancellations/refunds ──────────────
+
+async function tryAutoCreditNote(
+  account: ShopeeAccountRow,
+  orderSn: string,
+  pushCode: number,
+  shopeeStatus: string,
+) {
+  // Only for cancel (code 3 → CANCELLED/IN_CANCEL) or refund (code 14)
+  const isCancelled = pushCode === 3 && ['CANCELLED', 'IN_CANCEL'].includes(shopeeStatus);
+  const isRefund = pushCode === 14;
+
+  if (!isCancelled && !isRefund) return;
+
+  // Find the order in our system
+  const { data: order } = await supabaseAdmin
+    .from('orders')
+    .select('id, payment_status, order_status')
+    .eq('company_id', account.company_id)
+    .eq('external_order_sn', orderSn)
+    .maybeSingle();
+
+  if (!order) return;
+
+  // Only create CN if order was paid (no CN needed for unpaid orders)
+  // Check pre-cancel payment status: if it's already 'cancelled' after sync,
+  // we check if there was any payment record
+  const { count: paymentCount } = await supabaseAdmin
+    .from('payment_records')
+    .select('id', { count: 'exact', head: true })
+    .eq('order_id', order.id)
+    .eq('status', 'verified');
+
+  const wasPaid = (paymentCount || 0) > 0;
+  if (!wasPaid) return;
+
+  // Check for existing CN (dedup)
+  const cnType = isCancelled ? 'void' : 'refund';
+  const alreadyHasCn = await hasCreditNote(account.company_id, order.id, cnType);
+  if (alreadyHasCn) return;
+
+  // Create CN
+  const reason = isCancelled
+    ? `Shopee ยกเลิก (${orderSn})`
+    : `Shopee คืนเงิน (${orderSn})`;
+
+  const result = await createCreditNote({
+    companyId: account.company_id,
+    orderId: order.id,
+    type: cnType,
+    reason,
+  });
+
+  if (result) {
+    console.log(`[Shopee Webhook] Auto-CN created: ${result.cn_number} for order ${orderSn} (${cnType})`);
+
+    logIntegration({
+      company_id: account.company_id,
+      integration: 'shopee',
+      account_id: account.id,
+      account_name: account.shop_name,
+      direction: 'incoming',
+      action: 'auto_credit_note',
+      method: 'POST',
+      api_path: '/api/shopee/webhook',
+      status: 'success',
+      reference_type: 'credit_note',
+      reference_id: result.cn_id,
+      reference_label: `${result.cn_number} — ${cnType} for ${orderSn}`,
+    });
   }
 }

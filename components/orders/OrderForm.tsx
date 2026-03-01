@@ -132,6 +132,14 @@ interface OrderFormProps {
   // Order source (e.g., 'line', 'facebook') and channel name
   source?: string;
   sourceName?: string;
+  // Exchange data — items to return from original order (CN created atomically on save)
+  exchangeData?: {
+    from_order_id: string;
+    items: { order_item_id: string; quantity: number }[];
+    reason: string;
+  };
+  // Credit amount from returned items (for displaying price difference)
+  exchangeCreditAmount?: number;
 }
 
 export default function OrderForm({
@@ -148,6 +156,8 @@ export default function OrderForm({
   headerActionsRef,
   source,
   sourceName,
+  exchangeData,
+  exchangeCreditAmount,
 }: OrderFormProps) {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
@@ -287,7 +297,7 @@ export default function OrderForm({
   // Initialize default branch (product-first flow for all modes)
   // This allows product section to show immediately without selecting a customer
   useEffect(() => {
-    if (!isEditMode && !initialOrderData && !preselectedCustomerId && branchOrders.length === 0) {
+    if (!isEditMode && !initialOrderData && branchOrders.length === 0) {
       setBranchOrders([{
         shipping_address_id: '',
         address_name: 'รายการสินค้า',
@@ -368,8 +378,30 @@ export default function OrderForm({
       if (customer) {
         setSelectedCustomer(customer);
         setCustomerSearch(customer.name);
-        fetchShippingAddresses(customer.id, false);
+        // Fetch addresses and auto-select default
         (async () => {
+          try {
+            const addrResponse = await apiFetch(`/api/shipping-addresses?customer_id=${customer.id}`);
+            if (addrResponse.ok) {
+              const addrResult = await addrResponse.json();
+              const addresses = addrResult.addresses || [];
+              setShippingAddresses(addresses);
+              if (addresses.length > 0) {
+                const defaultAddr = addresses.find((a: ShippingAddress) => a.is_default) || addresses[0];
+                setSelectedAddressId(defaultAddr.id);
+                setDeliveryName(defaultAddr.contact_person || customer.name);
+                setDeliveryPhone(defaultAddr.phone || customer.phone || '');
+                setDeliveryEmail(customer.email || '');
+                setDeliveryAddress(defaultAddr.address_line1 || '');
+                setDeliveryDistrict(defaultAddr.district || '');
+                setDeliveryAmphoe(defaultAddr.amphoe || '');
+                setDeliveryProvince(defaultAddr.province || '');
+                setDeliveryPostalCode(defaultAddr.postal_code || '');
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching shipping addresses:', error);
+          }
           try {
             const response = await apiFetch(`/api/customer-prices?customer_id=${customer.id}`);
             if (response.ok) {
@@ -378,6 +410,23 @@ export default function OrderForm({
             }
           } catch (error) {
             console.error('Error fetching customer prices:', error);
+          }
+        })();
+        // Pre-fill tax invoice fields
+        (async () => {
+          try {
+            const res = await apiFetch(`/api/customers/${customer.id}`);
+            if (res.ok) {
+              const data = await res.json();
+              const c = data.customer || data;
+              if (c.tax_company_name) setTaxName(c.tax_company_name);
+              if (c.tax_id) setTaxTaxId(c.tax_id);
+              if (c.tax_branch) setTaxBranch(c.tax_branch);
+              const addrParts = [c.tax_address, c.tax_district, c.tax_amphoe, c.tax_province, c.tax_postal_code].filter(Boolean).join(' ');
+              if (addrParts) setTaxAddress(addrParts);
+            }
+          } catch {
+            // Ignore tax pre-fill errors
           }
         })();
       }
@@ -393,6 +442,15 @@ export default function OrderForm({
         }),
       }));
       setBranchOrders(enrichedBranches);
+    } else if (branchOrders.length === 0) {
+      // Exchange or customer-only init: create default empty branch so product section shows
+      setBranchOrders([{
+        shipping_address_id: '',
+        address_name: 'รายการสินค้า',
+        delivery_notes: '',
+        shipping_fee: 0,
+        products: [],
+      }]);
     }
 
     // Set other fields
@@ -1283,6 +1341,8 @@ export default function OrderForm({
         } : expiryMode === 'none' ? {
           expires_at: null, // explicitly no expiry
         } : {}), // 'default' = let API use company setting
+        // Exchange: items to return from original order → API creates CN atomically
+        ...(exchangeData ? { exchange: exchangeData } : {}),
       };
 
       if (isEditMode) {
@@ -1311,6 +1371,7 @@ export default function OrderForm({
         // New order: show success modal with bill online option
         setSavedOrderId(newOrderId);
         setSavedOrderNumber(result.order?.order_number || result.order_number || '');
+
         setShowSuccessModal(true);
       }
     } catch (error) {
@@ -2144,6 +2205,19 @@ export default function OrderForm({
                   <span>ยอดรวมสุทธิ</span>
                   <span className="text-[#F4511E]">฿{formatPrice(total)}</span>
                 </div>
+                {/* Exchange: price difference summary */}
+                {exchangeCreditAmount != null && exchangeCreditAmount > 0 && (
+                  <>
+                    <div className="flex justify-between text-sm text-green-600 dark:text-green-400 pt-2 border-t border-gray-200 dark:border-slate-600">
+                      <span>เครดิตจากบิลเดิม</span>
+                      <span>-฿{formatPrice(exchangeCreditAmount)}</span>
+                    </div>
+                    <div className={`flex justify-between text-sm font-bold ${total - exchangeCreditAmount > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                      <span>{total - exchangeCreditAmount > 0 ? 'ลูกค้าจ่ายเพิ่ม' : total - exchangeCreditAmount < 0 ? 'คืนเงินลูกค้า' : 'ไม่มีส่วนต่าง'}</span>
+                      <span>฿{formatPrice(Math.abs(total - exchangeCreditAmount))}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

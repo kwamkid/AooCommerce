@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent mobile horizontal overflow */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 /* Consistent form controls - apply to all inputs and selects */
 @layer base {
   input[type="text"],
@@ -239,6 +245,59 @@ input[type="number"]::-webkit-outer-spin-button {
 
 input[type="number"] {
   -moz-appearance: textfield;
+}
+
+/* ── Chat page — full bleed on mobile, padded on desktop ── */
+.chat-container {
+  height: calc(100dvh - 64px);
+}
+@media (min-width: 768px) {
+  .chat-container {
+    height: calc(100vh - 120px);
+    margin: 1.5rem;
+    width: calc(100% - 3rem);
+  }
+}
+
+/* ── Page header responsive — smaller titles on mobile ── */
+@media (max-width: 767px) {
+  /* All page titles that use text-3xl — shrink on mobile */
+  main h1.text-3xl {
+    font-size: 1.25rem !important; /* 20px instead of 30px */
+    line-height: 1.75rem !important;
+  }
+  main h1.text-3xl svg {
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+  }
+}
+
+/* ── Products/filters: prevent horizontal overflow on mobile ── */
+@media (max-width: 767px) {
+  .data-filter-card > .flex {
+    flex-wrap: wrap;
+  }
+  .data-filter-card > .flex > * {
+    min-width: 0;
+  }
+}
+
+/* ── iOS: prevent auto-zoom on input focus ── */
+@supports (-webkit-touch-callout: none) {
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  input[type="search"],
+  input[type="url"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* ── Print: show only receipt content ── */

@@ -33,6 +33,9 @@ import {
   Pencil,
   RefreshCw,
   CheckCircle,
+  ReceiptText,
+  Undo2,
+  Repeat,
 } from 'lucide-react';
 import PaymentModal from '../components/PaymentModal';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
@@ -167,6 +170,17 @@ export default function OrderDetailPage() {
 
   // Shopee financial details toggle
   const [showFinancial, setShowFinancial] = useState(false);
+
+  // Credit Notes
+  const [creditNotes, setCreditNotes] = useState<any[]>([]);
+  const [voidLoading, setVoidLoading] = useState(false);
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundItems, setRefundItems] = useState<{ order_item_id: string; quantity: number; max: number; name: string }[]>([]);
+  const [refundReason, setRefundReason] = useState('');
+  const [refundLoading, setRefundLoading] = useState(false);
+  const [showExchangeModal, setShowExchangeModal] = useState(false);
+  const [exchangeItems, setExchangeItems] = useState<{ order_item_id: string; quantity: number; max: number; name: string }[]>([]);
+  const [exchangeReason, setExchangeReason] = useState('');
 
   // Delivery info edit
   const [editingDelivery, setEditingDelivery] = useState(false);
@@ -633,6 +647,139 @@ export default function OrderDetailPage() {
     }
   };
 
+  // Credit Notes
+  const fetchCreditNotes = async () => {
+    try {
+      const res = await apiFetch(`/api/credit-notes?order_id=${orderId}`);
+      if (res.ok) {
+        const result = await res.json();
+        setCreditNotes(result.data || []);
+      }
+    } catch { /* ignore */ }
+  };
+
+  useEffect(() => {
+    if (orderId && !authLoading && userProfile) {
+      fetchCreditNotes();
+    }
+  }, [orderId, authLoading, userProfile]);
+
+  const handleVoid = async () => {
+    const ok = await confirm({
+      title: 'ยกเลิกบิล (Void)',
+      description: 'ระบบจะออกใบลดหนี้ (Credit Note) และยกเลิกบิลนี้ สต๊อกจะถูกคืนอัตโนมัติ',
+      variant: 'danger',
+      confirmLabel: 'ยืนยันยกเลิกบิล',
+      cancelLabel: 'ยกเลิก',
+      icon: <ReceiptText className="w-6 h-6" />,
+    });
+    if (!ok) return;
+
+    try {
+      setVoidLoading(true);
+      const res = await apiFetch('/api/credit-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId, type: 'void' }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to void');
+      }
+      const result = await res.json();
+      showToast(`ยกเลิกบิลสำเร็จ — ใบลดหนี้ ${result.cn_number}`);
+      setOrderStatus('cancelled');
+      setPaymentStatus('cancelled');
+      fetchCreditNotes();
+      fetchOrderHeader();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setVoidLoading(false);
+    }
+  };
+
+  const handleOpenRefund = () => {
+    if (!fullOrderData?.items || fullOrderData.items.length === 0) {
+      showToast('ไม่พบรายการสินค้า', 'error');
+      return;
+    }
+    const items = fullOrderData.items.map((oi: any) => ({
+      order_item_id: oi.id,
+      quantity: Number(oi.quantity),
+      max: Number(oi.quantity),
+      name: `${oi.product_name || ''}${oi.variation_label ? ` - ${oi.variation_label}` : ''}`,
+    }));
+    setRefundItems(items);
+    setRefundReason('');
+    setShowRefundModal(true);
+  };
+
+  const handleRefundSubmit = async () => {
+    const selected = refundItems.filter(i => i.quantity > 0);
+    if (selected.length === 0) {
+      showToast('กรุณาเลือกรายการที่ต้องการคืน', 'error');
+      return;
+    }
+    try {
+      setRefundLoading(true);
+      const res = await apiFetch('/api/credit-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: orderId,
+          type: 'refund',
+          reason: refundReason || 'คืนสินค้า',
+          items: selected.map(i => ({ order_item_id: i.order_item_id, quantity: i.quantity })),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to refund');
+      }
+      const result = await res.json();
+      showToast(`คืนสินค้าสำเร็จ — ใบลดหนี้ ${result.cn_number}`);
+      setShowRefundModal(false);
+      fetchCreditNotes();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setRefundLoading(false);
+    }
+  };
+
+  const handleOpenExchange = () => {
+    if (!fullOrderData?.items || fullOrderData.items.length === 0) {
+      showToast('ไม่พบรายการสินค้า', 'error');
+      return;
+    }
+    const items = fullOrderData.items.map((oi: any) => ({
+      order_item_id: oi.id,
+      quantity: Number(oi.quantity),
+      max: Number(oi.quantity),
+      name: `${oi.product_name || ''}${oi.variation_label ? ` - ${oi.variation_label}` : ''}`,
+    }));
+    setExchangeItems(items);
+    setExchangeReason('');
+    setShowExchangeModal(true);
+  };
+
+  const handleExchangeSubmit = () => {
+    const selected = exchangeItems.filter(i => i.quantity > 0);
+    if (selected.length === 0) {
+      showToast('กรุณาเลือกรายการที่ต้องการเปลี่ยน', 'error');
+      return;
+    }
+    // Encode exchange data in URL — CN will be created atomically when saving the new order
+    const exchangeData = {
+      items: selected.map(i => ({ order_item_id: i.order_item_id, quantity: i.quantity })),
+      reason: exchangeReason || 'เปลี่ยนสินค้า',
+    };
+    const encoded = btoa(encodeURIComponent(JSON.stringify(exchangeData)));
+    setShowExchangeModal(false);
+    router.push(`/orders/new?from_order=${orderId}&exchange_data=${encoded}`);
+  };
+
   const handleOrderSaved = (savedOrderId: string) => {
     // Reload header to reflect changes
     fetchOrderHeader();
@@ -748,6 +895,37 @@ export default function OrderDetailPage() {
               >
                 <Link2 className="w-4 h-4" />
                 บิลออนไลน์
+              </button>
+            )}
+            {/* Void bill — paid orders that aren't cancelled */}
+            {paymentStatus === 'paid' && orderStatus !== 'cancelled' && !isMarketplaceOrder && (
+              <button
+                onClick={handleVoid}
+                disabled={voidLoading}
+                className="text-red-500 dark:text-red-400 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-1.5 text-sm disabled:opacity-50"
+              >
+                {voidLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ReceiptText className="w-4 h-4" />}
+                ยกเลิกบิล
+              </button>
+            )}
+            {/* Refund — paid orders that aren't cancelled */}
+            {paymentStatus === 'paid' && orderStatus !== 'cancelled' && (
+              <button
+                onClick={handleOpenRefund}
+                className="text-orange-600 dark:text-orange-400 px-3 py-2 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors flex items-center gap-1.5 text-sm"
+              >
+                <Undo2 className="w-4 h-4" />
+                คืนสินค้า
+              </button>
+            )}
+            {/* Exchange — paid orders that aren't cancelled */}
+            {paymentStatus === 'paid' && orderStatus !== 'cancelled' && (
+              <button
+                onClick={handleOpenExchange}
+                className="text-blue-600 dark:text-blue-400 px-3 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-1.5 text-sm"
+              >
+                <Repeat className="w-4 h-4" />
+                เปลี่ยนสินค้า
               </button>
             )}
             {/* Manual: Cancel order icon button */}
@@ -1509,6 +1687,248 @@ export default function OrderDetailPage() {
         )}
 
       </div>
+
+      {/* Credit Notes list */}
+      {creditNotes.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
+          <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <ReceiptText className="w-4 h-4" />
+            ใบลดหนี้ ({creditNotes.length})
+          </div>
+          <div className="space-y-2">
+            {creditNotes.map((cn: any) => (
+              <button
+                key={cn.id}
+                onClick={() => router.push(`/credit-notes/${cn.id}`)}
+                className="w-full flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-slate-700/50 border border-gray-100 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    cn.type === 'void'
+                      ? 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-200'
+                      : cn.type === 'refund'
+                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/30 dark:text-orange-200'
+                        : 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-200'
+                  }`}>
+                    {cn.type === 'void' ? 'ยกเลิกบิล' : cn.type === 'refund' ? 'คืนสินค้า' : 'เปลี่ยนสินค้า'}
+                  </span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{cn.cn_number}</span>
+                  <span className="text-xs text-gray-400 dark:text-slate-500">
+                    {new Date(cn.issued_at).toLocaleDateString('th-TH')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {cn.type === 'exchange' && cn.exchange_order_id && (
+                    <span
+                      className="text-xs text-blue-500 dark:text-blue-400 hover:underline cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); router.push(`/orders/${cn.exchange_order_id}`); }}
+                    >
+                      บิลใหม่ →
+                    </span>
+                  )}
+                  <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                    ฿{formatPrice(cn.total_amount)}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Refund Modal */}
+      {showRefundModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowRefundModal(false)}
+        >
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Undo2 className="w-5 h-5 text-orange-500" />
+                คืนสินค้า
+              </h3>
+              <button onClick={() => setShowRefundModal(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">เลือกรายการที่ต้องการคืนและกำหนดจำนวน</p>
+
+            <div className="space-y-3 mb-4">
+              {refundItems.map((item, idx) => (
+                <div key={item.order_item_id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</div>
+                    <div className="text-xs text-gray-400 dark:text-slate-500">สูงสุด {item.max} ชิ้น</div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = [...refundItems];
+                        updated[idx].quantity = Math.max(0, updated[idx].quantity - 1);
+                        setRefundItems(updated);
+                      }}
+                      className="w-7 h-7 flex items-center justify-center rounded bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors text-sm font-medium"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={0}
+                      max={item.max}
+                      value={item.quantity}
+                      onChange={e => {
+                        const updated = [...refundItems];
+                        updated[idx].quantity = Math.min(item.max, Math.max(0, parseInt(e.target.value) || 0));
+                        setRefundItems(updated);
+                      }}
+                      className="w-12 text-center text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white py-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = [...refundItems];
+                        updated[idx].quantity = Math.min(item.max, updated[idx].quantity + 1);
+                        setRefundItems(updated);
+                      }}
+                      className="w-7 h-7 flex items-center justify-center rounded bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors text-sm font-medium"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เหตุผลการคืน</label>
+              <input
+                type="text"
+                value={refundReason}
+                onChange={e => setRefundReason(e.target.value)}
+                placeholder="ระบุเหตุผล (ไม่บังคับ)"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400"
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowRefundModal(false)}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleRefundSubmit}
+                disabled={refundLoading || refundItems.every(i => i.quantity === 0)}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium disabled:opacity-50 flex items-center gap-2"
+              >
+                {refundLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                ออกใบลดหนี้
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Exchange Modal */}
+      {showExchangeModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowExchangeModal(false)}
+        >
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Repeat className="w-5 h-5 text-blue-500" />
+                เปลี่ยนสินค้า
+              </h3>
+              <button onClick={() => setShowExchangeModal(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">เลือกรายการที่ต้องการเปลี่ยนและกำหนดจำนวน ระบบจะออกใบลดหนี้แล้วเปิดหน้าสร้างบิลใหม่</p>
+
+            <div className="space-y-3 mb-4">
+              {exchangeItems.map((item, idx) => (
+                <div key={item.order_item_id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</div>
+                    <div className="text-xs text-gray-400 dark:text-slate-500">สูงสุด {item.max} ชิ้น</div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = [...exchangeItems];
+                        updated[idx].quantity = Math.max(0, updated[idx].quantity - 1);
+                        setExchangeItems(updated);
+                      }}
+                      className="w-7 h-7 flex items-center justify-center rounded bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors text-sm font-medium"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={0}
+                      max={item.max}
+                      value={item.quantity}
+                      onChange={e => {
+                        const updated = [...exchangeItems];
+                        updated[idx].quantity = Math.min(item.max, Math.max(0, parseInt(e.target.value) || 0));
+                        setExchangeItems(updated);
+                      }}
+                      className="w-12 text-center text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white py-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = [...exchangeItems];
+                        updated[idx].quantity = Math.min(item.max, updated[idx].quantity + 1);
+                        setExchangeItems(updated);
+                      }}
+                      className="w-7 h-7 flex items-center justify-center rounded bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors text-sm font-medium"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เหตุผลการเปลี่ยน</label>
+              <input
+                type="text"
+                value={exchangeReason}
+                onChange={e => setExchangeReason(e.target.value)}
+                placeholder="ระบุเหตุผล (ไม่บังคับ)"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400"
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowExchangeModal(false)}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleExchangeSubmit}
+                disabled={exchangeItems.every(i => i.quantity === 0)}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium disabled:opacity-50 flex items-center gap-2"
+              >
+                เลือกสินค้าใหม่
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmDialog}
     </Layout>

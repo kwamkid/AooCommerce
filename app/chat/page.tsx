@@ -1040,8 +1040,8 @@ function UnifiedChatPageContent() {
   } : undefined;
 
   return (
-    <Layout>
-      <div className="flex relative h-[calc(100vh-120px)] bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+    <Layout noPadding>
+      <div className="chat-container flex relative bg-white dark:bg-slate-800 md:rounded-lg md:border border-gray-200 dark:border-slate-700 overflow-hidden">
         {/* Contacts Sidebar */}
         <div className={`w-full md:w-80 border-r border-gray-200 dark:border-slate-700 flex flex-col ${mobileView !== 'contacts' ? 'hidden md:flex' : 'flex'} ${rightPanel ? 'md:hidden xl:flex' : ''}`}>
           {/* Header */}
@@ -1300,38 +1300,23 @@ function UnifiedChatPageContent() {
           {selectedContact ? (
             <>
               {/* Chat Header */}
-              <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between min-h-[81px]">
-                <div className="flex items-center gap-3">
-                  <button onClick={() => { setSelectedContact(null); setMobileView('contacts'); }} className="md:hidden p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button>
+              <div className="px-2 py-2 md:p-4 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2 md:gap-3">
+                <button onClick={() => { setSelectedContact(null); setMobileView('contacts'); }} className="md:hidden p-1 text-gray-500 hover:text-gray-700 flex-shrink-0"><ChevronLeft className="w-5 h-5" /></button>
                   {(() => {
-                    const profileUrl = selectedContact.platform === 'facebook' && selectedContact.source !== 'instagram'
-                      ? `https://www.facebook.com/messages/t/${selectedContact.platform_user_id}` : null;
                     const avatar = getAvatarUrl(selectedContact);
                     const avatarEl = avatar ? (
-                      <Image src={avatar} alt={selectedContact.display_name} width={40} height={40} className="w-10 h-10 rounded-full object-cover" unoptimized />
+                      <Image src={avatar} alt={selectedContact.display_name} width={36} height={36} className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" unoptimized />
                     ) : (
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: platformColor }}>{getInitials(selectedContact.display_name)}</div>
+                      <div className="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style={{ backgroundColor: platformColor }}>{getInitials(selectedContact.display_name)}</div>
                     );
                     return (<>
-                      {profileUrl ? (
-                        <a href={profileUrl} target="_blank" rel="noopener noreferrer" className="relative group flex-shrink-0" title="ดูโปรไฟล์">
-                          {avatarEl}
-                          <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                            <ExternalLink className="w-3.5 h-3.5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        </a>
-                      ) : avatarEl}
-                      <div>
-                        <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
-                          <PlatformIcon contact={selectedContact} size={16} />
-                          {profileUrl ? (
-                            <a href={profileUrl} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1">
-                              {selectedContact.display_name}
-                              <ExternalLink className="w-3 h-3 text-gray-400" />
-                            </a>
-                          ) : selectedContact.display_name}
+                      {avatarEl}
+                      <div className="min-w-0 flex-1 overflow-hidden" style={{ maxWidth: 'calc(100vw - 220px)' }}>
+                        <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-1.5 min-w-0">
+                          <span className="flex-shrink-0"><PlatformIcon contact={selectedContact} size={16} /></span>
+                          <span className="truncate">{selectedContact.display_name}</span>
                         </h3>
-                    {selectedContact.account_name && (<p className="text-xs text-gray-400 max-w-[200px] truncate">{selectedContact.account_name}</p>)}
+                    {selectedContact.account_name && (<p className="text-xs text-gray-400 truncate">{selectedContact.account_name}</p>)}
                     {selectedContact.referral_ad_title && (() => {
                       const adData = selectedContact.referral_data?.ads_context_data;
                       const postId = adData?.post_id;
@@ -1367,18 +1352,17 @@ function UnifiedChatPageContent() {
                   </div>
                     </>);
                   })()}
-                </div>
-                <div className="flex items-center gap-1 md:gap-2">
+                <div className="flex items-center gap-1 flex-shrink-0">
                   {selectedContact.customer ? (
                     <>
-                      <button onClick={handleOpenHistory} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'history' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ดูประวัติออเดอร์"><History className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">ประวัติ</span>}</button>
-                      <button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'order' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">เปิดบิล</span>}</button>
-                      <button onClick={handleOpenProfile} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ดูข้อมูลลูกค้า"><User className="w-4 h-4" /></button>
+                      <button onClick={handleOpenHistory} className={`p-2 rounded-lg transition-colors ${rightPanel === 'history' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ดูประวัติออเดอร์"><History className="w-4 h-4" /></button>
+                      <button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" /></button>
+                      <button onClick={handleOpenProfile} className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ดูข้อมูลลูกค้า"><User className="w-4 h-4" /></button>
                     </>
                   ) : (
                     <>
-                      <button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium ${rightPanel === 'order' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">เปิดบิล</span>}</button>
-                      <button onClick={() => { setShowLinkModal(true); }} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-sm font-medium bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600" title="เชื่อมลูกค้าที่มีอยู่"><LinkIcon className="w-4 h-4" />{!rightPanel && <span className="hidden sm:inline">เชื่อมลูกค้า</span>}</button>
+                      <button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" /></button>
+                      <button onClick={() => { setShowLinkModal(true); }} className="p-2 rounded-lg transition-colors bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600" title="เชื่อมลูกค้าที่มีอยู่"><LinkIcon className="w-4 h-4" /></button>
                     </>
                   )}
                 </div>
@@ -1394,7 +1378,7 @@ function UnifiedChatPageContent() {
                   <>
                     <div ref={messagesTopRef} className="py-1">{loadingMore && (<div className="flex items-center justify-center py-2"><Loader2 className="w-4 h-4 text-gray-400 animate-spin" /></div>)}</div>
                     {messages.map((msg) => (
-                      <div key={msg.id} className={`flex ${msg.direction === 'outgoing' ? 'justify-end' : 'justify-start'} gap-2`}>
+                      <div key={msg.id} className={`flex ${msg.direction === 'outgoing' ? 'justify-end pl-8' : 'justify-start pr-8'} gap-2`}>
                         {msg.direction === 'incoming' && (
                           <div className="flex-shrink-0 self-end">
                             {(msg.sender_picture_url || getAvatarUrl(selectedContact)) ? (<Image src={msg.sender_picture_url || getAvatarUrl(selectedContact)!} alt={msg.sender_name || selectedContact.display_name} width={32} height={32} className="w-8 h-8 rounded-full object-cover" unoptimized />) : (<div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold" style={{ backgroundColor: platformColor }}>{getInitials(selectedContact.display_name)}</div>)}
@@ -1463,7 +1447,8 @@ function UnifiedChatPageContent() {
                   </div>
                   <input ref={inputRef} type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                    placeholder="พิมพ์ข้อความ..." className="flex-1 min-w-0 px-3 md:px-4 py-2 text-sm md:text-base border border-gray-300 rounded-full focus:outline-none focus:ring-2" style={{ '--tw-ring-color': platformColor } as any} />
+                    placeholder="พิมพ์ข้อความ..." autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} enterKeyHint="send"
+                    className="flex-1 min-w-0 px-3 md:px-4 py-2 mr-2 text-sm md:text-base border border-gray-300 rounded-[15px] focus:outline-none focus:ring-2" style={{ '--tw-ring-color': platformColor } as any} />
                   <button onClick={() => { sendMessage(); }} disabled={!newMessage.trim()} className="p-2 text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0" style={{ backgroundColor: platformColor }}><Send className="w-5 h-5" /></button>
                 </div>
               </div>

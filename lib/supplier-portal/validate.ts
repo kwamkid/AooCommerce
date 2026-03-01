@@ -6,6 +6,7 @@ interface PortalContext {
   supplierId: string;
   companyId: string;
   companyName: string;
+  companyLogo: string | null;
   supplierName: string;
   supplierType: string;
 }
@@ -38,7 +39,7 @@ export async function validatePortalAccess(supplierId: string): Promise<Validati
   // Layer 3: Company feature enabled
   const { data: company } = await supabaseAdmin
     .from('companies')
-    .select('name, settings')
+    .select('name, logo_url, settings')
     .eq('id', supplier.company_id)
     .single();
 
@@ -53,6 +54,7 @@ export async function validatePortalAccess(supplierId: string): Promise<Validati
       supplierId: supplier.id,
       companyId: supplier.company_id,
       companyName: company?.name || '',
+      companyLogo: company?.logo_url || null,
       supplierName: supplier.name,
       supplierType: supplier.supplier_type,
     },

@@ -663,7 +663,7 @@ export default function MembersPage() {
                       className="flex items-center px-4 py-2 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors whitespace-nowrap"
                     >
                       <Plus className="w-5 h-5 mr-1.5" />
-                      เพิ่มสมาชิก
+                      เพิ่ม<span className="hidden md:inline">สมาชิก</span>
                     </button>
                   )}
                 </div>

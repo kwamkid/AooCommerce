@@ -401,8 +401,10 @@ export default function CreatePurchaseOrderPage() {
               <Link
                 href={`/settings/suppliers/${selectedSupplierId}/edit`}
                 className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                title="แก้ไข Supplier"
               >
-                แก้ไข Supplier <ExternalLink className="w-3 h-3" />
+                <span className="hidden md:inline">แก้ไข Supplier</span>
+                <ExternalLink className="w-4 h-4 md:w-3 md:h-3" />
               </Link>
             </div>
 
@@ -669,20 +671,10 @@ export default function CreatePurchaseOrderPage() {
                 </div>
               </div>
             ))}
-
-            {/* Mobile summary */}
-            <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2.5 flex items-center justify-between">
-              <span className="text-sm text-gray-500 dark:text-slate-400">
-                รวม {items.length} รายการ | {totalQty.toLocaleString()} ชิ้น
-              </span>
-              <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                ฿{formatCurrency(totalAmount)}
-              </span>
-            </div>
           </div>
         )}
 
-        {/* Mobile: Search + empty state */}
+        {/* Mobile: Search + empty state — before summary so order matches desktop */}
         <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
           {selectedSupplierId ? (
             <>
@@ -707,6 +699,18 @@ export default function CreatePurchaseOrderPage() {
             </div>
           )}
         </div>
+
+        {/* Mobile summary */}
+        {items.length > 0 && (
+          <div className="md:hidden bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2.5 flex items-center justify-between">
+            <span className="text-sm text-gray-500 dark:text-slate-400">
+              รวม {items.length} รายการ | {totalQty.toLocaleString()} ชิ้น
+            </span>
+            <span className="text-sm font-semibold text-gray-900 dark:text-white">
+              ฿{formatCurrency(totalAmount)}
+            </span>
+          </div>
+        )}
 
         {/* Notes */}
         {items.length > 0 && (

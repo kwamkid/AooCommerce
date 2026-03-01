@@ -299,7 +299,7 @@ export default function SuppliersPage() {
             className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center font-medium"
           >
             <Plus className="w-5 h-5 mr-2" />
-            เพิ่มซัพพลายเออร์
+            เพิ่ม<span className="hidden md:inline">ซัพพลายเออร์</span>
           </button>
         </div>
 

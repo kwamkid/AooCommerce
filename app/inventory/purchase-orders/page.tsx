@@ -218,57 +218,56 @@ export default function PurchaseOrdersPage() {
     >
       <div className="space-y-4">
         {/* Action Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <div className="relative flex-1">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
-              placeholder="ค้นหาเลขที่ PO, Supplier, ผู้สร้าง..."
+              placeholder="ค้นหา..."
               className="w-full pl-9 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-40">
+          <div className="w-28 md:w-40 flex-shrink-0">
+            <FormSelect
+              value={statusFilter}
+              onChange={v => { setStatusFilter(v); setPage(1); }}
+              options={STATUS_OPTIONS}
+              clearLabel="ทุกสถานะ"
+              searchThreshold={99}
+            />
+          </div>
+          {suppliers.length > 1 && (
+            <div className="hidden md:block w-40 flex-shrink-0">
               <FormSelect
-                value={statusFilter}
-                onChange={v => { setStatusFilter(v); setPage(1); }}
-                options={STATUS_OPTIONS}
-                clearLabel="ทุกสถานะ"
-                searchThreshold={99}
+                value={supplierFilter}
+                onChange={v => { setSupplierFilter(v); setPage(1); }}
+                options={suppliers.map(s => ({ id: s.id, label: s.name }))}
+                clearLabel="ทุก Supplier"
+                icon={<Factory className="w-4 h-4" />}
               />
             </div>
-            {suppliers.length > 1 && (
-              <div className="w-40">
-                <FormSelect
-                  value={supplierFilter}
-                  onChange={v => { setSupplierFilter(v); setPage(1); }}
-                  options={suppliers.map(s => ({ id: s.id, label: s.name }))}
-                  clearLabel="ทุก Supplier"
-                  icon={<Factory className="w-4 h-4" />}
-                />
-              </div>
-            )}
-            {warehouses.length > 1 && (
-              <div className="w-40">
-                <FormSelect
-                  value={warehouseFilter}
-                  onChange={v => { setWarehouseFilter(v); setPage(1); }}
-                  options={warehouses.map(wh => ({ id: wh.id, label: wh.name }))}
-                  clearLabel="ทุกคลัง"
-                  icon={<Warehouse className="w-4 h-4" />}
-                />
-              </div>
-            )}
-            <button
-              onClick={() => router.push('/inventory/purchase-order')}
-              className="bg-[#F4511E] text-white px-4 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4" />
-              สร้างใบสั่งซื้อ
-            </button>
-          </div>
+          )}
+          {warehouses.length > 1 && (
+            <div className="hidden md:block w-40 flex-shrink-0">
+              <FormSelect
+                value={warehouseFilter}
+                onChange={v => { setWarehouseFilter(v); setPage(1); }}
+                options={warehouses.map(wh => ({ id: wh.id, label: wh.name }))}
+                clearLabel="ทุกคลัง"
+                icon={<Warehouse className="w-4 h-4" />}
+              />
+            </div>
+          )}
+          <button
+            onClick={() => router.push('/inventory/purchase-order')}
+            className="bg-[#F4511E] text-white p-2.5 md:px-4 md:py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap flex-shrink-0"
+            title="สร้างใบสั่งซื้อ"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden md:inline">สร้างใบสั่งซื้อ</span>
+          </button>
         </div>
 
         {/* Desktop Table */}

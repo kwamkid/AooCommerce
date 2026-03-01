@@ -44,6 +44,7 @@ import {
   Receipt,
   Factory,
   ClipboardList,
+  ReceiptText,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -91,6 +92,12 @@ const menuSections: MenuSection[] = [
       { label: 'ลูกค้า', href: '/customers', icon: <UserCircle className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
       { label: 'ติดตามลูกค้า', href: '/crm/follow-up', icon: <UserCheck className="w-5 h-5" />, roles: ['admin', 'sales'] },
       { label: 'ติดตามหนี้', href: '/crm/payment-followup', icon: <DollarSign className="w-5 h-5" />, roles: ['admin', 'sales'] },
+    ]
+  },
+  {
+    title: 'เอกสารบัญชี',
+    items: [
+      { label: 'ใบลดหนี้', href: '/credit-notes', icon: <ReceiptText className="w-5 h-5" />, roles: ['admin', 'account'] },
     ]
   },
   {

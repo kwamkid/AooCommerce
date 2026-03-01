@@ -104,6 +104,7 @@ export default function SupplierPortalPage() {
   const [supplierName, setSupplierName] = useState('');
   const [supplierType, setSupplierType] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null);
 
   // Dark mode (independent from admin system)
   const [dark, setDark] = useState(true);
@@ -200,10 +201,8 @@ export default function SupplierPortalPage() {
       }
 
       const data = await res.json();
-      // If the access code belongs to a different supplier, redirect
       if (data.supplier_id !== supplierId) {
-        sessionStorage.setItem(`portal-auth-${data.supplier_id}`, 'true');
-        router.replace(`/supplier-portal/${data.supplier_id}`);
+        setAuthError('รหัสไม่ถูกต้อง กรุณาลองใหม่');
         return;
       }
 
@@ -223,6 +222,7 @@ export default function SupplierPortalPage() {
     setSupplierName('');
     setSupplierType('');
     setCompanyName('');
+    setCompanyLogo(null);
     setStock([]);
     setSales([]);
     setPOs([]);
@@ -241,6 +241,7 @@ export default function SupplierPortalPage() {
       setSupplierName(data.supplier.name);
       setSupplierType(data.supplier.type);
       setCompanyName(data.company?.name || '');
+      setCompanyLogo(data.company?.logo_url || null);
 
       // Fetch all data in parallel
       const [stockRes, poRes, reportRes] = await Promise.all([
@@ -406,9 +407,21 @@ export default function SupplierPortalPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-[#1A1A2E] transition-colors" suppressHydrationWarning>
       {/* Top bar */}
       <div className="sticky top-0 bg-[#1A1A2E] px-4 py-3 flex items-center justify-between z-10 shadow-md">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Image src="/logo.svg" alt="Logo" width={80} height={52} className="h-8 w-auto" priority />
-          <span className="font-medium text-white/80 text-sm ml-2">{supplierName}</span>
+          {(companyLogo || companyName) && (
+            <>
+              <div className="w-px h-6 bg-white/20" />
+              <div className="flex items-center gap-2">
+                {companyLogo && (
+                  <img src={companyLogo} alt="" className="w-7 h-7 rounded-full object-cover" />
+                )}
+                {companyName && (
+                  <span className="text-sm text-white/80 font-medium">{companyName}</span>
+                )}
+              </div>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -431,13 +444,7 @@ export default function SupplierPortalPage() {
     <div className="max-w-4xl mx-auto px-4 py-6">
       {/* Header */}
       <div className="text-center mb-6">
-        {companyName && (
-          <p className="text-xs text-gray-400 dark:text-slate-500 mb-1">{companyName}</p>
-        )}
-        <div className="flex items-center justify-center gap-2 mb-1">
-          <Factory className="w-6 h-6 text-[#F4511E]" />
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">{supplierName}</h1>
-        </div>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{supplierName}</h1>
         <p className="text-sm text-gray-500 dark:text-slate-400">Supplier Portal</p>
       </div>
 

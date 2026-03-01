@@ -339,7 +339,7 @@ export default function WarehouseSettingsPage() {
                 className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                เพิ่มคลังสินค้า
+                เพิ่ม<span className="hidden md:inline">คลังสินค้า</span>
               </button>
             ) : null}
           </div>
