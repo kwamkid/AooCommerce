@@ -1,7 +1,7 @@
 // Path: app/products/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
@@ -25,6 +25,7 @@ import {
   Loader2,
   Award,
   AlertCircle,
+  MoreVertical,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
@@ -87,11 +88,11 @@ interface BrandOption {
 const COLUMN_CONFIGS: ColumnConfig[] = [
   { key: 'image', label: 'รูปภาพ', defaultVisible: true },
   { key: 'nameCode', label: 'ชื่อ/รหัส', defaultVisible: true },
-  { key: 'type', label: 'ประเภท', defaultVisible: true },
   { key: 'price', label: 'ราคา', defaultVisible: true },
   { key: 'sku', label: 'SKU', defaultVisible: false },
   { key: 'barcode', label: 'Barcode', defaultVisible: false },
   { key: 'brand', label: 'Brand', defaultVisible: false },
+  { key: 'type', label: 'ประเภท', defaultVisible: true },
   { key: 'status', label: 'สถานะ', defaultVisible: true },
   { key: 'actions', label: 'จัดการ', defaultVisible: true, alwaysVisible: true },
 ];
@@ -104,15 +105,68 @@ function getDefaultColumns(): ColumnKey[] {
 
 function ActiveBadge({ isActive }: { isActive: boolean }) {
   return isActive ? (
-    <span className="flex items-center text-green-600">
-      <Check className="w-4 h-4 mr-1" />
-      <span className="text-sm">ใช้งาน</span>
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30" title="ใช้งาน">
+      <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
     </span>
   ) : (
-    <span className="flex items-center text-gray-600 dark:text-slate-400">
-      <X className="w-4 h-4 mr-1" />
-      <span className="text-sm">ปิดใช้งาน</span>
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-700" title="ปิดใช้งาน">
+      <X className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
     </span>
+  );
+}
+
+function ActionMenu({ productId, onEdit, onDuplicate, onDelete }: {
+  productId: string;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+      >
+        <MoreVertical className="w-4 h-4" />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-50 mt-1 w-40 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg py-1">
+          <button
+            onClick={() => { setOpen(false); onEdit(); }}
+            className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+            แก้ไข
+          </button>
+          <button
+            onClick={() => { setOpen(false); onDuplicate(); }}
+            className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            คัดลอก
+          </button>
+          <button
+            onClick={() => { setOpen(false); onDelete(); }}
+            className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            ลบ
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -587,16 +641,16 @@ export default function ProductsPage() {
               <table className="data-table-fixed">
                 <thead className="data-thead">
                   <tr>
-                    <th className="w-[44px] px-3 py-2.5 text-center">
+                    <th className="w-[36px] px-1 py-2 text-center">
                       <Checkbox checked={allPageSelected} onChange={() => toggleSelectAll()} />
                     </th>
-                    {isCol('image') && <th className={`${thClass} w-[88px]`}>รูปภาพ</th>}
-                    {isCol('nameCode') && <th className={thClass}>ชื่อ/รหัส</th>}
-                    {isCol('type') && <th className={thClass}>ประเภท</th>}
-                    {isCol('price') && <th className={thClass}>ราคา</th>}
-                    {isCol('brand') && <th className={thClass}>Brand</th>}
-                    {isCol('status') && <th className={thClass}>สถานะ</th>}
-                    {isCol('actions') && <th className={`${thClass} text-right`}>จัดการ</th>}
+                    {isCol('image') && <th className={`${thClass} !px-1`} style={{ width: '72px', minWidth: '72px' }}>รูป</th>}
+                    {isCol('nameCode') && <th className={`${thClass} !px-2`} style={{ minWidth: '340px' }}>ชื่อ/รหัส</th>}
+                    {isCol('price') && <th className={`${thClass} !px-2`} style={{ minWidth: '180px' }}>ราคา</th>}
+                    {isCol('brand') && <th className={`${thClass} !px-2`}>Brand</th>}
+                    {isCol('type') && <th className={`${thClass} !px-2 w-[80px]`}>ประเภท</th>}
+                    {isCol('status') && <th className={`${thClass} !px-1 w-[50px] text-center`}>สถานะ</th>}
+                    {isCol('actions') && <th className={`${thClass} !px-1 w-[44px] text-center`}>จัดการ</th>}
                   </tr>
                 </thead>
                 <tbody className="data-tbody">
@@ -608,22 +662,26 @@ export default function ProductsPage() {
                     paginatedProducts.map((product) => (
                       <tr key={product.product_id} className="data-tr">
                         {/* Checkbox */}
-                        <td className="w-[44px] px-3 py-2.5 text-center">
+                        <td className="w-[36px] px-1 py-2 text-center">
                           <Checkbox checked={selectedIds.has(product.product_id)} onChange={() => toggleSelect(product.product_id)} />
                         </td>
                         {/* Image */}
                         {isCol('image') && (
-                          <td className="px-3 py-2.5 whitespace-nowrap w-[88px]">
+                          <td className="px-1 py-1.5 whitespace-nowrap" style={{ width: '72px', minWidth: '72px' }}>
                             {(product.main_image_url || product.image) ? (
                               <img
                                 src={product.main_image_url || getImageUrl(product.image)}
                                 alt={product.name}
-                                className="w-16 h-16 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                                style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px' }}
+                                className="object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
                                 onClick={() => setLightboxImage(product.main_image_url || getImageUrl(product.image))}
                               />
                             ) : (
-                              <div className="w-16 h-16 bg-gray-200 dark:bg-slate-700 rounded flex items-center justify-center">
-                                <Package2 className="w-8 h-8 text-gray-400" />
+                              <div
+                                style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px' }}
+                                className="bg-gray-200 dark:bg-slate-700 rounded flex items-center justify-center"
+                              >
+                                <Package2 className="w-7 h-7 text-gray-400" />
                               </div>
                             )}
                           </td>
@@ -631,7 +689,7 @@ export default function ProductsPage() {
 
                         {/* Name / Code */}
                         {isCol('nameCode') && (
-                          <td className="px-5 py-3">
+                          <td className="px-2 py-2">
                             <div className="text-base font-medium text-gray-900 dark:text-white line-clamp-2">
                               {product.name}
                             </div>
@@ -639,22 +697,9 @@ export default function ProductsPage() {
                           </td>
                         )}
 
-                        {/* Type */}
-                        {isCol('type') && (
-                          <td className="px-5 py-3 whitespace-nowrap">
-                            <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${
-                              product.product_type === 'simple'
-                                ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
-                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                            }`}>
-                              {product.product_type === 'simple' ? 'สินค้าปกติ' : 'สินค้าย่อย'}
-                            </span>
-                          </td>
-                        )}
-
                         {/* Price (+ inline SKU/Barcode) */}
                         {isCol('price') && (
-                          <td className="px-5 py-3">
+                          <td className="px-2 py-2">
                             {product.product_type === 'simple' ? (
                               <div>
                                 <div className="text-base flex items-center space-x-1">
@@ -711,7 +756,7 @@ export default function ProductsPage() {
 
                         {/* Brand */}
                         {isCol('brand') && (
-                          <td className="px-5 py-3 whitespace-nowrap">
+                          <td className="px-2 py-2 whitespace-nowrap">
                             {product.brand_id ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
                                 <Award className="w-3 h-3" />
@@ -723,37 +768,35 @@ export default function ProductsPage() {
                           </td>
                         )}
 
+                        {/* Type */}
+                        {isCol('type') && (
+                          <td className="px-2 py-2 whitespace-nowrap">
+                            <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${
+                              product.product_type === 'simple'
+                                ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                            }`}>
+                              {product.product_type === 'simple' ? 'ปกติ' : 'ย่อย'}
+                            </span>
+                          </td>
+                        )}
+
                         {/* Status */}
                         {isCol('status') && (
-                          <td className="px-5 py-3 whitespace-nowrap">
+                          <td className="px-1 py-2 whitespace-nowrap text-center">
                             <ActiveBadge isActive={product.is_active} />
                           </td>
                         )}
 
-                        {/* Actions */}
+                        {/* Actions — dropdown menu */}
                         {isCol('actions') && (
-                          <td className="px-5 py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                            <button
-                              onClick={() => window.open(`/products/${product.product_id}/edit`, '_blank')}
-                              className="text-[#F4511E] hover:text-[#D63B0E] inline-flex items-center"
-                              title="แก้ไข"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => router.push(`/products/new?duplicate=${product.product_id}`)}
-                              className="text-blue-500 hover:text-blue-600 inline-flex items-center"
-                              title="คัดลอกสินค้า"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(product)}
-                              className="text-red-600 hover:text-red-700 inline-flex items-center"
-                              title="ลบ"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                          <td className="px-1 py-2 whitespace-nowrap text-center">
+                            <ActionMenu
+                              productId={product.product_id}
+                              onEdit={() => window.open(`/products/${product.product_id}/edit`, '_blank')}
+                              onDuplicate={() => router.push(`/products/new?duplicate=${product.product_id}`)}
+                              onDelete={() => handleDelete(product)}
+                            />
                           </td>
                         )}
                       </tr>

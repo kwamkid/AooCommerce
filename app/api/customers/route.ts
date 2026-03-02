@@ -149,11 +149,13 @@ export async function GET(request: NextRequest) {
     const customerType = searchParams.get('type');
     const isActive = searchParams.get('active');
     const withStats = searchParams.get('with_stats') === 'true';
-    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) : null;
+    const page = searchParams.get('page') ? parseInt(searchParams.get('page')!, 10) : null;
+    const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const tagFilter = searchParams.get('tag_id');
 
     let query = supabaseAdmin
       .from('customers')
-      .select('*')
+      .select('*', { count: page ? 'exact' : undefined })
       .eq('company_id', auth.companyId);
 
     // Apply filters
@@ -175,10 +177,29 @@ export async function GET(request: NextRequest) {
       query = query.eq('is_active', isActive === 'true');
     }
 
-    query = query.order('created_at', { ascending: false });
-    if (limit) query = query.limit(limit);
+    // Tag filter — find customer IDs with this tag first
+    if (tagFilter) {
+      const { data: taggedCustomers } = await supabaseAdmin
+        .from('customer_tag_links')
+        .select('customer_id')
+        .eq('tag_id', tagFilter);
+      const taggedIds = (taggedCustomers || []).map(t => t.customer_id).filter(Boolean);
+      if (taggedIds.length === 0) {
+        return NextResponse.json({ customers: [], ...(page ? { total: 0, page, limit } : {}) });
+      }
+      query = query.in('id', taggedIds);
+    }
 
-    const { data, error } = await query;
+    query = query.order('created_at', { ascending: false });
+
+    if (page) {
+      const offset = (page - 1) * limit;
+      query = query.range(offset, offset + limit - 1);
+    } else if (searchParams.has('limit')) {
+      query = query.limit(limit);
+    }
+
+    const { data, error, count: totalCount } = await query;
 
     if (error) {
       return NextResponse.json(
@@ -191,20 +212,13 @@ export async function GET(request: NextRequest) {
     if (withStats && data && data.length > 0) {
       const customerIds = data.map(c => c.id);
 
-      // Fetch all stats in parallel
-      const [addressResult, defaultAddrResult, lineResult, fbResult, orderResult, orderSourceResult, tagLinksResult] = await Promise.all([
+      // Fetch all stats in parallel (5 queries — orders use RPC for DB-side aggregation)
+      const [addressResult, lineResult, fbResult, orderStatsResult, tagLinksResult] = await Promise.all([
         supabaseAdmin
           .from('shipping_addresses')
-          .select('customer_id')
+          .select('customer_id, address_line1, district, amphoe, province, postal_code, is_default')
           .in('customer_id', customerIds)
           .eq('company_id', auth.companyId)
-          .eq('is_active', true),
-        supabaseAdmin
-          .from('shipping_addresses')
-          .select('customer_id, address_line1, district, amphoe, province, postal_code')
-          .in('customer_id', customerIds)
-          .eq('company_id', auth.companyId)
-          .eq('is_default', true)
           .eq('is_active', true),
         supabaseAdmin
           .from('line_contacts')
@@ -215,49 +229,36 @@ export async function GET(request: NextRequest) {
           .select('customer_id, source')
           .in('customer_id', customerIds)
           .eq('company_id', auth.companyId),
-        supabaseAdmin
-          .from('orders')
-          .select('customer_id, total_amount')
-          .in('customer_id', customerIds)
-          .eq('company_id', auth.companyId)
-          .neq('order_status', 'cancelled'),
-        // Distinct order sources per customer (for channel derivation)
-        supabaseAdmin
-          .from('orders')
-          .select('customer_id, source')
-          .in('customer_id', customerIds)
-          .eq('company_id', auth.companyId)
-          .neq('order_status', 'cancelled')
-          .in('source', ['shopee', 'tiktok', 'lazada']),
+        // RPC: aggregate count + sum + sources in DB (instead of fetching all order rows)
+        supabaseAdmin.rpc('get_customer_order_stats', {
+          p_company_id: auth.companyId,
+          p_customer_ids: customerIds,
+        }),
         supabaseAdmin
           .from('customer_tag_links')
           .select('customer_id, tag:customer_tags(id, name, color)')
           .in('customer_id', customerIds),
       ]);
 
-      const { data: addressCounts } = addressResult;
-      const { data: defaultAddresses } = defaultAddrResult;
+      const { data: addresses } = addressResult;
       const { data: lineContacts, error: lineError } = lineResult;
       const { data: fbContacts } = fbResult;
-      const { data: orderTotals } = orderResult;
-      const { data: orderSources } = orderSourceResult;
+      const { data: orderStats } = orderStatsResult;
       const { data: tagLinks } = tagLinksResult;
 
       if (lineError) {
         console.error('Error fetching LINE contacts:', lineError);
       }
 
-      // Create lookup maps
+      // Create lookup maps from single address query
       const addressCountMap: Record<string, number> = {};
-      addressCounts?.forEach(addr => {
-        addressCountMap[addr.customer_id] = (addressCountMap[addr.customer_id] || 0) + 1;
-      });
-
-      // Default address lookup (for display in customer list)
       const defaultAddrMap: Record<string, { address_line1: string; district: string; amphoe: string; province: string; postal_code: string }> = {};
-      defaultAddresses?.forEach(addr => {
+      addresses?.forEach(addr => {
         if (addr.customer_id) {
-          defaultAddrMap[addr.customer_id] = addr;
+          addressCountMap[addr.customer_id] = (addressCountMap[addr.customer_id] || 0) + 1;
+          if (addr.is_default) {
+            defaultAddrMap[addr.customer_id] = addr;
+          }
         }
       });
 
@@ -268,13 +269,14 @@ export async function GET(request: NextRequest) {
         }
       });
 
+      // Order stats from RPC (already aggregated)
       const orderTotalMap: Record<string, number> = {};
       const orderCountMap: Record<string, number> = {};
-      orderTotals?.forEach(order => {
-        if (order.customer_id) {
-          orderTotalMap[order.customer_id] = (orderTotalMap[order.customer_id] || 0) + (order.total_amount || 0);
-          orderCountMap[order.customer_id] = (orderCountMap[order.customer_id] || 0) + 1;
-        }
+      const orderSourcesMap: Record<string, string[]> = {};
+      (orderStats || []).forEach((s: any) => {
+        orderTotalMap[s.customer_id] = Number(s.total_amount) || 0;
+        orderCountMap[s.customer_id] = Number(s.order_count) || 0;
+        orderSourcesMap[s.customer_id] = s.sources || [];
       });
 
       // Tag lookup map
@@ -287,7 +289,6 @@ export async function GET(request: NextRequest) {
       });
 
       // Channel derivation: collect all channels per customer
-      // Channels: 'shopee', 'tiktok', 'lazada', 'line', 'facebook', 'instagram', 'manual'
       const channelMap: Record<string, Set<string>> = {};
       // From LINE contacts
       lineContacts?.forEach(lc => {
@@ -303,12 +304,12 @@ export async function GET(request: NextRequest) {
           channelMap[fc.customer_id].add(fc.source || 'facebook');
         }
       });
-      // From marketplace order sources
-      orderSources?.forEach(os => {
-        if (os.customer_id && os.source) {
-          if (!channelMap[os.customer_id]) channelMap[os.customer_id] = new Set();
-          channelMap[os.customer_id].add(os.source);
-        }
+      // From marketplace order sources (from RPC)
+      Object.entries(orderSourcesMap).forEach(([custId, sources]) => {
+        sources.forEach(src => {
+          if (!channelMap[custId]) channelMap[custId] = new Set();
+          channelMap[custId].add(src);
+        });
       });
 
       // Merge stats into customers
@@ -331,12 +332,18 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      return NextResponse.json({ customers: customersWithStats });
+      return NextResponse.json({
+        customers: customersWithStats,
+        ...(page ? { total: totalCount || 0, page, limit } : {}),
+      });
     }
 
     // Normalize customer_type for all consumers
     const normalized = data?.map((c: any) => ({ ...c, customer_type: c.customer_type_new || c.customer_type || 'retail' })) || [];
-    return NextResponse.json({ customers: normalized });
+    return NextResponse.json({
+      customers: normalized,
+      ...(page ? { total: totalCount || 0, page, limit } : {}),
+    });
   } catch (error) {
     return NextResponse.json(
       { error: 'Internal server error' },

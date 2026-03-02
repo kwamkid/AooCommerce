@@ -419,8 +419,9 @@ export async function GET(request: NextRequest) {
 
     const productIds = productRows.map(p => p.id);
 
-    // Step 2: Fetch variations + images only for these product IDs (in parallel)
-    const [viewResult, imagesResult] = await Promise.all([
+    // Step 2: Fetch variations + images + shop options ALL in parallel
+    const includeShopOptions = searchParams.has('include_shop_options');
+    const [viewResult, imagesResult, shopLinksResult, shopAccountsResult] = await Promise.all([
       supabaseAdmin
         .from('products_with_variations')
         .select('*')
@@ -430,6 +431,19 @@ export async function GET(request: NextRequest) {
         .select('product_id, variation_id, image_url, sort_order')
         .in('product_id', productIds)
         .order('sort_order', { ascending: true }),
+      // Shop options: fetch links + accounts in parallel with product data
+      includeShopOptions
+        ? supabaseAdmin
+            .from('marketplace_product_links')
+            .select('account_id, account_name, platform')
+            .eq('company_id', auth.companyId)
+        : Promise.resolve({ data: null }),
+      includeShopOptions
+        ? supabaseAdmin
+            .from('marketplace_accounts')
+            .select('id, shop_name, metadata')
+            .eq('company_id', auth.companyId)
+        : Promise.resolve({ data: null }),
     ]);
 
     if (viewResult.error) {
@@ -537,16 +551,11 @@ export async function GET(request: NextRequest) {
       .map(id => productMap.get(id))
       .filter(Boolean);
 
-    // Fetch shop options for filter dropdown (shops that have linked products)
+    // Build shop options from parallel results (already fetched above)
     let shopOptions: { id: string; name: string; platform: string; icon?: string }[] = [];
-    if (searchParams.has('include_shop_options')) {
-      const { data: linkedAccounts } = await supabaseAdmin
-        .from('marketplace_product_links')
-        .select('account_id, account_name, platform')
-        .eq('company_id', auth.companyId);
-
-      const shopMap = new Map<string, { id: string; name: string; platform: string }>();
-      for (const link of (linkedAccounts || [])) {
+    if (includeShopOptions && shopLinksResult.data) {
+      const shopMap = new Map<string, { id: string; name: string; platform: string; icon?: string }>();
+      for (const link of shopLinksResult.data) {
         if (link.account_id && !shopMap.has(link.account_id)) {
           shopMap.set(link.account_id, {
             id: link.account_id,
@@ -556,19 +565,12 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Enrich with shop logos from shopee_accounts
-      const accountIds = [...shopMap.keys()];
-      if (accountIds.length > 0) {
-        const { data: accounts } = await supabaseAdmin
-          .from('marketplace_accounts')
-          .select('id, shop_name, metadata')
-          .in('id', accountIds);
-        for (const acc of (accounts || [])) {
-          const existing = shopMap.get(acc.id);
-          if (existing) {
-            if (acc.shop_name) existing.name = acc.shop_name;
-            (existing as any).icon = (acc.metadata as any)?.shop_logo || undefined;
-          }
+      // Enrich with shop logos from marketplace_accounts (already fetched in parallel)
+      for (const acc of (shopAccountsResult.data || [])) {
+        const existing = shopMap.get(acc.id);
+        if (existing) {
+          if (acc.shop_name) existing.name = acc.shop_name;
+          existing.icon = (acc.metadata as any)?.shop_logo || undefined;
         }
       }
 
@@ -578,7 +580,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       products: groupedProducts,
       ...(paginate ? { total: totalCount || 0, page, limit } : {}),
-      ...(searchParams.has('include_shop_options') ? { shopOptions } : {}),
+      ...(includeShopOptions ? { shopOptions } : {}),
     });
   } catch (error) {
     return NextResponse.json(

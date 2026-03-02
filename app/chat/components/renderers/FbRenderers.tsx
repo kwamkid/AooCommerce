@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ChatMessage } from '@/app/chat/lib/chatTypes';
 
 interface RendererProps {
@@ -293,6 +294,39 @@ function FbReceiptTemplate({ msg, isIncoming }: { msg: ChatMessage; isIncoming: 
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
+// INSTAGRAM STORY MEDIA (shared preview — loads from FB CDN, not our server)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function StoryMedia({ url }: { url: string }) {
+  const [failed, setFailed] = useState(false);
+  const isVideo = /\.(mp4|mov)/i.test(url) || url.includes('video');
+
+  if (failed) return null; // CDN expired — hide preview, link still works
+
+  if (isVideo) {
+    return (
+      <video
+        src={url}
+        controls
+        preload="metadata"
+        playsInline
+        className="w-full max-h-[300px] object-contain bg-black rounded"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <img
+      src={url}
+      alt="story"
+      className="w-full max-h-[300px] object-contain rounded"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // INSTAGRAM STORY MENTION
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -309,15 +343,17 @@ export function StoryMentionBubble({ msg, direction }: RendererProps) {
         </p>
       </div>
       {storyUrl && (
-        <img src={storyUrl} alt="story" className="w-full max-h-48 object-cover" />
-      )}
-      {storyUrl && (
-        <div className="px-3 py-2">
-          <a href={storyUrl} target="_blank" rel="noopener noreferrer"
-            className={`text-xs ${isIncoming ? 'text-purple-600 hover:text-purple-700 dark:text-purple-400' : 'text-white/80 hover:text-white'} underline`}>
-            ดูสตอรี่
-          </a>
-        </div>
+        <>
+          <div className="px-3 pb-2">
+            <StoryMedia url={storyUrl as string} />
+          </div>
+          <div className="px-3 py-2 pt-0">
+            <a href={storyUrl as string} target="_blank" rel="noopener noreferrer"
+              className={`text-xs ${isIncoming ? 'text-purple-600 hover:text-purple-700 dark:text-purple-400' : 'text-white/80 hover:text-white'} underline`}>
+              ดูบน Instagram
+            </a>
+          </div>
+        </>
       )}
     </div>
   );
@@ -334,12 +370,22 @@ export function StoryReplyBubble({ msg, direction }: RendererProps) {
   return (
     <div>
       {storyUrl && (
-        <div className={`mb-1 rounded-lg overflow-hidden border ${isIncoming ? 'border-gray-200 dark:border-slate-600' : 'border-white/20'}`}
-          style={{ maxWidth: '200px' }}>
-          <div className={`px-2 py-1 text-[10px] ${isIncoming ? 'bg-gray-50 text-gray-500 dark:bg-slate-600/50 dark:text-slate-400' : 'bg-white/10 text-white/60'}`}>
-            ตอบกลับสตอรี่
+        <div className={`mb-1 rounded-lg overflow-hidden border ${isIncoming ? 'border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-purple-500/10' : 'border-white/20 bg-white/10'}`}
+          style={{ maxWidth: '280px' }}>
+          <div className="px-3 py-2">
+            <p className={`text-xs font-medium ${isIncoming ? 'text-purple-600 dark:text-purple-400' : 'text-white/80'}`}>
+              💬 ตอบกลับสตอรี่
+            </p>
           </div>
-          <img src={storyUrl} alt="story" className="w-full max-h-24 object-cover opacity-70" />
+          <div className="px-3 pb-2">
+            <StoryMedia url={storyUrl as string} />
+          </div>
+          <div className="px-3 py-2 pt-0">
+            <a href={storyUrl as string} target="_blank" rel="noopener noreferrer"
+              className={`text-xs ${isIncoming ? 'text-purple-600 hover:text-purple-700 dark:text-purple-400' : 'text-white/80 hover:text-white'} underline`}>
+              ดูบน Instagram
+            </a>
+          </div>
         </div>
       )}
       <p className="whitespace-pre-wrap break-words">{msg.content}</p>

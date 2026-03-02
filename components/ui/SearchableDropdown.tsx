@@ -8,6 +8,7 @@ export interface DropdownOption {
   label: string;
   icon?: string;        // URL for icon image
   platformIcon?: string; // URL for platform badge overlay
+  group?: string;       // Group key for divider between groups
 }
 
 interface SearchableDropdownProps {
@@ -36,6 +37,8 @@ export default function SearchableDropdown({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // Click outside to close
@@ -49,6 +52,29 @@ export default function SearchableDropdown({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  // Position popup so it stays within viewport
+  useEffect(() => {
+    if (!open || !buttonRef.current || !popupRef.current) return;
+    const btn = buttonRef.current.getBoundingClientRect();
+    const popup = popupRef.current;
+    const vw = window.innerWidth;
+    const margin = 16;
+    // On mobile (< 640px): full width with equal margins
+    if (vw < 640) {
+      popup.style.left = `${margin}px`;
+      popup.style.width = `${vw - margin * 2}px`;
+    } else {
+      // Desktop: try right-aligned to button
+      popup.style.width = '';
+      const popupW = popup.offsetWidth;
+      let left = btn.right - popupW;
+      if (left < margin) left = margin;
+      if (left + popupW > vw - margin) left = vw - popupW - margin;
+      popup.style.left = `${left}px`;
+    }
+    popup.style.top = `${btn.bottom + 4}px`;
   }, [open]);
 
   const selected = options.find(o => o.id === value);
@@ -70,12 +96,13 @@ export default function SearchableDropdown({
   return (
     <div className="relative flex-shrink-0" ref={dropdownRef}>
       <button
+        ref={buttonRef}
         onClick={() => {
           setOpen(!open);
           setSearch('');
           setTimeout(() => searchRef.current?.focus(), 50);
         }}
-        className={`flex items-center gap-2 border rounded-lg px-3 h-[42px] text-base transition-colors ${
+        className={`flex items-center gap-2 border rounded-lg px-3 h-[42px] text-sm transition-colors ${
           isActive
             ? 'border-gray-400 dark:border-slate-500 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300'
             : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:border-gray-400 dark:hover:border-slate-500'
@@ -101,7 +128,7 @@ export default function SearchableDropdown({
       </button>
 
       {open && (
-        <div className="absolute top-full mt-1 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg z-30 min-w-[220px] py-1">
+        <div ref={popupRef} className="fixed bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg z-[60] min-w-[220px] py-1">
           {/* Search */}
           <div className="px-2 py-1.5">
             <div className="relative">
@@ -117,7 +144,7 @@ export default function SearchableDropdown({
             </div>
           </div>
 
-          <div className="max-h-[280px] overflow-y-auto">
+          <div className="max-h-[240px] overflow-y-auto">
             {/* "All" option */}
             {!search && (
               <button
@@ -147,7 +174,7 @@ export default function SearchableDropdown({
                     <Filter className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" />
                   </div>
                 )}
-                <span>{o.label}</span>
+                <span className="truncate">{o.label}</span>
               </button>
             ))}
 
@@ -156,32 +183,39 @@ export default function SearchableDropdown({
               <div className="h-px bg-gray-200 dark:bg-slate-600 my-1" />
             )}
 
-            {/* Dynamic options */}
-            {filteredOptions.map(o => (
-              <button
-                key={o.id}
-                onClick={() => handleSelect(o.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-base hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
-                  value === o.id ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'
-                }`}
-              >
-                <div className="relative flex-shrink-0">
-                  {o.icon ? (
-                    <img src={o.icon} alt="" className="w-6 h-6 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center">
-                      {o.platformIcon && (
-                        <img src={o.platformIcon} alt="" className="w-3.5 h-3.5" />
+            {/* Dynamic options — with dividers between platform groups */}
+            {filteredOptions.map((o, i) => {
+              const groupKey = o.group || o.platformIcon || '';
+              const prevGroupKey = i > 0 ? (filteredOptions[i - 1].group || filteredOptions[i - 1].platformIcon || '') : groupKey;
+              const showDivider = i > 0 && groupKey !== prevGroupKey;
+              return (
+                <div key={o.id}>
+                  {showDivider && <div className="h-px bg-gray-200 dark:bg-slate-600 my-1" />}
+                  <button
+                    onClick={() => handleSelect(o.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 text-base hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
+                      value === o.id ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="relative flex-shrink-0">
+                      {o.icon ? (
+                        <img src={o.icon} alt="" className="w-6 h-6 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center">
+                          {o.platformIcon && (
+                            <img src={o.platformIcon} alt="" className="w-3.5 h-3.5" />
+                          )}
+                        </div>
+                      )}
+                      {o.icon && o.platformIcon && (
+                        <img src={o.platformIcon} alt="" className="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded bg-white dark:bg-slate-800 p-[0.5px]" />
                       )}
                     </div>
-                  )}
-                  {o.icon && o.platformIcon && (
-                    <img src={o.platformIcon} alt="" className="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded bg-white dark:bg-slate-800 p-[0.5px]" />
-                  )}
+                    <span className="truncate">{o.label}</span>
+                  </button>
                 </div>
-                <span className="truncate">{o.label}</span>
-              </button>
-            ))}
+              );
+            })}
 
             {/* No results */}
             {filteredOptions.length === 0 && (!extraOptions || extraOptions.filter(o => o.label.toLowerCase().includes(search.toLowerCase())).length === 0) && (

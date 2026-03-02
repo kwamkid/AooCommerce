@@ -25,15 +25,50 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user profile
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('user_profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+    // Fetch profile + memberships + subscription in parallel
+    // Profile and memberships are independent; subscription chains off memberships
+    const [profileResult, membershipAndSub] = await Promise.all([
+      // Query 1: user profile
+      supabaseAdmin
+        .from('user_profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single(),
+      // Query 2: memberships → then subscription (chained)
+      supabaseAdmin
+        .from('company_members')
+        .select(`
+          company_id,
+          roles,
+          company:companies (
+            id, name, slug, logo_url, is_active, business_type, vat_registered
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .then(async ({ data: memberships }) => {
+          const firstCompanyId = (memberships || [])[0]?.company_id;
+          let subscription = null;
+          if (firstCompanyId) {
+            const { data: sub } = await supabaseAdmin
+              .from('user_subscriptions')
+              .select(`
+                id, status, started_at, expires_at,
+                package:packages (id, name, slug, max_companies, max_members_per_company)
+              `)
+              .eq('company_id', firstCompanyId)
+              .eq('status', 'active')
+              .single();
+            subscription = sub;
+          }
+          return { memberships: memberships || [], subscription };
+        }),
+    ]);
+
+    const { data: profile, error: profileError } = profileResult;
 
     if (profileError || !profile) {
-      console.error('Profile query failed for user:', user.id, 'error:', profileError?.message, 'profile:', profile);
+      console.error('Profile query failed for user:', user.id, 'error:', profileError?.message);
       return NextResponse.json({
         profile: {
           id: user.id,
@@ -48,40 +83,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get company memberships
-    const { data: memberships, error: memberError } = await supabaseAdmin
-      .from('company_members')
-      .select(`
-        company_id,
-        roles,
-        company:companies (
-          id, name, slug, logo_url, is_active, business_type, vat_registered
-        )
-      `)
-      .eq('user_id', user.id)
-      .eq('is_active', true);
-
-    // Get subscription — ดึงจาก company แรกที่ user อยู่
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const firstCompanyId = (memberships || [])[0]?.company_id;
-    let subscription = null;
-    if (firstCompanyId) {
-      const { data: sub } = await supabaseAdmin
-        .from('user_subscriptions')
-        .select(`
-          id, status, started_at, expires_at,
-          package:packages (id, name, slug, max_companies, max_members_per_company)
-        `)
-        .eq('company_id', firstCompanyId)
-        .eq('status', 'active')
-        .single();
-      subscription = sub;
-    }
-
     return NextResponse.json({
       profile,
-      companies: memberships || [],
-      subscription: subscription || null,
+      companies: membershipAndSub.memberships,
+      subscription: membershipAndSub.subscription || null,
     });
   } catch (error) {
     console.error('Server error:', error);

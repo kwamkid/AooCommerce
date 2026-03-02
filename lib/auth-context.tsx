@@ -40,6 +40,38 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const PUBLIC_ROUTES = ['/login', '/register', '/auth/callback', '/line-callback', '/onboarding', '/bills', '/transfers/receive', '/supplier-portal'];
 const STORAGE_KEY = 'aoo-current-company-id';
+const AUTH_CACHE_KEY = 'aoo-auth-cache';
+const AUTH_CACHE_TTL = 30 * 60 * 1000; // 30 minutes — refreshed on role/company changes
+
+interface AuthCache {
+  profile: any;
+  companies: CompanyMembershipRaw[];
+  subscription: any;
+  timestamp: number;
+  userId: string;
+}
+
+function getAuthCache(userId: string): AuthCache | null {
+  try {
+    const raw = sessionStorage.getItem(AUTH_CACHE_KEY);
+    if (!raw) return null;
+    const cache: AuthCache = JSON.parse(raw);
+    if (cache.userId !== userId) return null;
+    if (Date.now() - cache.timestamp > AUTH_CACHE_TTL) return null;
+    return cache;
+  } catch { return null; }
+}
+
+function setAuthCache(userId: string, profile: any, companies: CompanyMembershipRaw[], subscription: any) {
+  try {
+    const cache: AuthCache = { profile, companies, subscription, timestamp: Date.now(), userId };
+    sessionStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(cache));
+  } catch { /* ignore */ }
+}
+
+function clearAuthCache() {
+  try { sessionStorage.removeItem(AUTH_CACHE_KEY); } catch { /* ignore */ }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -80,6 +112,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCompanies(companiesData);
       setHasCompany(companiesData.length > 0);
 
+      // Cache for subsequent page navigations
+      setAuthCache(authUser.id, data, companiesData, result.subscription || null);
+
       // Use company roles directly as the user's effective roles
       const savedCompanyId = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
       const currentMembership = companiesData.find((m: { company_id: string }) => m.company_id === savedCompanyId) || companiesData[0];
@@ -119,6 +154,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession(currentSession);
           setUser(currentSession.user);
 
+          // Try cache first — instant load without API call
+          const cached = getAuthCache(currentSession.user.id);
+          if (cached) {
+            profileFetchedRef.current = true;
+            const savedCompanyId = localStorage.getItem(STORAGE_KEY);
+            const currentMembership = cached.companies.find(m => m.company_id === savedCompanyId) || cached.companies[0];
+            const effectiveRoles = (currentMembership?.roles || ['sales']) as CompanyRole[];
+            setUserProfile({
+              id: cached.profile.id,
+              email: cached.profile.email || currentSession.user.email || '',
+              name: cached.profile.name || currentSession.user.email?.split('@')[0] || 'User',
+              roles: effectiveRoles,
+              phone: cached.profile.phone || undefined,
+              isActive: cached.profile.is_active ?? true,
+              createdAt: new Date(cached.profile.created_at),
+              updatedAt: new Date(cached.profile.updated_at),
+            });
+            setCompanies(cached.companies);
+            setHasCompany(cached.companies.length > 0);
+            if (mounted) setLoading(false);
+            return;
+          }
+
+          // No cache — fetch from API (first visit / expired)
           const profile = await fetchUserProfile(currentSession.user, currentSession.access_token);
           if (!mounted) return;
 
@@ -320,6 +379,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     localStorage.removeItem(STORAGE_KEY);
+    clearAuthCache();
     try {
       await supabase.auth.signOut();
     } catch (error) {
@@ -335,6 +395,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = async () => {
     if (user && session) {
+      clearAuthCache();
       const profile = await fetchUserProfile(user, session.access_token);
       if (profile) setUserProfile(profile);
     }

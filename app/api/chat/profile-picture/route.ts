@@ -6,6 +6,25 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// In-memory cache for chat account credentials (avoids DB lookup per profile picture)
+const credentialsCache = new Map<string, { credentials: Record<string, string>; expiresAt: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function getCachedCredentials(accountId: string): Promise<Record<string, string> | null> {
+  const cached = credentialsCache.get(accountId);
+  if (cached && cached.expiresAt > Date.now()) return cached.credentials;
+
+  const { data } = await supabaseAdmin
+    .from('chat_accounts')
+    .select('credentials')
+    .eq('id', accountId)
+    .single();
+
+  if (!data?.credentials) return null;
+  credentialsCache.set(accountId, { credentials: data.credentials as Record<string, string>, expiresAt: Date.now() + CACHE_TTL_MS });
+  return data.credentials as Record<string, string>;
+}
+
 // Proxy for FB/IG/LINE customer profile pictures — avoids CDN URL expiry
 // Usage: /api/chat/profile-picture?platform=facebook&psid=XXX&account_id=YYY
 //    or: /api/chat/profile-picture?platform=line&uid=XXX&account_id=YYY
@@ -23,14 +42,9 @@ export async function GET(req: NextRequest) {
     return new NextResponse(null, { status: 204 });
   }
 
-  // Get access token from chat_accounts
-  const { data: account } = await supabaseAdmin
-    .from('chat_accounts')
-    .select('credentials')
-    .eq('id', accountId)
-    .single();
-
-  if (!account?.credentials) {
+  // Get access token from cache or DB
+  const credentials = await getCachedCredentials(accountId);
+  if (!credentials) {
     return new NextResponse(null, { status: 204 });
   }
 
@@ -38,7 +52,7 @@ export async function GET(req: NextRequest) {
     let imageUrl: string | null = null;
 
     if (platform === 'line') {
-      const accessToken = account.credentials.channel_access_token as string;
+      const accessToken = credentials.channel_access_token;
       if (!accessToken) return new NextResponse(null, { status: 204 });
 
       const res = await fetch(`https://api.line.me/v2/bot/profile/${userId}`, {
@@ -49,7 +63,7 @@ export async function GET(req: NextRequest) {
         imageUrl = data.pictureUrl || null;
       }
     } else if (platform === 'instagram') {
-      const accessToken = account.credentials.page_access_token as string;
+      const accessToken = credentials.page_access_token;
       if (!accessToken) return new NextResponse(null, { status: 204 });
 
       const res = await fetch(
@@ -61,7 +75,7 @@ export async function GET(req: NextRequest) {
       }
     } else {
       // Facebook Messenger
-      const accessToken = account.credentials.page_access_token as string;
+      const accessToken = credentials.page_access_token;
       if (!accessToken) return new NextResponse(null, { status: 204 });
 
       imageUrl = `https://graph.facebook.com/v21.0/${userId}/picture?type=normal&access_token=${accessToken}`;

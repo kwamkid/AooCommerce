@@ -24,8 +24,10 @@ interface FormSelectProps {
   disabled?: boolean;
   /** Enable search when options > this threshold (default: 5) */
   searchThreshold?: number;
-  /** If set, show a "clear/all" option at top that resets value to "". Label = this string (e.g. "ทั้งหมด") */
+  /** If set, show a "clear/all" option at top that resets value. Label = this string (e.g. "ทั้งหมด") */
   clearLabel?: string;
+  /** Value to set when clearLabel option is selected (default: '') */
+  clearValue?: string;
   /** Render dropdown via portal to escape overflow:hidden containers */
   portal?: boolean;
 }
@@ -40,6 +42,7 @@ export default function FormSelect({
   disabled,
   searchThreshold = 7,
   clearLabel,
+  clearValue = '',
   portal = false,
 }: FormSelectProps) {
   const [open, setOpen] = useState(false);
@@ -64,7 +67,7 @@ export default function FormSelect({
   // Build full list: clearLabel option + filtered options
   const allItems: { id: string; label: string; isClear?: boolean; icon?: React.ReactNode; subtitle?: string }[] = [];
   if (clearLabel && !search) {
-    allItems.push({ id: '', label: clearLabel, isClear: true });
+    allItems.push({ id: clearValue, label: clearLabel, isClear: true });
   }
   filtered.forEach(o => allItems.push(o));
 
@@ -169,7 +172,7 @@ export default function FormSelect({
   }, [open, allItems, highlightIdx, handleSelect]);
 
   // For filter mode: show active state when value is selected
-  const isActive = clearLabel && value !== '';
+  const isActive = clearLabel && value !== clearValue;
 
   return (
     <div className="relative" ref={containerRef} onKeyDown={handleKeyDown}>
@@ -196,7 +199,7 @@ export default function FormSelect({
         <span className={`flex-1 truncate ${
           selected ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-500'
         }`}>
-          {selected?.label || (clearLabel && !value ? clearLabel : placeholder)}
+          {selected?.label || (clearLabel && value === clearValue ? clearLabel : placeholder)}
         </span>
         <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform text-gray-400 dark:text-slate-500 ${open ? 'rotate-180' : ''}`} />
       </button>

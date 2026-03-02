@@ -1420,7 +1420,7 @@ function UnifiedChatPageContent() {
                     {/* Avatar with channel profile badge */}
                     <div className="relative flex-shrink-0">
                       {getAvatarUrl(contact) ? (
-                        <Image src={getAvatarUrl(contact)!} alt={contact.display_name} width={48} height={48} className="w-12 h-12 rounded-full object-cover" unoptimized />
+                        <img src={getAvatarUrl(contact)!} alt={contact.display_name} loading="lazy" className="w-12 h-12 rounded-full object-cover" />
                       ) : (
                         <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: contact.source === 'instagram' ? '#E4405F' : contact.platform === 'line' ? '#06C755' : '#1877F2' }}>
                           {getInitials(contact.display_name)}
@@ -1428,7 +1428,7 @@ function UnifiedChatPageContent() {
                       )}
                       {/* Channel profile pic badge (bottom-left) */}
                       {contact.account_picture_url ? (
-                        <Image src={contact.account_picture_url} alt={contact.account_name || ''} width={20} height={20} className="absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full object-cover shadow-sm border-2 border-white dark:border-slate-800" unoptimized />
+                        <img src={contact.account_picture_url} alt={contact.account_name || ''} loading="lazy" className="absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full object-cover shadow-sm border-2 border-white dark:border-slate-800" />
                       ) : (
                         <span className={`absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-800 ${contact.source === 'instagram' ? 'bg-[#E4405F]' : contact.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
                           <PlatformIcon contact={contact} size={10} />

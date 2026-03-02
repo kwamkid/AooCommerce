@@ -48,27 +48,37 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fetch chat accounts first (needed for account_id lookup and name mapping)
-    const { data: accounts } = await supabaseAdmin
-      .from('chat_accounts')
-      .select('id, account_name, platform, credentials')
-      .eq('company_id', companyId);
-
-    // Determine which platforms to query
+    // Determine which platforms to query (default: both)
     let queryLine = !platform || platform === 'line';
     let queryFb = !platform || platform === 'facebook';
 
-    // If filtering by account_id, only query the matching platform
+    // We need accounts for account_id filtering — but we can start contacts queries in parallel
+    // For account_id filtering, we fetch accounts first (fast query)
     let includeNullAccountId = false;
-    if (accountId && accounts) {
+    let accountsPromise: Promise<any[]>;
+    if (accountId) {
+      // Need accounts now to determine platform filter
+      const { data: accs } = await supabaseAdmin
+        .from('chat_accounts')
+        .select('id, account_name, platform, credentials')
+        .eq('company_id', companyId);
+      const accounts = accs || [];
+      accountsPromise = Promise.resolve(accounts);
       const selectedAccount = accounts.find(a => a.id === accountId);
       if (selectedAccount) {
         queryLine = selectedAccount.platform === 'line';
         queryFb = selectedAccount.platform === 'facebook';
-        // Include contacts with null chat_account_id if this is the only account for its platform
         const sameplatformCount = accounts.filter(a => a.platform === selectedAccount.platform).length;
         includeNullAccountId = sameplatformCount === 1;
       }
+    } else {
+      // No account_id filter — fetch accounts in parallel with contacts
+      accountsPromise = Promise.resolve(
+        supabaseAdmin
+          .from('chat_accounts')
+          .select('id, account_name, platform, credentials')
+          .eq('company_id', companyId)
+      ).then(r => r.data || []);
     }
 
     // Build parallel queries
@@ -79,7 +89,7 @@ export async function GET(request: NextRequest) {
     const linePromise = queryLine ? fetchLineContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagLineContactIds }) : Promise.resolve([]);
     const fbPromise = queryFb ? fetchFbContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagFbContactIds }) : Promise.resolve([]);
 
-    const [lineContacts, fbContacts] = await Promise.all([linePromise, fbPromise]);
+    const [lineContacts, fbContacts, accounts] = await Promise.all([linePromise, fbPromise, accountsPromise]);
 
     // Build account lookup
     const accountMap = new Map<string, { name: string; platform: string; picture_url?: string }>();
@@ -192,22 +202,34 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Enrich with order stats for linked contacts
-    const customerIds = unified
-      .filter(c => c.customer_id)
-      .map(c => c.customer_id!);
+    // Enrich with order stats + tags in parallel (they don't depend on each other)
+    // Skip heavy orders enrichment during search (user is just looking for a contact)
+    const customerIds = unified.filter(c => c.customer_id).map(c => c.customer_id!);
+    const contactIdArr = [...new Set(unified.map(c => c.id))];
 
-    if (customerIds.length > 0) {
-      const { data: orders } = await supabaseAdmin
-        .from('orders')
-        .select('customer_id, order_date, created_at')
-        .eq('company_id', companyId)
-        .in('customer_id', customerIds)
-        .neq('order_status', 'cancelled')
-        .order('order_date', { ascending: false });
+    // Fire all enrichment queries in parallel
+    const [ordersResult, custTagLinksResult, contTagLinksResult] = await Promise.all([
+      // Orders for linked contacts — skip during search for speed
+      !search && customerIds.length > 0
+        ? supabaseAdmin.from('orders').select('customer_id, order_date, created_at')
+            .eq('company_id', companyId).in('customer_id', customerIds)
+            .neq('order_status', 'cancelled').order('order_date', { ascending: false })
+        : Promise.resolve({ data: [] as any[] }),
+      // Customer tag links
+      customerIds.length > 0
+        ? supabaseAdmin.from('customer_tag_links').select('customer_id, tag_id').in('customer_id', customerIds)
+        : Promise.resolve({ data: [] as any[] }),
+      // Contact tag links
+      contactIdArr.length > 0
+        ? supabaseAdmin.from('contact_tag_links').select('contact_id, platform, tag_id').in('contact_id', contactIdArr)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
 
+    // Process order stats
+    const orders = ordersResult.data || [];
+    if (orders.length > 0) {
       const customerOrderMap = new Map<string, { lastOrderDate: string; lastOrderCreatedAt: string | null; orderDates: string[] }>();
-      (orders || []).forEach(order => {
+      orders.forEach((order: any) => {
         if (!customerOrderMap.has(order.customer_id)) {
           customerOrderMap.set(order.customer_id, { lastOrderDate: order.order_date, lastOrderCreatedAt: order.created_at, orderDates: [] });
         }
@@ -254,93 +276,57 @@ export async function GET(request: NextRequest) {
           return true;
         });
 
-        // Replace unified with filtered
         unified.length = 0;
         unified.push(...filtered);
       }
     }
 
-    // Enrich with customer tags
-    // Query all customer_tag_links (no .in() filter to avoid URL length limit with many UUIDs)
-    const customerIdSet = new Set(unified.filter(c => c.customer_id).map(c => c.customer_id!));
-    if (customerIdSet.size > 0) {
-      const { data: tagLinks } = await supabaseAdmin
-        .from('customer_tag_links')
-        .select('customer_id, tag_id');
+    // Process tags
+    const custTagLinks = (custTagLinksResult.data || []) as any[];
+    const contTagLinks = (contTagLinksResult.data || []) as any[];
+    const allTagIds = new Set([
+      ...custTagLinks.map(l => l.tag_id),
+      ...contTagLinks.map(l => l.tag_id),
+    ]);
 
-      if (tagLinks && tagLinks.length > 0) {
-        // Only keep links for customers in our unified list
-        const relevantLinks = tagLinks.filter((l: any) => customerIdSet.has(l.customer_id));
-        if (relevantLinks.length > 0) {
-          const tagIds = [...new Set(relevantLinks.map((l: any) => l.tag_id))];
-          const { data: tags } = await supabaseAdmin
-            .from('customer_tags')
-            .select('id, name, color')
-            .in('id', tagIds);
+    if (allTagIds.size > 0) {
+      const { data: tags } = await supabaseAdmin
+        .from('customer_tags')
+        .select('id, name, color')
+        .in('id', [...allTagIds]);
 
-          const tagMap = new Map<string, { id: string; name: string; color: string }>();
-          (tags || []).forEach((t: any) => tagMap.set(t.id, t));
+      const tagMap = new Map<string, { id: string; name: string; color: string }>();
+      (tags || []).forEach((t: any) => tagMap.set(t.id, t));
 
-          const customerTagMap = new Map<string, { id: string; name: string; color: string }[]>();
-          relevantLinks.forEach((link: any) => {
-            const tag = tagMap.get(link.tag_id);
-            if (link.customer_id && tag) {
-              if (!customerTagMap.has(link.customer_id)) customerTagMap.set(link.customer_id, []);
-              customerTagMap.get(link.customer_id)!.push(tag);
-            }
-          });
-
-          for (const contact of unified) {
-            if (contact.customer_id && customerTagMap.has(contact.customer_id)) {
-              (contact as any).tags = customerTagMap.get(contact.customer_id);
-            }
-          }
+      const customerTagMap = new Map<string, { id: string; name: string; color: string }[]>();
+      custTagLinks.forEach(link => {
+        const tag = tagMap.get(link.tag_id);
+        if (link.customer_id && tag) {
+          if (!customerTagMap.has(link.customer_id)) customerTagMap.set(link.customer_id, []);
+          customerTagMap.get(link.customer_id)!.push(tag);
         }
-      }
-    }
+      });
 
-    // Enrich with contact-level tags (for contacts without customer)
-    // Note: query ALL contact_tag_links (no .in() filter) because the contact list can be 1000+
-    // and .in() with too many UUIDs exceeds URL length limits causing fetch to fail.
-    // contact_tag_links is small (only tagged contacts), so this is efficient.
-    if (unified.length > 0) {
-      const { data: contactTagLinks } = await supabaseAdmin
-        .from('contact_tag_links')
-        .select('contact_id, platform, tag_id');
+      const contactTagMap = new Map<string, { id: string; name: string; color: string }[]>();
+      contTagLinks.forEach(link => {
+        const key = `${link.contact_id}:${link.platform}`;
+        const tag = tagMap.get(link.tag_id);
+        if (tag) {
+          if (!contactTagMap.has(key)) contactTagMap.set(key, []);
+          contactTagMap.get(key)!.push(tag);
+        }
+      });
 
-      if (contactTagLinks && contactTagLinks.length > 0) {
-        // Fetch the actual tags separately
-        const tagIds = [...new Set(contactTagLinks.map((l: any) => l.tag_id))];
-        const { data: tags } = await supabaseAdmin
-          .from('customer_tags')
-          .select('id, name, color')
-          .in('id', tagIds);
-
-        const tagMap = new Map<string, { id: string; name: string; color: string }>();
-        (tags || []).forEach((t: any) => tagMap.set(t.id, t));
-
-        // Build contact→tags map, filter to only contacts in unified list
-        const contactIdSet = new Set(unified.map(c => `${c.id}:${c.platform}`));
-        const contactTagMap = new Map<string, { id: string; name: string; color: string }[]>();
-        (contactTagLinks as any[]).forEach((link: any) => {
-          const key = `${link.contact_id}:${link.platform}`;
-          const tag = tagMap.get(link.tag_id);
-          if (tag && contactIdSet.has(key)) {
-            if (!contactTagMap.has(key)) contactTagMap.set(key, []);
-            contactTagMap.get(key)!.push(tag);
+      for (const contact of unified) {
+        const custTags = contact.customer_id ? (customerTagMap.get(contact.customer_id) || []) : [];
+        const contTags = contactTagMap.get(`${contact.id}:${contact.platform}`) || [];
+        if (custTags.length > 0 || contTags.length > 0) {
+          const seen = new Set<string>();
+          const merged: { id: string; name: string; color: string }[] = [];
+          for (const t of [...custTags, ...contTags]) {
+            if (!seen.has(t.id)) { seen.add(t.id); merged.push(t); }
           }
-        });
-
-        for (const contact of unified) {
-          const key = `${contact.id}:${contact.platform}`;
-          const contactTags = contactTagMap.get(key);
-          if (contactTags) {
-            // Merge with existing customer tags (dedupe by id)
-            const existing = ((contact as any).tags || []) as { id: string; name: string; color: string }[];
-            const existingIds = new Set(existing.map(t => t.id));
-            const merged = [...existing, ...contactTags.filter(t => !existingIds.has(t.id))];
-            (contact as any).tags = merged;
-          }
+          (contact as any).tags = merged;
         }
       }
     }
@@ -400,60 +386,42 @@ async function fetchLineContacts(companyId: string, filters: {
   unlinkedOnly?: boolean; accountId?: string | null; includeNullAccountId?: boolean;
   customerIds?: string[] | null; contactIds?: string[] | null;
 }) {
-  let query = supabaseAdmin
-    .from('line_contacts')
-    .select(`
-      *,
-      customer:customers(
-        id, name, customer_code, contact_person, phone, email,
-        customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code,
-        tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active
-      )
-    `)
-    .eq('company_id', companyId)
-    .eq('status', 'active')
-    .order('last_message_at', { ascending: false, nullsFirst: false });
+  let contacts: any[];
 
-  if (filters.accountId) {
-    if (filters.includeNullAccountId) {
-      query = query.or(`chat_account_id.eq.${filters.accountId},chat_account_id.is.null`);
-    } else {
-      query = query.eq('chat_account_id', filters.accountId);
+  if (filters.search) {
+    // Use RPC for search — single query searches both display_name and customer.name
+    const { data, error } = await supabaseAdmin.rpc('search_line_contacts', {
+      p_company_id: companyId,
+      p_search: filters.search,
+    });
+    if (error) throw error;
+    contacts = data || [];
+
+    // Apply additional filters in-memory (RPC returns base results)
+    if (filters.accountId) {
+      contacts = contacts.filter(c =>
+        c.chat_account_id === filters.accountId || (filters.includeNullAccountId && !c.chat_account_id)
+      );
     }
-  }
-  if (filters.search) {
-    query = query.ilike('display_name', `%${filters.search}%`);
-  }
-  if (filters.unreadOnly) query = query.gt('unread_count', 0);
-  // Tag filter: match by customer_id OR direct contact_id
-  if (filters.customerIds && filters.contactIds && filters.contactIds.length > 0) {
-    // Both customer-tagged and contact-tagged: use OR filter
-    const custFilter = filters.customerIds.length > 0
-      ? `customer_id.in.(${filters.customerIds.join(',')})`
-      : '';
-    const contFilter = `id.in.(${filters.contactIds.join(',')})`;
-    query = query.or([custFilter, contFilter].filter(Boolean).join(','));
-  } else if (filters.customerIds) {
-    query = query.in('customer_id', filters.customerIds);
-  } else if (filters.contactIds && filters.contactIds.length > 0) {
-    query = query.in('id', filters.contactIds);
+    if (filters.unreadOnly) contacts = contacts.filter(c => (c.unread_count || 0) > 0);
+    if (filters.linkedOnly) contacts = contacts.filter(c => c.customer_id);
+    if (filters.unlinkedOnly) contacts = contacts.filter(c => !c.customer_id);
+    // Tag filter
+    if (filters.customerIds || filters.contactIds) {
+      const custIdSet = filters.customerIds ? new Set(filters.customerIds) : null;
+      const contIdSet = filters.contactIds ? new Set(filters.contactIds) : null;
+      contacts = contacts.filter(c =>
+        (custIdSet && c.customer_id && custIdSet.has(c.customer_id)) ||
+        (contIdSet && contIdSet.has(c.id))
+      );
+    }
   } else {
-    if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
-    if (filters.unlinkedOnly) query = query.is('customer_id', null);
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
-
-  let contacts = data || [];
-
-  // Also search by linked customer name (Supabase .or() doesn't support foreign table fields)
-  if (filters.search) {
-    let customerQuery = supabaseAdmin
+    // Non-search: use Supabase query builder
+    let query = supabaseAdmin
       .from('line_contacts')
       .select(`
         *,
-        customer:customers!inner(
+        customer:customers(
           id, name, customer_code, contact_person, phone, email,
           customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code,
           tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active
@@ -461,60 +429,61 @@ async function fetchLineContacts(companyId: string, filters: {
       `)
       .eq('company_id', companyId)
       .eq('status', 'active')
-      .ilike('customer.name', `%${filters.search}%`)
       .order('last_message_at', { ascending: false, nullsFirst: false });
 
     if (filters.accountId) {
       if (filters.includeNullAccountId) {
-        customerQuery = customerQuery.or(`chat_account_id.eq.${filters.accountId},chat_account_id.is.null`);
+        query = query.or(`chat_account_id.eq.${filters.accountId},chat_account_id.is.null`);
       } else {
-        customerQuery = customerQuery.eq('chat_account_id', filters.accountId);
+        query = query.eq('chat_account_id', filters.accountId);
       }
     }
-    if (filters.unreadOnly) customerQuery = customerQuery.gt('unread_count', 0);
+    if (filters.unreadOnly) query = query.gt('unread_count', 0);
     if (filters.customerIds && filters.contactIds && filters.contactIds.length > 0) {
       const custFilter = filters.customerIds.length > 0
         ? `customer_id.in.(${filters.customerIds.join(',')})`
         : '';
       const contFilter = `id.in.(${filters.contactIds.join(',')})`;
-      customerQuery = customerQuery.or([custFilter, contFilter].filter(Boolean).join(','));
+      query = query.or([custFilter, contFilter].filter(Boolean).join(','));
     } else if (filters.customerIds) {
-      customerQuery = customerQuery.in('customer_id', filters.customerIds);
+      query = query.in('customer_id', filters.customerIds);
     } else if (filters.contactIds && filters.contactIds.length > 0) {
-      customerQuery = customerQuery.in('id', filters.contactIds);
+      query = query.in('id', filters.contactIds);
     } else {
-      if (filters.linkedOnly) customerQuery = customerQuery.not('customer_id', 'is', null);
-      if (filters.unlinkedOnly) customerQuery = customerQuery.is('customer_id', null);
+      if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
+      if (filters.unlinkedOnly) query = query.is('customer_id', null);
     }
 
-    const { data: customerResults } = await customerQuery;
-    if (customerResults && customerResults.length > 0) {
-      const existingIds = new Set(contacts.map(c => c.id));
-      for (const c of customerResults) {
-        if (!existingIds.has(c.id)) contacts.push(c);
+    const { data, error } = await query;
+    if (error) throw error;
+    contacts = data || [];
+  }
+
+  // Fetch customer data for RPC results (RPC returns flat rows without joined customer)
+  if (filters.search && contacts.length > 0) {
+    const custIds = [...new Set(contacts.filter(c => c.customer_id).map(c => c.customer_id))];
+    if (custIds.length > 0) {
+      const { data: custs } = await supabaseAdmin
+        .from('customers')
+        .select('id, name, customer_code, contact_person, phone, email, customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code, tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active')
+        .in('id', custIds);
+      const custMap = new Map((custs || []).map(c => [c.id, c]));
+      for (const c of contacts) {
+        if (c.customer_id) c.customer = custMap.get(c.customer_id) || null;
       }
     }
   }
 
   const contactIds = contacts.map(c => c.id);
 
-  // Get last message preview — one per contact via parallel queries
+  // Get last message preview — single batch query using RPC with DISTINCT ON
   const lastMessageMap = new Map<string, string>();
   if (contactIds.length > 0) {
-    const results = await Promise.all(
-      contactIds.map(cid =>
-        supabaseAdmin
-          .from('line_messages')
-          .select('line_contact_id, content, message_type')
-          .eq('company_id', companyId)
-          .eq('line_contact_id', cid)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      )
-    );
-    for (const { data: msg } of results) {
-      if (!msg) continue;
+    const { data: msgs } = await supabaseAdmin.rpc('get_latest_line_messages', {
+      p_company_id: companyId,
+      p_contact_ids: contactIds,
+    });
+    for (const msg of (msgs || [])) {
       let preview = msg.content;
       if (msg.message_type === 'sticker') preview = '🎭 สติกเกอร์';
       else if (msg.message_type === 'image') preview = '🖼️ รูปภาพ';
@@ -538,59 +507,42 @@ async function fetchFbContacts(companyId: string, filters: {
   unlinkedOnly?: boolean; accountId?: string | null; includeNullAccountId?: boolean;
   customerIds?: string[] | null; contactIds?: string[] | null;
 }) {
-  let query = supabaseAdmin
-    .from('fb_contacts')
-    .select(`
-      *,
-      customer:customers(
-        id, name, customer_code, contact_person, phone, email,
-        customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code,
-        tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active
-      )
-    `)
-    .eq('company_id', companyId)
-    .eq('status', 'active')
-    .order('last_message_at', { ascending: false, nullsFirst: false });
+  let contacts: any[];
 
-  if (filters.accountId) {
-    if (filters.includeNullAccountId) {
-      query = query.or(`chat_account_id.eq.${filters.accountId},chat_account_id.is.null`);
-    } else {
-      query = query.eq('chat_account_id', filters.accountId);
+  if (filters.search) {
+    // Use RPC for search — single query searches both display_name and customer.name
+    const { data, error } = await supabaseAdmin.rpc('search_fb_contacts', {
+      p_company_id: companyId,
+      p_search: filters.search,
+    });
+    if (error) throw error;
+    contacts = data || [];
+
+    // Apply additional filters in-memory
+    if (filters.accountId) {
+      contacts = contacts.filter(c =>
+        c.chat_account_id === filters.accountId || (filters.includeNullAccountId && !c.chat_account_id)
+      );
     }
-  }
-  if (filters.search) {
-    query = query.ilike('display_name', `%${filters.search}%`);
-  }
-  if (filters.unreadOnly) query = query.gt('unread_count', 0);
-  // Tag filter: match by customer_id OR direct contact_id
-  if (filters.customerIds && filters.contactIds && filters.contactIds.length > 0) {
-    const custFilter = filters.customerIds.length > 0
-      ? `customer_id.in.(${filters.customerIds.join(',')})`
-      : '';
-    const contFilter = `id.in.(${filters.contactIds.join(',')})`;
-    query = query.or([custFilter, contFilter].filter(Boolean).join(','));
-  } else if (filters.customerIds) {
-    query = query.in('customer_id', filters.customerIds);
-  } else if (filters.contactIds && filters.contactIds.length > 0) {
-    query = query.in('id', filters.contactIds);
+    if (filters.unreadOnly) contacts = contacts.filter(c => (c.unread_count || 0) > 0);
+    if (filters.linkedOnly) contacts = contacts.filter(c => c.customer_id);
+    if (filters.unlinkedOnly) contacts = contacts.filter(c => !c.customer_id);
+    // Tag filter
+    if (filters.customerIds || filters.contactIds) {
+      const custIdSet = filters.customerIds ? new Set(filters.customerIds) : null;
+      const contIdSet = filters.contactIds ? new Set(filters.contactIds) : null;
+      contacts = contacts.filter(c =>
+        (custIdSet && c.customer_id && custIdSet.has(c.customer_id)) ||
+        (contIdSet && contIdSet.has(c.id))
+      );
+    }
   } else {
-    if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
-    if (filters.unlinkedOnly) query = query.is('customer_id', null);
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
-
-  let contacts = data || [];
-
-  // Also search by linked customer name (Supabase .or() doesn't support foreign table fields)
-  if (filters.search) {
-    let customerQuery = supabaseAdmin
+    // Non-search: use Supabase query builder
+    let query = supabaseAdmin
       .from('fb_contacts')
       .select(`
         *,
-        customer:customers!inner(
+        customer:customers(
           id, name, customer_code, contact_person, phone, email,
           customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code,
           tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active
@@ -598,60 +550,61 @@ async function fetchFbContacts(companyId: string, filters: {
       `)
       .eq('company_id', companyId)
       .eq('status', 'active')
-      .ilike('customer.name', `%${filters.search}%`)
       .order('last_message_at', { ascending: false, nullsFirst: false });
 
     if (filters.accountId) {
       if (filters.includeNullAccountId) {
-        customerQuery = customerQuery.or(`chat_account_id.eq.${filters.accountId},chat_account_id.is.null`);
+        query = query.or(`chat_account_id.eq.${filters.accountId},chat_account_id.is.null`);
       } else {
-        customerQuery = customerQuery.eq('chat_account_id', filters.accountId);
+        query = query.eq('chat_account_id', filters.accountId);
       }
     }
-    if (filters.unreadOnly) customerQuery = customerQuery.gt('unread_count', 0);
+    if (filters.unreadOnly) query = query.gt('unread_count', 0);
     if (filters.customerIds && filters.contactIds && filters.contactIds.length > 0) {
       const custFilter = filters.customerIds.length > 0
         ? `customer_id.in.(${filters.customerIds.join(',')})`
         : '';
       const contFilter = `id.in.(${filters.contactIds.join(',')})`;
-      customerQuery = customerQuery.or([custFilter, contFilter].filter(Boolean).join(','));
+      query = query.or([custFilter, contFilter].filter(Boolean).join(','));
     } else if (filters.customerIds) {
-      customerQuery = customerQuery.in('customer_id', filters.customerIds);
+      query = query.in('customer_id', filters.customerIds);
     } else if (filters.contactIds && filters.contactIds.length > 0) {
-      customerQuery = customerQuery.in('id', filters.contactIds);
+      query = query.in('id', filters.contactIds);
     } else {
-      if (filters.linkedOnly) customerQuery = customerQuery.not('customer_id', 'is', null);
-      if (filters.unlinkedOnly) customerQuery = customerQuery.is('customer_id', null);
+      if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
+      if (filters.unlinkedOnly) query = query.is('customer_id', null);
     }
 
-    const { data: customerResults } = await customerQuery;
-    if (customerResults && customerResults.length > 0) {
-      const existingIds = new Set(contacts.map(c => c.id));
-      for (const c of customerResults) {
-        if (!existingIds.has(c.id)) contacts.push(c);
+    const { data, error } = await query;
+    if (error) throw error;
+    contacts = data || [];
+  }
+
+  // Fetch customer data for RPC results (RPC returns flat rows without joined customer)
+  if (filters.search && contacts.length > 0) {
+    const custIds = [...new Set(contacts.filter(c => c.customer_id).map(c => c.customer_id))];
+    if (custIds.length > 0) {
+      const { data: custs } = await supabaseAdmin
+        .from('customers')
+        .select('id, name, customer_code, contact_person, phone, email, customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code, tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active')
+        .in('id', custIds);
+      const custMap = new Map((custs || []).map(c => [c.id, c]));
+      for (const c of contacts) {
+        if (c.customer_id) c.customer = custMap.get(c.customer_id) || null;
       }
     }
   }
 
   const contactIds = contacts.map(c => c.id);
 
-  // Get last message preview — one per contact via parallel queries
+  // Get last message preview — single batch query using RPC with DISTINCT ON
   const lastMessageMap = new Map<string, string>();
   if (contactIds.length > 0) {
-    const results = await Promise.all(
-      contactIds.map(cid =>
-        supabaseAdmin
-          .from('fb_messages')
-          .select('fb_contact_id, content, message_type')
-          .eq('company_id', companyId)
-          .eq('fb_contact_id', cid)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      )
-    );
-    for (const { data: msg } of results) {
-      if (!msg) continue;
+    const { data: msgs } = await supabaseAdmin.rpc('get_latest_fb_messages', {
+      p_company_id: companyId,
+      p_contact_ids: contactIds,
+    });
+    for (const msg of (msgs || [])) {
       let preview = msg.content;
       if (msg.message_type === 'image') preview = '🖼️ รูปภาพ';
       else if (msg.message_type === 'video') preview = '🎬 วิดีโอ';

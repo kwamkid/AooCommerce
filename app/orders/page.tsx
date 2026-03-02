@@ -257,7 +257,9 @@ export default function OrdersPage() {
       if (result.onHoldCount !== undefined) setOnHoldCount(result.onHoldCount);
       if (result.rtsOnHoldCount !== undefined) setRtsOnHoldCount(result.rtsOnHoldCount);
       if (result.channelOptions) {
-        setChannelDropdownOptions(result.channelOptions.map((ch: ChannelOption) => ({
+        // Sort by platform so dividers group correctly
+        const sorted = [...result.channelOptions].sort((a: ChannelOption, b: ChannelOption) => (a.platform || '').localeCompare(b.platform || ''));
+        setChannelDropdownOptions(sorted.map((ch: ChannelOption) => ({
           id: ch.id,
           label: ch.name,
           icon: ch.picture_url || undefined,
@@ -807,7 +809,8 @@ export default function OrdersPage() {
 
         {/* Filters */}
         <div className="data-filter-card">
-          {/* Search + Channel dropdown + ตัวกรอง — same row */}
+          {/* Desktop Row 1: Search + All Channel + ตัวกรอง */}
+          {/* Mobile Row 1: Search + ตัวกรอง */}
           <div className="flex items-center gap-2">
             <div className="flex-1 min-w-0">
               <SearchInput
@@ -819,18 +822,22 @@ export default function OrdersPage() {
                 className="py-2.5"
               />
             </div>
+            {/* Desktop only: All Channel in row 1 */}
             {channelDropdownOptions.length > 0 && (
-              <SearchableDropdown
+              <div className="hidden sm:block">
+                <SearchableDropdown
                   value={channelFilter}
                   onChange={setChannelFilter}
                   options={channelDropdownOptions}
-                  placeholder="ทั้งหมด"
+                  placeholder="ทุกช่องทาง"
                   searchPlaceholder="ค้นหาช่องทาง..."
+                  allLabel="ทุกช่องทาง"
                   defaultIcon={<Store className="w-4 h-4" />}
                   extraOptions={[
                     { id: 'none', label: 'เปิดบิลตรง', icon: <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0"><X className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" /></div> },
                   ]}
                 />
+              </div>
             )}
             <button
               type="button"
@@ -852,12 +859,32 @@ export default function OrdersPage() {
             </button>
           </div>
 
-          {/* Platform filter chips */}
-          <PlatformChipFilter
-            value={platformFilter}
-            onChange={setPlatformFilter}
-            className="mt-2"
-          />
+          {/* Row 2 */}
+          {/* Mobile: All Channel + Platform dropdown */}
+          {/* Desktop: Platform chips */}
+          <div className="flex items-center gap-2 mt-2">
+            {/* Mobile only: All Channel in row 2 */}
+            {channelDropdownOptions.length > 0 && (
+              <div className="sm:hidden">
+                <SearchableDropdown
+                  value={channelFilter}
+                  onChange={setChannelFilter}
+                  options={channelDropdownOptions}
+                  placeholder="ทุกช่องทาง"
+                  searchPlaceholder="ค้นหาช่องทาง..."
+                  allLabel="ทุกช่องทาง"
+                  defaultIcon={<Store className="w-4 h-4" />}
+                  extraOptions={[
+                    { id: 'none', label: 'เปิดบิลตรง', icon: <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0"><X className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" /></div> },
+                  ]}
+                />
+              </div>
+            )}
+            <PlatformChipFilter
+              value={platformFilter}
+              onChange={setPlatformFilter}
+            />
+          </div>
         </div>
 
         {/* Advanced filter modal */}
@@ -873,7 +900,7 @@ export default function OrdersPage() {
               <div className="px-5 py-4 space-y-4">
                 {/* Payment status */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">สถานะชำระ</label>
+                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5">สถานะชำระ</label>
                   <FormSelect
                     value={paymentFilter}
                     onChange={setPaymentFilter}
@@ -882,14 +909,16 @@ export default function OrdersPage() {
                       { id: 'verifying', label: 'รอตรวจสอบ' },
                       { id: 'paid', label: 'ชำระแล้ว' },
                     ]}
+                    placeholder="ทั้งหมด"
                     clearLabel="ทั้งหมด"
+                    clearValue="all"
                     icon={<CreditCard className="w-4 h-4" />}
                     searchThreshold={99}
                   />
                 </div>
                 {/* Order type */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">ประเภทบิล</label>
+                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5">ประเภทบิล</label>
                   <FormSelect
                     value={orderTypeFilter}
                     onChange={setOrderTypeFilter}
@@ -897,14 +926,16 @@ export default function OrdersPage() {
                       { id: 'exchange', label: 'เปลี่ยนสินค้า' },
                       { id: 'normal', label: 'บิลปกติ' },
                     ]}
+                    placeholder="ทั้งหมด"
                     clearLabel="ทั้งหมด"
+                    clearValue="all"
                     icon={<Repeat className="w-4 h-4" />}
                     searchThreshold={99}
                   />
                 </div>
                 {/* Created by */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">ผู้เปิดบิล</label>
+                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5">ผู้เปิดบิล</label>
                   {createdByDropdownOptions.length > 0 ? (
                     <SearchableDropdown
                       value={createdByFilter}
@@ -921,7 +952,7 @@ export default function OrdersPage() {
                 {/* Delivery date */}
                 {features.delivery_date.enabled && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">วันที่ส่ง</label>
+                    <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5">วันที่ส่ง</label>
                     <DateRangePicker
                       value={deliveryDateRange}
                       onChange={(val) => setDeliveryDateRange(val)}
@@ -943,7 +974,7 @@ export default function OrdersPage() {
                 <button
                   type="button"
                   onClick={() => setShowAdvancedFilter(false)}
-                  className="px-4 py-2 bg-[#F4511E] text-white text-sm font-medium rounded-lg hover:bg-[#D63B0E] transition-colors"
+                  className="px-6 py-2.5 bg-[#F4511E] text-white text-base font-medium rounded-lg hover:bg-[#D63B0E] transition-colors"
                 >
                   เสร็จสิ้น
                 </button>

@@ -683,8 +683,10 @@ export class FacebookChatService {
       messageContent = '[สติกเกอร์]';
       metadata.sticker_id = message.sticker_id;
     } else {
-      // Unknown message format — store raw for debugging
+      // Echo messages from FB Pages Manager / Business Suite may not include text
+      // Store raw keys for debugging
       messageContent = '[ข้อความ]';
+      metadata.raw_keys = Object.keys(message);
     }
 
     return { messageContent, messageType, metadata };

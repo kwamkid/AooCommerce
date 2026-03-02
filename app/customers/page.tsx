@@ -133,9 +133,11 @@ export default function CustomersPage() {
   const router = useRouter();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [totalCustomers, setTotalCustomers] = useState(0);
   const [loading, setLoading] = useState(true);
   const [dataFetched, setDataFetched] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [error, setError] = useState('');
   const [filterType, setFilterType] = useState<string>('');
   const [filterAmount, setFilterAmount] = useState<string>('');
@@ -233,7 +235,16 @@ export default function CustomersPage() {
   // Clear selection when filters change
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [searchTerm, filterType, filterAmount, filterOrderCount, filterTag, filterChannel, currentPage]);
+  }, [debouncedSearch, filterType, filterAmount, filterOrderCount, filterTag, filterChannel, currentPage]);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Check auth
   useEffect(() => {
@@ -250,54 +261,56 @@ export default function CustomersPage() {
     }
   }, [userProfile, authLoading, router]);
 
-  // Fetch customers - once when auth is ready
+  // Fetch tags once
   useFetchOnce(async () => {
     try {
-      setLoading(true);
-
-      const [customersResponse, tagsResponse] = await Promise.all([
-        apiFetch('/api/customers?with_stats=true'),
-        apiFetch('/api/customers/tags'),
-      ]);
-      const customersResult = await customersResponse.json();
-      const tagsResult = await tagsResponse.json();
-
-      if (!customersResponse.ok) {
-        throw new Error(customersResult.error || 'Failed to fetch customers');
-      }
-
-      const data = customersResult.customers || [];
-
-      const customersWithType = data.map((customer: any) => ({
-        ...customer,
-        customer_type: customer.customer_type_new || customer.customer_type || 'retail'
-      }));
-
-      setCustomers(customersWithType as Customer[]);
-      if (tagsResult.tags) setAllTags(tagsResult.tags);
-      setDataFetched(true);
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-      setError('ไม่สามารถโหลดข้อมูลลูกค้าได้');
-    } finally {
-      setLoading(false);
-    }
+      const res = await apiFetch('/api/customers/tags');
+      const result = await res.json();
+      if (result.tags) setAllTags(result.tags);
+    } catch { /* ignore */ }
   }, !authLoading && !!userProfile);
 
-  // Reset page when search changes
+  // Fetch customers with server-side pagination + filters
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
+    if (authLoading || !userProfile) return;
 
-  // Filter customers
+    const fetchCustomers = async () => {
+      try {
+        setLoading(true);
+        const params = new URLSearchParams({
+          with_stats: 'true',
+          page: String(currentPage),
+          limit: String(rowsPerPage),
+        });
+        if (debouncedSearch) params.set('search', debouncedSearch);
+        if (filterType) params.set('type', filterType);
+        if (filterTag) params.set('tag_id', filterTag);
+
+        const res = await apiFetch(`/api/customers?${params}`);
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Failed to fetch customers');
+
+        const data = (result.customers || []).map((c: any) => ({
+          ...c,
+          customer_type: c.customer_type_new || c.customer_type || 'retail',
+        }));
+
+        setCustomers(data as Customer[]);
+        setTotalCustomers(result.total ?? data.length);
+        setDataFetched(true);
+      } catch (err) {
+        console.error('Error fetching customers:', err);
+        setError('ไม่สามารถโหลดข้อมูลลูกค้าได้');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCustomers();
+  }, [authLoading, userProfile, currentPage, rowsPerPage, debouncedSearch, filterType, filterTag]);
+
+  // Client-side filters (amount, orderCount, channel — these work on the paginated server result)
   const filteredCustomers = customers.filter(customer => {
-    const matchesSearch = searchTerm === '' ||
-      customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.customer_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.phone?.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesType = filterType === '' || customer.customer_type === filterType;
-
     const amt = customer.total_order_amount || 0;
     const matchesAmount = filterAmount === '' ||
       (filterAmount === '0' ? amt === 0 :
@@ -313,26 +326,20 @@ export default function CustomersPage() {
        filterOrderCount === '6-20' ? cnt >= 6 && cnt <= 20 :
        filterOrderCount === '>20' ? cnt > 20 : true);
 
-    const matchesTag = filterTag === '' ||
-      (customer.tags || []).some(t => t.id === filterTag);
-
     const matchesChannel = filterChannel === '' ||
       (customer.channels || []).includes(filterChannel);
 
-    return matchesSearch && matchesType && matchesAmount && matchesOrderCount && matchesTag && matchesChannel;
+    return matchesAmount && matchesOrderCount && matchesChannel;
   });
 
   // Types that exist in customer data (for filter dropdown)
-  const activeTypes = useMemo(() => {
-    const types = new Set(customers.map(c => c.customer_type));
-    return Object.entries(CUSTOMER_TYPES).filter(([key]) => types.has(key));
-  }, [customers]);
+  const activeTypes = useMemo(() => Object.entries(CUSTOMER_TYPES), []);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredCustomers.length / rowsPerPage);
+  // Pagination — server handles page/limit, client just uses totalCustomers for display
+  const totalPages = Math.ceil(totalCustomers / rowsPerPage);
   const startIndex = (currentPage - 1) * rowsPerPage;
-  const endIndex = startIndex + rowsPerPage;
-  const paginatedCustomers = filteredCustomers.slice(startIndex, endIndex);
+  const endIndex = Math.min(startIndex + rowsPerPage, totalCustomers);
+  const paginatedCustomers = filteredCustomers;
 
   const allPageSelected = paginatedCustomers.length > 0 &&
     paginatedCustomers.every(c => selectedIds.has(c.id));
