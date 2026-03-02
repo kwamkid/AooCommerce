@@ -1,6 +1,6 @@
 // Path: src/app/layout.tsx
 import type { Metadata } from 'next';
-import { IBM_Plex_Sans_Thai } from 'next/font/google';
+import { IBM_Plex_Sans_Thai, Sarabun } from 'next/font/google';
 import { AuthProvider } from '@/lib/auth-context';
 import { CompanyProvider } from '@/lib/company-context';
 import { ToastProvider } from '@/lib/toast-context';
@@ -12,6 +12,13 @@ const ibmPlexSansThai = IBM_Plex_Sans_Thai({
   weight: ['300', '400', '500', '600', '700'],
   subsets: ['thai', 'latin'],
   display: 'swap',
+});
+
+const sarabun = Sarabun({
+  weight: ['300', '400', '500', '600', '700'],
+  subsets: ['thai', 'latin'],
+  display: 'swap',
+  variable: '--font-sarabun',
 });
 
 export const metadata: Metadata = {
@@ -40,7 +47,7 @@ export default function RootLayout({
           })();
         `}} />
       </head>
-      <body className={ibmPlexSansThai.className} suppressHydrationWarning>
+      <body className={`${ibmPlexSansThai.className} ${sarabun.variable}`} suppressHydrationWarning>
         <ThemeProvider>
           <AuthProvider>
             <CompanyProvider>

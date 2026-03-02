@@ -65,6 +65,12 @@ interface ReadyToShipTabProps {
   channel?: string;
   /** Created by filter from parent */
   createdBy?: string;
+  /** Payment status filter from parent */
+  paymentFilter?: string;
+  /** Order type filter from parent */
+  orderTypeFilter?: string;
+  /** Platform filter from parent */
+  platformFilter?: string;
   userProfile: any;
   onRefresh: () => void;
   onImageClick: (url: string) => void;
@@ -79,6 +85,9 @@ export default function ReadyToShipTab({
   search,
   channel,
   createdBy,
+  paymentFilter,
+  orderTypeFilter,
+  platformFilter,
   userProfile,
   onRefresh,
   onImageClick,
@@ -177,6 +186,10 @@ export default function ReadyToShipTab({
       if (search) params.set('search', search);
       if (channel && channel !== 'all') params.set('channel', channel);
       if (createdBy && createdBy !== 'all') params.set('created_by', createdBy);
+      if (orderTypeFilter && orderTypeFilter !== 'all') params.set('order_type', orderTypeFilter);
+      if (platformFilter && platformFilter !== 'all') params.set('platform', platformFilter);
+      // Only apply parent paymentFilter when not on the verifying sub-tab (which has its own logic)
+      if (activeGroup !== VERIFYING_KEY && paymentFilter && paymentFilter !== 'all') params.set('payment_status', paymentFilter);
 
       const response = await apiFetch(`/api/orders?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch orders');
@@ -191,7 +204,7 @@ export default function ReadyToShipTab({
     } finally {
       setLoading(false);
     }
-  }, [activeGroup, currentPage, recordsPerPage, search, channel, createdBy]);
+  }, [activeGroup, currentPage, recordsPerPage, search, channel, createdBy, paymentFilter, orderTypeFilter, platformFilter]);
 
   useEffect(() => {
     fetchOrders();
@@ -212,7 +225,7 @@ export default function ReadyToShipTab({
   useEffect(() => {
     setCurrentPage(1);
     setSelectedIds(new Set());
-  }, [activeGroup, search, channel, createdBy]);
+  }, [activeGroup, search, channel, createdBy, paymentFilter, orderTypeFilter, platformFilter]);
 
   // Refresh handler — refresh parent + re-fetch our tab
   const handleRefresh = useCallback(() => {

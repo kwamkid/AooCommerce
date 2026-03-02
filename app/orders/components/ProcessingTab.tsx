@@ -49,6 +49,12 @@ interface ProcessingTabProps {
   channel?: string;
   /** Created by filter from parent */
   createdBy?: string;
+  /** Payment status filter from parent */
+  paymentFilter?: string;
+  /** Order type filter from parent */
+  orderTypeFilter?: string;
+  /** Platform filter from parent */
+  platformFilter?: string;
   userProfile: any;
   onRefresh: () => void;
   onImageClick: (url: string) => void;
@@ -66,6 +72,9 @@ export default function ProcessingTab({
   search,
   channel,
   createdBy,
+  paymentFilter,
+  orderTypeFilter,
+  platformFilter,
   userProfile,
   onRefresh,
   onImageClick,
@@ -172,6 +181,9 @@ export default function ProcessingTab({
       if (channel && channel !== 'all') params.set('channel', channel);
       if (createdBy && createdBy !== 'all') params.set('created_by', createdBy);
       if (printFilter) params.set('print_filter', printFilter);
+      if (paymentFilter && paymentFilter !== 'all') params.set('payment_status', paymentFilter);
+      if (orderTypeFilter && orderTypeFilter !== 'all') params.set('order_type', orderTypeFilter);
+      if (platformFilter && platformFilter !== 'all') params.set('platform', platformFilter);
 
       const response = await apiFetch(`/api/orders?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch orders');
@@ -186,7 +198,7 @@ export default function ProcessingTab({
     } finally {
       setLoading(false);
     }
-  }, [activeCarrierGroup, currentPage, recordsPerPage, search, channel, createdBy, printFilter]);
+  }, [activeCarrierGroup, currentPage, recordsPerPage, search, channel, createdBy, printFilter, paymentFilter, orderTypeFilter, platformFilter]);
 
   useEffect(() => {
     fetchOrders();
@@ -196,7 +208,7 @@ export default function ProcessingTab({
   useEffect(() => {
     setCurrentPage(1);
     setSelectedIds(new Set());
-  }, [activeCarrierGroup, search, channel, createdBy, printFilter]);
+  }, [activeCarrierGroup, search, channel, createdBy, printFilter, paymentFilter, orderTypeFilter, platformFilter]);
 
   // Refresh handler — refresh parent + re-fetch our tab
   const handleRefresh = useCallback(() => {
@@ -388,7 +400,12 @@ export default function ProcessingTab({
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
       const result = await res.json();
-      showToast(`จัดส่งสำเร็จ ${result.shipped || bulkShipItems.length} รายการ`, 'success');
+      const shipped = result.shipped ?? 0;
+      if (shipped > 0) {
+        showToast(`จัดส่งสำเร็จ ${shipped} รายการ`, 'success');
+      } else {
+        showToast('ไม่มีออเดอร์ที่จัดส่งได้ (อาจเปลี่ยนสถานะไปแล้ว)', 'error');
+      }
       setSelectedIds(new Set());
       setBulkShipModal(false);
       handleRefresh();
@@ -1073,43 +1090,58 @@ export default function ProcessingTab({
       {/* Bulk Ship Modal */}
       {bulkShipModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !actionLoading && setBulkShipModal(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-2xl w-full max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">จัดส่งออเดอร์ ({bulkShipItems.length} รายการ)</h3>
-            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">กรอกเลขพัสดุสำหรับแต่ละออเดอร์ (ไม่บังคับ) หรือวางจาก Excel</p>
+            <p className="text-base text-gray-500 dark:text-slate-400 mb-4">กรอกเลขพัสดุสำหรับแต่ละออเดอร์ (ไม่บังคับ) หรือวางจาก Excel</p>
+            {/* Use same carrier for all */}
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs text-gray-500 dark:text-slate-400">ใช้ขนส่งเดียวกัน:</span>
-              <div className="w-[140px]">
+              <span className="text-sm text-gray-500 dark:text-slate-400 flex-shrink-0">ใช้ขนส่งเดียวกัน:</span>
+              <div className="w-[160px]">
                 <FormSelect
                   value=""
                   onChange={(val) => { if (!val) return; setBulkShipItems(prev => prev.map(item => ({ ...item, shipping_carrier: val }))); }}
                   options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
                   placeholder="-- เลือก --"
                   searchThreshold={99}
+                  portal
                 />
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto space-y-2 mb-4">
-              {bulkShipItems.map((item, idx) => (
-                <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-slate-700/50">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.order_number}</p>
-                    <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{item.customer_name}</p>
+            {/* Order list — table-like layout */}
+            <div className="flex-1 overflow-y-auto min-h-0 mb-4">
+              {/* Header row */}
+              <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wide sticky top-0 bg-white dark:bg-slate-800 z-10">
+                <span className="w-[140px] flex-shrink-0">ออเดอร์</span>
+                <span className="w-[130px] flex-shrink-0">ขนส่ง</span>
+                <span className="flex-1">เลขพัสดุ</span>
+              </div>
+              <div className="space-y-1">
+                {bulkShipItems.map((item, idx) => (
+                  <div key={item.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-slate-700/50">
+                    {/* Order info */}
+                    <div className="w-[140px] flex-shrink-0 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.order_number}</p>
+                      <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{item.customer_name}</p>
+                    </div>
+                    {/* Carrier */}
+                    <div className="w-[130px] flex-shrink-0">
+                      <FormSelect
+                        value={item.shipping_carrier}
+                        onChange={(val) => { setBulkShipItems(prev => { const next = [...prev]; next[idx] = { ...next[idx], shipping_carrier: val }; return next; }); }}
+                        options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
+                        placeholder="ขนส่ง"
+                        searchThreshold={99}
+                        portal
+                      />
+                    </div>
+                    {/* Tracking number */}
+                    <input type="text" value={item.tracking_number}
+                      onChange={(e) => { setBulkShipItems(prev => { const next = [...prev]; next[idx] = { ...next[idx], tracking_number: e.target.value }; return next; }); }}
+                      onPaste={(e) => handleTrackingPaste(idx, e)} placeholder="เลขพัสดุ (วางจาก Excel ได้)"
+                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg text-sm font-mono" />
                   </div>
-                  <div className="w-28">
-                    <FormSelect
-                      value={item.shipping_carrier}
-                      onChange={(val) => { setBulkShipItems(prev => { const next = [...prev]; next[idx] = { ...next[idx], shipping_carrier: val }; return next; }); }}
-                      options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
-                      placeholder="ขนส่ง"
-                      searchThreshold={99}
-                    />
-                  </div>
-                  <input type="text" value={item.tracking_number}
-                    onChange={(e) => { setBulkShipItems(prev => { const next = [...prev]; next[idx] = { ...next[idx], tracking_number: e.target.value }; return next; }); }}
-                    onPaste={(e) => handleTrackingPaste(idx, e)} placeholder="เลขพัสดุ"
-                    className="w-40 px-2 py-1.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg text-sm font-mono" />
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
             <div className="flex gap-3 justify-end pt-4 border-t dark:border-slate-700">
               <button onClick={() => setBulkShipModal(false)} disabled={actionLoading}

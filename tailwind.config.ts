@@ -21,6 +21,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['IBM Plex Sans Thai', 'sans-serif'],
+        sarabun: ['var(--font-sarabun)', 'Sarabun', 'sans-serif'],
       },
     },
   },

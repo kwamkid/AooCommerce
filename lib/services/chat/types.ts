@@ -16,6 +16,7 @@ export interface SendMessageResult {
   success: boolean;
   message?: SavedMessage;
   error?: string;
+  errorCode?: string;
 }
 
 export interface SavedMessage {

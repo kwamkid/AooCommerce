@@ -7,8 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
-import DateRangePicker from '@/components/ui/DateRangePicker';
-import { DateValueType } from 'react-tailwindcss-datepicker';
+import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import { getImageUrl } from '@/lib/utils/image';
 import {
   DndContext,

@@ -12,8 +12,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { productDisplayName, productSubtitle } from '../components/types';
 import FormSelect from '@/components/ui/FormSelect';
 import EntitySearchInput, { type EntitySearchOption } from '@/components/ui/EntitySearchInput';
-import DateRangePicker from '@/components/ui/DateRangePicker';
-import { type DateValueType } from 'react-tailwindcss-datepicker';
+import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import Link from 'next/link';
 import {
   Loader2, Factory, Warehouse as WarehouseIcon, Trash2,

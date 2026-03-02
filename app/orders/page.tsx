@@ -8,8 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
-import DateRangePicker from '@/components/ui/DateRangePicker';
-import { DateValueType } from 'react-tailwindcss-datepicker';
+import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import {
   ShoppingCart,
   Plus,
@@ -30,8 +29,11 @@ import {
   ClipboardList,
   Printer,
   RefreshCw,
+  SlidersHorizontal,
+  Repeat,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
+import PlatformChipFilter from '@/app/components/PlatformChipFilter';
 import SearchableDropdown, { DropdownOption } from '@/components/ui/SearchableDropdown';
 
 // Shared types & helpers
@@ -147,6 +149,9 @@ export default function OrdersPage() {
   const [onHoldCount, setOnHoldCount] = useState(0);
   const [rtsOnHoldCount, setRtsOnHoldCount] = useState(0);
   const searchInputRef = useRef<SearchInputHandle>(null);
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
+  const [orderTypeFilter, setOrderTypeFilter] = useState('all');
+  const [platformFilter, setPlatformFilter] = useState('all');
 
   // Close lightbox on ESC
   useEffect(() => {
@@ -201,14 +206,14 @@ export default function OrdersPage() {
   // Reset page on filter change
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, paymentFilter, channelFilter, createdByFilter, recordsPerPage]);
+  }, [statusFilter, paymentFilter, channelFilter, createdByFilter, orderTypeFilter, platformFilter, recordsPerPage]);
 
   // Fetch orders
   const isAuthReady = !authLoading && !!userProfile;
   useEffect(() => {
     if (!isAuthReady) return;
     fetchOrders();
-  }, [isAuthReady, currentPage, recordsPerPage, statusFilter, paymentFilter, channelFilter, createdByFilter, debouncedSearch, sortBy, sortDir]);
+  }, [isAuthReady, currentPage, recordsPerPage, statusFilter, paymentFilter, channelFilter, createdByFilter, orderTypeFilter, platformFilter, debouncedSearch, sortBy, sortDir]);
 
   const fetchOrders = async () => {
     try {
@@ -225,6 +230,8 @@ export default function OrdersPage() {
       if (paymentFilter !== 'all') params.set('payment_status', paymentFilter);
       if (createdByFilter !== 'all') params.set('created_by', createdByFilter);
       if (channelFilter !== 'all') params.set('channel', channelFilter);
+      if (orderTypeFilter !== 'all') params.set('order_type', orderTypeFilter);
+      if (platformFilter !== 'all') params.set('platform', platformFilter);
       if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
 
       const response = await apiFetch(`/api/orders?${params.toString()}`);
@@ -561,21 +568,30 @@ export default function OrdersPage() {
       menuItems[section2Start].dividerBefore = true;
     }
 
+    // Quick action: Copy bill online link (always visible for non-marketplace orders)
+    if (!isMarketplace) {
+      primaryActions.push(
+        <button
+          key="copy-link"
+          onClick={(e) => {
+            e.stopPropagation();
+            const billUrl = `${window.location.origin}/bills/${order.id}`;
+            navigator.clipboard.writeText(billUrl).then(() => {
+              setToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
+              setTimeout(() => setToast(''), 2500);
+            });
+          }}
+          className="p-2 text-gray-500 hover:text-[#F4511E] rounded-lg transition-colors"
+          title="คัดลอกลิงก์บิลออนไลน์"
+        >
+          <Link2 className="w-4 h-4" />
+        </button>
+      );
+    }
+
     // === Section 3: อื่นๆ ===
     if (!order.source || order.source === 'manual') {
       const section3Start = menuItems.length;
-      menuItems.push({
-        key: 'link', label: 'คัดลอกลิงก์', icon: <Link2 className="w-4 h-4" />,
-        onClick: (e) => {
-          e.stopPropagation();
-          const billUrl = `${window.location.origin}/bills/${order.id}`;
-          navigator.clipboard.writeText(billUrl).then(() => {
-            setToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
-            setTimeout(() => setToast(''), 2500);
-          });
-        },
-        className: 'p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
-      });
       if (order.order_status !== 'cancelled') {
         menuItems.push({
           key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-4 h-4" />,
@@ -651,6 +667,9 @@ export default function OrdersPage() {
           search={debouncedSearch}
           channel={channelFilter}
           createdBy={createdByFilter}
+          paymentFilter={paymentFilter}
+          orderTypeFilter={orderTypeFilter}
+          platformFilter={platformFilter}
           userProfile={userProfile}
           onRefresh={fetchOrders}
           onImageClick={(url) => setLightboxImage(url)}
@@ -683,6 +702,9 @@ export default function OrdersPage() {
           search={debouncedSearch}
           channel={channelFilter}
           createdBy={createdByFilter}
+          paymentFilter={paymentFilter}
+          orderTypeFilter={orderTypeFilter}
+          platformFilter={platformFilter}
           userProfile={userProfile}
           onRefresh={fetchOrders}
           onImageClick={(url) => setLightboxImage(url)}
@@ -775,8 +797,9 @@ export default function OrdersPage() {
 
         {/* Filters */}
         <div className="data-filter-card">
+          {/* Search + Channel dropdown + ตัวกรอง — same row */}
           <div className="flex items-center gap-2">
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <SearchInput
                 ref={searchInputRef}
                 value={searchTerm}
@@ -786,40 +809,138 @@ export default function OrdersPage() {
                 className="py-2.5"
               />
             </div>
-            {features.delivery_date.enabled && (
-              <div className="w-64 flex-shrink-0">
-                <DateRangePicker
-                  value={deliveryDateRange}
-                  onChange={(val) => setDeliveryDateRange(val)}
-                  placeholder="วันที่ส่ง - ทั้งหมด"
-                />
-              </div>
-            )}
             {channelDropdownOptions.length > 0 && (
               <SearchableDropdown
-                value={channelFilter}
-                onChange={setChannelFilter}
-                options={channelDropdownOptions}
-                placeholder="ช่องทาง"
-                searchPlaceholder="ค้นหาช่องทาง..."
-                defaultIcon={<Store className="w-4 h-4" />}
-                extraOptions={[
-                  { id: 'none', label: 'เปิดบิลตรง', icon: <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0"><X className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" /></div> },
-                ]}
-              />
+                  value={channelFilter}
+                  onChange={setChannelFilter}
+                  options={channelDropdownOptions}
+                  placeholder="ทั้งหมด"
+                  searchPlaceholder="ค้นหาช่องทาง..."
+                  defaultIcon={<Store className="w-4 h-4" />}
+                  extraOptions={[
+                    { id: 'none', label: 'เปิดบิลตรง', icon: <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0"><X className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" /></div> },
+                  ]}
+                />
             )}
-            {createdByDropdownOptions.length > 0 && (
-              <SearchableDropdown
-                value={createdByFilter}
-                onChange={setCreatedByFilter}
-                options={createdByDropdownOptions}
-                placeholder="ผู้เปิดบิล"
-                searchPlaceholder="ค้นหาชื่อ..."
-                defaultIcon={<User className="w-4 h-4" />}
-              />
-            )}
+            <button
+              type="button"
+              onClick={() => setShowAdvancedFilter(true)}
+              className={`flex items-center gap-1.5 px-3 py-2.5 border rounded-lg text-sm transition-colors flex-shrink-0 ${
+                (paymentFilter !== 'all' || createdByFilter !== 'all' || orderTypeFilter !== 'all' || deliveryDateRange?.startDate)
+                  ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 text-[#F4511E]'
+                  : 'border-gray-300 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-400 dark:hover:border-slate-500'
+              }`}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              <span className="hidden sm:inline">ตัวกรอง</span>
+              {(() => {
+                const count = [paymentFilter !== 'all', createdByFilter !== 'all', orderTypeFilter !== 'all', !!deliveryDateRange?.startDate].filter(Boolean).length;
+                return count > 0 ? (
+                  <span className="bg-[#F4511E] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{count}</span>
+                ) : null;
+              })()}
+            </button>
           </div>
+
+          {/* Platform filter chips */}
+          <PlatformChipFilter
+            value={platformFilter}
+            onChange={setPlatformFilter}
+            className="mt-2"
+          />
         </div>
+
+        {/* Advanced filter modal */}
+        {showAdvancedFilter && (
+          <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 pt-[15vh]" onClick={() => setShowAdvancedFilter(false)}>
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">ตัวกรองเพิ่มเติม</h3>
+                <button onClick={() => setShowAdvancedFilter(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+              <div className="px-5 py-4 space-y-4">
+                {/* Payment status */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">สถานะชำระ</label>
+                  <FormSelect
+                    value={paymentFilter}
+                    onChange={setPaymentFilter}
+                    options={[
+                      { id: 'pending', label: 'รอชำระ' },
+                      { id: 'verifying', label: 'รอตรวจสอบ' },
+                      { id: 'paid', label: 'ชำระแล้ว' },
+                    ]}
+                    clearLabel="ทั้งหมด"
+                    icon={<CreditCard className="w-4 h-4" />}
+                    searchThreshold={99}
+                  />
+                </div>
+                {/* Order type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">ประเภทบิล</label>
+                  <FormSelect
+                    value={orderTypeFilter}
+                    onChange={setOrderTypeFilter}
+                    options={[
+                      { id: 'exchange', label: 'เปลี่ยนสินค้า' },
+                      { id: 'normal', label: 'บิลปกติ' },
+                    ]}
+                    clearLabel="ทั้งหมด"
+                    icon={<Repeat className="w-4 h-4" />}
+                    searchThreshold={99}
+                  />
+                </div>
+                {/* Created by */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">ผู้เปิดบิล</label>
+                  {createdByDropdownOptions.length > 0 ? (
+                    <SearchableDropdown
+                      value={createdByFilter}
+                      onChange={setCreatedByFilter}
+                      options={createdByDropdownOptions}
+                      placeholder="ทั้งหมด"
+                      searchPlaceholder="ค้นหาชื่อ..."
+                      defaultIcon={<User className="w-4 h-4" />}
+                    />
+                  ) : (
+                    <FormSelect value="" onChange={() => {}} options={[]} placeholder="ทั้งหมด" disabled icon={<User className="w-4 h-4" />} searchThreshold={99} />
+                  )}
+                </div>
+                {/* Delivery date */}
+                {features.delivery_date.enabled && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">วันที่ส่ง</label>
+                    <DateRangePicker
+                      value={deliveryDateRange}
+                      onChange={(val) => setDeliveryDateRange(val)}
+                      placeholder="ทั้งหมด"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
+                {(paymentFilter !== 'all' || createdByFilter !== 'all' || orderTypeFilter !== 'all' || deliveryDateRange?.startDate) ? (
+                  <button
+                    type="button"
+                    onClick={() => { setPaymentFilter('all'); setCreatedByFilter('all'); setOrderTypeFilter('all'); setDeliveryDateRange({ startDate: null, endDate: null }); }}
+                    className="text-sm text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                  >
+                    ล้างตัวกรอง
+                  </button>
+                ) : <div />}
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedFilter(false)}
+                  className="px-4 py-2 bg-[#F4511E] text-white text-sm font-medium rounded-lg hover:bg-[#D63B0E] transition-colors"
+                >
+                  เสร็จสิ้น
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {fetching ? (
           <div className="flex items-center justify-center py-20">

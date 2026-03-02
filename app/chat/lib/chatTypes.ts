@@ -37,6 +37,8 @@ export interface UnifiedContact {
   account_name?: string;
   account_picture_url?: string;
   chat_account_id?: string;
+  // Customer tags
+  tags?: { id: string; name: string; color: string }[];
   // Referral/ad tracking
   referral_source?: string;
   referral_ad_id?: string;

@@ -90,19 +90,26 @@ export const PAYMENT_STATUS_CONFIG: Record<string, { label: string; color: strin
 };
 
 export const SHIPPING_CARRIERS = [
-  { value: 'thai_post', label: 'ไปรษณีย์ไทย' },
-  { value: 'kerry', label: 'Kerry Express' },
-  { value: 'flash', label: 'Flash Express' },
-  { value: 'j&t', label: 'J&T Express' },
-  { value: 'scg', label: 'SCG Express' },
-  { value: 'ninja', label: 'Ninja Van' },
-  { value: 'best', label: 'BEST Express' },
-  { value: 'dhl', label: 'DHL' },
+  { value: 'thai_post', label: 'ไปรษณีย์ไทย', trackingUrl: 'https://track.thailandpost.co.th/?trackNumber={tracking}' },
+  { value: 'kerry', label: 'Kerry Express', trackingUrl: 'https://th.kerryexpress.com/th/track/?track={tracking}' },
+  { value: 'flash', label: 'Flash Express', trackingUrl: 'https://www.flashexpress.co.th/fle/tracking?se={tracking}' },
+  { value: 'j&t', label: 'J&T Express', trackingUrl: 'https://www.jtexpress.co.th/index/query/g498080498702.html?billcode={tracking}' },
+  { value: 'scg', label: 'SCG Express', trackingUrl: 'https://www.scgexpress.co.th/tracking/detail/{tracking}' },
+  { value: 'ninja', label: 'Ninja Van', trackingUrl: 'https://www.ninjavan.co/th-th/tracking?id={tracking}' },
+  { value: 'best', label: 'BEST Express', trackingUrl: 'https://www.best-inc.co.th/track?bills={tracking}' },
+  { value: 'dhl', label: 'DHL', trackingUrl: 'https://www.dhl.com/th-th/home/tracking.html?tracking-id={tracking}' },
   { value: 'grab', label: 'Grab Express' },
   { value: 'lalamove', label: 'Lalamove' },
   { value: 'self', label: 'จัดส่งเอง' },
   { value: 'other', label: 'อื่นๆ' },
 ];
+
+/** Get tracking URL for a carrier + tracking number. Returns null if not available. */
+export function getTrackingUrl(carrier: string, trackingNumber: string): string | null {
+  const c = SHIPPING_CARRIERS.find(c => c.value === carrier);
+  if (!c?.trackingUrl || !trackingNumber) return null;
+  return c.trackingUrl.replace('{tracking}', encodeURIComponent(trackingNumber));
+}
 
 export const PLATFORM_ICONS: Record<string, string> = {
   line: '/social/line_oa.svg',

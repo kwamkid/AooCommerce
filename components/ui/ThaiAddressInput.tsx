@@ -139,7 +139,7 @@ export default function ThaiAddressInput({
 
   const defaultInputClass = "w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800";
   const inputClass = inputClassName || defaultInputClass;
-  const lblClass = labelClassName || "block text-sm text-gray-600 dark:text-slate-400 mb-1";
+  const lblClass = labelClassName || "block text-base text-gray-600 dark:text-slate-400 mb-1";
 
   const defaultDropdownClass = "absolute z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg max-h-[70vh] overflow-y-auto overflow-x-hidden";
   const dropdownCls = dropdownClassName || defaultDropdownClass;

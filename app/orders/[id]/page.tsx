@@ -36,6 +36,7 @@ import {
   ReceiptText,
   Undo2,
   Repeat,
+  Copy,
 } from 'lucide-react';
 import PaymentModal from '../components/PaymentModal';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
@@ -44,6 +45,8 @@ import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
+import { PLATFORM_ICONS, SHIPPING_CARRIERS, getTrackingUrl } from '../components/types';
+import FormSelect from '@/components/ui/FormSelect';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 
 // Status badge components
@@ -147,6 +150,14 @@ export default function OrderDetailPage() {
   // Print
   const [printMode, setPrintMode] = useState<'order' | 'packing' | null>(null);
   const [showPrintMenu, setShowPrintMenu] = useState(false);
+  const [showActionMenu, setShowActionMenu] = useState(false);
+
+  // Ship modal
+  const [showShipModal, setShowShipModal] = useState(false);
+  const [shipCarrier, setShipCarrier] = useState('');
+  const [shipTracking, setShipTracking] = useState('');
+  const [shipLoading, setShipLoading] = useState(false);
+  const [editingShipping, setEditingShipping] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
   // Status management
@@ -156,12 +167,6 @@ export default function OrderDetailPage() {
   const [paymentRecord, setPaymentRecord] = useState<PaymentRecord | null>(null);
 
   // Status update confirmation modal (same UX as orders list)
-  const [statusModal, setStatusModal] = useState<{
-    show: boolean;
-    nextStatus: string;
-    statusType: 'order' | 'payment';
-  }>({ show: false, nextStatus: '', statusType: 'order' });
-
   // Payment modal
   const [paymentModalShow, setPaymentModalShow] = useState(false);
 
@@ -175,12 +180,10 @@ export default function OrderDetailPage() {
   const [creditNotes, setCreditNotes] = useState<any[]>([]);
   const [voidLoading, setVoidLoading] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
-  const [refundItems, setRefundItems] = useState<{ order_item_id: string; quantity: number; max: number; name: string }[]>([]);
+  const [refundItems, setRefundItems] = useState<{ order_item_id: string; quantity: number; max: number; name: string; image?: string | null }[]>([]);
   const [refundReason, setRefundReason] = useState('');
   const [refundLoading, setRefundLoading] = useState(false);
-  const [showExchangeModal, setShowExchangeModal] = useState(false);
-  const [exchangeItems, setExchangeItems] = useState<{ order_item_id: string; quantity: number; max: number; name: string }[]>([]);
-  const [exchangeReason, setExchangeReason] = useState('');
+  const [showActionTypeModal, setShowActionTypeModal] = useState(false);
 
   // Delivery info edit
   const [editingDelivery, setEditingDelivery] = useState(false);
@@ -199,18 +202,6 @@ export default function OrderDetailPage() {
       fetchOrderHeader();
     }
   }, [authLoading, userProfile, orderId]);
-
-  // Close modal on ESC key
-  useEffect(() => {
-    if (!statusModal.show) return;
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setStatusModal({ show: false, nextStatus: '', statusType: 'order' });
-      }
-    };
-    document.addEventListener('keydown', handleEsc);
-    return () => document.removeEventListener('keydown', handleEsc);
-  }, [statusModal.show]);
 
   const fetchOrderHeader = async () => {
     try {
@@ -346,59 +337,62 @@ export default function OrderDetailPage() {
     return labels[status] || status;
   };
 
-  // Open status change confirmation modal
-  const handleOrderStatusClick = () => {
+  // Accept order directly (no confirm modal)
+  const handleOrderStatusClick = async () => {
     const nextStatus = getNextOrderStatus(orderStatus);
     if (!nextStatus) return;
-    setStatusModal({ show: true, nextStatus, statusType: 'order' });
+    try {
+      setUpdating(true);
+      const res = await apiFetch('/api/orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: orderId, order_status: nextStatus }),
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+      showToast('รับออเดอร์สำเร็จ');
+      await fetchOrderHeader();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'ไม่สามารถรับออเดอร์ได้', 'error');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Ship order with tracking (manual → completed directly) / Edit tracking
+  const handleShipOrder = async () => {
+    try {
+      setShipLoading(true);
+      const payload: Record<string, unknown> = {
+        id: orderId,
+        tracking_number: shipTracking || null,
+        shipping_carrier: shipCarrier || null,
+      };
+      // Only change status if not editing existing shipping info
+      if (!editingShipping) {
+        payload.order_status = 'completed';
+      }
+      const res = await apiFetch('/api/orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
+      showToast(editingShipping ? 'แก้ไขข้อมูลจัดส่งสำเร็จ' : 'จัดส่งสำเร็จ');
+      setShowShipModal(false);
+      setEditingShipping(false);
+      setShipCarrier('');
+      setShipTracking('');
+      await fetchOrderHeader();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setShipLoading(false);
+    }
   };
 
   const handlePaymentStatusClick = () => {
     if (paymentStatus !== 'pending') return;
     setPaymentModalShow(true);
-  };
-
-  const handleCancelClick = () => {
-    setStatusModal({ show: true, nextStatus: 'cancelled', statusType: 'order' });
-  };
-
-  const closeStatusModal = () => {
-    setStatusModal({ show: false, nextStatus: '', statusType: 'order' });
-  };
-
-  // Confirm status update (order status only — payment handled by PaymentModal)
-  const confirmStatusUpdate = async () => {
-    try {
-      setUpdating(true);
-
-      const updateData: any = { id: orderId };
-      updateData.order_status = statusModal.nextStatus;
-      if (statusModal.nextStatus === 'cancelled') {
-        updateData.payment_status = 'cancelled';
-      }
-
-      const response = await apiFetch('/api/orders', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-
-      if (!response.ok) throw new Error('Failed to update status');
-
-      // Update local state
-      setOrderStatus(statusModal.nextStatus);
-      if (statusModal.nextStatus === 'cancelled') {
-        setPaymentStatus('cancelled');
-      }
-
-      closeStatusModal();
-      showToast(statusModal.nextStatus === 'cancelled' ? 'ยกเลิกคำสั่งซื้อสำเร็จ' : 'เปลี่ยนสถานะสำเร็จ');
-    } catch (err) {
-      console.error('Error updating status:', err);
-      showToast('ไม่สามารถเปลี่ยนสถานะได้ กรุณาลองใหม่อีกครั้ง', 'error');
-    } finally {
-      setUpdating(false);
-    }
   };
 
   // Approve customer-initiated payment
@@ -665,9 +659,12 @@ export default function OrderDetailPage() {
   }, [orderId, authLoading, userProfile]);
 
   const handleVoid = async () => {
+    const isPaid = paymentStatus === 'paid';
     const ok = await confirm({
-      title: 'ยกเลิกบิล (Void)',
-      description: 'ระบบจะออกใบลดหนี้ (Credit Note) และยกเลิกบิลนี้ สต๊อกจะถูกคืนอัตโนมัติ',
+      title: 'ยกเลิกบิล',
+      description: isPaid
+        ? 'ระบบจะออกใบลดหนี้ (Credit Note) และยกเลิกบิลนี้ สต๊อกจะถูกคืนอัตโนมัติ'
+        : 'ระบบจะยกเลิกบิลนี้ สต๊อกจะถูกคืนอัตโนมัติ',
       variant: 'danger',
       confirmLabel: 'ยืนยันยกเลิกบิล',
       cancelLabel: 'ยกเลิก',
@@ -677,20 +674,34 @@ export default function OrderDetailPage() {
 
     try {
       setVoidLoading(true);
-      const res = await apiFetch('/api/credit-notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: orderId, type: 'void' }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to void');
+
+      if (isPaid) {
+        // Paid → create CN void
+        const res = await apiFetch('/api/credit-notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: orderId, type: 'void' }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to void');
+        }
+        const result = await res.json();
+        showToast(`ยกเลิกบิลสำเร็จ — ใบลดหนี้ ${result.cn_number}`);
+        fetchCreditNotes();
+      } else {
+        // Not paid → just cancel order
+        const res = await apiFetch('/api/orders', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: orderId, order_status: 'cancelled', payment_status: 'cancelled' }),
+        });
+        if (!res.ok) throw new Error('Failed to cancel');
+        showToast('ยกเลิกบิลสำเร็จ');
       }
-      const result = await res.json();
-      showToast(`ยกเลิกบิลสำเร็จ — ใบลดหนี้ ${result.cn_number}`);
+
       setOrderStatus('cancelled');
       setPaymentStatus('cancelled');
-      fetchCreditNotes();
       fetchOrderHeader();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
@@ -706,9 +717,10 @@ export default function OrderDetailPage() {
     }
     const items = fullOrderData.items.map((oi: any) => ({
       order_item_id: oi.id,
-      quantity: Number(oi.quantity),
+      quantity: 0,
       max: Number(oi.quantity),
-      name: `${oi.product_name || ''}${oi.variation_label ? ` - ${oi.variation_label}` : ''}`,
+      name: `${oi.product_name || ''}${oi.variation_label ? ` (${oi.variation_label})` : ''}`,
+      image: oi.image || null,
     }));
     setRefundItems(items);
     setRefundReason('');
@@ -719,6 +731,13 @@ export default function OrderDetailPage() {
     const selected = refundItems.filter(i => i.quantity > 0);
     if (selected.length === 0) {
       showToast('กรุณาเลือกรายการที่ต้องการคืน', 'error');
+      return;
+    }
+    // If returning ALL items at full quantity → switch to void flow instead
+    const isReturningAll = refundItems.every(i => i.quantity === i.max);
+    if (isReturningAll) {
+      setShowRefundModal(false);
+      handleVoid();
       return;
     }
     try {
@@ -753,30 +772,15 @@ export default function OrderDetailPage() {
       showToast('ไม่พบรายการสินค้า', 'error');
       return;
     }
-    const items = fullOrderData.items.map((oi: any) => ({
-      order_item_id: oi.id,
-      quantity: Number(oi.quantity),
-      max: Number(oi.quantity),
-      name: `${oi.product_name || ''}${oi.variation_label ? ` - ${oi.variation_label}` : ''}`,
-    }));
-    setExchangeItems(items);
-    setExchangeReason('');
-    setShowExchangeModal(true);
-  };
-
-  const handleExchangeSubmit = () => {
-    const selected = exchangeItems.filter(i => i.quantity > 0);
-    if (selected.length === 0) {
-      showToast('กรุณาเลือกรายการที่ต้องการเปลี่ยน', 'error');
-      return;
-    }
-    // Encode exchange data in URL — CN will be created atomically when saving the new order
+    // Send all items at full quantity — go straight to new order page
     const exchangeData = {
-      items: selected.map(i => ({ order_item_id: i.order_item_id, quantity: i.quantity })),
-      reason: exchangeReason || 'เปลี่ยนสินค้า',
+      items: fullOrderData.items.map((oi: any) => ({
+        order_item_id: oi.id,
+        quantity: Number(oi.quantity),
+      })),
+      reason: 'เปลี่ยนสินค้า',
     };
     const encoded = btoa(encodeURIComponent(JSON.stringify(exchangeData)));
-    setShowExchangeModal(false);
     router.push(`/orders/new?from_order=${orderId}&exchange_data=${encoded}`);
   };
 
@@ -841,7 +845,6 @@ export default function OrderDetailPage() {
                     POS
                   </span>
                 )}
-                <OrderStatusBadge status={orderStatus} />
               </div>
               {features.delivery_date.enabled && orderDate && (
                 <p className="text-sm text-gray-500 mt-0.5">
@@ -859,31 +862,42 @@ export default function OrderDetailPage() {
               )}
             </div>
           </div>
-          <div className="flex gap-2 print:hidden">
-            {/* Manual: Record payment button (new + pending) */}
-            {orderSource === 'manual' && orderStatus === 'new' && paymentStatus === 'pending' && (
+          <div className="flex flex-wrap gap-2 print:hidden">
+            {/* Record payment button (new + pending) — all non-marketplace */}
+            {!isMarketplaceOrder && orderStatus === 'new' && paymentStatus === 'pending' && (
               <button
                 onClick={handlePaymentStatusClick}
                 disabled={updating}
                 className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
+                title="บันทึกชำระเงิน"
               >
                 <Banknote className="w-4 h-4" />
                 บันทึกชำระเงิน
               </button>
             )}
-            {/* Manual: Accept Order button (ready_to_ship → processing) */}
-            {orderSource === 'manual' && orderStatus === 'ready_to_ship' && (
+            {/* Accept Order button (ready_to_ship → processing) — all non-marketplace */}
+            {!isMarketplaceOrder && (orderStatus === 'ready_to_ship' || (updating && orderStatus === 'processing')) && (
               <button
                 onClick={handleOrderStatusClick}
                 disabled={updating}
                 className="bg-orange-500 text-white px-3 py-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
+                title="รับออเดอร์"
               >
-                {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackageCheck className="w-4 h-4" />}
-                รับออเดอร์
+                {updating ? <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</> : <><PackageCheck className="w-4 h-4" /> รับออเดอร์</>}
               </button>
             )}
-            {/* Bill online - only for manual orders */}
-            {orderSource === 'manual' && (
+            {/* Ship button (processing → open ship modal) — all non-marketplace */}
+            {!isMarketplaceOrder && orderStatus === 'processing' && (
+              <button
+                onClick={() => setShowShipModal(true)}
+                className="bg-amber-500 text-white px-3 py-2 rounded-lg hover:bg-amber-600 transition-colors flex items-center gap-1.5 text-sm font-medium"
+                title="จัดส่งแล้ว"
+              >
+                <Package className="w-4 h-4" /> จัดส่งแล้ว
+              </button>
+            )}
+            {/* Bill online — all non-marketplace */}
+            {!isMarketplaceOrder && (
               <button
                 onClick={() => {
                   const billUrl = `${window.location.origin}/bills/${orderId}`;
@@ -892,52 +906,55 @@ export default function OrderDetailPage() {
                   });
                 }}
                 className="bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5 text-sm"
+                title="บิลออนไลน์"
               >
                 <Link2 className="w-4 h-4" />
-                บิลออนไลน์
+                <span className="hidden md:inline">บิลออนไลน์</span>
               </button>
             )}
-            {/* Void bill — paid orders that aren't cancelled */}
-            {paymentStatus === 'paid' && orderStatus !== 'cancelled' && !isMarketplaceOrder && (
-              <button
-                onClick={handleVoid}
-                disabled={voidLoading}
-                className="text-red-500 dark:text-red-400 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-1.5 text-sm disabled:opacity-50"
-              >
-                {voidLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ReceiptText className="w-4 h-4" />}
-                ยกเลิกบิล
-              </button>
-            )}
-            {/* Refund — paid orders that aren't cancelled */}
-            {paymentStatus === 'paid' && orderStatus !== 'cancelled' && (
-              <button
-                onClick={handleOpenRefund}
-                className="text-orange-600 dark:text-orange-400 px-3 py-2 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors flex items-center gap-1.5 text-sm"
-              >
-                <Undo2 className="w-4 h-4" />
-                คืนสินค้า
-              </button>
-            )}
-            {/* Exchange — paid orders that aren't cancelled */}
-            {paymentStatus === 'paid' && orderStatus !== 'cancelled' && (
-              <button
-                onClick={handleOpenExchange}
-                className="text-blue-600 dark:text-blue-400 px-3 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-1.5 text-sm"
-              >
-                <Repeat className="w-4 h-4" />
-                เปลี่ยนสินค้า
-              </button>
-            )}
-            {/* Manual: Cancel order icon button */}
-            {orderSource === 'manual' && orderStatus !== 'completed' && orderStatus !== 'cancelled' && (
-              <button
-                onClick={handleCancelClick}
-                disabled={updating}
-                className="text-red-500 dark:text-red-400 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
-                title="ยกเลิกคำสั่งซื้อ"
-              >
-                <XCircle className="w-4 h-4" />
-              </button>
+            {/* Action menu (void/refund/exchange/cancel) */}
+            {orderStatus !== 'cancelled' && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowActionMenu(!showActionMenu)}
+                  className="bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5 text-sm"
+                >
+                  <Pencil className="w-4 h-4" />
+                  <span className="hidden md:inline">จัดการ</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+                {showActionMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowActionMenu(false)} />
+                    <div className="absolute right-0 mt-1 w-52 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg z-50 py-1">
+                      {/* Exchange/Refund — paid, not cancelled */}
+                      {paymentStatus === 'paid' && (
+                        <button
+                          onClick={() => { setShowActionMenu(false); setShowActionTypeModal(true); }}
+                          className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
+                        >
+                          <Repeat className="w-4 h-4 text-blue-500" />
+                          เปลี่ยน/คืนสินค้า
+                        </button>
+                      )}
+                      {/* Void/Cancel bill — all non-marketplace */}
+                      {!isMarketplaceOrder && (
+                        <>
+                          {paymentStatus === 'paid' && <div className="border-t border-gray-100 dark:border-slate-700 my-1" />}
+                          <button
+                            onClick={() => { setShowActionMenu(false); handleVoid(); }}
+                            disabled={voidLoading}
+                            className="w-full text-left px-3 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2.5 disabled:opacity-50"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            ยกเลิกบิล
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
             {/* Shopee: Accept Order button */}
             {isShopeeOrder && externalStatus === 'READY_TO_SHIP' && (
@@ -968,7 +985,7 @@ export default function OrderDetailPage() {
                 className="bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5 text-sm"
               >
                 <Printer className="w-4 h-4" />
-                พิมพ์
+                <span className="hidden md:inline">พิมพ์</span>
                 <ChevronDown className="w-3.5 h-3.5" />
               </button>
               {showPrintMenu && (
@@ -1002,7 +1019,7 @@ export default function OrderDetailPage() {
                         ใบจัดของ
                       </button>
                     )}
-                    {orderSource === 'manual' && ['processing', 'shipping'].includes(orderStatus) && (
+                    {!isMarketplaceOrder && ['processing', 'shipping'].includes(orderStatus) && (
                       <>
                         <div className="border-t border-gray-100 dark:border-slate-700 my-1" />
                         <button
@@ -1073,19 +1090,29 @@ export default function OrderDetailPage() {
               </div>
             </div>
 
+            {/* Source channel info */}
+            {orderSource && orderSource !== 'manual' && !isMarketplaceOrder && (
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
+                {PLATFORM_ICONS[orderSource] && (
+                  <img src={PLATFORM_ICONS[orderSource]} alt={orderSource} className="w-4 h-4" />
+                )}
+                <span>{fullOrderData?.source_name || orderSource}</span>
+              </div>
+            )}
+
             {/* Divider between badges and actions/payment info */}
             <div className="border-t border-gray-200 dark:border-slate-600" />
 
-            {/* Order status actions — advance button (skip new & ready_to_ship, handled by header) */}
-            {getNextOrderStatus(orderStatus) && orderStatus !== 'ready_to_ship' && orderStatus !== 'new' && (
+            {/* Order status actions — advance button (skip statuses handled by header buttons) */}
+            {getNextOrderStatus(orderStatus) && orderStatus !== 'new' && orderStatus !== 'ready_to_ship' && orderStatus !== 'processing' && (
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={handleOrderStatusClick}
                   disabled={updating}
                   className="px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
                 >
-                  <Truck className="w-4 h-4" />
-                  เปลี่ยนเป็น &quot;{getOrderStatusLabel(getNextOrderStatus(orderStatus)!)}&quot;
+                  {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />}
+                  {updating ? 'กำลังดำเนินการ...' : `เปลี่ยนเป็น "${getOrderStatusLabel(getNextOrderStatus(orderStatus)!)}"`}
                 </button>
               </div>
             )}
@@ -1166,6 +1193,68 @@ export default function OrderDetailPage() {
                 )}
               </div>
             )}
+
+            {/* Shipping info */}
+            {(fullOrderData?.shipping_carrier || fullOrderData?.tracking_number) && (() => {
+              const trackUrl = fullOrderData.shipping_carrier && fullOrderData.tracking_number
+                ? getTrackingUrl(fullOrderData.shipping_carrier, fullOrderData.tracking_number)
+                : null;
+              return (
+                <>
+                  <div className="border-t border-gray-200 dark:border-slate-600" />
+                  <div className="flex items-center gap-2 flex-wrap text-sm">
+                    <Truck className="w-4 h-4 text-gray-400 dark:text-slate-500" />
+                    {fullOrderData.shipping_carrier && (
+                      <span className="text-gray-700 dark:text-slate-300">
+                        {SHIPPING_CARRIERS.find(c => c.value === fullOrderData.shipping_carrier)?.label || fullOrderData.shipping_carrier}
+                      </span>
+                    )}
+                    {fullOrderData.tracking_number && (
+                      trackUrl ? (
+                        <a
+                          href={trackUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                        >
+                          {fullOrderData.tracking_number}
+                        </a>
+                      ) : (
+                        <span className="font-mono text-xs bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">
+                          {fullOrderData.tracking_number}
+                        </span>
+                      )
+                    )}
+                    {fullOrderData.tracking_number && (
+                      <button
+                        onClick={() => {
+                          const text = trackUrl
+                            ? `${SHIPPING_CARRIERS.find(c => c.value === fullOrderData.shipping_carrier)?.label || fullOrderData.shipping_carrier}: ${fullOrderData.tracking_number}\nติดตามพัสดุ: ${trackUrl}`
+                            : fullOrderData.tracking_number;
+                          navigator.clipboard.writeText(text);
+                          showToast('คัดลอกข้อมูลพัสดุแล้ว');
+                        }}
+                        className="text-xs text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
+                        title="คัดลอกข้อมูลพัสดุ"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setShipCarrier(fullOrderData.shipping_carrier || '');
+                        setShipTracking(fullOrderData.tracking_number || '');
+                        setEditingShipping(true);
+                        setShowShipModal(true);
+                      }}
+                      className="text-xs text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 transition-colors ml-auto"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
           {/* Right: Customer + Delivery Info */}
@@ -1239,15 +1328,6 @@ export default function OrderDetailPage() {
                     </div>
                   ))}
                 </div>
-              </div>
-            ) : (fullOrderData?.tracking_number || fullOrderData?.shipping_carrier) ? (
-              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 flex items-center gap-4 text-sm">
-                {fullOrderData.shipping_carrier && (
-                  <span className="text-gray-700 dark:text-slate-300 flex items-center gap-1.5"><Truck className="w-3.5 h-3.5" /> {fullOrderData.shipping_carrier}</span>
-                )}
-                {fullOrderData.tracking_number && (
-                  <span className="font-mono text-gray-600 dark:text-slate-400">{fullOrderData.tracking_number}</span>
-                )}
               </div>
             ) : null}
             {/* Tax Invoice */}
@@ -1574,69 +1654,35 @@ export default function OrderDetailPage() {
           printMode={printMode}
         />
 
-        {/* Status Update Confirmation Modal (order status only) */}
-        {statusModal.show && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-            onClick={closeStatusModal}
-          >
-            <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {statusModal.nextStatus === 'cancelled'
-                    ? 'ยืนยันการยกเลิกคำสั่งซื้อ'
-                    : 'ยืนยันการเปลี่ยนสถานะคำสั่งซื้อ'
-                  }
-                </h3>
-                <button onClick={closeStatusModal} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-
-              <div className="mb-6 space-y-3">
-                <p className="text-gray-700 dark:text-slate-300">
-                  คำสั่งซื้อ: <span className="font-medium">{orderNumber}</span>
-                </p>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-gray-600 dark:text-slate-400">เปลี่ยนจาก:</span>
-                  <OrderStatusBadge status={orderStatus} />
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
-                  <OrderStatusBadge status={statusModal.nextStatus} />
+        {/* Ship Modal */}
+        {showShipModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !shipLoading && (setShowShipModal(false), setEditingShipping(false), setShipCarrier(''), setShipTracking(''))}>
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{editingShipping ? 'แก้ไขข้อมูลจัดส่ง' : 'จัดส่งออเดอร์'}</h3>
+              <p className="text-base text-gray-500 dark:text-slate-400 mb-5">{orderNumber} — {fullOrderData?.customer_name || fullOrderData?.delivery_name || 'ลูกค้าทั่วไป'}</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">ขนส่ง</label>
+                  <FormSelect
+                    value={shipCarrier}
+                    onChange={(val) => setShipCarrier(val)}
+                    options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
+                    placeholder="-- เลือกขนส่ง --"
+                    searchThreshold={99}
+                  />
                 </div>
-
-                {/* Warning for cancel */}
-                {statusModal.nextStatus === 'cancelled' && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                    การยกเลิกคำสั่งซื้อจะไม่สามารถกลับคืนได้
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เลขพัสดุ</label>
+                  <input type="text" value={shipTracking} onChange={(e) => setShipTracking(e.target.value)} placeholder="กรอกเลขพัสดุ (ไม่บังคับ)"
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm" />
+                </div>
               </div>
-
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={closeStatusModal}
-                  disabled={updating}
-                  className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  onClick={confirmStatusUpdate}
-                  disabled={updating}
-                  className={`px-4 py-2 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2 font-medium ${
-                    statusModal.nextStatus === 'cancelled'
-                      ? 'bg-red-600 text-white hover:bg-red-700'
-                      : 'bg-[#F4511E] text-white hover:bg-[#D63B0E]'
-                  }`}
-                >
-                  {updating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>กำลังบันทึก...</span>
-                    </>
-                  ) : (
-                    <span>{statusModal.nextStatus === 'cancelled' ? 'ยืนยันยกเลิก' : 'ยืนยัน'}</span>
-                  )}
+              <div className="flex gap-3 justify-end mt-6">
+                <button onClick={() => { setShowShipModal(false); setEditingShipping(false); setShipCarrier(''); setShipTracking(''); }} disabled={shipLoading}
+                  className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50">ยกเลิก</button>
+                <button onClick={handleShipOrder} disabled={shipLoading}
+                  className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2">
+                  {shipLoading ? (<><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>) : editingShipping ? (<><Pencil className="w-4 h-4" /> บันทึก</>) : (<><Package className="w-4 h-4" /> จัดส่งแล้ว</>)}
                 </button>
               </div>
             </div>
@@ -1737,6 +1783,49 @@ export default function OrderDetailPage() {
         </div>
       )}
 
+      {/* Action Type Selection Modal — เปลี่ยน or คืน */}
+      {showActionTypeModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowActionTypeModal(false)}
+        >
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">เลือกการดำเนินการ</h3>
+              <button onClick={() => setShowActionTypeModal(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={() => { setShowActionTypeModal(false); handleOpenExchange(); }}
+                className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-slate-600 rounded-xl hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+                  <Repeat className="w-5 h-5 text-blue-500" />
+                </div>
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">เปลี่ยนสินค้า</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400">คืนสินค้าเดิม แล้วเลือกสินค้าใหม่แทน</div>
+                </div>
+              </button>
+              <button
+                onClick={() => { setShowActionTypeModal(false); handleOpenRefund(); }}
+                className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-slate-600 rounded-xl hover:border-orange-400 dark:hover:border-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center flex-shrink-0">
+                  <Undo2 className="w-5 h-5 text-orange-500" />
+                </div>
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">คืนสินค้า</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400">คืนสินค้าและออกใบลดหนี้ (ไม่สร้างบิลใหม่)</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Refund Modal */}
       {showRefundModal && (
         <div
@@ -1759,11 +1848,27 @@ export default function OrderDetailPage() {
             <div className="space-y-3 mb-4">
               {refundItems.map((item, idx) => (
                 <div key={item.order_item_id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</div>
-                    <div className="text-xs text-gray-400 dark:text-slate-500">สูงสุด {item.max} ชิ้น</div>
+                  {/* Product image */}
+                  <div className="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-white dark:bg-slate-600 border border-gray-200 dark:border-slate-500 group relative">
+                    {item.image ? (
+                      <>
+                        <img src={item.image} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                          <img src={item.image} alt="" className="max-w-[200px] max-h-[200px] object-contain rounded shadow-lg pointer-events-none absolute bottom-full left-0 mb-2" />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Package className="w-5 h-5 text-gray-300 dark:text-slate-500" />
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">{item.name}</div>
+                    <div className="text-xs text-gray-400 dark:text-slate-500">สั่ง {item.max} ชิ้น</div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-gray-500 dark:text-slate-400">คืน</span>
                     <button
                       type="button"
                       onClick={() => {
@@ -1821,110 +1926,24 @@ export default function OrderDetailPage() {
               >
                 ยกเลิก
               </button>
-              <button
-                onClick={handleRefundSubmit}
-                disabled={refundLoading || refundItems.every(i => i.quantity === 0)}
-                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium disabled:opacity-50 flex items-center gap-2"
-              >
-                {refundLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                ออกใบลดหนี้
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Exchange Modal */}
-      {showExchangeModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowExchangeModal(false)}
-        >
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <Repeat className="w-5 h-5 text-blue-500" />
-                เปลี่ยนสินค้า
-              </h3>
-              <button onClick={() => setShowExchangeModal(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-
-            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">เลือกรายการที่ต้องการเปลี่ยนและกำหนดจำนวน ระบบจะออกใบลดหนี้แล้วเปิดหน้าสร้างบิลใหม่</p>
-
-            <div className="space-y-3 mb-4">
-              {exchangeItems.map((item, idx) => (
-                <div key={item.order_item_id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</div>
-                    <div className="text-xs text-gray-400 dark:text-slate-500">สูงสุด {item.max} ชิ้น</div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = [...exchangeItems];
-                        updated[idx].quantity = Math.max(0, updated[idx].quantity - 1);
-                        setExchangeItems(updated);
-                      }}
-                      className="w-7 h-7 flex items-center justify-center rounded bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors text-sm font-medium"
-                    >
-                      -
-                    </button>
-                    <input
-                      type="number"
-                      min={0}
-                      max={item.max}
-                      value={item.quantity}
-                      onChange={e => {
-                        const updated = [...exchangeItems];
-                        updated[idx].quantity = Math.min(item.max, Math.max(0, parseInt(e.target.value) || 0));
-                        setExchangeItems(updated);
-                      }}
-                      className="w-12 text-center text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white py-1"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = [...exchangeItems];
-                        updated[idx].quantity = Math.min(item.max, updated[idx].quantity + 1);
-                        setExchangeItems(updated);
-                      }}
-                      className="w-7 h-7 flex items-center justify-center rounded bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors text-sm font-medium"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เหตุผลการเปลี่ยน</label>
-              <input
-                type="text"
-                value={exchangeReason}
-                onChange={e => setExchangeReason(e.target.value)}
-                placeholder="ระบุเหตุผล (ไม่บังคับ)"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400"
-              />
-            </div>
-
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowExchangeModal(false)}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleExchangeSubmit}
-                disabled={exchangeItems.every(i => i.quantity === 0)}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium disabled:opacity-50 flex items-center gap-2"
-              >
-                เลือกสินค้าใหม่
-              </button>
+              {refundItems.every(i => i.quantity === i.max) ? (
+                <button
+                  onClick={() => { setShowRefundModal(false); handleVoid(); }}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium flex items-center gap-2"
+                >
+                  <XCircle className="w-4 h-4" />
+                  ยกเลิกบิล
+                </button>
+              ) : (
+                <button
+                  onClick={handleRefundSubmit}
+                  disabled={refundLoading || refundItems.every(i => i.quantity === 0)}
+                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium disabled:opacity-50 flex items-center gap-2"
+                >
+                  {refundLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  ออกใบลดหนี้
+                </button>
+              )}
             </div>
           </div>
         </div>

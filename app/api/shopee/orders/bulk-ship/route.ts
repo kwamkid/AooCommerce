@@ -164,71 +164,108 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Step 2: Get shipping parameter from first order to determine pickup/dropoff
-      const firstSn = orderSns[0];
-      const { data: shippingParams, error: paramError } = await getShippingParameter(creds, firstSn);
-      if (paramError) {
-        for (const order of accountOrders) {
-          parallelResults.push({ order_id: order.id, order_sn: order.external_order_sn || '', success: false, error: `ดึงข้อมูลขนส่งไม่ได้: ${paramError}` });
-        }
-        continue;
-      }
-
-      const params = shippingParams as {
-        info_needed?: { pickup?: string[]; dropoff?: string[]; non_integrated?: string[] };
-        pickup?: {
-          address_list?: Array<{
-            address_id: number;
-            address_flag?: string[];
-            time_slot_list?: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }>;
-          }>;
-        };
-        dropoff?: { branch_list?: Array<{ branch_id: number }> };
+      // Step 2: Fetch shipping parameters PER ORDER to handle mixed carriers
+      // Each order may have different logistics (SPX vs Express vs dropoff) with different time slots
+      type ShippingParamResult = {
+        isDropoff: boolean;
+        pickupAddress?: { address_id: number; time_slot_list?: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }> };
+        dropoffBranchId?: number;
+        timeSlots: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }>;
       };
+      const orderShippingParams = new Map<string, ShippingParamResult>();
 
-      // Determine pickup/dropoff info
-      const isDropoff = params.info_needed?.dropoff && params.info_needed.dropoff.length > 0;
-      const pickupAddress = params.pickup?.address_list?.[0];
-      const timeSlots = pickupAddress?.time_slot_list || [];
-
-      // Check if needs time slot selection (multiple slots, no pickup_time_id provided)
-      if (!isDropoff && !pickup_time_id && timeSlots.length > 1) {
-        // Return needs_time_slot for all orders — user must select a time slot first
-        for (const order of accountOrders) {
-          parallelResults.push({
-            order_id: order.id,
-            order_sn: order.external_order_sn || '',
-            success: false,
-            needs_time_slot: true,
-            time_slots: timeSlots.map(formatTimeSlot),
-          });
-        }
-        continue;
-      }
-
-      // Build pickup/dropoff for mass_ship_order (top-level params)
-      let pickupInfo: { address_id: number; pickup_time_id: string } | undefined;
-      let dropoffInfo: { branch_id?: number; sender_real_name?: string; tracking_number?: string } | undefined;
-
-      if (isDropoff) {
-        const branchId = params.dropoff?.branch_list?.[0]?.branch_id;
-        if (branchId) dropoffInfo = { branch_id: branchId };
-      } else if (pickupAddress) {
-        const selectedTimeSlotId = pickup_time_id
-          || timeSlots.find(s => s.flags?.includes('recommended'))?.pickup_time_id
-          || timeSlots[0]?.pickup_time_id
-          || '';
-        pickupInfo = { address_id: pickupAddress.address_id, pickup_time_id: selectedTimeSlotId };
-      }
-
-      // Step 3: Build package list for mass_ship_order
-      // Group by logistics_channel_id (mass_ship_order requires same channel per batch)
-      const channelGroups = new Map<number, { pkg: MassShipPackage; order: typeof accountOrders[0] }[]>();
-      const fallbackOrders: typeof accountOrders[0][] = []; // orders without package info at all
-
+      // Deduplicate: orders with same logistics_channel_id likely have same params
+      // Fetch one representative order per channel, then share the result
+      const orderToChannel = new Map<string, number>(); // order_sn → channel_id
       for (const order of accountOrders) {
         const sn = order.external_order_sn!;
         const pkgInfos = packageMap.get(sn);
+        const channelId = pkgInfos?.[0]?.logistics_channel_id || 0;
+        orderToChannel.set(sn, channelId);
+      }
+
+      // Pick one representative order per channel
+      const channelRepresentative = new Map<number, string>(); // channel_id → order_sn
+      for (const [sn, chId] of orderToChannel) {
+        if (!channelRepresentative.has(chId)) channelRepresentative.set(chId, sn);
+      }
+
+      // Fetch shipping params per channel (not per order — saves API calls)
+      const channelShippingParams = new Map<number, ShippingParamResult | null>();
+      for (const [chId, repSn] of channelRepresentative) {
+        const { data: sp, error: spErr } = await getShippingParameter(creds, repSn);
+        if (spErr) {
+          channelShippingParams.set(chId, null);
+          // Mark all orders with this channel as error
+          for (const order of accountOrders) {
+            if (orderToChannel.get(order.external_order_sn!) === chId) {
+              parallelResults.push({ order_id: order.id, order_sn: order.external_order_sn || '', success: false, error: `ดึงข้อมูลขนส่งไม่ได้: ${spErr}` });
+            }
+          }
+          continue;
+        }
+        const p = sp as {
+          info_needed?: { pickup?: string[]; dropoff?: string[]; non_integrated?: string[] };
+          pickup?: { address_list?: Array<{ address_id: number; address_flag?: string[]; time_slot_list?: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }> }> };
+          dropoff?: { branch_list?: Array<{ branch_id: number }> };
+        };
+        const isDropoff = !!(p.info_needed?.dropoff && p.info_needed.dropoff.length > 0);
+        const pickupAddr = p.pickup?.address_list?.[0];
+        channelShippingParams.set(chId, {
+          isDropoff,
+          pickupAddress: pickupAddr ? { address_id: pickupAddr.address_id, time_slot_list: pickupAddr.time_slot_list } : undefined,
+          dropoffBranchId: p.dropoff?.branch_list?.[0]?.branch_id,
+          timeSlots: pickupAddr?.time_slot_list || [],
+        });
+      }
+
+      // Assign shipping params to each order
+      for (const order of accountOrders) {
+        const chId = orderToChannel.get(order.external_order_sn!) || 0;
+        const sp = channelShippingParams.get(chId);
+        if (sp) orderShippingParams.set(order.external_order_sn!, sp);
+      }
+
+      // Separate orders: ones that need time slot vs ones that can ship immediately
+      const ordersNeedingTimeSlot: typeof accountOrders = [];
+      const ordersReadyToShip: typeof accountOrders = [];
+
+      for (const order of accountOrders) {
+        const sn = order.external_order_sn!;
+        const sp = orderShippingParams.get(sn);
+        if (!sp) continue; // already handled as error above
+
+        if (!sp.isDropoff && !pickup_time_id && sp.timeSlots.length > 1) {
+          ordersNeedingTimeSlot.push(order);
+        } else {
+          ordersReadyToShip.push(order);
+        }
+      }
+
+      // Return needs_time_slot for orders that need it (with their own time slots)
+      for (const order of ordersNeedingTimeSlot) {
+        const sp = orderShippingParams.get(order.external_order_sn!)!;
+        parallelResults.push({
+          order_id: order.id,
+          order_sn: order.external_order_sn || '',
+          success: false,
+          needs_time_slot: true,
+          time_slots: sp.timeSlots.map(formatTimeSlot),
+        });
+      }
+
+      // Skip to next account if no orders are ready to ship
+      if (ordersReadyToShip.length === 0) continue;
+
+      // Step 3: Build package list for mass_ship_order (only for ready-to-ship orders)
+      // Group by logistics_channel_id (mass_ship_order requires same channel per batch)
+      const channelGroups = new Map<number, { pkg: MassShipPackage; order: typeof accountOrders[0]; sp: ShippingParamResult }[]>();
+      const fallbackOrders: typeof accountOrders[0][] = []; // orders without package info at all
+
+      for (const order of ordersReadyToShip) {
+        const sn = order.external_order_sn!;
+        const pkgInfos = packageMap.get(sn);
+        const sp = orderShippingParams.get(sn)!;
 
         if (!pkgInfos || pkgInfos.length === 0) {
           fallbackOrders.push(order);
@@ -246,24 +283,40 @@ export async function POST(request: NextRequest) {
             : {};
 
           if (!channelGroups.has(channelId)) channelGroups.set(channelId, []);
-          channelGroups.get(channelId)!.push({ pkg: massShipPkg, order });
+          channelGroups.get(channelId)!.push({ pkg: massShipPkg, order, sp });
         }
       }
 
       console.log(`[Shopee Bulk Ship] ${accountOrders.length} orders → ${[...channelGroups.entries()].map(([ch, items]) => `channel=${ch}:${items.length}pkg`).join(', ')}${fallbackOrders.length > 0 ? ` + ${fallbackOrders.length} fallback` : ''}`);
 
       // Step 4: Mass ship per channel group
-      // pickup/dropoff are top-level params per Shopee API (not per-package)
+      // Build pickup/dropoff PER CHANNEL from its shipping params
       const orderSuccessSet = new Set<string>(); // order IDs that succeeded
       const orderErrorMap = new Map<string, string>(); // order ID → error
 
       for (const [channelId, items] of channelGroups) {
+        // Use shipping params from the first order in this channel group
+        const sp = items[0].sp;
+        let chPickupInfo: { address_id: number; pickup_time_id: string } | undefined;
+        let chDropoffInfo: { branch_id?: number } | undefined;
+
+        if (sp.isDropoff) {
+          if (sp.dropoffBranchId) chDropoffInfo = { branch_id: sp.dropoffBranchId };
+        } else if (sp.pickupAddress) {
+          const ts = sp.timeSlots;
+          const selectedTimeSlotId = pickup_time_id
+            || ts.find(s => s.flags?.includes('recommended'))?.pickup_time_id
+            || ts[0]?.pickup_time_id
+            || '';
+          chPickupInfo = { address_id: sp.pickupAddress.address_id, pickup_time_id: selectedTimeSlotId };
+        }
+
         const packages = items.map(i => i.pkg);
         const { successList, failList, error: massError } = await massShipOrder(
           creds, packages, {
             logisticsChannelId: channelId || undefined,
-            pickup: pickupInfo,
-            dropoff: dropoffInfo,
+            pickup: chPickupInfo,
+            dropoff: chDropoffInfo,
           },
         );
 
@@ -271,7 +324,7 @@ export async function POST(request: NextRequest) {
           console.error(`[Shopee Bulk Ship] mass_ship_order error for channel ${channelId}:`, massError);
           // Fall back to individual ship_order
           for (const item of items) {
-            const result = await individualShipOrder(creds, item.order, pickupInfo, dropoffInfo, item.pkg.package_number);
+            const result = await individualShipOrder(creds, item.order, chPickupInfo, chDropoffInfo, item.pkg.package_number);
             if (result.success) {
               orderSuccessSet.add(item.order.id);
             } else {
@@ -308,11 +361,21 @@ export async function POST(request: NextRequest) {
 
       // Step 5: Fallback — individual ship_order for orders without package_number
       for (const order of fallbackOrders) {
-        if (!pickupAddress && !isDropoff) {
+        const sp = orderShippingParams.get(order.external_order_sn!);
+        if (!sp || (!sp.pickupAddress && !sp.isDropoff)) {
           orderErrorMap.set(order.id, 'ไม่พบที่อยู่รับพัสดุ');
           continue;
         }
-        const result = await individualShipOrder(creds, order, pickupInfo, dropoffInfo);
+        let fbPickup: { address_id: number; pickup_time_id: string } | undefined;
+        let fbDropoff: { branch_id?: number } | undefined;
+        if (sp.isDropoff) {
+          if (sp.dropoffBranchId) fbDropoff = { branch_id: sp.dropoffBranchId };
+        } else if (sp.pickupAddress) {
+          const ts = sp.timeSlots;
+          const slotId = pickup_time_id || ts.find(s => s.flags?.includes('recommended'))?.pickup_time_id || ts[0]?.pickup_time_id || '';
+          fbPickup = { address_id: sp.pickupAddress.address_id, pickup_time_id: slotId };
+        }
+        const result = await individualShipOrder(creds, order, fbPickup, fbDropoff);
         if (result.success) {
           orderSuccessSet.add(order.id);
         } else {

@@ -5,6 +5,8 @@ import { Loader2, Camera, X } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
+import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
+import TimePicker from '@/components/ui/TimePicker';
 
 export interface PaymentModalProps {
   show: boolean;
@@ -155,7 +157,7 @@ export default function PaymentModal({
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            ยืนยันการเปลี่ยนสถานะการชำระเงิน
+            รายละเอียดการชำระเงิน
           </h3>
           <button onClick={handleClose} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
             <X className="w-5 h-5 text-gray-400" />
@@ -163,23 +165,6 @@ export default function PaymentModal({
         </div>
 
         <div className="space-y-4">
-          {/* Order info */}
-          <div>
-            <p className="text-gray-700 dark:text-slate-300">
-              คำสั่งซื้อ: <span className="font-medium">{orderNumber}</span>
-            </p>
-            <div className="flex items-center gap-2 text-sm mt-1">
-              <span className="text-gray-600 dark:text-slate-400">เปลี่ยนจาก:</span>
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-100">รอชำระ</span>
-              <span className="text-gray-400">›</span>
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-100">ชำระแล้ว</span>
-            </div>
-          </div>
-
-          <hr className="dark:border-slate-700" />
-
-          {/* Payment details */}
-          <h4 className="font-medium text-gray-900 dark:text-white">รายละเอียดการชำระเงิน</h4>
           {totalAmount > 0 && (
             <p className="text-sm text-gray-600 dark:text-slate-400">
               ยอดชำระ: <span className="font-semibold text-[#F4511E]">฿{totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
@@ -282,22 +267,31 @@ export default function PaymentModal({
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                     วันที่จากสลิป <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="date"
-                    value={transferDate}
-                    onChange={(e) => setTransferDate(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                  <DateRangePicker
+                    value={{ startDate: transferDate ? new Date(transferDate) : null, endDate: transferDate ? new Date(transferDate) : null }}
+                    onChange={(val: DateValueType) => {
+                      const d = val?.startDate;
+                      if (!d) { setTransferDate(''); return; }
+                      const dateStr = typeof d === 'string' ? d : d instanceof Date ? d.toISOString().split('T')[0] : '';
+                      setTransferDate(dateStr);
+                    }}
+                    asSingle
+                    useRange={false}
+                    showShortcuts={false}
+                    showFooter={false}
+                    placeholder="เลือกวันที่"
+                    popupDirection="up"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                     เวลาจากสลิป <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="time"
+                  <TimePicker
                     value={transferTime}
-                    onChange={(e) => setTransferTime(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    onChange={setTransferTime}
+                    placeholder="เลือกเวลา"
+                    popupDirection="up"
                   />
                 </div>
               </div>

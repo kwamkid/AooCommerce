@@ -12,6 +12,7 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
+import { useFeatures } from '@/lib/features-context';
 import {
   UserCircle,
   Plus,
@@ -21,25 +22,40 @@ import {
   X,
   Loader2,
   Phone,
+  Mail,
   Trash2,
+  Tags,
 } from 'lucide-react';
+import TagBadge, { Tag, TAG_COLORS } from '@/components/ui/TagBadge';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import PlatformChipFilter from '@/app/components/PlatformChipFilter';
 import FormSelect from '@/components/ui/FormSelect';
 
 // Column toggle system
-type ColumnKey = 'customer' | 'type' | 'phone' | 'email' | 'address' | 'totalOrder' | 'orderCount' | 'branch';
+type ColumnKey = 'customer' | 'type' | 'channels' | 'tags' | 'address' | 'totalOrder' | 'orderCount' | 'branch';
 
 const COLUMN_CONFIGS: { key: ColumnKey; label: string; defaultVisible: boolean; alwaysVisible?: boolean }[] = [
   { key: 'customer', label: 'ลูกค้า', defaultVisible: true, alwaysVisible: true },
   { key: 'type', label: 'ประเภท', defaultVisible: true },
-  { key: 'phone', label: 'เบอร์โทร', defaultVisible: true },
-  { key: 'email', label: 'อีเมล', defaultVisible: true },
+  { key: 'channels', label: 'ช่องทาง', defaultVisible: true },
+  { key: 'tags', label: 'แท็ก', defaultVisible: true },
   { key: 'address', label: 'ที่อยู่', defaultVisible: true },
   { key: 'orderCount', label: 'จำนวนบิล', defaultVisible: true },
   { key: 'totalOrder', label: 'ยอดสั่งซื้อ', defaultVisible: true },
   { key: 'branch', label: 'สาขา', defaultVisible: true },
 ];
+
+// Channel icon and label config
+const CHANNEL_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
+  shopee: { label: 'Shopee', icon: '/marketplace/shopee.svg', color: 'bg-orange-50 text-orange-700' },
+  tiktok: { label: 'TikTok', icon: '/marketplace/tiktok_shop.svg', color: 'bg-gray-50 text-gray-700' },
+  lazada: { label: 'Lazada', icon: '/marketplace/lazada.svg', color: 'bg-blue-50 text-blue-700' },
+  line: { label: 'LINE', icon: '/social/line_oa.svg', color: 'bg-green-50 text-green-700' },
+  facebook: { label: 'Facebook', icon: '/social/facebook.svg', color: 'bg-blue-50 text-blue-700' },
+  instagram: { label: 'Instagram', icon: '/social/instagram.svg', color: 'bg-pink-50 text-pink-700' },
+  manual: { label: 'เปิดบิลตรง', icon: '', color: 'bg-gray-50 text-gray-600' },
+};
 
 const STORAGE_KEY = 'customers-visible-columns';
 
@@ -76,6 +92,8 @@ interface Customer {
   line_display_name?: string | null;
   total_order_amount?: number;
   order_count?: number;
+  tags?: Tag[];
+  channels?: string[];
 }
 
 // Customer type config
@@ -111,6 +129,7 @@ export default function CustomersPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
+  const { features } = useFeatures();
   const router = useRouter();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -121,6 +140,16 @@ export default function CustomersPage() {
   const [filterType, setFilterType] = useState<string>('');
   const [filterAmount, setFilterAmount] = useState<string>('');
   const [filterOrderCount, setFilterOrderCount] = useState<string>('');
+  const [filterTag, setFilterTag] = useState<string>('');
+  const [filterChannel, setFilterChannel] = useState<string>('');
+
+  // Tag management
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const [tagName, setTagName] = useState('');
+  const [tagColor, setTagColor] = useState(TAG_COLORS[0]);
+  const [tagSaving, setTagSaving] = useState(false);
 
   // Selection & bulk delete
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -150,7 +179,10 @@ export default function CustomersPage() {
     });
   };
 
-  const isCol = (key: ColumnKey) => visibleColumns.has(key);
+  const isCol = (key: ColumnKey) => {
+    if (key === 'branch' && !features.customer_branches) return false;
+    return visibleColumns.has(key);
+  };
 
   // Selection helpers
   const toggleSelect = (id: string) => {
@@ -201,7 +233,7 @@ export default function CustomersPage() {
   // Clear selection when filters change
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [searchTerm, filterType, filterAmount, filterOrderCount, currentPage]);
+  }, [searchTerm, filterType, filterAmount, filterOrderCount, filterTag, filterChannel, currentPage]);
 
   // Check auth
   useEffect(() => {
@@ -223,8 +255,12 @@ export default function CustomersPage() {
     try {
       setLoading(true);
 
-      const customersResponse = await apiFetch('/api/customers?with_stats=true');
+      const [customersResponse, tagsResponse] = await Promise.all([
+        apiFetch('/api/customers?with_stats=true'),
+        apiFetch('/api/customers/tags'),
+      ]);
       const customersResult = await customersResponse.json();
+      const tagsResult = await tagsResponse.json();
 
       if (!customersResponse.ok) {
         throw new Error(customersResult.error || 'Failed to fetch customers');
@@ -238,6 +274,7 @@ export default function CustomersPage() {
       }));
 
       setCustomers(customersWithType as Customer[]);
+      if (tagsResult.tags) setAllTags(tagsResult.tags);
       setDataFetched(true);
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -276,7 +313,13 @@ export default function CustomersPage() {
        filterOrderCount === '6-20' ? cnt >= 6 && cnt <= 20 :
        filterOrderCount === '>20' ? cnt > 20 : true);
 
-    return matchesSearch && matchesType && matchesAmount && matchesOrderCount;
+    const matchesTag = filterTag === '' ||
+      (customer.tags || []).some(t => t.id === filterTag);
+
+    const matchesChannel = filterChannel === '' ||
+      (customer.channels || []).includes(filterChannel);
+
+    return matchesSearch && matchesType && matchesAmount && matchesOrderCount && matchesTag && matchesChannel;
   });
 
   // Types that exist in customer data (for filter dropdown)
@@ -304,6 +347,71 @@ export default function CustomersPage() {
     });
   };
 
+  // Tag CRUD handlers
+  const handleSaveTag = async () => {
+    if (!tagName.trim() || tagSaving) return;
+    setTagSaving(true);
+    try {
+      if (editingTag) {
+        // Update
+        const res = await apiFetch('/api/customers/tags', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingTag.id, name: tagName.trim(), color: tagColor }),
+        });
+        if (!res.ok) { const r = await res.json(); throw new Error(r.error); }
+        const { tag } = await res.json();
+        setAllTags(prev => prev.map(t => t.id === tag.id ? { ...tag, count: t.count } : t));
+        // Update tags in customers too
+        setCustomers(prev => prev.map(c => ({
+          ...c,
+          tags: c.tags?.map(t => t.id === tag.id ? tag : t),
+        })));
+        showToast('แก้ไขแท็กสำเร็จ');
+      } else {
+        // Create
+        const res = await apiFetch('/api/customers/tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: tagName.trim(), color: tagColor }),
+        });
+        if (!res.ok) { const r = await res.json(); throw new Error(r.error); }
+        const { tag } = await res.json();
+        setAllTags(prev => [...prev, tag]);
+        showToast('สร้างแท็กสำเร็จ');
+      }
+      setEditingTag(null);
+      setTagName('');
+      setTagColor(TAG_COLORS[0]);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'ไม่สามารถบันทึกแท็กได้', 'error');
+    } finally {
+      setTagSaving(false);
+    }
+  };
+
+  const handleDeleteTag = async (tag: Tag) => {
+    const ok = await confirm({ title: `ลบแท็ก "${tag.name}"?`, description: 'ลูกค้าทุกรายจะถูกถอดแท็กนี้ออก', variant: 'danger' });
+    if (!ok) return;
+    try {
+      const res = await apiFetch('/api/customers/tags', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: tag.id }),
+      });
+      if (!res.ok) throw new Error();
+      setAllTags(prev => prev.filter(t => t.id !== tag.id));
+      setCustomers(prev => prev.map(c => ({
+        ...c,
+        tags: c.tags?.filter(t => t.id !== tag.id),
+      })));
+      if (filterTag === tag.id) setFilterTag('');
+      showToast('ลบแท็กสำเร็จ');
+    } catch {
+      showToast('ไม่สามารถลบแท็กได้', 'error');
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <Layout>
@@ -327,13 +435,22 @@ export default function CustomersPage() {
             <p className="text-gray-600 dark:text-slate-400 mt-1">จัดการข้อมูลลูกค้าและความสัมพันธ์</p>
           </div>
 
-          <button
-            onClick={() => router.push('/customers/new')}
-            className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center font-medium"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            เพิ่ม<span className="hidden md:inline">ลูกค้า</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setEditingTag(null); setTagName(''); setTagColor(TAG_COLORS[0]); setShowTagModal(true); }}
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+            >
+              <Tags className="w-4 h-4" />
+              <span className="hidden md:inline">จัดการแท็ก</span>
+            </button>
+            <button
+              onClick={() => router.push('/customers/new')}
+              className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center font-medium"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              เพิ่ม<span className="hidden md:inline">ลูกค้า</span>
+            </button>
+          </div>
         </div>
 
         {/* Alerts */}
@@ -350,7 +467,13 @@ export default function CustomersPage() {
             {/* Row 1: Search */}
             <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร..." className="py-2" />
 
-            {/* Row 2: Filters */}
+            {/* Row 2: Channel chips */}
+            <PlatformChipFilter
+              value={filterChannel || 'all'}
+              onChange={(val) => { setFilterChannel(val === 'all' ? '' : val); setCurrentPage(1); }}
+            />
+
+            {/* Row 3: Filters */}
             <div className="flex gap-2">
               {/* Type Filter */}
               <div className="flex-1 min-w-0">
@@ -395,6 +518,19 @@ export default function CustomersPage() {
                   searchThreshold={99}
                 />
               </div>
+
+              {/* Tag Filter */}
+              {allTags.length > 0 && (
+              <div className="flex-1 min-w-0">
+                <FormSelect
+                  value={filterTag}
+                  onChange={(val) => { setFilterTag(val); setCurrentPage(1); }}
+                  options={allTags.map(t => ({ id: t.id, label: t.name }))}
+                  clearLabel="แท็ก"
+                  searchThreshold={99}
+                />
+              </div>
+              )}
             </div>
           </div>
         </div>
@@ -434,8 +570,9 @@ export default function CustomersPage() {
                   </th>
                   {isCol('customer') && <th className="data-th min-w-[200px]">ลูกค้า</th>}
                   {isCol('type') && <th className="data-th w-[100px]">ประเภท</th>}
-                  {isCol('phone') && <th className="data-th w-[110px]">เบอร์โทร</th>}
-                  {isCol('email') && <th className="data-th min-w-[160px]">อีเมล</th>}
+                  {isCol('channels') && <th className="data-th min-w-[100px]">ช่องทาง</th>}
+                  {isCol('tags') && <th className="data-th min-w-[120px]">แท็ก</th>}
+
                   {isCol('address') && <th className="data-th min-w-[200px]">ที่อยู่</th>}
                   {isCol('orderCount') && <th className="data-th text-center w-[100px]">จำนวนบิล</th>}
                   {isCol('totalOrder') && <th className="data-th text-right w-[130px]">ยอดสั่งซื้อ</th>}
@@ -455,12 +592,29 @@ export default function CustomersPage() {
                       <Checkbox checked={selectedIds.has(customer.id)} onChange={() => toggleSelect(customer.id)} />
                     </td>
 
-                    {/* ลูกค้า: ชื่อ (เด่น) + รหัส (จาง) */}
+                    {/* ลูกค้า: ชื่อ + เบอร์โทร/อีเมล */}
                     {isCol('customer') && (
                     <td className="px-4 py-3">
                       <div>
                         <div className="font-semibold text-[15px] text-gray-900 dark:text-white">{customer.name}</div>
-                        <div className="text-xs text-gray-400 dark:text-slate-500">{customer.customer_code}</div>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          {customer.phone && (
+                            <a
+                              href={`tel:${customer.phone}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400 hover:text-blue-600"
+                            >
+                              <Phone className="w-3 h-3" />
+                              {customer.phone}
+                            </a>
+                          )}
+                          {customer.email && (
+                            <span className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400">
+                              <Mail className="w-3 h-3" />
+                              {customer.email}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     )}
@@ -472,29 +626,36 @@ export default function CustomersPage() {
                     </td>
                     )}
 
-                    {/* เบอร์โทร - กดโทรได้ */}
-                    {isCol('phone') && (
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      {customer.phone ? (
-                        <a
-                          href={`tel:${customer.phone}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
-                        >
-                          <Phone className="w-3.5 h-3.5" />
-                          {customer.phone}
-                        </a>
+                    {/* ช่องทาง (icon only) */}
+                    {isCol('channels') && (
+                    <td className="px-3 py-3">
+                      {customer.channels && customer.channels.length > 0 ? (
+                        <div className="flex items-center gap-1.5">
+                          {customer.channels.map(ch => {
+                            const cfg = CHANNEL_CONFIG[ch];
+                            if (!cfg) return null;
+                            return (
+                              <span key={ch} title={cfg.label} className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-700">
+                                {cfg.icon ? <img src={cfg.icon} alt={cfg.label} className="w-4 h-4" /> : <span className="text-[10px]">{cfg.label.charAt(0)}</span>}
+                              </span>
+                            );
+                          })}
+                        </div>
                       ) : (
-                        <span className="text-gray-400 text-sm">-</span>
+                        <span className="text-gray-300 text-sm">-</span>
                       )}
                     </td>
                     )}
 
-                    {/* อีเมล */}
-                    {isCol('email') && (
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      {customer.email ? (
-                        <span className="text-sm text-gray-700 dark:text-slate-300">{customer.email}</span>
+                    {/* แท็ก */}
+                    {isCol('tags') && (
+                    <td className="px-3 py-3">
+                      {customer.tags && customer.tags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {customer.tags.map(tag => (
+                            <TagBadge key={tag.id} tag={tag} size="sm" />
+                          ))}
+                        </div>
                       ) : (
                         <span className="text-gray-300 text-sm">-</span>
                       )}
@@ -579,7 +740,7 @@ export default function CustomersPage() {
             setPage={setCurrentPage}
           >
             <ColumnSettingsDropdown
-              configs={COLUMN_CONFIGS}
+              configs={features.customer_branches ? COLUMN_CONFIGS : COLUMN_CONFIGS.filter(c => c.key !== 'branch')}
               visible={visibleColumns}
               toggle={toggleColumn}
               buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
@@ -599,6 +760,98 @@ export default function CustomersPage() {
           </div>
         )}
       </div>
+      {/* Tag Management Modal */}
+      {showTagModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowTagModal(false)}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-slate-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Tags className="w-5 h-5 text-[#F4511E]" />
+                จัดการแท็ก
+              </h3>
+              <button onClick={() => setShowTagModal(false)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Create / Edit form */}
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={tagName}
+                  onChange={e => setTagName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleSaveTag();
+                    if (e.key === 'Escape' && editingTag) { setEditingTag(null); setTagName(''); setTagColor(TAG_COLORS[0]); }
+                  }}
+                  placeholder={editingTag ? 'แก้ไขชื่อแท็ก...' : 'ชื่อแท็กใหม่...'}
+                  className="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#F4511E] focus:border-transparent outline-none"
+                />
+                <button
+                  onClick={handleSaveTag}
+                  disabled={!tagName.trim() || tagSaving}
+                  className="px-4 py-2 bg-[#F4511E] text-white rounded-lg text-base font-medium hover:bg-[#D63B0E] disabled:opacity-50 transition-colors whitespace-nowrap"
+                >
+                  {editingTag ? 'แก้ไข' : 'สร้าง'}
+                </button>
+                {editingTag && (
+                  <button
+                    onClick={() => { setEditingTag(null); setTagName(''); setTagColor(TAG_COLORS[0]); }}
+                    className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="ยกเลิกแก้ไข"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 mt-2">
+                {TAG_COLORS.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setTagColor(c)}
+                    className={`w-6 h-6 rounded-full transition-all ${tagColor === c ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-offset-slate-800' : 'hover:scale-110'}`}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Tag list */}
+            <div className="flex-1 overflow-y-auto px-5 py-3">
+              {allTags.length === 0 ? (
+                <p className="text-center text-gray-400 dark:text-slate-500 text-sm py-8">ยังไม่มีแท็ก</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {allTags.map(tag => {
+                    const bg = tag.color + '20';
+                    const isEditing = editingTag?.id === tag.id;
+                    return (
+                      <span
+                        key={tag.id}
+                        className={`inline-flex items-center gap-1 rounded-full text-sm font-medium pl-3 pr-1.5 py-1 cursor-pointer transition-all ${isEditing ? 'ring-2 ring-offset-1 ring-gray-400' : 'hover:opacity-80'}`}
+                        style={{ backgroundColor: bg, color: tag.color }}
+                        onClick={() => { setEditingTag(tag); setTagName(tag.name); setTagColor(tag.color); }}
+                      >
+                        {tag.name}
+                        <span className="opacity-60">({tag.count ?? 0})</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteTag(tag); }}
+                          className="p-0.5 rounded-full hover:bg-black/10 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmDialog}
     </Layout>
   );

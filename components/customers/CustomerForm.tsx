@@ -16,6 +16,8 @@ import {
 import Checkbox from '@/components/ui/Checkbox';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import FormSelect from '@/components/ui/FormSelect';
+import TagInput from '@/components/ui/TagInput';
+import { Tag } from '@/components/ui/TagBadge';
 import { useToast } from '@/lib/toast-context';
 import { parseThaiAddress } from '@/lib/address-parser';
 
@@ -80,6 +82,11 @@ interface CustomerFormProps {
   isLoading?: boolean;
   compact?: boolean;
   lineDisplayName?: string;
+  // Tags
+  allTags?: Tag[];
+  selectedTags?: Tag[];
+  onTagsChange?: (tags: Tag[]) => void;
+  onTagCreated?: (tag: Tag) => void;
 }
 
 // Phone number formatting utilities
@@ -216,7 +223,11 @@ export default function CustomerForm({
   isEditing = false,
   isLoading = false,
   compact = false,
-  lineDisplayName
+  lineDisplayName,
+  allTags,
+  selectedTags,
+  onTagsChange,
+  onTagCreated,
 }: CustomerFormProps) {
   const { showToast } = useToast();
   const [formData, setFormData] = useState<CustomerFormData>({
@@ -499,6 +510,20 @@ export default function CustomerForm({
           />
         </div>
 
+        {/* Tags */}
+        {allTags && onTagsChange && (
+        <div>
+          <label className={labelCompact}>แท็ก</label>
+          <TagInput
+            value={selectedTags || []}
+            onChange={onTagsChange}
+            allTags={allTags}
+            onTagCreated={onTagCreated}
+            size="sm"
+          />
+        </div>
+        )}
+
         {/* Section 2: Shipping Address */}
         <div className="border-t pt-4">
           <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3 flex items-center gap-2">
@@ -690,6 +715,18 @@ export default function CustomerForm({
                   )}
                 </div>
               </div>
+              {/* Tags */}
+              {allTags && onTagsChange && (
+              <div>
+                <label className={labelFull}>แท็ก</label>
+                <TagInput
+                  value={selectedTags || []}
+                  onChange={onTagsChange}
+                  allTags={allTags}
+                  onTagCreated={onTagCreated}
+                />
+              </div>
+              )}
               <div>
                 <label className={labelFull}>หมายเหตุ</label>
                 <textarea value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}

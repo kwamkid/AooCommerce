@@ -7,8 +7,7 @@ import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
-import DateRangePicker from '@/components/ui/DateRangePicker';
-import { DateValueType } from 'react-tailwindcss-datepicker';
+import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
 import {
   DollarSign,

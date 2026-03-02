@@ -946,9 +946,12 @@ export default function ChatChannelsPage() {
     const botName = (account.platform === 'line'
       ? account.credentials.bot_name
       : account.credentials.page_name) as string | undefined;
+    const fbPageId = account.credentials.page_id as string | undefined;
     const botPicture = (account.platform === 'line'
-      ? account.credentials.bot_picture_url
-      : account.credentials.page_picture_url || account.credentials.bot_picture_url) as string | undefined;
+      ? account.credentials.bot_picture_url as string | undefined
+      : fbPageId
+        ? `https://graph.facebook.com/${fbPageId}/picture?type=small`
+        : account.credentials.page_picture_url as string | undefined);
     const basicId = account.credentials.basic_id as string | undefined;
     const pageId = account.credentials.page_id as string | undefined;
     const igAccountId = account.credentials.ig_account_id as string | undefined;

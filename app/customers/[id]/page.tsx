@@ -31,6 +31,8 @@ import {
 } from 'lucide-react';
 import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
+import TagInput from '@/components/ui/TagInput';
+import { Tag } from '@/components/ui/TagBadge';
 
 // Customer interface
 interface Customer {
@@ -159,6 +161,10 @@ export default function CustomerEditPage() {
     is_active: true,
   });
 
+  // Tags
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
+
   // Phone display states
   const [phoneDisplay, setPhoneDisplay] = useState('');
   const [shippingPhoneDisplay, setShippingPhoneDisplay] = useState('');
@@ -202,17 +208,23 @@ export default function CustomerEditPage() {
     try {
       setLoading(true);
 
-      // Fetch customer, addresses, and linked contacts in parallel
-      const [customerRes, addressRes, linkedRes] = await Promise.all([
+      // Fetch customer, addresses, linked contacts, and tags in parallel
+      const [customerRes, addressRes, linkedRes, tagsRes, customerTagsRes] = await Promise.all([
         apiFetch('/api/customers'),
         apiFetch(`/api/shipping-addresses?customer_id=${customerId}`),
-        apiFetch(`/api/chat/contacts?customer_id=${customerId}`)
+        apiFetch(`/api/chat/contacts?customer_id=${customerId}`),
+        apiFetch('/api/customers/tags'),
+        apiFetch(`/api/customers/${customerId}/tags`),
       ]);
 
       const customerResult = await customerRes.json();
       const addressResult = await addressRes.json();
       const linkedResult = await linkedRes.json();
       setLinkedContacts(linkedResult.linked_contacts || []);
+      const tagsResult = await tagsRes.json();
+      if (tagsResult.tags) setAllTags(tagsResult.tags);
+      const customerTagsResult = await customerTagsRes.json();
+      if (customerTagsResult.tags) setSelectedTags(customerTagsResult.tags);
 
       if (!customerRes.ok) throw new Error(customerResult.error || 'Failed to fetch customer');
 
@@ -387,6 +399,13 @@ export default function CustomerEditPage() {
           if (result.address?.id) setDefaultAddressId(result.address.id);
         }
       }
+
+      // 3. Save tags
+      await apiFetch(`/api/customers/${customerId}/tags`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag_ids: selectedTags.map(t => t.id) }),
+      });
 
       setSuccess('บันทึกข้อมูลลูกค้าสำเร็จ');
       setTimeout(() => setSuccess(''), 3000);
@@ -637,6 +656,17 @@ export default function CustomerEditPage() {
                       disabled={!canEdit}
                     />
                   </div>
+                </div>
+
+                {/* Tags */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">แท็ก</label>
+                  <TagInput
+                    value={selectedTags}
+                    onChange={setSelectedTags}
+                    allTags={allTags}
+                    onTagCreated={(tag) => setAllTags(prev => [...prev, tag])}
+                  />
                 </div>
 
                 <div>

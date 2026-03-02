@@ -75,9 +75,9 @@ export default function SearchableDropdown({
           setSearch('');
           setTimeout(() => searchRef.current?.focus(), 50);
         }}
-        className={`flex items-center gap-2 border rounded-lg px-3 py-2 text-sm transition-colors ${
+        className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 text-sm transition-colors ${
           isActive
-            ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 text-[#F4511E]'
+            ? 'border-gray-400 dark:border-slate-500 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300'
             : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:border-gray-400 dark:hover:border-slate-500'
         }`}
       >

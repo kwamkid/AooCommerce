@@ -5,8 +5,13 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
-import { Loader2, Printer, FileText, MapPin, Package, Camera, Upload, Clock, CheckCircle2, CreditCard, Banknote, Globe, Copy, Check, Sun, Moon, QrCode, Download, Pencil, Calendar, AlertTriangle } from 'lucide-react';
+import { Loader2, Printer, FileText, MapPin, Package, Camera, Upload, Clock, CheckCircle2, CreditCard, Banknote, Globe, Copy, Check, Sun, Moon, QrCode, Download, Pencil, Calendar, AlertTriangle, ChevronDown } from 'lucide-react';
+import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
+import { showPdfPreview } from '@/lib/print-pdf';
+import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
+import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
+import TimePicker from '@/components/ui/TimePicker';
 import { getBankByCode } from '@/lib/constants/banks';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
 import { BEAM_CHANNELS } from '@/lib/constants/payment-gateway';
@@ -165,6 +170,10 @@ export default function BillOnlinePage() {
   const [compressingSlip, setCompressingSlip] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Print
+  const [showPrintMenu, setShowPrintMenu] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+
   // Delivery info form state (for orders without customer)
   const [deliveryName, setDeliveryName] = useState('');
   const [deliveryPhone, setDeliveryPhone] = useState('');
@@ -254,6 +263,36 @@ export default function BillOnlinePage() {
       setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดบิลได้');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePrintInvoice = async () => {
+    if (!bill) return;
+    setShowPrintMenu(false);
+    setGeneratingPdf(true);
+    try {
+      const invoiceData = {
+        order_number: bill.order_number,
+        order_date: bill.order_date,
+        created_at: bill.order_date,
+        payment_status: bill.payment_status,
+        subtotal: bill.subtotal,
+        discount_amount: bill.discount_amount,
+        shipping_fee: bill.shipping_fee,
+        vat_amount: bill.vat_amount,
+        total_amount: bill.total_amount,
+        notes: bill.notes,
+        customer: bill.customer,
+        items: bill.items,
+      };
+      const blob = await generateOrderInvoicePdf({ data: invoiceData });
+      const vatRegistered = bill.vat_registered ?? false;
+      showPdfPreview(blob, getInvoiceMenuLabel(bill.payment_status, vatRegistered));
+    } catch (err) {
+      console.error('Error generating invoice PDF:', err);
+      showToast('สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setGeneratingPdf(false);
     }
   };
 
@@ -529,13 +568,31 @@ export default function BillOnlinePage() {
           >
             {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
-          <button
-            onClick={() => window.print()}
-            className="bg-[#F4511E] text-white px-3 py-1.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-1.5 text-sm font-medium"
-          >
-            <Printer className="w-4 h-4" />
-            พิมพ์
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowPrintMenu(!showPrintMenu)}
+              className="bg-[#F4511E] text-white px-3 py-1.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-1.5 text-sm font-medium"
+            >
+              <Printer className="w-4 h-4" />
+              พิมพ์
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            {showPrintMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowPrintMenu(false)} />
+                <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg z-50 py-1">
+                  <button
+                    onClick={handlePrintInvoice}
+                    disabled={generatingPdf}
+                    className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
+                  >
+                    {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" /> : <Banknote className="w-4 h-4 text-gray-400" />}
+                    {getInvoiceMenuLabel(bill.payment_status, bill.vat_registered ?? false)}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1102,26 +1159,31 @@ export default function BillOnlinePage() {
 
                         {/* Transfer date/time */}
                         <div className="grid grid-cols-2 gap-2">
-                          <div className="overflow-hidden">
+                          <div>
                             <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>
                               วันที่โอน <span className="text-red-400">*</span>
                             </label>
-                            <input
-                              type="date"
-                              value={transferDate}
-                              onChange={(e) => setTransferDate(e.target.value)}
-                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
-                              className="w-full px-3 py-3 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                            <DateRangePicker
+                              asSingle
+                              useRange={false}
+                              showShortcuts={false}
+                              showFooter={false}
+                              placeholder="เลือกวันที่"
+                              popupDirection="up"
+                              value={transferDate ? { startDate: transferDate, endDate: transferDate } : null}
+                              onChange={(val: DateValueType) => {
+                                const d = val?.startDate;
+                                setTransferDate(d ? (typeof d === 'string' ? d : d.toISOString().slice(0, 10)) : '');
+                              }}
                             />
                           </div>
-                          <div className="overflow-hidden">
+                          <div>
                             <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>เวลา</label>
-                            <input
-                              type="time"
+                            <TimePicker
                               value={transferTime}
-                              onChange={(e) => setTransferTime(e.target.value)}
-                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
-                              className="w-full px-2 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                              onChange={setTransferTime}
+                              placeholder="เลือกเวลา"
+                              popupDirection="up"
                             />
                           </div>
                         </div>
@@ -1235,26 +1297,31 @@ export default function BillOnlinePage() {
 
                         {/* วันที่โอน + เวลาโอน */}
                         <div className="grid grid-cols-2 gap-2">
-                          <div className="overflow-hidden">
+                          <div>
                             <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>
                               วันที่โอน <span className="text-red-400">*</span>
                             </label>
-                            <input
-                              type="date"
-                              value={transferDate}
-                              onChange={(e) => setTransferDate(e.target.value)}
-                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
-                              className="w-full px-3 py-3 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                            <DateRangePicker
+                              asSingle
+                              useRange={false}
+                              showShortcuts={false}
+                              showFooter={false}
+                              placeholder="เลือกวันที่"
+                              popupDirection="up"
+                              value={transferDate ? { startDate: transferDate, endDate: transferDate } : null}
+                              onChange={(val: DateValueType) => {
+                                const d = val?.startDate;
+                                setTransferDate(d ? (typeof d === 'string' ? d : d.toISOString().slice(0, 10)) : '');
+                              }}
                             />
                           </div>
-                          <div className="overflow-hidden">
+                          <div>
                             <label className="block text-sm font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>เวลา</label>
-                            <input
-                              type="time"
+                            <TimePicker
                               value={transferTime}
-                              onChange={(e) => setTransferTime(e.target.value)}
-                              style={{ ...(dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }), maxWidth: '100%' }}
-                              className="w-full px-2 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                              onChange={setTransferTime}
+                              placeholder="เลือกเวลา"
+                              popupDirection="up"
                             />
                           </div>
                         </div>

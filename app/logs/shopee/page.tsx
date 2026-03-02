@@ -4,8 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
-import DateRangePicker from '@/components/ui/DateRangePicker';
-import { DateValueType } from 'react-tailwindcss-datepicker';
+import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import Pagination from '@/app/components/Pagination';
 import {
   Search,

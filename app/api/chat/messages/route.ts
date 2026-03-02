@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 500 });
+      return NextResponse.json({ error: result.error, errorCode: result.errorCode }, { status: 500 });
     }
     return NextResponse.json({ success: true, message: result.message });
   } catch (error) {

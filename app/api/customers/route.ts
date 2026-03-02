@@ -192,7 +192,7 @@ export async function GET(request: NextRequest) {
       const customerIds = data.map(c => c.id);
 
       // Fetch all stats in parallel
-      const [addressResult, defaultAddrResult, lineResult, orderResult] = await Promise.all([
+      const [addressResult, defaultAddrResult, lineResult, fbResult, orderResult, orderSourceResult, tagLinksResult] = await Promise.all([
         supabaseAdmin
           .from('shipping_addresses')
           .select('customer_id')
@@ -211,17 +211,37 @@ export async function GET(request: NextRequest) {
           .select('customer_id, display_name, line_user_id')
           .in('customer_id', customerIds),
         supabaseAdmin
+          .from('fb_contacts')
+          .select('customer_id, source')
+          .in('customer_id', customerIds)
+          .eq('company_id', auth.companyId),
+        supabaseAdmin
           .from('orders')
           .select('customer_id, total_amount')
           .in('customer_id', customerIds)
           .eq('company_id', auth.companyId)
           .neq('order_status', 'cancelled'),
+        // Distinct order sources per customer (for channel derivation)
+        supabaseAdmin
+          .from('orders')
+          .select('customer_id, source')
+          .in('customer_id', customerIds)
+          .eq('company_id', auth.companyId)
+          .neq('order_status', 'cancelled')
+          .in('source', ['shopee', 'tiktok', 'lazada']),
+        supabaseAdmin
+          .from('customer_tag_links')
+          .select('customer_id, tag:customer_tags(id, name, color)')
+          .in('customer_id', customerIds),
       ]);
 
       const { data: addressCounts } = addressResult;
       const { data: defaultAddresses } = defaultAddrResult;
       const { data: lineContacts, error: lineError } = lineResult;
+      const { data: fbContacts } = fbResult;
       const { data: orderTotals } = orderResult;
+      const { data: orderSources } = orderSourceResult;
+      const { data: tagLinks } = tagLinksResult;
 
       if (lineError) {
         console.error('Error fetching LINE contacts:', lineError);
@@ -257,16 +277,59 @@ export async function GET(request: NextRequest) {
         }
       });
 
+      // Tag lookup map
+      const tagMap: Record<string, { id: string; name: string; color: string }[]> = {};
+      tagLinks?.forEach((link: any) => {
+        if (link.customer_id && link.tag) {
+          if (!tagMap[link.customer_id]) tagMap[link.customer_id] = [];
+          tagMap[link.customer_id].push(link.tag);
+        }
+      });
+
+      // Channel derivation: collect all channels per customer
+      // Channels: 'shopee', 'tiktok', 'lazada', 'line', 'facebook', 'instagram', 'manual'
+      const channelMap: Record<string, Set<string>> = {};
+      // From LINE contacts
+      lineContacts?.forEach(lc => {
+        if (lc.customer_id) {
+          if (!channelMap[lc.customer_id]) channelMap[lc.customer_id] = new Set();
+          channelMap[lc.customer_id].add('line');
+        }
+      });
+      // From FB contacts (source = 'facebook' or 'instagram')
+      fbContacts?.forEach(fc => {
+        if (fc.customer_id) {
+          if (!channelMap[fc.customer_id]) channelMap[fc.customer_id] = new Set();
+          channelMap[fc.customer_id].add(fc.source || 'facebook');
+        }
+      });
+      // From marketplace order sources
+      orderSources?.forEach(os => {
+        if (os.customer_id && os.source) {
+          if (!channelMap[os.customer_id]) channelMap[os.customer_id] = new Set();
+          channelMap[os.customer_id].add(os.source);
+        }
+      });
+
       // Merge stats into customers
-      const customersWithStats = data.map(customer => ({
-        ...customer,
-        customer_type: customer.customer_type_new || customer.customer_type || 'retail',
-        shipping_address_count: addressCountMap[customer.id] || 0,
-        default_address: defaultAddrMap[customer.id] || null,
-        line_display_name: lineContactMap[customer.id] || null,
-        total_order_amount: orderTotalMap[customer.id] || 0,
-        order_count: orderCountMap[customer.id] || 0
-      }));
+      const customersWithStats = data.map(customer => {
+        const channels = channelMap[customer.id] ? [...channelMap[customer.id]] : [];
+        // If no channels found but has orders, it's manual
+        if (channels.length === 0 && (orderCountMap[customer.id] || 0) > 0) {
+          channels.push('manual');
+        }
+        return {
+          ...customer,
+          customer_type: customer.customer_type_new || customer.customer_type || 'retail',
+          shipping_address_count: addressCountMap[customer.id] || 0,
+          default_address: defaultAddrMap[customer.id] || null,
+          line_display_name: lineContactMap[customer.id] || null,
+          total_order_amount: orderTotalMap[customer.id] || 0,
+          order_count: orderCountMap[customer.id] || 0,
+          tags: tagMap[customer.id] || [],
+          channels,
+        };
+      });
 
       return NextResponse.json({ customers: customersWithStats });
     }

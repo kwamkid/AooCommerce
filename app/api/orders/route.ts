@@ -572,6 +572,42 @@ export async function POST(request: NextRequest) {
             .from('credit_notes')
             .update({ exchange_order_id: order.id, updated_at: new Date().toISOString() })
             .eq('id', cnResult.cn_id);
+
+          // Apply exchange credit: reduce total_amount by CN amount
+          const { data: cnData } = await supabaseAdmin
+            .from('credit_notes')
+            .select('total_amount')
+            .eq('id', cnResult.cn_id)
+            .single();
+
+          if (cnData) {
+            const creditAmt = Number(cnData.total_amount || 0);
+            const newTotal = Math.max(0, totalAmount - creditAmt);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const updateFields: any = {
+              exchange_credit: creditAmt,
+              total_amount: newTotal,
+              updated_at: new Date().toISOString(),
+            };
+            // Credit covers entire bill → auto-paid
+            if (creditAmt >= totalAmount) {
+              updateFields.payment_status = 'paid';
+              updateFields.order_status = 'ready_to_ship';
+            }
+            // Recalculate VAT from new total
+            if (isVatRegistered && newTotal > 0) {
+              const newSubtotalBV = Math.round((newTotal / 1.07) * 100) / 100;
+              updateFields.subtotal = newSubtotalBV;
+              updateFields.vat_amount = newTotal - newSubtotalBV;
+            } else if (newTotal === 0) {
+              updateFields.subtotal = 0;
+              updateFields.vat_amount = 0;
+            }
+            await supabaseAdmin
+              .from('orders')
+              .update(updateFields)
+              .eq('id', order.id);
+          }
         }
       } catch (cnErr) {
         console.error('[EXCHANGE CN] Error creating credit note:', cnErr);
@@ -781,6 +817,8 @@ export async function GET(request: NextRequest) {
     const shippingCarrier = searchParams.get('shipping_carrier') || null;
     const printFilter = searchParams.get('print_filter') || null;
     const excludePaymentStatus = searchParams.get('exclude_payment_status') || null;
+    const orderType = searchParams.get('order_type') || null;
+    const platform = searchParams.get('platform') || null;
 
     // Lightweight: return only IDs matching the current filters (for "select all")
     if (searchParams.get('ids_only') === 'true') {
@@ -816,7 +854,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ids: (rows || []).map((r: { id: string }) => r.id) });
     }
 
-    const { data: result, error: rpcError } = await supabaseAdmin.rpc('get_orders_list', {
+    // Build RPC params — new params (p_order_type, p_platform) only sent when non-null
+    // to stay backward-compatible with older RPC versions that don't have them
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rpcParams: any = {
       p_company_id: auth.companyId,
       p_page: page,
       p_limit: limit,
@@ -834,7 +875,11 @@ export async function GET(request: NextRequest) {
       p_shipping_carrier: shippingCarrier,
       p_print_filter: printFilter,
       p_exclude_payment_status: excludePaymentStatus,
-    });
+    };
+    if (orderType) rpcParams.p_order_type = orderType;
+    if (platform) rpcParams.p_platform = platform;
+
+    const { data: result, error: rpcError } = await supabaseAdmin.rpc('get_orders_list', rpcParams);
 
     if (rpcError) {
       console.error('RPC get_orders_list error:', rpcError);
@@ -1167,12 +1212,14 @@ export async function PUT(request: NextRequest) {
         }
 
         // Fetch orders to process stock deduction
-        const { data: ordersToShip } = await supabaseAdmin
+        const { data: ordersToShip, error: fetchErr } = await supabaseAdmin
           .from('orders')
-          .select('id, order_status, warehouse_id, is_split')
+          .select('id, order_status, warehouse_id, is_split, source, marketplace_account_id')
           .in('id', validIds)
           .eq('company_id', auth.companyId)
           .eq('order_status', 'processing');
+
+        console.log('[BULK_SHIP] validIds:', validIds, 'found:', ordersToShip?.length, 'fetchErr:', fetchErr?.message);
 
         let shippedCount = 0;
         const allVarIds: string[] = [];
@@ -1183,8 +1230,13 @@ export async function PUT(request: NextRequest) {
           const tn = orderTracking.tracking_number || tracking_number || null;
           const sc = orderTracking.shipping_carrier || shipping_carrier || null;
 
+          // Manual orders (no marketplace) → completed directly (no webhook)
+          // Marketplace orders → shipping (webhook will update to completed)
+          const isManual = !order.marketplace_account_id;
+          const targetStatus = isManual ? 'completed' : 'shipping';
+
           const updatePayload: any = {
-            order_status: 'shipping',
+            order_status: targetStatus,
             fulfillment_status: 'shipped',
             shipped_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -1197,6 +1249,7 @@ export async function PUT(request: NextRequest) {
             .update(updatePayload)
             .eq('id', order.id)
             .eq('company_id', auth.companyId);
+          console.log('[BULK_SHIP] order:', order.id, 'target:', targetStatus, 'error:', error?.message);
           if (!error) {
             shippedCount++;
             // For split orders, also update all parcels with tracking info

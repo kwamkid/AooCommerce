@@ -45,6 +45,7 @@ export interface OrderInvoiceData {
   shipping_fee: number;
   vat_amount: number;
   total_amount: number;
+  exchange_credit?: number;
   notes?: string;
   customer?: {
     name?: string;
@@ -380,9 +381,23 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
     ]);
   }
 
+  // Exchange credit (if applicable)
+  if (data.exchange_credit && data.exchange_credit > 0) {
+    // Show the pre-credit total first
+    const preCredit = data.total_amount + data.exchange_credit;
+    summaryRows.push([
+      { text: 'ยอดรวมก่อนหักเครดิต', fontSize: 11, alignment: 'right', color: '#333333', bold: true },
+      { text: formatPdfPrice(preCredit), fontSize: 11, alignment: 'right', bold: true },
+    ]);
+    summaryRows.push([
+      { text: 'เครดิตจากการเปลี่ยนสินค้า', fontSize: 11, alignment: 'right', color: '#16a34a' },
+      { text: `-${formatPdfPrice(data.exchange_credit)}`, fontSize: 11, alignment: 'right', color: '#16a34a' },
+    ]);
+  }
+
   // Grand total — bold, larger
   summaryRows.push([
-    { text: 'ยอดรวมสุทธิ', fontSize: 12, alignment: 'right', color: '#333333', bold: true },
+    { text: data.exchange_credit && data.exchange_credit > 0 ? 'ยอดชำระสุทธิ' : 'ยอดรวมสุทธิ', fontSize: 12, alignment: 'right', color: '#333333', bold: true },
     { text: formatPdfPrice(data.total_amount), fontSize: 12, alignment: 'right', bold: true },
   ]);
 

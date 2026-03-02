@@ -351,7 +351,7 @@ export default function EntitySearchInput({
           placeholder={placeholder}
           disabled={disabled}
           autoFocus={autoFocus}
-          className={`w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] transition-colors ${
+          className={`w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] transition-colors ${
             disabled ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         />
@@ -387,7 +387,7 @@ export default function EntitySearchInput({
                   placeholder={placeholder}
                   autoComplete="off"
                   autoCorrect="off"
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
                 />
               </div>
               <button

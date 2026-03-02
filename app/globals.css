@@ -115,7 +115,7 @@ html, body {
     @apply bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700;
   }
   .data-th {
-    @apply px-6 py-3 text-left text-sm font-semibold text-gray-700 dark:text-slate-300 tracking-wide;
+    @apply px-6 py-3 text-left text-sm font-semibold text-gray-700 dark:text-slate-300 tracking-wide whitespace-nowrap;
   }
   .data-tbody {
     @apply bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700;
@@ -152,6 +152,7 @@ html, body {
     background-color: var(--input-bg);
     border-color: var(--input-border);
     color: var(--foreground);
+    color-scheme: dark;
   }
 
   .dark input::placeholder,
@@ -188,11 +189,11 @@ html, body {
   line-height: 1.25rem;
 }
 
-/* Filter card inputs — consistent 14px */
+/* Filter card inputs — consistent 16px (prevent iOS zoom) */
 .data-filter-card input,
 .data-filter-card select {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
 }
 
 /* Pagination per-page select compact */
@@ -261,14 +262,17 @@ input[type="number"] {
 
 /* ── Page header responsive — smaller titles on mobile ── */
 @media (max-width: 767px) {
-  /* All page titles that use text-3xl — shrink on mobile */
   main h1.text-3xl {
-    font-size: 1.25rem !important; /* 20px instead of 30px */
+    font-size: 1.25rem !important;
     line-height: 1.75rem !important;
   }
   main h1.text-3xl svg {
     width: 1.25rem !important;
     height: 1.25rem !important;
+  }
+  main h1.text-2xl {
+    font-size: 1.125rem !important; /* 18px instead of 24px */
+    line-height: 1.5rem !important;
   }
 }
 

@@ -22,10 +22,31 @@ export async function GET(request: NextRequest) {
     const unlinkedOnly = searchParams.get('unlinked_only') === 'true';
     const accountId = searchParams.get('account_id');
     const platform = searchParams.get('platform'); // 'line' | 'facebook' | null (all)
+    const tagId = searchParams.get('tag'); // filter by customer tag
     const orderDaysMin = searchParams.get('order_days_min');
     const orderDaysMax = searchParams.get('order_days_max');
     const limit = parseInt(searchParams.get('limit') || '30', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
+
+    // If filtering by tag, pre-fetch customer IDs + contact IDs with that tag
+    let tagCustomerIds: string[] | null = null;
+    let tagContactIds: { id: string; platform: string }[] | null = null;
+    if (tagId) {
+      const [{ data: custTagLinks }, { data: contTagLinks }] = await Promise.all([
+        supabaseAdmin.from('customer_tag_links').select('customer_id').eq('tag_id', tagId),
+        supabaseAdmin.from('contact_tag_links').select('contact_id, platform').eq('tag_id', tagId),
+      ]);
+      const custIds = (custTagLinks || []).map(l => l.customer_id);
+      const contIds = (contTagLinks || []).map(l => ({ id: l.contact_id, platform: l.platform }));
+      tagCustomerIds = custIds.length > 0 ? custIds : null;
+      tagContactIds = contIds.length > 0 ? contIds : null;
+      if (!tagCustomerIds && !tagContactIds) {
+        return NextResponse.json({
+          contacts: [],
+          summary: { total: 0, totalUnread: 0, hasMore: false, offset, limit },
+        });
+      }
+    }
 
     // Fetch chat accounts first (needed for account_id lookup and name mapping)
     const { data: accounts } = await supabaseAdmin
@@ -51,8 +72,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Build parallel queries
-    const linePromise = queryLine ? fetchLineContacts(companyId, { search, unreadOnly, linkedOnly, unlinkedOnly, accountId, includeNullAccountId }) : Promise.resolve([]);
-    const fbPromise = queryFb ? fetchFbContacts(companyId, { search, unreadOnly, linkedOnly, unlinkedOnly, accountId, includeNullAccountId }) : Promise.resolve([]);
+    const tagLineContactIds = tagContactIds?.filter(t => t.platform === 'line').map(t => t.id) || null;
+    const tagFbContactIds = tagContactIds?.filter(t => t.platform === 'facebook').map(t => t.id) || null;
+    // Only force linkedOnly when tag filter matches customers only (no contact-level tags)
+    const tagLinkedOnly = linkedOnly || (!!tagCustomerIds && !tagContactIds);
+    const linePromise = queryLine ? fetchLineContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagLineContactIds }) : Promise.resolve([]);
+    const fbPromise = queryFb ? fetchFbContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagFbContactIds }) : Promise.resolve([]);
 
     const [lineContacts, fbContacts] = await Promise.all([linePromise, fbPromise]);
 
@@ -65,7 +90,11 @@ export async function GET(request: NextRequest) {
       if (a.platform === 'line') {
         picture_url = creds.bot_picture_url || undefined;
       } else if (a.platform === 'facebook') {
-        picture_url = creds.page_picture_url || undefined;
+        // Use permanent Graph API URL (CDN URLs from page_picture_url expire)
+        const pageId = creds.page_id;
+        picture_url = pageId
+          ? `https://graph.facebook.com/${pageId}/picture?type=small`
+          : (creds.page_picture_url || undefined);
       }
       const info = { name: a.account_name, platform: a.platform, picture_url };
       accountMap.set(a.id, info);
@@ -99,6 +128,7 @@ export async function GET(request: NextRequest) {
       referral_ad_id?: string;
       referral_ad_title?: string;
       referral_data?: Record<string, unknown>;
+      tags?: { id: string; name: string; color: string }[];
     };
 
     const unified: UnifiedContact[] = [];
@@ -132,13 +162,17 @@ export async function GET(request: NextRequest) {
       const acc = (c.chat_account_id ? accountMap.get(c.chat_account_id) : undefined) || defaultAccountByPlatform.get('facebook');
       const cust2 = c.customer ? { ...c.customer, customer_type: c.customer.customer_type_new || c.customer.customer_type } : c.customer;
       if (cust2) delete (cust2 as any).customer_type_new;
+      // Use proxy URL for FB/IG profile pictures (CDN URLs expire)
+      const fbPictureUrl = c.chat_account_id
+        ? `/api/chat/profile-picture?platform=${c.source === 'instagram' ? 'instagram' : 'facebook'}&psid=${c.fb_psid}&account_id=${c.chat_account_id}`
+        : c.picture_url;
       unified.push({
         id: c.id,
         platform: 'facebook',
         source: c.source === 'instagram' ? 'instagram' : 'facebook',
         platform_user_id: c.fb_psid,
         display_name: c.display_name,
-        picture_url: c.picture_url,
+        picture_url: fbPictureUrl,
         status: c.status,
         customer_id: c.customer_id,
         customer: cust2,
@@ -226,6 +260,91 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Enrich with customer tags
+    // Query all customer_tag_links (no .in() filter to avoid URL length limit with many UUIDs)
+    const customerIdSet = new Set(unified.filter(c => c.customer_id).map(c => c.customer_id!));
+    if (customerIdSet.size > 0) {
+      const { data: tagLinks } = await supabaseAdmin
+        .from('customer_tag_links')
+        .select('customer_id, tag_id');
+
+      if (tagLinks && tagLinks.length > 0) {
+        // Only keep links for customers in our unified list
+        const relevantLinks = tagLinks.filter((l: any) => customerIdSet.has(l.customer_id));
+        if (relevantLinks.length > 0) {
+          const tagIds = [...new Set(relevantLinks.map((l: any) => l.tag_id))];
+          const { data: tags } = await supabaseAdmin
+            .from('customer_tags')
+            .select('id, name, color')
+            .in('id', tagIds);
+
+          const tagMap = new Map<string, { id: string; name: string; color: string }>();
+          (tags || []).forEach((t: any) => tagMap.set(t.id, t));
+
+          const customerTagMap = new Map<string, { id: string; name: string; color: string }[]>();
+          relevantLinks.forEach((link: any) => {
+            const tag = tagMap.get(link.tag_id);
+            if (link.customer_id && tag) {
+              if (!customerTagMap.has(link.customer_id)) customerTagMap.set(link.customer_id, []);
+              customerTagMap.get(link.customer_id)!.push(tag);
+            }
+          });
+
+          for (const contact of unified) {
+            if (contact.customer_id && customerTagMap.has(contact.customer_id)) {
+              (contact as any).tags = customerTagMap.get(contact.customer_id);
+            }
+          }
+        }
+      }
+    }
+
+    // Enrich with contact-level tags (for contacts without customer)
+    // Note: query ALL contact_tag_links (no .in() filter) because the contact list can be 1000+
+    // and .in() with too many UUIDs exceeds URL length limits causing fetch to fail.
+    // contact_tag_links is small (only tagged contacts), so this is efficient.
+    if (unified.length > 0) {
+      const { data: contactTagLinks } = await supabaseAdmin
+        .from('contact_tag_links')
+        .select('contact_id, platform, tag_id');
+
+      if (contactTagLinks && contactTagLinks.length > 0) {
+        // Fetch the actual tags separately
+        const tagIds = [...new Set(contactTagLinks.map((l: any) => l.tag_id))];
+        const { data: tags } = await supabaseAdmin
+          .from('customer_tags')
+          .select('id, name, color')
+          .in('id', tagIds);
+
+        const tagMap = new Map<string, { id: string; name: string; color: string }>();
+        (tags || []).forEach((t: any) => tagMap.set(t.id, t));
+
+        // Build contact→tags map, filter to only contacts in unified list
+        const contactIdSet = new Set(unified.map(c => `${c.id}:${c.platform}`));
+        const contactTagMap = new Map<string, { id: string; name: string; color: string }[]>();
+        (contactTagLinks as any[]).forEach((link: any) => {
+          const key = `${link.contact_id}:${link.platform}`;
+          const tag = tagMap.get(link.tag_id);
+          if (tag && contactIdSet.has(key)) {
+            if (!contactTagMap.has(key)) contactTagMap.set(key, []);
+            contactTagMap.get(key)!.push(tag);
+          }
+        });
+
+        for (const contact of unified) {
+          const key = `${contact.id}:${contact.platform}`;
+          const contactTags = contactTagMap.get(key);
+          if (contactTags) {
+            // Merge with existing customer tags (dedupe by id)
+            const existing = ((contact as any).tags || []) as { id: string; name: string; color: string }[];
+            const existingIds = new Set(existing.map(t => t.id));
+            const merged = [...existing, ...contactTags.filter(t => !existingIds.has(t.id))];
+            (contact as any).tags = merged;
+          }
+        }
+      }
+    }
+
     // Sort by last_message_at descending
     unified.sort((a, b) => {
       const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
@@ -279,6 +398,7 @@ export async function PUT(request: NextRequest) {
 async function fetchLineContacts(companyId: string, filters: {
   search?: string | null; unreadOnly?: boolean; linkedOnly?: boolean;
   unlinkedOnly?: boolean; accountId?: string | null; includeNullAccountId?: boolean;
+  customerIds?: string[] | null; contactIds?: string[] | null;
 }) {
   let query = supabaseAdmin
     .from('line_contacts')
@@ -305,8 +425,22 @@ async function fetchLineContacts(companyId: string, filters: {
     query = query.ilike('display_name', `%${filters.search}%`);
   }
   if (filters.unreadOnly) query = query.gt('unread_count', 0);
-  if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
-  if (filters.unlinkedOnly) query = query.is('customer_id', null);
+  // Tag filter: match by customer_id OR direct contact_id
+  if (filters.customerIds && filters.contactIds && filters.contactIds.length > 0) {
+    // Both customer-tagged and contact-tagged: use OR filter
+    const custFilter = filters.customerIds.length > 0
+      ? `customer_id.in.(${filters.customerIds.join(',')})`
+      : '';
+    const contFilter = `id.in.(${filters.contactIds.join(',')})`;
+    query = query.or([custFilter, contFilter].filter(Boolean).join(','));
+  } else if (filters.customerIds) {
+    query = query.in('customer_id', filters.customerIds);
+  } else if (filters.contactIds && filters.contactIds.length > 0) {
+    query = query.in('id', filters.contactIds);
+  } else {
+    if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
+    if (filters.unlinkedOnly) query = query.is('customer_id', null);
+  }
 
   const { data, error } = await query;
   if (error) throw error;
@@ -338,8 +472,20 @@ async function fetchLineContacts(companyId: string, filters: {
       }
     }
     if (filters.unreadOnly) customerQuery = customerQuery.gt('unread_count', 0);
-    if (filters.linkedOnly) customerQuery = customerQuery.not('customer_id', 'is', null);
-    if (filters.unlinkedOnly) customerQuery = customerQuery.is('customer_id', null);
+    if (filters.customerIds && filters.contactIds && filters.contactIds.length > 0) {
+      const custFilter = filters.customerIds.length > 0
+        ? `customer_id.in.(${filters.customerIds.join(',')})`
+        : '';
+      const contFilter = `id.in.(${filters.contactIds.join(',')})`;
+      customerQuery = customerQuery.or([custFilter, contFilter].filter(Boolean).join(','));
+    } else if (filters.customerIds) {
+      customerQuery = customerQuery.in('customer_id', filters.customerIds);
+    } else if (filters.contactIds && filters.contactIds.length > 0) {
+      customerQuery = customerQuery.in('id', filters.contactIds);
+    } else {
+      if (filters.linkedOnly) customerQuery = customerQuery.not('customer_id', 'is', null);
+      if (filters.unlinkedOnly) customerQuery = customerQuery.is('customer_id', null);
+    }
 
     const { data: customerResults } = await customerQuery;
     if (customerResults && customerResults.length > 0) {
@@ -390,6 +536,7 @@ async function fetchLineContacts(companyId: string, filters: {
 async function fetchFbContacts(companyId: string, filters: {
   search?: string | null; unreadOnly?: boolean; linkedOnly?: boolean;
   unlinkedOnly?: boolean; accountId?: string | null; includeNullAccountId?: boolean;
+  customerIds?: string[] | null; contactIds?: string[] | null;
 }) {
   let query = supabaseAdmin
     .from('fb_contacts')
@@ -416,8 +563,21 @@ async function fetchFbContacts(companyId: string, filters: {
     query = query.ilike('display_name', `%${filters.search}%`);
   }
   if (filters.unreadOnly) query = query.gt('unread_count', 0);
-  if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
-  if (filters.unlinkedOnly) query = query.is('customer_id', null);
+  // Tag filter: match by customer_id OR direct contact_id
+  if (filters.customerIds && filters.contactIds && filters.contactIds.length > 0) {
+    const custFilter = filters.customerIds.length > 0
+      ? `customer_id.in.(${filters.customerIds.join(',')})`
+      : '';
+    const contFilter = `id.in.(${filters.contactIds.join(',')})`;
+    query = query.or([custFilter, contFilter].filter(Boolean).join(','));
+  } else if (filters.customerIds) {
+    query = query.in('customer_id', filters.customerIds);
+  } else if (filters.contactIds && filters.contactIds.length > 0) {
+    query = query.in('id', filters.contactIds);
+  } else {
+    if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
+    if (filters.unlinkedOnly) query = query.is('customer_id', null);
+  }
 
   const { data, error } = await query;
   if (error) throw error;
@@ -449,8 +609,20 @@ async function fetchFbContacts(companyId: string, filters: {
       }
     }
     if (filters.unreadOnly) customerQuery = customerQuery.gt('unread_count', 0);
-    if (filters.linkedOnly) customerQuery = customerQuery.not('customer_id', 'is', null);
-    if (filters.unlinkedOnly) customerQuery = customerQuery.is('customer_id', null);
+    if (filters.customerIds && filters.contactIds && filters.contactIds.length > 0) {
+      const custFilter = filters.customerIds.length > 0
+        ? `customer_id.in.(${filters.customerIds.join(',')})`
+        : '';
+      const contFilter = `id.in.(${filters.contactIds.join(',')})`;
+      customerQuery = customerQuery.or([custFilter, contFilter].filter(Boolean).join(','));
+    } else if (filters.customerIds) {
+      customerQuery = customerQuery.in('customer_id', filters.customerIds);
+    } else if (filters.contactIds && filters.contactIds.length > 0) {
+      customerQuery = customerQuery.in('id', filters.contactIds);
+    } else {
+      if (filters.linkedOnly) customerQuery = customerQuery.not('customer_id', 'is', null);
+      if (filters.unlinkedOnly) customerQuery = customerQuery.is('customer_id', null);
+    }
 
     const { data: customerResults } = await customerQuery;
     if (customerResults && customerResults.length > 0) {
@@ -516,7 +688,7 @@ async function getLinkedContactsByCustomer(companyId: string, customerId: string
       .eq('status', 'active'),
     supabaseAdmin
       .from('fb_contacts')
-      .select('id, display_name, picture_url, last_message_at, chat_account_id')
+      .select('id, display_name, picture_url, last_message_at, chat_account_id, fb_psid, source')
       .eq('company_id', companyId)
       .eq('customer_id', customerId)
       .eq('status', 'active'),
@@ -531,7 +703,10 @@ async function getLinkedContactsByCustomer(companyId: string, customerId: string
 
   (fbData || []).forEach(c => {
     const acc = c.chat_account_id ? accountMap.get(c.chat_account_id) : null;
-    linked.push({ id: c.id, platform: 'facebook', display_name: c.display_name, picture_url: c.picture_url, last_message_at: c.last_message_at, account_name: acc?.name });
+    const proxyUrl = c.chat_account_id
+      ? `/api/chat/profile-picture?platform=${c.source === 'instagram' ? 'instagram' : 'facebook'}&psid=${c.fb_psid}&account_id=${c.chat_account_id}`
+      : c.picture_url;
+    linked.push({ id: c.id, platform: 'facebook', display_name: c.display_name, picture_url: proxyUrl, last_message_at: c.last_message_at, account_name: acc?.name });
   });
 
   // Sort by last_message_at desc

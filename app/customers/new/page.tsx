@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import CustomerForm, { CustomerFormData, buildCustomerPayload } from '@/components/customers/CustomerForm';
+import { Tag } from '@/components/ui/TagBadge';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
@@ -15,6 +16,16 @@ export default function NewCustomerPage() {
   const { showToast } = useToast();
 
   const [saving, setSaving] = useState(false);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
+
+  // Fetch tags
+  useEffect(() => {
+    if (authLoading || !userProfile) return;
+    apiFetch('/api/customers/tags').then(r => r.json()).then(d => {
+      if (d.tags) setAllTags(d.tags);
+    }).catch(() => {});
+  }, [authLoading, userProfile]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -95,6 +106,15 @@ export default function NewCustomerPage() {
         }
       }
 
+      // Save tags
+      if (selectedTags.length > 0) {
+        await apiFetch(`/api/customers/${customerId}/tags`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tag_ids: selectedTags.map(t => t.id) }),
+        });
+      }
+
       showToast('สร้างลูกค้าสำเร็จ');
       router.push('/customers');
     } catch (error) {
@@ -138,6 +158,10 @@ export default function NewCustomerPage() {
           onSubmit={handleCreateCustomer}
           onCancel={() => router.push('/customers')}
           isLoading={saving}
+          allTags={allTags}
+          selectedTags={selectedTags}
+          onTagsChange={setSelectedTags}
+          onTagCreated={(tag) => setAllTags(prev => [...prev, tag])}
         />
       </div>
     </Layout>

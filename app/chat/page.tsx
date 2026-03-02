@@ -39,11 +39,14 @@ import {
   ArrowUpDown,
   Trash2,
   Unlink,
-  ExternalLink
+  ExternalLink,
+  UserPlus
 } from 'lucide-react';
 import Image from 'next/image';
 import OrderForm from '@/components/orders/OrderForm';
 import CustomerForm, { CustomerFormData } from '@/components/customers/CustomerForm';
+import TagBadge, { Tag } from '@/components/ui/TagBadge';
+import TagInput from '@/components/ui/TagInput';
 import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact } from './lib/chatTypes';
 import MessageBubble from './components/MessageBubble';
 import { FbIcon, IgIcon, LineIcon, PlatformIcon, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
@@ -86,6 +89,7 @@ function UnifiedChatPageContent() {
 
   // Linked contacts for customer profile
   const [linkedContacts, setLinkedContacts] = useState<LinkedContact[]>([]);
+  const [profileAddresses, setProfileAddresses] = useState<any[]>([]);
 
   // Message input
   const [newMessage, setNewMessage] = useState('');
@@ -141,10 +145,24 @@ function UnifiedChatPageContent() {
   // Day ranges from CRM settings
   const [dayRanges, setDayRanges] = useState<DayRange[]>([]);
 
-  const hasActiveFilter = filterLinked !== 'all' || filterOrderDaysRange !== null;
+  // Tags
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [filterTag, setFilterTag] = useState<string>('');
+  const [profileTags, setProfileTags] = useState<Tag[]>([]);
+
+  const hasActiveFilter = filterLinked !== 'all' || filterOrderDaysRange !== null || filterTag !== '';
 
   // Platform color
   const platformColor = selectedContact?.source === 'instagram' ? '#E4405F' : selectedContact?.platform === 'line' ? '#06C755' : '#1877F2';
+
+  // Check if FB/IG messaging window expired (7 days since last incoming message)
+  const isWindowExpired = useMemo(() => {
+    if (!selectedContact || selectedContact.platform !== 'facebook') return false;
+    const lastIncoming = [...messages].reverse().find(m => m.direction === 'incoming');
+    if (!lastIncoming) return true; // No incoming messages at all
+    const daysSince = (Date.now() - new Date(lastIncoming.created_at).getTime()) / (1000 * 60 * 60 * 24);
+    return daysSince > 7;
+  }, [selectedContact, messages]);
 
   // Build media list from messages for lightbox navigation
   const mediaList = useMemo(() => {
@@ -195,6 +213,14 @@ function UnifiedChatPageContent() {
     if (!authLoading && userProfile) fetchSettings();
   }, [authLoading, userProfile]);
 
+  // Fetch all tags for filter & editing
+  useEffect(() => {
+    if (authLoading || !userProfile) return;
+    apiFetch('/api/customers/tags').then(r => r.json()).then(d => {
+      if (d.tags) setAllTags(d.tags);
+    }).catch(() => {});
+  }, [authLoading, userProfile]);
+
   // Debounce search term (300ms delay)
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -220,6 +246,7 @@ function UnifiedChatPageContent() {
             params.set('order_days_min', filterOrderDaysRange.min.toString());
             if (filterOrderDaysRange.max !== null) params.set('order_days_max', filterOrderDaysRange.max.toString());
           }
+          if (filterTag) params.set('tag', filterTag);
           params.set('limit', '30');
           params.set('offset', '0');
 
@@ -240,7 +267,7 @@ function UnifiedChatPageContent() {
         }
       })();
     }
-  }, [authLoading, userProfile, debouncedSearch, filterLinked, filterUnread, filterOrderDaysRange, filterAccountId, filterPlatform]);
+  }, [authLoading, userProfile, debouncedSearch, filterLinked, filterUnread, filterOrderDaysRange, filterAccountId, filterPlatform, filterTag]);
 
   // Auto-select contact from URL param
   useEffect(() => {
@@ -274,6 +301,19 @@ function UnifiedChatPageContent() {
         .catch(() => setLinkedContacts([]));
     } else {
       setLinkedContacts([]);
+    }
+  }, [selectedContact?.customer_id, selectedContact?.customer?.id]);
+
+  // Fetch shipping addresses when customer changes
+  useEffect(() => {
+    const customerId = selectedContact?.customer_id || selectedContact?.customer?.id;
+    if (customerId) {
+      apiFetch(`/api/shipping-addresses?customer_id=${customerId}`)
+        .then(r => r.json())
+        .then(data => setProfileAddresses(data.addresses || []))
+        .catch(() => setProfileAddresses([]));
+    } else {
+      setProfileAddresses([]);
     }
   }, [selectedContact?.customer_id, selectedContact?.customer?.id]);
 
@@ -451,6 +491,7 @@ function UnifiedChatPageContent() {
         params.set('order_days_min', filterOrderDaysRange.min.toString());
         if (filterOrderDaysRange.max !== null) params.set('order_days_max', filterOrderDaysRange.max.toString());
       }
+      if (filterTag) params.set('tag', filterTag);
       params.set('limit', '30');
       params.set('offset', loadMore ? contacts.length.toString() : '0');
 
@@ -587,7 +628,15 @@ function UnifiedChatPageContent() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contact_id: contactId, platform, message: messageText })
         });
-        if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'Failed'); }
+        if (!response.ok) {
+          const errData = await response.json();
+          if (errData.errorCode === 'MESSAGING_WINDOW_EXPIRED') {
+            setMessages(prev => prev.filter(m => m._tempId !== tempId));
+            showToast('ไม่สามารถส่งข้อความได้ — ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับ)', 'error');
+            return;
+          }
+          throw new Error(errData.error || 'Failed');
+        }
         const result = await response.json();
         if (result.message) {
           setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
@@ -595,6 +644,7 @@ function UnifiedChatPageContent() {
       } catch (error) {
         console.error('Error sending message:', error);
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const } : m));
+        showToast('ส่งข้อความไม่สำเร็จ', 'error');
       }
     })();
   };
@@ -631,7 +681,16 @@ function UnifiedChatPageContent() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contact_id: contactId, platform, type: 'image', imageUrl })
       });
-      if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'Failed'); }
+      if (!response.ok) {
+        const errData = await response.json();
+        if (errData.errorCode === 'MESSAGING_WINDOW_EXPIRED') {
+          setMessages(prev => prev.filter(m => m._tempId !== tempId));
+          showToast('ไม่สามารถส่งรูปภาพได้ — ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับ)', 'error');
+          URL.revokeObjectURL(localUrl);
+          return;
+        }
+        throw new Error(errData.error || 'Failed');
+      }
       const result = await response.json();
       if (result.message) {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
@@ -640,6 +699,7 @@ function UnifiedChatPageContent() {
     } catch (error) {
       console.error('Error uploading image:', error);
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const } : m));
+      showToast('ส่งรูปภาพไม่สำเร็จ', 'error');
     } finally {
       setUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -672,6 +732,7 @@ function UnifiedChatPageContent() {
       } catch (error) {
         console.error('Error sending sticker:', error);
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const } : m));
+        showToast('ส่งสติกเกอร์ไม่สำเร็จ', 'error');
       }
     })();
   };
@@ -863,6 +924,12 @@ function UnifiedChatPageContent() {
       });
       if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'Failed'); }
 
+      // Save tags
+      await apiFetch(`/api/customers/${selectedContact.customer.id}/tags`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag_ids: profileTags.map(t => t.id) }),
+      });
+
       const updatedCustomer = {
         ...selectedContact.customer, name: formData.name, contact_person: formData.contact_person,
         phone: formData.phone, email: formData.email,
@@ -875,8 +942,8 @@ function UnifiedChatPageContent() {
         credit_limit: formData.credit_limit, credit_days: formData.credit_days,
         notes: formData.notes, is_active: formData.is_active
       };
-      setSelectedContact(prev => prev ? { ...prev, customer: updatedCustomer } : null);
-      setContacts(prev => prev.map(c => c.id === selectedContact.id ? { ...c, customer: updatedCustomer } : c));
+      setSelectedContact(prev => prev ? { ...prev, customer: updatedCustomer, tags: profileTags } : null);
+      setContacts(prev => prev.map(c => c.id === selectedContact.id ? { ...c, customer: updatedCustomer, tags: profileTags } : c));
       setRightPanel('profile');
       setMobileView('chat');
     } catch (error) {
@@ -910,9 +977,11 @@ function UnifiedChatPageContent() {
   };
 
   const handleOpenProfile = () => {
-    if (!selectedContact?.customer) return;
+    if (!selectedContact) return;
     if (window.innerWidth < 768) setMobileView('profile');
     else setRightPanel(rightPanel === 'profile' ? null : 'profile');
+    // Load tags (customer tags or contact tags)
+    setProfileTags(selectedContact.tags || []);
   };
 
   if (authLoading) {
@@ -952,75 +1021,172 @@ function UnifiedChatPageContent() {
     );
   };
 
+  // Helper to save tags (works for both customer and contact)
+  const handleSaveProfileTags = async (newTags: Tag[]) => {
+    setProfileTags(newTags);
+    try {
+      if (selectedContact?.customer_id) {
+        // Save to customer_tag_links
+        await apiFetch(`/api/customers/${selectedContact.customer_id}/tags`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tag_ids: newTags.map(t => t.id) }),
+        });
+        setContacts(prev => prev.map(ct =>
+          ct.customer_id === selectedContact.customer_id ? { ...ct, tags: newTags } : ct
+        ));
+      } else if (selectedContact) {
+        // Save to contact_tag_links
+        await apiFetch(`/api/chat/contacts/${selectedContact.id}/tags`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tag_ids: newTags.map(t => t.id), platform: selectedContact.platform }),
+        });
+        setContacts(prev => prev.map(ct =>
+          ct.id === selectedContact.id && ct.platform === selectedContact.platform ? { ...ct, tags: newTags } : ct
+        ));
+      }
+      if (selectedContact) {
+        setSelectedContact(prev => prev ? { ...prev, tags: newTags } : prev);
+      }
+    } catch {
+      showToast('ไม่สามารถบันทึกแท็กได้', 'error');
+    }
+  };
+
   // Helper to render customer profile content
   const renderCustomerProfile = () => {
-    if (!selectedContact?.customer) return null;
+    if (!selectedContact) return null;
+
     const c = selectedContact.customer;
+    const displayName = c?.name || selectedContact.display_name;
+    const customerType = c?.customer_type;
+
     return (
       <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-4">
-        <div className="text-center pb-4 border-b border-gray-100 dark:border-slate-700">
-          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-3"><User className="w-8 h-8 text-blue-500" /></div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{c.name}</h3>
-          <p className="text-sm text-gray-500 dark:text-slate-400">{c.customer_code}</p>
-          <span className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium ${c.customer_type === 'retail' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400' : c.customer_type === 'wholesale' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400' : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'}`}>
-            {c.customer_type === 'retail' ? 'ลูกค้าปลีก' : c.customer_type === 'wholesale' ? 'ลูกค้าส่ง' : 'ตัวแทนจำหน่าย'}
-          </span>
+        {/* Name + type badge */}
+        <div className="pb-3 border-b border-gray-100 dark:border-slate-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{displayName}</h3>
+          {customerType && (
+            <span className={`inline-block mt-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${customerType === 'retail' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400' : customerType === 'wholesale' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400' : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'}`}>
+              {customerType === 'retail' ? 'ลูกค้าปลีก' : customerType === 'wholesale' ? 'ลูกค้าส่ง' : 'ตัวแทนจำหน่าย'}
+            </span>
+          )}
+          {!c && <p className="text-sm text-gray-400 mt-1">ยังไม่ได้เชื่อมกับลูกค้า</p>}
         </div>
-        <div className="space-y-3">
+
+        {/* Tags */}
+        <div className="pb-3 border-b border-gray-100 dark:border-slate-700">
+          <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5 block">แท็ก</label>
+          <TagInput
+            value={profileTags}
+            onChange={handleSaveProfileTags}
+            allTags={allTags}
+            onTagCreated={(tag) => setAllTags(prev => [...prev, tag])}
+            size="sm"
+          />
+        </div>
+
+        {/* Shipping addresses */}
+        {c && profileAddresses.length > 0 && (
+          <div className="pb-3 border-b border-gray-100 dark:border-slate-700">
+            <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5 block">ที่อยู่จัดส่ง</label>
+            <div className="space-y-2">
+              {profileAddresses.filter((a: any) => a.is_active !== false).map((addr: any) => (
+                <div key={addr.id} className="p-2.5 rounded-lg bg-gray-50 dark:bg-slate-700/50 border border-gray-100 dark:border-slate-600">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{addr.address_name || 'ที่อยู่'}</span>
+                    {addr.is_default && <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">หลัก</span>}
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-slate-400">
+                    {[addr.address_line1, addr.district, addr.amphoe, addr.province, addr.postal_code].filter(Boolean).join(' ')}
+                  </p>
+                  {addr.contact_person && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{addr.contact_person} {addr.phone ? `• ${addr.phone}` : ''}</p>}
+                  {addr.delivery_notes && <p className="text-xs text-gray-400 mt-0.5">📝 {addr.delivery_notes}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Billing address (tax) */}
+        {c && (c.tax_address || c.tax_province) && (
+          <div className="pb-3 border-b border-gray-100 dark:border-slate-700">
+            <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5 block">ที่อยู่ออกบิล</label>
+            <p className="text-sm text-gray-600 dark:text-slate-400">{[c.tax_address, c.tax_district, c.tax_amphoe, c.tax_province, c.tax_postal_code].filter(Boolean).join(' ')}</p>
+          </div>
+        )}
+
+        {/* Linked chat channels */}
+        <div className="pb-3 border-b border-gray-100 dark:border-slate-700">
+          <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5 block">ช่องทางแชท</label>
           {linkedContacts.length > 0 ? (
-            <div>
-              <label className="text-xs text-gray-500 dark:text-slate-400">ช่องทางแชท</label>
-              <div className="mt-1 space-y-1.5">
-                {linkedContacts.map(lc => {
-                  const isCurrentContact = lc.id === selectedContact.id && lc.platform === selectedContact.platform;
-                  return (
-                    <button
-                      key={`${lc.platform}-${lc.id}`}
-                      onClick={() => {
-                        if (!isCurrentContact) {
-                          const found = contacts.find(ct => ct.id === lc.id && ct.platform === lc.platform);
-                          if (found) setSelectedContact(found);
-                        }
-                      }}
-                      className={`w-full flex items-center gap-2 p-1.5 rounded-md text-left transition-colors ${isCurrentContact ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-200 dark:ring-blue-700' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}
-                    >
-                      <div className="relative flex-shrink-0">
-                        {lc.picture_url ? (
-                          <img src={lc.picture_url} alt="" className="w-7 h-7 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center"><User className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /></div>
-                        )}
-                        <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
-                          {lc.platform === 'line' ? <LineIcon size={8} /> : <FbIcon size={8} />}
-                        </div>
+            <div className="space-y-1.5">
+              {linkedContacts.map(lc => {
+                const isCurrentContact = lc.id === selectedContact.id && lc.platform === selectedContact.platform;
+                return (
+                  <button
+                    key={`${lc.platform}-${lc.id}`}
+                    onClick={() => {
+                      if (!isCurrentContact) {
+                        const found = contacts.find(ct => ct.id === lc.id && ct.platform === lc.platform);
+                        if (found) setSelectedContact(found);
+                      }
+                    }}
+                    className={`w-full flex items-center gap-2 p-1.5 rounded-md text-left transition-colors ${isCurrentContact ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-200 dark:ring-blue-700' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}
+                  >
+                    <div className="relative flex-shrink-0">
+                      {lc.picture_url ? (
+                        <img src={lc.picture_url} alt="" className="w-7 h-7 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center"><User className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /></div>
+                      )}
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
+                        {lc.platform === 'line' ? <LineIcon size={8} /> : <FbIcon size={8} />}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{lc.display_name}</p>
-                        {lc.account_name && <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{lc.account_name}</p>}
-                      </div>
-                      {isCurrentContact && <span className="text-xs text-blue-500 dark:text-blue-400 flex-shrink-0">ปัจจุบัน</span>}
-                    </button>
-                  );
-                })}
-              </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{lc.display_name}</p>
+                      {lc.account_name && <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{lc.account_name}</p>}
+                    </div>
+                    {isCurrentContact && <span className="text-xs text-blue-500 dark:text-blue-400 flex-shrink-0">ปัจจุบัน</span>}
+                  </button>
+                );
+              })}
             </div>
           ) : (
-            <div>
-              <label className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.source === 'instagram' ? 'Instagram' : selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}</label>
-              <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1">
-                <PlatformIcon contact={selectedContact} size={14} />
-                {selectedContact.display_name}
-              </p>
+            <div className="flex items-center gap-2 p-1.5">
+              <PlatformIcon contact={selectedContact} size={14} />
+              <span className="text-sm text-gray-700 dark:text-slate-300">{selectedContact.display_name}</span>
             </div>
           )}
-          {c.contact_person && (<div><label className="text-xs text-gray-500 dark:text-slate-400">ผู้ติดต่อ</label><p className="text-sm font-medium text-gray-900 dark:text-white">{c.contact_person}</p></div>)}
-          {c.phone && (<div><label className="text-xs text-gray-500 dark:text-slate-400">เบอร์โทร</label><a href={`tel:${c.phone}`} className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{c.phone}</a></div>)}
-          {c.email && (<div><label className="text-xs text-gray-500 dark:text-slate-400">อีเมล</label><p className="text-sm font-medium text-gray-900 dark:text-white">{c.email}</p></div>)}
         </div>
-        {(c.tax_address || c.tax_province) && (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">ที่อยู่ออกบิล</label><p className="text-sm text-gray-900 dark:text-white">{[c.tax_address, c.tax_district, c.tax_amphoe, c.tax_province, c.tax_postal_code].filter(Boolean).join(' ')}</p></div>)}
-        {c.tax_id && (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">ข้อมูลใบกำกับภาษี</label>{c.tax_company_name && <p className="text-sm font-medium text-gray-900 dark:text-white">{c.tax_company_name}</p>}<p className="text-sm text-gray-600 dark:text-slate-400">เลขผู้เสียภาษี: {c.tax_id}</p>{c.tax_branch && <p className="text-sm text-gray-600 dark:text-slate-400">สาขา: {c.tax_branch}</p>}</div>)}
-        {(c.credit_limit || c.credit_days) ? (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">เงื่อนไขเครดิต</label><div className="flex gap-4 mt-1">{c.credit_limit ? <div><span className="text-xs text-gray-500 dark:text-slate-400">วงเงิน</span><p className="text-sm font-medium text-gray-900 dark:text-white">฿{formatPrice(c.credit_limit)}</p></div> : null}{c.credit_days ? <div><span className="text-xs text-gray-500 dark:text-slate-400">ระยะเวลา</span><p className="text-sm font-medium text-gray-900 dark:text-white">{c.credit_days} วัน</p></div> : null}</div></div>) : null}
-        {c.notes && (<div className="pt-3 border-t border-gray-100 dark:border-slate-700"><label className="text-xs text-gray-500 dark:text-slate-400">หมายเหตุ</label><p className="text-sm text-gray-900 whitespace-pre-wrap">{c.notes}</p></div>)}
+
+        {/* Contact info */}
+        {c && (c.contact_person || c.phone) && (
+          <div className="pb-3 border-b border-gray-100 dark:border-slate-700 space-y-2">
+            {c.contact_person && (
+              <div>
+                <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-0.5 block">ผู้ติดต่อ</label>
+                <p className="text-sm text-gray-900 dark:text-white">{c.contact_person}</p>
+              </div>
+            )}
+            {c.phone && (
+              <div>
+                <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-0.5 block">เบอร์โทร</label>
+                <a href={`tel:${c.phone}`} className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{c.phone}</a>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Notes */}
+        {c?.notes && (
+          <div>
+            <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-0.5 block">หมายเหตุ</label>
+            <p className="text-sm text-gray-600 dark:text-slate-400 whitespace-pre-wrap">{c.notes}</p>
+          </div>
+        )}
       </div>
     );
   };
@@ -1156,40 +1322,34 @@ function UnifiedChatPageContent() {
                 {showFilterPopover && (
                   <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
                     <div className="p-3 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
-                      <span className="font-medium text-gray-900 dark:text-white">กรองรายชื่อ</span>
-                      {hasActiveFilter && (<button onClick={() => { setFilterLinked('all'); setFilterOrderDaysRange(null); }} className="text-xs text-red-500 hover:text-red-600">ล้างทั้งหมด</button>)}
+                      <span className="text-base font-medium text-gray-900 dark:text-white">กรองรายชื่อ</span>
+                      {hasActiveFilter && (<button onClick={() => { setFilterLinked('all'); setFilterOrderDaysRange(null); setFilterTag(''); }} className="text-xs text-red-500 hover:text-red-600">ล้างทั้งหมด</button>)}
                     </div>
                     <div className="p-3 space-y-4">
                       <div>
-                        <label className="text-xs font-medium text-gray-600 dark:text-slate-400 mb-2 block">สถานะลูกค้า</label>
+                        <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">สถานะลูกค้า</label>
                         <div className="flex gap-2">
-                          <button onClick={() => setFilterLinked(filterLinked === 'linked' ? 'all' : 'linked')} className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'linked' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ลูกค้า"><UserCheck className="w-4 h-4" /><span>ลูกค้า</span></button>
-                          <button onClick={() => { const next = filterLinked === 'unlinked' ? 'all' : 'unlinked'; setFilterLinked(next); if (next === 'unlinked') setFilterOrderDaysRange(null); }} className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'unlinked' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ไม่เป็นลูกค้า"><UserX className="w-4 h-4" /><span>ไม่เป็นลูกค้า</span></button>
+                          <button onClick={() => setFilterLinked(filterLinked === 'linked' ? 'all' : 'linked')} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'linked' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ซื้อแล้ว"><UserCheck className="w-4 h-4" /><span>ซื้อแล้ว</span></button>
+                          <button onClick={() => { const next = filterLinked === 'unlinked' ? 'all' : 'unlinked'; setFilterLinked(next); if (next === 'unlinked') setFilterOrderDaysRange(null); }} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'unlinked' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ยังไม่ซื้อ"><UserX className="w-4 h-4" /><span>ยังไม่ซื้อ</span></button>
                         </div>
                       </div>
-                      {dayRanges.length > 0 && (
+                      {/* Tag filter */}
+                      {allTags.length > 0 && (
                         <div>
-                          <label className="text-xs font-medium text-gray-600 dark:text-slate-400 mb-2 block">ระยะเวลาไม่สั่งซื้อ</label>
+                          <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">แท็ก</label>
                           <div className="flex flex-wrap gap-1">
-                            <button onClick={() => { setFilterOrderDaysRange(null); if (filterLinked === 'linked' && filterOrderDaysRange) setFilterLinked('all'); }}
-                              className={`px-2 py-1 text-xs rounded-lg transition-colors ${filterOrderDaysRange === null ? 'bg-gray-900 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>ไม่จำกัด</button>
-                            {dayRanges.map((range) => {
-                              const isActive = filterOrderDaysRange?.min === range.minDays && filterOrderDaysRange?.max === range.maxDays;
-                              const colorClasses: Record<string, { active: string; inactive: string }> = {
-                                green: { active: 'bg-green-500 text-white', inactive: 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400' },
-                                emerald: { active: 'bg-emerald-500 text-white', inactive: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400' },
-                                yellow: { active: 'bg-yellow-500 text-white', inactive: 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400' },
-                                amber: { active: 'bg-amber-500 text-white', inactive: 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400' },
-                                orange: { active: 'bg-orange-500 text-white', inactive: 'bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400' },
-                                red: { active: 'bg-red-500 text-white', inactive: 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400' },
-                                pink: { active: 'bg-pink-500 text-white', inactive: 'bg-pink-50 text-pink-700 hover:bg-pink-100 dark:bg-pink-900/30 dark:text-pink-400' },
-                                purple: { active: 'bg-purple-500 text-white', inactive: 'bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400' },
-                                blue: { active: 'bg-blue-500 text-white', inactive: 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400' },
-                                gray: { active: 'bg-gray-500 text-white', inactive: 'bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-400' }
-                              };
-                              const colors = colorClasses[range.color] || colorClasses.gray;
-                              return (<button key={`${range.minDays}-${range.maxDays}`} onClick={() => { setFilterOrderDaysRange({ min: range.minDays, max: range.maxDays }); setFilterLinked('linked'); }}
-                                className={`px-2 py-1 text-xs rounded-lg transition-colors flex items-center gap-1 ${isActive ? colors.active : colors.inactive}`}><Clock className="w-3 h-3" />{range.label}</button>);
+                            <button onClick={() => setFilterTag('')}
+                              className={`px-2 py-1 text-sm rounded-lg transition-colors ${filterTag === '' ? 'bg-gray-900 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>ทั้งหมด</button>
+                            {allTags.map(tag => {
+                              const isActive = filterTag === tag.id;
+                              return (
+                                <button key={tag.id} onClick={() => setFilterTag(isActive ? '' : tag.id)}
+                                  className={`px-2 py-1 text-sm rounded-lg transition-colors flex items-center gap-1 ${isActive ? 'text-white' : 'hover:opacity-80'}`}
+                                  style={isActive ? { backgroundColor: tag.color } : { backgroundColor: tag.color + '20', color: tag.color }}>
+                                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: isActive ? 'white' : tag.color }} />
+                                  {tag.name}
+                                </button>
+                              );
                             })}
                           </div>
                         </div>
@@ -1202,15 +1362,36 @@ function UnifiedChatPageContent() {
                 )}
               </div>
             </div>
-            {/* Row 2: Search (full width) */}
-            <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ..." className="h-[38px]" />
+            {/* Row 2: Search (full width) with tag suggestions */}
+            <div className="relative">
+              <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ หรือแท็ก..." className="h-[38px]" />
+              {searchTerm.length >= 1 && !filterTag && (() => {
+                const q = searchTerm.toLowerCase();
+                const matchedTags = allTags.filter(t => t.name.toLowerCase().includes(q));
+                if (matchedTags.length === 0) return null;
+                return (
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
+                    <div className="px-3 py-1.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">แท็ก</div>
+                    {matchedTags.slice(0, 5).map(tag => (
+                      <button key={tag.id} onClick={() => { setFilterTag(tag.id); setSearchTerm(''); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left">
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                        <span className="text-sm text-gray-700 dark:text-slate-300">tag:</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{tag.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
             {/* Active filters display */}
             {hasActiveFilter && (
               <div className="flex flex-wrap gap-1 mt-2">
-                {filterLinked === 'linked' && !filterOrderDaysRange && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full"><UserCheck className="w-3 h-3" />ลูกค้า<button onClick={() => setFilterLinked('all')} className="ml-1 hover:text-blue-900"><X className="w-3 h-3" /></button></span>)}
-                {filterLinked === 'unlinked' && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full"><UserX className="w-3 h-3" />ไม่เป็นลูกค้า<button onClick={() => setFilterLinked('all')} className="ml-1 hover:text-orange-900"><X className="w-3 h-3" /></button></span>)}
+                {filterLinked === 'linked' && !filterOrderDaysRange && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full"><UserCheck className="w-3 h-3" />ซื้อแล้ว<button onClick={() => setFilterLinked('all')} className="ml-1 hover:text-blue-900"><X className="w-3 h-3" /></button></span>)}
+                {filterLinked === 'unlinked' && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full"><UserX className="w-3 h-3" />ยังไม่ซื้อ<button onClick={() => setFilterLinked('all')} className="ml-1 hover:text-orange-900"><X className="w-3 h-3" /></button></span>)}
 
                 {filterOrderDaysRange !== null && (<span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${filterOrderDaysRange.min >= 7 ? 'bg-red-100 text-red-700' : filterOrderDaysRange.min >= 5 ? 'bg-orange-100 text-orange-700' : filterOrderDaysRange.min >= 3 ? 'bg-amber-100 text-amber-700' : 'bg-yellow-100 text-yellow-700'}`}><Clock className="w-3 h-3" />ไม่สั่ง {filterOrderDaysRange.max === null ? `${filterOrderDaysRange.min}+ วัน` : `${filterOrderDaysRange.min}-${filterOrderDaysRange.max} วัน`}<button onClick={() => { setFilterOrderDaysRange(null); setFilterLinked('all'); }} className="ml-1 hover:opacity-70"><X className="w-3 h-3" /></button></span>)}
+                {filterTag && (() => { const tag = allTags.find(t => t.id === filterTag); return tag ? (<span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full" style={{ backgroundColor: tag.color + '20', color: tag.color }}><span className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />{tag.name}<button onClick={() => setFilterTag('')} className="ml-1 hover:opacity-70"><X className="w-3 h-3" /></button></span>) : null; })()}
               </div>
             )}
           </div>
@@ -1267,16 +1448,25 @@ function UnifiedChatPageContent() {
                       </div>
                       <div className="flex items-center gap-1 mt-0.5">
                         <PlatformIcon contact={contact} size={12} />
-                        {contact.account_name && (<span className="text-[10px] text-gray-400 dark:text-slate-300 truncate">{contact.account_name}</span>)}
+                        {contact.account_name && (<span className="text-xs text-gray-400 dark:text-slate-300 truncate">{contact.account_name}</span>)}
                       </div>
                       {contact.last_message ? (
-                        <div className="text-xs text-gray-500 dark:text-slate-400 truncate mt-0.5">{contact.last_message}</div>
+                        <div className="text-sm font-sarabun text-gray-500 dark:text-slate-400 truncate mt-0.5">{contact.last_message}</div>
                       ) : contact.customer ? (
                         <div className="text-xs truncate flex items-center gap-1 mt-0.5" style={{ color: contact.source === 'instagram' ? '#E4405F' : contact.platform === 'line' ? '#06C755' : '#1877F2' }}>
                           <LinkIcon className="w-3 h-3" />{contact.customer.customer_code} - {contact.customer.name}
                         </div>
                       ) : (
                         <div className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">ยังไม่มีข้อความ</div>
+                      )}
+                      {/* Tags */}
+                      {contact.tags && contact.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-0.5 mt-0.5">
+                          {contact.tags.slice(0, 3).map(tag => (
+                            <TagBadge key={tag.id} tag={tag} size="sm" />
+                          ))}
+                          {contact.tags.length > 3 && <span className="text-[10px] text-gray-400">+{contact.tags.length - 3}</span>}
+                        </div>
                       )}
                       {filterLinked === 'linked' && (
                         <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
@@ -1362,6 +1552,7 @@ function UnifiedChatPageContent() {
                   ) : (
                     <>
                       <button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" /></button>
+                      <button onClick={handleOpenProfile} className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="แท็ก / โปรไฟล์"><User className="w-4 h-4" /></button>
                       <button onClick={() => { setShowLinkModal(true); }} className="p-2 rounded-lg transition-colors bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600" title="เชื่อมลูกค้าที่มีอยู่"><LinkIcon className="w-4 h-4" /></button>
                     </>
                   )}
@@ -1369,7 +1560,7 @@ function UnifiedChatPageContent() {
               </div>
 
               {/* Messages */}
-              <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-slate-900 relative">
+              <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-slate-900 relative font-sarabun">
                 {loadingMessages ? (
                   <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>
                 ) : messages.length === 0 ? (
@@ -1401,8 +1592,14 @@ function UnifiedChatPageContent() {
                             <div className={`rounded-2xl max-w-[75vw] md:max-w-[min(70vw,400px)] ${['sticker', 'image', 'video', 'flex', 'template', 'imagemap', 'story_mention'].includes(msg.message_type) ? 'bg-transparent' : msg.direction === 'outgoing'
                               ? msg._status === 'failed' ? 'bg-red-400 text-white rounded-br-sm px-3 py-1.5 md:px-4 md:py-2'
                               : msg._status === 'sending' ? 'text-white rounded-br-sm px-3 py-1.5 md:px-4 md:py-2' : 'text-white rounded-br-sm px-3 py-1.5 md:px-4 md:py-2'
-                              : 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-bl-sm shadow-sm px-3 py-1.5 md:px-4 md:py-2'}`}
-                              style={!['sticker', 'image', 'video', 'flex', 'template', 'imagemap', 'story_mention'].includes(msg.message_type) && msg.direction === 'outgoing' && msg._status !== 'failed' ? { backgroundColor: msg._status === 'sending' ? platformColor + 'B3' : platformColor } : undefined}>
+                              : 'text-gray-900 dark:text-white rounded-bl-sm shadow-sm px-3 py-1.5 md:px-4 md:py-2'}`}
+                              style={!['sticker', 'image', 'video', 'flex', 'template', 'imagemap', 'story_mention'].includes(msg.message_type)
+                                ? msg.direction === 'outgoing' && msg._status !== 'failed'
+                                  ? { backgroundColor: msg._status === 'sending' ? platformColor + 'B3' : platformColor }
+                                  : msg.direction === 'incoming'
+                                    ? { backgroundColor: platformColor + '18' }
+                                    : undefined
+                                : undefined}>
                               <MessageBubble
                                 msg={msg}
                                 platform={selectedContact?.platform || 'line'}
@@ -1425,6 +1622,14 @@ function UnifiedChatPageContent() {
               {showScrollButton && (<button onClick={scrollToBottom} className="absolute bottom-24 left-1/2 -translate-x-1/2 p-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full shadow-xl hover:bg-gray-50 dark:hover:bg-slate-700/50 hover:shadow-2xl transition-all z-20 animate-bounce" title="ไปที่ข้อความล่าสุด"><ArrowDown className="w-5 h-5" style={{ color: platformColor }} /></button>)}
 
               {/* Message Input */}
+              {isWindowExpired ? (
+                <div className="p-3 md:p-4 border-t border-gray-200 dark:border-slate-700 bg-amber-50 dark:bg-amber-950/30">
+                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    <span className="text-sm">ไม่สามารถส่งข้อความได้ — ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับตามนโยบาย Facebook/Instagram)</span>
+                  </div>
+                </div>
+              ) : (
               <div className="p-2 md:p-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                 <div className="flex items-center gap-1 md:gap-2">
                   <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
@@ -1452,6 +1657,7 @@ function UnifiedChatPageContent() {
                   <button onClick={() => { sendMessage(); }} disabled={!newMessage.trim()} className="p-2 text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0" style={{ backgroundColor: platformColor }}><Send className="w-5 h-5" /></button>
                 </div>
               </div>
+              )}
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-slate-900">
@@ -1479,21 +1685,27 @@ function UnifiedChatPageContent() {
         )}
 
         {/* Mobile Profile View */}
-        {mobileView === 'profile' && selectedContact?.customer && (
+        {mobileView === 'profile' && selectedContact && (
           <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ข้อมูลลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p></div></div>
-              <button onClick={handleOpenEditCustomer} className="px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors">แก้ไข</button>
+              <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedContact.customer ? 'ข้อมูลลูกค้า' : 'โปรไฟล์'}</h2>{selectedContact.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p>}</div></div>
+              {selectedContact.customer && <button onClick={handleOpenEditCustomer} className="px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors">แก้ไข</button>}
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {renderCustomerProfile()}
               <div className="mt-4 space-y-2">
-                <button onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
-                <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
-                <div className="flex gap-2 pt-2">
-                  <button onClick={handleUnlinkCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Unlink className="w-3.5 h-3.5" />ยกเลิกเชื่อมต่อ</button>
-                  <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />ลบลูกค้า</button>
-                </div>
+                {selectedContact.customer ? (
+                  <>
+                    <button onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
+                    <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
+                    <div className="flex gap-2 pt-2">
+                      <button onClick={handleUnlinkCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Unlink className="w-3.5 h-3.5" />ยกเลิกเชื่อมต่อ</button>
+                      <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />ลบลูกค้า</button>
+                    </div>
+                  </>
+                ) : (
+                  <button onClick={() => setShowLinkModal(true)} className="w-full py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"><LinkIcon className="w-4 h-4" />เชื่อมต่อลูกค้า</button>
+                )}
               </div>
             </div>
           </div>
@@ -1505,7 +1717,7 @@ function UnifiedChatPageContent() {
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               <div className="flex items-center gap-3"><button onClick={() => setMobileView('profile')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">แก้ไขข้อมูลลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p></div></div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} initialData={editCustomerInitialData} onSubmit={handleUpdateCustomerInChat} onCancel={() => setMobileView('profile')} isEditing={true} isLoading={editingCustomer}/></div>
+            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} initialData={editCustomerInitialData} onSubmit={handleUpdateCustomerInChat} onCancel={() => setMobileView('profile')} isEditing={true} isLoading={editingCustomer} allTags={allTags} selectedTags={profileTags} onTagsChange={setProfileTags} onTagCreated={(tag) => setAllTags(prev => [...prev, tag])}/></div>
           </div>
         )}
 
@@ -1553,24 +1765,30 @@ function UnifiedChatPageContent() {
           </div>
         )}
 
-        {rightPanel === 'profile' && selectedContact?.customer && (
+        {rightPanel === 'profile' && selectedContact && (
           <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
-              <div className="flex items-center gap-3"><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ข้อมูลลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p></div></div>
+              <div className="flex items-center gap-3"><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedContact.customer ? 'ข้อมูลลูกค้า' : 'โปรไฟล์'}</h2>{selectedContact.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p>}</div></div>
               <div className="flex items-center gap-2">
-                <button onClick={handleOpenEditCustomer} className="px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors">แก้ไข</button>
+                {selectedContact.customer && <button onClick={handleOpenEditCustomer} className="px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors">แก้ไข</button>}
                 <button onClick={() => setRightPanel(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {renderCustomerProfile()}
               <div className="mt-4 space-y-2">
-                <button onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
-                <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
-                <div className="flex gap-2 pt-2">
-                  <button onClick={handleUnlinkCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Unlink className="w-3.5 h-3.5" />ยกเลิกเชื่อมต่อ</button>
-                  <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />ลบลูกค้า</button>
-                </div>
+                {selectedContact.customer ? (
+                  <>
+                    <button onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
+                    <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
+                    <div className="flex gap-2 pt-2">
+                      <button onClick={handleUnlinkCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Unlink className="w-3.5 h-3.5" />ยกเลิกเชื่อมต่อ</button>
+                      <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />ลบลูกค้า</button>
+                    </div>
+                  </>
+                ) : (
+                  <button onClick={() => setShowLinkModal(true)} className="w-full py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"><LinkIcon className="w-4 h-4" />เชื่อมต่อลูกค้า</button>
+                )}
               </div>
             </div>
           </div>
@@ -1582,7 +1800,7 @@ function UnifiedChatPageContent() {
               <div className="flex items-center gap-3"><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">แก้ไขข้อมูลลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p></div></div>
               <button onClick={() => setRightPanel('profile')} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} initialData={editCustomerInitialData} onSubmit={handleUpdateCustomerInChat} onCancel={() => setRightPanel('profile')} isEditing={true} isLoading={editingCustomer}/></div>
+            <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} initialData={editCustomerInitialData} onSubmit={handleUpdateCustomerInChat} onCancel={() => setRightPanel('profile')} isEditing={true} isLoading={editingCustomer} allTags={allTags} selectedTags={profileTags} onTagsChange={setProfileTags} onTagCreated={(tag) => setAllTags(prev => [...prev, tag])}/></div>
           </div>
         )}
 

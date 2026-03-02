@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import OrderForm from '@/components/orders/OrderForm';
 import { apiFetch } from '@/lib/api-client';
-import { ArrowLeft, Loader2, Copy, Repeat } from 'lucide-react';
+import { ArrowLeft, Loader2, Copy, Repeat, Package, CornerDownRight } from 'lucide-react';
+import { formatPrice } from '@/lib/utils/format';
 
 interface InitialOrderData {
   customer_id: string;
@@ -24,6 +25,7 @@ interface InitialOrderData {
       product_code: string;
       product_name: string;
       variation_label?: string;
+      image?: string;
       quantity: number;
       unit_price: number;
       discount_value: number;
@@ -36,6 +38,16 @@ export interface ExchangeData {
   from_order_id: string;
   items: { order_item_id: string; quantity: number }[];
   reason: string;
+}
+
+interface ExchangeReturnItem {
+  product_name: string;
+  variation_label?: string;
+  image?: string;
+  quantity: number;
+  unit_price: number;
+  discount_percent?: number;
+  line_total: number;
 }
 
 export default function NewOrderPage() {
@@ -68,6 +80,7 @@ function NewOrderContent() {
   const [sourceOrderNumber, setSourceOrderNumber] = useState('');
   const [exchangeData, setExchangeData] = useState<ExchangeData | undefined>(undefined);
   const [exchangeCreditAmount, setExchangeCreditAmount] = useState(0);
+  const [exchangeReturnItems, setExchangeReturnItems] = useState<ExchangeReturnItem[]>([]);
 
   // Exchange: decode exchange_data, fetch original order for customer + calculate credit amount
   useEffect(() => {
@@ -96,9 +109,10 @@ function NewOrderContent() {
         const { order } = await res.json();
         setSourceOrderNumber(order.order_number);
 
-        // Calculate credit amount from returned items
+        // Calculate credit amount + collect return item details
         const orderItems = order.items || [];
         let creditAmount = 0;
+        const returnItems: ExchangeReturnItem[] = [];
         for (const exchangeItem of decoded.items) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const oi = orderItems.find((i: any) => i.id === exchangeItem.order_item_id);
@@ -107,10 +121,21 @@ function NewOrderContent() {
             const lineDiscount = oi.discount_percent
               ? lineTotal * Number(oi.discount_percent) / 100
               : 0;
-            creditAmount += lineTotal - lineDiscount;
+            const net = lineTotal - lineDiscount;
+            creditAmount += net;
+            returnItems.push({
+              product_name: oi.product_name,
+              variation_label: oi.variation_label,
+              image: oi.image,
+              quantity: exchangeItem.quantity,
+              unit_price: Number(oi.unit_price || 0),
+              discount_percent: oi.discount_percent ? Number(oi.discount_percent) : undefined,
+              line_total: net,
+            });
           }
         }
         setExchangeCreditAmount(creditAmount);
+        setExchangeReturnItems(returnItems);
 
         // Only fill customer (no products — user picks new items)
         setInitialData({
@@ -166,6 +191,7 @@ function NewOrderContent() {
               product_code: item.product_code,
               product_name: item.product_name,
               variation_label: item.variation_label,
+              image: item.image || undefined,
               quantity: item.quantity,
               unit_price: item.unit_price,
               discount_value: item.discount_percent || 0,
@@ -195,6 +221,7 @@ function NewOrderContent() {
                   product_code: item.product_code,
                   product_name: item.product_name,
                   variation_label: item.variation_label,
+                  image: item.image || undefined,
                   quantity: shipment.quantity,
                   unit_price: item.unit_price,
                   discount_value: item.discount_percent || 0,
@@ -284,6 +311,46 @@ function NewOrderContent() {
           </div>
           <div ref={warehouseRef} />
         </div>
+
+        {/* Exchange: Return Items Summary */}
+        {isExchange && exchangeReturnItems.length > 0 && (
+          <div className="bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800/30 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-orange-200 dark:border-orange-800/30 flex items-center gap-2">
+              <CornerDownRight className="w-4 h-4 text-orange-500" />
+              <h3 className="text-sm font-semibold text-orange-700 dark:text-orange-400">สินค้าที่คืน</h3>
+              <span className="text-xs text-orange-500 dark:text-orange-500">({exchangeReturnItems.length} รายการ)</span>
+            </div>
+            <div className="divide-y divide-orange-100 dark:divide-orange-800/20">
+              {exchangeReturnItems.map((item, idx) => (
+                <div key={idx} className="px-4 py-2.5 flex items-center gap-3">
+                  {item.image ? (
+                    <img src={item.image} alt={item.product_name} className="w-10 h-10 object-cover rounded flex-shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/20 rounded flex items-center justify-center flex-shrink-0">
+                      <Package className="w-4 h-4 text-orange-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-gray-900 dark:text-white truncate">{item.product_name}</div>
+                    {item.variation_label && (
+                      <div className="text-xs text-gray-500 dark:text-slate-400">{item.variation_label}</div>
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-slate-400 whitespace-nowrap">
+                    x{item.quantity}
+                  </div>
+                  <div className="text-sm font-medium text-gray-700 dark:text-slate-300 whitespace-nowrap w-24 text-right">
+                    {formatPrice(item.line_total)}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-4 py-2.5 border-t border-orange-200 dark:border-orange-800/30 flex items-center justify-between">
+              <span className="text-sm text-orange-600 dark:text-orange-400 font-medium">เครดิตจากบิลเดิม</span>
+              <span className="text-sm font-bold text-orange-600 dark:text-orange-400">{formatPrice(exchangeCreditAmount)}</span>
+            </div>
+          </div>
+        )}
 
         {/* Order Form */}
         <OrderForm

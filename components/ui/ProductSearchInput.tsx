@@ -132,7 +132,7 @@ export default function ProductSearchInput({
 
   return (
     <div className="relative">
-      <div className="flex items-center gap-2 px-3 py-2.5 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-[#F4511E] transition-colors bg-transparent">
+      <div className="flex items-center gap-2 px-3 py-1.5 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-[#F4511E] transition-colors bg-transparent">
         <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
         <input
           ref={searchRef}
@@ -153,7 +153,7 @@ export default function ProductSearchInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           autoFocus={autoFocus}
-          className="flex-1 outline-none bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
+          className="flex-1 outline-none bg-transparent text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
         />
         {loading && (
           <Loader2 className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" />
@@ -166,7 +166,12 @@ export default function ProductSearchInput({
           ref={dropdownRef}
           className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-auto"
         >
-          {filtered.length === 0 ? (
+          {loading && filtered.length === 0 ? (
+            <div className="px-4 py-3 flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              กำลังโหลดสินค้า...
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
               ไม่พบสินค้า
             </div>

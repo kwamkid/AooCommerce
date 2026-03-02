@@ -170,9 +170,13 @@ export class FacebookChatService {
 
     if (!fbRes.ok) {
       const err = await fbRes.json();
-      // Error subcode 2018278 = outside 24h window — retry with HUMAN_AGENT tag (7-day window)
-      if (err.error?.error_subcode === 2018278) {
-        console.log('Outside 24h window, retrying with HUMAN_AGENT tag');
+      const subcode = err.error?.error_subcode;
+      const code = err.error?.code;
+      // Outside messaging window: subcode 2018278 (FB), 2534022 (IG), or code 10
+      const isWindowError = subcode === 2018278 || subcode === 2534022 || code === 10;
+
+      if (isWindowError) {
+        console.log('Outside messaging window, retrying with HUMAN_AGENT tag');
         fbRes = await fetch(sendUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -187,7 +191,11 @@ export class FacebookChatService {
         if (!fbRes.ok) {
           const retryErr = await fbRes.json();
           console.error('Facebook Send API error (HUMAN_AGENT):', retryErr);
-          return { success: false, error: retryErr.error?.message || 'Facebook API error' };
+          return {
+            success: false,
+            error: 'ไม่สามารถส่งข้อความได้ — ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับ)',
+            errorCode: 'MESSAGING_WINDOW_EXPIRED',
+          };
         }
       } else {
         console.error('Facebook Send API error:', err);

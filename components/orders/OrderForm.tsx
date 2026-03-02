@@ -14,10 +14,10 @@ import { productSubtitle } from '@/app/inventory/components/types';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
-import DateRangePicker from '@/components/ui/DateRangePicker';
+import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
-import { DateValueType } from 'react-tailwindcss-datepicker';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
+import { isMarketplaceSource } from '@/lib/marketplace/types';
 import {
   Plus,
   Trash2,
@@ -182,6 +182,7 @@ export default function OrderForm({
   const [editOrderStatus, setEditOrderStatus] = useState('');
   const [editPaymentStatus, setEditPaymentStatus] = useState('');
   const [editOrderSource, setEditOrderSource] = useState('manual');
+  const [storedExchangeCredit, setStoredExchangeCredit] = useState(0);
   const isEditMode = !!editOrderId;
   const isReadOnly = isEditMode && (editOrderSource === 'shopee' || editOrderStatus !== 'new' || editPaymentStatus !== 'pending');
 
@@ -195,6 +196,7 @@ export default function OrderForm({
 
   // Products
   const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   // Customer pricing
   const [customerPrices, setCustomerPrices] = useState<Record<string, { unit_price: number; discount_percent: number }>>({});
@@ -281,7 +283,9 @@ export default function OrderForm({
   const deliveryDateRef = useRef<HTMLDivElement>(null);
   const branchSectionRef = useRef<HTMLDivElement>(null);
   const deliverySectionRef = useRef<HTMLDivElement>(null);
+  const summarySectionRef = useRef<HTMLDivElement>(null);
   const [wideEnough, setWideEnough] = useState(false);
+  const [summaryWide, setSummaryWide] = useState(false);
 
   // Watch container width for responsive 2-column layout
   useEffect(() => {
@@ -293,6 +297,18 @@ export default function OrderForm({
     ro.observe(el);
     return () => ro.disconnect();
   }, [loading]);
+
+  // Watch summary section width for side-by-side vs stacked layout
+  const hasProducts = branchOrders.length > 0 && branchOrders.some(b => b.products.length > 0);
+  useEffect(() => {
+    const el = summarySectionRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setSummaryWide(entry.contentRect.width >= 560);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [hasProducts]);
 
   // Initialize default branch (product-first flow for all modes)
   // This allows product section to show immediately without selecting a customer
@@ -341,11 +357,12 @@ export default function OrderForm({
   // Fetch customers, products, and warehouse config (once)
   // For marketplace orders (edit mode), skip customers/products — they're read-only
   useFetchOnce(() => {
-    const source = preloadedOrder?.source || '';
-    const isMarketplace = source && source !== 'manual';
+    const isMarketplace = isMarketplaceSource(preloadedOrder?.source);
     if (!isMarketplace) {
       fetchCustomers();
       fetchProducts();
+    } else {
+      setLoadingProducts(false);
     }
     fetchWarehouses();
   }, !authLoading && !!userProfile);
@@ -520,6 +537,8 @@ export default function OrderForm({
         if (order.internal_notes) setInternalNotes(order.internal_notes);
         if (order.discount_amount) setOrderDiscount(order.discount_amount);
         if (order.order_discount_type) setOrderDiscountType(order.order_discount_type);
+        if (order.exchange_credit) setStoredExchangeCredit(Number(order.exchange_credit));
+
         if (order.tax_invoice_requested) {
           setTaxInvoiceRequested(true);
           if (order.tax_invoice_name) setTaxName(order.tax_invoice_name);
@@ -529,7 +548,7 @@ export default function OrderForm({
         }
 
         // For marketplace orders, skip unnecessary fetches (read-only)
-        const isMarketplace = (order.source || 'manual') !== 'manual';
+        const isMarketplace = isMarketplaceSource(order.source);
 
         if (order.customer?.id && !isMarketplace) {
           const addrResponse = await apiFetch(`/api/shipping-addresses?customer_id=${order.customer.id}`);
@@ -648,6 +667,7 @@ export default function OrderForm({
 
   const fetchProducts = async () => {
     try {
+      setLoadingProducts(true);
       const productsResponse = await apiFetch('/api/products');
 
       if (!productsResponse.ok) throw new Error('Failed to fetch products');
@@ -693,6 +713,8 @@ export default function OrderForm({
       setProducts(flatProducts);
     } catch (error) {
       console.error('Error fetching products:', error);
+    } finally {
+      setLoadingProducts(false);
     }
   };
 
@@ -906,6 +928,7 @@ export default function OrderForm({
                 product_code: item.product_code,
                 product_name: item.product_name,
                 variation_label: item.variation_label,
+                image: item.image,
                 quantity: shipment.quantity,
                 unit_price: item.unit_price,
                 discount_value: item.discount_type === 'amount' ? (item.discount_amount || 0) : (item.discount_percent || 0),
@@ -931,6 +954,7 @@ export default function OrderForm({
             product_code: item.product_code,
             product_name: item.product_name,
             variation_label: item.variation_label,
+            image: item.image,
             quantity: item.quantity,
             unit_price: item.unit_price,
             discount_value: item.discount_type === 'amount' ? (item.discount_amount || 0) : (item.discount_percent || 0),
@@ -1568,10 +1592,27 @@ export default function OrderForm({
                   </div>
                 </>
               )}
-              <div className={`flex justify-between font-bold text-base pt-1.5 border-t-2 border-black`}>
-                <span>ยอดรวมสุทธิ</span>
-                <span>฿{formatPrice(total)}</span>
-              </div>
+              {storedExchangeCredit > 0 ? (
+                <>
+                  <div className="flex justify-between font-bold text-base pt-1.5 border-t-2 border-black">
+                    <span>ยอดรวมก่อนหักเครดิต</span>
+                    <span>฿{formatPrice(total)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-green-700">
+                    <span>เครดิตจากการเปลี่ยนสินค้า</span>
+                    <span>-฿{formatPrice(storedExchangeCredit)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-lg pt-1.5 mt-1 border-t-2 border-black">
+                    <span>ยอดชำระสุทธิ</span>
+                    <span>฿{formatPrice(Math.max(0, total - storedExchangeCredit))}</span>
+                  </div>
+                </>
+              ) : (
+                <div className={`flex justify-between font-bold text-base pt-1.5 border-t-2 border-black`}>
+                  <span>ยอดรวมสุทธิ</span>
+                  <span>฿{formatPrice(total)}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1631,6 +1672,10 @@ export default function OrderForm({
         }
         return <div className="flex justify-end">{warehousePicker}</div>;
       })()}
+
+      {/* 2-column layout: Products+Notes (left) + Summary (right) on wide screens */}
+      <div ref={summarySectionRef} className="flex flex-wrap gap-4 items-start">
+      <div className="flex-1 basis-[400px] min-w-0 space-y-4">
 
       {/* Step 2: Branch Orders - Product List */}
       {branchOrders.length > 0 && (
@@ -1742,107 +1787,107 @@ export default function OrderForm({
             >
 
               {/* Products List */}
-              {embedded ? (
-                /* Embedded mode: card layout — product name full width, inputs below */
-                <div className="divide-y divide-gray-100 dark:divide-slate-700/50">
-                  {branch.products.map((product, productIndex) => {
-                    const capacityDisplay = product.product_type === 'simple' ? '' : getVariationLabelDisplay(product.variation_label);
-                    return (
-                      <div key={product.variation_id} className="px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors relative">
-                        {/* Delete button — top right corner */}
-                        {!isReadOnly && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveProductFromBranch(branchIndex, productIndex)}
-                            className="absolute top-2 right-2 text-gray-400 hover:text-red-600 p-0.5 rounded transition-colors"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <div className="flex flex-wrap items-start gap-x-2.5 gap-y-1.5 pr-5">
-                          {/* Image + Name group — min-w forces inputs to wrap when narrow */}
-                          <div className="flex items-start gap-2.5 min-w-[200px] flex-[999_1_0%]">
-                            {product.image ? (
-                              <img
-                                src={product.image}
-                                alt={product.product_name}
-                                className="w-[54px] h-[54px] object-cover rounded flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-                                onClick={() => setLightboxImage(product.image!)}
-                              />
-                            ) : (
-                              <div className="w-[54px] h-[54px] bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
-                                <Package className="w-5 h-5 text-gray-400 dark:text-slate-500" />
-                              </div>
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
-                                {product.product_name}{capacityDisplay && ` - ${capacityDisplay}`}
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-gray-400 dark:text-slate-500">{productSubtitle({ product_code: product.product_code, sku: product.sku })}</span>
-                                {getStockBadge(product.variation_id, product.quantity)}
-                              </div>
+              {/* Card layout — used in embedded mode always, and on mobile for full page */}
+              <div className={`divide-y divide-gray-100 dark:divide-slate-700/50 ${embedded ? '' : 'md:hidden'}`}>
+                {branch.products.map((product, productIndex) => {
+                  const capacityDisplay = product.product_type === 'simple' ? '' : getVariationLabelDisplay(product.variation_label);
+                  return (
+                    <div key={product.variation_id} className="px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors relative">
+                      {/* Delete button — top right corner */}
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveProductFromBranch(branchIndex, productIndex)}
+                          className="absolute top-2 right-2 text-gray-400 hover:text-red-600 p-0.5 rounded transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <div className="flex flex-wrap items-start gap-x-2.5 gap-y-1.5 pr-5">
+                        {/* Image + Name group — min-w forces inputs to wrap when narrow */}
+                        <div className="flex items-start gap-2.5 min-w-[200px] flex-[999_1_0%]">
+                          {product.image ? (
+                            <img
+                              src={product.image}
+                              alt={product.product_name}
+                              className="w-[54px] h-[54px] object-cover rounded flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => setLightboxImage(product.image!)}
+                            />
+                          ) : (
+                            <div className="w-[54px] h-[54px] bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
+                              <Package className="w-5 h-5 text-gray-400 dark:text-slate-500" />
                             </div>
-                          </div>
-                          {/* Qty + Price + Discount | Total */}
-                          <div className="flex items-center justify-between w-full gap-1.5">
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                              {product.product_name}{capacityDisplay && ` - ${capacityDisplay}`}
+                            </div>
                             <div className="flex items-center gap-1.5">
-                              <input
-                                ref={(el) => { quantityInputRefs.current[`${branchIndex}-${productIndex}`] = el; }}
-                                type="number"
-                                min="1"
-                                value={product.quantity}
-                                onChange={(e) => handleUpdateProductQuantity(branchIndex, productIndex, parseInt(e.target.value) || 1)}
-                                disabled={isReadOnly}
-                                className="w-12 px-1 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
-                              />
-                              <span className="text-gray-400 dark:text-slate-500 text-xs">&times;</span>
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={product.unit_price}
-                                  onChange={(e) => handleUpdateProductPrice(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
-                                  disabled={isReadOnly}
-                                  className="w-16 px-1 pr-4 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
-                                />
-                                <span className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-xs pointer-events-none">฿</span>
-                              </div>
-                              <div className="flex items-stretch">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={product.discount_type === 'percent' ? 100 : undefined}
-                                  step="0.01"
-                                  value={product.discount_value}
-                                  onChange={(e) => handleUpdateProductDiscount(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
-                                  disabled={isReadOnly}
-                                  className="w-10 px-1 py-1.5 border border-gray-300 dark:border-slate-600 rounded-l-lg border-r-0 text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleProductDiscountType(branchIndex, productIndex)}
-                                  disabled={isReadOnly}
-                                  className="px-1.5 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[24px] flex items-center justify-center disabled:opacity-50"
-                                  title={product.discount_type === 'percent' ? 'เปลี่ยนเป็นจำนวนเงิน' : 'เปลี่ยนเป็นเปอร์เซ็นต์'}
-                                >
-                                  {product.discount_type === 'percent' ? '%' : '฿'}
-                                </button>
-                              </div>
+                              <span className="text-xs text-gray-400 dark:text-slate-500">{productSubtitle({ product_code: product.product_code, sku: product.sku })}</span>
+                              {getStockBadge(product.variation_id, product.quantity)}
                             </div>
-                            <span className="text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
-                              {formatPrice(calculateProductTotal(product))}
-                            </span>
                           </div>
                         </div>
+                        {/* Qty + Price + Discount | Total */}
+                        <div className="flex items-center justify-between w-full gap-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              ref={(el) => { quantityInputRefs.current[`${branchIndex}-${productIndex}`] = el; }}
+                              type="number"
+                              min="1"
+                              value={product.quantity}
+                              onChange={(e) => handleUpdateProductQuantity(branchIndex, productIndex, parseInt(e.target.value) || 1)}
+                              disabled={isReadOnly}
+                              className="w-12 px-1 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
+                            />
+                            <span className="text-gray-400 dark:text-slate-500 text-xs">&times;</span>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={product.unit_price}
+                                onChange={(e) => handleUpdateProductPrice(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
+                                disabled={isReadOnly}
+                                className="w-16 px-1 pr-4 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
+                              />
+                              <span className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-xs pointer-events-none">฿</span>
+                            </div>
+                            <div className="flex items-stretch">
+                              <input
+                                type="number"
+                                min="0"
+                                max={product.discount_type === 'percent' ? 100 : undefined}
+                                step="0.01"
+                                value={product.discount_value}
+                                onChange={(e) => handleUpdateProductDiscount(branchIndex, productIndex, parseFloat(e.target.value) || 0)}
+                                disabled={isReadOnly}
+                                className="w-10 px-1 py-1.5 border border-gray-300 dark:border-slate-600 rounded-l-lg border-r-0 text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleToggleProductDiscountType(branchIndex, productIndex)}
+                                disabled={isReadOnly}
+                                className="px-1.5 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[24px] flex items-center justify-center disabled:opacity-50"
+                                title={product.discount_type === 'percent' ? 'เปลี่ยนเป็นจำนวนเงิน' : 'เปลี่ยนเป็นเปอร์เซ็นต์'}
+                              >
+                                {product.discount_type === 'percent' ? '%' : '฿'}
+                              </button>
+                            </div>
+                          </div>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                            {formatPrice(calculateProductTotal(product))}
+                          </span>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* Full page mode: table layout */
-                <div className="overflow-x-auto">
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Table layout — full page desktop only */}
+              {!embedded && (
+                <div className="overflow-x-auto hidden md:block">
                   <table className="data-table">
                     <thead className="data-thead">
                       <tr>
@@ -1961,6 +2006,7 @@ export default function OrderForm({
                   onSelect={(p) => handleAddProductToBranch(branchIndex, p as Product)}
                   placeholder="เพิ่มสินค้า — พิมพ์ชื่อหรือรหัส..."
                   searchFields={[]}
+                  loading={loadingProducts}
                   formatSubtitle={(p) => {
                     const parts = [p.code];
                     if (p.default_price != null) parts.push(`฿${formatNumber(p.default_price)}`);
@@ -2022,14 +2068,12 @@ export default function OrderForm({
         </div>
       )}
 
-      {/* Step 3: Summary */}
+      {/* Notes + Settings — part of left column */}
       {branchOrders.length > 0 && branchOrders.some(b => b.products.length > 0) && (
         <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-          <div className="flex flex-wrap gap-4">
-            {/* Notes */}
-            <div className="space-y-3 flex-1 min-w-[200px]">
+          <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
                   หมายเหตุ <span className="text-gray-400 dark:text-slate-500 font-normal">(แสดงในบิล / การจัดส่ง)</span>
                 </label>
                 <textarea
@@ -2037,12 +2081,12 @@ export default function OrderForm({
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
                   disabled={isReadOnly}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
                   placeholder="หมายเหตุสำหรับลูกค้า, การจัดส่ง..."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-orange-700 dark:text-orange-400 mb-1">
+                <label className="block text-base font-medium text-orange-700 dark:text-orange-400 mb-1">
                   หมายเหตุภายใน <span className="text-orange-400 dark:text-orange-500 font-normal">(ไม่แสดงในบิล)</span>
                 </label>
                 <textarea
@@ -2050,7 +2094,7 @@ export default function OrderForm({
                   onChange={(e) => setInternalNotes(e.target.value)}
                   rows={2}
                   disabled={isReadOnly}
-                  className="w-full px-3 py-2.5 border border-orange-300 dark:border-orange-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-sm bg-orange-50 dark:bg-orange-900/20 text-gray-900 dark:text-slate-200 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500 disabled:border-gray-300 dark:disabled:border-slate-600"
+                  className="w-full px-3 py-2.5 border border-orange-300 dark:border-orange-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-base bg-orange-50 dark:bg-orange-900/20 text-gray-900 dark:text-slate-200 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500 disabled:border-gray-300 dark:disabled:border-slate-600"
                   placeholder="หมายเหตุภายใน..."
                 />
               </div>
@@ -2131,12 +2175,19 @@ export default function OrderForm({
                   </div>
                 </div>
               )}
-            </div>
+          </div>
+        </div>
+      )}
 
-            {/* Order Summary */}
-            <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4 w-full md:w-[320px] flex-shrink-0">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">สรุปคำสั่งซื้อ</h3>
-              <div className="space-y-2 text-sm">
+      </div>{/* End left column */}
+
+      {/* Order Summary — right column (sticky on wide, full-width on narrow) */}
+      {branchOrders.length > 0 && branchOrders.some(b => b.products.length > 0) && (
+        <div className={`${summaryWide ? 'w-[340px] flex-shrink-0 sticky top-4' : 'w-full'}`}>
+          <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+            <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4">
+              <h3 className="text-base font-semibold text-gray-700 dark:text-slate-300 mb-3">สรุปคำสั่งซื้อ</h3>
+              <div className="space-y-2 text-base">
                 <div className="flex justify-between text-gray-500 dark:text-slate-400">
                   <span>ยอดรวมสินค้า (รวม VAT)</span>
                   <span>฿{formatPrice(itemsTotal)}</span>
@@ -2205,24 +2256,35 @@ export default function OrderForm({
                   <span>ยอดรวมสุทธิ</span>
                   <span className="text-[#F4511E]">฿{formatPrice(total)}</span>
                 </div>
-                {/* Exchange: price difference summary */}
-                {exchangeCreditAmount != null && exchangeCreditAmount > 0 && (
-                  <>
-                    <div className="flex justify-between text-sm text-green-600 dark:text-green-400 pt-2 border-t border-gray-200 dark:border-slate-600">
-                      <span>เครดิตจากบิลเดิม</span>
-                      <span>-฿{formatPrice(exchangeCreditAmount)}</span>
-                    </div>
-                    <div className={`flex justify-between text-sm font-bold ${total - exchangeCreditAmount > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                      <span>{total - exchangeCreditAmount > 0 ? 'ลูกค้าจ่ายเพิ่ม' : total - exchangeCreditAmount < 0 ? 'คืนเงินลูกค้า' : 'ไม่มีส่วนต่าง'}</span>
-                      <span>฿{formatPrice(Math.abs(total - exchangeCreditAmount))}</span>
-                    </div>
-                  </>
-                )}
+                {/* Exchange: price difference summary (create mode or view existing) */}
+                {(() => {
+                  const credit = exchangeCreditAmount || storedExchangeCredit || 0;
+                  if (credit <= 0) return null;
+                  const diff = total - credit;
+                  return (
+                    <>
+                      <div className="flex justify-between text-sm text-green-600 dark:text-green-400 pt-2 border-t border-gray-200 dark:border-slate-600">
+                        <span>เครดิตจากการเปลี่ยนสินค้า</span>
+                        <span>-฿{formatPrice(credit)}</span>
+                      </div>
+                      <div className={`flex justify-between items-center text-lg font-bold mt-1 px-3 py-2 rounded-lg ${
+                        diff > 0
+                          ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20'
+                          : 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20'
+                      }`}>
+                        <span>{diff > 0 ? 'ลูกค้าจ่ายเพิ่ม' : diff < 0 ? 'คืนเงินลูกค้า' : 'ไม่มีส่วนต่าง'}</span>
+                        <span>฿{formatPrice(Math.abs(diff))}</span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
         </div>
       )}
+
+      </div>{/* End 2-column wrapper */}
 
       {/* Customer + Delivery section — hidden in edit mode (shown in top card instead) */}
       {!isEditMode && (
@@ -2232,7 +2294,7 @@ export default function OrderForm({
         <div className={`grid grid-cols-1 ${wideEnough ? 'grid-cols-2' : ''} gap-x-4 gap-y-3`}>
           {/* Row 1 Left: ลูกค้า */}
           <div ref={customerSectionRef} className="relative flex flex-col">
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
               ลูกค้า <span className="text-gray-400 text-xs font-normal">(ไม่บังคับ)</span>
             </label>
             {selectedCustomer ? (
@@ -2329,24 +2391,24 @@ export default function OrderForm({
 
           {/* Row 1 Right: ที่อยู่จัดส่ง */}
           <div className={`flex flex-col ${wideEnough ? 'border-l border-gray-200 dark:border-slate-700 pl-4' : ''}`}>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่จัดส่ง</label>
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่จัดส่ง</label>
             <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} onPaste={(e) => { const pasted = e.clipboardData.getData('text'); if (pasted.length > 10) { const parsed = parseThaiAddress(pasted); if (parsed) { e.preventDefault(); setDeliveryAddress(parsed.address); setDeliveryDistrict(parsed.district); setDeliveryAmphoe(parsed.amphoe); setDeliveryProvince(parsed.province); setDeliveryPostalCode(parsed.postal_code); } } }} placeholder="วางที่อยู่ยาวๆ ได้เลย — ระบบจะแยก ตำบล อำเภอ จังหวัด ให้อัตโนมัติ" disabled={isReadOnly} className="w-full flex-1 px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none" />
           </div>
 
           {/* Row 2-3 Left: ชื่อผู้รับ + เบอร์โทร + อีเมล */}
           <div className="space-y-3">
             <div>
-              <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">ชื่อผู้รับ</label>
+              <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">ชื่อผู้รับ</label>
               <input type="text" value={deliveryName} onChange={(e) => setDeliveryName(e.target.value)} placeholder="ชื่อ-นามสกุล" disabled={isReadOnly} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
+                <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
                 <input type="text" inputMode="tel" value={deliveryPhone} onChange={(e) => { setDeliveryPhone(e.target.value); if (fieldErrors.deliveryPhone) { const v = e.target.value.trim(); setFieldErrors(prev => { const next = { ...prev }; if (!v || /^(0[0-9]{8,9}|[0-9]{9,10})$/.test(v)) delete next.deliveryPhone; return next; }); } }} onBlur={() => { const v = deliveryPhone.trim(); if (v && !/^(0[0-9]{8,9}|[0-9]{9,10})$/.test(v)) setFieldErrors(prev => ({ ...prev, deliveryPhone: 'เบอร์โทรไม่ถูกต้อง' })); else setFieldErrors(prev => { const { deliveryPhone: _, ...rest } = prev; return rest; }); }} placeholder="0xx-xxx-xxxx" disabled={isReadOnly} className={`w-full px-3 py-2.5 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 ${fieldErrors.deliveryPhone ? 'border-red-400' : 'border-gray-300 dark:border-slate-600'}`} />
                 {fieldErrors.deliveryPhone && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryPhone}</p>}
               </div>
               <div>
-                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
+                <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
                 <input type="text" inputMode="email" value={deliveryEmail} onChange={(e) => { setDeliveryEmail(e.target.value); if (fieldErrors.deliveryEmail) { const v = e.target.value.trim(); setFieldErrors(prev => { const next = { ...prev }; if (!v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) delete next.deliveryEmail; return next; }); } }} onBlur={() => { const v = deliveryEmail.trim(); if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) setFieldErrors(prev => ({ ...prev, deliveryEmail: 'อีเมลไม่ถูกต้อง' })); else setFieldErrors(prev => { const { deliveryEmail: _, ...rest } = prev; return rest; }); }} placeholder="email@example.com" disabled={isReadOnly} className={`w-full px-3 py-2.5 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 ${fieldErrors.deliveryEmail ? 'border-red-400' : 'border-gray-300 dark:border-slate-600'}`} />
                 {fieldErrors.deliveryEmail && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryEmail}</p>}
               </div>
@@ -2372,27 +2434,27 @@ export default function OrderForm({
               <span className="text-base font-medium text-[#F4511E] dark:text-orange-400">ขอใบกำกับภาษี</span>
             </label>
             {taxInvoiceRequested && (
-              <div className="mt-3 p-4 border border-orange-300 dark:border-orange-700/50 rounded-lg bg-orange-50 dark:bg-orange-900/10 space-y-3">
+              <div className="mt-3 space-y-3">
                 {/* Row 1: ชื่อกิจการ */}
                 <div>
-                  <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
-                  <input type="text" value={taxName} onChange={(e) => setTaxName(e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="บริษัท XXX จำกัด" />
+                  <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
+                  <input type="text" value={taxName} onChange={(e) => setTaxName(e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="บริษัท XXX จำกัด" />
                 </div>
                 {/* Row 2: เลขผู้เสียภาษี + สาขา */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เลขประจำตัวผู้เสียภาษี</label>
-                    <input type="text" value={taxTaxId} onChange={(e) => setTaxTaxId(e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
+                    <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">เลขประจำตัวผู้เสียภาษี</label>
+                    <input type="text" value={taxTaxId} onChange={(e) => setTaxTaxId(e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">สาขา</label>
-                    <input type="text" value={taxBranch} onChange={(e) => setTaxBranch(e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="สำนักงานใหญ่" />
+                    <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">สาขา</label>
+                    <input type="text" value={taxBranch} onChange={(e) => setTaxBranch(e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="สำนักงานใหญ่" />
                   </div>
                 </div>
                 {/* Row 3: ที่อยู่ออกบิล */}
                 <div>
-                  <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">ที่อยู่ออกบิล</label>
-                  <textarea value={taxAddress} onChange={(e) => setTaxAddress(e.target.value)} rows={2} disabled={isReadOnly} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-[#F4511E] resize-none disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์" />
+                  <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">ที่อยู่ออกบิล</label>
+                  <textarea value={taxAddress} onChange={(e) => setTaxAddress(e.target.value)} rows={2} disabled={isReadOnly} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E] resize-none disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์" />
                 </div>
               </div>
             )}
@@ -2402,7 +2464,7 @@ export default function OrderForm({
           {/* Delivery Date — full width */}
           {features.delivery_date.enabled && (
           <div ref={deliveryDateRef} className={wideEnough ? 'col-span-2' : ''}>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
               วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
             </label>
             <div className={fieldErrors.deliveryDate ? 'ring-2 ring-red-400 rounded-lg' : ''}>
@@ -2416,7 +2478,7 @@ export default function OrderForm({
         /* Multi-branch mode: just customer + delivery date */
         <div className="space-y-3">
           <div ref={customerSectionRef} className="relative">
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
               ลูกค้า <span className="text-gray-400 text-xs font-normal">(ไม่บังคับ)</span>
             </label>
             {selectedCustomer && (
@@ -2447,7 +2509,7 @@ export default function OrderForm({
 
           {features.delivery_date.enabled && (
           <div ref={deliveryDateRef}>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
               วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
             </label>
             <div className={fieldErrors.deliveryDate ? 'ring-2 ring-red-400 rounded-lg' : ''}>
@@ -2625,24 +2687,14 @@ export default function OrderForm({
                     ส่งบิลให้ลูกค้า
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSuccessModal(false);
-                    if (onSuccess) {
-                      onSuccess(savedOrderId, selectedCustomer?.id, deliveryName ? { name: deliveryName, phone: deliveryPhone, email: deliveryEmail } : undefined);
-                    } else {
-                      router.push(`/orders/${savedOrderId}`);
-                    }
-                  }}
-                  className={`w-full px-4 py-2.5 rounded-lg transition-colors font-medium ${
-                    onSendBillToChat
-                      ? 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                      : 'bg-[#F4511E] text-white hover:bg-[#D63B0E]'
-                  }`}
+                <a
+                  href={`/orders/${savedOrderId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full px-4 py-2.5 rounded-lg transition-colors font-medium border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 text-center block"
                 >
                   ดูคำสั่งซื้อ
-                </button>
+                </a>
               </div>
             </div>
           </div>
