@@ -217,7 +217,7 @@ export default function BrandsPage() {
         ) : (
           <div className="space-y-4">
             {/* Brand count */}
-            <p className="text-sm text-gray-500 dark:text-slate-400">
+            <p className="text-base text-gray-500 dark:text-slate-400">
               {brands.length} แบรนด์
             </p>
 
@@ -237,7 +237,7 @@ export default function BrandsPage() {
                           onChange={e => setEditingName(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') cancelEdit(); }}
                           placeholder="ชื่อแบรนด์"
-                          className="w-40 pl-3 pr-2 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                          className="w-40 pl-3 pr-2 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
                           autoFocus
                         />
                         {features.supplier && (
@@ -250,7 +250,7 @@ export default function BrandsPage() {
                               placeholder="ค้นหา Supplier..."
                               selectedDisplay={
                                 editingSupplierId ? (
-                                  <div className="flex items-center gap-2 px-3 py-2.5 border border-[#F4511E]/30 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-sm">
+                                  <div className="flex items-center gap-2 px-3 py-2.5 border border-[#F4511E]/30 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-base">
                                     <Factory className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                                     <span className="truncate text-gray-900 dark:text-slate-200">{suppliers.find(s => s.id === editingSupplierId)?.name}</span>
                                   </div>
@@ -274,7 +274,7 @@ export default function BrandsPage() {
                         {features.supplier && brand.supplier && (
                           <div className="flex items-center gap-1.5">
                             <Factory className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                            <span className="text-xs text-gray-500 dark:text-slate-400">{brand.supplier.name}</span>
+                            <span className="text-base text-gray-500 dark:text-slate-400">{brand.supplier.name}</span>
                           </div>
                         )}
                       </div>
@@ -313,19 +313,19 @@ export default function BrandsPage() {
             {/* Add brand form */}
             {showAddForm ? (
               <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
-                <div className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
+                <div className="text-base font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
                   <Award className="w-4 h-4 text-[#F4511E]" />
                   เพิ่มแบรนด์
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ชื่อแบรนด์ *</label>
+                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ชื่อแบรนด์ *</label>
                   <input
                     type="text"
                     value={addName}
                     onChange={e => setAddName(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') resetAddForm(); }}
                     placeholder="เช่น Nike, Samsung"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
                     autoFocus
                   />
                 </div>
@@ -333,14 +333,14 @@ export default function BrandsPage() {
                   <button
                     onClick={handleAdd}
                     disabled={saving}
-                    className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                    className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
                   >
                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                     บันทึก
                   </button>
                   <button
                     onClick={resetAddForm}
-                    className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+                    className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-base font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
                   >
                     <X className="w-4 h-4" /> ยกเลิก
                   </button>
@@ -349,7 +349,7 @@ export default function BrandsPage() {
             ) : (
               <button
                 onClick={() => { cancelEdit(); setShowAddForm(true); }}
-                className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
                 เพิ่ม<span className="hidden md:inline">แบรนด์</span>

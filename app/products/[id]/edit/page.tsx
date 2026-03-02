@@ -588,7 +588,7 @@ export default function EditProductPage() {
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
             <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin mx-auto mb-3" />
-            <p className="text-gray-500 text-sm">กำลังโหลดข้อมูล...</p>
+            <p className="text-gray-500 text-base">กำลังโหลดข้อมูล...</p>
           </div>
         </div>
       </Layout>
@@ -609,7 +609,7 @@ export default function EditProductPage() {
             </button>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">แก้ไขสินค้า</h1>
           </div>
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-base">
             {error || 'ไม่พบสินค้า'}
           </div>
         </div>
@@ -691,7 +691,7 @@ export default function EditProductPage() {
                 onChange={e => { if (e.target.value.length <= 120) { setPlatformNameValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); } }}
                 maxLength={120}
                 rows={2}
-                className={`w-full px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E] resize-none ${
+                className={`w-full px-2 py-1.5 text-base border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E] resize-none ${
                   (platformNameValues[link.id] || '').length > 0 && (platformNameValues[link.id] || '').length < 20
                     ? 'border-red-400 dark:border-red-500'
                     : 'border-gray-300 dark:border-slate-600'
@@ -739,7 +739,7 @@ export default function EditProductPage() {
 
         {/* Category — full width */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
             หมวดหมู่ Shopee
           </label>
           <ShopeeCategoryPicker
@@ -758,7 +758,7 @@ export default function EditProductPage() {
         <div className={`grid grid-cols-1 gap-4 ${link.platform === 'shopee' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
           {link.platform !== 'shopee' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
                 Barcode
               </label>
               <input
@@ -766,12 +766,12 @@ export default function EditProductPage() {
                 value={barcodeValues[link.id] || ''}
                 onChange={e => { setBarcodeValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
                 placeholder="-"
-                className="w-full px-3 h-[42px] text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
               />
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
               ราคา Platform (฿)
             </label>
             <div className="flex items-center gap-2">
@@ -782,7 +782,7 @@ export default function EditProductPage() {
                 min="0"
                 step="0.01"
                 placeholder="ไม่ได้ตั้ง"
-                className="flex-1 px-3 h-[42px] text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                className="flex-1 px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
               />
               {savingLink[link.id] && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
             </div>
@@ -792,7 +792,7 @@ export default function EditProductPage() {
           </div>
           {link.platform !== 'shopee' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
                 ราคาลด (฿)
               </label>
               <input
@@ -802,7 +802,7 @@ export default function EditProductPage() {
                 min="0"
                 step="0.01"
                 placeholder="0"
-                className="w-full px-3 h-[42px] text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
               />
               <p className="text-[11px] text-blue-500 dark:text-blue-400 mt-1 font-medium">
                 ราคาลดในระบบ: {formatPriceValue(systemDiscountPrice)}
@@ -810,7 +810,7 @@ export default function EditProductPage() {
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
               น้ำหนัก (kg)
             </label>
             <input
@@ -820,7 +820,7 @@ export default function EditProductPage() {
               step="0.1"
               min="0"
               placeholder="0.5"
-              className="w-full px-3 h-[42px] text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+              className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
             />
           </div>
         </div>
@@ -830,14 +830,14 @@ export default function EditProductPage() {
         {/* Shopee Attributes card */}
         {((link.platform_data?.brand_name ?? link.shopee_brand_name) || ((link.platform_data?.attributes ?? link.shopee_attributes) && (link.platform_data?.attributes ?? link.shopee_attributes)!.length > 0)) && (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
-            <h4 className="text-sm font-semibold text-gray-800 dark:text-slate-200 mb-3">Shopee Attributes</h4>
+            <h4 className="text-base font-semibold text-gray-800 dark:text-slate-200 mb-3">Shopee Attributes</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {(link.platform_data?.brand_name ?? link.shopee_brand_name) && (
                 <div>
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">
                     Brand<span className="text-red-500 ml-0.5">*</span>
                   </label>
-                  <div className="px-3 py-2 text-sm bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
+                  <div className="px-3 py-2 text-base bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
                     {link.platform_data?.brand_name ?? link.shopee_brand_name}
                   </div>
                 </div>
@@ -847,11 +847,11 @@ export default function EditProductPage() {
                 return name !== 'weight';
               }).map((attr) => (
                 <div key={attr.attribute_id}>
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">
                     {attr.display_attribute_name || attr.original_attribute_name}
                     {attr.is_mandatory && <span className="text-red-500 ml-0.5">*</span>}
                   </label>
-                  <div className="px-3 py-2 text-sm bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
+                  <div className="px-3 py-2 text-base bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
                     {attr.attribute_value_list && attr.attribute_value_list.length > 0
                       ? attr.attribute_value_list.map(v => v.display_value_name || v.original_value_name).join(', ')
                       : <span className="text-gray-400 dark:text-slate-500 italic">ยังไม่ได้ตั้งค่า</span>}
@@ -893,7 +893,7 @@ export default function EditProductPage() {
                   }}
                   maxLength={120}
                   rows={2}
-                  className={`w-full px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E] resize-none ${
+                  className={`w-full px-2 py-1.5 text-base border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E] resize-none ${
                     (platformNameValues[firstLink.id] || '').length > 0 && (platformNameValues[firstLink.id] || '').length < 20
                       ? 'border-red-400 dark:border-red-500'
                       : 'border-gray-300 dark:border-slate-600'
@@ -929,7 +929,7 @@ export default function EditProductPage() {
 
           {/* Category — full width */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมวดหมู่ Shopee</label>
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">หมวดหมู่ Shopee</label>
             <ShopeeCategoryPicker
               accountId={firstLink.account_id}
               value={categoryIdValues[firstLink.id] ?? null}
@@ -945,7 +945,7 @@ export default function EditProductPage() {
           {/* Weight */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">น้ำหนัก (kg)</label>
+              <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">น้ำหนัก (kg)</label>
               <input
                 type="number"
                 value={weightValues[firstLink.id] || ''}
@@ -953,7 +953,7 @@ export default function EditProductPage() {
                 min="0"
                 step="0.1"
                 placeholder="0.5"
-                className="w-full px-3 h-[42px] text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
               />
             </div>
           </div>
@@ -998,7 +998,7 @@ export default function EditProductPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                      <td className="px-4 py-3 text-base text-gray-900 dark:text-white">
                         <div className="pt-1.5">{variation?.variation_label || '-'}</div>
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-600 dark:text-slate-300 font-mono">
@@ -1081,14 +1081,14 @@ export default function EditProductPage() {
         {/* Shopee Attributes card */}
         {((firstLink.platform_data?.brand_name ?? firstLink.shopee_brand_name) || ((firstLink.platform_data?.attributes ?? firstLink.shopee_attributes) && (firstLink.platform_data?.attributes ?? firstLink.shopee_attributes)!.length > 0)) && (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
-            <h4 className="text-sm font-semibold text-gray-800 dark:text-slate-200 mb-3">Shopee Attributes</h4>
+            <h4 className="text-base font-semibold text-gray-800 dark:text-slate-200 mb-3">Shopee Attributes</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {(firstLink.platform_data?.brand_name ?? firstLink.shopee_brand_name) && (
                 <div>
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">
                     Brand<span className="text-red-500 ml-0.5">*</span>
                   </label>
-                  <div className="px-3 py-2 text-sm bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
+                  <div className="px-3 py-2 text-base bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
                     {firstLink.platform_data?.brand_name ?? firstLink.shopee_brand_name}
                   </div>
                 </div>
@@ -1098,11 +1098,11 @@ export default function EditProductPage() {
                 return name !== 'weight';
               }).map((attr) => (
                 <div key={attr.attribute_id}>
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">
                     {attr.display_attribute_name || attr.original_attribute_name}
                     {attr.is_mandatory && <span className="text-red-500 ml-0.5">*</span>}
                   </label>
-                  <div className="px-3 py-2 text-sm bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
+                  <div className="px-3 py-2 text-base bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
                     {attr.attribute_value_list && attr.attribute_value_list.length > 0
                       ? attr.attribute_value_list.map(v => v.display_value_name || v.original_value_name).join(', ')
                       : <span className="text-gray-400 dark:text-slate-500 italic">ยังไม่ได้ตั้งค่า</span>}
@@ -1146,14 +1146,14 @@ export default function EditProductPage() {
               <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">แก้ไขสินค้า</h1>
-            <span className="text-sm text-gray-400 font-mono">{product.code}</span>
+            <span className="text-base text-gray-400 font-mono">{product.code}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={openMergeModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-base text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
               >
                 <Merge className="w-4 h-4" />
                 รวมกับสินค้าอื่น
@@ -1170,7 +1170,7 @@ export default function EditProductPage() {
             <button
               type="button"
               onClick={handleDeleteProduct}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-base text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               ลบสินค้า
@@ -1185,7 +1185,7 @@ export default function EditProductPage() {
               {/* Info tab */}
               <button
                 onClick={() => setActiveTab('info')}
-                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                className={`px-4 py-2.5 text-base font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === 'info'
                     ? 'border-[#F4511E] text-[#F4511E]'
                     : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
@@ -1199,7 +1199,7 @@ export default function EditProductPage() {
                 <button
                   key={accountId}
                   onClick={() => setActiveTab(accountId)}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 px-4 py-2.5 text-base font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === accountId
                       ? 'border-[#F4511E] text-[#F4511E]'
                       : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
@@ -1258,7 +1258,7 @@ export default function EditProductPage() {
                     <button
                       type="button"
                       onClick={handleCancelChanges}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
+                      className="px-4 py-2 text-base font-medium text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
                     >
                       ยกเลิก
                     </button>
@@ -1266,7 +1266,7 @@ export default function EditProductPage() {
                       type="button"
                       onClick={handleSaveAllLinks}
                       disabled={Object.values(savingLink).some(Boolean)}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#F4511E] rounded-lg hover:bg-[#E64A19] disabled:opacity-50 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2.5 text-base font-medium text-white bg-[#F4511E] rounded-lg hover:bg-[#E64A19] disabled:opacity-50 transition-colors"
                     >
                       {Object.values(savingLink).some(Boolean) && <Loader2 className="w-4 h-4 animate-spin" />}
                       บันทึก
@@ -1307,7 +1307,7 @@ export default function EditProductPage() {
                       value={mergeSearch}
                       onChange={e => setMergeSearch(e.target.value)}
                       placeholder="ค้นหาด้วย ชื่อ, รหัส, SKU..."
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-base focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
                       autoFocus
                     />
                   </div>
@@ -1335,7 +1335,7 @@ export default function EditProductPage() {
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{p.name}</div>
+                              <div className="text-base font-medium text-gray-900 dark:text-white truncate">{p.name}</div>
                               <div className="text-xs text-gray-500 dark:text-slate-400">
                                 {p.code}
                                 {(p as any).source === 'shopee' && <span className="ml-2 text-orange-500">Shopee</span>}
@@ -1356,12 +1356,12 @@ export default function EditProductPage() {
                 <div className="space-y-5">
                   {/* Master selection */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เลือกสินค้าหลัก (ตัวที่จะเก็บไว้)</label>
+                    <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">เลือกสินค้าหลัก (ตัวที่จะเก็บไว้)</label>
                     <div className="space-y-2">
                       <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${mergeMasterId === 'current' ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-700'}`}>
                         <input type="radio" checked={mergeMasterId === 'current'} onChange={() => handleMasterChange('current')} className="accent-[#F4511E]" />
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">{product.name}</span>
+                          <span className="text-base font-medium text-gray-900 dark:text-white">{product.name}</span>
                           <span className="ml-2 text-xs text-gray-500 font-mono">{product.code}</span>
                         </div>
                         <span className="text-xs text-gray-400">สินค้าปัจจุบัน</span>
@@ -1369,7 +1369,7 @@ export default function EditProductPage() {
                       <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${mergeMasterId === 'source' ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-700'}`}>
                         <input type="radio" checked={mergeMasterId === 'source'} onChange={() => handleMasterChange('source')} className="accent-[#F4511E]" />
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">{mergeSource.name}</span>
+                          <span className="text-base font-medium text-gray-900 dark:text-white">{mergeSource.name}</span>
                           <span className="ml-2 text-xs text-gray-500 font-mono">{mergeSource.code}</span>
                         </div>
                         <span className="text-xs text-gray-400">สินค้าที่เลือก</span>
@@ -1380,9 +1380,9 @@ export default function EditProductPage() {
 
                   {/* Field choices */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เลือกข้อมูลที่จะใช้</label>
+                    <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">เลือกข้อมูลที่จะใช้</label>
                     <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                      <table className="w-full text-sm">
+                      <table className="w-full text-base">
                         <thead>
                           <tr className="bg-gray-50 dark:bg-slate-900">
                             <th className="text-left px-3 py-2 text-gray-600 dark:text-slate-400 font-medium">ฟิลด์</th>
@@ -1432,14 +1432,14 @@ export default function EditProductPage() {
 
                     return (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                        <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">
                           จับคู่ตัวเลือกสินค้า
                         </label>
                         <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">
                           ตัวเลือกของ &quot;{secondaryProduct.name}&quot; จะถูกรวมเข้ากับ &quot;{masterProduct.name}&quot;
                         </p>
                         <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                          <table className="w-full text-sm">
+                          <table className="w-full text-base">
                             <thead>
                               <tr className="bg-gray-50 dark:bg-slate-900">
                                 <th className="text-left px-3 py-2 text-gray-600 dark:text-slate-400 font-medium">ตัวเลือก (ตัวรอง)</th>
@@ -1496,13 +1496,13 @@ export default function EditProductPage() {
                     ← ย้อนกลับ
                   </button>
                   <div className="flex gap-2">
-                    <button onClick={closeMergeModal} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">
+                    <button onClick={closeMergeModal} className="px-4 py-2 text-base text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">
                       ยกเลิก
                     </button>
                     <button
                       onClick={executeMerge}
                       disabled={merging}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#F4511E] rounded-lg hover:bg-[#E64A19] disabled:opacity-50 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2.5 text-base font-medium text-white bg-[#F4511E] rounded-lg hover:bg-[#E64A19] disabled:opacity-50 transition-colors"
                     >
                       {merging && <Loader2 className="w-4 h-4 animate-spin" />}
                       ยืนยันการรวม
@@ -1511,7 +1511,7 @@ export default function EditProductPage() {
                 </>
               ) : (
                 <div className="ml-auto">
-                  <button onClick={closeMergeModal} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">
+                  <button onClick={closeMergeModal} className="px-4 py-2 text-base text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">
                     ยกเลิก
                   </button>
                 </div>
@@ -1535,7 +1535,7 @@ export default function EditProductPage() {
               </button>
             </div>
 
-            <div className="text-sm text-gray-600 dark:text-slate-300 space-y-3">
+            <div className="text-base text-gray-600 dark:text-slate-300 space-y-3">
               <div>
                 <p className="font-medium text-gray-900 dark:text-white mb-1">ใช้เมื่อไหร่?</p>
                 <p>เมื่อมีสินค้าซ้ำกันในระบบ เช่น Sync จาก Shopee มาแล้วสร้างสินค้าใหม่ เพราะ SKU ไม่ตรงกัน ทำให้ข้อมูลกระจาย</p>

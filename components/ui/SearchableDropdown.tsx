@@ -75,7 +75,7 @@ export default function SearchableDropdown({
           setSearch('');
           setTimeout(() => searchRef.current?.focus(), 50);
         }}
-        className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 text-sm transition-colors ${
+        className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 text-base transition-colors ${
           isActive
             ? 'border-gray-400 dark:border-slate-500 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300'
             : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:border-gray-400 dark:hover:border-slate-500'
@@ -112,7 +112,7 @@ export default function SearchableDropdown({
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder={searchPlaceholder || `ค้นหา${placeholder}...`}
-                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-md bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
+                className="w-full pl-8 pr-3 py-1.5 text-base border border-gray-200 dark:border-slate-600 rounded-md bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
               />
             </div>
           </div>
@@ -122,7 +122,7 @@ export default function SearchableDropdown({
             {!search && (
               <button
                 onClick={() => handleSelect('all')}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
+                className={`w-full flex items-center gap-3 px-3 py-2 text-base hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
                   value === 'all' ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'
                 }`}
               >
@@ -138,7 +138,7 @@ export default function SearchableDropdown({
               <button
                 key={o.id}
                 onClick={() => handleSelect(o.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
+                className={`w-full flex items-center gap-3 px-3 py-2 text-base hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
                   value === o.id ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'
                 }`}
               >
@@ -161,7 +161,7 @@ export default function SearchableDropdown({
               <button
                 key={o.id}
                 onClick={() => handleSelect(o.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
+                className={`w-full flex items-center gap-3 px-3 py-2 text-base hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
                   value === o.id ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'
                 }`}
               >

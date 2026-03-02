@@ -123,7 +123,7 @@ export default function TagInput({
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder={value.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[80px] bg-transparent outline-none text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 py-0.5"
+          className="flex-1 min-w-[80px] bg-transparent outline-none text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 py-0.5"
         />
       </div>
 
@@ -135,7 +135,7 @@ export default function TagInput({
               key={tag.id}
               type="button"
               onClick={() => handleSelect(tag)}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors"
+              className="w-full text-left px-3 py-2 text-base hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors"
             >
               <span
                 className="w-3 h-3 rounded-full flex-shrink-0"
@@ -149,7 +149,7 @@ export default function TagInput({
               type="button"
               onClick={handleCreate}
               disabled={creating}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors text-[#F4511E] border-t border-gray-100 dark:border-slate-700"
+              className="w-full text-left px-3 py-2 text-base hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors text-[#F4511E] border-t border-gray-100 dark:border-slate-700"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>สร้างแท็ก &quot;{search.trim()}&quot;</span>

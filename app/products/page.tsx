@@ -585,7 +585,7 @@ export default function ProductsPage() {
               <table className="data-table-fixed">
                 <thead className="data-thead">
                   <tr>
-                    <th className="w-[44px] px-3 py-3 text-center">
+                    <th className="w-[44px] px-3 py-2.5 text-center">
                       <Checkbox checked={allPageSelected} onChange={() => toggleSelectAll()} />
                     </th>
                     {isCol('image') && <th className={`${thClass} w-[88px]`}>รูปภาพ</th>}
@@ -606,12 +606,12 @@ export default function ProductsPage() {
                     paginatedProducts.map((product) => (
                       <tr key={product.product_id} className="data-tr">
                         {/* Checkbox */}
-                        <td className="w-[44px] px-3 py-3 text-center">
+                        <td className="w-[44px] px-3 py-2.5 text-center">
                           <Checkbox checked={selectedIds.has(product.product_id)} onChange={() => toggleSelect(product.product_id)} />
                         </td>
                         {/* Image */}
                         {isCol('image') && (
-                          <td className="px-3 py-3 whitespace-nowrap w-[88px]">
+                          <td className="px-3 py-2.5 whitespace-nowrap w-[88px]">
                             {(product.main_image_url || product.image) ? (
                               <img
                                 src={product.main_image_url || getImageUrl(product.image)}
@@ -629,8 +629,8 @@ export default function ProductsPage() {
 
                         {/* Name / Code */}
                         {isCol('nameCode') && (
-                          <td className="px-6 py-4">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          <td className="px-5 py-3">
+                            <div className="text-base font-medium text-gray-900 dark:text-white">
                               {product.name}
                             </div>
                             <div className="text-xs text-gray-400 dark:text-slate-500">{product.code}</div>
@@ -639,7 +639,7 @@ export default function ProductsPage() {
 
                         {/* Type */}
                         {isCol('type') && (
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-5 py-3 whitespace-nowrap">
                             <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${
                               product.product_type === 'simple'
                                 ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
@@ -652,10 +652,10 @@ export default function ProductsPage() {
 
                         {/* Price (+ inline SKU/Barcode) */}
                         {isCol('price') && (
-                          <td className="px-6 py-4">
+                          <td className="px-5 py-3">
                             {product.product_type === 'simple' ? (
                               <div>
-                                <div className="text-sm flex items-center space-x-1">
+                                <div className="text-base flex items-center space-x-1">
                                   <span className="text-gray-400 font-medium">฿</span>
                                   <span>{formatNumber(product.simple_default_price)}</span>
                                   {product.simple_discount_price != null && product.simple_discount_price > 0 && (
@@ -678,7 +678,7 @@ export default function ProductsPage() {
                                 {product.variations && product.variations.length > 0 ? (
                                   product.variations.map((v) => (
                                     <div key={v.variation_id || `${product.product_id}-${v.variation_label}`}>
-                                      <div className="text-sm flex items-center space-x-1">
+                                      <div className="text-base flex items-center space-x-1">
                                         <Wine className="w-3.5 h-3.5 text-gray-400" />
                                         <span className="text-gray-500 dark:text-slate-400">{v.variation_label}</span>
                                         <span className="text-gray-400 font-medium ml-1">฿</span>
@@ -700,7 +700,7 @@ export default function ProductsPage() {
                                     </div>
                                   ))
                                 ) : (
-                                  <span className="text-sm text-gray-400 dark:text-slate-500">ไม่มีสินค้าย่อย</span>
+                                  <span className="text-base text-gray-400 dark:text-slate-500">ไม่มีสินค้าย่อย</span>
                                 )}
                               </div>
                             )}
@@ -709,7 +709,7 @@ export default function ProductsPage() {
 
                         {/* Brand */}
                         {isCol('brand') && (
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-5 py-3 whitespace-nowrap">
                             {product.brand_id ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
                                 <Award className="w-3 h-3" />
@@ -723,14 +723,14 @@ export default function ProductsPage() {
 
                         {/* Status */}
                         {isCol('status') && (
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-5 py-3 whitespace-nowrap">
                             <ActiveBadge isActive={product.is_active} />
                           </td>
                         )}
 
                         {/* Actions */}
                         {isCol('actions') && (
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                          <td className="px-5 py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
                             <button
                               onClick={() => window.open(`/products/${product.product_id}/edit`, '_blank')}
                               className="text-[#F4511E] hover:text-[#D63B0E] inline-flex items-center"

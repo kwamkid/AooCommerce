@@ -787,8 +787,22 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
         const enrichment = itemEnrichmentMap.get(item.item_id);
         const itemSku = item.model_sku || item.item_sku || '';
         if (enrichment?.allModels && enrichment.allModels.length > 0) {
-          // Find the existing variation to get its product_id
-          if (itemSku) {
+          // Find the existing variation to get its product_id — check marketplace_product_links first
+          let parentProductId: string | null = null;
+
+          // Try marketplace_product_links first (most accurate)
+          const { data: mplLink } = await supabaseAdmin
+            .from('marketplace_product_links')
+            .select('product_id')
+            .eq('account_id', account.id)
+            .eq('external_item_id', String(item.item_id))
+            .eq('external_model_id', String(item.model_id || 0))
+            .limit(1)
+            .maybeSingle();
+          if (mplLink?.product_id) parentProductId = mplLink.product_id;
+
+          // Fallback to SKU match
+          if (!parentProductId && itemSku) {
             const { data: existingVar } = await supabaseAdmin
               .from('product_variations')
               .select('id, product_id')
@@ -796,9 +810,11 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
               .eq('sku', itemSku)
               .limit(1)
               .maybeSingle();
+            if (existingVar) parentProductId = existingVar.product_id;
+          }
 
-            if (existingVar) {
-              await backfillSiblingVariations(companyId, existingVar.product_id, {
+          if (parentProductId) {
+              await backfillSiblingVariations(companyId, parentProductId, {
                 shopeeItemId: item.item_id,
                 shopeeItemName: item.item_name,
                 shopeeModelId: item.model_id,
@@ -815,7 +831,6 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
                 accountName: account.shop_name ?? undefined,
               });
               siblingsBackfilled++;
-            }
           }
         }
       }
@@ -1825,6 +1840,67 @@ async function findOrCreateVariationBySku(
   isNewProduct: boolean;
   isNewVariation: boolean;
 }> {
+  // 0. Try marketplace_product_links FIRST — most accurate because it maps Shopee item_id+model_id → product/variation
+  if (shopeeInfo.accountId && shopeeInfo.shopeeItemId) {
+    const { data: link } = await supabaseAdmin
+      .from('marketplace_product_links')
+      .select('product_id, variation_id')
+      .eq('account_id', shopeeInfo.accountId)
+      .eq('external_item_id', String(shopeeInfo.shopeeItemId))
+      .eq('external_model_id', String(shopeeInfo.shopeeModelId || 0))
+      .limit(1)
+      .maybeSingle();
+
+    if (link?.variation_id && link?.product_id) {
+      // Verify the variation still exists
+      const { data: linkedVar } = await supabaseAdmin
+        .from('product_variations')
+        .select('id, product_id, sku, variation_label, is_active, products!inner(id, code, image, is_active)')
+        .eq('id', link.variation_id)
+        .limit(1)
+        .single();
+
+      if (linkedVar) {
+        const productData = linkedVar.products as unknown as { id: string; code: string; image: string | null; is_active: boolean };
+        const now = new Date().toISOString();
+
+        // Re-activate if soft-deleted
+        if (!productData.is_active) {
+          await supabaseAdmin.from('products').update({ is_active: true, updated_at: now }).eq('id', productData.id);
+          await supabaseAdmin.from('product_variations').update({ is_active: true, updated_at: now }).eq('product_id', productData.id);
+          console.log(`[Shopee Sync] Re-activated soft-deleted product ${productData.id} via marketplace link`);
+        } else if (!linkedVar.is_active) {
+          await supabaseAdmin.from('product_variations').update({ is_active: true, updated_at: now }).eq('id', linkedVar.id);
+        }
+
+        // Backfill images
+        if (!productData.image && (shopeeInfo.parentImageUrl || shopeeInfo.shopeeImageUrl)) {
+          const parentImg = shopeeInfo.parentImageUrl || shopeeInfo.shopeeImageUrl;
+          await supabaseAdmin.from('products').update({ image: parentImg }).eq('id', linkedVar.product_id);
+          const imgs = shopeeInfo.parentImages.length > 0 ? shopeeInfo.parentImages : [parentImg];
+          await upsertProductImages(companyId, linkedVar.product_id, null, imgs);
+        }
+        if (shopeeInfo.shopeeImageUrl) {
+          await upsertProductImage(companyId, linkedVar.product_id, linkedVar.id, shopeeInfo.shopeeImageUrl);
+        }
+
+        // Backfill siblings
+        if (shopeeInfo.allModels && shopeeInfo.allModels.length > 0 && shopeeInfo.shopeeModelId > 0) {
+          await backfillSiblingVariations(companyId, linkedVar.product_id, shopeeInfo);
+        }
+
+        console.log(`[Shopee Sync] Matched via marketplace_product_links: item=${shopeeInfo.shopeeItemId} model=${shopeeInfo.shopeeModelId} → product=${linkedVar.product_id} variation=${linkedVar.id}`);
+        return {
+          variation_id: linkedVar.id,
+          product_id: linkedVar.product_id,
+          product_code: productData.code || sku,
+          isNewProduct: false,
+          isNewVariation: false,
+        };
+      }
+    }
+  }
+
   // 1. Try to find by SKU in product_variations (including soft-deleted)
   if (sku) {
     const { data: existingVariation } = await supabaseAdmin

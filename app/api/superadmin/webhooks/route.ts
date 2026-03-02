@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const statusFilter = params.get('status');
     const codeFilter = params.get('code');
     const shopFilter = params.get('shop_id');
-    const search = params.get('search');
+    const search = params.get('search')?.trim();
     const dateFrom = params.get('date_from');
     const dateTo = params.get('date_to');
 
@@ -37,7 +37,13 @@ export async function GET(request: NextRequest) {
       query = query.eq('shop_id', parseInt(shopFilter, 10));
     }
     if (search) {
-      query = query.ilike('raw_payload', `%${search}%`);
+      // Shopee webhook payload has ordersn at: raw_payload->data->ordersn
+      // Also search in push_label and processing_error for general text search
+      query = query.or(
+        `raw_payload->data->>ordersn.ilike.%${search}%,` +
+        `push_label.ilike.%${search}%,` +
+        `processing_error.ilike.%${search}%`
+      );
     }
     if (dateFrom) query = query.gte('created_at', `${dateFrom}T00:00:00`);
     if (dateTo) query = query.lte('created_at', `${dateTo}T23:59:59`);

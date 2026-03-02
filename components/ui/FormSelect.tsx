@@ -183,7 +183,7 @@ export default function FormSelect({
           setHighlightIdx(-1);
         }}
         disabled={disabled}
-        className={`w-full flex items-center gap-2 px-3 py-2.5 border rounded-lg text-sm text-left transition-colors ${
+        className={`w-full flex items-center gap-2 px-3 py-2.5 border rounded-lg text-base text-left transition-colors ${
           open
             ? 'border-gray-400 dark:border-slate-500 ring-2 ring-gray-300/50 dark:ring-slate-500/50 bg-white dark:bg-slate-800'
             : isActive
@@ -222,7 +222,7 @@ export default function FormSelect({
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                     placeholder={searchPlaceholder}
-                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-md bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
+                    className="w-full pl-8 pr-3 py-1.5 text-base border border-gray-200 dark:border-slate-600 rounded-md bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
                   />
                 </div>
               </div>
@@ -237,7 +237,7 @@ export default function FormSelect({
                   type="button"
                   onClick={() => handleSelect(o.id)}
                   onMouseEnter={() => setHighlightIdx(idx)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-base transition-colors ${
                     idx === highlightIdx
                       ? 'bg-gray-50 dark:bg-slate-700'
                       : ''

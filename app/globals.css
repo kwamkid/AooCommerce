@@ -115,7 +115,7 @@ html, body {
     @apply bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700;
   }
   .data-th {
-    @apply px-6 py-3 text-left text-sm font-semibold text-gray-700 dark:text-slate-300 tracking-wide whitespace-nowrap;
+    @apply px-5 py-2.5 text-left text-base font-semibold text-gray-700 dark:text-slate-300 tracking-wide whitespace-nowrap;
   }
   .data-tbody {
     @apply bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700;
@@ -124,7 +124,7 @@ html, body {
     @apply hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors;
   }
   .data-td {
-    @apply px-6 py-4;
+    @apply px-5 py-3;
   }
   .data-tfoot {
     @apply bg-gray-100 dark:bg-slate-900;
@@ -168,6 +168,27 @@ html, body {
   .dark label {
     color: #cbd5e1;
   }
+
+  /* Global: labels + inputs + textareas + selects = 16px */
+  label {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  input[type="search"],
+  input[type="url"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
 }
 
 /* Cards: no border, use subtle shadow instead */
@@ -183,10 +204,10 @@ html, body {
   }
 }
 
-/* Table body font size max 14px */
+/* Table body font size 16px */
 .data-tbody td {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
 }
 
 /* Filter card inputs — consistent 16px (prevent iOS zoom) */

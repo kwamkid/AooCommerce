@@ -179,10 +179,20 @@ export default function OrdersPage() {
     return () => document.removeEventListener('click', handleClick);
   }, [showSortDropdown]);
 
-  // Search on Enter
+  // Search on Enter (immediate)
   const handleSearchSubmit = useCallback(() => {
     setDebouncedSearch(searchTerm);
     setCurrentPage(1);
+  }, [searchTerm]);
+
+  // Auto-debounce search after 500ms of no typing
+  useEffect(() => {
+    if (!searchTerm) return; // clear is handled in onChange
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 500);
+    return () => clearTimeout(timer);
   }, [searchTerm]);
 
   // Sync hash with statusFilter
@@ -805,7 +815,7 @@ export default function OrdersPage() {
                 value={searchTerm}
                 onChange={(v) => { setSearchTerm(v); if (!v) { setDebouncedSearch(''); setCurrentPage(1); } }}
                 onSubmit={handleSearchSubmit}
-                placeholder="ค้นหาเลขที่, ชื่อลูกค้า... (Enter)"
+                placeholder="ค้นหาเลขที่, ชื่อลูกค้า..."
                 className="py-2.5"
               />
             </div>
