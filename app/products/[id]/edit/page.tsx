@@ -681,10 +681,35 @@ export default function EditProductPage() {
     return (
       <>
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-5">
-        {/* Product info row */}
-        <div className="flex items-start gap-4">
-          {renderPrimaryImage(link)}
-          <div className="flex-1 min-w-0">
+        {/* Product info */}
+        <div className="space-y-3">
+          {/* Image + action buttons */}
+          <div className="flex items-start gap-4">
+            {renderPrimaryImage(link)}
+            <div className="flex-1" />
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {shopId && (
+                <a
+                  href={`https://shopee.co.th/product/${shopId}/${link.external_item_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 text-gray-500 hover:text-blue-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+                  title="ดูบน Shopee"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              )}
+              <button
+                onClick={() => handleUnlink(link.id)}
+                className="p-2 text-gray-500 hover:text-red-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+                title="ยกเลิกเชื่อมโยง"
+              >
+                <Unlink2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          {/* Product name — full width */}
+          <div>
             <div className="relative">
               <textarea
                 value={platformNameValues[link.id] || ''}
@@ -714,26 +739,6 @@ export default function EditProductPage() {
                 SKU: {link.external_sku}
               </p>
             )}
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {shopId && (
-              <a
-                href={`https://shopee.co.th/product/${shopId}/${link.external_item_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 text-gray-500 hover:text-blue-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
-                title="ดูบน Shopee"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </a>
-            )}
-            <button
-              onClick={() => handleUnlink(link.id)}
-              className="p-2 text-gray-500 hover:text-red-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
-              title="ยกเลิกเชื่อมโยง"
-            >
-              <Unlink2 className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
@@ -874,9 +879,27 @@ export default function EditProductPage() {
       <div className="space-y-4">
         {/* Product header with image */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-5">
-          <div className="flex items-start gap-4">
-            {renderPrimaryImage(firstLink)}
-            <div className="flex-1 min-w-0">
+          <div className="space-y-3">
+            {/* Image + action buttons */}
+            <div className="flex items-start gap-4">
+              {renderPrimaryImage(firstLink)}
+              <div className="flex-1" />
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {shopId && (
+                  <a
+                    href={`https://shopee.co.th/product/${shopId}/${firstLink.external_item_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 text-gray-500 hover:text-blue-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+                    title="ดูบน Shopee"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                )}
+              </div>
+            </div>
+            {/* Product name — full width */}
+            <div>
               <div className="relative">
                 <textarea
                   value={platformNameValues[firstLink.id] || ''}
@@ -911,19 +934,6 @@ export default function EditProductPage() {
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 font-mono break-all">
                 Item ID: {firstLink.external_item_id}
               </p>
-            </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              {shopId && (
-                <a
-                  href={`https://shopee.co.th/product/${shopId}/${firstLink.external_item_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-2 text-gray-500 hover:text-blue-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
-                  title="ดูบน Shopee"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              )}
             </div>
           </div>
 

@@ -183,7 +183,7 @@ export default function FormSelect({
           setHighlightIdx(-1);
         }}
         disabled={disabled}
-        className={`w-full flex items-center gap-2 px-3 py-2.5 border rounded-lg text-base text-left transition-colors ${
+        className={`w-full flex items-center gap-2 px-3 h-[42px] border rounded-lg text-base text-left transition-colors ${
           open
             ? 'border-gray-400 dark:border-slate-500 ring-2 ring-gray-300/50 dark:ring-slate-500/50 bg-white dark:bg-slate-800'
             : isActive
