@@ -482,14 +482,16 @@ export default function ProductsPage() {
 
                 {/* Shop account filter */}
                 {shopOptions.length > 0 && (
-                  <SearchableDropdown
-                    value={shopAccountFilter}
-                    onChange={setShopAccountFilter}
-                    options={shopOptions}
-                    placeholder="ร้านค้า"
-                    searchPlaceholder="ค้นหาร้านค้า..."
-                    allLabel="ทุกร้านค้า"
-                  />
+                  <div className="w-[calc(50%-0.25rem)] md:flex-1">
+                    <SearchableDropdown
+                      value={shopAccountFilter}
+                      onChange={setShopAccountFilter}
+                      options={shopOptions}
+                      placeholder="ร้านค้า"
+                      searchPlaceholder="ค้นหาร้านค้า..."
+                      allLabel="ทุกร้านค้า"
+                    />
+                  </div>
                 )}
               </div>
             </div>
@@ -630,7 +632,7 @@ export default function ProductsPage() {
                         {/* Name / Code */}
                         {isCol('nameCode') && (
                           <td className="px-5 py-3">
-                            <div className="text-base font-medium text-gray-900 dark:text-white">
+                            <div className="text-base font-medium text-gray-900 dark:text-white line-clamp-2">
                               {product.name}
                             </div>
                             <div className="text-xs text-gray-400 dark:text-slate-500">{product.code}</div>

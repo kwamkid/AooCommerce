@@ -134,7 +134,7 @@ export default function OrderCard({
             )}
           </div>
           {/* Line 2: time + badges */}
-          <div className="flex items-center gap-1.5 mt-1">
+          <div className="flex items-center flex-wrap gap-1.5 mt-1">
             <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">
               {relativeTime(order.created_at)}
             </span>

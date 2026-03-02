@@ -282,7 +282,7 @@ function NewOrderContent() {
     <Layout>
       <div className="space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="space-y-2">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -291,7 +291,7 @@ function NewOrderContent() {
             >
               <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
-            <div>
+            <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                 {isExchange ? 'เปลี่ยนสินค้า' : duplicateId ? 'สั่งซ้ำ' : 'สร้างคำสั่งซื้อใหม่'}
               </h1>

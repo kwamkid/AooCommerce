@@ -727,7 +727,7 @@ export default function ProductForm({
 
             {/* Name */}
             <div data-field="name">
-              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">
+              <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">
                 ชื่อสินค้า *
               </label>
               <input
@@ -741,7 +741,7 @@ export default function ProductForm({
 
             {/* Code */}
             <div data-field="code">
-              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">
+              <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">
                 รหัสสินค้า *
               </label>
               <input
@@ -755,7 +755,7 @@ export default function ProductForm({
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">
+              <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">
                 คำอธิบาย
               </label>
               <input
@@ -936,10 +936,10 @@ export default function ProductForm({
       {/* Simple Product Fields */}
       {formData.product_type === 'simple' && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">ราคาสินค้า</h3>
-          <div className={`grid grid-cols-2 ${canViewCost ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-4`}>
+          <h3 className="text-base font-semibold text-gray-700 dark:text-slate-300 mb-4">ราคาสินค้า</h3>
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${canViewCost ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4`}>
             <div>
-              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">SKU</label>
+              <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">SKU</label>
               <input
                 type="text"
                 value={formData.sku}
@@ -949,7 +949,7 @@ export default function ProductForm({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">Barcode</label>
+              <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">Barcode</label>
               <input
                 type="text"
                 value={formData.barcode}
@@ -959,7 +959,7 @@ export default function ProductForm({
               />
             </div>
             <div data-field="default_price">
-              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">ราคาปกติ (฿) *</label>
+              <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">ราคาปกติ (฿) *</label>
               <input
                 type="number"
                 step="0.01"
@@ -970,7 +970,7 @@ export default function ProductForm({
               <FieldError error={fieldErrors.default_price} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">ราคาลด (฿)</label>
+              <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">ราคาลด (฿)</label>
               <input
                 type="number"
                 step="0.01"
@@ -981,7 +981,7 @@ export default function ProductForm({
             </div>
             {canViewCost && (
               <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">ต้นทุน (฿)</label>
+                <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">ต้นทุน (฿)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -1147,7 +1147,7 @@ export default function ProductForm({
                           </div>
 
                           {/* Fields — SKU, Barcode, Price, Discount, Cost */}
-                          <div className={`flex-1 grid grid-cols-2 ${canViewCost ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-2`}>
+                          <div className={`flex-1 grid grid-cols-1 sm:grid-cols-2 ${canViewCost ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-2`}>
                             <div data-field={`variation.${index}.sku`}>
                               <label className="block text-xs font-medium text-gray-400 mb-0.5">SKU</label>
                               <input

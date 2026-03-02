@@ -706,11 +706,11 @@ export default function EditProductPage() {
             {(platformNameValues[link.id] || '').length > 0 && (platformNameValues[link.id] || '').length < 20 && (
               <p className="text-[11px] text-red-500 mt-0.5">ชื่อสินค้าต้องมีอย่างน้อย 20 ตัวอักษร</p>
             )}
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 font-mono">
+            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 font-mono break-all">
               Item ID: {link.external_item_id}
             </p>
             {link.external_sku && (
-              <p className="text-xs text-gray-500 dark:text-slate-400 font-mono">
+              <p className="text-sm text-gray-500 dark:text-slate-400 font-mono break-all">
                 SKU: {link.external_sku}
               </p>
             )}
@@ -908,7 +908,7 @@ export default function EditProductPage() {
               {(platformNameValues[firstLink.id] || '').length > 0 && (platformNameValues[firstLink.id] || '').length < 20 && (
                 <p className="text-[11px] text-red-500 mt-0.5">ชื่อสินค้าต้องมีอย่างน้อย 20 ตัวอักษร</p>
               )}
-              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 font-mono">
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 font-mono break-all">
                 Item ID: {firstLink.external_item_id}
               </p>
             </div>
@@ -1001,7 +1001,7 @@ export default function EditProductPage() {
                       <td className="px-4 py-3 text-base text-gray-900 dark:text-white">
                         <div className="pt-1.5">{variation?.variation_label || '-'}</div>
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-600 dark:text-slate-300 font-mono">
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-300 font-mono">
                         <div className="pt-1.5">{link.external_sku || '-'}</div>
                       </td>
                       {firstLink.platform !== 'shopee' && (
@@ -1136,44 +1136,44 @@ export default function EditProductPage() {
         />
 
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               onClick={() => router.push('/products')}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors flex-shrink-0"
             >
               <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">แก้ไขสินค้า</h1>
-            <span className="text-base text-gray-400 font-mono">{product.code}</span>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white whitespace-nowrap">แก้ไขสินค้า</h1>
+            <span className="text-sm text-gray-400 font-mono truncate hidden sm:inline">{product.code}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={openMergeModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-base text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                <Merge className="w-4 h-4" />
-                รวมกับสินค้าอื่น
-              </button>
-              <button
-                type="button"
-                onClick={() => setMergeHelpModal(true)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
-                title="ดูคำอธิบาย"
-              >
-                <HelpCircle className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              type="button"
+              onClick={openMergeModal}
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-base text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+              title="รวมกับสินค้าอื่น"
+            >
+              <Merge className="w-4 h-4" />
+              <span className="hidden sm:inline">รวมกับสินค้าอื่น</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMergeHelpModal(true)}
+              className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+              title="ดูคำอธิบาย"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
             <button
               type="button"
               onClick={handleDeleteProduct}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-base text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-base text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              title="ลบสินค้า"
             >
               <Trash2 className="w-4 h-4" />
-              ลบสินค้า
+              <span className="hidden sm:inline">ลบสินค้า</span>
             </button>
           </div>
         </div>

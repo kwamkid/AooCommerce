@@ -835,7 +835,7 @@ export default function OrdersPage() {
             <button
               type="button"
               onClick={() => setShowAdvancedFilter(true)}
-              className={`flex items-center gap-1.5 px-3 py-2.5 border rounded-lg text-sm transition-colors flex-shrink-0 ${
+              className={`flex items-center gap-1.5 px-3 h-[42px] border rounded-lg text-sm transition-colors flex-shrink-0 ${
                 (paymentFilter !== 'all' || createdByFilter !== 'all' || orderTypeFilter !== 'all' || deliveryDateRange?.startDate)
                   ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 text-[#F4511E]'
                   : 'border-gray-300 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-400 dark:hover:border-slate-500'
