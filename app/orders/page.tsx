@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import SearchInput, { SearchInputHandle } from '@/components/ui/SearchInput';
@@ -31,6 +31,7 @@ import {
   RefreshCw,
   SlidersHorizontal,
   Repeat,
+  FilterX,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import PlatformChipFilter from '@/app/components/PlatformChipFilter';
@@ -77,14 +78,23 @@ const SORT_OPTIONS = [
 
 const VALID_TABS = ['all', 'new', 'ready_to_ship', 'processing', 'shipping', 'completed', 'cancelled'];
 
-function getInitialTab(): string {
-  if (typeof window === 'undefined') return 'all';
-  const hash = window.location.hash.replace('#', '');
-  return VALID_TABS.includes(hash) ? hash : 'all';
-}
+// Default values for URL params
+const PARAM_DEFAULTS: Record<string, string> = {
+  status: 'all',
+  payment: 'all',
+  channel: 'all',
+  created_by: 'all',
+  order_type: 'all',
+  platform: 'all',
+  sort: 'created_at:desc',
+  q: '',
+  page: '1',
+  limit: '20',
+};
 
-export default function OrdersPage() {
+function OrdersPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const { features } = useFeatures();
@@ -92,31 +102,59 @@ export default function OrdersPage() {
   const vatRegistered = currentCompany?.vat_registered || false;
   const { confirmDialog, confirm } = useConfirmDialog();
 
+  // === Derive filter values from URL search params ===
+  const statusFilter = (() => {
+    const v = searchParams.get('status') || 'all';
+    return VALID_TABS.includes(v) ? v : 'all';
+  })();
+  const paymentFilter = searchParams.get('payment') || 'all';
+  const channelFilter = searchParams.get('channel') || 'all';
+  const createdByFilter = searchParams.get('created_by') || 'all';
+  const orderTypeFilter = searchParams.get('order_type') || 'all';
+  const platformFilter = searchParams.get('platform') || 'all';
+  const sortValue = searchParams.get('sort') || 'created_at:desc';
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
+  const recordsPerPage = parseInt(searchParams.get('limit') || '20', 10);
+  const debouncedSearch = searchParams.get('q') || '';
+
+  const sortBy = sortValue.split(':')[0];
+  const sortDir = sortValue.split(':')[1] as 'asc' | 'desc';
+
+  // === Local search state for immediate input ===
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
+  const debounceRef = useRef<NodeJS.Timeout>(null);
+
+  // === Helper to update URL params ===
+  const setParams = useCallback((updates: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    let pageReset = false;
+    for (const [k, v] of Object.entries(updates)) {
+      if (k !== 'page') pageReset = true;
+      if (v === PARAM_DEFAULTS[k] || v === '') {
+        params.delete(k);
+      } else {
+        params.set(k, v);
+      }
+    }
+    if (pageReset) params.delete('page');
+    const qs = params.toString();
+    router.replace(qs ? `?${qs}` : '/orders', { scroll: false });
+  }, [searchParams, router]);
+
+  // === Non-filter state ===
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState(getInitialTab);
-  const [paymentFilter, setPaymentFilter] = useState('all');
-  const [channelFilter, setChannelFilter] = useState('all');
   const [channelDropdownOptions, setChannelDropdownOptions] = useState<DropdownOption[]>([]);
-  const [createdByFilter, setCreatedByFilter] = useState('all');
   const [createdByDropdownOptions, setCreatedByDropdownOptions] = useState<DropdownOption[]>([]);
   const [deliveryDateRange, setDeliveryDateRange] = useState<DateValueType>({
     startDate: null,
     endDate: null,
   });
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [recordsPerPage, setRecordsPerPage] = useState(20);
-
-  // Sort
-  const [sortValue, setSortValue] = useState('created_at:desc');
+  // Sort dropdown
   const [showSortDropdown, setShowSortDropdown] = useState(false);
-  const sortBy = sortValue.split(':')[0];
-  const sortDir = sortValue.split(':')[1] as 'asc' | 'desc';
 
   // Status update modal
   const [statusUpdateModal, setStatusUpdateModal] = useState<{
@@ -127,7 +165,7 @@ export default function OrdersPage() {
   }>({ show: false, order: null, nextStatus: '', statusType: 'order' });
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  // Shipping details (for processing → shipping)
+  // Shipping details (for processing -> shipping)
   const [shippingDetails, setShippingDetails] = useState({ carrier: '', trackingNumber: '' });
 
   // Payment modal (shared component)
@@ -136,7 +174,6 @@ export default function OrdersPage() {
   // Server-side pagination
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [toast, setToast] = useState('');
 
   // Status counts
@@ -150,8 +187,6 @@ export default function OrdersPage() {
   const [rtsOnHoldCount, setRtsOnHoldCount] = useState(0);
   const searchInputRef = useRef<SearchInputHandle>(null);
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
-  const [orderTypeFilter, setOrderTypeFilter] = useState('all');
-  const [platformFilter, setPlatformFilter] = useState('all');
 
   // Close lightbox on ESC
   useEffect(() => {
@@ -181,42 +216,28 @@ export default function OrdersPage() {
 
   // Search on Enter (immediate)
   const handleSearchSubmit = useCallback(() => {
-    setDebouncedSearch(searchTerm);
-    setCurrentPage(1);
-  }, [searchTerm]);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setParams({ q: searchTerm });
+  }, [searchTerm, setParams]);
 
-  // Auto-debounce search after 500ms of no typing
-  useEffect(() => {
-    if (!searchTerm) return; // clear is handled in onChange
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-      setCurrentPage(1);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  // Sync hash with statusFilter
-  useEffect(() => {
-    const newHash = statusFilter === 'all' ? '' : `#${statusFilter}`;
-    if (window.location.hash !== newHash) {
-      window.history.replaceState(null, '', `${window.location.pathname}${newHash}`);
+  // Handle search input change — local state for immediate input, debounced URL update
+  const handleSearchChange = useCallback((v: string) => {
+    setSearchTerm(v);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!v) {
+      // Immediately clear search when input is emptied
+      setParams({ q: '' });
+    } else {
+      debounceRef.current = setTimeout(() => {
+        setParams({ q: v });
+      }, 500);
     }
-  }, [statusFilter]);
+  }, [setParams]);
 
+  // Cleanup debounce timer
   useEffect(() => {
-    const onHashChange = () => {
-      const hash = window.location.hash.replace('#', '');
-      if (VALID_TABS.includes(hash)) setStatusFilter(hash);
-      else if (!hash) setStatusFilter('all');
-    };
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, []);
-
-  // Reset page on filter change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [statusFilter, paymentFilter, channelFilter, createdByFilter, orderTypeFilter, platformFilter, recordsPerPage]);
 
   // Fetch orders
   const isAuthReady = !authLoading && !!userProfile;
@@ -370,6 +391,9 @@ export default function OrdersPage() {
   const displayedOrders = orders.filter(checkDateFilter);
   const startIndex = (currentPage - 1) * recordsPerPage;
   const endIndex = Math.min(startIndex + displayedOrders.length, totalOrders);
+
+  // Check if any non-default filter is active
+  const hasActiveFilters = searchTerm || statusFilter !== 'all' || paymentFilter !== 'all' || channelFilter !== 'all' || createdByFilter !== 'all' || orderTypeFilter !== 'all' || platformFilter !== 'all' || sortValue !== 'created_at:desc' || !!deliveryDateRange?.startDate;
 
   // === PDF print handlers ===
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -795,7 +819,7 @@ export default function OrdersPage() {
             return (
               <button
                 key={s.key}
-                onClick={() => setStatusFilter(s.key)}
+                onClick={() => setParams({ status: s.key })}
                 className={`flex-shrink-0 rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
                   isActive ? `${s.active} text-white shadow-md` : `${s.inactive} hover:opacity-80`
                 }`}
@@ -816,7 +840,7 @@ export default function OrdersPage() {
               <SearchInput
                 ref={searchInputRef}
                 value={searchTerm}
-                onChange={(v) => { setSearchTerm(v); if (!v) { setDebouncedSearch(''); setCurrentPage(1); } }}
+                onChange={handleSearchChange}
                 onSubmit={handleSearchSubmit}
                 placeholder="ค้นหาเลขที่, ชื่อลูกค้า..."
                 className="py-2.5"
@@ -827,7 +851,7 @@ export default function OrdersPage() {
               <div className="hidden sm:block">
                 <SearchableDropdown
                   value={channelFilter}
-                  onChange={setChannelFilter}
+                  onChange={(v) => setParams({ channel: v })}
                   options={channelDropdownOptions}
                   placeholder="ทุกช่องทาง"
                   searchPlaceholder="ค้นหาช่องทาง..."
@@ -838,6 +862,21 @@ export default function OrdersPage() {
                   ]}
                 />
               </div>
+            )}
+            {/* Clear filters button */}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setDeliveryDateRange({ startDate: null, endDate: null });
+                  router.replace('/orders', { scroll: false });
+                }}
+                className="flex items-center gap-1 px-2.5 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0 whitespace-nowrap"
+              >
+                <FilterX className="w-3.5 h-3.5" />
+                ล้างตัวกรอง
+              </button>
             )}
             <button
               type="button"
@@ -868,7 +907,7 @@ export default function OrdersPage() {
               <div className="sm:hidden">
                 <SearchableDropdown
                   value={channelFilter}
-                  onChange={setChannelFilter}
+                  onChange={(v) => setParams({ channel: v })}
                   options={channelDropdownOptions}
                   placeholder="ทุกช่องทาง"
                   searchPlaceholder="ค้นหาช่องทาง..."
@@ -882,7 +921,7 @@ export default function OrdersPage() {
             )}
             <PlatformChipFilter
               value={platformFilter}
-              onChange={setPlatformFilter}
+              onChange={(v) => setParams({ platform: v })}
             />
           </div>
         </div>
@@ -903,7 +942,7 @@ export default function OrdersPage() {
                   <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5">สถานะชำระ</label>
                   <FormSelect
                     value={paymentFilter}
-                    onChange={setPaymentFilter}
+                    onChange={(v) => setParams({ payment: v })}
                     options={[
                       { id: 'pending', label: 'รอชำระ' },
                       { id: 'verifying', label: 'รอตรวจสอบ' },
@@ -921,7 +960,7 @@ export default function OrdersPage() {
                   <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5">ประเภทบิล</label>
                   <FormSelect
                     value={orderTypeFilter}
-                    onChange={setOrderTypeFilter}
+                    onChange={(v) => setParams({ order_type: v })}
                     options={[
                       { id: 'exchange', label: 'เปลี่ยนสินค้า' },
                       { id: 'normal', label: 'บิลปกติ' },
@@ -939,7 +978,7 @@ export default function OrdersPage() {
                   {createdByDropdownOptions.length > 0 ? (
                     <SearchableDropdown
                       value={createdByFilter}
-                      onChange={setCreatedByFilter}
+                      onChange={(v) => setParams({ created_by: v })}
                       options={createdByDropdownOptions}
                       placeholder="ทั้งหมด"
                       searchPlaceholder="ค้นหาชื่อ..."
@@ -965,7 +1004,16 @@ export default function OrdersPage() {
                 {(paymentFilter !== 'all' || createdByFilter !== 'all' || orderTypeFilter !== 'all' || deliveryDateRange?.startDate) ? (
                   <button
                     type="button"
-                    onClick={() => { setPaymentFilter('all'); setCreatedByFilter('all'); setOrderTypeFilter('all'); setDeliveryDateRange({ startDate: null, endDate: null }); }}
+                    onClick={() => {
+                      setDeliveryDateRange({ startDate: null, endDate: null });
+                      const params = new URLSearchParams(searchParams.toString());
+                      params.delete('payment');
+                      params.delete('created_by');
+                      params.delete('order_type');
+                      params.delete('page');
+                      const qs = params.toString();
+                      router.replace(qs ? `?${qs}` : '/orders', { scroll: false });
+                    }}
                     className="text-sm text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                   >
                     ล้างตัวกรอง
@@ -989,7 +1037,7 @@ export default function OrdersPage() {
           </div>
         ) : (
         <>
-          {/* Sort bar + count (hidden for processing tab — it has own pagination) */}
+          {/* Sort bar + count (hidden for processing tab -- it has own pagination) */}
           {statusFilter !== 'processing' && (
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-500 dark:text-slate-400">
@@ -1008,7 +1056,7 @@ export default function OrdersPage() {
                     {SORT_OPTIONS.map(opt => (
                       <button
                         key={opt.value}
-                        onClick={() => { setSortValue(opt.value); setShowSortDropdown(false); setCurrentPage(1); }}
+                        onClick={() => { setParams({ sort: opt.value }); setShowSortDropdown(false); }}
                         className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
                           sortValue === opt.value ? 'text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'
                         }`}
@@ -1022,10 +1070,10 @@ export default function OrdersPage() {
             </div>
           )}
 
-          {/* Order list — tab-specific or default */}
+          {/* Order list -- tab-specific or default */}
           {renderOrderList()}
 
-          {/* Pagination (hidden for processing & ready_to_ship tabs — they have own pagination) */}
+          {/* Pagination (hidden for processing & ready_to_ship tabs -- they have own pagination) */}
           {statusFilter !== 'processing' && statusFilter !== 'ready_to_ship' && (
             <Pagination
               currentPage={currentPage}
@@ -1034,8 +1082,18 @@ export default function OrdersPage() {
               startIdx={startIndex}
               endIdx={endIndex}
               recordsPerPage={recordsPerPage}
-              setRecordsPerPage={setRecordsPerPage}
-              setPage={setCurrentPage}
+              setRecordsPerPage={(v) => setParams({ limit: String(v) })}
+              setPage={(p) => {
+                // Page change should NOT reset page (it IS the page change)
+                const params = new URLSearchParams(searchParams.toString());
+                if (p === 1) {
+                  params.delete('page');
+                } else {
+                  params.set('page', String(p));
+                }
+                const qs = params.toString();
+                router.replace(qs ? `?${qs}` : '/orders', { scroll: false });
+              }}
             />
           )}
         </>
@@ -1078,7 +1136,7 @@ export default function OrdersPage() {
                   </span>
                 </div>
 
-                {/* Shipping Details Form (processing → shipping) */}
+                {/* Shipping Details Form (processing -> shipping) */}
                 {statusUpdateModal.nextStatus === 'shipping' && (
                   <div className="mt-6 pt-6 border-t dark:border-slate-700 space-y-4">
                     <h4 className="font-medium text-gray-900 dark:text-white">ข้อมูลจัดส่ง</h4>
@@ -1215,5 +1273,19 @@ export default function OrdersPage() {
       />
       {confirmDialog}
     </Layout>
+  );
+}
+
+export default function OrdersPage() {
+  return (
+    <Suspense fallback={
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+        </div>
+      </Layout>
+    }>
+      <OrdersPageContent />
+    </Suspense>
   );
 }

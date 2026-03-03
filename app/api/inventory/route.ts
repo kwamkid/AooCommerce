@@ -100,17 +100,78 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const stockConfig = await getStockConfig(auth.companyId!);
+    if (!stockConfig.stockEnabled) {
+      return NextResponse.json({ error: 'Stock feature not enabled' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const warehouseId = searchParams.get('warehouse_id');
     const search = searchParams.get('search');
     const lowStockOnly = searchParams.get('low_stock') === 'true';
+    const categoryId = searchParams.get('category_id');
+    const brandId = searchParams.get('brand_id');
+    const supplierId = searchParams.get('supplier_id');
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const limit = parseInt(searchParams.get('limit') || '20', 10);
     const offset = (page - 1) * limit;
 
-    // Try optimized view/RPC first, fallback to legacy if view doesn't exist
-    let rawItems: { variation_id: string; product_id: string; product_code: string; product_name: string; product_image: string | null; variation_label: string; sku: string; barcode: string; attributes: unknown; default_price: number; min_stock: number; quantity: number; reserved_quantity: number; available: number; updated_at: string | null }[];
-    let stockConfig;
+    // Try new RPC first (supports all filters + server-side pagination)
+    const rpcResult = await supabaseAdmin.rpc('get_inventory_filtered', {
+      p_company_id: auth.companyId,
+      p_warehouse_id: warehouseId || null,
+      p_search: search || null,
+      p_category_id: categoryId || null,
+      p_brand_id: brandId || null,
+      p_supplier_id: supplierId || null,
+      p_low_stock: lowStockOnly,
+      p_limit: limit,
+      p_offset: offset,
+    });
+
+    if (!rpcResult.error && rpcResult.data) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = rpcResult.data as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const items = (result.items || []).map((row: any) => {
+        const minStock = row.min_stock || 0;
+        const available = row.available ?? (row.quantity - row.reserved_quantity);
+        return {
+          id: row.variation_id,
+          warehouse_id: null,
+          warehouse_name: '',
+          warehouse_code: '',
+          variation_id: row.variation_id,
+          product_id: row.product_id || '',
+          product_code: row.product_code || '',
+          product_name: row.product_name || '',
+          product_image: row.product_image || null,
+          variation_label: row.variation_label || '',
+          sku: row.sku || '',
+          barcode: row.barcode || '',
+          attributes: row.attributes || null,
+          default_price: row.default_price || 0,
+          quantity: row.quantity || 0,
+          reserved_quantity: row.reserved_quantity || 0,
+          available,
+          min_stock: minStock,
+          is_low_stock: minStock > 0 && available <= minStock,
+          is_out_of_stock: available <= 0 && row.quantity === 0,
+          updated_at: row.updated_at,
+        };
+      });
+
+      return NextResponse.json({
+        items,
+        total: result.total || 0,
+        page,
+        limit,
+        lowStockCount: result.lowStockCount || 0,
+      });
+    }
+
+    // Fallback: old view/RPC path (no category/brand/supplier filters)
+    console.warn('get_inventory_filtered RPC not available, using fallback:', rpcResult.error?.message);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let buildQuery: () => any;
@@ -132,19 +193,11 @@ export async function GET(request: NextRequest) {
       mainQuery = mainQuery.or(`product_name.ilike.${s},product_code.ilike.${s},sku.ilike.${s},barcode.ilike.${s}`);
     }
 
-    const [stockConfigResult, queryResult] = await Promise.all([
-      getStockConfig(auth.companyId!),
-      mainQuery,
-    ]);
-    stockConfig = stockConfigResult;
-
-    if (!stockConfig.stockEnabled) {
-      return NextResponse.json({ error: 'Stock feature not enabled' }, { status: 403 });
-    }
+    const queryResult = await mainQuery;
+    let rawItems: { variation_id: string; product_id: string; product_code: string; product_name: string; product_image: string | null; variation_label: string; sku: string; barcode: string; attributes: unknown; default_price: number; min_stock: number; quantity: number; reserved_quantity: number; available: number; updated_at: string | null }[];
 
     if (queryResult.error) {
-      // View/RPC not available → fallback to legacy queries
-      console.warn('inventory_summary view not available, using fallback:', queryResult.error.message);
+      console.warn('inventory_summary view not available, using legacy fallback:', queryResult.error.message);
       rawItems = await legacyInventoryQuery(auth.companyId!, warehouseId, search);
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -195,12 +248,10 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Low stock filter
     if (lowStockOnly) {
       items = items.filter(item => item.is_low_stock || (item.is_out_of_stock && item.min_stock > 0));
     }
 
-    // Sort: low stock first, then by product name
     items.sort((a, b) => {
       if (a.is_low_stock && !b.is_low_stock) return -1;
       if (!a.is_low_stock && b.is_low_stock) return 1;

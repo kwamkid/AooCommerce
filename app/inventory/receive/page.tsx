@@ -9,11 +9,12 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Package, Package2, Trash2,
-  Save, Warehouse, FileText, CheckCircle2, ClipboardList, Star,
+  Save, Warehouse, FileText, CheckCircle2, ClipboardList, Star, Plus, AlertTriangle,
 } from 'lucide-react';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import FormSelect from '@/components/ui/FormSelect';
+import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import { productDisplayName, productSubtitle } from '../components/types';
 
 // Interfaces
@@ -47,6 +48,7 @@ interface ReceiveItem {
   sku?: string;
   quantity: number;
   unit_cost: number;
+  po_quantity?: number; // จำนวนที่เหลือต้องรับจาก PO (readonly display)
 }
 
 const getDisplayName = (item: ReceiveItem) => productDisplayName({ product_name: item.name, product_code: item.code, variation_label: item.variation_label, sku: item.sku });
@@ -71,8 +73,13 @@ export default function StockReceivePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  // Mode switch: 'manual' = รับเข้าใหม่, 'po' = จาก PO
+  type ReceiveMode = 'manual' | 'po';
+  const [mode, setMode] = useState<ReceiveMode>('manual');
+
   // PO integration (feature-gated)
   const [availablePOs, setAvailablePOs] = useState<POOption[]>([]);
+  const [posLoading, setPosLoading] = useState(false);
   const [selectedPOId, setSelectedPOId] = useState('');
   const [selectedPO, setSelectedPO] = useState<POOption | null>(null);
 
@@ -206,6 +213,7 @@ export default function StockReceivePage() {
   // Fetch open POs for PO selector
   const fetchPOs = async () => {
     try {
+      setPosLoading(true);
       const res = await apiFetch('/api/inventory/purchase-orders?status=sent');
       if (!res.ok) return;
       const data = await res.json();
@@ -225,7 +233,25 @@ export default function StockReceivePage() {
         warehouse_id: po.warehouse?.id || '',
         items: [],
       })));
-    } catch { /* ignore */ }
+    } catch { /* ignore */ } finally {
+      setPosLoading(false);
+    }
+  };
+
+  // Handle mode switch
+  const handleModeChange = (newMode: ReceiveMode) => {
+    if (newMode === mode) return;
+    setMode(newMode);
+    // Reset items and PO selection when switching
+    setReceiveItems([]);
+    setBatchNotes('');
+    if (newMode === 'manual') {
+      setSelectedPOId('');
+      setSelectedPO(null);
+    } else if (newMode === 'po') {
+      // Re-fetch POs when switching to PO mode
+      fetchPOs();
+    }
   };
 
   // Handle PO selection — fetch detail and auto-populate items
@@ -266,6 +292,7 @@ export default function StockReceivePage() {
           sku: item.variation?.sku || undefined,
           quantity: remaining,
           unit_cost: item.unit_cost || 0,
+          po_quantity: remaining,
         });
       }
       setReceiveItems(newItems);
@@ -403,55 +430,91 @@ export default function StockReceivePage() {
       breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า', href: '/inventory/receives' }, { label: 'รับเข้าสินค้า' }]}
     >
       <div className="space-y-4">
-        {/* PO Selection (feature-gated) */}
-        {features.supplier && availablePOs.length > 0 && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-              <ClipboardList className="w-4 h-4 inline mr-1" />
-              ใบสั่งซื้อ (PO)
-            </label>
-            <div className="w-full sm:w-96">
-              <FormSelect
-                value={selectedPOId}
-                onChange={handleSelectPO}
-                options={availablePOs.map(po => ({
-                  id: po.id,
-                  label: `${po.po_number} — ${po.supplier_name}`,
-                }))}
-                placeholder="-- ไม่เลือก PO (รับเข้าปกติ) --"
-                clearLabel="ไม่เลือก PO (รับเข้าปกติ)"
-                searchPlaceholder="ค้นหา PO..."
-                icon={<ClipboardList className="w-4 h-4" />}
-              />
-            </div>
-            {selectedPO && (
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1.5">
-                Supplier: {selectedPO.supplier_name} | คลังจะถูกเลือกอัตโนมัติตาม PO
-              </p>
-            )}
+        {/* Mode Switch — only show if supplier feature enabled */}
+        {features.supplier && (
+          <div className="flex gap-1 bg-gray-100 dark:bg-slate-700 rounded-lg p-1 w-fit">
+            <button
+              type="button"
+              onClick={() => handleModeChange('manual')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                mode === 'manual'
+                  ? 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
+              }`}
+            >
+              <Plus className="w-4 h-4" />
+              รับเข้าใหม่
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange('po')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                mode === 'po'
+                  ? 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
+              }`}
+            >
+              <ClipboardList className="w-4 h-4" />
+              จาก PO
+            </button>
           </div>
         )}
 
-        {/* Warehouse Selection */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-            คลังสินค้า <span className="text-red-500">*</span>
-          </label>
-          <div className="w-full sm:w-72">
-            <FormSelect
-              value={selectedWarehouseId}
-              onChange={setSelectedWarehouseId}
-              options={warehouses.map(wh => ({
-                id: wh.id,
-                label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}`,
-                icon: wh.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined,
-              }))}
-              placeholder="-- เลือกคลังสินค้า --"
-              searchPlaceholder="ค้นหาคลัง..."
-              icon={<Warehouse className="w-4 h-4" />}
-            />
+        {/* Mode: Manual — Warehouse selector */}
+        {mode === 'manual' && (
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+              คลังสินค้า <span className="text-red-500">*</span>
+            </label>
+            <div className="w-full sm:w-72">
+              <FormSelect
+                value={selectedWarehouseId}
+                onChange={setSelectedWarehouseId}
+                options={warehouses.map(wh => ({
+                  id: wh.id,
+                  label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}`,
+                  icon: wh.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined,
+                }))}
+                placeholder="-- เลือกคลังสินค้า --"
+                searchPlaceholder="ค้นหาคลัง..."
+                icon={<Warehouse className="w-4 h-4" />}
+              />
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Mode: PO — PO selector (warehouse auto-set from PO) */}
+        {mode === 'po' && (
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+              <ClipboardList className="w-4 h-4 inline mr-1" />
+              เลือกใบสั่งซื้อ (PO) <span className="text-red-500">*</span>
+            </label>
+            <div className="w-full sm:w-96">
+              <EntitySearchInput
+                value={selectedPOId}
+                onChange={(id) => handleSelectPO(id)}
+                onClear={() => handleSelectPO('')}
+                options={availablePOs.map(po => ({
+                  id: po.id,
+                  label: po.po_number,
+                  subtitle: po.supplier_name,
+                  icon: <ClipboardList className="w-4 h-4 text-gray-400" />,
+                }))}
+                placeholder="ค้นหา PO หรือชื่อ Supplier..."
+                icon={<ClipboardList className="w-4 h-4" />}
+                loading={posLoading}
+                emptyMessage="ไม่มี PO ที่รอรับของ"
+              />
+            </div>
+            {selectedPO && (
+              <div className="mt-2 flex items-center gap-3 text-xs text-gray-500 dark:text-slate-400">
+                <span>Supplier: <strong className="text-gray-700 dark:text-slate-300">{selectedPO.supplier_name}</strong></span>
+                <span>คลัง: <strong className="text-gray-700 dark:text-slate-300">{warehouses.find(wh => wh.id === selectedWarehouseId)?.name || '-'}</strong></span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Desktop: Table + Search in one card */}
         <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700">
@@ -463,7 +526,8 @@ export default function StockReceivePage() {
                     <tr>
                       <th className="data-th">สินค้า</th>
                       <th className="data-th text-center w-28 whitespace-nowrap">สต๊อกปัจจุบัน</th>
-                      <th className="data-th text-center w-24">รับเข้า</th>
+                      {mode === 'po' && <th className="data-th text-center w-24 whitespace-nowrap">จำนวน PO</th>}
+                      <th className="data-th text-center w-28">รับเข้า</th>
                       <th className="data-th text-center w-28">ต้นทุน/ชิ้น</th>
                       <th className="data-th w-12"></th>
                     </tr>
@@ -511,16 +575,56 @@ export default function StockReceivePage() {
                             );
                           })()}
                         </td>
-                        <td className="px-6 py-3 text-center">
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={e =>
-                              handleUpdateQuantity(index, parseInt(e.target.value) || 1)
-                            }
-                            className="w-20 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
-                          />
+                        {mode === 'po' && (
+                          <td className="px-6 py-3 text-center">
+                            <span className="text-sm text-gray-500 dark:text-slate-400 font-medium">
+                              {item.po_quantity?.toLocaleString() ?? '-'}
+                            </span>
+                          </td>
+                        )}
+                        <td className="px-4 py-3 text-center">
+                          <div className="inline-flex items-center">
+                            <div className={`inline-flex items-center border rounded-lg overflow-hidden ${
+                              item.po_quantity != null && item.quantity !== item.po_quantity
+                                ? 'border-amber-400 dark:border-amber-500'
+                                : 'border-gray-300 dark:border-slate-600'
+                            }`}>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuantity(index, item.quantity - 1)}
+                                disabled={item.quantity <= 1}
+                                className="w-7 h-7 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm border-r border-inherit"
+                              >
+                                −
+                              </button>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={e =>
+                                    handleUpdateQuantity(index, parseInt(e.target.value) || 1)
+                                  }
+                                  className={`${item.po_quantity != null && item.quantity !== item.po_quantity ? 'w-14 pr-7' : 'w-10'} h-7 px-1 text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none border-none`}
+                                />
+                                {item.po_quantity != null && item.quantity !== item.po_quantity && (
+                                  <span className="absolute right-0.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-px text-amber-600 dark:text-amber-400" title={`ต่างจาก PO ${Math.abs(item.quantity - item.po_quantity)} ชิ้น`}>
+                                    <AlertTriangle className="w-3 h-3" />
+                                    <span className="text-[9px] font-semibold">
+                                      {item.quantity > item.po_quantity ? '+' : ''}{item.quantity - item.po_quantity}
+                                    </span>
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuantity(index, item.quantity + 1)}
+                                className="w-7 h-7 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-l border-inherit"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
                         </td>
                         <td className="px-6 py-3 text-center">
                           <input
@@ -635,20 +739,61 @@ export default function StockReceivePage() {
                   </button>
                 </div>
 
-                <div className="mt-2.5 grid grid-cols-2 gap-2">
+                <div className={`mt-2.5 grid gap-2 ${item.po_quantity != null ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {item.po_quantity != null && (
+                    <div>
+                      <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
+                        จำนวน PO
+                      </label>
+                      <div className="w-full h-[30px] flex items-center justify-center border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-gray-50 dark:bg-slate-700/50 text-gray-500 dark:text-slate-400 font-medium">
+                        {item.po_quantity.toLocaleString()}
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
                       รับเข้า
                     </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={item.quantity}
-                      onChange={e =>
-                        handleUpdateQuantity(index, parseInt(e.target.value) || 1)
-                      }
-                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
-                    />
+                    <div className={`inline-flex items-center border rounded-lg overflow-hidden ${
+                      item.po_quantity != null && item.quantity !== item.po_quantity
+                        ? 'border-amber-400 dark:border-amber-500'
+                        : 'border-gray-300 dark:border-slate-600'
+                    }`}>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateQuantity(index, item.quantity - 1)}
+                        disabled={item.quantity <= 1}
+                        className="w-[30px] h-[30px] flex-shrink-0 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm border-r border-inherit"
+                      >
+                        −
+                      </button>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={e =>
+                            handleUpdateQuantity(index, parseInt(e.target.value) || 1)
+                          }
+                          className={`${item.po_quantity != null && item.quantity !== item.po_quantity ? 'w-14 pr-7' : 'w-10'} h-[30px] px-1 text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none border-none`}
+                        />
+                        {item.po_quantity != null && item.quantity !== item.po_quantity && (
+                          <span className="absolute right-0.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-px text-amber-600 dark:text-amber-400">
+                            <AlertTriangle className="w-3 h-3" />
+                            <span className="text-[9px] font-semibold">
+                              {item.quantity > item.po_quantity ? '+' : ''}{item.quantity - item.po_quantity}
+                            </span>
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateQuantity(index, item.quantity + 1)}
+                        className="w-[30px] h-[30px] flex-shrink-0 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-l border-inherit"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
@@ -770,6 +915,11 @@ export default function StockReceivePage() {
             <span className="font-medium text-gray-900 dark:text-white">{receiveItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น</span>
           </div>
         </div>
+        {receiveItems.some(item => item.po_quantity != null && item.quantity !== item.po_quantity) && (
+          <div className="mt-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5 text-sm text-amber-700 dark:text-amber-400">
+            จำนวนรับเข้าไม่ตรงกับ PO บางรายการ
+          </div>
+        )}
       </ConfirmDialog>
     </Layout>
   );

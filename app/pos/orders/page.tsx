@@ -1,122 +1,164 @@
 // Path: app/pos/orders/page.tsx
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import Layout from '@/components/layout/Layout';
 import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
-import { Loader2, Printer, Ban, Eye, Search, Receipt as ReceiptIcon, Store } from 'lucide-react';
+import { Loader2, Search, Receipt as ReceiptIcon, Store } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import Pagination from '@/app/components/Pagination';
+import PosOrderCard, { PosOrder, PAYMENT_LABELS } from '../components/PosOrderCard';
 import ReceiptComponent from '../components/Receipt';
 
 interface WarehouseItem {
   id: string;
   name: string;
   code: string | null;
+  is_active?: boolean;
 }
 
-interface PosOrder {
-  id: string;
-  order_number: string;
-  receipt_number: string;
-  customer_id: string | null;
-  total_amount: number;
-  payment_method: string;
-  order_status: string;
-  created_at: string;
-  customer: { name: string; customer_code: string; phone: string | null } | null;
-  items: { product_name: string; variation_label: string; quantity: number; unit_price: number; total: number }[];
+interface Summary {
+  total_sales: number;
+  total_discount: number;
+  completed_count: number;
+  void_count: number;
+  payment_breakdown: Record<string, { count: number; amount: number }>;
 }
 
-function toDateStr(d: unknown): string | null {
-  if (!d) return null;
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
-  return String(d).slice(0, 10);
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
-export default function PosOrdersPage() {
+function PosOrdersContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { loading: authLoading, userProfile } = useAuth();
   const { confirmDialog, confirm } = useConfirmDialog();
+
+  // URL-based state
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
+  const recordsPerPage = parseInt(searchParams.get('limit') || '20', 10);
+  const searchTerm = searchParams.get('q') || '';
+  const warehouseFilter = searchParams.get('warehouse') || '';
+  const dateFrom = searchParams.get('from') || todayStr();
+  const dateTo = searchParams.get('to') || todayStr();
+
+  // Local state
   const [orders, setOrders] = useState<PosOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<DateValueType>({ startDate: new Date(), endDate: new Date() });
-  const [searchTerm, setSearchTerm] = useState('');
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [summary, setSummary] = useState<Summary>({ total_sales: 0, total_discount: 0, completed_count: 0, void_count: 0, payment_breakdown: {} });
   const [receiptData, setReceiptData] = useState<any>(null);
   const [voidingId, setVoidingId] = useState<string | null>(null);
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
-  const [selectedWarehouse, setSelectedWarehouse] = useState('');
   const [allowedWarehouseIds, setAllowedWarehouseIds] = useState<string[] | null>(null);
-  const selectedWarehouseRef = useRef('');
+  const [searchInput, setSearchInput] = useState(searchTerm);
+  const [warehousesFetched, setWarehousesFetched] = useState(false);
 
-  const fetchWithParams = useCallback(async (from: string | null, to: string | null, search?: string, warehouseId?: string) => {
+  // Helper: update URL params
+  const setParams = useCallback((updates: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null || value === '') {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+    }
+    // Reset to page 1 when non-page filters change
+    if (!('page' in updates)) {
+      params.delete('page');
+    }
+    // Remove defaults
+    if (params.get('page') === '1') params.delete('page');
+    if (params.get('limit') === '20') params.delete('limit');
+    const today = todayStr();
+    if (params.get('from') === today) params.delete('from');
+    if (params.get('to') === today) params.delete('to');
+
+    const qs = params.toString();
+    router.replace(`/pos/orders${qs ? `?${qs}` : ''}`, { scroll: false });
+  }, [searchParams, router]);
+
+  // Fetch orders
+  const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (from) params.set('date_from', from);
-      if (to) params.set('date_to', to);
-      if (search) params.set('search', search);
-      const wid = warehouseId ?? selectedWarehouseRef.current;
-      if (wid) params.set('warehouse_id', wid);
+      params.set('page', String(currentPage));
+      params.set('limit', String(recordsPerPage));
+      if (dateFrom) params.set('date_from', dateFrom);
+      if (dateTo) params.set('date_to', dateTo);
+      if (searchTerm) params.set('search', searchTerm);
+      if (warehouseFilter) params.set('warehouse_id', warehouseFilter);
+
       const res = await apiFetch(`/api/pos/orders?${params.toString()}`);
       const data = await res.json();
       setOrders(data.orders || []);
+      setTotalRecords(data.total || 0);
+      if (data.summary) setSummary(data.summary);
       if (data.allowed_warehouse_ids !== undefined) {
         setAllowedWarehouseIds(data.allowed_warehouse_ids);
       }
     } catch {
       setOrders([]);
+      setTotalRecords(0);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentPage, recordsPerPage, dateFrom, dateTo, searchTerm, warehouseFilter]);
 
-  const fetchOrders = useCallback(async () => {
-    await fetchWithParams(toDateStr(dateRange?.startDate), toDateStr(dateRange?.endDate), searchTerm || undefined);
-  }, [dateRange, searchTerm, fetchWithParams]);
-
-  useFetchOnce(() => {
-    fetchOrders();
-    // Fetch warehouses for filter
+  // Fetch warehouses once
+  useEffect(() => {
+    if (authLoading || !userProfile || warehousesFetched) return;
+    setWarehousesFetched(true);
     (async () => {
       try {
         const res = await apiFetch('/api/warehouses');
         if (res.ok) {
           const data = await res.json();
-          setWarehouses((data.warehouses || []).filter((w: WarehouseItem & { is_active?: boolean }) => w.is_active !== false));
+          setWarehouses((data.warehouses || []).filter((w: WarehouseItem) => w.is_active !== false));
         }
       } catch { /* silent */ }
     })();
-  }, !authLoading && !!userProfile);
+  }, [authLoading, userProfile, warehousesFetched]);
 
-  // Refetch when date range changes
-  const handleDateChange = (val: DateValueType) => {
-    setDateRange(val);
-    fetchWithParams(toDateStr(val?.startDate), toDateStr(val?.endDate), searchTerm || undefined);
-  };
+  // Fetch orders when params change
+  useEffect(() => {
+    if (authLoading || !userProfile) return;
+    fetchOrders();
+  }, [authLoading, userProfile, fetchOrders]);
 
-  // Search handler
+  // Sync search input with URL
+  useEffect(() => {
+    setSearchInput(searchTerm);
+  }, [searchTerm]);
+
+  // Handlers
   const handleSearch = () => {
-    fetchWithParams(toDateStr(dateRange?.startDate), toDateStr(dateRange?.endDate), searchTerm || undefined);
+    if (searchInput !== searchTerm) {
+      setParams({ q: searchInput || null });
+    }
   };
 
-  // Warehouse filter handler
-  const handleWarehouseChange = (warehouseId: string) => {
-    setSelectedWarehouse(warehouseId);
-    selectedWarehouseRef.current = warehouseId;
-    fetchWithParams(toDateStr(dateRange?.startDate), toDateStr(dateRange?.endDate), searchTerm || undefined, warehouseId);
+  const handleDateChange = (val: DateValueType) => {
+    const from = val?.startDate instanceof Date ? val.startDate.toISOString().slice(0, 10) : val?.startDate ? String(val.startDate).slice(0, 10) : null;
+    const to = val?.endDate instanceof Date ? val.endDate.toISOString().slice(0, 10) : val?.endDate ? String(val.endDate).slice(0, 10) : null;
+    setParams({ from, to });
   };
 
-  // Filter warehouses by allowed permissions
-  const availableWarehouses = allowedWarehouseIds
-    ? warehouses.filter(w => allowedWarehouseIds.includes(w.id))
-    : warehouses;
+  const handleWarehouseChange = (wid: string) => {
+    setParams({ warehouse: wid || null });
+  };
 
   const handleVoid = async (orderId: string) => {
-    const ok = await confirm({ title: 'ต้องการ Void รายการนี้?', variant: 'danger' }); if (!ok) return;
+    const ok = await confirm({ title: 'ต้องการ Void รายการนี้?', variant: 'danger' });
+    if (!ok) return;
     setVoidingId(orderId);
     try {
       const res = await apiFetch('/api/pos/orders/void', {
@@ -124,9 +166,7 @@ export default function PosOrdersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_id: orderId, reason: 'Void จากหน้ารายการ POS' }),
       });
-      if (res.ok) {
-        fetchOrders();
-      }
+      if (res.ok) fetchOrders();
     } catch {}
     setVoidingId(null);
   };
@@ -135,177 +175,148 @@ export default function PosOrdersPage() {
     try {
       const res = await apiFetch(`/api/pos/receipt?order_id=${orderId}`);
       const data = await res.json();
-      if (data.receipt) {
-        setReceiptData(data.receipt);
-      }
+      if (data.receipt) setReceiptData(data.receipt);
     } catch {}
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">สำเร็จ</span>;
-      case 'cancelled':
-        return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Void</span>;
-      default:
-        return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">{status}</span>;
-    }
+  // Filter warehouses by allowed permissions
+  const availableWarehouses = allowedWarehouseIds
+    ? warehouses.filter(w => allowedWarehouseIds.includes(w.id))
+    : warehouses;
+
+  // Pagination
+  const totalPages = Math.ceil(totalRecords / recordsPerPage);
+  const startIdx = (currentPage - 1) * recordsPerPage;
+  const endIdx = Math.min(startIdx + recordsPerPage, totalRecords);
+
+  // Date range value for picker
+  const dateRangeValue: DateValueType = {
+    startDate: dateFrom ? new Date(dateFrom + 'T00:00:00') : new Date(),
+    endDate: dateTo ? new Date(dateTo + 'T00:00:00') : new Date(),
   };
 
-  const totalSales = orders
-    .filter(o => o.order_status === 'completed')
-    .reduce((s, o) => s + Number(o.total_amount), 0);
-  const totalVoids = orders.filter(o => o.order_status === 'cancelled').length;
+  // Payment breakdown sorted by amount
+  const paymentEntries = Object.entries(summary.payment_breakdown || {}).sort((a, b) => b[1].amount - a[1].amount);
 
   return (
     <Layout>
       <div className="space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">รายการขาย POS</h1>
-            <p className="text-gray-600 dark:text-slate-400 mt-1">ประวัติการขายจากระบบ POS</p>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">รายการขาย POS</h1>
+          <p className="text-gray-600 dark:text-slate-400 mt-1">ประวัติการขายจากระบบ POS</p>
         </div>
 
         {/* Filter card */}
         <div className="data-filter-card">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 onBlur={handleSearch}
                 placeholder="ค้นหาเลขที่บิล, ชื่อลูกค้า, เบอร์โทร..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
               />
             </div>
-            {availableWarehouses.length > 0 && (
-              <div className="w-44 flex-shrink-0">
-                <FormSelect
-                  value={selectedWarehouse}
-                  onChange={(val) => handleWarehouseChange(val)}
-                  options={availableWarehouses.map(wh => ({ id: wh.id, label: wh.name }))}
-                  clearLabel="ทุกสาขา"
-                  icon={<Store className="w-4 h-4" />}
-                  searchThreshold={99}
+            <div className="flex items-center gap-2">
+              {availableWarehouses.length > 0 && (
+                <div className="w-44 flex-shrink-0">
+                  <FormSelect
+                    value={warehouseFilter}
+                    onChange={handleWarehouseChange}
+                    options={availableWarehouses.map(wh => ({ id: wh.id, label: wh.name }))}
+                    clearLabel="ทุกสาขา"
+                    icon={<Store className="w-4 h-4" />}
+                    searchThreshold={99}
+                  />
+                </div>
+              )}
+              <div className="w-52 flex-shrink-0">
+                <DateRangePicker
+                  value={dateRangeValue}
+                  onChange={handleDateChange}
+                  placeholder="เลือกวันที่"
+                  showShortcuts
+                  showFooter={false}
+                  popupAlign="right"
+                  displayFormat="short"
                 />
               </div>
-            )}
-            <div className="w-64 flex-shrink-0">
-              <DateRangePicker
-                value={dateRange}
-                onChange={handleDateChange}
-                placeholder="เลือกวันที่"
-              />
             </div>
           </div>
         </div>
 
-        {/* Summary */}
-        {!loading && orders.length > 0 && (
-          <div className="flex items-center gap-4 text-sm">
-            <div className="bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-lg">
-              <span className="text-green-700 dark:text-green-400 font-medium">
-                ยอดขาย: ฿{formatPrice(totalSales)}
-              </span>
+        {/* Summary cards */}
+        {!loading && summary.completed_count > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {/* Total sales */}
+            <div className="bg-green-50 dark:bg-green-900/20 px-4 py-3 rounded-xl">
+              <p className="text-sm text-green-600 dark:text-green-400 mb-0.5">ยอดขาย</p>
+              <p className="text-lg font-bold text-green-700 dark:text-green-300">฿{formatPrice(summary.total_sales)}</p>
+              <p className="text-xs text-green-600/70 dark:text-green-400/70 mt-0.5">
+                {summary.completed_count} บิล
+                {summary.void_count > 0 && <span className="text-red-500 dark:text-red-400"> · {summary.void_count} void</span>}
+              </p>
             </div>
-            <div className="text-gray-500 dark:text-gray-400">
-              {orders.filter(o => o.order_status === 'completed').length} บิล
-              {totalVoids > 0 && <span className="text-red-500 ml-2">({totalVoids} void)</span>}
-            </div>
+            {/* Discount total */}
+            {summary.total_discount > 0 && (
+              <div className="bg-red-50 dark:bg-red-900/20 px-4 py-3 rounded-xl">
+                <p className="text-sm text-red-600 dark:text-red-400 mb-0.5">ส่วนลดรวม</p>
+                <p className="text-lg font-bold text-red-700 dark:text-red-300">฿{formatPrice(summary.total_discount)}</p>
+              </div>
+            )}
+            {/* Payment breakdown */}
+            {paymentEntries.map(([method, data]) => (
+              <div key={method} className="bg-blue-50 dark:bg-blue-900/20 px-4 py-3 rounded-xl">
+                <p className="text-sm text-blue-600 dark:text-blue-400 mb-0.5">{PAYMENT_LABELS[method] || method}</p>
+                <p className="text-lg font-bold text-blue-700 dark:text-blue-300">฿{formatPrice(data.amount)}</p>
+                <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-0.5">{data.count} บิล</p>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Orders table */}
-        <div className="data-table-wrap">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-[#F4511E]" />
-            </div>
-          ) : orders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-              <ReceiptIcon className="w-10 h-10 mb-2 opacity-50" />
-              <p className="text-sm">ไม่พบรายการขาย POS ในช่วงวันที่เลือก</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="data-table-fixed">
-                <thead className="data-thead">
-                  <tr>
-                    <th className="data-th">เลขที่</th>
-                    <th className="data-th">เวลา</th>
-                    <th className="data-th">ลูกค้า</th>
-                    <th className="data-th">รายการ</th>
-                    <th className="data-th text-right">ยอดรวม</th>
-                    <th className="data-th">สถานะ</th>
-                    <th className="data-th text-right">จัดการ</th>
-                  </tr>
-                </thead>
-                <tbody className="data-tbody">
-                  {orders.map(order => (
-                    <tr key={order.id} className={`data-tr ${order.order_status === 'cancelled' ? 'opacity-50' : ''}`}>
-                      <td className="data-td">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{order.receipt_number}</span>
-                      </td>
-                      <td className="data-td text-sm text-gray-600 dark:text-gray-300">
-                        <div>{new Date(order.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</div>
-                        <div className="text-xs text-gray-400">{new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</div>
-                      </td>
-                      <td className="data-td text-sm text-gray-600 dark:text-gray-300">
-                        {order.customer?.name || 'ลูกค้าทั่วไป'}
-                      </td>
-                      <td className="data-td text-sm text-gray-600 dark:text-gray-300">
-                        {order.items?.length || 0} รายการ
-                      </td>
-                      <td className="data-td text-sm text-right font-medium text-gray-900 dark:text-white">
-                        ฿{formatPrice(order.total_amount)}
-                      </td>
-                      <td className="data-td">
-                        {getStatusBadge(order.order_status)}
-                      </td>
-                      <td className="data-td">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => handleViewReceipt(order.id)}
-                            className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
-                            title="ดูใบเสร็จ"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleViewReceipt(order.id)}
-                            className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
-                            title="พิมพ์"
-                          >
-                            <Printer className="w-4 h-4" />
-                          </button>
-                          {order.order_status === 'completed' && (
-                            <button
-                              onClick={() => handleVoid(order.id)}
-                              disabled={voidingId === order.id}
-                              className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                              title="Void"
-                            >
-                              {voidingId === order.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Ban className="w-4 h-4" />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        {/* Orders list — full width, single column */}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-[#F4511E]" />
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+            <ReceiptIcon className="w-10 h-10 mb-2 opacity-50" />
+            <p className="text-sm">ไม่พบรายการขาย POS ในช่วงวันที่เลือก</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {orders.map(order => (
+              <PosOrderCard
+                key={order.id}
+                order={order}
+                onViewReceipt={handleViewReceipt}
+                onVoid={handleVoid}
+                voidingId={voidingId}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && totalRecords > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRecords={totalRecords}
+            startIdx={startIdx}
+            endIdx={endIdx}
+            recordsPerPage={recordsPerPage}
+            setRecordsPerPage={(v) => setParams({ limit: String(v), page: '1' })}
+            setPage={(p) => setParams({ page: String(p) })}
+          />
+        )}
       </div>
 
       {confirmDialog}
@@ -319,5 +330,19 @@ export default function PosOrdersPage() {
         />
       )}
     </Layout>
+  );
+}
+
+export default function PosOrdersPage() {
+  return (
+    <Suspense fallback={
+      <Layout>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-[#F4511E]" />
+        </div>
+      </Layout>
+    }>
+      <PosOrdersContent />
+    </Suspense>
   );
 }

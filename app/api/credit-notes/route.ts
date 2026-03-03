@@ -61,9 +61,21 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const orderId = searchParams.get('order_id');
     const type = searchParams.get('type');
+    const search = searchParams.get('search');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = (page - 1) * limit;
+
+    // If searching by order number, resolve order IDs first
+    let searchOrderIds: string[] | null = null;
+    if (search) {
+      const { data: matchedOrders } = await supabaseAdmin
+        .from('orders')
+        .select('id')
+        .eq('company_id', auth.companyId)
+        .ilike('order_number', `%${search}%`);
+      searchOrderIds = (matchedOrders || []).map(o => o.id);
+    }
 
     let query = supabaseAdmin
       .from('credit_notes')
@@ -80,6 +92,14 @@ export async function GET(request: NextRequest) {
     }
     if (type && ['void', 'refund', 'exchange'].includes(type)) {
       query = query.eq('type', type);
+    }
+    if (search) {
+      // Search by cn_number OR by matching order numbers
+      if (searchOrderIds && searchOrderIds.length > 0) {
+        query = query.or(`cn_number.ilike.%${search}%,order_id.in.(${searchOrderIds.join(',')})`);
+      } else {
+        query = query.ilike('cn_number', `%${search}%`);
+      }
     }
 
     query = query.range(offset, offset + limit - 1);

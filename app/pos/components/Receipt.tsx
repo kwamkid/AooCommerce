@@ -110,7 +110,7 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
 
           {/* Receipt info */}
           <div className="text-left space-y-0.5">
-            <p>เลขที่: {data.order.receipt_number}</p>
+            <p>เลขที่: <span className="code-text">{data.order.receipt_number}</span></p>
             <p>วันที่: {dateStr}</p>
             <p>แคชเชียร์: {data.cashier_name}</p>
             <p>สาขา: {data.branch_name}</p>
@@ -136,8 +136,8 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
                 </div>
                 <div className="text-gray-500 text-xs">
                   {item.quantity} x ฿{formatPrice(item.unit_price)}
-                  {item.sku && <span className="ml-2">SKU: {item.sku}</span>}
-                  {item.barcode && <span className="ml-2">BC: {item.barcode}</span>}
+                  {item.sku && <span className="ml-2">SKU: <span className="code-text">{item.sku}</span></span>}
+                  {item.barcode && <span className="ml-2">BC: <span className="code-text">{item.barcode}</span></span>}
                 </div>
               </div>
             ))}

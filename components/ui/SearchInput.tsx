@@ -60,7 +60,7 @@ const SearchInput = forwardRef<SearchInputHandle, SearchInputProps>(function Sea
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         autoFocus={autoFocus}
-        className={`w-full pl-9 pr-8 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 ${ringColor} focus:border-transparent ${className}`}
+        className={`w-full h-[42px] pl-9 pr-8 border border-gray-300 dark:border-slate-500 rounded-lg text-base bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 ${ringColor} focus:border-transparent ${className}`}
       />
       {value && (
         <button

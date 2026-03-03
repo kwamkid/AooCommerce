@@ -13,9 +13,11 @@ import { showPdfPreview } from '@/lib/print-pdf';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import FormSelect from '@/components/ui/FormSelect';
+import ActionMenu, { ActionItem } from '@/app/orders/components/ActionMenu';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import {
   Loader2, Plus, Search, ClipboardList, Factory, Warehouse,
-  CheckCircle2, Clock, Package, XCircle, Send, Pencil, Printer, User,
+  CheckCircle2, Clock, Package, XCircle, Send, Pencil, Printer, Link2, Ban, Lock, AlertTriangle,
 } from 'lucide-react';
 
 interface PurchaseOrder {
@@ -55,9 +57,10 @@ function getDefaultColumns(): ColumnKey[] {
 
 const STATUS_OPTIONS = [
   { id: 'draft', label: 'ร่าง' },
-  { id: 'sent', label: 'ส่งแล้ว' },
+  { id: 'sent', label: 'แจ้ง Sup แล้ว' },
   { id: 'partial_received', label: 'รับบางส่วน' },
   { id: 'received', label: 'รับครบ' },
+  { id: 'received_mismatch', label: 'รับไม่ตรง' },
   { id: 'closed', label: 'ปิด' },
   { id: 'cancelled', label: 'ยกเลิก' },
 ];
@@ -65,9 +68,10 @@ const STATUS_OPTIONS = [
 function statusBadge(status: string) {
   switch (status) {
     case 'draft': return { label: 'ร่าง', color: 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300' };
-    case 'sent': return { label: 'ส่งแล้ว', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' };
+    case 'sent': return { label: 'แจ้ง Sup แล้ว', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' };
     case 'partial_received': return { label: 'รับบางส่วน', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' };
     case 'received': return { label: 'รับครบ', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' };
+    case 'received_mismatch': return { label: 'รับไม่ตรง', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' };
     case 'closed': return { label: 'ปิด', color: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400' };
     case 'cancelled': return { label: 'ยกเลิก', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' };
     default: return { label: status, color: 'bg-gray-100 text-gray-600' };
@@ -80,6 +84,7 @@ function statusIcon(status: string) {
     case 'sent': return <Send className="w-3 h-3" />;
     case 'partial_received': return <Clock className="w-3 h-3" />;
     case 'received': return <CheckCircle2 className="w-3 h-3" />;
+    case 'received_mismatch': return <AlertTriangle className="w-3 h-3" />;
     case 'closed': return <Package className="w-3 h-3" />;
     case 'cancelled': return <XCircle className="w-3 h-3" />;
     default: return null;
@@ -91,6 +96,7 @@ export default function PurchaseOrdersPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { features, fetched: featuresFetched } = useFeatures();
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,6 +107,7 @@ export default function PurchaseOrdersPage() {
   const [page, setPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState(20);
   const [printingId, setPrintingId] = useState<string | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   // Column visibility
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
@@ -147,9 +154,28 @@ export default function PurchaseOrdersPage() {
     }
   };
 
-  const handlePrint = async (id: string) => {
+  // Auto-send draft PO → returns share_token or null
+  const autoSendIfDraft = async (poId: string, currentStatus: string): Promise<string | null> => {
+    if (currentStatus !== 'draft') return null;
+    try {
+      const res = await apiFetch(`/api/inventory/purchase-orders/${poId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'sent' }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        fetchData(); // refresh list
+        return d.share_token || null;
+      }
+    } catch { /* */ }
+    return null;
+  };
+
+  const handlePrint = async (id: string, status: string) => {
     setPrintingId(id);
     try {
+      // Auto-send draft before printing
+      if (status === 'draft') await autoSendIfDraft(id, status);
       const res = await apiFetch(`/api/inventory/purchase-orders/${id}`);
       if (!res.ok) { showToast('โหลดข้อมูลไม่สำเร็จ', 'error'); return; }
       const result = await res.json();
@@ -162,6 +188,79 @@ export default function PurchaseOrdersPage() {
     } finally {
       setPrintingId(null);
     }
+  };
+
+  const handleCopyLink = async (poId: string, status: string) => {
+    setActionLoadingId(poId);
+    try {
+      // Auto-send draft before generating link
+      if (status === 'draft') {
+        const token = await autoSendIfDraft(poId, status);
+        if (token) {
+          await navigator.clipboard.writeText(`${window.location.origin}/po/${token}`);
+          showToast('แจ้ง Sup สำเร็จ — คัดลอกลิงก์แล้ว');
+          setActionLoadingId(null);
+          return;
+        }
+      }
+      const res = await apiFetch(`/api/inventory/purchase-orders/${poId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ generate_token: true }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.share_token) {
+          await navigator.clipboard.writeText(`${window.location.origin}/po/${d.share_token}`);
+          showToast('คัดลอกลิงก์ PO ออนไลน์แล้ว');
+        }
+      }
+    } catch { showToast('สร้างลิงก์ไม่สำเร็จ', 'error'); }
+    finally { setActionLoadingId(null); }
+  };
+
+  const handleCancel = async (poId: string) => {
+    const ok = await confirm({ title: 'ต้องการยกเลิก PO นี้?', variant: 'danger' });
+    if (!ok) return;
+    setActionLoadingId(poId);
+    try {
+      const res = await apiFetch(`/api/inventory/purchase-orders/${poId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
+      if (res.ok) { showToast('ยกเลิก PO สำเร็จ'); fetchData(); }
+      else { const d = await res.json(); showToast(d.error || 'ไม่สำเร็จ', 'error'); }
+    } catch { showToast('เกิดข้อผิดพลาด', 'error'); }
+    finally { setActionLoadingId(null); }
+  };
+
+  const handleClose = async (poId: string) => {
+    const ok = await confirm({ title: 'ต้องการปิด PO นี้?' });
+    if (!ok) return;
+    setActionLoadingId(poId);
+    try {
+      const res = await apiFetch(`/api/inventory/purchase-orders/${poId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'closed' }),
+      });
+      if (res.ok) { showToast('ปิด PO สำเร็จ'); fetchData(); }
+      else { const d = await res.json(); showToast(d.error || 'ไม่สำเร็จ', 'error'); }
+    } catch { showToast('เกิดข้อผิดพลาด', 'error'); }
+    finally { setActionLoadingId(null); }
+  };
+
+  const getMenuItems = (po: PurchaseOrder): ActionItem[] => {
+    const items: ActionItem[] = [
+      { key: 'edit', label: 'แก้ไข', icon: <Pencil className="w-4 h-4" />, onClick: () => router.push(`/inventory/purchase-orders/${po.id}`) },
+      { key: 'print', label: 'พิมพ์', icon: <Printer className="w-4 h-4" />, onClick: () => handlePrint(po.id, po.status), disabled: printingId === po.id },
+      { key: 'copyLink', label: 'คัดลอกลิงก์ PO', icon: <Link2 className="w-4 h-4" />, onClick: () => handleCopyLink(po.id, po.status) },
+    ];
+    if (po.status === 'draft' || po.status === 'sent') {
+      items.push({ key: 'cancel', label: 'ยกเลิก', icon: <Ban className="w-4 h-4" />, danger: true, dividerBefore: true, onClick: () => handleCancel(po.id) });
+    }
+    if (po.status === 'partial_received' || po.status === 'received' || po.status === 'received_mismatch') {
+      items.push({ key: 'close', label: 'ปิด PO', description: 'จบ PO นี้ ไม่รอรับของเพิ่ม', icon: <Lock className="w-4 h-4" />, onClick: () => handleClose(po.id), dividerBefore: true });
+    }
+    return items;
   };
 
   // Unique suppliers & warehouses for filter
@@ -195,8 +294,14 @@ export default function PurchaseOrdersPage() {
   const endIdx = Math.min(startIdx + recordsPerPage, totalRecords);
   const paged = filtered.slice(startIdx, endIdx);
 
-  const formatDate = (d: string) =>
-    new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const formatDate = (d: string) => {
+    const isDateOnly = d.length <= 10;
+    const date = new Date(isDateOnly ? d + 'T00:00:00' : d);
+    if (isDateOnly) {
+      return date.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
+    }
+    return date.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
 
   const formatCurrency = (n: number) =>
     n.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -226,7 +331,7 @@ export default function PurchaseOrdersPage() {
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="ค้นหา..."
-              className="w-full pl-9 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+              className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
             />
           </div>
           <div className="w-28 md:w-40 flex-shrink-0">
@@ -305,15 +410,19 @@ export default function PurchaseOrdersPage() {
                       <tr key={po.id} className="data-tr cursor-pointer" onClick={() => router.push(`/inventory/purchase-orders/${po.id}`)}>
                         {isCol('poInfo') && (
                           <td className="data-td">
-                            <p className="font-mono text-sm font-medium text-gray-900 dark:text-white">{po.po_number}</p>
-                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(po.order_date || po.created_at)}</p>
+                            <p
+                              className="id-text-clickable text-gray-900 dark:text-white"
+                              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(po.po_number).then(() => showToast('คัดลอกเลข PO แล้ว')); }}
+                              title="คัดลอกเลข PO"
+                            >{po.po_number}</p>
+                            <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(po.created_at)}</p>
                           </td>
                         )}
                         {isCol('supplier') && (
                           <td className="data-td">
                             <div className="flex items-center gap-1.5">
                               <Factory className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <span className="text-sm text-gray-700 dark:text-slate-300">{po.supplier?.name || '-'}</span>
+                              <span className="data-primary text-gray-900 dark:text-slate-100">{po.supplier?.name || '-'}</span>
                             </div>
                           </td>
                         )}
@@ -321,21 +430,21 @@ export default function PurchaseOrdersPage() {
                           <td className="data-td">
                             <div className="flex items-center gap-1.5">
                               <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <span className="text-sm text-gray-700 dark:text-slate-300">{po.warehouse?.name || '-'}</span>
+                              <span className="data-text text-gray-700 dark:text-slate-300">{po.warehouse?.name || '-'}</span>
                             </div>
                           </td>
                         )}
                         {isCol('itemCount') && (
                           <td className="data-td text-center">
-                            <span className="text-sm text-gray-600 dark:text-slate-400">{po.items.length}</span>
+                            <span className="data-text text-gray-700 dark:text-slate-300">{po.items.length}</span>
                             {totalReceived > 0 && (
-                              <span className="text-xs text-gray-400 dark:text-slate-500 ml-1">({totalReceived}/{totalQty})</span>
+                              <span className="data-number-muted text-gray-500 dark:text-slate-400 ml-1">({totalReceived}/{totalQty})</span>
                             )}
                           </td>
                         )}
                         {isCol('amount') && (
                           <td className="data-td text-right">
-                            <span className="text-sm font-medium text-gray-900 dark:text-white">฿{formatCurrency(po.total_amount)}</span>
+                            <span className="data-number text-gray-900 dark:text-white">฿{formatCurrency(po.total_amount)}</span>
                           </td>
                         )}
                         {isCol('status') && (
@@ -347,26 +456,12 @@ export default function PurchaseOrdersPage() {
                           </td>
                         )}
                         {isCol('createdBy') && (
-                          <td className="data-td text-sm text-gray-600 dark:text-slate-400">{po.created_by_name || '-'}</td>
+                          <td className="data-td data-text text-gray-700 dark:text-slate-300">{po.created_by_name || '-'}</td>
                         )}
                         {isCol('actions') && (
                           <td className="data-td" onClick={e => e.stopPropagation()}>
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => router.push(`/inventory/purchase-orders/${po.id}`)}
-                                className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
-                                title="ดูรายละเอียด"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handlePrint(po.id)}
-                                disabled={printingId === po.id}
-                                className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors disabled:opacity-50"
-                                title="พิมพ์"
-                              >
-                                {printingId === po.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                              </button>
+                            <div className="flex items-center justify-center">
+                              <ActionMenu items={getMenuItems(po)} />
                             </div>
                           </td>
                         )}
@@ -408,27 +503,32 @@ export default function PurchaseOrdersPage() {
               <div key={po.id} className="p-4 border-b border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/30 cursor-pointer" onClick={() => router.push(`/inventory/purchase-orders/${po.id}`)}>
                 <div className="flex items-center justify-between mb-1.5">
                   <div>
-                    <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">{po.po_number}</span>
-                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(po.order_date || po.created_at)}</p>
+                    <span
+                      className="id-text-clickable text-gray-900 dark:text-white"
+                      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(po.po_number).then(() => showToast('คัดลอกเลข PO แล้ว')); }}
+                      title="คัดลอกเลข PO"
+                    >{po.po_number}</span>
+                    <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(po.created_at)}</p>
                   </div>
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
                     {statusIcon(po.status)}
                     {badge.label}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400 mb-1">
+                <div className="flex items-center gap-2 mb-1">
                   <Factory className="w-3.5 h-3.5 text-gray-400" />
-                  <span>{po.supplier?.name || '-'}</span>
+                  <span className="data-text text-gray-700 dark:text-slate-300">{po.supplier?.name || '-'}</span>
                 </div>
-                <div className="flex items-center justify-between text-xs text-gray-400 dark:text-slate-500">
-                  <span>{po.items.length} รายการ | {po.created_by_name || '-'}</span>
-                  <span className="font-medium text-gray-700 dark:text-slate-300">฿{formatCurrency(po.total_amount)}</span>
+                <div className="flex items-center justify-between">
+                  <span className="data-muted text-gray-400 dark:text-slate-500">{po.items.length} รายการ | {po.created_by_name || '-'}</span>
+                  <span className="data-number text-gray-900 dark:text-white">฿{formatCurrency(po.total_amount)}</span>
                 </div>
               </div>
             );
           })}
         </div>
       </div>
+      {confirmDialog}
     </Layout>
   );
 }

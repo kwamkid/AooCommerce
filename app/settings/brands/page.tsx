@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
@@ -8,9 +8,10 @@ import { useFeatures } from '@/lib/features-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Plus, Check, X, Edit2, Trash2, Award, Factory, ChevronRight,
+  Loader2, Plus, Check, X, Edit2, Trash2, Award, Factory, ChevronRight, Search,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import EntitySearchInput, { EntitySearchOption } from '@/components/ui/EntitySearchInput';
 
 interface SupplierRef {
@@ -28,6 +29,20 @@ interface BrandItem {
 }
 
 export default function BrandsPage() {
+  return (
+    <Suspense fallback={
+      <Layout title="แบรนด์" breadcrumbs={[{ label: 'ตั้งค่าระบบ', href: '/settings' }, { label: 'แบรนด์' }]}>
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+        </div>
+      </Layout>
+    }>
+      <BrandsPageInner />
+    </Suspense>
+  );
+}
+
+function BrandsPageInner() {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
   const { features, fetched: featuresFetched } = useFeatures();
@@ -47,6 +62,37 @@ export default function BrandsPage() {
   // Add form
   const [showAddForm, setShowAddForm] = useState(false);
   const [addName, setAddName] = useState('');
+
+  // Search
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialQ = searchParams.get('q') || '';
+  const [searchInput, setSearchInput] = useState(initialQ);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (value.trim()) {
+        params.set('q', value.trim());
+      } else {
+        params.delete('q');
+      }
+      const qs = params.toString();
+      router.replace(qs ? `?${qs}` : window.location.pathname);
+    }, 300);
+  }, [router, searchParams]);
+
+  const searchQuery = (searchParams.get('q') || '').toLowerCase();
+  const filteredBrands = searchQuery
+    ? brands.filter(b => {
+        const nameMatch = b.name.toLowerCase().includes(searchQuery);
+        const supplierMatch = b.supplier?.name?.toLowerCase().includes(searchQuery);
+        return nameMatch || supplierMatch;
+      })
+    : brands;
 
   useEffect(() => {
     if (userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')) {
@@ -221,8 +267,20 @@ export default function BrandsPage() {
               {brands.length} แบรนด์
             </p>
 
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={e => handleSearchChange(e.target.value)}
+                placeholder="ค้นหาแบรนด์..."
+                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+              />
+            </div>
+
             {/* Brand Cards */}
-            {brands.map(brand => (
+            {filteredBrands.map(brand => (
               <div key={brand.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
                 <div className="flex items-center gap-3 p-4">
                   <div className="w-8 h-8 rounded-lg bg-[#F4511E]/10 flex items-center justify-center flex-shrink-0">

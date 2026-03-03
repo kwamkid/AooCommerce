@@ -23,6 +23,7 @@ interface DateRangePickerProps {
   disabled?: boolean;
   readOnly?: boolean;
   popupDirection?: 'down' | 'up';
+  popupAlign?: 'left' | 'right';
 }
 
 // Helpers
@@ -38,8 +39,11 @@ function toISOString(d: Date | undefined): string | null {
   return format(d, 'yyyy-MM-dd');
 }
 
-function formatDisplay(d: Date | undefined): string {
+function formatDisplay(d: Date | undefined, fmt?: string): string {
   if (!d) return '';
+  if (fmt === 'short') {
+    return `${d.getDate()} ${THAI_MONTHS_SHORT[d.getMonth()]}`;
+  }
   return format(d, 'dd/MM/yyyy');
 }
 
@@ -77,9 +81,11 @@ export default function DateRangePicker({
   showShortcuts = true,
   showFooter = true,
   placeholder,
+  displayFormat,
   disabled = false,
   readOnly = false,
   popupDirection = 'down',
+  popupAlign = 'left',
 }: DateRangePickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -172,10 +178,11 @@ export default function DateRangePicker({
   // Display text
   const displayText = useMemo(() => {
     if (!startDate) return '';
-    if (isSingle) return formatDisplay(startDate);
-    if (!endDate) return formatDisplay(startDate) + ' ~ ';
-    return `${formatDisplay(startDate)} ~ ${formatDisplay(endDate)}`;
-  }, [startDate, endDate, isSingle]);
+    const fmt = displayFormat;
+    if (isSingle) return formatDisplay(startDate, fmt);
+    if (!endDate) return formatDisplay(startDate, fmt) + ' ~ ';
+    return `${formatDisplay(startDate, fmt)} ~ ${formatDisplay(endDate, fmt)}`;
+  }, [startDate, endDate, isSingle, displayFormat]);
 
   const hasValue = !!startDate;
 
@@ -192,15 +199,15 @@ export default function DateRangePicker({
       <button
         type="button"
         onClick={() => { if (!disabled && !readOnly) setOpen(!open); }}
-        className={`w-full h-[42px] px-3 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-normal bg-white dark:bg-slate-700 text-left flex items-center gap-2 transition-colors ${
-          open ? 'ring-2 ring-[#F4511E] border-transparent' : 'hover:border-gray-400 dark:hover:border-slate-500'
+        className={`w-full h-[42px] px-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm font-normal bg-white dark:bg-slate-700 text-left flex items-center gap-2 transition-colors ${
+          open ? 'ring-2 ring-[#F4511E] border-transparent' : 'hover:border-gray-400 dark:hover:border-slate-400'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
         <Calendar className="w-4 h-4 text-amber-500 flex-shrink-0" />
         {displayText ? (
           <span className="text-gray-900 dark:text-white truncate flex-1">{displayText}</span>
         ) : (
-          <span className="text-gray-400 dark:text-slate-500 truncate flex-1">{placeholder || 'เลือกวันที่'}</span>
+          <span className="text-gray-400 dark:text-slate-400 truncate flex-1">{placeholder || 'เลือกวันที่'}</span>
         )}
         {hasValue && !disabled && !readOnly && (
           <span
@@ -214,7 +221,7 @@ export default function DateRangePicker({
 
       {/* Popup */}
       {open && (
-        <div className={`absolute z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-xl shadow-xl overflow-hidden ${popupDirection === 'up' ? 'bottom-full mb-1' : 'mt-1'}`}>
+        <div className={`absolute z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-xl shadow-xl overflow-hidden ${popupDirection === 'up' ? 'bottom-full mb-1' : 'mt-1'} ${popupAlign === 'right' ? 'right-0' : 'left-0'}`}>
           <div className="flex">
             {/* Shortcuts */}
             {showShortcuts && !isSingle && (
@@ -224,7 +231,7 @@ export default function DateRangePicker({
                     key={s.label}
                     type="button"
                     onClick={() => handleShortcut(s)}
-                    className="px-3 py-1.5 text-xs text-gray-600 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-700 dark:hover:text-amber-400 text-left transition-colors"
+                    className="px-3 py-1.5 text-sm text-gray-600 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-700 dark:hover:text-amber-400 text-left transition-colors"
                   >
                     {s.label}
                   </button>
@@ -304,7 +311,7 @@ export default function DateRangePicker({
                         week: '',
                         day: 'text-center p-0',
                         day_button: 'w-10 h-10 text-sm rounded-full hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors text-gray-700 dark:text-slate-300 focus:outline-none',
-                        today: 'font-bold text-amber-600 dark:text-amber-400',
+                        today: 'font-bold text-amber-600 dark:text-amber-400 ring-2 ring-amber-400 dark:ring-amber-500 rounded-full',
                         selected: '!bg-amber-500 !text-white !rounded-full hover:!bg-amber-600',
                         outside: 'text-gray-300 dark:text-slate-600',
                         disabled: 'text-gray-300 dark:text-slate-600 cursor-not-allowed',
@@ -332,7 +339,7 @@ export default function DateRangePicker({
                         week: '',
                         day: 'text-center p-0',
                         day_button: 'w-10 h-10 text-sm rounded-full hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors text-gray-700 dark:text-slate-300 focus:outline-none',
-                        today: 'font-bold text-amber-600 dark:text-amber-400',
+                        today: 'font-bold text-amber-600 dark:text-amber-400 ring-2 ring-amber-400 dark:ring-amber-500 rounded-full',
                         selected: '!bg-amber-100 dark:!bg-amber-900/30 !text-amber-800 dark:!text-amber-200',
                         range_start: '!bg-amber-500 !text-white !rounded-l-full !rounded-r-none',
                         range_end: '!bg-amber-500 !text-white !rounded-r-full !rounded-l-none',

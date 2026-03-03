@@ -12,8 +12,9 @@ import { showPdfPreview } from '@/lib/print-pdf';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import FormSelect from '@/components/ui/FormSelect';
+import ActionMenu, { ActionItem } from '@/app/orders/components/ActionMenu';
 import {
-  Loader2, ArrowUpFromLine, Plus, Warehouse, Pencil, Search,
+  Loader2, ArrowUpFromLine, Plus, Warehouse, Eye, Search,
   CheckCircle2, XCircle, Printer, User,
 } from 'lucide-react';
 
@@ -191,7 +192,7 @@ export default function IssueListPage() {
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="ค้นหา..."
-              className="w-full pl-9 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+              className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
             />
           </div>
           {warehouses.length > 1 && (
@@ -256,20 +257,20 @@ export default function IssueListPage() {
                     <tr key={r.id} className="data-tr cursor-pointer" onClick={() => router.push(`/inventory/issues/${r.id}`)}>
                       {isCol('issueInfo') && (
                         <td className="data-td">
-                          <p className="font-mono text-sm font-medium text-gray-900 dark:text-white">{r.issue_number}</p>
-                          <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
+                          <p className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(r.issue_number).then(() => showToast('คัดลอกเลขที่ใบเบิกแล้ว')); }}>{r.issue_number}</p>
+                          <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
                         </td>
                       )}
                       {isCol('warehouse') && (
                         <td className="data-td">
                           <div className="flex items-center gap-1.5">
                             <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                            <span className="text-sm text-gray-700 dark:text-slate-300">{r.warehouse?.name || '-'}</span>
+                            <span className="data-text text-gray-700 dark:text-slate-300">{r.warehouse?.name || '-'}</span>
                           </div>
                         </td>
                       )}
                       {isCol('itemCount') && (
-                        <td className="data-td text-center text-sm text-gray-600 dark:text-slate-400">{r.items?.length || 0}</td>
+                        <td className="data-td text-center data-text text-gray-700 dark:text-slate-300">{r.items?.length || 0}</td>
                       )}
                       {isCol('status') && (
                         <td className="data-td text-center">
@@ -284,29 +285,29 @@ export default function IssueListPage() {
                         </td>
                       )}
                       {isCol('notes') && (
-                        <td className="data-td text-sm text-gray-500 dark:text-slate-400 max-w-[200px] truncate">{r.notes || '-'}</td>
+                        <td className="data-td data-secondary text-gray-500 dark:text-slate-400 max-w-[200px] truncate">{r.notes || '-'}</td>
                       )}
                       {isCol('createdBy') && (
-                        <td className="data-td text-sm text-gray-600 dark:text-slate-400">{r.created_by_user?.name || '-'}</td>
+                        <td className="data-td data-text text-gray-700 dark:text-slate-300">{r.created_by_user?.name || '-'}</td>
                       )}
                       {isCol('actions') && (
                         <td className="data-td" onClick={e => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => router.push(`/inventory/issues/${r.id}`)}
-                              className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
-                              title="แก้ไข"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handlePrint(r.id)}
-                              disabled={printingId === r.id}
-                              className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors disabled:opacity-50"
-                              title="พิมพ์"
-                            >
-                              {printingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                            </button>
+                          <div className="flex items-center justify-center">
+                            <ActionMenu items={[
+                              {
+                                key: 'view',
+                                label: 'ดูรายละเอียด',
+                                icon: <Eye className="w-4 h-4" />,
+                                onClick: () => router.push(`/inventory/issues/${r.id}`),
+                              },
+                              {
+                                key: 'print',
+                                label: 'พิมพ์',
+                                icon: printingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+                                onClick: () => handlePrint(r.id),
+                                disabled: printingId === r.id,
+                              },
+                            ]} />
                           </div>
                         </td>
                       )}
@@ -342,26 +343,34 @@ export default function IssueListPage() {
               </p>
             </div>
           ) : paginated.map(r => (
-            <div key={r.id} className="p-4 bg-white dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/30 cursor-pointer" onClick={() => router.push(`/inventory/issues/${r.id}`)}>
+            <div key={r.id} className="p-4 bg-white dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700">
               <div className="flex items-center justify-between mb-1.5">
-                <div>
-                  <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">{r.issue_number}</span>
-                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
+                <div className="cursor-pointer" onClick={() => router.push(`/inventory/issues/${r.id}`)}>
+                  <span className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(r.issue_number).then(() => showToast('คัดลอกเลขที่ใบเบิกแล้ว')); }}>{r.issue_number}</span>
+                  <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
                 </div>
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                  r.status === 'completed'
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                }`}>
-                  {r.status === 'completed' ? 'สำเร็จ' : 'ยกเลิก'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                    r.status === 'completed'
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                  }`}>
+                    {r.status === 'completed' ? 'สำเร็จ' : 'ยกเลิก'}
+                  </span>
+                  <ActionMenu items={[
+                    { key: 'view', label: 'ดูรายละเอียด', icon: <Eye className="w-4 h-4" />, onClick: () => router.push(`/inventory/issues/${r.id}`) },
+                    { key: 'print', label: 'พิมพ์', icon: <Printer className="w-4 h-4" />, onClick: () => handlePrint(r.id) },
+                  ]} />
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400 mb-1">
-                <Warehouse className="w-3.5 h-3.5 text-gray-400" />
-                <span>{r.warehouse?.name || '-'}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs text-gray-400 dark:text-slate-500">
-                <span>{r.items?.length || 0} รายการ | {r.created_by_user?.name || '-'}</span>
+              <div className="cursor-pointer" onClick={() => router.push(`/inventory/issues/${r.id}`)}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Warehouse className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="data-text text-gray-700 dark:text-slate-300">{r.warehouse?.name || '-'}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="data-muted text-gray-400 dark:text-slate-500">{r.items?.length || 0} รายการ | {r.created_by_user?.name || '-'}</span>
+                </div>
               </div>
             </div>
           ))}

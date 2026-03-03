@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Layout from '@/components/layout/Layout';
 import Link from 'next/link';
 import { useFetchOnce } from '@/lib/use-fetch-once';
@@ -41,7 +41,7 @@ export default function InventoryPage() {
   }, true);
 
   const tabClass = (tab: TabKey) =>
-    `flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+    `flex items-center gap-2 px-4 py-2.5 text-base font-medium border-b-2 transition-colors ${
       activeTab === tab
         ? 'border-[#F4511E] text-[#F4511E]'
         : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
@@ -84,14 +84,16 @@ export default function InventoryPage() {
 
         {/* Tab Content */}
         {activeTab === 'stock' && (
-          <StockTab
-            warehouses={warehouses}
-            onViewHistory={(variationId, productLabel) => {
-              setHistoryVariationId(variationId);
-              setHistoryProductLabel(productLabel);
-              setActiveTab('history');
-            }}
-          />
+          <Suspense fallback={<div className="flex items-center justify-center py-16"><Package2 className="w-6 h-6 text-gray-300 animate-pulse" /></div>}>
+            <StockTab
+              warehouses={warehouses}
+              onViewHistory={(variationId, productLabel) => {
+                setHistoryVariationId(variationId);
+                setHistoryProductLabel(productLabel);
+                setActiveTab('history');
+              }}
+            />
+          </Suspense>
         )}
         {activeTab === 'history' && (
           <HistoryTab

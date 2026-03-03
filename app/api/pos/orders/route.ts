@@ -61,10 +61,12 @@ export async function GET(request: NextRequest) {
       .from('orders')
       .select(`
         id, order_number, receipt_number, customer_id, total_amount,
-        payment_method, payment_status, order_status, source,
+        discount_amount, payment_method, payment_status, order_status, source,
         pos_session_id, warehouse_id, created_by, created_at,
         customer:customers(id, name, customer_code, phone),
-        items:order_items(id, product_name, variation_label, quantity, unit_price, total)
+        warehouse:warehouses(id, name),
+        pos_session:pos_sessions(terminal:pos_terminals(id, name)),
+        items:order_items(id, product_name, variation_label, quantity, unit_price, total, product:products(image))
       `, { count: 'exact' })
       .eq('company_id', auth.companyId)
       .eq('source', 'pos')
@@ -123,11 +125,56 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const orders = data || [];
+
+    // Build a separate summary query with same filters (but no pagination)
+    let summaryQuery = supabaseAdmin
+      .from('orders')
+      .select('total_amount, discount_amount, order_status, payment_method')
+      .eq('company_id', auth.companyId)
+      .eq('source', 'pos');
+
+    if (sessionId) summaryQuery = summaryQuery.eq('pos_session_id', sessionId);
+    if (warehouseId) {
+      summaryQuery = summaryQuery.eq('warehouse_id', warehouseId);
+    } else if (allowedWarehouseIds) {
+      summaryQuery = summaryQuery.in('warehouse_id', allowedWarehouseIds);
+    }
+    if (date) {
+      summaryQuery = summaryQuery.gte('created_at', `${date}T00:00:00`).lt('created_at', `${date}T23:59:59.999`);
+    } else if (dateFrom || dateTo) {
+      if (dateFrom) summaryQuery = summaryQuery.gte('created_at', `${dateFrom}T00:00:00`);
+      if (dateTo) summaryQuery = summaryQuery.lt('created_at', `${dateTo}T23:59:59.999`);
+    }
+    // Note: search filter omitted from summary for performance — summary shows totals for the date/warehouse filter
+
+    const { data: summaryRows } = await summaryQuery;
+    const completedRows = (summaryRows || []).filter((r: any) => r.order_status === 'completed');
+    const totalDiscount = completedRows.reduce((s: number, r: any) => s + Number(r.discount_amount || 0), 0);
+
+    // Payment breakdown by method
+    const paymentBreakdown: Record<string, { count: number; amount: number }> = {};
+    for (const r of completedRows) {
+      const method = r.payment_method || 'cash';
+      if (!paymentBreakdown[method]) paymentBreakdown[method] = { count: 0, amount: 0 };
+      paymentBreakdown[method].count += 1;
+      paymentBreakdown[method].amount += Number(r.total_amount || 0);
+    }
+
+    const summary = {
+      total_sales: completedRows.reduce((s: number, r: any) => s + Number(r.total_amount || 0), 0),
+      total_discount: totalDiscount,
+      completed_count: completedRows.length,
+      void_count: (summaryRows || []).filter((r: any) => r.order_status === 'cancelled').length,
+      payment_breakdown: paymentBreakdown,
+    };
+
     return NextResponse.json({
-      orders: data || [],
+      orders,
       total: count || 0,
       page,
       limit,
+      summary,
       allowed_warehouse_ids: allowedWarehouseIds,
     });
   } catch {

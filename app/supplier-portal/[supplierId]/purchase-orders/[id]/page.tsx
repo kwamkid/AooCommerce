@@ -37,7 +37,7 @@ interface POData {
 
 function poStatusBadge(status: string) {
   switch (status) {
-    case 'sent': return { label: 'ส่งแล้ว', color: 'bg-blue-100 text-blue-700' };
+    case 'sent': return { label: 'แจ้ง Sup แล้ว', color: 'bg-blue-100 text-blue-700' };
     case 'partial_received': return { label: 'รับบางส่วน', color: 'bg-amber-100 text-amber-700' };
     case 'received': return { label: 'รับครบ', color: 'bg-green-100 text-green-700' };
     case 'closed': return { label: 'ปิด', color: 'bg-slate-100 text-slate-600' };

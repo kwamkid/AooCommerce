@@ -188,20 +188,20 @@ export default function FormSelect({
         disabled={disabled}
         className={`w-full flex items-center gap-2 px-3 h-[42px] border rounded-lg text-base text-left transition-colors ${
           open
-            ? 'border-gray-400 dark:border-slate-500 ring-2 ring-gray-300/50 dark:ring-slate-500/50 bg-white dark:bg-slate-800'
+            ? 'border-gray-400 dark:border-slate-400 ring-2 ring-gray-300/50 dark:ring-slate-400/50 bg-white dark:bg-slate-800'
             : isActive
-              ? 'border-gray-400 dark:border-slate-500 bg-white dark:bg-slate-800'
-              : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-gray-400 dark:hover:border-slate-500'
+              ? 'border-gray-400 dark:border-slate-400 bg-white dark:bg-slate-800'
+              : 'border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-800 hover:border-gray-400 dark:hover:border-slate-400'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
-        {icon && <span className="flex-shrink-0 text-gray-400 dark:text-slate-500">{icon}</span>}
+        {icon && <span className="flex-shrink-0 text-gray-400 dark:text-slate-400">{icon}</span>}
         {selected?.icon && <span className="flex-shrink-0">{selected.icon}</span>}
         <span className={`flex-1 truncate ${
-          selected ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-500'
+          selected ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-400'
         }`}>
           {selected?.label || (clearLabel && value === clearValue ? clearLabel : placeholder)}
         </span>
-        <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform text-gray-400 dark:text-slate-500 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform text-gray-400 dark:text-slate-400 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown */}

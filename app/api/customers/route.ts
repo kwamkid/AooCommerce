@@ -152,6 +152,7 @@ export async function GET(request: NextRequest) {
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!, 10) : null;
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const tagFilter = searchParams.get('tag_id');
+    const channelFilter = searchParams.get('channel');
 
     let query = supabaseAdmin
       .from('customers')
@@ -188,6 +189,49 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ customers: [], ...(page ? { total: 0, page, limit } : {}) });
       }
       query = query.in('id', taggedIds);
+    }
+
+    // Channel filter — find customer IDs that have this channel
+    if (channelFilter) {
+      const channelCustomerIds = new Set<string>();
+
+      if (channelFilter === 'line') {
+        const { data: lc } = await supabaseAdmin
+          .from('line_contacts')
+          .select('customer_id')
+          .not('customer_id', 'is', null);
+        lc?.forEach(r => { if (r.customer_id) channelCustomerIds.add(r.customer_id); });
+      } else if (channelFilter === 'facebook' || channelFilter === 'instagram') {
+        const { data: fc } = await supabaseAdmin
+          .from('fb_contacts')
+          .select('customer_id')
+          .eq('company_id', auth.companyId)
+          .eq('source', channelFilter)
+          .not('customer_id', 'is', null);
+        fc?.forEach(r => { if (r.customer_id) channelCustomerIds.add(r.customer_id); });
+      } else if (['shopee', 'tiktok', 'lazada'].includes(channelFilter)) {
+        const { data: oc } = await supabaseAdmin
+          .from('orders')
+          .select('customer_id')
+          .eq('company_id', auth.companyId)
+          .eq('source', channelFilter)
+          .not('customer_id', 'is', null);
+        oc?.forEach(r => { if (r.customer_id) channelCustomerIds.add(r.customer_id); });
+      } else if (channelFilter === 'manual') {
+        // Manual = customers that have orders with source = 'manual' or null
+        const { data: oc } = await supabaseAdmin
+          .from('orders')
+          .select('customer_id')
+          .eq('company_id', auth.companyId)
+          .or('source.is.null,source.eq.manual')
+          .not('customer_id', 'is', null);
+        oc?.forEach(r => { if (r.customer_id) channelCustomerIds.add(r.customer_id); });
+      }
+
+      if (channelCustomerIds.size === 0) {
+        return NextResponse.json({ customers: [], ...(page ? { total: 0, page, limit } : {}) });
+      }
+      query = query.in('id', [...channelCustomerIds]);
     }
 
     query = query.order('created_at', { ascending: false });

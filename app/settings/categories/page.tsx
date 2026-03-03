@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
@@ -8,7 +9,7 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Plus, Check, X, Edit2, Trash2, Tag, ChevronRight
+  Loader2, Plus, Check, X, Edit2, Trash2, Tag, ChevronRight, Search
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 
@@ -20,7 +21,21 @@ interface CategoryItem {
   children?: CategoryItem[];
 }
 
-export default function CategoriesPage() {
+export default function CategoriesPageWrapper() {
+  return (
+    <Suspense fallback={
+      <Layout title="หมวดหมู่สินค้า">
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+        </div>
+      </Layout>
+    }>
+      <CategoriesPage />
+    </Suspense>
+  );
+}
+
+function CategoriesPage() {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
@@ -42,6 +57,52 @@ export default function CategoriesPage() {
   // Add sub-category inline
   const [addingChildParentId, setAddingChildParentId] = useState<string | null>(null);
   const [childName, setChildName] = useState('');
+
+  // Search
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const initialQ = searchParams.get('q') || '';
+  const [searchInput, setSearchInput] = useState(initialQ);
+  const [searchQuery, setSearchQuery] = useState(initialQ);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearchQuery(value);
+      const params = new URLSearchParams(searchParams.toString());
+      if (value.trim()) {
+        params.set('q', value.trim());
+      } else {
+        params.delete('q');
+      }
+      const qs = params.toString();
+      router.replace(qs ? `?${qs}` : window.location.pathname);
+    }, 300);
+  }, [searchParams, router]);
+
+  useEffect(() => {
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, []);
+
+  const filteredCategories = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return categories;
+    return categories
+      .map(parent => {
+        const parentMatch = parent.name.toLowerCase().includes(q);
+        if (parentMatch) return parent; // show parent with all children
+        const matchedChildren = parent.children?.filter(child =>
+          child.name.toLowerCase().includes(q)
+        );
+        if (matchedChildren && matchedChildren.length > 0) {
+          return { ...parent, children: matchedChildren };
+        }
+        return null;
+      })
+      .filter((p): p is CategoryItem => p !== null);
+  }, [categories, searchQuery]);
 
   useFetchOnce(() => {
     fetchCategories();
@@ -232,13 +293,25 @@ export default function CategoriesPage() {
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={e => handleSearchChange(e.target.value)}
+                placeholder="ค้นหาหมวดหมู่..."
+                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+              />
+            </div>
+
             {/* Category count */}
             <p className="text-base text-gray-500 dark:text-slate-400">
-              {categories.length} หมวดหมู่
+              {filteredCategories.length} หมวดหมู่
             </p>
 
             {/* Category Cards */}
-            {categories.map(parent => (
+            {filteredCategories.map(parent => (
               <div key={parent.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
                 {/* Parent row */}
                 <div className="flex items-center gap-3 p-4">

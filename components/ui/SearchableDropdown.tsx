@@ -104,8 +104,8 @@ export default function SearchableDropdown({
         }}
         className={`flex items-center gap-2 border rounded-lg px-3 h-[42px] text-sm transition-colors ${
           isActive
-            ? 'border-gray-400 dark:border-slate-500 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300'
-            : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:border-gray-400 dark:hover:border-slate-500'
+            ? 'border-gray-400 dark:border-slate-400 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200'
+            : 'border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:border-gray-400 dark:hover:border-slate-400'
         }`}
       >
         {/* Selected icon */}

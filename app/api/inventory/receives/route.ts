@@ -248,6 +248,14 @@ export async function POST(request: NextRequest) {
         .from('inventory_transactions')
         .insert(txInsert);
 
+      // Always update cost_price on variation when unit_cost is provided
+      if (unit_cost && unit_cost > 0) {
+        await supabaseAdmin
+          .from('product_variations')
+          .update({ cost_price: unit_cost })
+          .eq('id', variation_id);
+      }
+
       results.push({ variation_id, quantity, new_balance: newQuantity });
     }
 
@@ -280,16 +288,30 @@ export async function POST(request: NextRequest) {
         .eq('po_id', po_id);
 
       if (allPoItems && allPoItems.length > 0) {
-        const allReceived = allPoItems.every(i => i.received_quantity >= i.quantity);
-        const someReceived = allPoItems.some(i => i.received_quantity > 0);
-        const newPoStatus = allReceived ? 'received' : someReceived ? 'partial_received' : null;
+        const allAtLeast = allPoItems.every(i => (i.received_quantity || 0) >= i.quantity);
+        const allExact = allPoItems.every(i => (i.received_quantity || 0) === i.quantity);
+        const someReceived = allPoItems.some(i => (i.received_quantity || 0) > 0);
+
+        // Check if receive contains extra items not in PO
+        const poVariationIds = new Set(
+          (await supabaseAdmin.from('purchase_order_items').select('variation_id').eq('po_id', po_id)).data?.map(i => i.variation_id) || []
+        );
+        const hasExtraItems = items.some(i => i.variation_id && !poVariationIds.has(i.variation_id));
+
+        let newPoStatus: string | null = null;
+        if (allAtLeast) {
+          // All PO items received at least the ordered quantity
+          newPoStatus = (allExact && !hasExtraItems) ? 'received' : 'received_mismatch';
+        } else if (someReceived) {
+          newPoStatus = 'partial_received';
+        }
 
         if (newPoStatus) {
           await supabaseAdmin
             .from('purchase_orders')
             .update({ status: newPoStatus })
             .eq('id', po_id)
-            .in('status', ['sent', 'partial_received']);
+            .in('status', ['sent', 'partial_received', 'received', 'received_mismatch']);
         }
       }
     }

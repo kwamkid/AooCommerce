@@ -1,7 +1,8 @@
 // Path: app/pos/components/CartPanel.tsx
 'use client';
 
-import { Minus, Plus, Trash2, User } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Minus, Plus, Trash2, User, Tag } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
 
 export interface CartItem {
@@ -40,6 +41,97 @@ function getLineTotal(item: CartItem): number {
   return sub - sub * ((item.discount_value || 0) / 100);
 }
 
+function getDiscountAmount(item: CartItem): number {
+  const sub = item.quantity * item.unit_price;
+  if (item.discount_type === 'amount') return item.discount_value || 0;
+  return Math.round(sub * ((item.discount_value || 0) / 100) * 100) / 100;
+}
+
+// Inline discount popover
+function DiscountPopover({ item, onUpdate }: { item: CartItem; onUpdate: (type: 'percent' | 'amount', value: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const [type, setType] = useState(item.discount_type);
+  const [value, setValue] = useState(item.discount_value);
+  const popRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setType(item.discount_type);
+      setValue(item.discount_value);
+      setTimeout(() => inputRef.current?.select(), 50);
+    }
+  }, [open, item.discount_type, item.discount_value]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (popRef.current && !popRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  const handleSave = () => {
+    const sub = item.quantity * item.unit_price;
+    let v = Math.max(0, value);
+    if (type === 'percent') v = Math.min(v, 100);
+    else v = Math.min(v, sub);
+    onUpdate(type, v);
+    setOpen(false);
+  };
+
+  const discountAmt = getDiscountAmount(item);
+  const hasDiscount = discountAmt > 0;
+
+  return (
+    <div className="relative" ref={popRef}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors ${
+          hasDiscount
+            ? 'text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20'
+            : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10'
+        }`}
+        title="ส่วนลด"
+      >
+        <Tag className="w-3 h-3" />
+        {hasDiscount && <span>-฿{formatPrice(discountAmt)}</span>}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg p-3 w-52">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">ส่วนลดรายการนี้</p>
+          <div className="flex items-stretch gap-1">
+            <input
+              ref={inputRef}
+              type="number"
+              value={value || ''}
+              onChange={(e) => setValue(Math.max(0, Number(e.target.value) || 0))}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+              placeholder="0"
+              className="flex-1 px-2 py-1.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-gray-700 rounded-l text-gray-900 dark:text-white text-sm text-right placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-[#F4511E] w-0"
+              min="0"
+            />
+            <button
+              onClick={() => { setType(type === 'percent' ? 'amount' : 'percent'); setValue(0); }}
+              className="px-2.5 border border-l-0 border-gray-300 dark:border-gray-700 rounded-r bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/20 text-sm font-bold min-w-[28px] flex items-center justify-center"
+            >
+              {type === 'percent' ? '%' : '฿'}
+            </button>
+          </div>
+          <button
+            onClick={handleSave}
+            className="w-full mt-2 py-1.5 bg-[#F4511E] text-white text-xs rounded-lg hover:bg-[#D63B0E] transition-colors font-medium"
+          >
+            ตกลง
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CartPanel({
   items,
   orderDiscount,
@@ -68,10 +160,10 @@ export default function CartPanel({
       {/* Customer */}
       <button
         onClick={onOpenCustomerSearch}
-        className="flex items-center gap-2 px-3 py-2 mb-3 bg-gray-100 dark:bg-white/5 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
+        className="flex items-center gap-2 px-3 py-2.5 mb-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
       >
         <User className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-        <span className="text-sm text-gray-600 dark:text-gray-300 truncate">
+        <span className="text-sm text-gray-700 dark:text-gray-200 truncate">
           {customerName || 'ลูกค้าทั่วไป (Walk-in)'}
         </span>
       </button>
@@ -140,36 +232,14 @@ export default function CartPanel({
                     </button>
                   </div>
 
-                  {/* Line total */}
-                  <p className="text-gray-900 dark:text-white font-semibold text-sm">฿{formatPrice(lineTotal)}</p>
-                </div>
-
-                {/* Per-item discount */}
-                <div className="flex items-stretch mt-2">
-                  <input
-                    type="number"
-                    value={item.discount_value || ''}
-                    onChange={(e) => {
-                      let v = Math.max(0, Number(e.target.value) || 0);
-                      const sub = item.quantity * item.unit_price;
-                      if (item.discount_type === 'percent') v = Math.min(v, 100);
-                      else v = Math.min(v, sub);
-                      onUpdateItemDiscount(item.variation_id, item.discount_type, v);
-                    }}
-                    placeholder="ส่วนลด"
-                    className="flex-1 px-2 py-1.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-gray-700 rounded-l text-gray-900 dark:text-white text-xs placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-[#F4511E] w-0"
-                    min="0"
-                  />
-                  <button
-                    onClick={() => {
-                      const newType = item.discount_type === 'percent' ? 'amount' : 'percent';
-                      onUpdateItemDiscount(item.variation_id, newType, 0);
-                    }}
-                    className="px-2.5 border border-l-0 border-gray-300 dark:border-gray-700 rounded-r bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/20 text-xs font-bold min-w-[28px] flex items-center justify-center"
-                    title="สลับประเภทส่วนลด"
-                  >
-                    {item.discount_type === 'percent' ? '%' : '฿'}
-                  </button>
+                  {/* Line total + discount icon */}
+                  <div className="flex items-center gap-1.5">
+                    <DiscountPopover
+                      item={item}
+                      onUpdate={(type, value) => onUpdateItemDiscount(item.variation_id, type, value)}
+                    />
+                    <p className="text-gray-900 dark:text-white font-semibold text-sm">฿{formatPrice(lineTotal)}</p>
+                  </div>
                 </div>
               </div>
             );
@@ -180,7 +250,7 @@ export default function CartPanel({
       {/* Order discount */}
       <div className="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-1.5">
         <div className="flex items-center gap-2">
-          <span className="text-gray-500 dark:text-gray-400 text-xs">ส่วนลดทั้งบิล</span>
+          <span className="text-gray-500 dark:text-gray-400 text-sm">ส่วนลดทั้งบิล</span>
           <div className="flex items-stretch ml-auto">
             <input
               type="number"

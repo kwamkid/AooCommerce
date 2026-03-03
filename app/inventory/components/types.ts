@@ -33,7 +33,7 @@ export interface InventoryItem {
   updated_at: string;
 }
 
-export type StockColumnKey = 'product' | 'sku' | 'quantity' | 'reserved' | 'available' | 'min' | 'status' | 'actions';
+export type StockColumnKey = 'image' | 'product' | 'sku' | 'quantity' | 'reserved' | 'available' | 'min' | 'status' | 'actions';
 
 export interface ColumnConfig<T extends string> {
   key: T;
@@ -43,8 +43,9 @@ export interface ColumnConfig<T extends string> {
 }
 
 export const STOCK_COLUMN_CONFIGS: ColumnConfig<StockColumnKey>[] = [
-  { key: 'product', label: 'สินค้า', defaultVisible: true, alwaysVisible: true },
-  { key: 'sku', label: 'SKU', defaultVisible: true },
+  { key: 'image', label: 'รูป', defaultVisible: true },
+  { key: 'product', label: 'ชื่อสินค้า', defaultVisible: true, alwaysVisible: true },
+  { key: 'sku', label: 'SKU', defaultVisible: false },
   { key: 'quantity', label: 'จำนวน', defaultVisible: true },
   { key: 'reserved', label: 'จอง', defaultVisible: true },
   { key: 'available', label: 'พร้อมขาย', defaultVisible: true },

@@ -23,6 +23,8 @@ interface ConfirmDialogProps {
   variant?: 'primary' | 'danger';
   /** Confirm button icon */
   confirmIcon?: ReactNode;
+  /** Show loading state on confirm button */
+  loading?: boolean;
 }
 
 export default function ConfirmDialog({
@@ -37,6 +39,7 @@ export default function ConfirmDialog({
   cancelLabel = 'ยกเลิก',
   variant = 'primary',
   confirmIcon,
+  loading,
 }: ConfirmDialogProps) {
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') onClose();
@@ -91,7 +94,8 @@ export default function ConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
-            className={`flex-1 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2 ${confirmBtnClass}`}
+            disabled={loading}
+            className={`flex-1 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2 ${confirmBtnClass} ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
             {confirmIcon}
             {confirmLabel}

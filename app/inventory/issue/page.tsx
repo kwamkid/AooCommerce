@@ -451,14 +451,14 @@ export default function StockIssuePage() {
                                 min="1"
                                 value={item.quantity}
                                 onChange={e => handleUpdateQuantity(index, parseInt(e.target.value) || 1)}
-                                className={`w-16 px-2 py-1 border rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] ${
+                                className={`w-24 py-1 border rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] ${
                                   isOverStock
-                                    ? 'border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20'
-                                    : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700'
+                                    ? 'border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 pl-2 pr-6'
+                                    : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-2'
                                 } text-gray-900 dark:text-white`}
                               />
                               {isOverStock && (
-                                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
                               )}
                             </div>
                           </td>
@@ -470,6 +470,7 @@ export default function StockIssuePage() {
                                 options={COMMON_REASONS.map(r => ({ id: r.value, label: r.label }))}
                                 placeholder="เลือกเหตุผล"
                                 searchThreshold={99}
+                                portal
                               />
                               {item.reason === 'อื่นๆ' && (
                                 <input
@@ -583,7 +584,7 @@ export default function StockIssuePage() {
                           min="1"
                           value={item.quantity}
                           onChange={e => handleUpdateQuantity(index, parseInt(e.target.value) || 1)}
-                          className={`w-16 px-2 py-1 border rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] ${
+                          className={`w-24 px-2 py-1 border rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] ${
                             isOverStock
                               ? 'border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20'
                               : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700'
@@ -606,6 +607,7 @@ export default function StockIssuePage() {
                         options={COMMON_REASONS.map(r => ({ id: r.value, label: r.label }))}
                         placeholder="เลือกเหตุผล"
                         searchThreshold={99}
+                        portal
                       />
                       {item.reason === 'อื่นๆ' && (
                         <input

@@ -132,7 +132,7 @@ export default function ProductSearchInput({
 
   return (
     <div className="relative">
-      <div className="flex items-center gap-2 px-3 py-1.5 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-[#F4511E] transition-colors bg-transparent">
+      <div className="flex items-center gap-2 px-3 py-1.5 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-[#F4511E] transition-colors" style={{ backgroundColor: '#63f5b121' }}>
         <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
         <input
           ref={searchRef}

@@ -372,8 +372,8 @@ export default function SuppliersPage() {
 
                     {isCol('name') && (
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-[15px] text-gray-900 dark:text-white">{supplier.name}</div>
-                      {supplier.address && <div className="text-xs text-gray-400 dark:text-slate-500 line-clamp-1">{supplier.address}</div>}
+                      <div className="font-semibold text-[16px] text-gray-900 dark:text-white">{supplier.name}</div>
+                      {supplier.address && <div className="data-muted text-gray-400 dark:text-slate-500 line-clamp-1">{supplier.address}</div>}
                     </td>
                     )}
 
@@ -385,7 +385,7 @@ export default function SuppliersPage() {
 
                     {isCol('contact') && (
                     <td className="px-3 py-3 whitespace-nowrap">
-                      <span className="text-sm text-gray-700 dark:text-slate-300">{supplier.contact_name || '-'}</span>
+                      <span className="data-text text-gray-700 dark:text-slate-300">{supplier.contact_name || '-'}</span>
                     </td>
                     )}
 
@@ -395,13 +395,13 @@ export default function SuppliersPage() {
                         <a href={`tel:${supplier.phone}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline">
                           <Phone className="w-3.5 h-3.5" />{supplier.phone}
                         </a>
-                      ) : <span className="text-gray-300 text-sm">-</span>}
+                      ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
                     </td>
                     )}
 
                     {isCol('email') && (
                     <td className="px-3 py-3 whitespace-nowrap">
-                      <span className="text-sm text-gray-700 dark:text-slate-300">{supplier.email || '-'}</span>
+                      <span className="data-text text-gray-700 dark:text-slate-300">{supplier.email || '-'}</span>
                     </td>
                     )}
 
@@ -418,10 +418,10 @@ export default function SuppliersPage() {
                                 {bank.code.slice(0, 2)}
                               </div>
                             ))}
-                            <span className="text-sm text-gray-700 dark:text-slate-300">{supplier.bank_name} {supplier.bank_account ? `(${supplier.bank_account})` : ''}</span>
+                            <span className="data-text text-gray-700 dark:text-slate-300">{supplier.bank_name} {supplier.bank_account ? `(${supplier.bank_account})` : ''}</span>
                           </div>
                         );
-                      })() : <span className="text-gray-300 text-sm">-</span>}
+                      })() : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
                     </td>
                     )}
 

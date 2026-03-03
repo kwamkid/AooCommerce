@@ -115,7 +115,7 @@ html, body {
     @apply bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700;
   }
   .data-th {
-    @apply px-5 py-2.5 text-left text-base font-semibold text-gray-700 dark:text-slate-300 tracking-wide whitespace-nowrap;
+    @apply px-5 py-2.5 text-left text-sm font-normal text-gray-700 dark:text-slate-300 tracking-wide whitespace-nowrap;
   }
   .data-tbody {
     @apply bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700;
@@ -131,6 +131,54 @@ html, body {
   }
   .data-pagination {
     @apply px-4 py-3 border-t border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3;
+  }
+
+  /* ─── ID / Code text classes ─── */
+  /* Primary ID (order#, receipt#, PO#, doc#) — used in list/card headers */
+  .id-text {
+    @apply font-mono text-sm font-semibold;
+  }
+  /* Primary ID with click-to-copy behavior */
+  .id-text-clickable {
+    @apply font-mono text-sm font-semibold cursor-pointer hover:text-[#F4511E] transition-colors;
+  }
+  /* Secondary code (SKU, barcode, product code, tracking#) */
+  .code-text {
+    @apply font-mono text-xs;
+  }
+
+  /* ─── Data typography classes (font-size + weight only, color ใส่เอง) ─── */
+  /* Primary content — product name, customer name */
+  .data-primary {
+    @apply text-sm font-medium;
+  }
+  /* Secondary/sub content — variation, subtitle */
+  .data-secondary {
+    @apply text-xs;
+  }
+  /* Normal body text in table/card */
+  .data-text {
+    @apply text-sm;
+  }
+  /* Muted/dimmed text */
+  .data-muted {
+    @apply text-xs;
+  }
+  /* Numeric value — price, total */
+  .data-number {
+    @apply text-sm font-semibold tabular-nums;
+  }
+  /* Numeric muted — quantity, unit price */
+  .data-number-muted {
+    @apply text-xs tabular-nums;
+  }
+  /* Timestamp — date, time */
+  .data-timestamp {
+    @apply text-xs;
+  }
+  /* Label — column header, field label */
+  .data-label {
+    @apply text-xs font-medium;
   }
 }
 
@@ -204,10 +252,10 @@ html, body {
   }
 }
 
-/* Table body font size 16px */
+/* Table body default font size 14px — individual cells can override with text-xs/text-base etc. */
 .data-tbody td {
-  font-size: 1rem;
-  line-height: 1.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 /* Filter card inputs — consistent 16px (prevent iOS zoom) */

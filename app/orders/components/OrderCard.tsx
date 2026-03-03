@@ -122,7 +122,7 @@ export default function OrderCard({
             )}
             <ChannelBadge channel={order.channel} />
             <span
-              className={`text-sm font-semibold ${orderStatusCfg.headerText} hover:text-[#F4511E] cursor-pointer transition-colors truncate`}
+              className={`id-text-clickable ${orderStatusCfg.headerText} truncate`}
               onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(order.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
               title="คัดลอกเลขคำสั่งซื้อ"
             >{order.order_number}</span>
@@ -135,7 +135,7 @@ export default function OrderCard({
           </div>
           {/* Line 2: time + badges */}
           <div className="flex items-center flex-wrap gap-1.5 mt-1">
-            <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">
+            <span className="data-timestamp text-gray-400 dark:text-slate-500 flex-shrink-0">
               {relativeTime(order.created_at)}
             </span>
             {deadline && ['ready_to_ship', 'processing'].includes(order.order_status) && (
@@ -213,22 +213,22 @@ export default function OrderCard({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start gap-1.5">
-                    <p className="text-base text-gray-800 dark:text-slate-200 line-clamp-2 min-w-0">
+                    <p className="data-primary text-gray-900 dark:text-slate-100 text-base line-clamp-2 min-w-0">
                       {item.product_name}
                       {item.variation_label && (
-                        <span className="text-gray-400 dark:text-slate-500"> ({item.variation_label})</span>
+                        <span className="data-muted text-gray-400 dark:text-slate-500"> ({item.variation_label})</span>
                       )}
                     </p>
-                    <span className="text-base text-gray-500 dark:text-slate-400 flex-shrink-0">x{item.quantity}</span>
+                    <span className="data-number-muted text-gray-500 dark:text-slate-400 text-base flex-shrink-0">x{item.quantity}</span>
                   </div>
                   {item.subtitle && (
-                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5 truncate">{item.subtitle}</p>
+                    <p className="data-secondary text-gray-500 dark:text-slate-400 mt-0.5 truncate">{item.subtitle}</p>
                   )}
                 </div>
               </div>
             ))}
             {(order.item_line_count || 0) > 3 && (
-              <p className="text-sm text-gray-400 dark:text-slate-500 pl-[60px]">
+              <p className="data-muted text-gray-400 dark:text-slate-500 text-sm pl-[60px]">
                 + อีก {order.item_line_count - 3} รายการ
               </p>
             )}
@@ -237,7 +237,11 @@ export default function OrderCard({
           {/* Tracking number (if exists, show below items) */}
           {order.tracking_number && (
             <div className="px-4 pt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
-              <span className="font-mono bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-[11px]">
+              <span
+                className="code-text bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+                onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(order.tracking_number!).then(() => showToast('คัดลอกเลขพัสดุแล้ว')); }}
+                title="คัดลอกเลขพัสดุ"
+              >
                 {order.tracking_number}
               </span>
             </div>
@@ -251,7 +255,7 @@ export default function OrderCard({
             {order.customer_picture_url ? (
               <img src={order.customer_picture_url} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
             ) : null}
-            <span className="text-sm text-gray-700 dark:text-slate-300 truncate max-w-[80px] sm:max-w-none">{customerName}</span>
+            <span className="data-text text-gray-700 dark:text-slate-300 truncate max-w-[80px] sm:max-w-none">{customerName}</span>
             {customerPhone && (
               <a
                 href={`tel:${customerPhone}`}
@@ -264,7 +268,7 @@ export default function OrderCard({
           </div>
 
           {/* Total */}
-          <span className="text-lg font-semibold text-gray-900 dark:text-white">
+          <span className="data-number text-gray-900 dark:text-white text-lg">
             ฿{formatPrice(order.total_amount)}
           </span>
 

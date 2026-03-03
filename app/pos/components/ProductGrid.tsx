@@ -79,11 +79,11 @@ export default function ProductGrid({ products, onAddToCart, loading, allowOvers
             </div>
 
             {/* Name */}
-            <p className="text-gray-900 dark:text-white text-sm font-medium truncate">
+            <p className="text-gray-900 dark:text-white text-sm font-medium line-clamp-2 leading-tight">
               {product.product_name}
             </p>
             {product.variation_label && (
-              <p className="text-gray-500 dark:text-gray-400 text-xs truncate">{product.variation_label}</p>
+              <p className="text-gray-500 dark:text-gray-400 text-xs truncate mt-0.5">{product.variation_label}</p>
             )}
 
             {/* Price */}

@@ -61,7 +61,7 @@ function getItemSubtitle(item: POItem): string {
 }
 
 const PO_STATUS_LABELS: Record<string, string> = {
-  draft: 'ร่าง', sent: 'ส่งแล้ว', partial_received: 'รับบางส่วน',
+  draft: 'ร่าง', sent: 'แจ้ง Sup แล้ว', partial_received: 'รับบางส่วน',
   received: 'รับครบ', closed: 'ปิด', cancelled: 'ยกเลิก',
 };
 

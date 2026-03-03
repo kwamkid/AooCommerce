@@ -16,7 +16,6 @@ import BarcodeInput from './components/BarcodeInput';
 import CartPanel, { CartItem } from './components/CartPanel';
 import PaymentModal from './components/PaymentModal';
 import Receipt from './components/Receipt';
-import VariationPicker from './components/VariationPicker';
 import CustomerSearch from './components/CustomerSearch';
 
 interface PosSession {
@@ -33,7 +32,7 @@ interface PosSession {
   terminal: { id: string; name: string; code: string | null } | null;
 }
 
-interface Category {
+interface FilterItem {
   id: string;
   name: string;
 }
@@ -62,7 +61,9 @@ export default function PosPage() {
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+  const [categories, setCategories] = useState<FilterItem[]>([]);
+  const [brands, setBrands] = useState<FilterItem[]>([]);
 
   // Cart
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -70,10 +71,6 @@ export default function PosPage() {
   const [orderDiscountType, setOrderDiscountType] = useState<'percent' | 'amount'>('amount');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
-
-  // Variation picker
-  const [variationPickerProduct, setVariationPickerProduct] = useState<string | null>(null);
-  const [variationOptions, setVariationOptions] = useState<PosProduct[]>([]);
 
   // Payment
   const [showPayment, setShowPayment] = useState(false);
@@ -165,13 +162,18 @@ export default function PosPage() {
     })();
   }, [session]);
 
-  // Fetch categories
+  // Fetch categories & brands
   useEffect(() => {
     (async () => {
       try {
-        const res = await apiFetch('/api/categories');
-        const data = await res.json();
-        setCategories((data.categories || []).filter((c: any) => c.is_active));
+        const [catRes, brandRes] = await Promise.all([
+          apiFetch('/api/categories'),
+          apiFetch('/api/brands'),
+        ]);
+        const catData = await catRes.json();
+        const brandData = await brandRes.json();
+        setCategories((catData.categories || []).filter((c: any) => c.is_active));
+        setBrands((brandData.data || []).map((b: any) => ({ id: b.id, name: b.name })));
       } catch {}
     })();
   }, []);
@@ -186,6 +188,7 @@ export default function PosPage() {
       const q = search ?? searchQuery;
       if (q) params.set('search', q);
       if (selectedCategory) params.set('category_id', selectedCategory);
+      if (selectedBrand) params.set('brand_id', selectedBrand);
 
       const res = await apiFetch(`/api/pos/products?${params}`);
       const data = await res.json();
@@ -195,12 +198,12 @@ export default function PosPage() {
     } finally {
       setLoadingProducts(false);
     }
-  }, [session, searchQuery, selectedCategory]);
+  }, [session, searchQuery, selectedCategory, selectedBrand]);
 
-  // Fetch on session/category change (immediate)
+  // Fetch on session/category/brand change (immediate)
   useEffect(() => {
     if (session) fetchProducts();
-  }, [session, selectedCategory]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session, selectedCategory, selectedBrand]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounce search — only fetch after user stops typing for 400ms
   useEffect(() => {
@@ -251,14 +254,6 @@ export default function PosPage() {
 
   // Cart management
   const addToCart = (product: PosProduct) => {
-    // Check if product has variations (same product_id, different variation_ids)
-    const sameProductVariations = products.filter(p => p.product_id === product.product_id);
-    if (sameProductVariations.length > 1 && !variationPickerProduct) {
-      setVariationPickerProduct(product.product_id);
-      setVariationOptions(sameProductVariations);
-      return;
-    }
-
     setCartItems(prev => {
       const existing = prev.find(i => i.variation_id === product.variation_id);
       const hasStockLimit = product.stock >= 0; // -1 = unlimited (no warehouse)
@@ -537,8 +532,11 @@ export default function PosPage() {
           <div className="mt-3">
             <CategoryTabs
               categories={categories}
-              selectedId={selectedCategory}
-              onSelect={setSelectedCategory}
+              brands={brands}
+              selectedCategoryId={selectedCategory}
+              selectedBrandId={selectedBrand}
+              onSelectCategory={setSelectedCategory}
+              onSelectBrand={setSelectedBrand}
             />
           </div>
 
@@ -584,18 +582,6 @@ export default function PosPage() {
             if (!session) router.push('/dashboard');
           }}
           loading={sessionLoading}
-        />
-      )}
-
-      {variationPickerProduct && (
-        <VariationPicker
-          productName={variationOptions[0]?.product_name || ''}
-          variations={variationOptions}
-          onSelect={(v) => {
-            setVariationPickerProduct(null);
-            addToCart(v);
-          }}
-          onClose={() => setVariationPickerProduct(null)}
         />
       )}
 

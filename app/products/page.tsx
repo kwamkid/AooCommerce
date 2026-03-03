@@ -1,8 +1,8 @@
 // Path: app/products/page.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
@@ -26,6 +26,7 @@ import {
   Award,
   AlertCircle,
   MoreVertical,
+  FilterX,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
@@ -170,30 +171,72 @@ function ActionMenu({ productId, onEdit, onDuplicate, onDelete }: {
   );
 }
 
-export default function ProductsPage() {
+function ProductsPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { userProfile, loading: authLoading } = useAuth();
   const { features } = useFeatures();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
 
+  // Derive filter values from URL search params
+  const typeFilter = searchParams.get('type') || '';
+  const categoryFilter = searchParams.get('cat') || '';
+  const brandFilter = searchParams.get('brand') || '';
+  const shopAccountFilter = searchParams.get('shop') || 'all';
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
+  const rowsPerPage = parseInt(searchParams.get('limit') || '20', 10);
+  const debouncedSearch = searchParams.get('q') || '';
+
+  // Local search input state (for immediate keystroke feedback)
+  const [searchInput, setSearchInput] = useState(debouncedSearch);
+  const debounceRef = useRef<NodeJS.Timeout>(undefined);
+
+  // Sync search input when URL param changes externally (e.g. browser back)
+  useEffect(() => { setSearchInput(debouncedSearch); }, [debouncedSearch]);
+
+  // Helper to update URL params
+  const setParams = useCallback((updates: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    let pageReset = false;
+    for (const [k, v] of Object.entries(updates)) {
+      if (k !== 'page') pageReset = true;
+      const defaults: Record<string, string> = { type: '', cat: '', brand: '', shop: 'all', q: '', page: '1', limit: '20' };
+      if (v === defaults[k] || v === '') params.delete(k);
+      else params.set(k, v);
+    }
+    if (pageReset) params.delete('page');
+    const qs = params.toString();
+    router.replace(qs ? `?${qs}` : '/products', { scroll: false });
+  }, [searchParams, router]);
+
+  // Debounced search handler
+  const handleSearchChange = useCallback((val: string) => {
+    setSearchInput(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!val) {
+      setParams({ q: '' });
+      return;
+    }
+    debounceRef.current = setTimeout(() => setParams({ q: val }), 300);
+  }, [setParams]);
+
+  // Check if any filter is active
+  const hasActiveFilters = !!(debouncedSearch || typeFilter || categoryFilter || brandFilter || (shopAccountFilter !== 'all'));
+
+  const clearAllFilters = useCallback(() => {
+    setSearchInput('');
+    router.replace('/products', { scroll: false });
+  }, [router]);
+
   const [productsList, setProductsList] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false); // loading indicator for page changes
   const [dataFetched, setDataFetched] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [brandFilter, setBrandFilter] = useState('');
-  const [shopAccountFilter, setShopAccountFilter] = useState<string>('all');
   const [shopOptions, setShopOptions] = useState<DropdownOption[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [brands, setBrands] = useState<BrandOption[]>([]);
   const [error, setError] = useState('');
-
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(20);
 
   // Column visibility
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
@@ -250,14 +293,12 @@ export default function ProductsPage() {
   const [totalProducts, setTotalProducts] = useState(0);
 
   // Fetch products with server-side pagination
-  const fetchData = async (pageNum?: number, perPage?: number) => {
+  const fetchData = async () => {
     const t0 = Date.now();
     setFetching(true);
     try {
-      const p = pageNum ?? currentPage;
-      const l = perPage ?? rowsPerPage;
-      const params = new URLSearchParams({ page: String(p), limit: String(l), include_shop_options: '1' });
-      if (searchTerm) params.set('search', searchTerm);
+      const params = new URLSearchParams({ page: String(currentPage), limit: String(rowsPerPage), include_shop_options: '1' });
+      if (debouncedSearch) params.set('search', debouncedSearch);
       if (categoryFilter !== '') params.set('category_id', categoryFilter);
       if (brandFilter !== '') params.set('brand_id', brandFilter);
       if (shopAccountFilter !== 'all') params.set('shop_account_id', shopAccountFilter);
@@ -304,24 +345,11 @@ export default function ProductsPage() {
     fetchFilters();
   }, !authLoading && !!userProfile);
 
-  // Re-fetch when pagination/filters change (after initial load)
+  // Re-fetch when URL-derived filter/pagination values change (after initial load)
   useEffect(() => {
-    if (dataFetched) {
-      fetchData();
-    }
+    if (dataFetched) fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, rowsPerPage]);
-
-  // Debounced re-fetch when server-side filters change
-  useEffect(() => {
-    if (!dataFetched) return;
-    const timer = setTimeout(() => {
-      setCurrentPage(1);
-      fetchData(1);
-    }, 300);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, categoryFilter, brandFilter, shopAccountFilter]);
+  }, [currentPage, rowsPerPage, debouncedSearch, typeFilter, categoryFilter, brandFilter, shopAccountFilter]);
 
   // Handle delete
   const handleDelete = async (product: ProductItem) => {
@@ -399,7 +427,7 @@ export default function ProductsPage() {
   };
 
   // Clear selection when filters/page change
-  useEffect(() => { setSelectedIds(new Set()); }, [searchTerm, typeFilter, categoryFilter, brandFilter, shopAccountFilter, currentPage]);
+  useEffect(() => { setSelectedIds(new Set()); }, [debouncedSearch, typeFilter, categoryFilter, brandFilter, shopAccountFilter, currentPage]);
 
   // Client-side filter (only type filter — rest is server-side)
   const filteredProducts = productsList.filter(product => {
@@ -428,8 +456,6 @@ export default function ProductsPage() {
       return next;
     });
   };
-
-  useEffect(() => { setCurrentPage(1); }, [typeFilter]);
 
   // Clear error alert
   useEffect(() => {
@@ -485,13 +511,13 @@ export default function ProductsPage() {
             {/* Search + Type Filter + Column Settings */}
             <div className="data-filter-card">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="w-full md:flex-1 md:w-auto">
-                  <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ, รหัส, SKU, Barcode..." className="py-2" />
+                <div className="w-full md:flex-1 md:min-w-0">
+                  <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาชื่อ, รหัส, SKU, Barcode..." className="py-2" />
                 </div>
-                <div className="w-[calc(50%-0.25rem)] md:w-36">
+                <div className="flex-1 min-w-0">
                   <FormSelect
                     value={typeFilter}
-                    onChange={setTypeFilter}
+                    onChange={(v: string) => setParams({ type: v })}
                     options={[
                       { id: 'simple', label: 'สินค้าปกติ' },
                       { id: 'variation', label: 'สินค้าย่อย' },
@@ -501,11 +527,10 @@ export default function ProductsPage() {
                     searchThreshold={99}
                   />
                 </div>
-                {/* Category filter */}
-                <div className="w-[calc(50%-0.25rem)] md:w-44">
+                <div className="flex-1 min-w-0">
                   <FormSelect
                     value={categoryFilter}
-                    onChange={setCategoryFilter}
+                    onChange={(v: string) => setParams({ cat: v })}
                     options={categories.flatMap(parent =>
                       parent.children && parent.children.length > 0
                         ? [
@@ -519,13 +544,11 @@ export default function ProductsPage() {
                     searchPlaceholder="ค้นหาหมวดหมู่..."
                   />
                 </div>
-
-                {/* Brand filter — only when feature enabled */}
                 {features.product_brand && (
-                  <div className="w-[calc(50%-0.25rem)] md:w-40">
+                  <div className="flex-1 min-w-0">
                     <FormSelect
                       value={brandFilter}
-                      onChange={setBrandFilter}
+                      onChange={(v: string) => setParams({ brand: v })}
                       options={brands.map(b => ({ id: b.id, label: b.name }))}
                       clearLabel="ทุกแบรนด์"
                       placeholder="แบรนด์"
@@ -533,19 +556,26 @@ export default function ProductsPage() {
                     />
                   </div>
                 )}
-
-                {/* Shop account filter */}
                 {shopOptions.length > 0 && (
-                  <div className="w-[calc(50%-0.25rem)] md:flex-1">
+                  <div className="flex-shrink-0">
                     <SearchableDropdown
                       value={shopAccountFilter}
-                      onChange={setShopAccountFilter}
+                      onChange={(v: string) => setParams({ shop: v })}
                       options={shopOptions}
                       placeholder="ร้านค้า"
                       searchPlaceholder="ค้นหาร้านค้า..."
                       allLabel="ทุกร้านค้า"
                     />
                   </div>
+                )}
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearAllFilters}
+                    className="flex items-center gap-1 px-2.5 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0 whitespace-nowrap"
+                  >
+                    <FilterX className="w-3.5 h-3.5" />
+                    ล้างตัวกรอง
+                  </button>
                 )}
               </div>
             </div>
@@ -690,10 +720,10 @@ export default function ProductsPage() {
                         {/* Name / Code */}
                         {isCol('nameCode') && (
                           <td className="px-2 py-2">
-                            <div className="text-base font-medium text-gray-900 dark:text-white line-clamp-2">
+                            <div className="data-primary text-gray-900 dark:text-slate-100 text-base line-clamp-2">
                               {product.name}
                             </div>
-                            <div className="text-xs text-gray-400 dark:text-slate-500">{product.code}</div>
+                            <div className="code-text text-gray-400 dark:text-slate-500">{product.code}</div>
                           </td>
                         )}
 
@@ -712,10 +742,10 @@ export default function ProductsPage() {
                                 {(isCol('sku') || isCol('barcode')) && (product.simple_sku || product.simple_barcode) && (
                                   <div className="flex items-center gap-2 mt-0.5">
                                     {isCol('sku') && product.simple_sku && (
-                                      <span className="text-xs text-gray-400 dark:text-slate-500">SKU: {product.simple_sku}</span>
+                                      <span className="data-muted text-gray-400 dark:text-slate-500">SKU: <span className="code-text">{product.simple_sku}</span></span>
                                     )}
                                     {isCol('barcode') && product.simple_barcode && (
-                                      <span className="text-xs text-gray-400 dark:text-slate-500">BC: {product.simple_barcode}</span>
+                                      <span className="data-muted text-gray-400 dark:text-slate-500">BC: <span className="code-text">{product.simple_barcode}</span></span>
                                     )}
                                   </div>
                                 )}
@@ -727,7 +757,7 @@ export default function ProductsPage() {
                                     <div key={v.variation_id || `${product.product_id}-${v.variation_label}`}>
                                       <div className="text-base flex items-center space-x-1">
                                         <Wine className="w-3.5 h-3.5 text-gray-400" />
-                                        <span className="text-gray-500 dark:text-slate-400">{v.variation_label}</span>
+                                        <span className="data-secondary text-gray-500 dark:text-slate-400">{v.variation_label}</span>
                                         <span className="text-gray-400 font-medium ml-1">฿</span>
                                         <span>{formatNumber(v.default_price)}</span>
                                         {v.discount_price > 0 && (
@@ -737,17 +767,17 @@ export default function ProductsPage() {
                                       {(isCol('sku') || isCol('barcode')) && (v.sku || v.barcode) && (
                                         <div className="flex items-center gap-2 ml-5">
                                           {isCol('sku') && v.sku && (
-                                            <span className="text-xs text-gray-400 dark:text-slate-500">SKU: {v.sku}</span>
+                                            <span className="data-muted text-gray-400 dark:text-slate-500">SKU: <span className="code-text">{v.sku}</span></span>
                                           )}
                                           {isCol('barcode') && v.barcode && (
-                                            <span className="text-xs text-gray-400 dark:text-slate-500">BC: {v.barcode}</span>
+                                            <span className="data-muted text-gray-400 dark:text-slate-500">BC: <span className="code-text">{v.barcode}</span></span>
                                           )}
                                         </div>
                                       )}
                                     </div>
                                   ))
                                 ) : (
-                                  <span className="text-base text-gray-400 dark:text-slate-500">ไม่มีสินค้าย่อย</span>
+                                  <span className="data-muted text-gray-400 dark:text-slate-500 text-base">ไม่มีสินค้าย่อย</span>
                                 )}
                               </div>
                             )}
@@ -763,7 +793,7 @@ export default function ProductsPage() {
                                 {brands.find(b => b.id === product.brand_id)?.name || '-'}
                               </span>
                             ) : (
-                              <span className="text-xs text-gray-400 dark:text-slate-500">-</span>
+                              <span className="data-muted text-gray-400 dark:text-slate-500">-</span>
                             )}
                           </td>
                         )}
@@ -813,8 +843,8 @@ export default function ProductsPage() {
                 startIdx={startIndex}
                 endIdx={Math.min(startIndex + rowsPerPage, totalFiltered)}
                 recordsPerPage={rowsPerPage}
-                setRecordsPerPage={setRowsPerPage}
-                setPage={setCurrentPage}
+                setRecordsPerPage={(v: number) => setParams({ limit: String(v) })}
+                setPage={(p: number) => setParams({ page: String(p) })}
                 loadTime={loadTime}
               >
                 <ColumnSettingsDropdown
@@ -852,5 +882,19 @@ export default function ProductsPage() {
 
       {confirmDialog}
     </Layout>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={
+      <Layout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+        </div>
+      </Layout>
+    }>
+      <ProductsPageContent />
+    </Suspense>
   );
 }

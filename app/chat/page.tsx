@@ -40,7 +40,8 @@ import {
   Trash2,
   Unlink,
   ExternalLink,
-  UserPlus
+  UserPlus,
+  FilterX
 } from 'lucide-react';
 import Image from 'next/image';
 import OrderForm from '@/components/orders/OrderForm';
@@ -79,8 +80,24 @@ function UnifiedChatPageContent() {
 
   // Chat accounts for filter
   const [chatAccounts, setChatAccounts] = useState<ChatAccountInfo[]>([]);
-  const [filterAccountId, setFilterAccountId] = useState<string>('');
-  const [filterPlatform, setFilterPlatform] = useState<'all' | 'line' | 'facebook'>('all');
+
+  // URL-derived filter state
+  const filterAccountId = searchParams.get('account') || '';
+  const filterPlatform = (searchParams.get('platform') || 'all') as 'all' | 'line' | 'facebook';
+  const filterTag = searchParams.get('tag') || '';
+  const sortMode = (searchParams.get('sort') || 'time') as 'time' | 'unread';
+  const filterLinked = (searchParams.get('linked') || 'all') as 'all' | 'linked' | 'unlinked';
+  const filterUnread = searchParams.get('unread') === '1';
+
+  const setFilterParams = useCallback((updates: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const defaults: Record<string, string> = { account: '', platform: 'all', tag: '', sort: 'time', linked: 'all', unread: '' };
+    for (const [k, v] of Object.entries(updates)) {
+      if (v === (defaults[k] ?? '') || v === '') params.delete(k);
+      else params.set(k, v);
+    }
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
 
   // Selected contact state
   const [selectedContact, setSelectedContact] = useState<UnifiedContact | null>(null);
@@ -135,10 +152,7 @@ function UnifiedChatPageContent() {
 
   // Advanced filters
   const [showFilterPopover, setShowFilterPopover] = useState(false);
-  const [filterLinked, setFilterLinked] = useState<'all' | 'linked' | 'unlinked'>('all');
-  const [filterUnread, setFilterUnread] = useState(false);
   const [filterOrderDaysRange, setFilterOrderDaysRange] = useState<{ min: number; max: number | null } | null>(null);
-  const [sortMode, setSortMode] = useState<'time' | 'unread'>('time');
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [accountSearch, setAccountSearch] = useState('');
 
@@ -147,10 +161,9 @@ function UnifiedChatPageContent() {
 
   // Tags
   const [allTags, setAllTags] = useState<Tag[]>([]);
-  const [filterTag, setFilterTag] = useState<string>('');
   const [profileTags, setProfileTags] = useState<Tag[]>([]);
 
-  const hasActiveFilter = filterLinked !== 'all' || filterOrderDaysRange !== null || filterTag !== '';
+  const hasActiveFilter = filterLinked !== 'all' || filterOrderDaysRange !== null || filterTag !== '' || filterUnread || filterAccountId !== '' || sortMode !== 'time';
 
   // Platform color
   const platformColor = selectedContact?.source === 'instagram' ? '#E4405F' : selectedContact?.platform === 'line' ? '#06C755' : '#1877F2';
@@ -276,7 +289,10 @@ function UnifiedChatPageContent() {
       const contact = contacts.find(c => c.id === contactId);
       if (contact) {
         setSelectedContact(contact);
-        router.replace('/chat', { scroll: false });
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete('contact_id');
+        const qs = params.toString();
+        router.replace(qs ? `?${qs}` : '/chat', { scroll: false });
       }
     }
   }, [searchParams, contacts, selectedContact, router]);
@@ -1264,7 +1280,7 @@ function UnifiedChatPageContent() {
                           </div>
                           <div className="overflow-y-auto py-1">
                             {!accountSearch && (
-                              <button onClick={() => { setFilterPlatform('all'); setFilterAccountId(''); setShowAccountPicker(false); setAccountSearch(''); }}
+                              <button onClick={() => { setFilterParams({ platform: 'all', account: '' }); setShowAccountPicker(false); setAccountSearch(''); }}
                                 className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${!filterAccountId && filterPlatform === 'all' ? 'bg-gray-50 dark:bg-slate-700' : ''}`}>
                                 <MessageCircle className="w-5 h-5 text-gray-400" />
                                 <span className="text-gray-900 dark:text-white">ทุกช่องทาง</span>
@@ -1275,7 +1291,7 @@ function UnifiedChatPageContent() {
                               const pic = getAccountPicture(acc);
                               const isActive = filterAccountId === acc.id;
                               return (
-                                <button key={acc.id} onClick={() => { setFilterAccountId(acc.id); setFilterPlatform('all'); setShowAccountPicker(false); setAccountSearch(''); }}
+                                <button key={acc.id} onClick={() => { setFilterParams({ account: acc.id, platform: '' }); setShowAccountPicker(false); setAccountSearch(''); }}
                                   className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${isActive ? 'bg-gray-50 dark:bg-slate-700' : ''}`}>
                                   {pic ? (
                                     <Image src={pic} alt={acc.account_name} width={20} height={20} className="w-5 h-5 rounded-full object-cover" unoptimized />
@@ -1303,11 +1319,11 @@ function UnifiedChatPageContent() {
                   );
                 })()}
               </div>
-              <button onClick={() => setSortMode(sortMode === 'time' ? 'unread' : 'time')}
+              <button onClick={() => setFilterParams({ sort: sortMode === 'time' ? 'unread' : 'time' })}
                 className={`h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${sortMode === 'unread' ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`} title={sortMode === 'time' ? 'เรียงตามเวลา (กดเพื่อเรียงยังไม่อ่านก่อน)' : 'เรียงยังไม่อ่านก่อน (กดเพื่อเรียงตามเวลา)'}>
                 <ArrowUpDown className="w-4 h-4" />
               </button>
-              <button onClick={() => setFilterUnread(!filterUnread)}
+              <button onClick={() => setFilterParams({ unread: filterUnread ? '' : '1' })}
                 className={`relative h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${filterUnread ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`} title="เฉพาะยังไม่อ่าน">
                 <MessageCircle className="w-4 h-4" />
                 {totalUnread > 0 && !filterUnread && (
@@ -1323,14 +1339,14 @@ function UnifiedChatPageContent() {
                   <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
                     <div className="p-3 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
                       <span className="text-base font-medium text-gray-900 dark:text-white">กรองรายชื่อ</span>
-                      {hasActiveFilter && (<button onClick={() => { setFilterLinked('all'); setFilterOrderDaysRange(null); setFilterTag(''); }} className="text-xs text-red-500 hover:text-red-600">ล้างทั้งหมด</button>)}
+                      {hasActiveFilter && (<button onClick={() => { setFilterParams({ linked: 'all', tag: '', account: '', platform: 'all', sort: 'time', unread: '' }); setFilterOrderDaysRange(null); }} className="text-xs text-red-500 hover:text-red-600">ล้างทั้งหมด</button>)}
                     </div>
                     <div className="p-3 space-y-4">
                       <div>
                         <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">สถานะลูกค้า</label>
                         <div className="flex gap-2">
-                          <button onClick={() => setFilterLinked(filterLinked === 'linked' ? 'all' : 'linked')} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'linked' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ซื้อแล้ว"><UserCheck className="w-4 h-4" /><span>ซื้อแล้ว</span></button>
-                          <button onClick={() => { const next = filterLinked === 'unlinked' ? 'all' : 'unlinked'; setFilterLinked(next); if (next === 'unlinked') setFilterOrderDaysRange(null); }} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'unlinked' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ยังไม่ซื้อ"><UserX className="w-4 h-4" /><span>ยังไม่ซื้อ</span></button>
+                          <button onClick={() => setFilterParams({ linked: filterLinked === 'linked' ? 'all' : 'linked' })} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'linked' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ซื้อแล้ว"><UserCheck className="w-4 h-4" /><span>ซื้อแล้ว</span></button>
+                          <button onClick={() => { const next = filterLinked === 'unlinked' ? 'all' : 'unlinked'; setFilterParams({ linked: next }); if (next === 'unlinked') setFilterOrderDaysRange(null); }} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'unlinked' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ยังไม่ซื้อ"><UserX className="w-4 h-4" /><span>ยังไม่ซื้อ</span></button>
                         </div>
                       </div>
                       {/* Tag filter */}
@@ -1338,12 +1354,12 @@ function UnifiedChatPageContent() {
                         <div>
                           <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">แท็ก</label>
                           <div className="flex flex-wrap gap-1">
-                            <button onClick={() => setFilterTag('')}
+                            <button onClick={() => setFilterParams({ tag: '' })}
                               className={`px-2 py-1 text-sm rounded-lg transition-colors ${filterTag === '' ? 'bg-gray-900 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>ทั้งหมด</button>
                             {allTags.map(tag => {
                               const isActive = filterTag === tag.id;
                               return (
-                                <button key={tag.id} onClick={() => setFilterTag(isActive ? '' : tag.id)}
+                                <button key={tag.id} onClick={() => setFilterParams({ tag: isActive ? '' : tag.id })}
                                   className={`px-2 py-1 text-sm rounded-lg transition-colors flex items-center gap-1 ${isActive ? 'text-white' : 'hover:opacity-80'}`}
                                   style={isActive ? { backgroundColor: tag.color } : { backgroundColor: tag.color + '20', color: tag.color }}>
                                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: isActive ? 'white' : tag.color }} />
@@ -1373,7 +1389,7 @@ function UnifiedChatPageContent() {
                   <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
                     <div className="px-3 py-1.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">แท็ก</div>
                     {matchedTags.slice(0, 5).map(tag => (
-                      <button key={tag.id} onClick={() => { setFilterTag(tag.id); setSearchTerm(''); }}
+                      <button key={tag.id} onClick={() => { setFilterParams({ tag: tag.id }); setSearchTerm(''); }}
                         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left">
                         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
                         <span className="text-sm text-gray-700 dark:text-slate-300">tag:</span>
@@ -1386,12 +1402,16 @@ function UnifiedChatPageContent() {
             </div>
             {/* Active filters display */}
             {hasActiveFilter && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {filterLinked === 'linked' && !filterOrderDaysRange && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full"><UserCheck className="w-3 h-3" />ซื้อแล้ว<button onClick={() => setFilterLinked('all')} className="ml-1 hover:text-blue-900"><X className="w-3 h-3" /></button></span>)}
-                {filterLinked === 'unlinked' && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full"><UserX className="w-3 h-3" />ยังไม่ซื้อ<button onClick={() => setFilterLinked('all')} className="ml-1 hover:text-orange-900"><X className="w-3 h-3" /></button></span>)}
+              <div className="flex flex-wrap items-center gap-1 mt-2">
+                {filterLinked === 'linked' && !filterOrderDaysRange && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full"><UserCheck className="w-3 h-3" />ซื้อแล้ว<button onClick={() => setFilterParams({ linked: 'all' })} className="ml-1 hover:text-blue-900"><X className="w-3 h-3" /></button></span>)}
+                {filterLinked === 'unlinked' && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full"><UserX className="w-3 h-3" />ยังไม่ซื้อ<button onClick={() => setFilterParams({ linked: 'all' })} className="ml-1 hover:text-orange-900"><X className="w-3 h-3" /></button></span>)}
 
-                {filterOrderDaysRange !== null && (<span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${filterOrderDaysRange.min >= 7 ? 'bg-red-100 text-red-700' : filterOrderDaysRange.min >= 5 ? 'bg-orange-100 text-orange-700' : filterOrderDaysRange.min >= 3 ? 'bg-amber-100 text-amber-700' : 'bg-yellow-100 text-yellow-700'}`}><Clock className="w-3 h-3" />ไม่สั่ง {filterOrderDaysRange.max === null ? `${filterOrderDaysRange.min}+ วัน` : `${filterOrderDaysRange.min}-${filterOrderDaysRange.max} วัน`}<button onClick={() => { setFilterOrderDaysRange(null); setFilterLinked('all'); }} className="ml-1 hover:opacity-70"><X className="w-3 h-3" /></button></span>)}
-                {filterTag && (() => { const tag = allTags.find(t => t.id === filterTag); return tag ? (<span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full" style={{ backgroundColor: tag.color + '20', color: tag.color }}><span className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />{tag.name}<button onClick={() => setFilterTag('')} className="ml-1 hover:opacity-70"><X className="w-3 h-3" /></button></span>) : null; })()}
+                {filterOrderDaysRange !== null && (<span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${filterOrderDaysRange.min >= 7 ? 'bg-red-100 text-red-700' : filterOrderDaysRange.min >= 5 ? 'bg-orange-100 text-orange-700' : filterOrderDaysRange.min >= 3 ? 'bg-amber-100 text-amber-700' : 'bg-yellow-100 text-yellow-700'}`}><Clock className="w-3 h-3" />ไม่สั่ง {filterOrderDaysRange.max === null ? `${filterOrderDaysRange.min}+ วัน` : `${filterOrderDaysRange.min}-${filterOrderDaysRange.max} วัน`}<button onClick={() => { setFilterOrderDaysRange(null); setFilterParams({ linked: 'all' }); }} className="ml-1 hover:opacity-70"><X className="w-3 h-3" /></button></span>)}
+                {filterTag && (() => { const tag = allTags.find(t => t.id === filterTag); return tag ? (<span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full" style={{ backgroundColor: tag.color + '20', color: tag.color }}><span className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />{tag.name}<button onClick={() => setFilterParams({ tag: '' })} className="ml-1 hover:opacity-70"><X className="w-3 h-3" /></button></span>) : null; })()}
+                <button onClick={() => { setFilterParams({ account: '', platform: 'all', tag: '', sort: 'time', linked: 'all', unread: '' }); setFilterOrderDaysRange(null); setSearchTerm(''); }}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs text-red-500 hover:text-red-600 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                  <FilterX className="w-3 h-3" />ล้างตัวกรอง
+                </button>
               </div>
             )}
           </div>

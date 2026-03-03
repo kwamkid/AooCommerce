@@ -285,6 +285,7 @@ export default function CustomersPage() {
         if (debouncedSearch) params.set('search', debouncedSearch);
         if (filterType) params.set('type', filterType);
         if (filterTag) params.set('tag_id', filterTag);
+        if (filterChannel) params.set('channel', filterChannel);
 
         const res = await apiFetch(`/api/customers?${params}`);
         const result = await res.json();
@@ -307,9 +308,10 @@ export default function CustomersPage() {
     };
 
     fetchCustomers();
-  }, [authLoading, userProfile, currentPage, rowsPerPage, debouncedSearch, filterType, filterTag]);
+  }, [authLoading, userProfile, currentPage, rowsPerPage, debouncedSearch, filterType, filterTag, filterChannel]);
 
-  // Client-side filters (amount, orderCount, channel — these work on the paginated server result)
+  // Client-side filters (amount, orderCount — these work on the paginated server result)
+  // Channel filter is now server-side
   const filteredCustomers = customers.filter(customer => {
     const amt = customer.total_order_amount || 0;
     const matchesAmount = filterAmount === '' ||
@@ -326,10 +328,7 @@ export default function CustomersPage() {
        filterOrderCount === '6-20' ? cnt >= 6 && cnt <= 20 :
        filterOrderCount === '>20' ? cnt > 20 : true);
 
-    const matchesChannel = filterChannel === '' ||
-      (customer.channels || []).includes(filterChannel);
-
-    return matchesAmount && matchesOrderCount && matchesChannel;
+    return matchesAmount && matchesOrderCount;
   });
 
   // Types that exist in customer data (for filter dropdown)
@@ -603,20 +602,20 @@ export default function CustomersPage() {
                     {isCol('customer') && (
                     <td className="px-4 py-3">
                       <div>
-                        <div className="font-semibold text-[15px] text-gray-900 dark:text-white">{customer.name}</div>
+                        <div className="data-primary text-gray-900 dark:text-slate-100 text-[15px]">{customer.name}</div>
                         <div className="flex items-center gap-3 mt-0.5">
                           {customer.phone && (
                             <a
                               href={`tel:${customer.phone}`}
                               onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400 hover:text-blue-600"
+                              className="inline-flex items-center gap-1 data-secondary text-gray-500 dark:text-slate-400 hover:text-blue-600"
                             >
                               <Phone className="w-3 h-3" />
                               {customer.phone}
                             </a>
                           )}
                           {customer.email && (
-                            <span className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400">
+                            <span className="inline-flex items-center gap-1 data-secondary text-gray-500 dark:text-slate-400">
                               <Mail className="w-3 h-3" />
                               {customer.email}
                             </span>
@@ -673,7 +672,7 @@ export default function CustomersPage() {
                     {isCol('address') && (
                     <td className="px-3 py-3">
                       {customer.default_address ? (
-                        <span className="text-sm text-gray-700 dark:text-slate-300 line-clamp-1">
+                        <span className="data-text text-gray-700 dark:text-slate-300 line-clamp-1">
                           {[customer.default_address.address_line1, customer.default_address.amphoe, customer.default_address.province].filter(Boolean).join(' ')}
                         </span>
                       ) : (
@@ -687,7 +686,7 @@ export default function CustomersPage() {
                     {isCol('orderCount') && (
                     <td className="px-3 py-3 text-center whitespace-nowrap">
                       {customer.order_count && customer.order_count > 0 ? (
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{customer.order_count}</span>
+                        <span className="data-number text-gray-900 dark:text-white">{customer.order_count}</span>
                       ) : (
                         <span className="text-gray-300 text-sm">-</span>
                       )}
@@ -698,7 +697,7 @@ export default function CustomersPage() {
                     {isCol('totalOrder') && (
                     <td className="px-3 py-3 text-right whitespace-nowrap">
                       {customer.total_order_amount && customer.total_order_amount > 0 ? (
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        <span className="data-number text-gray-900 dark:text-white">
                           ฿{formatPrice(customer.total_order_amount)}
                         </span>
                       ) : (

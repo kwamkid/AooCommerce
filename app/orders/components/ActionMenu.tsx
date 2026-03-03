@@ -7,6 +7,7 @@ import { MoreVertical } from 'lucide-react';
 export interface ActionItem {
   key: string;
   label: string;
+  description?: string;
   icon: React.ReactNode;
   onClick?: (e: React.MouseEvent) => void;
   className?: string;
@@ -90,7 +91,10 @@ export default function ActionMenu({ items }: { items: ActionItem[] }) {
                 }`}
               >
                 {item.icon}
-                {item.label}
+                <span className="flex flex-col">
+                  <span>{item.label}</span>
+                  {item.description && <span className="text-xs font-normal text-gray-400 dark:text-slate-500">{item.description}</span>}
+                </span>
               </button>
             </div>
           ))}

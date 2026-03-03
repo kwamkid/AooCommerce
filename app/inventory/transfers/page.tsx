@@ -12,9 +12,11 @@ import { showPdfPreview } from '@/lib/print-pdf';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import FormSelect from '@/components/ui/FormSelect';
+import ActionMenu, { ActionItem } from '@/app/orders/components/ActionMenu';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import {
-  Loader2, ArrowRightLeft, Plus, Warehouse, Pencil, Printer, User,
-  CheckCircle2, Clock, XCircle, AlertTriangle, Truck, Search,
+  Loader2, ArrowRightLeft, Plus, Warehouse, Eye, Printer, User,
+  CheckCircle2, Clock, XCircle, AlertTriangle, Truck, Search, Ban,
 } from 'lucide-react';
 
 interface Transfer {
@@ -82,6 +84,8 @@ export default function TransferListPage() {
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({ all: 0, pending: 0, shipping: 0, received: 0, cancelled: 0 });
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState<Transfer | null>(null);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -176,6 +180,28 @@ export default function TransferListPage() {
       showToast('สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
       setPrintingId(null);
+    }
+  };
+
+  const handleCancel = async (transfer: Transfer) => {
+    setCancellingId(transfer.id);
+    try {
+      const res = await apiFetch(`/api/inventory/transfers`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: transfer.id, action: 'cancel' }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'ยกเลิกไม่สำเร็จ');
+      }
+      showToast('ยกเลิกใบโอนย้ายสำเร็จ', 'success');
+      fetchTransfers();
+    } catch (err: any) {
+      showToast(err.message || 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setCancellingId(null);
+      setConfirmCancel(null);
     }
   };
 
@@ -279,7 +305,7 @@ export default function TransferListPage() {
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="ค้นหา..."
-              className="w-full pl-9 pr-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+              className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
             />
           </div>
           {warehouses.length > 1 && (
@@ -348,15 +374,15 @@ export default function TransferListPage() {
                       <tr key={t.id} className="data-tr cursor-pointer" onClick={() => router.push(`/inventory/transfers/${t.id}`)}>
                         {isCol('transferInfo') && (
                           <td className="data-td">
-                            <p className="font-mono text-sm font-medium text-gray-900 dark:text-white">{t.transfer_number}</p>
-                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
+                            <p className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(t.transfer_number).then(() => showToast('คัดลอกเลขที่ใบโอนแล้ว')); }}>{t.transfer_number}</p>
+                            <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
                           </td>
                         )}
                         {isCol('fromWarehouse') && (
                           <td className="data-td">
                             <div className="flex items-center gap-1.5">
                               <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <span className="text-sm text-gray-700 dark:text-slate-300">
+                              <span className="data-text text-gray-700 dark:text-slate-300">
                                 {t.from_warehouse?.name || '-'}
                               </span>
                             </div>
@@ -366,14 +392,14 @@ export default function TransferListPage() {
                           <td className="data-td">
                             <div className="flex items-center gap-1.5">
                               <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <span className="text-sm text-gray-700 dark:text-slate-300">
+                              <span className="data-text text-gray-700 dark:text-slate-300">
                                 {t.to_warehouse?.name || '-'}
                               </span>
                             </div>
                           </td>
                         )}
                         {isCol('itemCount') && (
-                          <td className="data-td text-center text-sm text-gray-600 dark:text-slate-400">
+                          <td className="data-td text-center data-text text-gray-700 dark:text-slate-300">
                             {t.items?.length || 0}
                           </td>
                         )}
@@ -386,7 +412,7 @@ export default function TransferListPage() {
                           </td>
                         )}
                         {isCol('createdBy') && (
-                          <td className="data-td text-sm text-gray-600 dark:text-slate-400">{t.created_by_user?.name || '-'}</td>
+                          <td className="data-td data-text text-gray-700 dark:text-slate-300">{t.created_by_user?.name || '-'}</td>
                         )}
                         {isCol('receiver') && (
                           <td className="data-td" onClick={e => e.stopPropagation()}>
@@ -400,31 +426,39 @@ export default function TransferListPage() {
                                     onClick={() => setLightboxSrc(t.receive_photo_url)}
                                   />
                                 )}
-                                <span className="text-sm text-gray-600 dark:text-slate-400">{t.receiver_name}</span>
+                                <span className="data-text text-gray-700 dark:text-slate-300">{t.receiver_name}</span>
                               </div>
                             ) : (
-                              <span className="text-sm text-gray-400 dark:text-slate-500">-</span>
+                              <span className="data-muted text-gray-400 dark:text-slate-500">-</span>
                             )}
                           </td>
                         )}
                         {isCol('actions') && (
                           <td className="data-td" onClick={e => e.stopPropagation()}>
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => router.push(`/inventory/transfers/${t.id}`)}
-                                className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
-                                title="แก้ไข"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handlePrint(t.id)}
-                                disabled={printingId === t.id}
-                                className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors disabled:opacity-50"
-                                title="พิมพ์"
-                              >
-                                {printingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                              </button>
+                            <div className="flex items-center justify-center">
+                              <ActionMenu items={[
+                                {
+                                  key: 'view',
+                                  label: 'ดูรายละเอียด',
+                                  icon: <Eye className="w-4 h-4" />,
+                                  onClick: () => router.push(`/inventory/transfers/${t.id}`),
+                                },
+                                {
+                                  key: 'print',
+                                  label: 'พิมพ์',
+                                  icon: printingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+                                  onClick: () => handlePrint(t.id),
+                                  disabled: printingId === t.id,
+                                },
+                                ...((t.status === 'pending' || t.status === 'shipping') ? [{
+                                  key: 'cancel',
+                                  label: 'ยกเลิก',
+                                  icon: <Ban className="w-4 h-4" />,
+                                  danger: true,
+                                  dividerBefore: true,
+                                  onClick: () => setConfirmCancel(t),
+                                }] : []),
+                              ]} />
                             </div>
                           </td>
                         )}
@@ -468,42 +502,74 @@ export default function TransferListPage() {
                 return (
                   <div
                     key={t.id}
-                    className="p-4 hover:bg-gray-50 dark:hover:bg-slate-700/30 cursor-pointer"
-                    onClick={() => router.push(`/inventory/transfers/${t.id}`)}
+                    className="p-4"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">
+                      <div
+                        className="cursor-pointer"
+                        onClick={() => router.push(`/inventory/transfers/${t.id}`)}
+                      >
+                        <span className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(t.transfer_number).then(() => showToast('คัดลอกเลขที่ใบโอนแล้ว')); }}>
                           {t.transfer_number}
                         </span>
-                        <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
+                        <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
                       </div>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
-                        <StIcon className="w-3 h-3" />
-                        {st.label}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
+                          <StIcon className="w-3 h-3" />
+                          {st.label}
+                        </span>
+                        <ActionMenu items={[
+                          {
+                            key: 'view',
+                            label: 'ดูรายละเอียด',
+                            icon: <Eye className="w-4 h-4" />,
+                            onClick: () => router.push(`/inventory/transfers/${t.id}`),
+                          },
+                          {
+                            key: 'print',
+                            label: 'พิมพ์',
+                            icon: printingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+                            onClick: () => handlePrint(t.id),
+                            disabled: printingId === t.id,
+                          },
+                          ...((t.status === 'pending' || t.status === 'shipping') ? [{
+                            key: 'cancel',
+                            label: 'ยกเลิก',
+                            icon: <Ban className="w-4 h-4" />,
+                            danger: true,
+                            dividerBefore: true,
+                            onClick: () => setConfirmCancel(t),
+                          }] : []),
+                        ]} />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400 mb-1">
-                      <Warehouse className="w-3.5 h-3.5 text-gray-400" />
-                      <span>{t.from_warehouse?.name || '-'}</span>
-                      <ArrowRightLeft className="w-3 h-3 text-gray-400" />
-                      <span>{t.to_warehouse?.name || '-'}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-gray-400 dark:text-slate-500">
-                      <span>{t.items?.length || 0} รายการ | {t.created_by_user?.name || '-'}</span>
-                      {t.receiver_name && (
-                        <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                          {t.receive_photo_url && (
-                            <img
-                              src={t.receive_photo_url}
-                              alt="รูปรับสินค้า"
-                              className="w-6 h-6 rounded object-cover cursor-pointer"
-                              onClick={() => setLightboxSrc(t.receive_photo_url)}
-                            />
-                          )}
-                          <span>ผู้รับ: {t.receiver_name}</span>
-                        </div>
-                      )}
+                    <div
+                      className="cursor-pointer"
+                      onClick={() => router.push(`/inventory/transfers/${t.id}`)}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Warehouse className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="data-text text-gray-700 dark:text-slate-300">{t.from_warehouse?.name || '-'}</span>
+                        <ArrowRightLeft className="w-3 h-3 text-gray-400" />
+                        <span className="data-text text-gray-700 dark:text-slate-300">{t.to_warehouse?.name || '-'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="data-muted text-gray-400 dark:text-slate-500">{t.items?.length || 0} รายการ | {t.created_by_user?.name || '-'}</span>
+                        {t.receiver_name && (
+                          <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                            {t.receive_photo_url && (
+                              <img
+                                src={t.receive_photo_url}
+                                alt="รูปรับสินค้า"
+                                className="w-6 h-6 rounded object-cover cursor-pointer"
+                                onClick={() => setLightboxSrc(t.receive_photo_url)}
+                              />
+                            )}
+                            <span>ผู้รับ: {t.receiver_name}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -526,6 +592,19 @@ export default function TransferListPage() {
             onClick={(e) => e.stopPropagation()}
           />
         </div>
+      )}
+
+      {confirmCancel && (
+        <ConfirmDialog
+          open={!!confirmCancel}
+          onClose={() => setConfirmCancel(null)}
+          onConfirm={() => handleCancel(confirmCancel)}
+          title="ยืนยันยกเลิกใบโอนย้าย"
+          description={`ยืนยันยกเลิก ${confirmCancel.transfer_number}? ${confirmCancel.status === 'shipping' ? 'สต็อกจะถูกคืนกลับไปที่คลังต้นทาง' : 'สต็อกที่จองไว้จะถูกปลดล็อค'}`}
+          confirmLabel="ยืนยันยกเลิก"
+          variant="danger"
+          loading={cancellingId === confirmCancel.id}
+        />
       )}
     </Layout>
   );

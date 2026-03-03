@@ -830,7 +830,7 @@ export default function OrderDetailPage() {
             <div>
               <div className="flex items-center gap-3">
                 <h1
-                  className="text-2xl font-bold text-gray-900 dark:text-white print:text-black hover:text-[#F4511E] cursor-pointer transition-colors"
+                  className="text-2xl font-bold font-mono text-gray-900 dark:text-white print:text-black hover:text-[#F4511E] cursor-pointer transition-colors"
                   onClick={() => { navigator.clipboard.writeText(orderNumber).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
                   title="คัดลอกเลขคำสั่งซื้อ"
                 >{orderNumber}</h1>
@@ -857,7 +857,7 @@ export default function OrderDetailPage() {
               )}
               {isPosOrder && receiptNumber && (
                 <p className="text-sm text-gray-500 mt-0.5">
-                  เลขที่ใบเสร็จ: {receiptNumber}
+                  เลขที่ใบเสร็จ: <span className="font-mono cursor-pointer hover:text-[#F4511E] transition-colors" onClick={() => navigator.clipboard.writeText(receiptNumber).then(() => showToast('คัดลอกเลขที่ใบเสร็จแล้ว'))} title="คัดลอก">{receiptNumber}</span>
                 </p>
               )}
             </div>
@@ -1215,12 +1215,12 @@ export default function OrderDetailPage() {
                           href={trackUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-mono text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                          className="code-text bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                         >
                           {fullOrderData.tracking_number}
                         </a>
                       ) : (
-                        <span className="font-mono text-xs bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">
+                        <span className="code-text bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">
                           {fullOrderData.tracking_number}
                         </span>
                       )

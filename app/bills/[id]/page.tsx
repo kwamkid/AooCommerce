@@ -474,7 +474,7 @@ export default function BillOnlinePage() {
                   )}
                   <div>
                     <div className="font-medium text-base">{item.product_name}</div>
-                    {item.product_code && <div className={`text-sm ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>}
+                    {item.product_code && <div className={`text-sm font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>}
                   </div>
                 </div>
               </td>
@@ -503,7 +503,7 @@ export default function BillOnlinePage() {
             )}
             <div className="flex-1 min-w-0">
               <div className={`font-medium text-base truncate ${dark ? 'text-white' : 'text-gray-900'}`}>{item.product_name}</div>
-              {item.product_code && <div className={`text-sm ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>}
+              {item.product_code && <div className={`text-sm font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>}
               <div className={`text-sm mt-0.5 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
                 {item.quantity} x ฿{formatNumber(item.unit_price)}
                 {item.discount_amount > 0 && <span className="text-red-400 ml-1">-฿{formatPrice(item.discount_amount)}</span>}
@@ -539,7 +539,7 @@ export default function BillOnlinePage() {
                 )}
                 <div>
                   <span className="font-medium">{item.product_name}</span>
-                  {item.product_code && <span className="text-gray-500 ml-1 text-xs">[{item.product_code}]</span>}
+                  {item.product_code && <span className="text-gray-500 ml-1 text-xs font-mono">[{item.product_code}]</span>}
                 </div>
               </div>
             </td>
@@ -558,7 +558,7 @@ export default function BillOnlinePage() {
       <div className="print:hidden sticky top-0 bg-[#1A1A2E] px-4 py-3 flex items-center justify-between z-10 shadow-md">
         <div className="flex items-center gap-2">
           <Image src="/logo.svg" alt="Logo" width={80} height={52} className="h-8 w-auto" priority />
-          <span className="font-medium text-white/80 text-sm ml-2">#{bill.order_number}</span>
+          <span className="id-text-clickable text-white/80 ml-2 hover:text-white" onClick={() => navigator.clipboard.writeText(bill.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว'))} title="คัดลอก">#{bill.order_number}</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -617,7 +617,7 @@ export default function BillOnlinePage() {
               </div>
             </div>
             <div className="text-right space-y-0.5">
-              <div className={`font-bold text-base ${dark ? 'text-white' : 'text-gray-900'}`}>{bill.order_number}</div>
+              <div className={`font-bold font-mono text-base ${dark ? 'text-white' : 'text-gray-900'} cursor-pointer hover:text-[#F4511E] transition-colors print:cursor-default print:hover:text-inherit`} onClick={() => navigator.clipboard.writeText(bill.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว'))} title="คัดลอก">{bill.order_number}</div>
               <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-600'}`} suppressHydrationWarning>{formatDate(bill.order_date)}</div>
               <div className="flex items-center justify-end gap-1.5 mt-1 print:hidden">
                 {isExpired ? (

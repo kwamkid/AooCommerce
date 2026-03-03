@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     const warehouseId = searchParams.get('warehouse_id'); // optional — null = no stock tracking
     const search = searchParams.get('search');
     const categoryId = searchParams.get('category_id');
+    const brandId = searchParams.get('brand_id');
     const barcode = searchParams.get('barcode');
 
     // Barcode lookup — exact match
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest) {
         discount_price,
         is_active,
         product:products!inner(
-          id, code, name, image, category_id, is_active
+          id, code, name, image, category_id, brand_id, is_active
         )
       `)
       .eq('company_id', auth.companyId)
@@ -99,6 +100,9 @@ export async function GET(request: NextRequest) {
 
     if (categoryId) {
       query = query.eq('products.category_id', categoryId);
+    }
+    if (brandId) {
+      query = query.eq('products.brand_id', brandId);
     }
 
     if (search) {

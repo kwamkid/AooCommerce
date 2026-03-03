@@ -16,16 +16,13 @@ import {
   Users,
   UserCircle,
   ShoppingCart,
-  DollarSign,
   BarChart3,
   Settings,
   Menu,
   X,
   LogOut,
-  FileText,
   Package2,
   Truck,
-  UserCheck,
   MessageCircle,
   CreditCard,
   ChevronDown,
@@ -90,8 +87,6 @@ const menuSections: MenuSection[] = [
     items: [
       { label: 'ซัพพลายเออร์', href: '/settings/suppliers', icon: <Factory className="w-5 h-5" />, roles: ['admin'] },
       { label: 'ลูกค้า', href: '/customers', icon: <UserCircle className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
-      { label: 'ติดตามลูกค้า', href: '/crm/follow-up', icon: <UserCheck className="w-5 h-5" />, roles: ['admin', 'sales'] },
-      { label: 'ติดตามหนี้', href: '/crm/payment-followup', icon: <DollarSign className="w-5 h-5" />, roles: ['admin', 'sales'] },
     ]
   },
   {
@@ -104,7 +99,6 @@ const menuSections: MenuSection[] = [
     title: 'รายงาน',
     items: [
       { label: 'รายงานยอดขาย', href: '/reports/sales', icon: <BarChart3 className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
-      { label: 'รายงานยอดค้าง', href: '/reports/pending', icon: <FileText className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
       { label: 'รายงานซัพพลายเออร์', href: '/reports/supplier', icon: <Factory className="w-5 h-5" />, roles: ['admin', 'account'] }
     ]
   }
@@ -318,7 +312,6 @@ export default function Sidebar() {
         if (effectiveRoles.size === 0 || !item.roles.some(r => effectiveRoles.has(r))) return false;
         // Hide delivery-only menus when feature is off
         if (item.href === '/reports/delivery-summary' && !features.delivery_date.enabled) return false;
-        if (item.href === '/crm/payment-followup' && !features.billing_cycle) return false;
         if (item.href === '/reports/supplier' && !features.supplier) return false;
         if (item.href === '/settings/suppliers' && !features.supplier) return false;
         return true;

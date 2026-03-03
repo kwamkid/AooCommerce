@@ -841,6 +841,8 @@ export async function GET(request: NextRequest) {
       // Shipping carrier filter (matches RPC logic)
       if (shippingCarrier === '__on_hold__') {
         query = query.eq('fulfillment_status', 'on_hold');
+      } else if (shippingCarrier === '__active__') {
+        query = query.or('fulfillment_status.is.null,fulfillment_status.neq.on_hold');
       } else if (shippingCarrier === '__none__') {
         query = query.is('shipping_carrier', null).neq('fulfillment_status', 'on_hold');
       } else if (shippingCarrier) {
