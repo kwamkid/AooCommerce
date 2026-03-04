@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import {
   Loader2,
@@ -90,12 +90,13 @@ export interface CustomerFormData {
 
 interface CustomerFormProps {
   initialData?: Partial<CustomerFormData>;
-  onSubmit: (data: CustomerFormData) => Promise<void>;
+  onSubmit: (data: CustomerFormData, resolvedCustomerId: string) => Promise<void>;
   onCancel: () => void;
   isEditing?: boolean;
   isLoading?: boolean;
   compact?: boolean;
   lineDisplayName?: string;
+  customerId?: string; // pass existing ID when editing
   // Tags
   allTags?: Tag[];
   selectedTags?: Tag[];
@@ -256,6 +257,7 @@ export default function CustomerForm({
   isLoading = false,
   compact = false,
   lineDisplayName,
+  customerId,
   allTags,
   selectedTags,
   onTagsChange,
@@ -263,6 +265,10 @@ export default function CustomerForm({
 }: CustomerFormProps) {
   const { showToast } = useToast();
   const { features } = useFeatures();
+
+  // Stable customer ID: use prop if editing, otherwise pre-generate for new customer
+  const resolvedCustomerIdRef = useRef<string>(customerId || crypto.randomUUID());
+  const resolvedCustomerId = resolvedCustomerIdRef.current;
 
   // Filter customer types based on enabled features
   const CUSTOMER_TYPE_OPTIONS = ALL_CUSTOMER_TYPE_OPTIONS.filter(opt => {
@@ -425,7 +431,7 @@ export default function CustomerForm({
         has_multiple_branches: false,
         additional_addresses: additionalAddresses.filter(a => a.address_line1 || a.province),
       };
-      await onSubmit(submissionData);
+      await onSubmit(submissionData, resolvedCustomerId);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     }
@@ -871,6 +877,7 @@ export default function CustomerForm({
               onChange={(patch) => setFormData(prev => ({ ...prev, ...patch }))}
               inputClassName={inputFull}
               labelClassName={labelFull}
+              customerId={resolvedCustomerId}
             />
           )}
 

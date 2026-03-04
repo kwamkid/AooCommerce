@@ -26,6 +26,8 @@ interface BrandItem {
   sort_order: number;
   supplier_id?: string | null;
   supplier?: SupplierRef | null;
+  default_gp_rate?: number | null;
+  gp_base_price?: 'retail' | 'discounted' | null;
 }
 
 export default function BrandsPage() {
@@ -56,6 +58,8 @@ function BrandsPageInner() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [editingSupplierId, setEditingSupplierId] = useState('');
+  const [editingGpRate, setEditingGpRate] = useState('');
+  const [editingGpBase, setEditingGpBase] = useState<'retail' | 'discounted'>('retail');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -136,12 +140,16 @@ function BrandsPageInner() {
     setEditingId(null);
     setEditingName('');
     setEditingSupplierId('');
+    setEditingGpRate('');
+    setEditingGpBase('retail');
   };
 
   const startEdit = (brand: BrandItem) => {
     setEditingId(brand.id);
     setEditingName(brand.name);
     setEditingSupplierId(brand.supplier_id || '');
+    setEditingGpRate(brand.default_gp_rate != null ? String(brand.default_gp_rate) : '');
+    setEditingGpBase(brand.gp_base_price || 'retail');
     resetAddForm();
   };
 
@@ -155,7 +163,13 @@ function BrandsPageInner() {
       const res = await apiFetch('/api/brands', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingId, name: editingName.trim(), supplier_id: editingSupplierId || null }),
+        body: JSON.stringify({
+          id: editingId,
+          name: editingName.trim(),
+          supplier_id: editingSupplierId || null,
+          default_gp_rate: editingGpRate !== '' ? parseFloat(editingGpRate) : null,
+          gp_base_price: editingGpBase,
+        }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -288,41 +302,70 @@ function BrandsPageInner() {
                   </div>
                   <div className="flex-1 min-w-0">
                     {editingId === brand.id ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={editingName}
-                          onChange={e => setEditingName(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') cancelEdit(); }}
-                          placeholder="ชื่อแบรนด์"
-                          className="w-40 pl-3 pr-2 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
-                          autoFocus
-                        />
-                        {features.supplier && (
-                          <div className="flex-1 min-w-0">
-                            <EntitySearchInput
-                              value={editingSupplierId}
-                              onChange={(id) => setEditingSupplierId(id)}
-                              onClear={() => setEditingSupplierId('')}
-                              options={suppliers.map(s => ({ id: s.id, label: s.name, subtitle: s.supplier_type }))}
-                              placeholder="ค้นหา Supplier..."
-                              selectedDisplay={
-                                editingSupplierId ? (
-                                  <div className="flex items-center gap-2 px-3 py-2.5 border border-[#F4511E]/30 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-base">
-                                    <Factory className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                    <span className="truncate text-gray-900 dark:text-slate-200">{suppliers.find(s => s.id === editingSupplierId)?.name}</span>
-                                  </div>
-                                ) : undefined
-                              }
-                            />
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <input
+                            type="text"
+                            value={editingName}
+                            onChange={e => setEditingName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') cancelEdit(); }}
+                            placeholder="ชื่อแบรนด์"
+                            className="w-40 pl-3 pr-2 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                            autoFocus
+                          />
+                          {features.supplier && (
+                            <div className="w-48 min-w-0">
+                              <EntitySearchInput
+                                value={editingSupplierId}
+                                onChange={(id) => setEditingSupplierId(id)}
+                                onClear={() => setEditingSupplierId('')}
+                                options={suppliers.map(s => ({ id: s.id, label: s.name, subtitle: s.supplier_type }))}
+                                placeholder="ค้นหา Supplier..."
+                                selectedDisplay={
+                                  editingSupplierId ? (
+                                    <div className="flex items-center gap-2 px-3 py-2.5 border border-[#F4511E]/30 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-base">
+                                      <Factory className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                      <span className="truncate text-gray-900 dark:text-slate-200">{suppliers.find(s => s.id === editingSupplierId)?.name}</span>
+                                    </div>
+                                  ) : undefined
+                                }
+                              />
+                            </div>
+                          )}
+                          <button onClick={handleSaveEdit} disabled={saving} className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50 flex-shrink-0">
+                            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                          </button>
+                          <button onClick={cancelEdit} className="p-1 text-gray-400 hover:text-gray-600 flex-shrink-0">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        {/* GP Settings row */}
+                        {features.consignment && (
+                          <div className="flex items-center gap-3 pl-1 flex-wrap">
+                            <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">GP default:</span>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number" min={0} max={100} step={0.1}
+                                value={editingGpRate}
+                                onChange={e => setEditingGpRate(e.target.value)}
+                                placeholder="เช่น 30"
+                                className="w-20 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-right bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
+                              />
+                              <span className="text-xs text-gray-400">%</span>
+                            </div>
+                            <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">คิดจากราคา:</span>
+                            <div className="flex items-center gap-2 text-sm">
+                              <label className="flex items-center gap-1 cursor-pointer">
+                                <input type="radio" name={`gpbase_${brand.id}`} checked={editingGpBase === 'retail'} onChange={() => setEditingGpBase('retail')} className="accent-[#F4511E]" />
+                                <span className="text-gray-700 dark:text-slate-300 text-xs">ราคาปลีก</span>
+                              </label>
+                              <label className="flex items-center gap-1 cursor-pointer">
+                                <input type="radio" name={`gpbase_${brand.id}`} checked={editingGpBase === 'discounted'} onChange={() => setEditingGpBase('discounted')} className="accent-[#F4511E]" />
+                                <span className="text-gray-700 dark:text-slate-300 text-xs">ราคาลด</span>
+                              </label>
+                            </div>
                           </div>
                         )}
-                        <button onClick={handleSaveEdit} disabled={saving} className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50 flex-shrink-0">
-                          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                        </button>
-                        <button onClick={cancelEdit} className="p-1 text-gray-400 hover:text-gray-600 flex-shrink-0">
-                          <X className="w-4 h-4" />
-                        </button>
                       </div>
                     ) : (
                       <div className="flex items-center gap-3">

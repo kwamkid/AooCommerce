@@ -2,6 +2,7 @@
 
 import { PackageCheck } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import BrandGpCommissions from '@/components/customers/BrandGpCommissions';
 
 interface ConsignmentSettingsData {
   consignment_mode?: string;
@@ -18,6 +19,7 @@ interface Props {
   onChange: (patch: Partial<ConsignmentSettingsData>) => void;
   inputClassName: string;
   labelClassName: string;
+  customerId?: string;
 }
 
 const CONSIGNMENT_MODE_OPTIONS = [
@@ -25,7 +27,7 @@ const CONSIGNMENT_MODE_OPTIONS = [
   { id: 'invoice', label: 'เครดิตตัวแทน (Invoice)' },
 ];
 
-export default function ConsignmentSettings({ data, onChange, inputClassName, labelClassName }: Props) {
+export default function ConsignmentSettings({ data, onChange, inputClassName, labelClassName, customerId }: Props) {
   return (
     <div className="card border border-amber-200 dark:border-amber-800/50">
       <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
@@ -48,7 +50,7 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
 
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className={labelClassName}>GP% ของตัวแทนนี้</label>
+            <label className={labelClassName}>GP% Default (ลูกค้านี้)</label>
             <div className="relative">
               <input
                 type="number"
@@ -130,6 +132,11 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
             </div>
           </div>
         )}
+
+        {/* Special GP% by brand — แสดงเสมอ เพราะ customerId เป็น pre-gen UUID */}
+        <div className="border-t border-amber-200 dark:border-amber-800/40 pt-4">
+          <BrandGpCommissions mode="customer" customerId={customerId!} canEdit={true} />
+        </div>
       </div>
     </div>
   );

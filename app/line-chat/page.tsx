@@ -977,15 +977,15 @@ function LineChatPageContent() {
   };
 
   // Create new customer and link to contact
-  const handleCreateCustomer = async (formData: CustomerFormData) => {
+  const handleCreateCustomer = async (formData: CustomerFormData, resolvedCustomerId: string) => {
     if (!selectedContact) return;
 
     setSavingCustomer(true);
     setCustomerError('');
 
     try {
-      // 1. Create customer with billing address and tax info
-      const customerPayload = buildCustomerPayload(formData);
+      // 1. Create customer with billing address and tax info (use pre-gen ID)
+      const customerPayload = buildCustomerPayload(formData, resolvedCustomerId);
 
       const createResponse = await apiFetch('/api/customers', {
         method: 'POST',
@@ -1000,7 +1000,7 @@ function LineChatPageContent() {
 
       const newCustomer = await createResponse.json();
 
-      const customerId = newCustomer.customer?.id || newCustomer.id;
+      const customerId = resolvedCustomerId;
       const customerName = newCustomer.customer?.name || newCustomer.name;
       const customerCode = newCustomer.customer?.customer_code || newCustomer.customer_code;
 
@@ -1168,7 +1168,7 @@ function LineChatPageContent() {
   };
 
   // Update customer from chat
-  const handleUpdateCustomerInChat = async (formData: CustomerFormData) => {
+  const handleUpdateCustomerInChat = async (formData: CustomerFormData, _resolvedId: string) => {
     if (!selectedContact?.customer) return;
 
     setEditingCustomer(true);

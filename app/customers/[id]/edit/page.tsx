@@ -93,13 +93,13 @@ export default function EditCustomerPage() {
     loadCustomer();
   }, [authLoading, userProfile, customerId]);
 
-  const handleUpdateCustomer = async (data: CustomerFormData) => {
+  const handleUpdateCustomer = async (data: CustomerFormData, resolvedCustomerId: string) => {
     if (!customer) return;
 
     setSaving(true);
 
     try {
-      const payload = buildCustomerPayload(data, customer.id);
+      const payload = buildCustomerPayload(data, resolvedCustomerId);
 
       const response = await apiFetch('/api/customers', {
         method: 'PUT',
@@ -202,6 +202,7 @@ export default function EditCustomerPage() {
           onCancel={() => router.push(`/customers/${customer.id}`)}
           isEditing={true}
           isLoading={saving}
+          customerId={customer.id}
         />
       </div>
     </Layout>

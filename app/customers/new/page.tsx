@@ -38,11 +38,11 @@ export default function NewCustomerPage() {
     }
   }, [userProfile, authLoading, router]);
 
-  const handleCreateCustomer = async (data: CustomerFormData) => {
+  const handleCreateCustomer = async (data: CustomerFormData, resolvedCustomerId: string) => {
     setSaving(true);
 
     try {
-      const customerPayload = buildCustomerPayload(data);
+      const customerPayload = buildCustomerPayload(data, resolvedCustomerId);
 
       const createResponse = await apiFetch('/api/customers', {
         method: 'POST',
@@ -55,9 +55,7 @@ export default function NewCustomerPage() {
         throw new Error(error.error || 'Failed to create customer');
       }
 
-      const newCustomer = await createResponse.json();
-
-      const customerId = newCustomer.customer?.id || newCustomer.id;
+      const customerId = resolvedCustomerId;
 
       // Create primary shipping address if provided
       if (data.shipping_address || data.shipping_province) {

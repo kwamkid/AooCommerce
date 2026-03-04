@@ -84,7 +84,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, sort_order, supplier_id } = body;
+    const { id, name, sort_order, supplier_id, default_gp_rate, gp_base_price } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
@@ -94,6 +94,8 @@ export async function PUT(request: NextRequest) {
     if (name !== undefined) updateData.name = name.trim();
     if (sort_order !== undefined) updateData.sort_order = sort_order;
     if (supplier_id !== undefined) updateData.supplier_id = supplier_id || null;
+    if (default_gp_rate !== undefined) updateData.default_gp_rate = default_gp_rate === '' || default_gp_rate === null ? null : Number(default_gp_rate);
+    if (gp_base_price !== undefined) updateData.gp_base_price = gp_base_price || 'retail';
 
     const { data, error } = await supabaseAdmin
       .from('product_brands')

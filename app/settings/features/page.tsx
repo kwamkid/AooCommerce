@@ -11,8 +11,9 @@ import { type FeatureFlags, PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS,
 import {
   CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory,
   PackageCheck, Loader2, Save, ChevronDown, ChevronUp,
-  CreditCard, Building2, Truck, Store, Layers, Users, Warehouse, Building,
+  CreditCard, Building2, Truck, Store, Layers, Users, Warehouse, Building, Award,
 } from 'lucide-react';
+import BrandGpCommissions, { GpBaseRadio, type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 
 // Feature icons for showing inside preset chips
 const FEATURE_ICONS: Partial<Record<keyof FeatureFlags, React.ReactNode>> = {
@@ -76,10 +77,12 @@ export default function FeaturesPage() {
   const [consignmentSettings, setConsignmentSettings] = useState({
     default_mode: 'dn' as 'dn' | 'invoice',
     default_gp_rate: 30,
+    default_gp_base_price: 'retail' as 'retail' | 'discounted',
     default_report_due_days: 15,
     default_payment_terms: 30,
     vat_included: true,
   });
+  const [brandGpRows, setBrandGpRows] = useState<BrandGpRow[]>([]);
 
   // Sync from context
   useEffect(() => {
@@ -89,6 +92,13 @@ export default function FeaturesPage() {
       apiFetch('/api/settings/features').then(r => r.json()).then(data => {
         if (data.consignment_settings) {
           setConsignmentSettings(prev => ({ ...prev, ...data.consignment_settings }));
+        }
+        if (data.brand_gp_overrides) {
+          setBrandGpRows(data.brand_gp_overrides.map((r: { brand_id: string; gp_rate: number; gp_base_price: string }) => ({
+            brand_id: r.brand_id,
+            gp_rate: String(r.gp_rate),
+            gp_base_price: r.gp_base_price || 'retail',
+          })));
         }
       }).catch(() => {});
     }
@@ -129,6 +139,13 @@ export default function FeaturesPage() {
         body: JSON.stringify({
           features: featureFlags,
           consignment_settings: featureFlags.consignment ? consignmentSettings : null,
+          brand_gp_overrides: featureFlags.consignment
+            ? brandGpRows.filter(r => r.brand_id && r.gp_rate !== '').map(r => ({
+                brand_id: r.brand_id,
+                gp_rate: parseFloat(r.gp_rate),
+                gp_base_price: r.gp_base_price,
+              }))
+            : null,
         }),
       });
       const data = await res.json();
@@ -312,95 +329,13 @@ export default function FeaturesPage() {
 
                   {/* Expandable: consignment settings */}
                   {hasInlineSettings && isOpen && (
-                    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 space-y-4">
-
-                      {/* Mode */}
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 dark:text-slate-400 mb-2">โหมดฝากขาย Default</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {([
-                            { key: 'dn', label: 'ฝากขาย (DN)', desc: 'ม.78(3) — VAT เมื่อขายได้' },
-                            { key: 'invoice', label: 'เครดิตตัวแทน', desc: 'Invoice ทันที VAT upfront' },
-                          ] as const).map(({ key, label, desc }) => (
-                            <button
-                              key={key}
-                              type="button"
-                              onClick={() => setConsignmentSettings(prev => ({ ...prev, default_mode: key }))}
-                              className={`p-3 rounded-lg border-2 text-left transition-all ${
-                                consignmentSettings.default_mode === key
-                                  ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
-                                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
-                              }`}
-                            >
-                              <p className={`text-base font-medium ${consignmentSettings.default_mode === key ? 'text-amber-700 dark:text-amber-400' : 'text-gray-700 dark:text-slate-300'}`}>
-                                {label}
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-slate-500 mt-0.5">{desc}</p>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Numeric defaults */}
-                      <div className="grid grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1">GP% Default</label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              value={consignmentSettings.default_gp_rate}
-                              onChange={(e) => setConsignmentSettings(prev => ({ ...prev, default_gp_rate: parseFloat(e.target.value) || 0 }))}
-                              className="w-full px-3 py-2 pr-7 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-base focus:outline-none focus:ring-2 focus:ring-amber-400"
-                              min="0" max="100" step="0.5"
-                            />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-400">%</span>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1">ส่งยอดภายใน</label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              value={consignmentSettings.default_report_due_days}
-                              onChange={(e) => setConsignmentSettings(prev => ({ ...prev, default_report_due_days: parseInt(e.target.value) || 15 }))}
-                              className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-base focus:outline-none focus:ring-2 focus:ring-amber-400"
-                              min="1" max="90"
-                            />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-400">วัน</span>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1">ชำระภายใน</label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              value={consignmentSettings.default_payment_terms}
-                              onChange={(e) => setConsignmentSettings(prev => ({ ...prev, default_payment_terms: parseInt(e.target.value) || 30 }))}
-                              className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-base focus:outline-none focus:ring-2 focus:ring-amber-400"
-                              min="0" max="180"
-                            />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-400">วัน</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* VAT included */}
-                      <div className="flex items-center justify-between bg-amber-50/60 dark:bg-amber-900/10 rounded-lg px-4 py-3">
-                        <div>
-                          <p className="text-base font-medium text-gray-900 dark:text-white">ราคาตัวแทนรวม VAT แล้ว</p>
-                          <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">ถ้าปิด = ราคาที่ตกลงยังไม่รวม VAT</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setConsignmentSettings(prev => ({ ...prev, vat_included: !prev.vat_included }))}
-                          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                            consignmentSettings.vat_included ? 'bg-amber-500' : 'bg-gray-300 dark:bg-slate-600'
-                          }`}
-                        >
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${consignmentSettings.vat_included ? 'translate-x-6' : 'translate-x-1'}`} />
-                        </button>
-                      </div>
-                    </div>
+                    <ConsignmentSettingsPanel
+                      settings={consignmentSettings}
+                      onChange={(patch) => setConsignmentSettings(prev => ({ ...prev, ...patch }))}
+                      brandGpRows={brandGpRows}
+                      onBrandGpRowsChange={setBrandGpRows}
+                      isOwnerOrAdmin={isOwnerOrAdmin}
+                    />
                   )}
                 </div>
               );
@@ -493,5 +428,169 @@ export default function FeaturesPage() {
         )}
       </div>
     </Layout>
+  );
+}
+
+// ── Consignment settings sub-panel ────────────────────────────────────────
+
+type ConsignmentSettingsData = {
+  default_mode: 'dn' | 'invoice';
+  default_gp_rate: number;
+  default_gp_base_price: 'retail' | 'discounted';
+  default_report_due_days: number;
+  default_payment_terms: number;
+  vat_included: boolean;
+};
+
+function ConsignmentSettingsPanel({
+  settings,
+  onChange,
+  brandGpRows,
+  onBrandGpRowsChange,
+  isOwnerOrAdmin,
+}: {
+  settings: ConsignmentSettingsData;
+  onChange: (patch: Partial<ConsignmentSettingsData>) => void;
+  brandGpRows: BrandGpRow[];
+  onBrandGpRowsChange: (rows: BrandGpRow[]) => void;
+  isOwnerOrAdmin: boolean;
+}) {
+  const [gpExpanded, setGpExpanded] = useState(false);
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 space-y-4">
+
+      {/* Mode */}
+      <div>
+        <p className="text-sm font-medium text-gray-600 dark:text-slate-400 mb-2">โหมดฝากขาย Default</p>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { key: 'dn', label: 'ฝากขาย (DN)', desc: 'ม.78(3) — VAT เมื่อขายได้' },
+            { key: 'invoice', label: 'เครดิตตัวแทน', desc: 'Invoice ทันที VAT upfront' },
+          ] as const).map(({ key, label, desc }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onChange({ default_mode: key })}
+              className={`p-3 rounded-lg border-2 text-left transition-all ${
+                settings.default_mode === key
+                  ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
+                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
+              }`}
+            >
+              <p className={`text-base font-medium ${settings.default_mode === key ? 'text-amber-700 dark:text-amber-400' : 'text-gray-700 dark:text-slate-300'}`}>
+                {label}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-slate-500 mt-0.5">{desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* GP% section — default + brand breakdown together */}
+      <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 overflow-hidden">
+
+        {/* GP% Default row */}
+        <div className="flex items-center gap-4 px-4 py-3 bg-amber-50/40 dark:bg-amber-900/10">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-700 dark:text-slate-300">GP% Default</p>
+            <p className="text-xs text-gray-400 dark:text-slate-500">ใช้เมื่อไม่มีค่าเฉพาะแบรนด์หรือลูกค้า</p>
+          </div>
+          <GpBaseRadio
+            name="default_gp_base_price"
+            value={settings.default_gp_base_price}
+            onChange={(v) => onChange({ default_gp_base_price: v })}
+          />
+          <div className="relative w-24 flex-shrink-0">
+            <input
+              type="number"
+              value={settings.default_gp_rate}
+              onChange={(e) => onChange({ default_gp_rate: parseFloat(e.target.value) || 0 })}
+              className="w-full px-3 py-1.5 pr-7 border border-amber-300 dark:border-amber-700/50 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-amber-400"
+              min="0" max="100" step="0.5"
+            />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
+          </div>
+        </div>
+
+        {/* Expand: GP% เฉพาะแบรนด์ */}
+        <button
+          type="button"
+          onClick={() => setGpExpanded(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-2.5 border-t border-amber-200 dark:border-amber-800/50 hover:bg-amber-50/60 dark:hover:bg-amber-900/10 transition-colors text-left"
+        >
+          <span className="text-sm font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+            <Award className="w-4 h-4" />
+            GP% เฉพาะแบรนด์
+            <span className="text-xs font-normal text-gray-400 dark:text-slate-500">(override ต่อแบรนด์)</span>
+          </span>
+          {gpExpanded
+            ? <ChevronUp className="w-4 h-4 text-gray-400" />
+            : <ChevronDown className="w-4 h-4 text-gray-400" />
+          }
+        </button>
+
+        {gpExpanded && (
+          <div className="border-t border-amber-200 dark:border-amber-800/50 px-4 py-3">
+            <BrandGpCommissions
+              mode="global"
+              rows={brandGpRows}
+              onRowsChange={onBrandGpRowsChange}
+              canEdit={isOwnerOrAdmin}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Payment terms — separate group */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1">ส่งยอดภายใน</label>
+          <div className="relative">
+            <input
+              type="number"
+              value={settings.default_report_due_days}
+              onChange={(e) => onChange({ default_report_due_days: parseInt(e.target.value) || 15 })}
+              className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-base focus:outline-none focus:ring-2 focus:ring-amber-400"
+              min="1" max="90"
+            />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-400">วัน</span>
+          </div>
+          <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">หลังสิ้นเดือน</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1">ชำระภายใน</label>
+          <div className="relative">
+            <input
+              type="number"
+              value={settings.default_payment_terms}
+              onChange={(e) => onChange({ default_payment_terms: parseInt(e.target.value) || 30 })}
+              className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-base focus:outline-none focus:ring-2 focus:ring-amber-400"
+              min="0" max="180"
+            />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-400">วัน</span>
+          </div>
+          <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">หลังวางบิล</p>
+        </div>
+      </div>
+
+      {/* VAT included */}
+      <div className="flex items-center justify-between bg-amber-50/60 dark:bg-amber-900/10 rounded-lg px-4 py-3">
+        <div>
+          <p className="text-base font-medium text-gray-900 dark:text-white">ราคาตัวแทนรวม VAT แล้ว</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">ถ้าปิด = ราคาที่ตกลงยังไม่รวม VAT</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange({ vat_included: !settings.vat_included })}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+            settings.vat_included ? 'bg-amber-500' : 'bg-gray-300 dark:bg-slate-600'
+          }`}
+        >
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.vat_included ? 'translate-x-6' : 'translate-x-1'}`} />
+        </button>
+      </div>
+
+    </div>
   );
 }

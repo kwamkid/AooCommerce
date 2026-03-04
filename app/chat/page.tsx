@@ -912,7 +912,7 @@ function UnifiedChatPageContent() {
     }
   };
 
-  const handleUpdateCustomerInChat = async (formData: CustomerFormData) => {
+  const handleUpdateCustomerInChat = async (formData: CustomerFormData, _resolvedId: string) => {
     if (!selectedContact?.customer) return;
     setEditingCustomer(true);
     setEditCustomerError('');

@@ -6,6 +6,8 @@ import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import { useFeatures } from '@/lib/features-context';
+import BrandGpCommissions from '@/components/customers/BrandGpCommissions';
 import { apiFetch } from '@/lib/api-client';
 import { parseThaiAddress } from '@/lib/address-parser';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
@@ -17,7 +19,6 @@ import {
   CreditCard,
   Plus,
   Trash2,
-  Star,
   ExternalLink,
   Loader2,
   AlertCircle,
@@ -27,7 +28,7 @@ import {
   UserCircle,
   MessageCircle,
   Facebook,
-  User
+  User,
 } from 'lucide-react';
 import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
@@ -102,6 +103,7 @@ const normalizePhone = (phone: string): string => {
 export default function CustomerEditPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { confirmDialog, confirm } = useConfirmDialog();
+  const { features } = useFeatures();
   const router = useRouter();
   const params = useParams();
   const customerId = params.id as string;
@@ -1056,6 +1058,11 @@ export default function CustomerEditPage() {
                 </div>
               )}
             </div>
+
+            {/* Brand GP Override Section — consignment_dealer / department_store only */}
+            {features.consignment && (form.customer_type === 'consignment_dealer' || form.customer_type === 'department_store') && (
+              <BrandGpCommissions mode="customer" customerId={customerId} canEdit={canEdit} />
+            )}
 
           </div>
 
