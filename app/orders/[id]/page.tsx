@@ -609,7 +609,10 @@ export default function OrderDetailPage() {
     setShowPrintMenu(false);
     setGeneratingPdf(true);
     try {
-      const blob = await generateShippingLabelPdf({ data: fullOrderData });
+      const dropshipSender = fullOrderData.customer?.customer_type === 'dropship'
+        ? { sender_name: fullOrderData.customer.name || '', sender_phone: fullOrderData.customer.phone || '' }
+        : {};
+      const blob = await generateShippingLabelPdf({ data: { ...fullOrderData, ...dropshipSender } });
       showPdfPreview(blob, 'ใบปะหน้า');
     } catch (err) {
       console.error('Error generating shipping label PDF:', err);
@@ -1274,9 +1277,9 @@ export default function OrderDetailPage() {
             {fullOrderData?.customer && (
               <div className="flex items-center gap-2 mb-2">
                 <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
-                <span className="text-sm font-medium text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
+                <span className="data-primary text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
                 {fullOrderData.customer.phone && (
-                  <span className="text-xs text-gray-400 dark:text-slate-500">· {fullOrderData.customer.phone}</span>
+                  <span className="data-secondary text-gray-400 dark:text-slate-500">· {fullOrderData.customer.phone}</span>
                 )}
               </div>
             )}
@@ -1335,10 +1338,10 @@ export default function OrderDetailPage() {
               <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 space-y-1.5">
                 <span className="text-xs font-medium text-[#F4511E] bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded">ขอใบกำกับภาษี</span>
                 {fullOrderData.tax_invoice_name && (
-                  <div className="text-sm text-gray-700 dark:text-slate-300">{fullOrderData.tax_invoice_name}</div>
+                  <div className="data-text text-gray-700 dark:text-slate-300">{fullOrderData.tax_invoice_name}</div>
                 )}
                 {fullOrderData.tax_invoice_tax_id && (
-                  <div className="text-xs text-gray-500 dark:text-slate-400">เลขผู้เสียภาษี: {fullOrderData.tax_invoice_tax_id}</div>
+                  <div className="data-secondary text-gray-500 dark:text-slate-400">เลขผู้เสียภาษี: {fullOrderData.tax_invoice_tax_id}</div>
                 )}
               </div>
             )}
@@ -1486,28 +1489,28 @@ export default function OrderDetailPage() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
-                    <span className="text-sm font-medium text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
+                    <span className="data-primary text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
                   </div>
                   {fullOrderData.customer.phone && (
-                    <div className="text-sm text-gray-600 dark:text-slate-400 pl-6">{fullOrderData.customer.phone}</div>
+                    <div className="data-secondary text-gray-600 dark:text-slate-400 pl-6">{fullOrderData.customer.phone}</div>
                   )}
                   {fullOrderData.delivery_address && (
-                    <div className="text-sm text-gray-600 dark:text-slate-400 pl-6">
+                    <div className="data-secondary text-gray-600 dark:text-slate-400 pl-6">
                       {[fullOrderData.delivery_address, fullOrderData.delivery_district, fullOrderData.delivery_amphoe, fullOrderData.delivery_province, fullOrderData.delivery_postal_code].filter(Boolean).join(' ')}
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="text-sm text-gray-400 dark:text-slate-500">ไม่มีข้อมูลลูกค้า</div>
+                <div className="data-secondary text-gray-400 dark:text-slate-500">ไม่มีข้อมูลลูกค้า</div>
               )}
               {fullOrderData?.tax_invoice_requested && (
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 space-y-1.5">
                   <span className="text-xs font-medium text-[#F4511E] bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded">ขอใบกำกับภาษี</span>
                   {fullOrderData.tax_invoice_name && (
-                    <div className="text-sm text-gray-700 dark:text-slate-300">{fullOrderData.tax_invoice_name}</div>
+                    <div className="data-text text-gray-700 dark:text-slate-300">{fullOrderData.tax_invoice_name}</div>
                   )}
                   {fullOrderData.tax_invoice_tax_id && (
-                    <div className="text-xs text-gray-500 dark:text-slate-400">เลขผู้เสียภาษี: {fullOrderData.tax_invoice_tax_id}</div>
+                    <div className="data-secondary text-gray-500 dark:text-slate-400">เลขผู้เสียภาษี: {fullOrderData.tax_invoice_tax_id}</div>
                   )}
                 </div>
               )}
@@ -1536,14 +1539,14 @@ export default function OrderDetailPage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
+                  <span className="data-primary text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
                 </div>
                 {fullOrderData.customer.phone && (
-                  <div className="text-sm text-gray-600 dark:text-slate-400 pl-6">{fullOrderData.customer.phone}</div>
+                  <div className="data-secondary text-gray-600 dark:text-slate-400 pl-6">{fullOrderData.customer.phone}</div>
                 )}
               </div>
             ) : (
-              <div className="text-sm text-gray-400 dark:text-slate-500">ลูกค้าหน้าร้าน</div>
+              <div className="data-secondary text-gray-400 dark:text-slate-500">ลูกค้าหน้าร้าน</div>
             )}
           </div>
           </div>
@@ -1758,21 +1761,21 @@ export default function OrderDetailPage() {
                   }`}>
                     {cn.type === 'void' ? 'ยกเลิกบิล' : cn.type === 'refund' ? 'คืนสินค้า' : 'เปลี่ยนสินค้า'}
                   </span>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">{cn.cn_number}</span>
-                  <span className="text-xs text-gray-400 dark:text-slate-500">
+                  <span className="id-text text-gray-900 dark:text-white">{cn.cn_number}</span>
+                  <span className="data-timestamp text-gray-400 dark:text-slate-500">
                     {new Date(cn.issued_at).toLocaleDateString('th-TH')}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   {cn.type === 'exchange' && cn.exchange_order_id && (
                     <span
-                      className="text-xs text-blue-500 dark:text-blue-400 hover:underline cursor-pointer"
+                      className="data-secondary text-blue-500 dark:text-blue-400 hover:underline cursor-pointer"
                       onClick={(e) => { e.stopPropagation(); router.push(`/orders/${cn.exchange_order_id}`); }}
                     >
                       บิลใหม่ →
                     </span>
                   )}
-                  <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                  <span className="data-number text-gray-700 dark:text-slate-300">
                     ฿{formatPrice(cn.total_amount)}
                   </span>
                   <ChevronRight className="w-4 h-4 text-gray-400" />
@@ -1864,8 +1867,8 @@ export default function OrderDetailPage() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">{item.name}</div>
-                    <div className="text-xs text-gray-400 dark:text-slate-500">สั่ง {item.max} ชิ้น</div>
+                    <div className="data-primary text-gray-900 dark:text-white line-clamp-2">{item.name}</div>
+                    <div className="data-muted text-gray-400 dark:text-slate-500">สั่ง {item.max} ชิ้น</div>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-gray-500 dark:text-slate-400">คืน</span>

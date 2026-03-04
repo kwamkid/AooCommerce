@@ -22,6 +22,14 @@ interface CustomerData {
   assigned_salesperson?: string;
   is_active?: boolean;
   notes?: string;
+  // Consignment fields
+  consignment_mode?: string | null;
+  consignment_gp_rate?: number | null;
+  consignment_report_due_days?: number | null;
+  consignment_payment_terms?: number | null;
+  contract_number?: string | null;
+  contract_date?: string | null;
+  rd_submitted_at?: string | null;
 }
 
 // POST - สร้างลูกค้าใหม่
@@ -68,11 +76,20 @@ export async function POST(request: NextRequest) {
         tax_company_name: customerData.tax_company_name || null,
         tax_branch: customerData.tax_branch || null,
         customer_type_new: customerData.customer_type,
+        customer_type: customerData.customer_type || 'retail',
         credit_limit: customerData.credit_limit || 0,
         credit_days: customerData.credit_days || 0,
         assigned_salesperson: customerData.assigned_salesperson || null,
         is_active: customerData.is_active !== undefined ? customerData.is_active : true,
         notes: customerData.notes || null,
+        // Consignment fields
+        consignment_mode: customerData.consignment_mode || null,
+        consignment_gp_rate: customerData.consignment_gp_rate ?? null,
+        consignment_report_due_days: customerData.consignment_report_due_days ?? null,
+        consignment_payment_terms: customerData.consignment_payment_terms ?? null,
+        contract_number: customerData.contract_number || null,
+        contract_date: customerData.contract_date || null,
+        rd_submitted_at: customerData.rd_submitted_at || null,
         created_by: auth.userId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -171,7 +188,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (customerType && customerType !== 'all') {
-      query = query.eq('customer_type_new', customerType);
+      // Supports comma-separated values: ?type=consignment_dealer,department_store
+      const types = customerType.split(',').map(t => t.trim()).filter(Boolean);
+      if (types.length === 1) {
+        query = query.eq('customer_type', types[0]);
+      } else if (types.length > 1) {
+        query = query.in('customer_type', types);
+      }
     }
 
     if (isActive !== null && isActive !== undefined && isActive !== 'all') {
@@ -424,9 +447,10 @@ export async function PUT(request: NextRequest) {
       updated_at: new Date().toISOString()
     };
 
-    // Add customer_type_new if customer_type is provided
+    // Update both customer_type columns
     if (customer_type) {
       dataToUpdate.customer_type_new = customer_type;
+      dataToUpdate.customer_type = customer_type;
     }
 
     // Map old address field names to new tax_address columns (backward compat)

@@ -306,7 +306,7 @@ function CategoriesPage() {
             </div>
 
             {/* Category count */}
-            <p className="text-base text-gray-500 dark:text-slate-400">
+            <p className="data-text text-gray-500 dark:text-slate-400">
               {filteredCategories.length} หมวดหมู่
             </p>
 
@@ -400,7 +400,7 @@ function CategoriesPage() {
                               </button>
                             </div>
                           ) : (
-                            <p className="text-base text-gray-700 dark:text-slate-300">{child.name}</p>
+                            <p className="data-text text-gray-700 dark:text-slate-300">{child.name}</p>
                           )}
                         </div>
                         {editingId !== child.id && (
@@ -456,7 +456,7 @@ function CategoriesPage() {
             {/* Add parent category form */}
             {showAddForm ? (
               <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
-                <div className="text-base font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
+                <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
                   <Tag className="w-4 h-4 text-[#F4511E]" />
                   เพิ่มหมวดหมู่
                 </div>

@@ -1046,6 +1046,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
       shipping_carrier: shopeeOrder.shipping_carrier || null,
       tracking_number: shopeeOrder.tracking_number || null,
       is_split: shopeeOrder.split_up === true && (shopeeOrder.package_list || []).length > 1,
+      flow_type: 'a_cash', // Marketplace orders always use cash flow regardless of customer type
       created_at: new Date(shopeeOrder.create_time * 1000).toISOString(),
       // Tax invoice from Shopee Buyer Tax Invoice feature
       ...(shopeeOrder.invoice_data?.tax_code ? {

@@ -1345,8 +1345,8 @@ export default function EditProductPage() {
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
-                              <div className="text-base font-medium text-gray-900 dark:text-white truncate">{p.name}</div>
-                              <div className="text-xs text-gray-500 dark:text-slate-400">
+                              <div className="data-primary text-gray-900 dark:text-white truncate">{p.name}</div>
+                              <div className="data-secondary text-gray-500 dark:text-slate-400">
                                 {p.code}
                                 {(p as any).source === 'shopee' && <span className="ml-2 text-orange-500">Shopee</span>}
                                 <span className="ml-2">{(p.variations || []).length} ตัวเลือก</span>
@@ -1371,18 +1371,18 @@ export default function EditProductPage() {
                       <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${mergeMasterId === 'current' ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-700'}`}>
                         <input type="radio" checked={mergeMasterId === 'current'} onChange={() => handleMasterChange('current')} className="accent-[#F4511E]" />
                         <div className="flex-1 min-w-0">
-                          <span className="text-base font-medium text-gray-900 dark:text-white">{product.name}</span>
-                          <span className="ml-2 text-xs text-gray-500 font-mono">{product.code}</span>
+                          <span className="data-primary text-gray-900 dark:text-white">{product.name}</span>
+                          <span className="ml-2 code-text text-gray-500">{product.code}</span>
                         </div>
-                        <span className="text-xs text-gray-400">สินค้าปัจจุบัน</span>
+                        <span className="data-muted text-gray-400">สินค้าปัจจุบัน</span>
                       </label>
                       <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${mergeMasterId === 'source' ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-700'}`}>
                         <input type="radio" checked={mergeMasterId === 'source'} onChange={() => handleMasterChange('source')} className="accent-[#F4511E]" />
                         <div className="flex-1 min-w-0">
-                          <span className="text-base font-medium text-gray-900 dark:text-white">{mergeSource.name}</span>
-                          <span className="ml-2 text-xs text-gray-500 font-mono">{mergeSource.code}</span>
+                          <span className="data-primary text-gray-900 dark:text-white">{mergeSource.name}</span>
+                          <span className="ml-2 code-text text-gray-500">{mergeSource.code}</span>
                         </div>
-                        <span className="text-xs text-gray-400">สินค้าที่เลือก</span>
+                        <span className="data-muted text-gray-400">สินค้าที่เลือก</span>
                       </label>
                     </div>
                     <p className="mt-1.5 text-xs text-red-500">สินค้าที่ไม่ได้เป็นตัวหลักจะถูกปิดใช้งานหลังรวม</p>

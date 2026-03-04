@@ -769,7 +769,7 @@ export default function ProductForm({
 
             {/* Category */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมวดหมู่</label>
+              <label className="label">หมวดหมู่</label>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <FormSelect
@@ -821,7 +821,7 @@ export default function ProductForm({
             {/* Brand (feature-gated) */}
             {features.product_brand && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">แบรนด์</label>
+                <label className="label">แบรนด์</label>
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <FormSelect
@@ -1000,7 +1000,7 @@ export default function ProductForm({
         <div className="space-y-5">
           {/* Select Variation Types */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5" data-field="variation_types">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1">เลือกประเภทตัวเลือก *</h3>
+            <h3 className="text-base font-medium text-gray-700 dark:text-slate-300 mb-1">เลือกประเภทตัวเลือก *</h3>
             <p className="text-sm text-gray-400 mb-3">เลือกอย่างน้อย 1 ประเภท เพื่อกำหนดตัวเลือก</p>
             {variationTypes.length === 0 ? (
               <p className="text-sm text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-700 rounded-lg p-3 text-center">ยังไม่มีประเภทตัวเลือก กรุณาเพิ่มใน Settings</p>
@@ -1059,7 +1059,7 @@ export default function ProductForm({
           {/* Variations List */}
           {formData.selected_variation_types.length > 0 && (
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5" data-field="variations_empty">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">Variations ({formData.variations.length})</h3>
+              <h3 className="text-base font-medium text-gray-700 dark:text-slate-300 mb-4">Variations ({formData.variations.length})</h3>
 
               {formData.variations.length === 0 ? (
                 <div className="text-center py-8 bg-gray-50 dark:bg-slate-700/50 rounded-xl border-2 border-dashed border-gray-200 dark:border-slate-600">

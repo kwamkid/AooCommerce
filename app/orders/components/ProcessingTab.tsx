@@ -438,6 +438,15 @@ export default function ProcessingTab({
     return result.order;
   };
 
+  /** For dropship orders, sender = agent's name (not our company) */
+  const getDropshipSender = (orderData: any) => {
+    if (orderData.customer?.customer_type !== 'dropship') return {};
+    return {
+      sender_name: orderData.customer.name || '',
+      sender_phone: orderData.customer.phone || '',
+    };
+  };
+
   const handlePrintShopeeLabels = async (orderIds: string[]) => {
     const response = await apiFetch('/api/shopee/orders/bulk-shipping-document', {
       method: 'POST',
@@ -530,6 +539,7 @@ export default function ProcessingTab({
               blobs.push(await generateShippingLabelPdf({
                 data: {
                   ...orderData,
+                  ...getDropshipSender(orderData),
                   tracking_number: parcel.tracking_number || orderData.tracking_number,
                   shipping_carrier: parcel.shipping_carrier || orderData.shipping_carrier,
                   items: parcelItems.length > 0 ? parcelItems : orderData.items,
@@ -539,7 +549,7 @@ export default function ProcessingTab({
               }));
             }
           } else {
-            blobs.push(await generateShippingLabelPdf({ data: orderData }));
+            blobs.push(await generateShippingLabelPdf({ data: { ...orderData, ...getDropshipSender(orderData) } }));
           }
         }
         const merged = await mergePdfBlobs(blobs);

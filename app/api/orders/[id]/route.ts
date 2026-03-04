@@ -30,7 +30,8 @@ export async function GET(
           name,
           contact_person,
           phone,
-          email
+          email,
+          customer_type
         )
       `)
       .eq('id', orderId)

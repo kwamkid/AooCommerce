@@ -1,7 +1,7 @@
 // Path: app/api/settings/features/route.ts
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
-import { parseFeatures, DEFAULT_PRESET, DEFAULT_FEATURES, type BusinessPreset, type FeatureFlags } from '@/lib/features';
+import { parseFeatures, DEFAULT_PRESET, DEFAULT_FEATURES, type FeatureFlags } from '@/lib/features';
 
 // GET - read feature flags from companies.settings
 export async function GET(request: NextRequest) {
@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ...result,
       bill_expiry_days: settings.bill_expiry_days ?? null,
+      consignment_settings: settings.consignment ?? null,
     });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -53,10 +54,10 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { preset, features } = body as { preset: BusinessPreset; features: FeatureFlags };
+    const { features, consignment_settings } = body as { features: FeatureFlags; consignment_settings?: Record<string, unknown> | null };
 
-    if (!preset || !features) {
-      return NextResponse.json({ error: 'preset and features are required' }, { status: 400 });
+    if (!features) {
+      return NextResponse.json({ error: 'features is required' }, { status: 400 });
     }
 
     // Read current settings, merge, and save
@@ -67,11 +68,14 @@ export async function PUT(request: NextRequest) {
       .single();
 
     const currentSettings = (company?.settings as Record<string, unknown>) || {};
-    const newSettings = {
+    const newSettings: Record<string, unknown> = {
       ...currentSettings,
-      business_preset: preset,
       features,
     };
+    // Save global consignment settings if provided
+    if (consignment_settings !== undefined) {
+      newSettings.consignment = consignment_settings;
+    }
     const { error: updateError } = await supabaseAdmin
       .from('companies')
       .update({ settings: newSettings })
@@ -82,7 +86,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, preset, features });
+    return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

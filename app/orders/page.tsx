@@ -305,15 +305,20 @@ function OrdersPageContent() {
     }
   };
 
-  // Status flow helpers
-  const getNextOrderStatus = (currentStatus: string): string | null => {
+  // Status flow helpers — credit/consignment/dept_store skip ready_to_ship
+  const getNextOrderStatus = (currentStatus: string, flowType?: string | null): string | null => {
+    const isCreditFlow = ['b_credit', 'c_consign', 'd_statement'].includes(flowType || '');
+    if (isCreditFlow) {
+      const flow: Record<string, string> = { new: 'processing', processing: 'shipping', shipping: 'completed' };
+      return flow[currentStatus] || null;
+    }
     const flow: Record<string, string> = { new: 'ready_to_ship', ready_to_ship: 'processing', processing: 'shipping', shipping: 'completed' };
     return flow[currentStatus] || null;
   };
 
   // Handle status click
   const handleOrderStatusClick = (order: Order) => {
-    const nextStatus = getNextOrderStatus(order.order_status);
+    const nextStatus = getNextOrderStatus(order.order_status, order.flow_type);
     if (!nextStatus) return;
     setShippingDetails({ carrier: '', trackingNumber: '' });
     setStatusUpdateModal({ show: true, order, nextStatus, statusType: 'order' });
@@ -517,8 +522,9 @@ function OrdersPageContent() {
     const primaryActions: React.ReactNode[] = [];
     const menuItems: ActionItem[] = [];
 
-    // Primary: Payment action (manual, new tab, pending payment)
-    if (statusFilter === 'new' && !isMarketplace && order.payment_status === 'pending') {
+    // Primary: Payment action (manual, new tab, pending payment, flow A only)
+    const isCreditFlow = ['b_credit', 'c_consign', 'd_statement'].includes(order.flow_type || '');
+    if (statusFilter === 'new' && !isMarketplace && order.payment_status === 'pending' && !isCreditFlow) {
       primaryActions.push(
         <button
           key="pay"
@@ -528,6 +534,21 @@ function OrdersPageContent() {
         >
           <CreditCard className="w-4 h-4" />
           <span className="hidden md:inline">บันทึกชำระ</span>
+        </button>
+      );
+    }
+
+    // Primary: Accept order (manual, new tab, credit flow — ship first pay later)
+    if (statusFilter === 'new' && !isMarketplace && isCreditFlow) {
+      primaryActions.push(
+        <button
+          key="accept"
+          onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }}
+          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
+          title="รับออเดอร์"
+        >
+          <Package className="w-4 h-4" />
+          <span className="hidden md:inline">รับออเดอร์</span>
         </button>
       );
     }

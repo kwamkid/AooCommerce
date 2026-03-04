@@ -67,7 +67,7 @@ interface SupplierFormProps {
 }
 
 const inputClass = 'w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base sm:text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]';
-const labelClass = 'block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1';
+const labelClass = 'label';
 
 function BankLogo({ code, size = 'sm' }: { code: string; size?: 'sm' | 'md' }) {
   const bank = getBankByCode(code);
@@ -191,7 +191,7 @@ export default function SupplierForm({
     <div ref={bankDropdownRef} className="relative">
       <label className={labelClass}>ธนาคาร</label>
       <button type="button" onClick={() => setBankDropdownOpen(!bankDropdownOpen)}
-        className={`${inputClass} flex items-center gap-2 text-left`}>
+        className={`${inputClass} flex items-center gap-2 text-left min-h-[42px]`}>
         {selectedBank ? (
           <>
             <BankLogo code={form.bank_code} />

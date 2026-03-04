@@ -681,13 +681,13 @@ export default function MembersPage() {
                         {member.user?.name?.charAt(0)?.toUpperCase() || member.user?.email?.charAt(0)?.toUpperCase() || '?'}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm sm:text-base font-medium text-gray-900 dark:text-white truncate">
+                        <p className="data-primary text-gray-900 dark:text-white truncate">
                           {member.user?.name || 'ไม่ระบุชื่อ'}
                           {member.user?.id === userProfile?.id && (
-                            <span className="ml-2 text-sm text-gray-500 dark:text-slate-400">(คุณ)</span>
+                            <span className="ml-2 data-secondary text-gray-500 dark:text-slate-400">(คุณ)</span>
                           )}
                         </p>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-gray-500 dark:text-slate-400">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 data-secondary text-gray-500 dark:text-slate-400">
                           <span className="flex items-center truncate">
                             <Mail className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
                             {member.user?.email}
@@ -794,10 +794,10 @@ export default function MembersPage() {
                           {invitation.email ? <Mail className="w-5 h-5" /> : <Link2 className="w-5 h-5" />}
                         </div>
                         <div>
-                          <p className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">
+                          <p className="data-primary text-gray-900 dark:text-white">
                             {invitation.email || 'ลิงก์เชิญ'}
                           </p>
-                          <p className="text-sm text-gray-500 dark:text-slate-400">
+                          <p className="data-secondary text-gray-500 dark:text-slate-400">
                             หมดอายุ: {new Date(invitation.expires_at).toLocaleDateString('th-TH', {
                               year: 'numeric',
                               month: 'short',

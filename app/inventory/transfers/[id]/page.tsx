@@ -402,19 +402,19 @@ export default function TransferDetailPage() {
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">คลังต้นทาง</label>
+              <label className="data-label text-gray-500 dark:text-slate-400 uppercase mb-1 block">คลังต้นทาง</label>
               <div className="flex items-center gap-2">
                 <Warehouse className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                <span className="data-primary text-gray-900 dark:text-white">
                   {transfer.from_warehouse?.name || '-'}
                 </span>
               </div>
             </div>
             <div>
-              <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">คลังปลายทาง</label>
+              <label className="data-label text-gray-500 dark:text-slate-400 uppercase mb-1 block">คลังปลายทาง</label>
               <div className="flex items-center gap-2">
                 <Warehouse className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                <span className="data-primary text-gray-900 dark:text-white">
                   {transfer.to_warehouse?.name || '-'}
                 </span>
               </div>

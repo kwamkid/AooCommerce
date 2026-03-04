@@ -51,8 +51,8 @@ export default function POEditItemsTable({
                     <div className="flex items-center gap-2.5">
                       {item.image ? <img src={item.image} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0" /> : <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0"><Package className="w-5 h-5 text-gray-400" /></div>}
                       <div className="min-w-0">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">{getDisplayName(item)}</div>
-                        <span className="text-xs text-gray-400 dark:text-slate-500">{getSubtitle(item)}</span>
+                        <div className="data-primary text-gray-900 dark:text-white line-clamp-2">{getDisplayName(item)}</div>
+                        <span className="data-secondary text-gray-400 dark:text-slate-500">{getSubtitle(item)}</span>
                       </div>
                     </div>
                   </td>
@@ -65,7 +65,7 @@ export default function POEditItemsTable({
                   <td className="px-6 py-3 text-center">
                     <input type="number" min="0" step="0.01" value={item.unit_cost} onChange={e => onUpdateCost(idx, parseFloat(e.target.value) || 0)} className="w-24 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]" />
                   </td>
-                  <td className="px-6 py-3 text-right"><span className="text-sm font-medium text-gray-900 dark:text-white">฿{formatCurrency(item.quantity * item.unit_cost)}</span></td>
+                  <td className="px-6 py-3 text-right"><span className="data-number text-gray-900 dark:text-white">฿{formatCurrency(item.quantity * item.unit_cost)}</span></td>
                   <td className="px-2 py-3 text-center">
                     <button type="button" onClick={() => onRemove(idx)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                   </td>

@@ -11,20 +11,29 @@ export interface FeatureFlags {
   product_brand: boolean;
   parcel_splitting: boolean;
   supplier: boolean;
+  department_store: boolean;
 }
 
-export type BusinessPreset = 'delivery' | 'ecommerce' | 'omnichannel';
+export type BusinessPreset = 'delivery' | 'ecommerce' | 'ecommerce_brand' | 'omnichannel' | 'omnichannel_brand' | 'wholesale' | 'distribution';
 
 export const PRESET_LABELS: Record<BusinessPreset, string> = {
-  delivery: 'Delivery (ส่งของ)',
+  delivery: 'Delivery',
   ecommerce: 'E-commerce',
+  ecommerce_brand: 'E-commerce + Brand',
   omnichannel: 'Omnichannel',
+  omnichannel_brand: 'Omnichannel + Department Store',
+  wholesale: 'ขายส่ง / ห้าง',
+  distribution: 'ตัวแทนจำหน่าย',
 };
 
 export const PRESET_DESCRIPTIONS: Record<BusinessPreset, string> = {
-  delivery: 'ส่งของขายส่ง มีสาขาลูกค้า วันส่ง วางบิล',
-  ecommerce: 'ขายออนไลน์ช่องทางเดียว เชื่อม Marketplace',
-  omnichannel: 'หลายช่องทาง Marketplace, POS, ตัวแทนจำหน่าย',
+  delivery: 'ส่งของขายส่ง มีสาขาลูกค้า กำหนดวันส่ง วางบิลเครดิต',
+  ecommerce: 'ขายออนไลน์ผ่าน Shopee, Lazada, TikTok Shop',
+  ecommerce_brand: 'ขายออนไลน์หลาย Marketplace จัดกลุ่มสินค้าตามแบรนด์',
+  omnichannel: 'ขายทุกช่องทาง Online + POS หน้าร้าน + ตัวแทนฝากขาย',
+  omnichannel_brand: 'ทุกช่องทาง + ลูกค้าห้าง Modern Trade Statement รายเดือน',
+  wholesale: 'ขายส่ง ลูกค้าห้าง Modern Trade วางบิล Statement รายเดือน',
+  distribution: 'บริหารตัวแทนจำหน่าย ฝากขาย DN/Invoice จัดการ Supplier',
 };
 
 export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
@@ -38,6 +47,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     product_brand: false,
     parcel_splitting: false,
     supplier: false,
+    department_store: false,
   },
   ecommerce: {
     customer_branches: false,
@@ -49,6 +59,19 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     product_brand: false,
     parcel_splitting: false,
     supplier: false,
+    department_store: false,
+  },
+  ecommerce_brand: {
+    customer_branches: false,
+    delivery_date: { enabled: false, required: false },
+    billing_cycle: false,
+    marketplace_sync: true,
+    pos: false,
+    consignment: false,
+    product_brand: true,
+    parcel_splitting: false,
+    supplier: false,
+    department_store: false,
   },
   omnichannel: {
     customer_branches: false,
@@ -59,7 +82,44 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     consignment: true,
     product_brand: false,
     parcel_splitting: false,
-    supplier: false,
+    supplier: true,
+    department_store: false,
+  },
+  omnichannel_brand: {
+    customer_branches: false,
+    delivery_date: { enabled: false, required: false },
+    billing_cycle: true,
+    marketplace_sync: true,
+    pos: true,
+    consignment: true,
+    product_brand: true,
+    parcel_splitting: false,
+    supplier: true,
+    department_store: true,
+  },
+  wholesale: {
+    customer_branches: true,
+    delivery_date: { enabled: false, required: false },
+    billing_cycle: true,
+    marketplace_sync: false,
+    pos: false,
+    consignment: false,
+    product_brand: false,
+    parcel_splitting: false,
+    supplier: true,
+    department_store: true,
+  },
+  distribution: {
+    customer_branches: false,
+    delivery_date: { enabled: false, required: false },
+    billing_cycle: true,
+    marketplace_sync: false,
+    pos: false,
+    consignment: true,
+    product_brand: false,
+    parcel_splitting: false,
+    supplier: true,
+    department_store: false,
   },
 };
 
@@ -80,7 +140,8 @@ export function detectPreset(f: FeatureFlags): BusinessPreset | null {
       f.consignment === defaults.consignment &&
       f.product_brand === defaults.product_brand &&
       f.parcel_splitting === defaults.parcel_splitting &&
-      f.supplier === defaults.supplier;
+      f.supplier === defaults.supplier &&
+      f.department_store === defaults.department_store;
     if (match) return key;
   }
   return null;
@@ -115,6 +176,7 @@ export function parseFeatures(settings: Record<string, unknown> | null | undefin
     product_brand: stored.product_brand ?? DEFAULT_FEATURES.product_brand,
     parcel_splitting: stored.parcel_splitting ?? DEFAULT_FEATURES.parcel_splitting,
     supplier: stored.supplier ?? DEFAULT_FEATURES.supplier,
+    department_store: stored.department_store ?? DEFAULT_FEATURES.department_store,
   };
 
   // Derive preset from features — not stored separately

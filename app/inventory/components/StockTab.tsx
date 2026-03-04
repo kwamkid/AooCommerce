@@ -413,8 +413,8 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                       )}
                       {visibleColumns.has('product') && (
                         <td className="px-2 py-2">
-                          <div className="text-base font-medium text-gray-900 dark:text-white line-clamp-2">{displayName}</div>
-                          <div className="text-xs text-gray-400 dark:text-slate-500">{getProductSubtitle(item)}</div>
+                          <div className="data-primary text-gray-900 dark:text-white line-clamp-2">{displayName}</div>
+                          <div className="data-secondary text-gray-400 dark:text-slate-500">{getProductSubtitle(item)}</div>
                         </td>
                       )}
                       {visibleColumns.has('sku') && (

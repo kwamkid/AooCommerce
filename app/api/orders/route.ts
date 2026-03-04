@@ -165,6 +165,22 @@ export async function POST(request: NextRequest) {
     const totalAmount = totalWithVAT;
     console.log('[CREATE ORDER] itemsSubtotal:', subtotal, 'discount:', discountAmount, 'shipping:', totalShippingFee, 'subtotalBeforeVAT:', subtotalBeforeVAT, 'vat:', vatAmount, 'TOTAL:', totalAmount);
 
+    // Determine flow_type from customer_type
+    let flowType = 'a_cash'; // default
+    if (orderData.customer_id) {
+      const { data: cust } = await supabaseAdmin
+        .from('customers')
+        .select('customer_type')
+        .eq('id', orderData.customer_id)
+        .single();
+      if (cust?.customer_type) {
+        if (cust.customer_type === 'credit') flowType = 'b_credit';
+        else if (cust.customer_type === 'consignment_dealer') flowType = 'c_consign';
+        else if (cust.customer_type === 'department_store') flowType = 'd_statement';
+        // retail, dropship, affiliate → a_cash (default)
+      }
+    }
+
     // Generate order number
     const { data: orderNumber, error: codeError } = await supabaseAdmin
       .rpc('generate_order_number', { p_company_id: auth.companyId });
@@ -255,6 +271,7 @@ export async function POST(request: NextRequest) {
         tax_invoice_address: orderData.tax_invoice_address || null,
         source: orderData.source || 'manual',
         source_name: orderData.source_name || null,
+        flow_type: flowType,
         expires_at: expiresAt,
         created_by: auth.userId,
         created_at: new Date().toISOString(),
@@ -924,17 +941,21 @@ export async function PUT(request: NextRequest) {
       }
 
       if (action === 'bulk_accept') {
-        // Separate Shopee vs manual orders
+        // Accept orders in ready_to_ship OR new (credit flow) status
         const { data: ordersToAccept } = await supabaseAdmin
           .from('orders')
-          .select('id, source, external_order_sn, external_status, marketplace_account_id, is_split, payment_status')
+          .select('id, source, external_order_sn, external_status, marketplace_account_id, is_split, payment_status, flow_type, order_status')
           .in('id', validIds)
           .eq('company_id', auth.companyId)
-          .eq('order_status', 'ready_to_ship');
+          .in('order_status', ['ready_to_ship', 'new']);
 
-        const manualOrders = (ordersToAccept || []).filter(o => o.source !== 'shopee');
-        const manualIds = manualOrders.map(o => o.id);
-        const shopeeOrders = (ordersToAccept || []).filter(o => o.source === 'shopee');
+        // Credit flow orders (b_credit/c_consign/d_statement) in 'new' can skip to processing
+        const creditFlowTypes = ['b_credit', 'c_consign', 'd_statement'];
+        const manualOrders = (ordersToAccept || []).filter(o => o.source !== 'shopee' && (
+          o.order_status === 'ready_to_ship' ||
+          (o.order_status === 'new' && creditFlowTypes.includes(o.flow_type || ''))
+        ));
+        const shopeeOrders = (ordersToAccept || []).filter(o => o.source === 'shopee' && o.order_status === 'ready_to_ship');
 
         // Split manual orders: verifying vs others
         const verifyingIds = manualOrders.filter(o => o.payment_status === 'verifying').map(o => o.id);
@@ -1347,7 +1368,7 @@ export async function PUT(request: NextRequest) {
     // Check if order exists and is editable (only 'new' status can be fully edited)
     const { data: existingOrder, error: fetchError } = await supabaseAdmin
       .from('orders')
-      .select('id, order_status, customer_id')
+      .select('id, order_status, customer_id, flow_type')
       .eq('id', id)
       .eq('company_id', auth.companyId)
       .single();
@@ -1685,14 +1706,20 @@ export async function PUT(request: NextRequest) {
       }
       if (body.payment_status !== undefined) {
         updateData.payment_status = body.payment_status;
-        // Auto-sync: when paid/verifying and still 'new', advance to 'ready_to_ship'
+        // Flow A (retail/dropship/affiliate): paid → ready_to_ship → wait for manual accept
+        // Flow B/C/D (credit/consignment/dept_store): paid → processing directly (no ready_to_ship)
+        const isCreditFlow = ['b_credit', 'c_consign', 'd_statement'].includes(existingOrder.flow_type || '');
         if ((body.payment_status === 'paid' || body.payment_status === 'verifying')
             && existingOrder.order_status === 'new' && !body.order_status) {
-          updateData.order_status = 'ready_to_ship';
+          updateData.order_status = isCreditFlow ? 'processing' : 'ready_to_ship';
         }
-        // Auto-reverse: when rejected (pending) and still 'ready_to_ship', revert to 'new'
-        if (body.payment_status === 'pending' && existingOrder.order_status === 'ready_to_ship' && !body.order_status) {
-          updateData.order_status = 'new';
+        // Auto-reverse: when rejected (pending) and still 'ready_to_ship' or 'processing' (credit), revert to 'new'
+        if (body.payment_status === 'pending' && !body.order_status) {
+          if (existingOrder.order_status === 'ready_to_ship') {
+            updateData.order_status = 'new';
+          } else if (existingOrder.order_status === 'processing' && isCreditFlow) {
+            updateData.order_status = 'new';
+          }
         }
       }
       if (body.customer_id !== undefined) updateData.customer_id = body.customer_id || null;

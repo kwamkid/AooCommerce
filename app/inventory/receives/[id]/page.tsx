@@ -195,22 +195,22 @@ export default function ReceiveDetailPage() {
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">คลังสินค้า</label>
+              <label className="data-label text-gray-500 dark:text-slate-400 uppercase mb-1 block">คลังสินค้า</label>
               <div className="flex items-center gap-2">
                 <Warehouse className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-900 dark:text-white">{data.warehouse?.name || '-'}</span>
+                <span className="data-primary text-gray-900 dark:text-white">{data.warehouse?.name || '-'}</span>
               </div>
             </div>
             <div>
-              <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">สร้างโดย</label>
+              <label className="data-label text-gray-500 dark:text-slate-400 uppercase mb-1 block">สร้างโดย</label>
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-gray-400" />
-                <span className="text-sm text-gray-700 dark:text-slate-300">{data.created_by_user?.name || '-'}</span>
+                <span className="data-text text-gray-700 dark:text-slate-300">{data.created_by_user?.name || '-'}</span>
               </div>
             </div>
             <div>
-              <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">วันที่</label>
-              <span className="text-sm text-gray-700 dark:text-slate-300">{formatDate(data.created_at)}</span>
+              <label className="data-label text-gray-500 dark:text-slate-400 uppercase mb-1 block">วันที่</label>
+              <span className="data-timestamp text-gray-700 dark:text-slate-300">{formatDate(data.created_at)}</span>
             </div>
             {(data.po || data.po_id) && (
               <div>

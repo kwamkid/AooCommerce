@@ -54,6 +54,10 @@ export interface ShippingLabelData {
   total_parcels?: number;
   source?: string;
   source_name?: string;
+  // Dropship: override sender with agent's name instead of our company
+  sender_name?: string;
+  sender_phone?: string;
+  sender_address?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -119,9 +123,10 @@ export async function generateShippingLabelPdf({ data, company }: GenerateOption
 
   const pdfMake = await setupPdfMake();
 
-  const senderName = company?.tax_company_name || company?.name || '';
-  const senderPhone = company?.phone || '';
-  const senderAddress = company?.address || '';
+  // Dropship: use agent's name as sender; otherwise use our company
+  const senderName = data.sender_name || company?.tax_company_name || company?.name || '';
+  const senderPhone = data.sender_phone || company?.phone || '';
+  const senderAddress = data.sender_address || company?.address || '';
 
   const receiverName = data.delivery_name || '';
   const receiverPhone = data.delivery_phone || '';

@@ -43,8 +43,8 @@ export default function POViewItemsTable({ items, totalAmount }: Props) {
                     {item.variation?.product?.image ? <img src={item.variation.product.image} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200 dark:border-slate-600" /> : <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center"><Package2 className="w-6 h-6 text-gray-400" /></div>}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="text-base text-gray-900 dark:text-white">{item.variation?.product?.name || '-'}{item.variation?.variation_label && item.variation.variation_label !== 'default' ? ` - ${item.variation.variation_label}` : ''}</div>
-                    <div className="text-xs text-gray-500 dark:text-slate-400">{item.variation?.product?.code}{item.variation?.sku && <span className="ml-2">SKU: {item.variation.sku}</span>}</div>
+                    <div className="data-primary text-gray-900 dark:text-white">{item.variation?.product?.name || '-'}{item.variation?.variation_label && item.variation.variation_label !== 'default' ? ` - ${item.variation.variation_label}` : ''}</div>
+                    <div className="data-secondary text-gray-500 dark:text-slate-400">{item.variation?.product?.code}{item.variation?.sku && <span className="ml-2">SKU: {item.variation.sku}</span>}</div>
                   </td>
                   <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white font-medium">{item.quantity}</td>
                   <td className="px-4 py-3 text-center text-sm font-medium text-green-600 dark:text-green-400">{item.received_quantity}</td>
@@ -69,8 +69,8 @@ export default function POViewItemsTable({ items, totalAmount }: Props) {
               <div className="flex items-start gap-3 mb-2">
                 {item.variation?.product?.image ? <img src={item.variation.product.image} alt="" className="w-16 h-16 rounded-lg object-cover" /> : <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center"><Package2 className="w-6 h-6 text-gray-400" /></div>}
                 <div className="flex-1 min-w-0">
-                  <div className="text-base font-medium text-gray-900 dark:text-white truncate">{item.variation?.product?.name}{item.variation?.variation_label && item.variation.variation_label !== 'default' ? ` - ${item.variation.variation_label}` : ''}</div>
-                  <div className="text-xs text-gray-500">{item.variation?.product?.code}</div>
+                  <div className="data-primary text-gray-900 dark:text-white truncate">{item.variation?.product?.name}{item.variation?.variation_label && item.variation.variation_label !== 'default' ? ` - ${item.variation.variation_label}` : ''}</div>
+                  <div className="data-secondary text-gray-500">{item.variation?.product?.code}</div>
                 </div>
                 <span className={`text-xs font-medium ${ib.color}`}>{ib.label}</span>
               </div>

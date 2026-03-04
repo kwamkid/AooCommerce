@@ -46,6 +46,8 @@ export interface Order {
   expires_at?: string | null;
   cancellation_reason?: string | null;
   tax_invoice_requested?: boolean;
+  flow_type?: string | null;
+  customer_type?: string | null;
   printed_label_at?: string | null;
   printed_packing_at?: string | null;
   printed_invoice_at?: string | null;

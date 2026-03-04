@@ -6,14 +6,11 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useCompany } from '@/lib/company-context';
 import { useAuth } from '@/lib/auth-context';
-import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS, detectPreset, type BusinessPreset, type FeatureFlags } from '@/lib/features';
 import {
   Building2, FileText, Phone, Mail, MapPin, Receipt, Upload, X,
   AlertCircle, Loader2, Save, User, Briefcase, Landmark,
-  Truck, ShoppingBag, Store, CalendarDays, CreditCard, ShoppingCart, Monitor, Handshake, Tag, Factory,
 } from 'lucide-react';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 
@@ -33,37 +30,10 @@ interface CompanyData {
   vat_registered: boolean | null;
 }
 
-// --- Business Mode configs ---
-const PRESETS: { key: BusinessPreset; icon: React.ReactNode }[] = [
-  { key: 'delivery', icon: <Truck className="w-7 h-7" /> },
-  { key: 'ecommerce', icon: <ShoppingBag className="w-7 h-7" /> },
-  { key: 'omnichannel', icon: <Store className="w-7 h-7" /> },
-];
-
-interface FeatureConfig {
-  key: keyof FeatureFlags;
-  label: string;
-  description: string;
-  icon: React.ReactNode;
-  comingSoon?: boolean;
-  hasRequired?: boolean;
-}
-
-const FEATURE_CONFIGS: FeatureConfig[] = [
-  { key: 'customer_branches', label: 'สาขาลูกค้า', description: 'สามารถเปิดบิลเดียว แต่ส่งหลายสาขาได้', icon: <Building2 className="w-5 h-5" /> },
-  { key: 'delivery_date', label: 'ธุรกิจเดลิเวอรี่', description: 'กำหนดวันส่งของ และเมนูจัดของเตรียมส่ง & คิวคนขับรถ', icon: <CalendarDays className="w-5 h-5" />, hasRequired: true },
-  { key: 'billing_cycle', label: 'วางบิล / เครดิต', description: 'ระบบวางบิลสิ้นเดือน', icon: <CreditCard className="w-5 h-5" /> },
-  { key: 'marketplace_sync', label: 'Marketplace', description: 'เชื่อม Shopee, Lazada ฯลฯ', icon: <ShoppingCart className="w-5 h-5" /> },
-  { key: 'pos', label: 'POS', description: 'ขายหน้าร้าน', icon: <Monitor className="w-5 h-5" /> },
-  { key: 'consignment', label: 'ฝากขาย', description: 'Consignment', icon: <Handshake className="w-5 h-5" /> },
-  { key: 'product_brand', label: 'แบรนด์สินค้า', description: 'จัดกลุ่มสินค้าตามแบรนด์', icon: <Tag className="w-5 h-5" /> },
-  { key: 'supplier', label: 'ซัพพลายเออร์', description: 'จัดการ Supplier, PO, รายงานฝากขาย', icon: <Factory className="w-5 h-5" /> },
-];
 
 export default function CompanySettingsPage() {
   const { currentCompany, companyRoles, refreshCompanies } = useCompany();
   const { session } = useAuth();
-  const { features: currentFeatures, fetched: featuresFetched, refreshFeatures } = useFeatures();
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -85,19 +55,6 @@ export default function CompanySettingsPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const initialFormRef = useRef(formData);
 
-  // Business mode state — preset is derived from features, not stored
-  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(currentFeatures);
-  const initialFeaturesRef = useRef(featureFlags);
-  const [featuresLoaded, setFeaturesLoaded] = useState(false);
-
-  // Sync features from context — wait until API data is actually fetched
-  useEffect(() => {
-    if (featuresFetched && !featuresLoaded) {
-      setFeatureFlags(currentFeatures);
-      initialFeaturesRef.current = currentFeatures;
-      setFeaturesLoaded(true);
-    }
-  }, [featuresFetched, currentFeatures, featuresLoaded]);
 
   // Fetch company data
   useFetchOnce(async () => {
@@ -136,46 +93,6 @@ export default function CompanySettingsPage() {
       setIsLoading(false);
     }
   }, !!currentCompany?.id);
-
-  // --- Business mode helpers ---
-  const derivedPreset = detectPreset(featureFlags);
-  const isCustom = derivedPreset === null;
-
-  const handlePresetSelect = (preset: BusinessPreset) => {
-    setFeatureFlags(PRESET_DEFAULTS[preset]);
-  };
-
-  const toggleFeature = (key: keyof FeatureFlags) => {
-    setFeatureFlags(prev => {
-      if (key === 'delivery_date') {
-        const dd = prev.delivery_date;
-        return { ...prev, delivery_date: { enabled: !dd.enabled, required: !dd.enabled ? dd.required : false } };
-      }
-      const newValue = !prev[key as keyof Omit<FeatureFlags, 'delivery_date'>];
-      const next = { ...prev, [key]: newValue };
-      // เปิด consignment → ต้องเปิด supplier ด้วยอัตโนมัติ
-      if (key === 'consignment' && newValue) {
-        next.supplier = true;
-      }
-      // ปิด supplier → ต้องปิด consignment ด้วย (dependency)
-      if (key === 'supplier' && !newValue) {
-        next.consignment = false;
-      }
-      return next;
-    });
-  };
-
-  const toggleDeliveryDateRequired = () => {
-    setFeatureFlags(prev => ({
-      ...prev,
-      delivery_date: { ...prev.delivery_date, required: !prev.delivery_date.required },
-    }));
-  };
-
-  const getFeatureValue = (key: keyof FeatureFlags): boolean => {
-    if (key === 'delivery_date') return featureFlags.delivery_date.enabled;
-    return featureFlags[key] as boolean;
-  };
 
   // --- Logo handlers ---
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -276,47 +193,37 @@ export default function CompanySettingsPage() {
 
     setIsSaving(true);
     try {
-      // Save company info + features in parallel
-      const [companyRes, featuresRes] = await Promise.all([
-        apiFetch('/api/companies', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: currentCompany.id,
-            name: formData.name,
-            description: formData.description || undefined,
-            phone: formData.phone || undefined,
-            email: formData.email || undefined,
-            address: formData.address || undefined,
-            taxId: formData.taxId || undefined,
-            taxCompanyName: formData.taxCompanyName || undefined,
-            taxBranch: formData.taxBranch || undefined,
-            businessType: formData.businessType,
-            vatRegistered: formData.vatRegistered,
-            addressParts: {
-              district: formData.district,
-              amphoe: formData.amphoe,
-              province: formData.province,
-              postalCode: formData.postalCode,
-            },
-          }),
+      const companyRes = await apiFetch('/api/companies', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: currentCompany.id,
+          name: formData.name,
+          description: formData.description || undefined,
+          phone: formData.phone || undefined,
+          email: formData.email || undefined,
+          address: formData.address || undefined,
+          taxId: formData.taxId || undefined,
+          taxCompanyName: formData.taxCompanyName || undefined,
+          taxBranch: formData.taxBranch || undefined,
+          businessType: formData.businessType,
+          vatRegistered: formData.vatRegistered,
+          addressParts: {
+            district: formData.district,
+            amphoe: formData.amphoe,
+            province: formData.province,
+            postalCode: formData.postalCode,
+          },
         }),
-        apiFetch('/api/settings/features', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ preset: derivedPreset || 'custom', features: featureFlags }),
-        }),
-      ]);
+      });
 
       const companyResult = await companyRes.json();
-      const featuresResult = await featuresRes.json();
 
       if (!companyRes.ok) throw new Error(companyResult.error || 'ไม่สามารถบันทึกข้อมูลบริษัทได้');
-      if (!featuresRes.ok) throw new Error(featuresResult.error || 'ไม่สามารถบันทึก features ได้');
 
       showToast('บันทึกสำเร็จ', 'success');
 
-      await Promise.all([refreshCompanies(), refreshFeatures()]);
+      await refreshCompanies();
 
       if (logoFile) await handleUploadLogo();
     } catch (err) {
@@ -359,10 +266,7 @@ export default function CompanySettingsPage() {
           )}
 
           {/* 2-Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-            {/* === LEFT COLUMN: Company Info === */}
-            <div className="space-y-6">
+          <div className="max-w-2xl space-y-6">
               {/* Logo */}
               <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">โลโก้บริษัท</h3>
@@ -537,122 +441,16 @@ export default function CompanySettingsPage() {
                     </div>
                 </div>
               </div>
-            </div>
 
-            {/* === RIGHT COLUMN: Business Mode === */}
-            <div className="space-y-6">
-              {/* Preset Selector */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">รูปแบบธุรกิจ</h3>
-                <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">เลือก preset แล้วปรับแต่งด้านล่าง</p>
-
-                <div className="grid grid-cols-3 gap-3">
-                  {PRESETS.map(({ key, icon }) => {
-                    const isSelected = derivedPreset === key;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        title={PRESET_DESCRIPTIONS[key]}
-                        onClick={() => handlePresetSelect(key)}
-                        className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                          isSelected
-                            ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20'
-                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                        }`}
-                      >
-                        <div className={isSelected ? 'text-[#F4511E]' : 'text-gray-400 dark:text-slate-500'}>{icon}</div>
-                        <span className={`font-medium text-sm ${isSelected ? 'text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>
-                          {PRESET_LABELS[key]}
-                        </span>
-                        {isSelected && (
-                          <div className="absolute top-2 right-2 w-5 h-5 bg-[#F4511E] rounded-full flex items-center justify-center">
-                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                {isCustom && (
-                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">* ปรับแต่งเอง — ไม่ตรงกับ preset ใดๆ</p>
-                )}
-              </div>
-
-              {/* Feature Toggles */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">ปรับแต่ง Features</h3>
-                <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">เปิด/ปิดตามความต้องการ</p>
-
-                <div className="space-y-3">
-                  {FEATURE_CONFIGS.map((config) => {
-                    const isEnabled = getFeatureValue(config.key);
-                    const isComingSoon = config.comingSoon;
-
-                    return (
-                      <div key={config.key} className="border border-gray-100 dark:border-slate-700 rounded-lg p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className={`flex-shrink-0 ${isEnabled && !isComingSoon ? 'text-[#F4511E]' : 'text-gray-400 dark:text-slate-500'}`}>
-                              {config.icon}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium text-gray-900 dark:text-white">{config.label}</span>
-                                {isComingSoon && (
-                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400">
-                                    เร็วๆ นี้
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-500 dark:text-slate-400">{config.description}</p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => !isComingSoon && toggleFeature(config.key)}
-                            disabled={isComingSoon}
-                            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                              isComingSoon ? 'bg-gray-200 dark:bg-slate-700 cursor-not-allowed opacity-50'
-                                : isEnabled ? 'bg-[#F4511E]' : 'bg-gray-300 dark:bg-slate-600'
-                            }`}
-                          >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                          </button>
-                        </div>
-
-                        {config.hasRequired && isEnabled && (
-                          <div className="mt-3 ml-7 flex items-center justify-between bg-gray-50 dark:bg-slate-700/50 rounded-lg p-3">
-                            <span className="text-sm text-gray-700 dark:text-slate-300">บังคับกรอก</span>
-                            <button
-                              type="button"
-                              onClick={toggleDeliveryDateRequired}
-                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                                featureFlags.delivery_date.required ? 'bg-[#F4511E]' : 'bg-gray-300 dark:bg-slate-600'
-                              }`}
-                            >
-                              <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${featureFlags.delivery_date.required ? 'translate-x-5' : 'translate-x-1'}`} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
+          </div>{/* end max-w-2xl */}
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-3 mt-6">
+          <div className="flex justify-end gap-3 mt-6 max-w-2xl">
             <button
               type="button"
               disabled={isSaving}
               onClick={() => {
                 setFormData(initialFormRef.current);
-                setFeatureFlags(initialFeaturesRef.current);
                 setFieldErrors({});
                 setLogoFile(null);
                 setLogoPreview(null);

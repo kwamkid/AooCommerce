@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import {
   Loader2,
   Check,
@@ -11,8 +12,12 @@ import {
   Plus,
   Trash2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
 } from 'lucide-react';
+
+// Lazy-loaded type-specific settings panels
+const ConsignmentSettings = dynamic(() => import('./settings/ConsignmentSettings'), { ssr: false });
+const DepartmentStoreSettings = dynamic(() => import('./settings/DepartmentStoreSettings'), { ssr: false });
 import Checkbox from '@/components/ui/Checkbox';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import FormSelect from '@/components/ui/FormSelect';
@@ -20,6 +25,7 @@ import TagInput from '@/components/ui/TagInput';
 import { Tag } from '@/components/ui/TagBadge';
 import { useToast } from '@/lib/toast-context';
 import { parseThaiAddress } from '@/lib/address-parser';
+import { useFeatures } from '@/lib/features-context';
 
 // Additional shipping address interface
 export interface ShippingAddressData {
@@ -72,6 +78,14 @@ export interface CustomerFormData {
   billing_same_as_shipping: boolean;
   // Additional shipping addresses
   additional_addresses?: ShippingAddressData[];
+  // Consignment fields (only for consignment_dealer)
+  consignment_mode?: string;
+  consignment_gp_rate?: number | '';
+  consignment_report_due_days?: number | '';
+  consignment_payment_terms?: number | '';
+  contract_number?: string;
+  contract_date?: string;
+  rd_submitted_at?: string;
 }
 
 interface CustomerFormProps {
@@ -130,24 +144,23 @@ const emptyAddress: ShippingAddressData = {
   delivery_notes: '',
 };
 
-const CUSTOMER_TYPE_OPTIONS = [
-  { id: 'retail', label: 'ลูกค้าปลีก' },
-  { id: 'wholesale', label: 'ลูกค้าส่ง' },
-  { id: 'cash_dealer', label: 'ตัวแทนฯ เงินสด' },
-  { id: 'credit_dealer', label: 'ตัวแทนฯ เครดิต' },
-  { id: 'consignment_dealer', label: 'ตัวแทนฯ ฝากขาย' },
-  { id: 'sub_dealer', label: 'ตัวแทนย่อย' },
-  { id: 'department_store', label: 'ห้าง/Modern Trade' },
-  { id: 'distributor', label: 'ตัวกระจายสินค้า' },
-  { id: 'corporate', label: 'องค์กร/B2B' },
-  { id: 'project', label: 'ลูกค้าโครงการ' },
-  { id: 'marketplace_dealer', label: 'ตัวแทน Marketplace' },
-  { id: 'dropship', label: 'Dropship' },
-  { id: 'affiliate', label: 'Affiliate/KOL' },
-  { id: 'oem_odm', label: 'OEM/ODM' },
-  { id: 'regional_agent', label: 'ตัวแทนภูมิภาค' },
-  { id: 'government', label: 'ราชการ/หน่วยงานรัฐ' },
+// 6 types based on distinct business flows
+// A (prepaid/COD): retail, dropship, affiliate
+// B (ship first, pay later): credit
+// C/D (consignment): consignment_dealer (mode: dn=C, invoice=D)
+// D (statement): department_store
+// Use price tier / tags to distinguish dealer vs end-customer within same flow
+const ALL_CUSTOMER_TYPE_OPTIONS = [
+  { id: 'retail',             label: 'ลูกค้าปลีก/ส่ง',     requiredFeature: null },
+  { id: 'credit',             label: 'ลูกค้าเครดิต',        requiredFeature: null },
+  { id: 'consignment_dealer', label: 'ตัวแทนฯ ฝากขาย',    requiredFeature: 'consignment' as const },
+  { id: 'department_store',   label: 'ห้าง/Modern Trade',  requiredFeature: 'department_store' as const },
+  { id: 'dropship',           label: 'Dropship',            requiredFeature: null },
+  { id: 'affiliate',          label: 'Affiliate/KOL',       requiredFeature: null },
 ];
+
+// Types that use credit flow (show credit terms prominently)
+const CREDIT_TYPES = new Set(['credit', 'department_store']);
 
 const defaultFormData: CustomerFormData = {
   name: '',
@@ -179,7 +192,14 @@ const defaultFormData: CustomerFormData = {
   billing_amphoe: '',
   billing_province: '',
   billing_postal_code: '',
-  billing_same_as_shipping: true
+  billing_same_as_shipping: true,
+  consignment_mode: '',
+  consignment_gp_rate: '',
+  consignment_report_due_days: '',
+  consignment_payment_terms: '',
+  contract_number: '',
+  contract_date: '',
+  rd_submitted_at: '',
 };
 
 /** Build API payload from form data — shared by all pages that create/update customers */
@@ -187,6 +207,8 @@ export function buildCustomerPayload(data: CustomerFormData, customerId?: string
   const billingAddress = data.billing_same_as_shipping
     ? [data.shipping_address, data.shipping_district, data.shipping_amphoe, data.shipping_province, data.shipping_postal_code].filter(Boolean).join(' ')
     : data.billing_address;
+
+  const isConsignment = data.customer_type === 'consignment_dealer';
 
   return {
     ...(customerId ? { id: customerId } : {}),
@@ -207,13 +229,23 @@ export function buildCustomerPayload(data: CustomerFormData, customerId?: string
     tax_amphoe: '',
     tax_province: '',
     tax_postal_code: '',
+    // Consignment fields — only sent when relevant
+    ...(isConsignment ? {
+      consignment_mode: data.consignment_mode || null,
+      consignment_gp_rate: data.consignment_gp_rate !== '' ? data.consignment_gp_rate : null,
+      consignment_report_due_days: data.consignment_report_due_days !== '' ? data.consignment_report_due_days : null,
+      consignment_payment_terms: data.consignment_payment_terms !== '' ? data.consignment_payment_terms : null,
+      contract_number: data.contract_number || null,
+      contract_date: data.contract_date || null,
+      rd_submitted_at: data.rd_submitted_at || null,
+    } : {}),
   };
 }
 
 // Input class helpers
 const inputFull = "w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] bg-white dark:bg-slate-800 text-gray-900 dark:text-white";
 const inputCompact = "w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white";
-const labelFull = "block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1";
+const labelFull = "label";
 const labelCompact = "block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1";
 
 export default function CustomerForm({
@@ -230,6 +262,13 @@ export default function CustomerForm({
   onTagCreated,
 }: CustomerFormProps) {
   const { showToast } = useToast();
+  const { features } = useFeatures();
+
+  // Filter customer types based on enabled features
+  const CUSTOMER_TYPE_OPTIONS = ALL_CUSTOMER_TYPE_OPTIONS.filter(opt => {
+    if (!opt.requiredFeature) return true;
+    return features[opt.requiredFeature];
+  });
   const [formData, setFormData] = useState<CustomerFormData>({
     ...defaultFormData,
     ...initialData,
@@ -780,11 +819,18 @@ export default function CustomerForm({
           </div>
 
           {/* Section 3: Credit Terms */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
+          <div className={`card ${CREDIT_TYPES.has(formData.customer_type) ? 'border border-blue-200 dark:border-blue-800/50' : 'border border-gray-200 dark:border-slate-700'}`}>
             <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-              เครดิต & อื่นๆ
+              เครดิต & การตั้งค่า
             </h3>
             <div className="space-y-4">
+              {CREDIT_TYPES.has(formData.customer_type) && (
+                <div className="rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 p-3">
+                  <p className="text-xs text-blue-700 dark:text-blue-400 font-medium">
+                    ประเภทนี้ใช้ <strong>Flow B</strong> — ส่งสินค้าก่อน จ่ายเงินทีหลัง (Tax Invoice ออก ณ วันส่งของ)
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelFull}>วงเงินเครดิต (บาท)</label>
@@ -796,7 +842,7 @@ export default function CustomerForm({
                   <label className={labelFull}>ระยะเวลาเครดิต (วัน)</label>
                   <input type="number" value={formData.credit_days}
                     onChange={(e) => setFormData(prev => ({ ...prev, credit_days: parseInt(e.target.value) || 0 }))}
-                    className={inputFull} min="0" />
+                    className={inputFull} min="0" placeholder="0 = ไม่มีเครดิต" />
                 </div>
               </div>
               <div>
@@ -804,6 +850,29 @@ export default function CustomerForm({
               </div>
             </div>
           </div>
+
+          {/* Section 4: Department Store Settings */}
+          {features.department_store && formData.customer_type === 'department_store' && (
+            <DepartmentStoreSettings />
+          )}
+
+          {/* Section 5: Consignment Settings */}
+          {features.consignment && formData.customer_type === 'consignment_dealer' && (
+            <ConsignmentSettings
+              data={{
+                consignment_mode: formData.consignment_mode,
+                consignment_gp_rate: formData.consignment_gp_rate,
+                consignment_report_due_days: formData.consignment_report_due_days,
+                consignment_payment_terms: formData.consignment_payment_terms,
+                contract_number: formData.contract_number,
+                contract_date: formData.contract_date,
+                rd_submitted_at: formData.rd_submitted_at,
+              }}
+              onChange={(patch) => setFormData(prev => ({ ...prev, ...patch }))}
+              inputClassName={inputFull}
+              labelClassName={labelFull}
+            />
+          )}
 
         </div>
 

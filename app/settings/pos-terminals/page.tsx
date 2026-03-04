@@ -455,7 +455,7 @@ export default function PosTerminalsPage() {
             {/* ══════ Tab: Terminals ══════ */}
             {activeTab === 'terminals' && (
               <div className="max-w-2xl">
-                <p className="text-base text-gray-500 dark:text-slate-400 mb-4">
+                <p className="data-text text-gray-500 dark:text-slate-400 mb-4">
                   แต่ละจุดขายเลือกผูกคลังสินค้าเพื่อตัดสต็อกได้
                 </p>
 
@@ -470,7 +470,7 @@ export default function PosTerminalsPage() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="font-medium text-base text-gray-900 dark:text-white truncate">{t.name}</p>
+                                <p className="data-primary text-gray-900 dark:text-white truncate">{t.name}</p>
                                 {t.code && <span className="text-xs text-gray-400 dark:text-slate-500">({t.code})</span>}
                               </div>
                               <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
@@ -533,7 +533,7 @@ export default function PosTerminalsPage() {
             {/* ══════ Tab: Payment Channels ══════ */}
             {activeTab === 'channels' && (
               <div className="max-w-2xl">
-                <p className="text-base text-gray-500 dark:text-slate-400 mb-4">
+                <p className="data-text text-gray-500 dark:text-slate-400 mb-4">
                   เปิด/ปิดช่องทางที่ต้องการใช้ในหน้า POS
                 </p>
 
@@ -580,7 +580,7 @@ export default function PosTerminalsPage() {
                                 <Icon className="w-5 h-5 text-green-600 dark:text-green-400" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-medium text-base text-gray-900 dark:text-white truncate">{ch.name}</p>
+                                <p className="data-primary text-gray-900 dark:text-white truncate">{ch.name}</p>
                                 <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
                                   {ch.is_active ? (
                                     <span className="text-green-600 dark:text-green-400">เปิดใช้งาน</span>
@@ -650,7 +650,7 @@ export default function PosTerminalsPage() {
   function renderTerminalForm() {
     return (
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
-        <div className="text-base font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
+        <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
           <Monitor className="w-4 h-4 text-[#F4511E]" />
           {editingId ? 'แก้ไขจุดขาย' : 'เพิ่มจุดขาย'}
         </div>
@@ -793,7 +793,7 @@ export default function PosTerminalsPage() {
   function renderChannelForm() {
     return (
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
-        <div className="text-base font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
+        <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
           <CreditCard className="w-4 h-4 text-green-600" />
           {editingChannelId ? 'แก้ไขช่องทาง' : 'เพิ่มช่องทางชำระเงิน'}
         </div>

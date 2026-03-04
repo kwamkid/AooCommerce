@@ -24,12 +24,20 @@ interface Customer {
   tax_id?: string;
   tax_company_name?: string;
   tax_branch?: string;
-  customer_type: 'retail' | 'wholesale' | 'distributor';
-  customer_type_new?: 'retail' | 'wholesale' | 'distributor';
+  customer_type: string;
+  customer_type_new?: string;
   credit_limit: number;
   credit_days: number;
   is_active: boolean;
   notes?: string;
+  // Consignment fields
+  consignment_mode?: string | null;
+  consignment_gp_rate?: number | null;
+  consignment_report_due_days?: number | null;
+  consignment_payment_terms?: number | null;
+  contract_number?: string | null;
+  contract_date?: string | null;
+  rd_submitted_at?: string | null;
 }
 
 export default function EditCustomerPage() {
@@ -181,7 +189,14 @@ export default function EditCustomerPage() {
             tax_company_name: customer.tax_company_name || '',
             tax_branch: customer.tax_branch || 'สำนักงานใหญ่',
             billing_address: [customer.tax_address, customer.tax_district, customer.tax_amphoe, customer.tax_province, customer.tax_postal_code].filter(Boolean).join(' '),
-            billing_same_as_shipping: false
+            billing_same_as_shipping: false,
+            consignment_mode: customer.consignment_mode || '',
+            consignment_gp_rate: customer.consignment_gp_rate ?? '',
+            consignment_report_due_days: customer.consignment_report_due_days ?? '',
+            consignment_payment_terms: customer.consignment_payment_terms ?? '',
+            contract_number: customer.contract_number || '',
+            contract_date: customer.contract_date || '',
+            rd_submitted_at: customer.rd_submitted_at || '',
           }}
           onSubmit={handleUpdateCustomer}
           onCancel={() => router.push(`/customers/${customer.id}`)}

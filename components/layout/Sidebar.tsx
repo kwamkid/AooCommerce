@@ -42,6 +42,7 @@ import {
   Factory,
   ClipboardList,
   ReceiptText,
+  Handshake,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -69,16 +70,17 @@ const menuSections: MenuSection[] = [
   {
     title: 'ระบบการขาย',
     items: [
-      { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-5 h-5" />, roles: ['admin', 'sales', 'account', 'warehouse'] },
       { label: 'Chat', href: '/chat', icon: <MessageCircle className="w-5 h-5" />, roles: ['admin', 'sales'] },
+      { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-5 h-5" />, roles: ['admin', 'sales', 'account', 'warehouse'] },
       { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-5 h-5" />, roles: ['admin', 'sales', 'warehouse'] },
-
-      { label: 'สินค้า', href: '/products', icon: <Package2 className="w-5 h-5" />, roles: ['admin', 'sales', 'warehouse'] }
+      { label: 'เติมสินค้าตัวแทน', href: '/replenishments', icon: <ArrowUpFromLine className="w-5 h-5" />, roles: ['admin', 'sales'] },
+      { label: 'ส่งห้าง', href: '/department-orders', icon: <Building2 className="w-5 h-5" />, roles: ['admin', 'sales'] },
     ]
   },
   {
-    title: 'คลังสินค้า',
+    title: 'สินค้า',
     items: [
+      { label: 'สินค้า', href: '/products', icon: <Package2 className="w-5 h-5" />, roles: ['admin', 'sales', 'warehouse'] },
       { label: 'สินค้าคงคลัง', href: '/inventory', icon: <Warehouse className="w-5 h-5" />, roles: ['admin', 'warehouse', 'cashier', 'sales'] },
     ]
   },
@@ -300,8 +302,7 @@ export default function Sidebar() {
 
   const filteredSections = menuSections
     .filter(section => {
-      // Hide "คลังสินค้า" section when stock feature is not enabled
-      if (section.title === 'คลังสินค้า' && !stockEnabled) return false;
+      // Hide inventory item (not whole section) when stock is disabled — handled via item filter below
       // Hide "POS" section when pos feature is not enabled
       if (section.title === 'POS' && !features.pos) return false;
       return true;
@@ -314,6 +315,10 @@ export default function Sidebar() {
         if (item.href === '/reports/delivery-summary' && !features.delivery_date.enabled) return false;
         if (item.href === '/reports/supplier' && !features.supplier) return false;
         if (item.href === '/settings/suppliers' && !features.supplier) return false;
+        if (item.href === '/replenishments' && !features.consignment) return false;
+        if (item.href === '/department-orders' && !features.department_store) return false;
+        // Hide inventory when stock is disabled
+        if (item.href === '/inventory' && !stockEnabled) return false;
         return true;
       })
     }))
@@ -681,6 +686,10 @@ export default function Sidebar() {
                     <Link href="/settings/warehouses" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/warehouses' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                       <Warehouse className="w-4 h-4" />
                       <span className="text-[16px] font-medium">คลังสินค้า</span>
+                    </Link>
+                    <Link href="/settings/features" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/features' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                      <Handshake className="w-4 h-4" />
+                      <span className="text-[16px] font-medium">Feature เสริม</span>
                     </Link>
                     {features.pos && (
                     <Link href="/settings/pos-terminals" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/pos-terminals' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>

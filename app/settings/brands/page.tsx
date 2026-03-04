@@ -263,7 +263,7 @@ function BrandsPageInner() {
         ) : (
           <div className="space-y-4">
             {/* Brand count */}
-            <p className="text-base text-gray-500 dark:text-slate-400">
+            <p className="data-text text-gray-500 dark:text-slate-400">
               {brands.length} แบรนด์
             </p>
 
@@ -332,7 +332,7 @@ function BrandsPageInner() {
                         {features.supplier && brand.supplier && (
                           <div className="flex items-center gap-1.5">
                             <Factory className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                            <span className="text-base text-gray-500 dark:text-slate-400">{brand.supplier.name}</span>
+                            <span className="data-secondary text-gray-500 dark:text-slate-400">{brand.supplier.name}</span>
                           </div>
                         )}
                       </div>
@@ -371,7 +371,7 @@ function BrandsPageInner() {
             {/* Add brand form */}
             {showAddForm ? (
               <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
-                <div className="text-base font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
+                <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
                   <Award className="w-4 h-4 text-[#F4511E]" />
                   เพิ่มแบรนด์
                 </div>

@@ -557,7 +557,7 @@ export default function CustomerEditPage() {
               <UserCircle className="w-8 h-8 text-[#F4511E]" />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{customer.name}</h1>
-                <p className="text-sm text-gray-500 dark:text-slate-400">รหัส: {customer.customer_code}</p>
+                <p className="data-secondary text-gray-500 dark:text-slate-400">รหัส: {customer.customer_code}</p>
               </div>
             </div>
           </div>
@@ -711,8 +711,8 @@ export default function CustomerEditPage() {
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{lc.display_name}</p>
-                      <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                      <p className="data-primary text-gray-900 dark:text-white truncate">{lc.display_name}</p>
+                      <p className="data-secondary text-gray-500 dark:text-slate-400 truncate">
                         {lc.account_name || (lc.platform === 'line' ? 'LINE' : 'Facebook')}
                         {lc.last_message_at && (
                           <> · {new Date(lc.last_message_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</>
@@ -1017,7 +1017,7 @@ export default function CustomerEditPage() {
                             </div>
                           )}
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-slate-400 space-y-0.5">
+                        <div className="data-text text-gray-600 dark:text-slate-400 space-y-0.5">
                           <p>
                             {[address.address_line1, address.district,
                               address.amphoe, address.province, address.postal_code].filter(Boolean).join(' ')}
