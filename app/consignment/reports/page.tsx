@@ -253,8 +253,11 @@ export default function ConsignmentReportsPage() {
             currentPage={currentPage}
             totalPages={totalPages}
             totalRecords={totalRecords}
+            startIdx={(currentPage - 1) * recordsPerPage + 1}
+            endIdx={Math.min(currentPage * recordsPerPage, totalRecords)}
             recordsPerPage={recordsPerPage}
-            onPageChange={setCurrentPage}
+            setRecordsPerPage={() => {}}
+            setPage={setCurrentPage}
           />
         )}
       </div>
