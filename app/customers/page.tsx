@@ -249,7 +249,6 @@ function CustomersPageContent() {
   // Regenerate portal code
   const handleRegenerateCode = async (customerId: string) => {
     setRegeneratingCodeId(customerId);
-    setOpenMenuId(null);
     try {
       const res = await apiFetch(`/api/customers/${customerId}/regenerate-portal-code`, { method: 'POST' });
       const result = await res.json();
