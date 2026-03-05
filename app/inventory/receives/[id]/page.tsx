@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
@@ -46,7 +46,7 @@ interface ReceiveData {
   supplier?: { name: string } | null;
 }
 
-export default function ReceiveDetailPage() {
+function ReceiveDetailPageContent() {
   const params = useParams();
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
@@ -273,5 +273,19 @@ export default function ReceiveDetailPage() {
         />
       </div>
     </Layout>
+  );
+}
+
+export default function ReceiveDetailPage() {
+  return (
+    <Suspense fallback={
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+        </div>
+      </Layout>
+    }>
+      <ReceiveDetailPageContent />
+    </Suspense>
   );
 }

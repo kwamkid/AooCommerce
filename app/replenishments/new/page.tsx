@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import {
@@ -34,7 +34,7 @@ const SHIPPING_METHODS = [
   { id: 'lalamove', label: 'Lalamove' },
 ];
 
-export default function NewReplenishmentPage() {
+function NewReplenishmentPageContent() {
   const searchParams = useSearchParams();
   const replenishmentId = searchParams.get('id') || undefined;
   const viewMode = searchParams.get('view') === '1';
@@ -380,5 +380,19 @@ export default function NewReplenishmentPage() {
         </div>
       )}
     </Layout>
+  );
+}
+
+export default function NewReplenishmentPage() {
+  return (
+    <Suspense fallback={
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+        </div>
+      </Layout>
+    }>
+      <NewReplenishmentPageContent />
+    </Suspense>
   );
 }

@@ -391,6 +391,7 @@ function ReplenishmentsPageContent() {
         tracking_number: replenishment.tracking_number || '',
         shipping_carrier: replenishment.shipping_carrier || '',
         notes: replenishment.notes || '',
+        created_at: replenishment.created_at || new Date().toISOString(),
         items: (replenishment.items || []).map((i: any) => ({
           product_name: i.product_name,
           variation_label: i.variation_label,
@@ -434,6 +435,7 @@ function ReplenishmentsPageContent() {
         tracking_number: replenishment.tracking_number || '',
         shipping_carrier: replenishment.shipping_carrier || '',
         notes: replenishment.notes || '',
+        created_at: replenishment.created_at || new Date().toISOString(),
         items: (replenishment.items || []).map((i: any) => ({
           product_name: i.product_name,
           variation_label: i.variation_label,
