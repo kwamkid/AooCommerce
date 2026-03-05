@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get('active') !== 'false';
+    const includeConsignment = searchParams.get('include_consignment') === 'true';
 
     let query = supabaseAdmin
       .from('warehouses')
@@ -33,6 +34,9 @@ export async function GET(request: NextRequest) {
 
     if (activeOnly) {
       query = query.eq('is_active', true);
+    }
+    if (!includeConsignment) {
+      query = query.eq('warehouse_type', 'internal');
     }
 
     const { data, error } = await query;

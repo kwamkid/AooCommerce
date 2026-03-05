@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     // Step 1: Get all active customers
     let customersQuery = supabaseAdmin
       .from('customers')
-      .select('id, customer_code, name, contact_person, phone, province, customer_type_new, is_active')
+      .select('id, customer_code, name, contact_person, phone, province, customer_type, is_active')
       .eq('company_id', companyId)
       .eq('is_active', true);
 
@@ -173,7 +173,7 @@ export async function GET(request: NextRequest) {
 
       return {
         ...customer,
-        customer_type: customer.customer_type_new,
+        customer_type: customer.customer_type,
         last_order_date: stats.lastOrderDate,
         days_since_last_order: daysSinceLastOrder,
         avg_order_frequency: avgOrderFrequency,

@@ -1,7 +1,7 @@
 // Path: app/settings/features/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useCompany } from '@/lib/company-context';
 import { useFeatures } from '@/lib/features-context';
@@ -11,13 +11,13 @@ import { type FeatureFlags, PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS,
 import {
   CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory,
   PackageCheck, Loader2, Save, ChevronDown, ChevronUp,
-  CreditCard, Building2, Truck, Store, Layers, Users, Warehouse, Building, Award,
+  CreditCard, Truck, Store, Layers, Users, Warehouse, Building,
 } from 'lucide-react';
-import BrandGpCommissions, { GpBaseRadio, type BrandGpRow } from '@/components/customers/BrandGpCommissions';
+import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
+import GpOverridePanel from '@/components/customers/GpOverridePanel';
 
 // Feature icons for showing inside preset chips
 const FEATURE_ICONS: Partial<Record<keyof FeatureFlags, React.ReactNode>> = {
-  customer_branches: <Building2 className="w-3 h-3" />,
   delivery_date: <CalendarDays className="w-3 h-3" />,
   billing_cycle: <CreditCard className="w-3 h-3" />,
   marketplace_sync: <ShoppingCart className="w-3 h-3" />,
@@ -29,7 +29,6 @@ const FEATURE_ICONS: Partial<Record<keyof FeatureFlags, React.ReactNode>> = {
 };
 
 const FEATURE_SHORT: Partial<Record<keyof FeatureFlags, string>> = {
-  customer_branches: 'สาขา',
   delivery_date: 'วันส่ง',
   billing_cycle: 'วางบิล',
   marketplace_sync: 'Marketplace',
@@ -84,22 +83,29 @@ export default function FeaturesPage() {
   });
   const [brandGpRows, setBrandGpRows] = useState<BrandGpRow[]>([]);
 
+  // Track saved state to detect changes — null until first API load completes
+  const savedRef = useRef<{ featureFlags: FeatureFlags; consignmentSettings: Record<string, unknown>; brandGpRows: string } | null>(null);
+
   // Sync from context
   useEffect(() => {
     if (featuresFetched && !featuresLoaded) {
       setFeatureFlags(currentFeatures);
       setFeaturesLoaded(true);
       apiFetch('/api/settings/features').then(r => r.json()).then(data => {
-        if (data.consignment_settings) {
-          setConsignmentSettings(prev => ({ ...prev, ...data.consignment_settings }));
-        }
-        if (data.brand_gp_overrides) {
-          setBrandGpRows(data.brand_gp_overrides.map((r: { brand_id: string; gp_rate: number; gp_base_price: string }) => ({
-            brand_id: r.brand_id,
-            gp_rate: String(r.gp_rate),
-            gp_base_price: r.gp_base_price || 'retail',
-          })));
-        }
+        const cs = data.consignment_settings || {};
+        const bgr: BrandGpRow[] = (data.brand_gp_overrides || []).map((r: { brand_id: string; gp_rate: number; gp_base_price: string }) => ({
+          brand_id: r.brand_id,
+          gp_rate: String(r.gp_rate),
+          gp_base_price: (r.gp_base_price || 'retail') as 'retail' | 'discounted',
+        }));
+        const loadedFlags = (data.features ?? currentFeatures) as FeatureFlags;
+        setFeatureFlags(loadedFlags);
+        if (data.consignment_settings) setConsignmentSettings(prev => ({ ...prev, ...cs }));
+        setBrandGpRows(bgr);
+        const snapshotCs = data.consignment_settings
+          ? { ...{ default_mode: 'dn', default_gp_rate: 30, default_gp_base_price: 'retail', default_report_due_days: 15, default_payment_terms: 30, vat_included: true }, ...cs }
+          : { default_mode: 'dn', default_gp_rate: 30, default_gp_base_price: 'retail', default_report_due_days: 15, default_payment_terms: 30, vat_included: true };
+        savedRef.current = { featureFlags: loadedFlags, consignmentSettings: snapshotCs, brandGpRows: JSON.stringify(bgr) };
       }).catch(() => {});
     }
   }, [featuresFetched, currentFeatures, featuresLoaded]);
@@ -152,6 +158,18 @@ export default function FeaturesPage() {
       if (!res.ok) throw new Error(data.error || 'บันทึกไม่สำเร็จ');
       showToast('บันทึก Feature เสริมสำเร็จ', 'success');
       await refreshFeatures();
+      const fresh = await apiFetch('/api/settings/features').then(r => r.json()).catch(() => null);
+      if (fresh) {
+        const cs = fresh.consignment_settings || {};
+        const bgr: BrandGpRow[] = (fresh.brand_gp_overrides || []).map((r: { brand_id: string; gp_rate: number; gp_base_price: string }) => ({
+          brand_id: r.brand_id,
+          gp_rate: String(r.gp_rate),
+          gp_base_price: (r.gp_base_price || 'retail') as 'retail' | 'discounted',
+        }));
+        if (fresh.consignment_settings) setConsignmentSettings(prev => ({ ...prev, ...cs }));
+        setBrandGpRows(bgr);
+        savedRef.current = { featureFlags: (fresh.features ?? featureFlags) as FeatureFlags, consignmentSettings: cs, brandGpRows: JSON.stringify(bgr) };
+      }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -160,6 +178,12 @@ export default function FeaturesPage() {
   };
 
   const isOwnerOrAdmin = companyRoles.includes('owner') || companyRoles.includes('admin');
+
+  const isDirty = featuresLoaded && savedRef.current !== null && (
+    JSON.stringify(featureFlags) !== JSON.stringify(savedRef.current.featureFlags) ||
+    JSON.stringify(consignmentSettings) !== JSON.stringify(savedRef.current.consignmentSettings) ||
+    JSON.stringify(brandGpRows) !== savedRef.current.brandGpRows
+  );
 
   // ---- Feature list ----
   const FEATURES: FeatureSection[] = [
@@ -219,13 +243,6 @@ export default function FeaturesPage() {
       icon: <CalendarDays className="w-5 h-5" />,
       color: 'text-blue-600',
       hasRequired: true,
-    },
-    {
-      key: 'customer_branches',
-      label: 'สาขาลูกค้า',
-      description: 'เปิดบิลเดียว ส่งหลายสาขา',
-      icon: <Building2 className="w-5 h-5" />,
-      color: 'text-cyan-600',
     },
   ];
 
@@ -408,16 +425,16 @@ export default function FeaturesPage() {
                 <button
                   type="button"
                   onClick={() => { setFeatureFlags(currentFeatures); setOpenSection(null); }}
-                  disabled={isSaving}
-                  className="px-6 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-semibold rounded-lg transition-colors hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
+                  disabled={isSaving || !isDirty}
+                  className="px-6 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-semibold rounded-lg transition-colors hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={isSaving}
-                  className="px-6 py-2.5 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                  disabled={isSaving || !isDirty}
+                  className="px-6 py-2.5 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   บันทึก
@@ -455,8 +472,6 @@ function ConsignmentSettingsPanel({
   onBrandGpRowsChange: (rows: BrandGpRow[]) => void;
   isOwnerOrAdmin: boolean;
 }) {
-  const [gpExpanded, setGpExpanded] = useState(false);
-
   return (
     <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 space-y-4">
 
@@ -488,59 +503,16 @@ function ConsignmentSettingsPanel({
       </div>
 
       {/* GP% section — default + brand breakdown together */}
-      <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 overflow-hidden">
-
-        {/* GP% Default row */}
-        <div className="flex items-center gap-4 px-4 py-3 bg-amber-50/40 dark:bg-amber-900/10">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-700 dark:text-slate-300">GP% Default</p>
-            <p className="text-xs text-gray-400 dark:text-slate-500">ใช้เมื่อไม่มีค่าเฉพาะแบรนด์หรือลูกค้า</p>
-          </div>
-          <GpBaseRadio
-            name="default_gp_base_price"
-            value={settings.default_gp_base_price}
-            onChange={(v) => onChange({ default_gp_base_price: v })}
-          />
-          <div className="relative w-24 flex-shrink-0">
-            <input
-              type="number"
-              value={settings.default_gp_rate}
-              onChange={(e) => onChange({ default_gp_rate: parseFloat(e.target.value) || 0 })}
-              className="w-full px-3 py-1.5 pr-7 border border-amber-300 dark:border-amber-700/50 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-amber-400"
-              min="0" max="100" step="0.5"
-            />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
-          </div>
-        </div>
-
-        {/* Expand: GP% เฉพาะแบรนด์ */}
-        <button
-          type="button"
-          onClick={() => setGpExpanded(v => !v)}
-          className="w-full flex items-center justify-between px-4 py-2.5 border-t border-amber-200 dark:border-amber-800/50 hover:bg-amber-50/60 dark:hover:bg-amber-900/10 transition-colors text-left"
-        >
-          <span className="text-sm font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-            <Award className="w-4 h-4" />
-            GP% เฉพาะแบรนด์
-            <span className="text-xs font-normal text-gray-400 dark:text-slate-500">(override ต่อแบรนด์)</span>
-          </span>
-          {gpExpanded
-            ? <ChevronUp className="w-4 h-4 text-gray-400" />
-            : <ChevronDown className="w-4 h-4 text-gray-400" />
-          }
-        </button>
-
-        {gpExpanded && (
-          <div className="border-t border-amber-200 dark:border-amber-800/50 px-4 py-3">
-            <BrandGpCommissions
-              mode="global"
-              rows={brandGpRows}
-              onRowsChange={onBrandGpRowsChange}
-              canEdit={isOwnerOrAdmin}
-            />
-          </div>
-        )}
-      </div>
+      <GpOverridePanel
+        mode="global"
+        gpRate={settings.default_gp_rate}
+        gpBasePrice={settings.default_gp_base_price}
+        onGpRateChange={(v) => onChange({ default_gp_rate: v })}
+        onGpBasePriceChange={(v) => onChange({ default_gp_base_price: v })}
+        brandGpRows={brandGpRows}
+        onBrandGpRowsChange={onBrandGpRowsChange}
+        canEdit={isOwnerOrAdmin}
+      />
 
       {/* Payment terms — separate group */}
       <div className="grid grid-cols-2 gap-3">

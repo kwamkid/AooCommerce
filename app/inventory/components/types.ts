@@ -9,6 +9,12 @@ export interface WarehouseItem {
 export type TabKey = 'stock' | 'history';
 
 // ===== Stock Types =====
+export interface ConsignBreakdownItem {
+  customer_id: string;
+  customer_name: string;
+  qty: number;
+}
+
 export interface InventoryItem {
   id: string;
   warehouse_id: string;
@@ -31,9 +37,12 @@ export interface InventoryItem {
   is_low_stock: boolean;
   is_out_of_stock: boolean;
   updated_at: string;
+  // Consignment stock (optional — only present if consignment feature enabled)
+  consign_qty?: number;
+  consign_breakdown?: ConsignBreakdownItem[];
 }
 
-export type StockColumnKey = 'image' | 'product' | 'sku' | 'quantity' | 'reserved' | 'available' | 'min' | 'status' | 'actions';
+export type StockColumnKey = 'image' | 'product' | 'sku' | 'quantity' | 'reserved' | 'available' | 'consign' | 'min' | 'status' | 'actions';
 
 export interface ColumnConfig<T extends string> {
   key: T;
@@ -49,6 +58,7 @@ export const STOCK_COLUMN_CONFIGS: ColumnConfig<StockColumnKey>[] = [
   { key: 'quantity', label: 'จำนวน', defaultVisible: true },
   { key: 'reserved', label: 'จอง', defaultVisible: true },
   { key: 'available', label: 'พร้อมขาย', defaultVisible: true },
+  { key: 'consign', label: 'ฝากขาย', defaultVisible: true },
   { key: 'min', label: 'Min', defaultVisible: false },
   { key: 'status', label: 'สถานะ', defaultVisible: true },
   { key: 'actions', label: 'ปรับ', defaultVisible: true, alwaysVisible: true },

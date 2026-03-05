@@ -277,6 +277,13 @@ html, body {
   line-height: 1.25rem;
 }
 
+/* ItemsTable: compact cell padding */
+table.items-table th,
+table.items-table td {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
 /* Filter card inputs — consistent 16px (prevent iOS zoom) */
 .data-filter-card input,
 .data-filter-card select {

@@ -1,12 +1,17 @@
 'use client';
 
-import { PackageCheck } from 'lucide-react';
-import FormSelect from '@/components/ui/FormSelect';
-import BrandGpCommissions from '@/components/customers/BrandGpCommissions';
+import { useState, useEffect } from 'react';
+import { FileText, ExternalLink } from 'lucide-react';
+import GpOverridePanel, { type BrandGpRow } from '@/components/customers/GpOverridePanel';
+import DateRangePicker from '@/components/ui/DateRangePicker';
+import { apiFetch } from '@/lib/api-client';
+
+export { type BrandGpRow };
 
 interface ConsignmentSettingsData {
   consignment_mode?: string;
   consignment_gp_rate?: number | '';
+  consignment_gp_base_price?: 'retail' | 'discounted' | null;
   consignment_report_due_days?: number | '';
   consignment_payment_terms?: number | '';
   contract_number?: string;
@@ -14,130 +19,309 @@ interface ConsignmentSettingsData {
   rd_submitted_at?: string;
 }
 
+interface CompanyDefaults {
+  default_mode: 'dn' | 'invoice';
+  default_gp_rate: number;
+  default_gp_base_price: 'retail' | 'discounted';
+  default_report_due_days: number;
+  default_payment_terms: number;
+}
+
 interface Props {
   data: ConsignmentSettingsData;
   onChange: (patch: Partial<ConsignmentSettingsData>) => void;
   inputClassName: string;
   labelClassName: string;
-  customerId?: string;
+  brandGpRows: BrandGpRow[];
+  onBrandGpRowsChange: (rows: BrandGpRow[]) => void;
 }
 
-const CONSIGNMENT_MODE_OPTIONS = [
-  { id: 'dn',      label: 'ฝากขาย (DN) — ม.78(3)' },
-  { id: 'invoice', label: 'เครดิตตัวแทน (Invoice)' },
-];
+function generateContractNumber() {
+  const now = new Date();
+  const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const rand = String(Math.floor(Math.random() * 9000) + 1000);
+  return `CSN-${ym}-${rand}`;
+}
 
-export default function ConsignmentSettings({ data, onChange, inputClassName, labelClassName, customerId }: Props) {
+function toISODate(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+// ── Tab-style toggle: "ตามระบบ" vs "กำหนดเอง" ───────────────────────────
+function DefaultOrCustomTab({
+  isCustom,
+  onToggle,
+  defaultDesc,
+}: {
+  isCustom: boolean;
+  onToggle: (custom: boolean) => void;
+  defaultDesc?: string;
+}) {
+  const base = 'px-3 py-1.5 text-base font-medium transition-all cursor-pointer';
+  const active = 'bg-white dark:bg-slate-700 text-amber-700 dark:text-amber-400 shadow-sm';
+  const inactive = 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300';
   return (
-    <div className="card border border-amber-200 dark:border-amber-800/50">
-      <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-        <PackageCheck className="w-5 h-5 text-amber-600" />
-        ตั้งค่าฝากขาย
-      </h3>
-      <div className="space-y-4">
-        <div>
-          <label className={labelClassName}>โหมดฝากขาย</label>
-          <FormSelect
-            value={data.consignment_mode || ''}
-            onChange={(val) => onChange({ consignment_mode: val })}
-            options={CONSIGNMENT_MODE_OPTIONS}
-            placeholder="— ใช้ค่า default (ตามการตั้งค่าบริษัท) —"
-          />
-          <p className="data-muted text-gray-400 dark:text-slate-500 mt-1">
-            DN = ฝากขาย ตามมาตรา 78(3) | Invoice = เครดิตตัวแทน (ออก Invoice ทันที)
-          </p>
-        </div>
+    <div className="flex items-center gap-3 mb-2">
+      <div className="inline-flex rounded-lg bg-gray-100 dark:bg-slate-800 p-0.5">
+        <button type="button" onClick={() => onToggle(false)} className={`${base} rounded-md ${!isCustom ? active : inactive}`}>
+          ตามระบบ
+        </button>
+        <button type="button" onClick={() => onToggle(true)} className={`${base} rounded-md ${isCustom ? active : inactive}`}>
+          กำหนดเอง
+        </button>
+      </div>
+      {!isCustom && defaultDesc && (
+        <span className="text-base text-gray-400 dark:text-slate-500">{defaultDesc}</span>
+      )}
+      {isCustom && (
+        <span className="text-sm text-amber-600/70 dark:text-amber-400/60">จะไม่เปลี่ยนตาม ตั้งค่า &gt; ฝากขาย</span>
+      )}
+    </div>
+  );
+}
 
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <label className={labelClassName}>GP% Default (ลูกค้านี้)</label>
-            <div className="relative">
-              <input
-                type="number"
-                value={data.consignment_gp_rate ?? ''}
-                onChange={(e) => onChange({ consignment_gp_rate: e.target.value === '' ? '' : parseFloat(e.target.value) })}
-                className={inputClassName}
-                min="0" max="100" step="0.5"
-                placeholder="ค่า default"
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 data-muted">%</span>
-            </div>
-          </div>
-          <div>
-            <label className={labelClassName}>ส่งยอดภายใน (วัน)</label>
-            <input
-              type="number"
-              value={data.consignment_report_due_days ?? ''}
-              onChange={(e) => onChange({ consignment_report_due_days: e.target.value === '' ? '' : parseInt(e.target.value) })}
-              className={inputClassName}
-              min="1" max="90"
-              placeholder="ค่า default"
-            />
-            <p className="data-muted text-gray-400 mt-0.5">หลังสิ้นเดือน</p>
-          </div>
-          <div>
-            <label className={labelClassName}>ระยะเวลาชำระ (วัน)</label>
-            <input
-              type="number"
-              value={data.consignment_payment_terms ?? ''}
-              onChange={(e) => onChange({ consignment_payment_terms: e.target.value === '' ? '' : parseInt(e.target.value) })}
-              className={inputClassName}
-              min="0" max="180"
-              placeholder="ค่า default"
-            />
-            <p className="data-muted text-gray-400 mt-0.5">หลังวางบิล</p>
-          </div>
-        </div>
+const GP_BASE_LABELS: Record<string, string> = { retail: 'ราคาปลีก', discounted: 'ราคาลด' };
 
-        {/* Contract fields — for DN mode (or unset = could be DN) */}
-        {(data.consignment_mode === 'dn' || !data.consignment_mode) && (
-          <div className="border border-dashed border-amber-300 dark:border-amber-700/50 rounded-lg p-4 space-y-3 bg-amber-50/30 dark:bg-amber-900/10">
-            <p className="data-muted font-medium text-amber-700 dark:text-amber-400">
-              สัญญาฝากขาย (ม.78(3)) — ต้องยื่นต่อสรรพากรภายใน 15 วันนับจากวันทำสัญญา
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelClassName}>เลขที่สัญญา</label>
+export default function ConsignmentSettings({ data, onChange, inputClassName, labelClassName, brandGpRows, onBrandGpRowsChange }: Props) {
+  const [defaults, setDefaults] = useState<CompanyDefaults | null>(null);
+
+  useEffect(() => {
+    apiFetch('/api/settings/features').then(r => r.json()).then(d => {
+      const cs = d.consignment_settings;
+      if (cs) {
+        setDefaults({
+          default_mode: cs.default_mode || 'dn',
+          default_gp_rate: cs.default_gp_rate ?? 30,
+          default_gp_base_price: cs.default_gp_base_price || 'retail',
+          default_report_due_days: cs.default_report_due_days ?? 15,
+          default_payment_terms: cs.default_payment_terms ?? 30,
+        });
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Custom = has value in DB, Default = null/empty → resolve from global at runtime
+  const isCustomMode = !!data.consignment_mode;
+  const isCustomGp = data.consignment_gp_rate !== '' && data.consignment_gp_rate != null;
+  const isCustomTerms = (data.consignment_report_due_days !== '' && data.consignment_report_due_days != null)
+    || (data.consignment_payment_terms !== '' && data.consignment_payment_terms != null);
+
+  const gpRate = isCustomGp ? Number(data.consignment_gp_rate) : null;
+  const effectiveMode = data.consignment_mode || defaults?.default_mode || 'dn';
+
+  return (
+    <div className="space-y-4">
+
+      {/* ─── 1. โหมดฝากขาย ─── */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-base font-medium text-gray-600 dark:text-slate-400">โหมดฝากขาย</p>
+          <a
+            href="/settings/features"
+            target="_blank"
+            className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-slate-500 hover:text-[#F4511E] dark:hover:text-[#F4511E] transition-colors"
+          >
+            ตั้งค่าฝากขาย (Global)
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+        <DefaultOrCustomTab
+          isCustom={isCustomMode}
+          onToggle={(custom) => {
+            if (!custom) {
+              onChange({ consignment_mode: '' });
+            } else {
+              onChange({ consignment_mode: defaults?.default_mode || 'dn' });
+            }
+          }}
+          defaultDesc={defaults ? (defaults.default_mode === 'dn' ? 'DN — ฝากขาย' : 'Invoice — เครดิต') : undefined}
+        />
+        {isCustomMode && (
+          <div className="grid grid-cols-2 gap-2 mt-1">
+            {([
+              { key: 'dn',      label: 'ฝากขาย (DN)',   desc: 'ม.78(3) — VAT เมื่อขายได้' },
+              { key: 'invoice', label: 'เครดิตตัวแทน', desc: 'Invoice ทันที VAT upfront' },
+            ] as const).map(({ key, label, desc }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onChange({ consignment_mode: key })}
+                className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  data.consignment_mode === key
+                    ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
+                    : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
+                }`}
+              >
+                <p className={`text-base font-medium ${data.consignment_mode === key ? 'text-amber-700 dark:text-amber-400' : 'text-gray-700 dark:text-slate-300'}`}>
+                  {label}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-slate-500 mt-0.5">{desc}</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ─── 2. GP% + Brand GP ─── */}
+      <div>
+        <p className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2">GP% ตัวแทน</p>
+        <DefaultOrCustomTab
+          isCustom={isCustomGp}
+          onToggle={(custom) => {
+            if (!custom) {
+              // Clear → runtime จะ resolve จาก global settings
+              onChange({ consignment_gp_rate: '', consignment_gp_base_price: null });
+            } else {
+              // Pre-fill ด้วย global default เป็นจุดเริ่มต้น
+              onChange({
+                consignment_gp_rate: defaults?.default_gp_rate ?? 30,
+                consignment_gp_base_price: defaults?.default_gp_base_price ?? 'retail',
+              });
+            }
+          }}
+          defaultDesc={defaults ? `GP ${defaults.default_gp_rate}% จาก${GP_BASE_LABELS[defaults.default_gp_base_price]} + Brand GP ตามที่ตั้งไว้` : undefined}
+        />
+
+        {isCustomGp && (
+          <div className="mt-1">
+            <GpOverridePanel
+              mode="customer"
+              gpRate={gpRate}
+              gpBasePrice={data.consignment_gp_base_price ?? null}
+              onGpRateChange={(v) => onChange({ consignment_gp_rate: v ?? '' })}
+              onGpBasePriceChange={(v) => onChange({ consignment_gp_base_price: v })}
+              brandGpRows={brandGpRows}
+              onBrandGpRowsChange={onBrandGpRowsChange}
+              canEdit={true}
+              defaultGpRate={defaults?.default_gp_rate}
+              defaultGpBasePrice={defaults?.default_gp_base_price}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* ─── 3. เงื่อนไขการชำระ ─── */}
+      <div>
+        <p className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2">เงื่อนไขการชำระ</p>
+        <DefaultOrCustomTab
+          isCustom={isCustomTerms}
+          onToggle={(custom) => {
+            if (!custom) {
+              onChange({ consignment_report_due_days: '', consignment_payment_terms: '' });
+            } else {
+              onChange({
+                consignment_report_due_days: defaults?.default_report_due_days ?? 15,
+                consignment_payment_terms: defaults?.default_payment_terms ?? 30,
+              });
+            }
+          }}
+          defaultDesc={defaults ? `ส่งยอด ${defaults.default_report_due_days} วัน / ชำระ ${defaults.default_payment_terms} วัน` : undefined}
+        />
+
+        {isCustomTerms && (
+          <div className="grid grid-cols-2 gap-3 mt-1">
+            <div>
+              <label className={labelClassName}>ส่งยอดภายใน</label>
+              <div className="relative">
                 <input
-                  type="text"
-                  value={data.contract_number || ''}
-                  onChange={(e) => onChange({ contract_number: e.target.value })}
+                  type="number"
+                  value={data.consignment_report_due_days ?? ''}
+                  onChange={(e) => onChange({ consignment_report_due_days: e.target.value === '' ? '' : parseInt(e.target.value) })}
                   className={inputClassName}
-                  placeholder="เช่น CSN-2026-001"
+                  min="1" max="90"
+                  placeholder={defaults ? String(defaults.default_report_due_days) : '15'}
                 />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">วัน</span>
               </div>
-              <div>
-                <label className={labelClassName}>วันที่ทำสัญญา</label>
-                <input
-                  type="date"
-                  value={data.contract_date || ''}
-                  onChange={(e) => onChange({ contract_date: e.target.value })}
-                  className={inputClassName}
-                />
-              </div>
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">หลังสิ้นเดือน</p>
             </div>
             <div>
-              <label className={labelClassName}>วันที่ยื่นสรรพากร</label>
-              <input
-                type="date"
-                value={data.rd_submitted_at || ''}
-                onChange={(e) => onChange({ rd_submitted_at: e.target.value })}
-                className={inputClassName}
-              />
-              {data.contract_date && !data.rd_submitted_at && (
-                <p className="data-muted text-amber-600 dark:text-amber-400 mt-1">
-                  ควรยื่นภายใน {new Date(new Date(data.contract_date).getTime() + 15 * 86400000).toLocaleDateString('th-TH')}
-                </p>
-              )}
+              <label className={labelClassName}>ชำระภายใน</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={data.consignment_payment_terms ?? ''}
+                  onChange={(e) => onChange({ consignment_payment_terms: e.target.value === '' ? '' : parseInt(e.target.value) })}
+                  className={inputClassName}
+                  min="0" max="180"
+                  placeholder={defaults ? String(defaults.default_payment_terms) : '30'}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">วัน</span>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">หลังวางบิล</p>
             </div>
           </div>
         )}
-
-        {/* Special GP% by brand — แสดงเสมอ เพราะ customerId เป็น pre-gen UUID */}
-        <div className="border-t border-amber-200 dark:border-amber-800/40 pt-4">
-          <BrandGpCommissions mode="customer" customerId={customerId!} canEdit={true} />
-        </div>
       </div>
+
+      {/* ─── 4. สัญญาฝากขาย — DN mode only ─── */}
+      {effectiveMode === 'dn' && (
+        <div className="rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50/50 dark:bg-amber-900/10 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-base font-semibold text-amber-800 dark:text-amber-300">สัญญาฝากขาย (ม.78(3))</p>
+              <p className="text-sm text-amber-600/70 dark:text-amber-400/70">ต้องยื่นต่อสรรพากรภายใน 15 วันนับจากวันทำสัญญา</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const patch: Partial<ConsignmentSettingsData> = {};
+                if (!data.contract_number) patch.contract_number = generateContractNumber();
+                if (!data.contract_date) patch.contract_date = toISODate(new Date());
+                if (Object.keys(patch).length > 0) onChange(patch);
+              }}
+              className="flex items-center gap-1.5 text-base font-medium text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 transition-colors"
+            >
+              <FileText className="w-4 h-4" />
+              พิมพ์สัญญา
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClassName}>เลขที่สัญญา</label>
+              <input
+                type="text"
+                value={data.contract_number || ''}
+                onChange={(e) => onChange({ contract_number: e.target.value })}
+                className={inputClassName}
+                placeholder="เช่น CSN-2026-001"
+              />
+            </div>
+            <div>
+              <label className={labelClassName}>วันที่ทำสัญญา</label>
+              <DateRangePicker
+                asSingle
+                useRange={false}
+                showShortcuts={false}
+                showFooter={false}
+                placeholder="เลือกวันที่"
+                value={data.contract_date ? { startDate: data.contract_date, endDate: data.contract_date } : null}
+                onChange={(v) => onChange({ contract_date: v?.startDate ? String(v.startDate) : '' })}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelClassName}>วันที่ยื่นสรรพากร</label>
+            <DateRangePicker
+              asSingle
+              useRange={false}
+              showShortcuts={false}
+              showFooter={false}
+              placeholder="เลือกวันที่"
+              value={data.rd_submitted_at ? { startDate: data.rd_submitted_at, endDate: data.rd_submitted_at } : null}
+              onChange={(v) => onChange({ rd_submitted_at: v?.startDate ? String(v.startDate) : '' })}
+            />
+            {data.contract_date && !data.rd_submitted_at && (
+              <p className="text-sm text-amber-600 dark:text-amber-400 mt-1 font-medium">
+                ควรยื่นภายใน {new Date(new Date(data.contract_date).getTime() + 15 * 86400000).toLocaleDateString('th-TH')}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

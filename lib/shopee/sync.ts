@@ -2545,7 +2545,7 @@ async function findOrCreateShopeeCustomer(
       name: buyerName,
       contact_person: unmasked(addr?.name),
       phone: phone,
-      customer_type_new: 'retail',
+      customer_type: 'retail',
       is_active: true,
       notes: `สร้างอัตโนมัติจาก Shopee (${shopeeOrder.buyer_username || ''})`,
     })

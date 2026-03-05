@@ -7,32 +7,17 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Package, Package2, Trash2, X,
-  Save, Warehouse, FileText, ArrowRightLeft,
-  AlertTriangle, Star,
+  Loader2, FileText, ArrowRightLeft, AlertTriangle, Star, Warehouse,
 } from 'lucide-react';
-import ProductSearchInput from '@/components/ui/ProductSearchInput';
 import FormSelect from '@/components/ui/FormSelect';
-import { productDisplayName, productSubtitle } from '../components/types';
+import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
+import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 
-// Interfaces
 interface WarehouseItem {
   id: string;
   name: string;
   code: string | null;
   is_default?: boolean;
-}
-
-interface Product {
-  id: string;
-  product_id: string;
-  code: string;
-  name: string;
-  image?: string;
-  variation_label?: string;
-  product_type: 'simple' | 'variation';
-  default_price: number;
-  sku?: string;
 }
 
 interface TransferItem {
@@ -44,7 +29,8 @@ interface TransferItem {
   variation_label?: string;
   sku?: string;
   quantity: number;
-  available_stock: number | null;
+  stock_source: number | null;
+  stock_dest: number | null;
 }
 
 interface InventoryRecord {
@@ -58,86 +44,82 @@ export default function StockTransferPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
 
-  // State
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Warehouses
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
   const [sourceWarehouseId, setSourceWarehouseId] = useState('');
   const [destWarehouseId, setDestWarehouseId] = useState('');
 
-  // Source & destination inventory
   const [sourceInventory, setSourceInventory] = useState<InventoryRecord[]>([]);
   const [destInventory, setDestInventory] = useState<InventoryRecord[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
-  const [destInventoryLoading, setDestInventoryLoading] = useState(false);
 
-  // Products (flattened)
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductSearchItem[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
 
-  // Product search
-
-  // Transfer items
   const [transferItems, setTransferItems] = useState<TransferItem[]>([]);
-
-  // Batch notes
   const [batchNotes, setBatchNotes] = useState('');
 
-  // Fetch warehouses and products on mount
   useEffect(() => {
     if (!authLoading && userProfile) {
       fetchWarehouses();
       fetchProducts();
     }
-  }, [authLoading, userProfile]);
+  }, [authLoading, userProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch source inventory when source warehouse changes
   useEffect(() => {
-    if (sourceWarehouseId) {
-      fetchSourceInventory(sourceWarehouseId);
-    } else {
-      setSourceInventory([]);
-    }
+    if (sourceWarehouseId) fetchSourceInventory(sourceWarehouseId);
+    else setSourceInventory([]);
   }, [sourceWarehouseId]);
 
-  // Fetch dest inventory when destination warehouse changes
   useEffect(() => {
-    if (destWarehouseId) {
-      fetchDestInventory(destWarehouseId);
-    } else {
-      setDestInventory([]);
-    }
+    if (destWarehouseId) fetchDestInventory(destWarehouseId);
+    else setDestInventory([]);
   }, [destWarehouseId]);
 
-  // Update available stock on transfer items when source inventory changes
+  // Update stock_source on items when source inventory changes
   useEffect(() => {
     if (transferItems.length > 0) {
-      setTransferItems(prev =>
-        prev.map(item => ({
-          ...item,
-          available_stock: getStockForVariation(item.variation_id),
-        }))
-      );
+      setTransferItems(prev => prev.map(item => ({
+        ...item,
+        stock_source: getAvailable(sourceInventory, item.variation_id),
+      })));
     }
-  }, [sourceInventory]);
+  }, [sourceInventory]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update stock_dest on items when dest inventory changes
+  useEffect(() => {
+    if (transferItems.length > 0) {
+      setTransferItems(prev => prev.map(item => ({
+        ...item,
+        stock_dest: getQty(destInventory, item.variation_id),
+      })));
+    }
+  }, [destInventory]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function getAvailable(inv: InventoryRecord[], variationId: string): number | null {
+    if (!sourceWarehouseId) return null;
+    const r = inv.find(i => i.variation_id === variationId);
+    return r ? r.available : 0;
+  }
+
+  function getQty(inv: InventoryRecord[], variationId: string): number | null {
+    if (!destWarehouseId) return null;
+    const r = inv.find(i => i.variation_id === variationId);
+    return r ? r.quantity : 0;
+  }
 
   const fetchWarehouses = async () => {
     try {
       const res = await apiFetch('/api/warehouses');
       if (res.ok) {
         const data = await res.json();
-        const warehouseList: WarehouseItem[] = data.warehouses || [];
-        setWarehouses(warehouseList);
-
-        // Auto-select default warehouse as source
-        const defaultWh = warehouseList.find(wh => wh.is_default);
-        if (defaultWh) {
-          setSourceWarehouseId(defaultWh.id);
-        } else if (warehouseList.length === 1) {
-          setSourceWarehouseId(warehouseList[0].id);
-        }
+        const list: WarehouseItem[] = data.warehouses || [];
+        setWarehouses(list);
+        const def = list.find(wh => wh.is_default);
+        if (def) setSourceWarehouseId(def.id);
+        else if (list.length === 1) setSourceWarehouseId(list[0].id);
       }
     } catch {
       showToast('โหลดข้อมูลคลังสินค้าไม่สำเร็จ', 'error');
@@ -150,43 +132,20 @@ export default function StockTransferPage() {
     try {
       setProductsLoading(true);
       const res = await apiFetch('/api/products');
-      if (!res.ok) throw new Error('Failed to fetch products');
-
+      if (!res.ok) throw new Error('Failed');
       const result = await res.json();
-      const fetchedProducts = result.products || [];
-
-      const flatProducts: Product[] = [];
-      fetchedProducts.forEach((sp: any) => {
+      const flat: ProductSearchItem[] = [];
+      for (const sp of (result.products || [])) {
         if (sp.product_type === 'simple') {
-          const variation_id = sp.variations && sp.variations.length > 0 ? sp.variations[0].variation_id : null;
-          flatProducts.push({
-            id: variation_id || sp.product_id,
-            product_id: sp.product_id,
-            code: sp.code,
-            name: sp.name,
-            image: sp.main_image_url || sp.image,
-            variation_label: sp.simple_variation_label,
-            product_type: 'simple',
-            default_price: sp.simple_default_price || 0,
-            sku: sp.variations?.[0]?.sku || '',
-          });
+          const vid = sp.variations?.[0]?.variation_id ?? sp.product_id;
+          flat.push({ id: vid, product_id: sp.product_id, code: sp.code, name: sp.name, image: sp.main_image_url || sp.image, variation_label: sp.simple_variation_label, product_type: 'simple', default_price: sp.simple_default_price || 0, sku: sp.variations?.[0]?.sku || '' } as ProductSearchItem);
         } else {
-          (sp.variations || []).forEach((v: any) => {
-            flatProducts.push({
-              id: v.variation_id,
-              product_id: sp.product_id,
-              code: `${sp.code}-${v.variation_label}`,
-              name: sp.name,
-              image: v.image_url || sp.main_image_url || sp.image,
-              variation_label: v.variation_label,
-              product_type: 'variation',
-              default_price: v.default_price || 0,
-              sku: v.sku || '',
-            });
-          });
+          for (const v of (sp.variations || [])) {
+            flat.push({ id: v.variation_id, product_id: sp.product_id, code: `${sp.code}-${v.variation_label}`, name: sp.name, image: v.image_url || sp.main_image_url || sp.image, variation_label: v.variation_label, product_type: 'variation', default_price: v.default_price || 0, sku: v.sku || '' } as ProductSearchItem);
+          }
         }
-      });
-      setProducts(flatProducts);
+      }
+      setProducts(flat);
     } catch {
       showToast('โหลดข้อมูลสินค้าไม่สำเร็จ', 'error');
     } finally {
@@ -200,15 +159,12 @@ export default function StockTransferPage() {
       const res = await apiFetch(`/api/inventory?warehouse_id=${warehouseId}&limit=9999`);
       if (res.ok) {
         const data = await res.json();
-        const records: InventoryRecord[] = (data.items || []).map((inv: any) => ({
+        setSourceInventory((data.items || []).map((inv: any) => ({
           variation_id: inv.variation_id,
           quantity: inv.quantity ?? 0,
           available: inv.available ?? (inv.quantity ?? 0) - (inv.reserved_quantity ?? 0),
-        }));
-        setSourceInventory(records);
-      } else {
-        setSourceInventory([]);
-      }
+        })));
+      } else setSourceInventory([]);
     } catch {
       setSourceInventory([]);
     } finally {
@@ -218,188 +174,110 @@ export default function StockTransferPage() {
 
   const fetchDestInventory = async (warehouseId: string) => {
     try {
-      setDestInventoryLoading(true);
       const res = await apiFetch(`/api/inventory?warehouse_id=${warehouseId}&limit=9999`);
       if (res.ok) {
         const data = await res.json();
-        const records: InventoryRecord[] = (data.items || []).map((inv: any) => ({
+        setDestInventory((data.items || []).map((inv: any) => ({
           variation_id: inv.variation_id,
           quantity: inv.quantity ?? 0,
           available: inv.available ?? (inv.quantity ?? 0) - (inv.reserved_quantity ?? 0),
-        }));
-        setDestInventory(records);
-      } else {
-        setDestInventory([]);
-      }
+        })));
+      } else setDestInventory([]);
     } catch {
       setDestInventory([]);
-    } finally {
-      setDestInventoryLoading(false);
     }
   };
 
-  const getStockForVariation = (variationId: string): number | null => {
-    if (!sourceWarehouseId) return null;
-    const record = sourceInventory.find(inv => inv.variation_id === variationId);
-    return record ? record.available : 0;
-  };
-
-  const getDestStockForVariation = (variationId: string): number | null => {
-    if (!destWarehouseId) return null;
-    const record = destInventory.find(inv => inv.variation_id === variationId);
-    return record ? record.quantity : 0;
-  };
-
-  // Add product to transfer list
-  const handleAddProduct = (product: Product) => {
-    const existingIndex = transferItems.findIndex(
-      item => item.variation_id === product.id
-    );
-
-    if (existingIndex !== -1) {
-      // Increment quantity if already exists
+  const handleAddProduct = (product: ProductSearchItem) => {
+    const existing = transferItems.findIndex(i => i.variation_id === product.id);
+    if (existing !== -1) {
       const updated = [...transferItems];
-      updated[existingIndex].quantity += 1;
+      updated[existing].quantity += 1;
       setTransferItems(updated);
     } else {
-      // Add new item
-      setTransferItems([
-        ...transferItems,
-        {
-          variation_id: product.id,
-          product_id: product.product_id,
-          code: product.code,
-          name: product.name,
-          image: product.image,
-          variation_label: product.variation_label,
-          sku: product.sku,
-          quantity: 1,
-          available_stock: getStockForVariation(product.id),
-        },
-      ]);
+      setTransferItems([...transferItems, {
+        variation_id: product.id,
+        product_id: (product as any).product_id || product.id,
+        code: product.code || '',
+        name: product.name,
+        image: product.image ?? undefined,
+        variation_label: product.variation_label,
+        sku: product.sku,
+        quantity: 1,
+        stock_source: getAvailable(sourceInventory, product.id),
+        stock_dest: getQty(destInventory, product.id),
+      }]);
     }
-
-    // Note: search clearing and re-focus handled by ProductSearchInput
   };
 
-  // Remove item from list
-  const handleRemoveItem = (index: number) => {
-    setTransferItems(transferItems.filter((_, i) => i !== index));
-  };
-
-  // Update item quantity
-  const handleUpdateQuantity = (index: number, quantity: number) => {
+  const handleUpdateField = (idx: number, field: keyof TableItem, value: number | string) => {
     const updated = [...transferItems];
-    updated[index].quantity = Math.max(1, quantity);
+    if (field === 'quantity') updated[idx].quantity = Math.max(1, value as number);
     setTransferItems(updated);
   };
 
-  // Filter products based on search
-
-  // Check if quantity exceeds available stock
-  const hasStockWarning = (item: TransferItem): boolean => {
-    if (item.available_stock === null) return false;
-    return item.quantity > item.available_stock;
+  const handleRemoveItem = (idx: number) => {
+    setTransferItems(transferItems.filter((_, i) => i !== idx));
   };
 
-  // Check if any item has a stock warning
-  const hasAnyStockWarning = transferItems.some(item => hasStockWarning(item));
-
-  // Validate warehouses are different
   const warehousesAreSame = sourceWarehouseId && destWarehouseId && sourceWarehouseId === destWarehouseId;
+  const hasStockWarning = transferItems.some(i => i.stock_source !== null && i.quantity > (i.stock_source ?? 0));
+  const canSubmit = sourceWarehouseId && destWarehouseId && !warehousesAreSame && transferItems.length > 0 && !submitting;
 
-  // Submit
   const handleSubmit = async () => {
-    if (!sourceWarehouseId || !destWarehouseId || transferItems.length === 0) return;
-    if (warehousesAreSame) {
-      showToast('คลังต้นทางและปลายทางต้องไม่เป็นคลังเดียวกัน', 'error');
-      return;
-    }
-
+    if (!canSubmit) return;
+    if (warehousesAreSame) { showToast('คลังต้นทางและปลายทางต้องไม่เป็นคลังเดียวกัน', 'error'); return; }
     try {
       setSubmitting(true);
-
       const payload = {
         from_warehouse_id: sourceWarehouseId,
         to_warehouse_id: destWarehouseId,
-        items: transferItems.map(item => ({
-          variation_id: item.variation_id,
-          quantity: item.quantity,
-        })),
+        items: transferItems.map(i => ({ variation_id: i.variation_id, quantity: i.quantity })),
         notes: batchNotes || undefined,
       };
-
       const res = await apiFetch('/api/inventory/transfers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
       const result = await res.json();
-
       if (!res.ok) {
-        // Check for partial success
         if (result.partial_success && result.errors) {
-          const errorDetails = result.errors
-            .map((err: { variation_id?: string; error?: string }) =>
-              `${err.variation_id || 'รายการ'}: ${err.error || 'ไม่ทราบสาเหตุ'}`
-            )
-            .join('\n');
-          showToast(
-            `โอนย้ายบางรายการไม่สำเร็จ: ${errorDetails}`,
-            'error'
-          );
-          // Still reset successfully transferred items
-          if (result.succeeded_count && result.succeeded_count > 0) {
-            showToast(
-              `โอนย้ายสำเร็จ ${result.succeeded_count} รายการ`,
-              'success'
-            );
-          }
-          // Reset form
+          const details = result.errors.map((e: any) => `${e.variation_id || 'รายการ'}: ${e.error || ''}`).join('\n');
+          showToast(`โอนย้ายบางรายการไม่สำเร็จ: ${details}`, 'error');
+          if (result.succeeded_count > 0) showToast(`โอนย้ายสำเร็จ ${result.succeeded_count} รายการ`, 'success');
           setTransferItems([]);
           setBatchNotes('');
-          // Refresh source inventory
           fetchSourceInventory(sourceWarehouseId);
           return;
         }
         throw new Error(result.error || 'เกิดข้อผิดพลาด');
       }
-
       showToast(`สร้างใบโอนย้าย ${result.transfer_number || ''} สำเร็จ`, 'success');
-
       router.push('/inventory/transfers');
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการโอนย้ายสินค้า',
-        'error'
-      );
+      showToast(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการโอนย้ายสินค้า', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Cancel
-  const handleCancel = () => {
-    router.push('/inventory/transfers');
-  };
-
-  const canSubmit =
-    sourceWarehouseId &&
-    destWarehouseId &&
-    !warehousesAreSame &&
-    transferItems.length > 0 &&
-    !submitting;
-
-  const sourceWarehouse = warehouses.find(wh => wh.id === sourceWarehouseId);
-  const destWarehouse = warehouses.find(wh => wh.id === destWarehouseId);
+  const tableItems: TableItem[] = transferItems.map(i => ({
+    variation_id: i.variation_id,
+    product_id: i.product_id,
+    product_name: i.name,
+    product_code: i.code,
+    variation_label: i.variation_label,
+    sku: i.sku,
+    image: i.image,
+    quantity: i.quantity,
+    stock_source: i.stock_source,
+    stock_dest: i.stock_dest,
+  }));
 
   if (authLoading || loading) {
     return (
-      <Layout
-        title="โอนย้ายสินค้า"
-        breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการโอนย้าย', href: '/inventory/transfers' }, { label: 'สร้างใบโอนย้าย' }]}
-      >
+      <Layout title="โอนย้ายสินค้า" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการโอนย้าย', href: '/inventory/transfers' }, { label: 'สร้างใบโอนย้าย' }]}>
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
         </div>
@@ -408,15 +286,11 @@ export default function StockTransferPage() {
   }
 
   return (
-    <Layout
-      title="โอนย้ายสินค้า"
-      breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการโอนย้าย', href: '/inventory/transfers' }, { label: 'สร้างใบโอนย้าย' }]}
-    >
+    <Layout title="โอนย้ายสินค้า" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการโอนย้าย', href: '/inventory/transfers' }, { label: 'สร้างใบโอนย้าย' }]}>
       <div className="space-y-4 animate-fadeIn">
         {/* Warehouse Selection */}
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
           <div className="flex flex-col sm:flex-row gap-4 sm:items-start">
-            {/* Source Warehouse */}
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
                 คลังต้นทาง <span className="text-red-500">*</span>
@@ -424,23 +298,15 @@ export default function StockTransferPage() {
               <FormSelect
                 value={sourceWarehouseId}
                 onChange={setSourceWarehouseId}
-                options={warehouses.filter(wh => wh.id !== destWarehouseId).map(wh => ({
-                  id: wh.id,
-                  label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}`,
-                  icon: wh.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined,
-                }))}
+                options={warehouses.filter(wh => wh.id !== destWarehouseId).map(wh => ({ id: wh.id, label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}`, icon: wh.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined }))}
                 placeholder="-- เลือกคลังต้นทาง --"
                 searchPlaceholder="ค้นหาคลัง..."
                 icon={<Warehouse className="w-4 h-4" />}
               />
             </div>
-
-            {/* Arrow */}
             <div className="flex items-center justify-center sm:mt-8 flex-shrink-0">
               <ArrowRightLeft className="w-5 h-5 text-gray-400 dark:text-slate-500 rotate-90 sm:rotate-0" />
             </div>
-
-            {/* Destination Warehouse */}
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
                 คลังปลายทาง <span className="text-red-500">*</span>
@@ -448,11 +314,7 @@ export default function StockTransferPage() {
               <FormSelect
                 value={destWarehouseId}
                 onChange={setDestWarehouseId}
-                options={warehouses.filter(wh => wh.id !== sourceWarehouseId).map(wh => ({
-                  id: wh.id,
-                  label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}`,
-                  icon: wh.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined,
-                }))}
+                options={warehouses.filter(wh => wh.id !== sourceWarehouseId).map(wh => ({ id: wh.id, label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}`, icon: wh.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined }))}
                 placeholder="-- เลือกคลังปลายทาง --"
                 searchPlaceholder="ค้นหาคลัง..."
                 icon={<Warehouse className="w-4 h-4" />}
@@ -461,333 +323,47 @@ export default function StockTransferPage() {
           </div>
           {inventoryLoading && (
             <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5 flex items-center gap-1">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              กำลังโหลดสต็อก...
+              <Loader2 className="w-3 h-3 animate-spin" />กำลังโหลดสต็อก...
             </p>
           )}
-
-          {/* Same warehouse warning */}
           {warehousesAreSame && (
             <div className="mt-3 flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
               คลังต้นทางและปลายทางต้องไม่เป็นคลังเดียวกัน
             </div>
           )}
-
         </div>
 
         {/* Stock warning banner */}
-        {transferItems.length > 0 && hasAnyStockWarning && (
+        {hasStockWarning && transferItems.length > 0 && (
           <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 rounded-lg border border-amber-200 dark:border-amber-800">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-            <span>บางรายการมีจำนวนโอนย้ายมากกว่าสต็อกที่มีในคลังต้นทาง</span>
+            บางรายการมีจำนวนโอนย้ายมากกว่าสต็อกที่มีในคลังต้นทาง
           </div>
         )}
 
-        {/* Desktop: Table + Search in one card */}
+        {/* Items Table */}
         {sourceWarehouseId && destWarehouseId && !warehousesAreSame && (
-        <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700">
-          {transferItems.length > 0 && (
-            <>
-              <div className="overflow-x-auto">
-                <table className="data-table">
-                  <thead className="data-thead">
-                    <tr>
-                      <th className="data-th">สินค้า</th>
-                      <th className="data-th text-center w-28 whitespace-nowrap">สต็อกต้นทาง</th>
-                      <th className="data-th text-center w-28 whitespace-nowrap">สต็อกปลายทาง</th>
-                      <th className="data-th text-center w-28">จำนวนโอน</th>
-                      <th className="data-th w-12"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="data-tbody">
-                    {transferItems.map((item, index) => {
-                      const warning = hasStockWarning(item);
-                      return (
-                        <tr key={item.variation_id} className={`data-tr ${warning ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
-                          <td className="px-6 py-3">
-                            <div className="flex items-center gap-2.5">
-                              {item.image ? (
-                                <img
-                                  src={item.image}
-                                  alt={item.name}
-                                  className="w-12 h-12 rounded object-cover flex-shrink-0"
-                                />
-                              ) : (
-                                <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                  <Package className="w-5 h-5 text-gray-400" />
-                                </div>
-                              )}
-                              <div className="min-w-0">
-                                <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
-                                  {productDisplayName({ product_name: item.name, product_code: item.code, variation_label: item.variation_label, sku: item.sku })}
-                                </div>
-                                <span className="text-xs text-gray-400 dark:text-slate-500">
-                                  {productSubtitle({ product_code: item.code, sku: item.sku })}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-3 text-center">
-                            {item.available_stock !== null ? (
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                item.available_stock <= 0
-                                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                  : item.available_stock <= 5
-                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                    : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                              }`}>
-                                {item.available_stock.toLocaleString()}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-gray-400 dark:text-slate-500">-</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-3 text-center">
-                            {(() => {
-                              const destStock = getDestStockForVariation(item.variation_id);
-                              if (destStock === null) return <span className="text-xs text-gray-400 dark:text-slate-500">-</span>;
-                              return (
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  destStock <= 0
-                                    ? 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400'
-                                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                }`}>
-                                  {destStock.toLocaleString()}
-                                </span>
-                              );
-                            })()}
-                          </td>
-                          <td className="px-6 py-3 text-center">
-                            <div className="inline-flex relative">
-                              <input
-                                type="number"
-                                min="1"
-                                value={item.quantity}
-                                onChange={e =>
-                                  handleUpdateQuantity(index, parseInt(e.target.value) || 1)
-                                }
-                                className={`w-20 px-2 py-1.5 border rounded-lg text-center text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] ${
-                                  warning
-                                    ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/20'
-                                    : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700'
-                                }`}
-                              />
-                              {warning && (
-                                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-2 py-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(index)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                              title="ลบ"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-          {/* Product Search */}
-          <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700">
-            <ProductSearchInput
-              products={products}
-              onSelect={(p) => handleAddProduct(p as Product)}
-              loading={productsLoading}
-              isAlreadyAdded={(p) => transferItems.some(item => item.variation_id === p.id)}
-              formatSubtitle={(p) => {
-                const parts = [p.code];
-                if (p.sku) parts.push(`SKU: ${p.sku}`);
-                const stock = getStockForVariation(p.id);
-                if (stock !== null) parts.push(`สต็อก: ${stock}`);
-                return parts.join(' | ');
-              }}
-            />
-          </div>
-          {transferItems.length === 0 && (
-            <div className="text-center py-8 text-gray-400 dark:text-slate-500">
-              <Package2 className="w-10 h-10 mx-auto mb-2" />
-              <p className="text-sm">เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน</p>
-            </div>
-          )}
-          {/* Summary row */}
-          {transferItems.length > 0 && (
-            <div className="px-4 py-3 bg-gray-50 dark:bg-slate-800/50 border-t border-gray-200 dark:border-slate-700 rounded-b-lg flex items-center justify-between">
-              <span className="text-sm text-gray-500 dark:text-slate-400">
-                รวม {transferItems.length} รายการ
-              </span>
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                จำนวนรวม: {transferItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
-              </span>
-            </div>
-          )}
-        </div>
-        )}
-
-        {/* Mobile Cards */}
-        {sourceWarehouseId && destWarehouseId && !warehousesAreSame && transferItems.length > 0 && (
-          <div className="md:hidden space-y-2">
-            {transferItems.map((item, index) => {
-              const warning = hasStockWarning(item);
-              return (
-                <div
-                  key={item.variation_id}
-                  className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm border p-3 ${
-                    warning
-                      ? 'border-amber-300 dark:border-amber-700'
-                      : 'border-gray-200 dark:border-slate-700'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      {item.image ? (
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-12 h-12 rounded object-cover flex-shrink-0"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                          <Package className="w-6 h-6 text-gray-400" />
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 break-words">
-                          {productDisplayName({ product_name: item.name, product_code: item.code, variation_label: item.variation_label, sku: item.sku })}
-                        </p>
-                        <p className="text-xs text-gray-400 dark:text-slate-500 truncate">
-                          {productSubtitle({ product_code: item.code, sku: item.sku })}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(index)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="mt-2.5 grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
-                        สต็อกต้นทาง
-                      </label>
-                      <div className={`px-2 py-1.5 rounded-lg text-center text-sm font-medium ${
-                        item.available_stock !== null
-                          ? item.available_stock === 0
-                            ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
-                            : 'text-gray-700 dark:text-slate-300 bg-gray-50 dark:bg-slate-700/50'
-                          : 'text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-700/50'
-                      }`}>
-                        {item.available_stock !== null ? item.available_stock.toLocaleString() : '-'}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
-                        สต็อกปลายทาง
-                      </label>
-                      {(() => {
-                        const destStock = getDestStockForVariation(item.variation_id);
-                        return (
-                          <div className={`px-2 py-1.5 rounded-lg text-center text-sm font-medium ${
-                            destStock !== null && destStock > 0
-                              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-                              : 'text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-700/50'
-                          }`}>
-                            {destStock !== null ? destStock.toLocaleString() : '-'}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
-                        จำนวนโอน
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={e =>
-                          handleUpdateQuantity(index, parseInt(e.target.value) || 1)
-                        }
-                        className={`w-full px-2 py-1.5 border rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] ${
-                          warning
-                            ? 'border-amber-400 dark:border-amber-500'
-                            : 'border-gray-300 dark:border-slate-600'
-                        }`}
-                      />
-                    </div>
-                  </div>
-
-                  {warning && (
-                    <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                      จำนวนโอนเกินสต็อกที่มี ({item.available_stock?.toLocaleString()})
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-          </div>
-        )}
-        {/* Mobile: Search + empty state — before summary so order matches desktop */}
-        {sourceWarehouseId && destWarehouseId && !warehousesAreSame && (
-        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-          <ProductSearchInput
+          <ItemsTable
+            items={tableItems}
+            columns={['stock_source', 'stock_dest', 'qty']}
             products={products}
-            onSelect={(p) => handleAddProduct(p as Product)}
-            loading={productsLoading}
-            isAlreadyAdded={(p) => transferItems.some(item => item.variation_id === p.id)}
-            formatSubtitle={(p) => {
-              const parts = [p.code];
-              if (p.sku) parts.push(`SKU: ${p.sku}`);
-              const stock = getStockForVariation(p.id);
-              if (stock !== null) parts.push(`สต็อก: ${stock}`);
-              return parts.join(' | ');
-            }}
+            loadingProducts={productsLoading}
+            onAdd={handleAddProduct}
+            onUpdateField={handleUpdateField}
+            onRemove={handleRemoveItem}
+            emptyMessage="เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน"
+            showSummary={true}
           />
-          {transferItems.length === 0 && (
-            <div className="text-center py-8 text-gray-400 dark:text-slate-500">
-              <Package2 className="w-10 h-10 mx-auto mb-2" />
-              <p className="text-sm">เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน</p>
-            </div>
-          )}
-        </div>
-        )}
-        {/* Mobile summary */}
-        {sourceWarehouseId && destWarehouseId && !warehousesAreSame && transferItems.length > 0 && (
-          <div className="md:hidden bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2.5 flex items-center justify-between">
-            <span className="text-sm text-gray-500 dark:text-slate-400">
-              รวม {transferItems.length} รายการ
-            </span>
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              จำนวนรวม: {transferItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
-            </span>
-          </div>
         )}
 
         {/* Batch Notes */}
         {transferItems.length > 0 && (
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-              <FileText className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-              หมายเหตุรวม
+              <FileText className="w-4 h-4 inline mr-1.5 -mt-0.5" />หมายเหตุรวม
             </label>
-            <textarea
-              value={batchNotes}
-              onChange={e => setBatchNotes(e.target.value)}
-              rows={3}
+            <textarea value={batchNotes} onChange={e => setBatchNotes(e.target.value)} rows={3}
               placeholder="หมายเหตุสำหรับการโอนย้ายครั้งนี้..."
               className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
             />
@@ -796,30 +372,13 @@ export default function StockTransferPage() {
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-3 pb-4">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="px-5 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium"
-          >
+          <button type="button" onClick={() => router.push('/inventory/transfers')}
+            className="px-5 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium">
             ยกเลิก
           </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="bg-[#F4511E] text-white px-5 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                กำลังสร้างใบโอนย้าย...
-              </>
-            ) : (
-              <>
-                <ArrowRightLeft className="w-4 h-4" />
-                สร้างใบโอนย้าย
-              </>
-            )}
+          <button type="button" onClick={handleSubmit} disabled={!canSubmit}
+            className="bg-[#F4511E] text-white px-5 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
+            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />กำลังสร้างใบโอนย้าย...</> : <><ArrowRightLeft className="w-4 h-4" />สร้างใบโอนย้าย</>}
           </button>
         </div>
       </div>

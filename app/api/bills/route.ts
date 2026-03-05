@@ -35,9 +35,9 @@ export async function GET(request: NextRequest) {
         expires_at, cancellation_reason,
         customer:customers (
           name, contact_person, phone, email,
-          tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code,
+          billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code,
           tax_company_name, tax_id, tax_branch,
-          customer_type_new
+          customer_type
         )
       `)
       .eq('id', orderId)
@@ -234,7 +234,7 @@ export async function GET(request: NextRequest) {
 
     // Sanitize payment channels — strip sensitive data before sending to public page
     const customerData = order.customer as unknown as Record<string, unknown> | null;
-    const customerType = (customerData?.customer_type_new as string) || 'retail';
+    const customerType = (customerData?.customer_type as string) || 'retail';
     const orderAmount = order.total_amount as number;
 
     const sanitizedChannels = (paymentChannels || []).map(ch => {
@@ -326,11 +326,11 @@ export async function GET(request: NextRequest) {
     const billCustomer = shippingInfo ? {
       ...shippingInfo,
       // Tax/billing info always from customers table
-      tax_address: (customerData?.tax_address as string) || undefined,
-      tax_district: (customerData?.tax_district as string) || undefined,
-      tax_amphoe: (customerData?.tax_amphoe as string) || undefined,
-      tax_province: (customerData?.tax_province as string) || undefined,
-      tax_postal_code: (customerData?.tax_postal_code as string) || undefined,
+      billing_address: (customerData?.billing_address as string) || undefined,
+      billing_district: (customerData?.billing_district as string) || undefined,
+      billing_amphoe: (customerData?.billing_amphoe as string) || undefined,
+      billing_province: (customerData?.billing_province as string) || undefined,
+      billing_postal_code: (customerData?.billing_postal_code as string) || undefined,
       tax_company_name: (customerData?.tax_company_name as string) || undefined,
       tax_id: (customerData?.tax_id as string) || undefined,
       tax_branch: (customerData?.tax_branch as string) || undefined,
@@ -340,11 +340,11 @@ export async function GET(request: NextRequest) {
       phone: (customerData.phone as string) || '',
       email: (customerData.email as string) || '',
       contact_person: (customerData.contact_person as string) || undefined,
-      tax_address: (customerData.tax_address as string) || undefined,
-      tax_district: (customerData.tax_district as string) || undefined,
-      tax_amphoe: (customerData.tax_amphoe as string) || undefined,
-      tax_province: (customerData.tax_province as string) || undefined,
-      tax_postal_code: (customerData.tax_postal_code as string) || undefined,
+      billing_address: (customerData.billing_address as string) || undefined,
+      billing_district: (customerData.billing_district as string) || undefined,
+      billing_amphoe: (customerData.billing_amphoe as string) || undefined,
+      billing_province: (customerData.billing_province as string) || undefined,
+      billing_postal_code: (customerData.billing_postal_code as string) || undefined,
       tax_company_name: (customerData.tax_company_name as string) || undefined,
       tax_id: (customerData.tax_id as string) || undefined,
       tax_branch: (customerData.tax_branch as string) || undefined,

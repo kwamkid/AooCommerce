@@ -373,7 +373,19 @@ export async function GET(request: NextRequest) {
       productsBaseQuery = productsBaseQuery.eq('brand_id', brandFilter);
     }
     if (searchQuery) {
-      productsBaseQuery = productsBaseQuery.or(`name.ilike.%${searchQuery}%,code.ilike.%${searchQuery}%`);
+      // Also search in product_variations (sku, barcode) to find variation products
+      const { data: varMatches } = await supabaseAdmin
+        .from('product_variations')
+        .select('product_id')
+        .eq('company_id', auth.companyId)
+        .or(`sku.ilike.%${searchQuery}%,barcode.ilike.%${searchQuery}%`);
+      const varProductIds = [...new Set((varMatches || []).map(v => v.product_id).filter(Boolean))];
+      if (varProductIds.length > 0) {
+        // Match by name/code OR by variation sku/barcode
+        productsBaseQuery = productsBaseQuery.or(`name.ilike.%${searchQuery}%,code.ilike.%${searchQuery}%,id.in.(${varProductIds.join(',')})`);
+      } else {
+        productsBaseQuery = productsBaseQuery.or(`name.ilike.%${searchQuery}%,code.ilike.%${searchQuery}%`);
+      }
     }
 
     // Shop account filter — find product IDs linked to this shop

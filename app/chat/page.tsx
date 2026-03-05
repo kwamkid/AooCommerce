@@ -931,8 +931,8 @@ function UnifiedChatPageContent() {
         tax_id: formData.needs_tax_invoice ? formData.tax_id : '',
         tax_company_name: formData.needs_tax_invoice ? formData.tax_company_name : '',
         tax_branch: formData.needs_tax_invoice ? formData.tax_branch : '',
-        tax_address: billingAddress, tax_district: billingDistrict, tax_amphoe: billingAmphoe,
-        tax_province: billingProvince, tax_postal_code: billingPostalCode
+        billing_address: billingAddress, billing_district: billingDistrict, billing_amphoe: billingAmphoe,
+        billing_province: billingProvince, billing_postal_code: billingPostalCode
       };
 
       const response = await apiFetch('/api/customers', {
@@ -950,8 +950,8 @@ function UnifiedChatPageContent() {
         ...selectedContact.customer, name: formData.name, contact_person: formData.contact_person,
         phone: formData.phone, email: formData.email,
         customer_type: formData.customer_type as 'retail' | 'wholesale' | 'distributor',
-        tax_address: billingAddress, tax_district: billingDistrict, tax_amphoe: billingAmphoe,
-        tax_province: billingProvince, tax_postal_code: billingPostalCode,
+        billing_address: billingAddress, billing_district: billingDistrict, billing_amphoe: billingAmphoe,
+        billing_province: billingProvince, billing_postal_code: billingPostalCode,
         tax_id: formData.needs_tax_invoice ? formData.tax_id : '',
         tax_company_name: formData.needs_tax_invoice ? formData.tax_company_name : '',
         tax_branch: formData.needs_tax_invoice ? formData.tax_branch : '',
@@ -1126,10 +1126,10 @@ function UnifiedChatPageContent() {
         )}
 
         {/* Billing address (tax) */}
-        {c && (c.tax_address || c.tax_province) && (
+        {c && (c.billing_address || c.billing_province) && (
           <div className="pb-3 border-b border-gray-100 dark:border-slate-700">
             <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5 block">ที่อยู่ออกบิล</label>
-            <p className="text-sm text-gray-600 dark:text-slate-400">{[c.tax_address, c.tax_district, c.tax_amphoe, c.tax_province, c.tax_postal_code].filter(Boolean).join(' ')}</p>
+            <p className="text-sm text-gray-600 dark:text-slate-400">{[c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ')}</p>
           </div>
         )}
 
@@ -1216,9 +1216,9 @@ function UnifiedChatPageContent() {
     is_active: selectedContact.customer.is_active ?? true, notes: selectedContact.customer.notes || '',
     needs_tax_invoice: !!selectedContact.customer.tax_id, tax_id: selectedContact.customer.tax_id || '',
     tax_company_name: selectedContact.customer.tax_company_name || '', tax_branch: selectedContact.customer.tax_branch || 'สำนักงานใหญ่',
-    billing_address: selectedContact.customer.tax_address || '', billing_district: selectedContact.customer.tax_district || '',
-    billing_amphoe: selectedContact.customer.tax_amphoe || '', billing_province: selectedContact.customer.tax_province || '',
-    billing_postal_code: selectedContact.customer.tax_postal_code || '', billing_same_as_shipping: false
+    billing_address: selectedContact.customer.billing_address || '', billing_district: selectedContact.customer.billing_district || '',
+    billing_amphoe: selectedContact.customer.billing_amphoe || '', billing_province: selectedContact.customer.billing_province || '',
+    billing_postal_code: selectedContact.customer.billing_postal_code || '', billing_same_as_shipping: false
   } : undefined;
 
   return (

@@ -688,11 +688,11 @@ export async function GET(request: NextRequest) {
             tax_company_name,
             tax_id,
             tax_branch,
-            tax_address,
-            tax_district,
-            tax_amphoe,
-            tax_province,
-            tax_postal_code
+            billing_address,
+            billing_district,
+            billing_amphoe,
+            billing_province,
+            billing_postal_code
           )
         `)
         .eq('id', orderId)
@@ -1449,7 +1449,7 @@ export async function PUT(request: NextRequest) {
             tax_company_name: tax_invoice_name,
             tax_id: tax_invoice_tax_id,
             tax_branch: tax_invoice_branch || null,
-            tax_address: tax_invoice_address || null,
+            billing_address: tax_invoice_address || null,
             updated_at: now.toISOString(),
           })
           .eq('id', existingOrder.customer_id);

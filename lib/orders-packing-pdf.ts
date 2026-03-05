@@ -21,6 +21,7 @@ import {
   setupPdfMake,
   loadLogoDataUrl,
   formatPdfDate,
+  buildCompanyStack,
 } from './pdf-utils';
 
 // ─── Interfaces ──────────────────────────────────────────
@@ -205,26 +206,7 @@ async function buildPickListContent(
   const content: any[] = [];
 
   // ── Header ──
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const companyStack: any[] = [];
-  if (logoDataUrl) {
-    companyStack.push({
-      image: logoDataUrl,
-      width: 50,
-      height: 50,
-      fit: [50, 50],
-      margin: [0, 0, 0, 6],
-    });
-  }
-  const companyName = company?.tax_company_name || company?.name || '';
-  if (companyName) {
-    companyStack.push({
-      text: companyName,
-      bold: true,
-      fontSize: 12,
-      color: '#333333',
-    });
-  }
+  const companyStack = buildCompanyStack(company, logoDataUrl);
 
   const dateStr = formatPdfDate(new Date().toISOString());
 
@@ -537,10 +519,10 @@ function buildCompactPackingContent(
   if (logoDataUrl) {
     leftStack.push({
       image: logoDataUrl,
-      width: 30,
-      height: 30,
-      fit: [30, 30],
-      margin: [0, 0, 6, 0],
+      width: 40,
+      height: 40,
+      fit: [40, 40],
+      margin: [0, 0, 0, 4],
     });
   }
   const companyName = company?.tax_company_name || company?.name || '';
@@ -548,9 +530,12 @@ function buildCompactPackingContent(
     leftStack.push({
       text: companyName,
       bold: true,
-      fontSize: 10,
+      fontSize: 11,
       color: '#333333',
     });
+  }
+  if (company?.address) {
+    leftStack.push({ text: company.address, fontSize: 9, color: '#666666' });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

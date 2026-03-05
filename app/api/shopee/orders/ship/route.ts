@@ -100,6 +100,53 @@ export async function POST(request: NextRequest) {
       };
     };
 
+    // For split orders: fetch parcel package_numbers and ship each individually
+    // (Shopee requires package_number for split orders — calling ship_order without it will fail)
+    if (order.is_split) {
+      const { data: parcels } = await supabaseAdmin
+        .from('order_parcels')
+        .select('package_number')
+        .eq('order_id', order_id)
+        .order('parcel_number');
+      const packageNumbers = (parcels || []).map(p => p.package_number).filter(Boolean) as string[];
+
+      if (packageNumbers.length > 0) {
+        const errors: string[] = [];
+        const isDropoff = !!(params.info_needed?.dropoff && params.info_needed.dropoff.length > 0);
+
+        for (const pn of packageNumbers) {
+          let parcelResult;
+          if (isDropoff) {
+            const dropoffParams: Record<string, unknown> = {};
+            if (params.dropoff?.branch_list?.[0]) dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
+            parcelResult = await shipOrder(creds, order.external_order_sn, undefined, dropoffParams, pn);
+          } else {
+            const pickupAddress = params.pickup?.address_list?.[0];
+            if (!pickupAddress) { errors.push(`parcel ${pn}: ไม่พบที่อยู่รับพัสดุ`); continue; }
+            const timeSlots = pickupAddress.time_slot_list || [];
+            const recommended = timeSlots.find((s: { flags?: string[] }) => s.flags?.includes('recommended'));
+            const selectedTimeId = pickup_time_id || (recommended || timeSlots[0])?.pickup_time_id || '';
+            parcelResult = await shipOrder(creds, order.external_order_sn, { address_id: pickupAddress.address_id, pickup_time_id: selectedTimeId }, undefined, pn);
+          }
+          if (parcelResult.error) errors.push(`parcel ${pn}: ${parcelResult.error}`);
+        }
+
+        if (errors.length > 0) {
+          return NextResponse.json({ error: `บางกล่องรับออเดอร์ไม่สำเร็จ: ${errors.join(', ')}` }, { status: 500 });
+        }
+
+        // All parcels shipped — update DB and return
+        await supabaseAdmin
+          .from('orders')
+          .update({ external_status: 'PROCESSED', order_status: 'processing', updated_at: new Date().toISOString() })
+          .eq('id', order_id)
+          .eq('company_id', companyId);
+
+        return NextResponse.json({ success: true, external_status: 'PROCESSED', order_status: 'processing' });
+      }
+    }
+
+    // Non-split order: ship normally (no package_number)
     let shipResult;
 
     if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
@@ -117,9 +164,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'ไม่พบที่อยู่รับพัสดุ กรุณาตั้งค่าใน Shopee Seller Center' }, { status: 400 });
       }
 
-      // time_slot_list is nested inside each address
-      // If pickup_time_id is provided (from time slot modal), use it directly
-      // Otherwise, auto-pick recommended slot first, else first available
       const timeSlots = pickupAddress.time_slot_list || [];
       let selectedTimeId = pickup_time_id || '';
       if (!selectedTimeId) {
@@ -128,46 +172,10 @@ export async function POST(request: NextRequest) {
         selectedTimeId = pickupTimeSlot?.pickup_time_id || '';
       }
 
-      const pickupParams = {
+      shipResult = await shipOrder(creds, order.external_order_sn, {
         address_id: pickupAddress.address_id,
         pickup_time_id: selectedTimeId,
-      };
-
-      shipResult = await shipOrder(creds, order.external_order_sn, pickupParams);
-    }
-
-    // For split orders, also ship each parcel with package_number
-    if (order.is_split) {
-      const { data: parcels } = await supabaseAdmin
-        .from('order_parcels')
-        .select('package_number')
-        .eq('order_id', order_id)
-        .order('parcel_number');
-      const packageNumbers = (parcels || []).map(p => p.package_number).filter(Boolean) as string[];
-      if (packageNumbers.length > 0) {
-        const errors: string[] = [];
-        for (const pn of packageNumbers) {
-          let parcelResult;
-          if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
-            const dropoffParams: Record<string, unknown> = {};
-            if (params.dropoff?.branch_list?.[0]) dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
-            parcelResult = await shipOrder(creds, order.external_order_sn, undefined, dropoffParams, pn);
-          } else {
-            const pickupAddress = params.pickup?.address_list?.[0];
-            if (!pickupAddress) { errors.push(`parcel ${pn}: ไม่พบที่อยู่รับพัสดุ`); continue; }
-            const timeSlots = pickupAddress.time_slot_list || [];
-            const recommended = timeSlots.find((s: any) => s.flags?.includes('recommended'));
-            const selectedTimeId = pickup_time_id || (recommended || timeSlots[0])?.pickup_time_id || '';
-            parcelResult = await shipOrder(creds, order.external_order_sn, { address_id: pickupAddress.address_id, pickup_time_id: selectedTimeId }, undefined, pn);
-          }
-          if (parcelResult.error) errors.push(`parcel ${pn}: ${parcelResult.error}`);
-        }
-        if (errors.length > 0) {
-          return NextResponse.json({ error: `บางกล่องรับออเดอร์ไม่สำเร็จ: ${errors.join(', ')}` }, { status: 500 });
-        }
-        // Skip the main shipResult check since we shipped per-parcel
-        shipResult = { error: null, data: null };
-      }
+      });
     }
 
     if (shipResult.error) {

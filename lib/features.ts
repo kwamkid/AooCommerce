@@ -2,7 +2,6 @@
 // Stored in companies.settings JSONB — no new DB tables needed
 
 export interface FeatureFlags {
-  customer_branches: boolean;
   delivery_date: { enabled: boolean; required: boolean };
   billing_cycle: boolean;
   marketplace_sync: boolean;
@@ -38,7 +37,6 @@ export const PRESET_DESCRIPTIONS: Record<BusinessPreset, string> = {
 
 export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   delivery: {
-    customer_branches: true,
     delivery_date: { enabled: true, required: true },
     billing_cycle: true,
     marketplace_sync: false,
@@ -50,7 +48,6 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     department_store: false,
   },
   ecommerce: {
-    customer_branches: false,
     delivery_date: { enabled: false, required: false },
     billing_cycle: false,
     marketplace_sync: true,
@@ -62,7 +59,6 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     department_store: false,
   },
   ecommerce_brand: {
-    customer_branches: false,
     delivery_date: { enabled: false, required: false },
     billing_cycle: false,
     marketplace_sync: true,
@@ -74,7 +70,6 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     department_store: false,
   },
   omnichannel: {
-    customer_branches: false,
     delivery_date: { enabled: false, required: false },
     billing_cycle: false,
     marketplace_sync: true,
@@ -86,7 +81,6 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     department_store: false,
   },
   omnichannel_brand: {
-    customer_branches: false,
     delivery_date: { enabled: false, required: false },
     billing_cycle: true,
     marketplace_sync: true,
@@ -98,7 +92,6 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     department_store: true,
   },
   wholesale: {
-    customer_branches: true,
     delivery_date: { enabled: false, required: false },
     billing_cycle: true,
     marketplace_sync: false,
@@ -110,7 +103,6 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     department_store: true,
   },
   distribution: {
-    customer_branches: false,
     delivery_date: { enabled: false, required: false },
     billing_cycle: true,
     marketplace_sync: false,
@@ -131,7 +123,6 @@ export const DEFAULT_PRESET: BusinessPreset = 'delivery';
 export function detectPreset(f: FeatureFlags): BusinessPreset | null {
   for (const [key, defaults] of Object.entries(PRESET_DEFAULTS) as [BusinessPreset, FeatureFlags][]) {
     const match =
-      f.customer_branches === defaults.customer_branches &&
       f.delivery_date.enabled === defaults.delivery_date.enabled &&
       f.delivery_date.required === defaults.delivery_date.required &&
       f.billing_cycle === defaults.billing_cycle &&
@@ -164,7 +155,6 @@ export function parseFeatures(settings: Record<string, unknown> | null | undefin
 
   // Merge with defaults to fill any missing fields
   const features: FeatureFlags = {
-    customer_branches: stored.customer_branches ?? DEFAULT_FEATURES.customer_branches,
     delivery_date: {
       enabled: (stored.delivery_date as { enabled?: boolean })?.enabled ?? DEFAULT_FEATURES.delivery_date.enabled,
       required: (stored.delivery_date as { required?: boolean })?.required ?? DEFAULT_FEATURES.delivery_date.required,

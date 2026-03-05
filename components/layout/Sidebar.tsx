@@ -74,6 +74,7 @@ const menuSections: MenuSection[] = [
       { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-5 h-5" />, roles: ['admin', 'sales', 'account', 'warehouse'] },
       { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-5 h-5" />, roles: ['admin', 'sales', 'warehouse'] },
       { label: 'เติมสินค้าตัวแทน', href: '/replenishments', icon: <ArrowUpFromLine className="w-5 h-5" />, roles: ['admin', 'sales'] },
+      { label: 'รายงานฝากขาย', href: '/consignment/reports', icon: <ClipboardList className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
       { label: 'ส่งห้าง', href: '/department-orders', icon: <Building2 className="w-5 h-5" />, roles: ['admin', 'sales'] },
     ]
   },
@@ -316,6 +317,7 @@ export default function Sidebar() {
         if (item.href === '/reports/supplier' && !features.supplier) return false;
         if (item.href === '/settings/suppliers' && !features.supplier) return false;
         if (item.href === '/replenishments' && !features.consignment) return false;
+        if (item.href === '/consignment/reports' && !features.consignment) return false;
         if (item.href === '/department-orders' && !features.department_store) return false;
         // Hide inventory when stock is disabled
         if (item.href === '/inventory' && !stockEnabled) return false;

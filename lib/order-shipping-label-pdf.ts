@@ -114,9 +114,11 @@ const truncate = (s: string) => s.length > MAX_NAME_LEN ? s.slice(0, MAX_NAME_LE
 interface GenerateOptions {
   data: ShippingLabelData;
   company?: CompanyInfo;
+  /** Override page size. Default: A6 (105×148mm). Pass 'A4' for full-page label. */
+  pageSizeOverride?: 'A4';
 }
 
-export async function generateShippingLabelPdf({ data, company }: GenerateOptions): Promise<Blob> {
+export async function generateShippingLabelPdf({ data, company, pageSizeOverride }: GenerateOptions): Promise<Blob> {
   if (!company) {
     company = (await fetchCompanyInfo()) || undefined;
   }
@@ -146,9 +148,10 @@ export async function generateShippingLabelPdf({ data, company }: GenerateOption
     : sourceLabel;
 
   // A6 in points: 105mm × 148mm → 297.64 × 419.53
-  const pageWidth = 297.64;
-  const pageHeight = 419.53;
-  const margin = 12;
+  // A4 in points: 595.28 × 841.89
+  const pageWidth = pageSizeOverride === 'A4' ? 595.28 : 297.64;
+  const pageHeight = pageSizeOverride === 'A4' ? 841.89 : 419.53;
+  const margin = pageSizeOverride === 'A4' ? 30 : 12;
   const innerWidth = pageWidth - margin * 2;
   const halfWidth = (innerWidth - 6) / 2; // 6pt gap between columns
 
@@ -421,4 +424,9 @@ export async function generateShippingLabelPdf({ data, company }: GenerateOption
 
   const pdfDoc = pdfMake.createPdf(docDefinition);
   return pdfDoc.getBlob();
+}
+
+/** A4-sized shipping label for replenishments (consignment delivery note cover page) */
+export async function generateReplenishmentLabelPdf(options: GenerateOptions): Promise<Blob> {
+  return generateShippingLabelPdf({ ...options, pageSizeOverride: 'A4' });
 }

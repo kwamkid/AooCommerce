@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
           from_warehouse:warehouses!inventory_transfers_from_warehouse_id_fkey(id, name, code),
           to_warehouse:warehouses!inventory_transfers_to_warehouse_id_fkey(id, name, code),
           items:inventory_transfer_items(
-            id, variation_id, qty_sent, qty_received, notes,
+            id, variation_id, qty_sent, qty_received, confirmed_quantity, notes,
             variation:product_variations(
               id, variation_label, sku, attributes,
               product:products(id, code, name, image)
@@ -490,6 +490,44 @@ export async function PUT(request: NextRequest) {
           received_at: new Date().toISOString(),
           received_by: auth.userId,
           receive_notes: receive_notes || null,
+        })
+        .eq('id', transfer_id);
+
+      return NextResponse.json({ success: true, status: 'received' });
+    }
+
+    // === ACTION: CONFIRM (pending_confirm → received/partial) ===
+    if (action === 'confirm') {
+      if (transfer.status !== 'pending_confirm') {
+        return NextResponse.json({ error: 'สามารถยืนยันได้เฉพาะสถานะ "รอยืนยัน" เท่านั้น' }, { status: 400 });
+      }
+
+      const { confirmed_items } = body;
+      if (confirmed_items && Array.isArray(confirmed_items)) {
+        for (const ci of confirmed_items as { item_id: string; confirmed_quantity: number }[]) {
+          await supabaseAdmin
+            .from('inventory_transfer_items')
+            .update({ confirmed_quantity: ci.confirmed_quantity })
+            .eq('id', ci.item_id);
+        }
+      }
+
+      // Determine final status
+      const { data: allItems } = await supabaseAdmin
+        .from('inventory_transfer_items')
+        .select('qty_sent, qty_received, confirmed_quantity')
+        .eq('transfer_id', transfer_id);
+
+      const allConfirmed = (allItems || []).every(
+        (i: any) => (i.confirmed_quantity || i.qty_received || 0) >= i.qty_sent
+      );
+
+      await supabaseAdmin
+        .from('inventory_transfers')
+        .update({
+          status: allConfirmed ? 'received' : 'received',
+          received_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         })
         .eq('id', transfer_id);
 

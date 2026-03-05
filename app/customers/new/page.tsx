@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import CustomerForm, { CustomerFormData, buildCustomerPayload } from '@/components/customers/CustomerForm';
+import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import { Tag } from '@/components/ui/TagBadge';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
@@ -38,7 +39,7 @@ export default function NewCustomerPage() {
     }
   }, [userProfile, authLoading, router]);
 
-  const handleCreateCustomer = async (data: CustomerFormData, resolvedCustomerId: string) => {
+  const handleCreateCustomer = async (data: CustomerFormData, resolvedCustomerId: string, brandGpRows?: BrandGpRow[]) => {
     setSaving(true);
 
     try {
@@ -110,6 +111,22 @@ export default function NewCustomerPage() {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tag_ids: selectedTags.map(t => t.id) }),
+        });
+      }
+
+      // Save brand GP commissions
+      if (brandGpRows && brandGpRows.length > 0 && data.customer_type === 'consignment_dealer') {
+        await apiFetch('/api/customer-brand-commissions/sync', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer_id: customerId,
+            rows: brandGpRows.filter(r => r.brand_id).map(r => ({
+              brand_id: r.brand_id,
+              gp_rate: parseFloat(r.gp_rate) || 0,
+              gp_base_price: r.gp_base_price || 'retail',
+            })),
+          }),
         });
       }
 

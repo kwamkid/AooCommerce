@@ -45,8 +45,8 @@ export default function TaxInvoiceModal({
           if (c.tax_id) setTaxId(c.tax_id);
           if (c.tax_branch) setBranch(c.tax_branch);
           const addrParts = [
-            c.tax_address, c.tax_district, c.tax_amphoe,
-            c.tax_province, c.tax_postal_code,
+            c.billing_address, c.billing_district, c.billing_amphoe,
+            c.billing_province, c.billing_postal_code,
           ].filter(Boolean).join(' ');
           if (addrParts) setAddress(addrParts);
         }

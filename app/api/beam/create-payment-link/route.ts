@@ -75,12 +75,12 @@ export async function POST(request: NextRequest) {
     // 3. Get customer type for filtering
     const { data: customer } = await supabaseAdmin
       .from('customers')
-      .select('customer_type_new')
+      .select('customer_type')
       .eq('id', order.customer_id)
       .eq('company_id', companyId)
       .single();
 
-    const customerType = customer?.customer_type_new || 'retail';
+    const customerType = customer?.customer_type || 'retail';
 
     // 4. Build Beam linkSettings from enabled channels
     const linkSettings: Record<string, unknown> = {

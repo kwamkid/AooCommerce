@@ -101,11 +101,11 @@ interface BillData {
     province?: string;
     postal_code?: string;
     // Tax/billing info (from customers table)
-    tax_address?: string;
-    tax_district?: string;
-    tax_amphoe?: string;
-    tax_province?: string;
-    tax_postal_code?: string;
+    billing_address?: string;
+    billing_district?: string;
+    billing_amphoe?: string;
+    billing_province?: string;
+    billing_postal_code?: string;
     tax_company_name?: string;
     tax_id?: string;
     tax_branch?: string;

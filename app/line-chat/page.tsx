@@ -64,11 +64,11 @@ interface LineContact {
     phone?: string;
     email?: string;
     customer_type?: 'retail' | 'wholesale' | 'distributor';
-    tax_address?: string;
-    tax_district?: string;
-    tax_amphoe?: string;
-    tax_province?: string;
-    tax_postal_code?: string;
+    billing_address?: string;
+    billing_district?: string;
+    billing_amphoe?: string;
+    billing_province?: string;
+    billing_postal_code?: string;
     tax_id?: string;
     tax_company_name?: string;
     tax_branch?: string;
@@ -1197,11 +1197,11 @@ function LineChatPageContent() {
         phone: builtPayload.phone,
         email: builtPayload.email,
         customer_type: builtPayload.customer_type as 'retail' | 'wholesale' | 'distributor',
-        tax_address: builtPayload.tax_address,
-        tax_district: builtPayload.tax_district,
-        tax_amphoe: builtPayload.tax_amphoe,
-        tax_province: builtPayload.tax_province,
-        tax_postal_code: builtPayload.tax_postal_code,
+        billing_address: builtPayload.billing_address,
+        billing_district: builtPayload.billing_district,
+        billing_amphoe: builtPayload.billing_amphoe,
+        billing_province: builtPayload.billing_province,
+        billing_postal_code: builtPayload.billing_postal_code,
         tax_id: builtPayload.tax_id,
         tax_company_name: builtPayload.tax_company_name,
         tax_branch: builtPayload.tax_branch,
@@ -2297,16 +2297,16 @@ function LineChatPageContent() {
                 </div>
 
                 {/* Address */}
-                {(selectedContact.customer.tax_address || selectedContact.customer.tax_province) && (
+                {(selectedContact.customer.billing_address || selectedContact.customer.billing_province) && (
                   <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
                     <label className="text-xs text-gray-500 dark:text-slate-400">ที่อยู่ออกบิล</label>
                     <p className="text-sm text-gray-900 dark:text-white">
                       {[
-                        selectedContact.customer.tax_address,
-                        selectedContact.customer.tax_district,
-                        selectedContact.customer.tax_amphoe,
-                        selectedContact.customer.tax_province,
-                        selectedContact.customer.tax_postal_code
+                        selectedContact.customer.billing_address,
+                        selectedContact.customer.billing_district,
+                        selectedContact.customer.billing_amphoe,
+                        selectedContact.customer.billing_province,
+                        selectedContact.customer.billing_postal_code
                       ].filter(Boolean).join(' ')}
                     </p>
                   </div>
@@ -2430,11 +2430,11 @@ function LineChatPageContent() {
                   tax_id: selectedContact.customer.tax_id || '',
                   tax_company_name: selectedContact.customer.tax_company_name || '',
                   tax_branch: selectedContact.customer.tax_branch || 'สำนักงานใหญ่',
-                  billing_address: selectedContact.customer.tax_address || '',
-                  billing_district: selectedContact.customer.tax_district || '',
-                  billing_amphoe: selectedContact.customer.tax_amphoe || '',
-                  billing_province: selectedContact.customer.tax_province || '',
-                  billing_postal_code: selectedContact.customer.tax_postal_code || '',
+                  billing_address: selectedContact.customer.billing_address || '',
+                  billing_district: selectedContact.customer.billing_district || '',
+                  billing_amphoe: selectedContact.customer.billing_amphoe || '',
+                  billing_province: selectedContact.customer.billing_province || '',
+                  billing_postal_code: selectedContact.customer.billing_postal_code || '',
                   billing_same_as_shipping: false
                 }}
                 onSubmit={handleUpdateCustomerInChat}
@@ -2746,16 +2746,16 @@ function LineChatPageContent() {
                 </div>
 
                 {/* Address */}
-                {(selectedContact.customer.tax_address || selectedContact.customer.tax_province) && (
+                {(selectedContact.customer.billing_address || selectedContact.customer.billing_province) && (
                   <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
                     <label className="text-xs text-gray-500 dark:text-slate-400">ที่อยู่ออกบิล</label>
                     <p className="text-sm text-gray-900 dark:text-white">
                       {[
-                        selectedContact.customer.tax_address,
-                        selectedContact.customer.tax_district,
-                        selectedContact.customer.tax_amphoe,
-                        selectedContact.customer.tax_province,
-                        selectedContact.customer.tax_postal_code
+                        selectedContact.customer.billing_address,
+                        selectedContact.customer.billing_district,
+                        selectedContact.customer.billing_amphoe,
+                        selectedContact.customer.billing_province,
+                        selectedContact.customer.billing_postal_code
                       ].filter(Boolean).join(' ')}
                     </p>
                   </div>
@@ -2880,11 +2880,11 @@ function LineChatPageContent() {
                   tax_id: selectedContact.customer.tax_id || '',
                   tax_company_name: selectedContact.customer.tax_company_name || '',
                   tax_branch: selectedContact.customer.tax_branch || 'สำนักงานใหญ่',
-                  billing_address: selectedContact.customer.tax_address || '',
-                  billing_district: selectedContact.customer.tax_district || '',
-                  billing_amphoe: selectedContact.customer.tax_amphoe || '',
-                  billing_province: selectedContact.customer.tax_province || '',
-                  billing_postal_code: selectedContact.customer.tax_postal_code || '',
+                  billing_address: selectedContact.customer.billing_address || '',
+                  billing_district: selectedContact.customer.billing_district || '',
+                  billing_amphoe: selectedContact.customer.billing_amphoe || '',
+                  billing_province: selectedContact.customer.billing_province || '',
+                  billing_postal_code: selectedContact.customer.billing_postal_code || '',
                   billing_same_as_shipping: false
                 }}
                 onSubmit={handleUpdateCustomerInChat}

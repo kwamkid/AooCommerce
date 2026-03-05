@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { customer_id, brand_id, gp_rate, gp_base_price } = body;
+    const { customer_id, brand_id, gp_rate } = body;
 
     if (!customer_id || !brand_id) {
       return NextResponse.json({ error: 'customer_id and brand_id are required' }, { status: 400 });
@@ -59,7 +59,6 @@ export async function POST(request: NextRequest) {
         customer_id,
         brand_id,
         gp_rate: Number(gp_rate),
-        gp_base_price: gp_base_price || null,
         updated_at: new Date().toISOString(),
       }, {
         onConflict: 'customer_id,brand_id',

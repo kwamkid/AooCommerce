@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
           contact_person,
           phone,
           email,
-          customer_type_new,
+          customer_type,
           address,
           district,
           amphoe,
@@ -342,10 +342,6 @@ export async function GET(request: NextRequest) {
 
     // Add last_message to contacts
     const contactsWithLastMessage = filteredContacts.map(contact => {
-      // Normalize customer_type_new → customer_type
-      if (contact.customer) {
-        contact.customer = { ...contact.customer, customer_type: contact.customer.customer_type_new || contact.customer.customer_type || 'retail' };
-      }
       return { ...contact, last_message: lastMessageMap.get(contact.id) || null };
     });
 

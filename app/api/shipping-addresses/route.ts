@@ -8,7 +8,7 @@ interface ShippingAddressData {
   address_name: string;
   contact_person?: string;
   phone?: string;
-  address_line1: string;
+  address_line1?: string;
   address_line2?: string;
   district?: string;
   amphoe?: string;
@@ -84,9 +84,9 @@ export async function POST(request: NextRequest) {
     const addressData: ShippingAddressData = await request.json();
 
     // Validate required fields
-    if (!addressData.customer_id || !addressData.address_name || !addressData.address_line1 || !addressData.province) {
+    if (!addressData.customer_id || !addressData.address_name || !addressData.province) {
       return NextResponse.json(
-        { error: 'Missing required fields: customer_id, address_name, address_line1, province' },
+        { error: 'Missing required fields: customer_id, address_name, province' },
         { status: 400 }
       );
     }
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
         address_name: addressData.address_name,
         contact_person: addressData.contact_person || null,
         phone: addressData.phone || null,
-        address_line1: addressData.address_line1,
+        address_line1: addressData.address_line1 || '',
         address_line2: addressData.address_line2 || null,
         district: addressData.district || null,
         amphoe: addressData.amphoe || null,

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
-import { Loader2, Search, Package2, Pencil, Eye, EyeOff, ClipboardList, X, Warehouse, FilterX } from 'lucide-react';
+import { Loader2, Search, Package2, Pencil, Eye, EyeOff, ClipboardList, X, Warehouse, FilterX, Layers } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
@@ -14,6 +14,7 @@ import {
   InventoryItem, WarehouseItem, StockColumnKey,
   STOCK_COLUMN_CONFIGS, STOCK_COLUMNS_STORAGE_KEY,
   getVariationLabel, getProductDisplayName, getProductSubtitle,
+  ConsignBreakdownItem,
 } from './types';
 
 interface FilterOption { id: string; label: string; subtitle?: string }
@@ -39,6 +40,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
   const categoryFilter = searchParams.get('cat') || '';
   const brandFilter = searchParams.get('brand') || '';
   const supplierFilter = searchParams.get('sup') || '';
+  const dealerFilter = searchParams.get('dealer') || '';
   const page = parseInt(searchParams.get('page') || '1', 10);
   const recordsPerPage = parseInt(searchParams.get('limit') || '20', 10);
 
@@ -61,7 +63,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
   }, [searchParams, router]);
 
   // Check if any filter is active
-  const hasActiveFilters = search || warehouse || stockFilter !== 'all' || hideEmpty || categoryFilter || brandFilter || supplierFilter;
+  const hasActiveFilters = search || warehouse || stockFilter !== 'all' || hideEmpty || categoryFilter || brandFilter || supplierFilter || dealerFilter;
 
   const clearAllFilters = () => {
     router.replace('/inventory', { scroll: false });
@@ -91,6 +93,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
   const [categories, setCategories] = useState<FilterOption[]>([]);
   const [brands, setBrands] = useState<FilterOption[]>([]);
   const [suppliers, setSuppliers] = useState<FilterOption[]>([]);
+  const [dealers, setDealers] = useState<FilterOption[]>([]);
 
   // Fetch filter options once
   const filtersFetchedRef = useRef(false);
@@ -125,6 +128,19 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
     };
     fetchFilters();
   }, []);
+
+  // Fetch consignment dealers separately — needs features to be loaded first
+  const dealersFetchedRef = useRef(false);
+  useEffect(() => {
+    if (!features.consignment || dealersFetchedRef.current) return;
+    dealersFetchedRef.current = true;
+    apiFetch('/api/customers?type=consignment_dealer&limit=200')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) setDealers((data.customers || []).map((c: { id: string; name: string }) => ({ id: c.id, label: c.name })));
+      })
+      .catch(() => { /* ignore */ });
+  }, [features.consignment]);
 
   // Column toggle
   const [visibleColumns, setVisibleColumns] = useState<Set<StockColumnKey>>(() => {
@@ -176,6 +192,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
       if (categoryFilter) params.set('category_id', categoryFilter);
       if (brandFilter) params.set('brand_id', brandFilter);
       if (supplierFilter) params.set('supplier_id', supplierFilter);
+      if (dealerFilter) params.set('dealer_id', dealerFilter);
 
       const res = await apiFetch(`/api/inventory?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch');
@@ -194,7 +211,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
   };
 
   // Fetch when URL params change
-  const depsKey = `${page}-${recordsPerPage}-${warehouse}-${search}-${stockFilter}-${categoryFilter}-${brandFilter}-${supplierFilter}`;
+  const depsKey = `${page}-${recordsPerPage}-${warehouse}-${search}-${stockFilter}-${categoryFilter}-${brandFilter}-${supplierFilter}-${dealerFilter}`;
   const fetchedRef = useRef(false);
   const prevDepsRef = useRef(depsKey);
 
@@ -267,10 +284,23 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             <div className="w-40">
               <FormSelect
                 value={warehouse}
-                onChange={v => setParams({ wh: v || null })}
+                onChange={v => setParams({ wh: v || null, dealer: null })}
                 options={warehouses.map(wh => ({ id: wh.id, label: wh.name }))}
                 clearLabel="ทุกคลัง"
                 icon={<Warehouse className="w-4 h-4" />}
+              />
+            </div>
+          )}
+          {features.consignment && dealers.length > 0 && (
+            <div className="w-44">
+              <FormSelect
+                value={dealerFilter}
+                onChange={v => setParams({ dealer: v || null, wh: null })}
+                options={dealers}
+                clearLabel="ทุกตัวแทน"
+                placeholder="ตัวแทนฝากขาย"
+                searchPlaceholder="ค้นหาตัวแทน..."
+                icon={<Layers className="w-4 h-4" />}
               />
             </div>
           )}
@@ -381,6 +411,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                   {visibleColumns.has('quantity') && <th className="data-th text-right">จำนวน</th>}
                   {visibleColumns.has('reserved') && <th className="data-th text-right">จอง</th>}
                   {visibleColumns.has('available') && <th className="data-th text-right">พร้อมขาย</th>}
+                  {visibleColumns.has('consign') && features.consignment && <th className="data-th text-right" title="สต๊อกที่อยู่กับตัวแทนฝากขาย">ฝากขาย</th>}
                   {visibleColumns.has('min') && <th className="data-th text-right">Min</th>}
                   {visibleColumns.has('status') && <th className="data-th text-center" style={{ minWidth: '80px' }}>สถานะ</th>}
                   {visibleColumns.has('actions') && <th className="data-th text-center w-20"></th>}
@@ -428,6 +459,31 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                       )}
                       {visibleColumns.has('available') && (
                         <td className="px-6 py-4 text-right text-sm font-medium text-gray-900 dark:text-white">{item.available.toLocaleString()}</td>
+                      )}
+                      {visibleColumns.has('consign') && features.consignment && (
+                        <td className="px-6 py-4 text-right text-sm">
+                          {(item.consign_qty ?? 0) > 0 ? (
+                            <div className="group relative inline-block">
+                              <span className="font-medium text-purple-600 dark:text-purple-400 cursor-default">
+                                {(item.consign_qty ?? 0).toLocaleString()}
+                              </span>
+                              {/* Tooltip breakdown per dealer */}
+                              {(item.consign_breakdown?.length ?? 0) > 0 && (
+                                <div className="absolute right-0 bottom-full mb-1.5 hidden group-hover:block z-50 min-w-[180px] bg-gray-900 dark:bg-slate-700 text-white text-xs rounded-lg p-2.5 shadow-xl pointer-events-none">
+                                  <div className="font-medium mb-1.5 text-gray-300">ฝากขายที่ตัวแทน</div>
+                                  {(item.consign_breakdown as ConsignBreakdownItem[]).map(b => (
+                                    <div key={b.customer_id} className="flex justify-between gap-3">
+                                      <span className="truncate text-gray-200">{b.customer_name}</span>
+                                      <span className="font-bold flex-shrink-0">{b.qty.toLocaleString()}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-300 dark:text-slate-600">-</span>
+                          )}
+                        </td>
                       )}
                       {visibleColumns.has('min') && (
                         <td className="px-6 py-4 text-right text-sm text-gray-500 dark:text-slate-400">{item.min_stock > 0 ? item.min_stock.toLocaleString() : '-'}</td>

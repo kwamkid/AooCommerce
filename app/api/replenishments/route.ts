@@ -26,11 +26,15 @@ export async function GET(request: NextRequest) {
         total_amount,
         shipping_carrier,
         tracking_number,
+        receive_token,
         shipped_at,
         received_at,
+        receiver_name,
+        receive_photo_url,
         created_at,
         customer:customers(id, name, customer_code, phone, customer_type),
-        created_by_profile:user_profiles!replenishments_created_by_fkey(id, name)
+        created_by_profile:user_profiles!replenishments_created_by_fkey(id, name),
+        replenishment_items(id)
       `, { count: 'exact' })
       .eq('company_id', auth.companyId)
       .order('created_at', { ascending: false });
@@ -40,7 +44,22 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      query = query.or(`replenishment_number.ilike.%${search}%`);
+      // Find matching customer IDs first (can't filter on joined table directly)
+      const { data: matchingCustomers } = await supabaseAdmin
+        .from('customers')
+        .select('id')
+        .eq('company_id', auth.companyId)
+        .ilike('name', `%${search}%`);
+
+      const customerIds = (matchingCustomers || []).map((c: { id: string }) => c.id);
+
+      if (customerIds.length > 0) {
+        query = query.or(
+          `replenishment_number.ilike.%${search}%,customer_id.in.(${customerIds.join(',')})`
+        );
+      } else {
+        query = query.ilike('replenishment_number', `%${search}%`);
+      }
     }
 
     query = query.range(offset, offset + limit - 1);
@@ -89,7 +108,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { customer_id, notes, internal_notes, items } = body;
+    const { customer_id, notes, internal_notes, items, shipping_fee } = body;
 
     if (!customer_id) {
       return NextResponse.json({ error: 'customer_id is required' }, { status: 400 });
@@ -129,11 +148,12 @@ export async function POST(request: NextRequest) {
         company_id: auth.companyId,
         replenishment_number: numberData,
         customer_id,
-        status: 'draft',
+        status: 'pending',
         notes: notes || null,
         internal_notes: internal_notes || null,
         total_amount: totalAmount,
         created_by: auth.userId,
+        receive_token: crypto.randomUUID(),
       })
       .select('id, replenishment_number')
       .single();
@@ -151,6 +171,13 @@ export async function POST(request: NextRequest) {
       variation_label?: string;
       quantity: number;
       unit_price: number;
+      brand_id?: string;
+      default_price?: number;
+      discount_price?: number;
+      gp_rate?: number;
+      gp_base_price?: string;
+      gp_level?: number;
+      sku?: string;
     }) => ({
       replenishment_id: replenishment.id,
       product_id: item.product_id || null,
@@ -159,6 +186,13 @@ export async function POST(request: NextRequest) {
       variation_label: item.variation_label || null,
       quantity: item.quantity,
       unit_price: item.unit_price || 0,
+      brand_id: item.brand_id || null,
+      default_price: item.default_price || 0,
+      discount_price: item.discount_price || 0,
+      gp_rate: item.gp_rate ?? null,
+      gp_base_price: item.gp_base_price || null,
+      gp_level: item.gp_level ?? null,
+      sku: item.sku || null,
     }));
 
     const { error: itemsError } = await supabaseAdmin

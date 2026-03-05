@@ -8,11 +8,11 @@ interface CustomerData {
   contact_person?: string;
   phone?: string;
   email?: string;
-  tax_address?: string;
-  tax_district?: string;
-  tax_amphoe?: string;
-  tax_province?: string;
-  tax_postal_code?: string;
+  billing_address?: string;
+  billing_district?: string;
+  billing_amphoe?: string;
+  billing_province?: string;
+  billing_postal_code?: string;
   tax_id?: string;
   tax_company_name?: string;
   tax_branch?: string;
@@ -67,15 +67,14 @@ export async function POST(request: NextRequest) {
         contact_person: customerData.contact_person || null,
         phone: customerData.phone || null,
         email: customerData.email || null,
-        tax_address: customerData.tax_address || null,
-        tax_district: customerData.tax_district || null,
-        tax_amphoe: customerData.tax_amphoe || null,
-        tax_province: customerData.tax_province || null,
-        tax_postal_code: customerData.tax_postal_code || null,
+        billing_address: customerData.billing_address || null,
+        billing_district: customerData.billing_district || null,
+        billing_amphoe: customerData.billing_amphoe || null,
+        billing_province: customerData.billing_province || null,
+        billing_postal_code: customerData.billing_postal_code || null,
         tax_id: customerData.tax_id || null,
         tax_company_name: customerData.tax_company_name || null,
         tax_branch: customerData.tax_branch || null,
-        customer_type_new: customerData.customer_type,
         customer_type: customerData.customer_type || 'retail',
         credit_limit: customerData.credit_limit || 0,
         credit_days: customerData.credit_days || 0,
@@ -106,34 +105,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Normalize customer_type for response
-    if (data) data.customer_type = data.customer_type_new || data.customer_type || 'retail';
+    if (data) data.customer_type = data.customer_type || 'retail';
 
-    // Auto-create default shipping address if tax address info is provided (use as initial shipping address)
-    if (data && customerData.tax_address && customerData.tax_province) {
-      try {
-        await supabaseAdmin
-          .from('shipping_addresses')
-          .insert({
-            company_id: auth.companyId,
-            customer_id: data.id,
-            address_name: 'สำนักงานใหญ่', // Default name
-            contact_person: customerData.contact_person || null,
-            phone: customerData.phone || null,
-            address_line1: customerData.tax_address,
-            district: customerData.tax_district || null,
-            amphoe: customerData.tax_amphoe || null,
-            province: customerData.tax_province,
-            postal_code: customerData.tax_postal_code || null,
-            is_default: true,
-            is_active: true,
-            created_by: auth.userId,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-      } catch (shippingError) {
-        console.error('Shipping address creation error:', shippingError);
-        // Don't fail the customer creation if shipping address fails
-      }
+    // Auto-create consignment warehouse for consignment_dealer customers
+    if (data && data.customer_type === 'consignment_dealer') {
+      await supabaseAdmin
+        .from('warehouses')
+        .insert({
+          company_id: auth.companyId,
+          customer_id: data.id,
+          warehouse_type: 'consignment',
+          name: data.name,
+          is_default: false,
+          is_active: true,
+          created_by: auth.userId,
+        })
+        .select('id')
+        .single();
+      // Non-critical: ignore errors (warehouse may already exist)
     }
 
     return NextResponse.json({
@@ -388,7 +377,7 @@ export async function GET(request: NextRequest) {
         }
         return {
           ...customer,
-          customer_type: customer.customer_type_new || customer.customer_type || 'retail',
+          customer_type: customer.customer_type || 'retail',
           shipping_address_count: addressCountMap[customer.id] || 0,
           default_address: defaultAddrMap[customer.id] || null,
           line_display_name: lineContactMap[customer.id] || null,
@@ -405,8 +394,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Normalize customer_type for all consumers
-    const normalized = data?.map((c: any) => ({ ...c, customer_type: c.customer_type_new || c.customer_type || 'retail' })) || [];
+    const normalized = data?.map((c: any) => ({ ...c, customer_type: c.customer_type || 'retail' })) || [];
     return NextResponse.json({
       customers: normalized,
       ...(page ? { total: totalCount || 0, page, limit } : {}),
@@ -441,24 +429,21 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Map customer_type to customer_type_new for database
     const dataToUpdate: Record<string, unknown> = {
       ...updateData,
       updated_at: new Date().toISOString()
     };
 
-    // Update both customer_type columns
     if (customer_type) {
-      dataToUpdate.customer_type_new = customer_type;
       dataToUpdate.customer_type = customer_type;
     }
 
-    // Map old address field names to new tax_address columns (backward compat)
-    if (address !== undefined) dataToUpdate.tax_address = address;
-    if (district !== undefined) dataToUpdate.tax_district = district;
-    if (amphoe !== undefined) dataToUpdate.tax_amphoe = amphoe;
-    if (province !== undefined) dataToUpdate.tax_province = province;
-    if (postal_code !== undefined) dataToUpdate.tax_postal_code = postal_code;
+    // Map old address field names to new billing_address columns (backward compat)
+    if (address !== undefined) dataToUpdate.billing_address = address;
+    if (district !== undefined) dataToUpdate.billing_district = district;
+    if (amphoe !== undefined) dataToUpdate.billing_amphoe = amphoe;
+    if (province !== undefined) dataToUpdate.billing_province = province;
+    if (postal_code !== undefined) dataToUpdate.billing_postal_code = postal_code;
 
     const { data, error } = await supabaseAdmin
       .from('customers')

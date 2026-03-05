@@ -9,6 +9,8 @@ export interface ActionItem {
   label: string;
   description?: string;
   icon: React.ReactNode;
+  /** Optional node rendered at the far right of the menu item (e.g. a print status dot) */
+  suffix?: React.ReactNode;
   onClick?: (e: React.MouseEvent) => void;
   className?: string;
   danger?: boolean;
@@ -91,10 +93,11 @@ export default function ActionMenu({ items }: { items: ActionItem[] }) {
                 }`}
               >
                 {item.icon}
-                <span className="flex flex-col">
+                <span className="flex flex-col flex-1">
                   <span>{item.label}</span>
                   {item.description && <span className="text-xs font-normal text-gray-400 dark:text-slate-500">{item.description}</span>}
                 </span>
+                {item.suffix}
               </button>
             </div>
           ))}

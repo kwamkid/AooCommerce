@@ -12,7 +12,8 @@ import {
   Loader2, Warehouse, Package, ArrowLeft, User, CheckCircle2, XCircle, Printer,
   Save,
 } from 'lucide-react';
-import { flattenVariationItem, productDisplayName, productSubtitle } from '../../components/types';
+import { flattenVariationItem, productDisplayName } from '../../components/types';
+import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 
 interface ReceiveItem {
   id: string;
@@ -132,7 +133,6 @@ export default function ReceiveDetailPage() {
     new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   const getDisplayName = (item: ReceiveItem) => productDisplayName(flattenVariationItem(item));
-  const getSubtitle = (item: ReceiveItem) => productSubtitle(flattenVariationItem(item));
 
   const handlePrintPdf = async () => {
     if (!data) return;
@@ -257,55 +257,20 @@ export default function ReceiveDetailPage() {
         </div>
 
         {/* Items */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700">
-            <h3 className="text-sm font-medium text-gray-900 dark:text-white">รายการสินค้า ({data.items?.length || 0} รายการ)</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">สินค้า</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-28">จำนวน</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                {(data.items || []).map(item => {
-                  return (
-                    <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          {item.variation?.product?.image ? (
-                            <img src={item.variation.product.image} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
-                          ) : (
-                            <div className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                              <Package className="w-5 h-5 text-gray-400" />
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <p className="font-medium text-gray-900 dark:text-white line-clamp-2 break-words">{getDisplayName(item)}</p>
-                            <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
-                              {getSubtitle(item)}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center font-medium text-green-600 dark:text-green-400">+{item.quantity}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-slate-300">รวม {data.items?.length || 0} รายการ</td>
-                  <td className="px-4 py-3 text-center text-sm font-medium text-green-600 dark:text-green-400">
-                    +{(data.items || []).reduce((s, i) => s + i.quantity, 0)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
+        <ItemsTable
+          items={(data.items || []).map((item): TableItem => ({
+            variation_id: item.variation_id,
+            product_name: productDisplayName({ product_name: item.variation?.product?.name, product_code: item.variation?.product?.code, variation_label: item.variation?.variation_label, sku: item.variation?.sku }),
+            product_code: item.variation?.product?.code,
+            variation_label: item.variation?.variation_label,
+            sku: item.variation?.sku,
+            image: item.variation?.product?.image,
+            quantity: item.quantity,
+            unit_cost: item.unit_cost ?? undefined,
+          }))}
+          columns={['qty', 'unit_cost']}
+          showSummary={false}
+        />
       </div>
     </Layout>
   );

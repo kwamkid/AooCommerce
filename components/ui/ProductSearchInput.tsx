@@ -12,8 +12,10 @@ export interface ProductSearchItem {
   image?: string | null;
   variation_label?: string;
   sku?: string;
+  barcode?: string;
   default_price?: number;
   discount_price?: number;
+  brand_id?: string | null;
 }
 
 interface ProductSearchInputProps {
@@ -42,7 +44,7 @@ export default function ProductSearchInput({
   products,
   onSelect,
   placeholder = 'พิมพ์ชื่อสินค้า, รหัส หรือ SKU เพื่อค้นหา...',
-  searchFields = ['sku'],
+  searchFields = ['sku', 'barcode'],
   loading = false,
   renderExtra,
   isAlreadyAdded,
@@ -188,7 +190,7 @@ export default function ProductSearchInput({
                 ? formatSubtitle(product)
                 : (() => {
                     const parts = [product.code];
-                    if (product.sku) parts.push(`SKU: ${product.sku}`);
+                    if (product.sku && product.sku !== product.code) parts.push(`SKU: ${product.sku}`);
                     if (product.default_price != null) {
                       if (product.discount_price != null && product.discount_price > 0 && product.discount_price < product.default_price) {
                         parts.push(`฿${formatNumber(product.discount_price)}`);

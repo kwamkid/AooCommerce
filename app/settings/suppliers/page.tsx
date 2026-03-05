@@ -21,6 +21,7 @@ import {
   ExternalLink,
   RefreshCw,
   Clock,
+  KeyRound,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import Pagination from '@/app/components/Pagination';
@@ -433,13 +434,20 @@ export default function SuppliersPage() {
                             key: 'portal',
                             label: 'ลิงก์ซัพออนไลน์',
                             icon: <ExternalLink className="w-4 h-4" />,
-                            onClick: () => { navigator.clipboard.writeText(`${window.location.origin}/supplier-portal/${supplier.id}`); showToast('คัดลอกลิงก์แล้ว'); },
+                            onClick: () => window.open(`/supplier-portal/${supplier.id}`, '_blank'),
+                          });
+                          items.push({
+                            key: 'copy-link',
+                            label: 'คัดลอกลิงก์',
+                            icon: <Copy className="w-4 h-4" />,
+                            onClick: () => { navigator.clipboard.writeText(`${window.location.origin}/supplier-portal/${supplier.id}`).then(() => showToast('คัดลอกลิงก์แล้ว')); },
                           });
                           items.push({
                             key: 'copy-code',
-                            label: 'รหัส Portal',
-                            icon: <Copy className="w-4 h-4" />,
+                            label: `รหัส: ${supplier.access_code}`,
+                            icon: <KeyRound className="w-4 h-4" />,
                             onClick: () => copyCode(supplier.access_code!),
+                            suffix: <Copy className="w-3.5 h-3.5 text-gray-400" />,
                           });
                           items.push({
                             key: 'regenerate',

@@ -21,6 +21,7 @@ interface TransferItem {
   variation_id: string;
   qty_sent: number;
   qty_received: number | null;
+  confirmed_quantity: number;
   notes: string | null;
   variation: {
     id: string;
@@ -59,6 +60,7 @@ interface Transfer {
 const STATUS_MAP: Record<string, { label: string; color: string; bgColor: string }> = {
   pending: { label: 'ที่ต้องจัดส่ง - จอง stock แล้ว', color: 'text-yellow-700 dark:text-yellow-400', bgColor: 'bg-yellow-100 dark:bg-yellow-900/30' },
   shipping: { label: 'กำลังส่ง - รอรับสินค้า', color: 'text-blue-700 dark:text-blue-400', bgColor: 'bg-blue-100 dark:bg-blue-900/30' },
+  pending_confirm: { label: 'รอยืนยัน — รับไม่ครบ', color: 'text-orange-700 dark:text-orange-400', bgColor: 'bg-orange-100 dark:bg-orange-900/30' },
   received: { label: 'รับสินค้าแล้ว', color: 'text-green-700 dark:text-green-400', bgColor: 'bg-green-100 dark:bg-green-900/30' },
   cancelled: { label: 'ยกเลิกแล้ว', color: 'text-red-700 dark:text-red-400', bgColor: 'bg-red-100 dark:bg-red-900/30' },
 };
@@ -86,6 +88,10 @@ export default function TransferDetailPage() {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const fetchingRef = useRef(false);
 
+  // Confirm action (pending_confirm)
+  const [confirmedQtys, setConfirmedQtys] = useState<Record<string, number>>({});
+  const [confirming, setConfirming] = useState(false);
+
   useEffect(() => {
     if (!authLoading && userProfile && transferId) {
       fetchTransfer();
@@ -104,6 +110,14 @@ export default function TransferDetailPage() {
         const data = await res.json();
         setTransfer(data.transfer);
         setNotes(data.transfer?.notes || '');
+        // Initialize confirmed quantities for pending_confirm
+        if (data.transfer?.status === 'pending_confirm') {
+          const qtys: Record<string, number> = {};
+          for (const item of data.transfer.items || []) {
+            qtys[item.id] = item.confirmed_quantity || item.qty_received || item.qty_sent;
+          }
+          setConfirmedQtys(qtys);
+        }
         return;
       }
       if (retry < 2) {
@@ -210,6 +224,34 @@ export default function TransferDetailPage() {
     }
   };
 
+  const handleConfirm = async () => {
+    if (!transfer) return;
+    try {
+      setConfirming(true);
+      const confirmed_items = transfer.items.map(item => ({
+        item_id: item.id,
+        confirmed_quantity: confirmedQtys[item.id] ?? item.qty_received ?? item.qty_sent,
+      }));
+      const res = await apiFetch('/api/inventory/transfers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transfer_id: transfer.id,
+          action: 'confirm',
+          confirmed_items,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'เกิดข้อผิดพลาด');
+      showToast('ยืนยันรับสินค้าเรียบร้อย', 'success');
+      fetchTransfer();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setConfirming(false);
+    }
+  };
+
   const handlePrint = async () => {
     if (!transfer) return;
     setGeneratingPdf(true);
@@ -251,8 +293,10 @@ export default function TransferDetailPage() {
     });
   };
 
-  const getDisplayName = (item: TransferItem) => productDisplayName(flattenVariationItem(item));
-  const getSubtitle = (item: TransferItem) => productSubtitle(flattenVariationItem(item));
+  const getDisplayInfo = (item: TransferItem) => {
+    const f = flattenVariationItem(item);
+    return { main: productDisplayName(f), sub: productSubtitle(f) };
+  };
 
   const notesChanged = (notes || '') !== (transfer?.notes || '');
 
@@ -353,6 +397,16 @@ export default function TransferDetailPage() {
                 ยกเลิก
               </button>
             )}
+            {transfer.status === 'pending_confirm' && (
+              <button
+                onClick={handleConfirm}
+                disabled={confirming}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm font-medium disabled:opacity-50"
+              >
+                {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                {confirming ? 'กำลังยืนยัน...' : 'ยืนยันรับสินค้า'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -360,6 +414,7 @@ export default function TransferDetailPage() {
         <div className={`rounded-lg px-4 py-3 flex items-center gap-2 ${st.bgColor}`}>
           {transfer.status === 'pending' && <Clock className="w-5 h-5" />}
           {transfer.status === 'shipping' && <Truck className="w-5 h-5" />}
+          {transfer.status === 'pending_confirm' && <AlertTriangle className="w-5 h-5" />}
           {transfer.status === 'received' && <CheckCircle2 className="w-5 h-5" />}
           {transfer.status === 'cancelled' && <XCircle className="w-5 h-5" />}
           <span className={`text-sm font-medium ${st.color}`}>{st.label}</span>
@@ -482,15 +537,15 @@ export default function TransferDetailPage() {
             </div>
           )}
 
-          {/* Receiver info */}
-          {transfer.status === 'received' && transfer.receiver_name && (
+          {/* Receiver info — show for pending_confirm and received */}
+          {['pending_confirm', 'received'].includes(transfer.status) && transfer.receiver_name && (
             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
-              <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">ผู้รับสินค้า (Public)</label>
+              <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">ผู้รับสินค้า (Online)</label>
               <p className="text-sm font-medium text-gray-900 dark:text-white">{transfer.receiver_name}</p>
             </div>
           )}
 
-          {transfer.status === 'received' && transfer.receive_photo_url && (
+          {['pending_confirm', 'received'].includes(transfer.status) && transfer.receive_photo_url && (
             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
               <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">รูปถ่ายการรับสินค้า</label>
               <img
@@ -504,138 +559,100 @@ export default function TransferDetailPage() {
         </div>
 
         {/* Items */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700">
-            <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-              รายการสินค้า ({transfer.items?.length || 0} รายการ)
-            </h3>
-          </div>
+        {(() => {
+          const hasMismatch = transfer.items.some(i => i.qty_received !== null && i.qty_received !== i.qty_sent);
+          const showReceived = ['pending_confirm', 'received'].includes(transfer.status);
+          const showConfirmed = showReceived && hasMismatch;
+          const isConfirmEditable = transfer.status === 'pending_confirm';
 
-          {/* Desktop Table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">สินค้า</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-28">จำนวนส่ง</th>
-                  {(transfer.status === 'received') && (
-                    <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-28">จำนวนรับ</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                {(transfer.items || []).map(item => {
-                  const isShort = item.qty_received !== null && item.qty_received < item.qty_sent;
-                  return (
-                    <tr key={item.id} className={`hover:bg-gray-50 dark:hover:bg-slate-700/30 ${isShort ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          {item.variation?.product?.image ? (
-                            <img
-                              src={item.variation.product.image}
-                              alt={item.variation.product.name}
-                              className="w-10 h-10 rounded object-cover flex-shrink-0"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                              <Package className="w-5 h-5 text-gray-400" />
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <p className="font-medium text-gray-900 dark:text-white line-clamp-2 break-words">
-                              {getDisplayName(item)}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
-                              {getSubtitle(item)}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          {item.qty_sent}
-                        </span>
-                      </td>
-                      {(transfer.status === 'received') && (
-                        <td className="px-4 py-3 text-center">
-                          <span className={`text-sm font-medium ${isShort ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
-                            {item.qty_received ?? '-'}
-                          </span>
-                          {isShort && (
-                            <p className="text-xs text-amber-500 dark:text-amber-400 mt-0.5">
-                              ขาด {item.qty_sent - (item.qty_received || 0)}
-                            </p>
-                          )}
-                        </td>
+          return (
+            <>
+              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
+                      <th className="text-left px-4 py-2.5 font-medium text-gray-500 dark:text-slate-400 w-10">#</th>
+                      <th className="text-left px-4 py-2.5 font-medium text-gray-500 dark:text-slate-400">รายละเอียด</th>
+                      <th className="text-center px-4 py-2.5 font-medium text-gray-500 dark:text-slate-400 w-20">จำนวนส่ง</th>
+                      {showReceived && (
+                        <th className="text-center px-4 py-2.5 font-medium text-gray-500 dark:text-slate-400 w-20">จำนวนรับ</th>
+                      )}
+                      {showConfirmed && (
+                        <th className="text-center px-4 py-2.5 font-medium text-gray-500 dark:text-slate-400 w-24">จำนวนยืนยัน</th>
                       )}
                     </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-slate-300">
-                    รวม {transfer.items?.length || 0} รายการ
-                  </td>
-                  <td className="px-4 py-3 text-center text-sm font-medium text-gray-900 dark:text-white">
-                    {(transfer.items || []).reduce((sum, i) => sum + i.qty_sent, 0)}
-                  </td>
-                  {(transfer.status === 'received') && (
-                    <td className="px-4 py-3 text-center text-sm font-medium text-gray-900 dark:text-white">
-                      {(transfer.items || []).reduce((sum, i) => sum + (i.qty_received ?? 0), 0)}
-                    </td>
-                  )}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
-          {/* Mobile Cards */}
-          <div className="md:hidden divide-y divide-gray-100 dark:divide-slate-700">
-            {(transfer.items || []).map(item => {
-              const isShort = item.qty_received !== null && item.qty_received < item.qty_sent;
-              return (
-                <div key={item.id} className={`p-3 ${isShort ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
-                  <div className="flex items-start gap-2.5">
-                    {item.variation?.product?.image ? (
-                      <img
-                        src={item.variation.product.image}
-                        alt={item.variation.product.name}
-                        className="w-12 h-12 rounded object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                        <Package className="w-6 h-6 text-gray-400" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 break-words">
-                        {getDisplayName(item)}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
-                        {getSubtitle(item)}
-                      </p>
-                      <div className="mt-2 flex items-center gap-3">
-                        <div className="text-center">
-                          <p className="text-xs text-gray-400 dark:text-slate-500">ส่ง</p>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{item.qty_sent}</p>
-                        </div>
-                        {(transfer.status === 'received') && (
-                          <div className="text-center">
-                            <p className="text-xs text-gray-400 dark:text-slate-500">รับ</p>
-                            <p className={`text-sm font-medium ${isShort ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
+                  </thead>
+                  <tbody>
+                    {transfer.items.map((item, idx) => {
+                      const name = getDisplayInfo(item);
+                      const isMismatch = item.qty_received !== null && item.qty_received !== item.qty_sent;
+                      return (
+                        <tr key={item.id} className="border-b border-gray-100 dark:border-slate-700/50">
+                          <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              {item.variation?.product?.image ? (
+                                <img src={item.variation.product.image} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
+                              ) : (
+                                <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
+                                  <Package className="w-5 h-5 text-gray-400" />
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="text-gray-900 dark:text-white truncate">{name.main}</p>
+                                {name.sub && <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{name.sub}</p>}
+                                {item.variation?.sku && <p className="text-xs text-gray-400 dark:text-slate-500">SKU: {item.variation.sku}</p>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center text-gray-900 dark:text-white">{item.qty_sent}</td>
+                          {showReceived && (
+                            <td className={`px-4 py-3 text-center font-medium ${isMismatch ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                               {item.qty_received ?? '-'}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                            </td>
+                          )}
+                          {showConfirmed && (
+                            <td className="px-4 py-3 text-center">
+                              {isConfirmEditable ? (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={item.qty_sent}
+                                  value={confirmedQtys[item.id] ?? item.qty_received ?? item.qty_sent}
+                                  onChange={e => setConfirmedQtys(prev => ({ ...prev, [item.id]: Math.min(Math.max(0, parseInt(e.target.value) || 0), item.qty_sent) }))}
+                                  className="w-16 px-2 py-1 text-center border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                                />
+                              ) : (
+                                <span className="text-gray-900 dark:text-white">{item.confirmed_quantity}</span>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Summary */}
+              <div className="flex justify-end">
+                <div className="text-sm text-gray-600 dark:text-slate-400 space-y-1">
+                  <div>จำนวนรายการ: <span className="font-medium text-gray-900 dark:text-white">{transfer.items.length}</span></div>
+                  <div>
+                    รวมจำนวนส่ง: <span className="font-bold text-gray-900 dark:text-white">{transfer.items.reduce((s, i) => s + i.qty_sent, 0)} ชิ้น</span>
                   </div>
+                  {showReceived && (
+                    <div>
+                      รวมจำนวนรับ: <span className={`font-bold ${hasMismatch ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                        {transfer.items.reduce((s, i) => s + (i.qty_received || 0), 0)} ชิ้น
+                      </span>
+                    </div>
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        </div>
+              </div>
+            </>
+          );
+        })()}
 
         {/* Cancel Confirm Modal */}
         {showCancelConfirm && (

@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
       ...result,
       bill_expiry_days: settings.bill_expiry_days ?? null,
       consignment_settings: settings.consignment ?? null,
+      brand_gp_overrides: settings.brand_gp_overrides ?? null,
     });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -54,7 +55,11 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { features, consignment_settings } = body as { features: FeatureFlags; consignment_settings?: Record<string, unknown> | null };
+    const { features, consignment_settings, brand_gp_overrides } = body as {
+      features: FeatureFlags;
+      consignment_settings?: Record<string, unknown> | null;
+      brand_gp_overrides?: unknown[] | null;
+    };
 
     if (!features) {
       return NextResponse.json({ error: 'features is required' }, { status: 400 });
@@ -72,9 +77,11 @@ export async function PUT(request: NextRequest) {
       ...currentSettings,
       features,
     };
-    // Save global consignment settings if provided
     if (consignment_settings !== undefined) {
       newSettings.consignment = consignment_settings;
+    }
+    if (brand_gp_overrides !== undefined) {
+      newSettings.brand_gp_overrides = brand_gp_overrides;
     }
     const { error: updateError } = await supabaseAdmin
       .from('companies')

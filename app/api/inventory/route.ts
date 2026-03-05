@@ -112,31 +112,99 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get('category_id');
     const brandId = searchParams.get('brand_id');
     const supplierId = searchParams.get('supplier_id');
+    const dealerId = searchParams.get('dealer_id'); // filter by consignment dealer
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '20', 10);
     const offset = (page - 1) * limit;
 
+    // Resolve dealer_id → consignment warehouse_id (if filtering by dealer)
+    let dealerWarehouseId: string | null = null;
+    if (dealerId) {
+      const { data: dw } = await supabaseAdmin
+        .from('warehouses')
+        .select('id')
+        .eq('company_id', auth.companyId!)
+        .eq('customer_id', dealerId)
+        .eq('warehouse_type', 'consignment')
+        .single();
+      dealerWarehouseId = dw?.id ?? null;
+    }
+
+    // Fetch consignment warehouses with customer info first (needed for warehouse IDs)
+    const consignWarehousesRes = await supabaseAdmin
+      .from('warehouses')
+      .select('id, name, customer_id')
+      .eq('company_id', auth.companyId!)
+      .eq('warehouse_type', 'consignment');
+
+    const consignWarehouseIds = (consignWarehousesRes.data || []).map(w => w.id);
+
+    // Fetch consignment stock from inventory using actual array of IDs
+    const consignStockPromise = consignWarehouseIds.length > 0
+      ? supabaseAdmin
+          .from('inventory')
+          .select('variation_id, quantity, warehouse_id')
+          .eq('company_id', auth.companyId!)
+          .gt('quantity', 0)
+          .in('warehouse_id', consignWarehouseIds)
+      : Promise.resolve({ data: [] });
+
     // Try new RPC first (supports all filters + server-side pagination)
-    const rpcResult = await supabaseAdmin.rpc('get_inventory_filtered', {
-      p_company_id: auth.companyId,
-      p_warehouse_id: warehouseId || null,
-      p_search: search || null,
-      p_category_id: categoryId || null,
-      p_brand_id: brandId || null,
-      p_supplier_id: supplierId || null,
-      p_low_stock: lowStockOnly,
-      p_limit: limit,
-      p_offset: offset,
-    });
+    const [rpcResult, consignStockRes] = await Promise.all([
+      supabaseAdmin.rpc('get_inventory_filtered', {
+        p_company_id: auth.companyId,
+        p_warehouse_id: dealerWarehouseId || warehouseId || null,
+        p_search: search || null,
+        p_category_id: categoryId || null,
+        p_brand_id: brandId || null,
+        p_supplier_id: supplierId || null,
+        p_low_stock: lowStockOnly,
+        p_limit: dealerWarehouseId ? 99999 : limit,
+        p_offset: dealerWarehouseId ? 0 : offset,
+      }),
+      consignStockPromise,
+    ]);
+
+    // Build consignment maps from inventory data
+    const warehouseMap: Record<string, { customer_id: string; name: string }> = {};
+    for (const w of consignWarehousesRes.data || []) {
+      if (w.customer_id) warehouseMap[w.id] = { customer_id: w.customer_id, name: w.name };
+    }
+    // Map: variation_id → { total_qty, breakdown }
+    const consignMap: Record<string, { total: number; breakdown: { customer_id: string; customer_name: string; qty: number }[] }> = {};
+    for (const row of consignStockRes.data || []) {
+      const wh = warehouseMap[row.warehouse_id];
+      if (!wh) continue;
+      if (!consignMap[row.variation_id]) {
+        consignMap[row.variation_id] = { total: 0, breakdown: [] };
+      }
+      consignMap[row.variation_id].total += row.quantity;
+      consignMap[row.variation_id].breakdown.push({
+        customer_id: wh.customer_id,
+        customer_name: wh.name,
+        qty: row.quantity,
+      });
+    }
+
+    // Helper to attach consign fields
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const attachConsign = (item: any) => {
+      const c = consignMap[item.variation_id];
+      return {
+        ...item,
+        consign_qty: c?.total ?? 0,
+        consign_breakdown: c?.breakdown ?? [],
+      };
+    };
 
     if (!rpcResult.error && rpcResult.data) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = rpcResult.data as any;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const items = (result.items || []).map((row: any) => {
+      let items = (result.items || []).map((row: any) => {
         const minStock = row.min_stock || 0;
         const available = row.available ?? (row.quantity - row.reserved_quantity);
-        return {
+        return attachConsign({
           id: row.variation_id,
           warehouse_id: null,
           warehouse_name: '',
@@ -158,8 +226,23 @@ export async function GET(request: NextRequest) {
           is_low_stock: minStock > 0 && available <= minStock,
           is_out_of_stock: available <= 0 && row.quantity === 0,
           updated_at: row.updated_at,
-        };
+        });
       });
+
+      // Filter by dealer: only items that have consign stock for this dealer
+      if (dealerWarehouseId) {
+        items = items.filter((item: { consign_breakdown: { customer_id: string }[] }) =>
+          item.consign_breakdown.some((b: { customer_id: string }) => b.customer_id === dealerId)
+        );
+        const total = items.length;
+        return NextResponse.json({
+          items: items.slice(offset, offset + limit),
+          total,
+          page,
+          limit,
+          lowStockCount: 0,
+        });
+      }
 
       return NextResponse.json({
         items,
@@ -223,7 +306,7 @@ export async function GET(request: NextRequest) {
     let items = rawItems.map(row => {
       const minStock = row.min_stock || 0;
       const available = row.available;
-      return {
+      return attachConsign({
         id: row.variation_id,
         warehouse_id: null,
         warehouse_name: '',
@@ -245,8 +328,15 @@ export async function GET(request: NextRequest) {
         is_low_stock: minStock > 0 && available <= minStock,
         is_out_of_stock: available <= 0 && row.quantity === 0,
         updated_at: row.updated_at,
-      };
+      });
     });
+
+    // Filter by dealer: only items that have consign stock for this dealer
+    if (dealerWarehouseId) {
+      items = items.filter(item =>
+        (item.consign_breakdown as { customer_id: string }[]).some(b => b.customer_id === dealerId)
+      );
+    }
 
     if (lowStockOnly) {
       items = items.filter(item => item.is_low_stock || (item.is_out_of_stock && item.min_stock > 0));

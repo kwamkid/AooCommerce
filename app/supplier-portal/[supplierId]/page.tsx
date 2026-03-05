@@ -105,6 +105,7 @@ export default function SupplierPortalPage() {
   const [supplierType, setSupplierType] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   // Dark mode (independent from admin system)
   const [dark, setDark] = useState(true);
@@ -485,9 +486,14 @@ export default function SupplierPortalPage() {
                     <div key={idx} className="flex items-center justify-between px-4 py-3">
                       <div className="flex items-center gap-3 min-w-0">
                         {item.variation?.product?.image ? (
-                          <img src={item.variation.product.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                          <img
+                            src={item.variation.product.image}
+                            alt=""
+                            className="w-11 h-11 rounded object-cover flex-shrink-0 cursor-zoom-in"
+                            onClick={() => setLightboxImage(item.variation!.product!.image)}
+                          />
                         ) : (
-                          <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                          <div className="w-11 h-11 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                             <Package className="w-4 h-4 text-gray-400" />
                           </div>
                         )}
@@ -643,6 +649,21 @@ export default function SupplierPortalPage() {
               );
             })
           )}
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <img
+            src={lightboxImage}
+            alt=""
+            className="max-w-full max-h-full rounded-lg object-contain shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

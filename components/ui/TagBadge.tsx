@@ -28,13 +28,12 @@ interface TagBadgeProps {
 }
 
 export default function TagBadge({ tag, size = 'md', onRemove }: TagBadgeProps) {
-  const bgOpacity = '20'; // 12% opacity hex
-  const bg = tag.color + bgOpacity;
+  const bg = tag.color + '30'; // ~19% opacity
 
   return (
     <span
-      className={`inline-flex items-center gap-0.5 font-medium rounded-full whitespace-nowrap ${
-        size === 'sm' ? 'px-1.5 py-0 text-xs leading-5' : size === 'lg' ? 'px-3 py-1 text-base' : 'px-2 py-0.5 text-xs'
+      className={`inline-flex items-center gap-0.5 font-semibold rounded-full whitespace-nowrap ${
+        size === 'sm' ? 'px-2 py-0.5 text-xs' : size === 'lg' ? 'px-3 py-1 text-base' : 'px-2 py-0.5 text-xs'
       }`}
       style={{ backgroundColor: bg, color: tag.color }}
     >

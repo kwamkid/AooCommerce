@@ -228,19 +228,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Determine status: if all received matches sent → received, else → pending_confirm
+    const allMatch = receivedItems.every(ri => {
+      const transferItem = transfer.items.find((i: any) => i.id === ri.item_id);
+      return transferItem && ri.qty_received === transferItem.qty_sent;
+    });
+    const newStatus = allMatch ? 'received' : 'pending_confirm';
+
     // Update transfer status
     await supabaseAdmin
       .from('inventory_transfers')
       .update({
-        status: 'received',
-        received_at: new Date().toISOString(),
+        status: newStatus,
+        received_at: allMatch ? new Date().toISOString() : null,
         receiver_name: receiverName.trim(),
         receive_photo_url: receivePhotoUrl,
         receive_notes: receiveNotes?.trim() || null,
       })
       .eq('id', transfer.id);
 
-    return NextResponse.json({ success: true, status: 'received' });
+    return NextResponse.json({ success: true, status: newStatus });
   } catch (error) {
     console.error('POST transfer receive error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

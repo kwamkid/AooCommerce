@@ -8,14 +8,13 @@ import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Package, Package2, Trash2,
-  Save, Warehouse, FileText, CheckCircle2, ClipboardList, Star, Plus, AlertTriangle,
+  Loader2, Package2, Save, Warehouse, FileText, CheckCircle2, ClipboardList, Star, Plus, AlertTriangle,
 } from 'lucide-react';
-import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import FormSelect from '@/components/ui/FormSelect';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
-import { productDisplayName, productSubtitle } from '../components/types';
+import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
+import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 
 // Interfaces
 interface WarehouseItem {
@@ -23,19 +22,6 @@ interface WarehouseItem {
   name: string;
   code: string | null;
   is_default?: boolean;
-}
-
-interface Product {
-  id: string;
-  product_id: string;
-  code: string;
-  name: string;
-  image?: string;
-  variation_label?: string;
-  product_type: 'simple' | 'variation';
-  default_price: number;
-  cost_price: number;
-  sku?: string;
 }
 
 interface ReceiveItem {
@@ -48,11 +34,8 @@ interface ReceiveItem {
   sku?: string;
   quantity: number;
   unit_cost: number;
-  po_quantity?: number; // จำนวนที่เหลือต้องรับจาก PO (readonly display)
+  po_quantity?: number;
 }
-
-const getDisplayName = (item: ReceiveItem) => productDisplayName({ product_name: item.name, product_code: item.code, variation_label: item.variation_label, sku: item.sku });
-const getSubtitle = (item: ReceiveItem) => productSubtitle({ product_code: item.code, sku: item.sku });
 
 interface POOption {
   id: string;
@@ -69,41 +52,28 @@ export default function StockReceivePage() {
   const { features } = useFeatures();
   const { showToast } = useToast();
 
-  // State
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Mode switch: 'manual' = รับเข้าใหม่, 'po' = จาก PO
   type ReceiveMode = 'manual' | 'po';
   const [mode, setMode] = useState<ReceiveMode>('manual');
 
-  // PO integration (feature-gated)
   const [availablePOs, setAvailablePOs] = useState<POOption[]>([]);
   const [posLoading, setPosLoading] = useState(false);
   const [selectedPOId, setSelectedPOId] = useState('');
   const [selectedPO, setSelectedPO] = useState<POOption | null>(null);
 
-  // Warehouses
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
 
-  // Products (flattened)
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductSearchItem[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
 
-  // Stock data for current warehouse
   const [stockMap, setStockMap] = useState<Record<string, number>>({});
-
-  // Receive items
   const [receiveItems, setReceiveItems] = useState<ReceiveItem[]>([]);
-
-  // Batch notes
   const [batchNotes, setBatchNotes] = useState('');
-
-  // Confirm dialog
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // Fetch warehouses, products, and POs on mount
   useEffect(() => {
     if (!authLoading && userProfile) {
       fetchWarehouses();
@@ -112,7 +82,6 @@ export default function StockReceivePage() {
     }
   }, [authLoading, userProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch stock when warehouse changes
   useEffect(() => {
     if (selectedWarehouseId) {
       fetchStock(selectedWarehouseId);
@@ -132,9 +101,7 @@ export default function StockReceivePage() {
         }
         setStockMap(map);
       }
-    } catch {
-      // silently fail — stock badge is non-critical
-    }
+    } catch { /* silent */ }
   };
 
   const fetchWarehouses = async () => {
@@ -142,16 +109,11 @@ export default function StockReceivePage() {
       const res = await apiFetch('/api/warehouses');
       if (res.ok) {
         const data = await res.json();
-        const warehouseList: WarehouseItem[] = data.warehouses || [];
-        setWarehouses(warehouseList);
-
-        // Auto-select default warehouse
-        const defaultWh = warehouseList.find(wh => wh.is_default);
-        if (defaultWh) {
-          setSelectedWarehouseId(defaultWh.id);
-        } else if (warehouseList.length === 1) {
-          setSelectedWarehouseId(warehouseList[0].id);
-        }
+        const list: WarehouseItem[] = data.warehouses || [];
+        setWarehouses(list);
+        const def = list.find(wh => wh.is_default);
+        if (def) setSelectedWarehouseId(def.id);
+        else if (list.length === 1) setSelectedWarehouseId(list[0].id);
       }
     } catch {
       showToast('โหลดข้อมูลคลังสินค้าไม่สำเร็จ', 'error');
@@ -164,17 +126,14 @@ export default function StockReceivePage() {
     try {
       setProductsLoading(true);
       const res = await apiFetch('/api/products');
-      if (!res.ok) throw new Error('Failed to fetch products');
-
+      if (!res.ok) throw new Error('Failed');
       const result = await res.json();
-      const fetchedProducts = result.products || [];
-
-      const flatProducts: Product[] = [];
-      fetchedProducts.forEach((sp: any) => {
+      const flat: ProductSearchItem[] = [];
+      for (const sp of (result.products || [])) {
         if (sp.product_type === 'simple') {
-          const variation_id = sp.variations && sp.variations.length > 0 ? sp.variations[0].variation_id : null;
-          flatProducts.push({
-            id: variation_id || sp.product_id,
+          const vid = sp.variations?.[0]?.variation_id ?? sp.product_id;
+          flat.push({
+            id: vid,
             product_id: sp.product_id,
             code: sp.code,
             name: sp.name,
@@ -184,10 +143,10 @@ export default function StockReceivePage() {
             default_price: sp.simple_default_price || 0,
             cost_price: sp.variations?.[0]?.cost_price || 0,
             sku: sp.variations?.[0]?.sku || '',
-          });
+          } as ProductSearchItem);
         } else {
-          (sp.variations || []).forEach((v: any) => {
-            flatProducts.push({
+          for (const v of (sp.variations || [])) {
+            flat.push({
               id: v.variation_id,
               product_id: sp.product_id,
               code: `${sp.code}-${v.variation_label}`,
@@ -198,11 +157,11 @@ export default function StockReceivePage() {
               default_price: v.default_price || 0,
               cost_price: v.cost_price || 0,
               sku: v.sku || '',
-            });
-          });
+            } as ProductSearchItem);
+          }
         }
-      });
-      setProducts(flatProducts);
+      }
+      setProducts(flat);
     } catch {
       showToast('โหลดข้อมูลสินค้าไม่สำเร็จ', 'error');
     } finally {
@@ -210,74 +169,45 @@ export default function StockReceivePage() {
     }
   };
 
-  // Fetch open POs for PO selector
   const fetchPOs = async () => {
     try {
       setPosLoading(true);
-      const res = await apiFetch('/api/inventory/purchase-orders?status=sent');
-      if (!res.ok) return;
-      const data = await res.json();
-      const pos = (data.purchase_orders || []);
-      // Also fetch partial_received POs
-      const res2 = await apiFetch('/api/inventory/purchase-orders?status=partial_received');
-      if (res2.ok) {
-        const data2 = await res2.json();
-        pos.push(...(data2.purchase_orders || []));
-      }
-      // Map to POOption — we need to fetch detail for items when selected
-      setAvailablePOs(pos.map((po: any) => ({
-        id: po.id,
-        po_number: po.po_number,
-        supplier_id: po.supplier?.id || '',
-        supplier_name: po.supplier?.name || '',
-        warehouse_id: po.warehouse?.id || '',
-        items: [],
-      })));
+      const [r1, r2] = await Promise.all([
+        apiFetch('/api/inventory/purchase-orders?status=sent'),
+        apiFetch('/api/inventory/purchase-orders?status=partial_received'),
+      ]);
+      const pos: POOption[] = [];
+      if (r1.ok) { const d = await r1.json(); pos.push(...(d.purchase_orders || []).map((po: any) => ({ id: po.id, po_number: po.po_number, supplier_id: po.supplier?.id || '', supplier_name: po.supplier?.name || '', warehouse_id: po.warehouse?.id || '', items: [] }))); }
+      if (r2.ok) { const d = await r2.json(); pos.push(...(d.purchase_orders || []).map((po: any) => ({ id: po.id, po_number: po.po_number, supplier_id: po.supplier?.id || '', supplier_name: po.supplier?.name || '', warehouse_id: po.warehouse?.id || '', items: [] }))); }
+      setAvailablePOs(pos);
     } catch { /* ignore */ } finally {
       setPosLoading(false);
     }
   };
 
-  // Handle mode switch
   const handleModeChange = (newMode: ReceiveMode) => {
     if (newMode === mode) return;
     setMode(newMode);
-    // Reset items and PO selection when switching
     setReceiveItems([]);
     setBatchNotes('');
     if (newMode === 'manual') {
       setSelectedPOId('');
       setSelectedPO(null);
-    } else if (newMode === 'po') {
-      // Re-fetch POs when switching to PO mode
+    } else {
       fetchPOs();
     }
   };
 
-  // Handle PO selection — fetch detail and auto-populate items
   const handleSelectPO = async (poId: string) => {
     setSelectedPOId(poId);
-    if (!poId) {
-      setSelectedPO(null);
-      setReceiveItems([]);
-      return;
-    }
+    if (!poId) { setSelectedPO(null); setReceiveItems([]); return; }
     try {
       const res = await apiFetch(`/api/inventory/purchase-orders/${poId}`);
       if (!res.ok) return;
       const data = await res.json();
       const po = data.purchase_order;
-      setSelectedPO({
-        id: po.id,
-        po_number: po.po_number,
-        supplier_id: po.supplier?.id || '',
-        supplier_name: po.supplier?.name || '',
-        warehouse_id: po.warehouse_id,
-        items: po.items || [],
-      });
-      // Auto-select warehouse
+      setSelectedPO({ id: po.id, po_number: po.po_number, supplier_id: po.supplier?.id || '', supplier_name: po.supplier?.name || '', warehouse_id: po.warehouse_id, items: po.items || [] });
       if (po.warehouse_id) setSelectedWarehouseId(po.warehouse_id);
-      // Auto-populate items (only items that still have remaining qty)
       const newItems: ReceiveItem[] = [];
       for (const item of (po.items || [])) {
         const remaining = item.quantity - (item.received_quantity || 0);
@@ -301,69 +231,47 @@ export default function StockReceivePage() {
     }
   };
 
-  // Add product to receive list
-  const handleAddProduct = (product: Product) => {
-    const existingIndex = receiveItems.findIndex(
-      item => item.variation_id === product.id
-    );
-
-    if (existingIndex !== -1) {
-      // Increment quantity if already exists
+  const handleAddProduct = (product: ProductSearchItem) => {
+    const existing = receiveItems.findIndex(i => i.variation_id === product.id);
+    if (existing !== -1) {
       const updated = [...receiveItems];
-      updated[existingIndex].quantity += 1;
+      updated[existing].quantity += 1;
       setReceiveItems(updated);
     } else {
-      // Add new item
-      setReceiveItems([
-        ...receiveItems,
-        {
-          variation_id: product.id,
-          product_id: product.product_id,
-          code: product.code,
-          name: product.name,
-          image: product.image,
-          variation_label: product.variation_label,
-          sku: product.sku,
-          quantity: 1,
-          unit_cost: product.cost_price || 0,
-        },
-      ]);
+      setReceiveItems([...receiveItems, {
+        variation_id: product.id,
+        product_id: (product as any).product_id || product.id,
+        code: product.code || '',
+        name: product.name,
+        image: product.image ?? undefined,
+        variation_label: product.variation_label,
+        sku: product.sku,
+        quantity: 1,
+        unit_cost: (product as any).cost_price || 0,
+      }]);
     }
-
-    // Note: search clearing and re-focus handled by ProductSearchInput
   };
 
-  // Remove item from list
-  const handleRemoveItem = (index: number) => {
-    setReceiveItems(receiveItems.filter((_, i) => i !== index));
-  };
-
-  // Update item quantity
-  const handleUpdateQuantity = (index: number, quantity: number) => {
+  const handleUpdateField = (idx: number, field: keyof TableItem, value: number | string) => {
     const updated = [...receiveItems];
-    updated[index].quantity = Math.max(1, quantity);
+    if (field === 'quantity') updated[idx].quantity = Math.max(1, value as number);
+    if (field === 'unit_cost') updated[idx].unit_cost = Math.max(0, value as number);
     setReceiveItems(updated);
   };
 
-  // Update item unit cost
-  const handleUpdateUnitCost = (index: number, cost: number) => {
-    const updated = [...receiveItems];
-    updated[index].unit_cost = Math.max(0, cost);
-    setReceiveItems(updated);
+  const handleRemoveItem = (idx: number) => {
+    setReceiveItems(receiveItems.filter((_, i) => i !== idx));
   };
 
-  // Show confirm dialog
   const handleSubmit = () => {
     if (!selectedWarehouseId || receiveItems.length === 0) return;
     setShowConfirm(true);
   };
 
-  // Actual submit after confirmation
   const handleConfirmSubmit = async () => {
     setShowConfirm(false);
     try {
       setSubmitting(true);
-
       const payload: Record<string, unknown> = {
         warehouse_id: selectedWarehouseId,
         items: receiveItems.map(item => ({
@@ -377,46 +285,42 @@ export default function StockReceivePage() {
         payload.po_id = selectedPO.id;
         payload.supplier_id = selectedPO.supplier_id;
       }
-
       const res = await apiFetch('/api/inventory/receives', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
       const result = await res.json();
-
-      if (!res.ok) {
-        throw new Error(result.error || 'เกิดข้อผิดพลาด');
-      }
-
+      if (!res.ok) throw new Error(result.error || 'เกิดข้อผิดพลาด');
       showToast(`สร้างใบรับเข้า ${result.receive_number || ''} สำเร็จ`, 'success');
       router.push('/inventory/receives');
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการรับเข้าสินค้า',
-        'error'
-      );
+      showToast(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการรับเข้าสินค้า', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Cancel
-  const handleCancel = () => {
-    router.push('/inventory/receives');
-  };
-
-  const canSubmit = selectedWarehouseId && receiveItems.length > 0 && !submitting;
-
   const selectedWarehouse = warehouses.find(wh => wh.id === selectedWarehouseId);
+  const canSubmit = selectedWarehouseId && receiveItems.length > 0 && !submitting;
+  const hasPOMismatch = receiveItems.some(i => i.po_quantity != null && i.quantity !== i.po_quantity);
+
+  const tableItems: TableItem[] = receiveItems.map(i => ({
+    variation_id: i.variation_id,
+    product_id: i.product_id,
+    product_name: i.name,
+    product_code: i.code,
+    variation_label: i.variation_label,
+    sku: i.sku,
+    image: i.image,
+    quantity: i.quantity,
+    unit_cost: i.unit_cost,
+    po_quantity: i.po_quantity,
+  }));
 
   if (authLoading || loading) {
     return (
-      <Layout
-        title="รับเข้าสินค้า"
-        breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า', href: '/inventory/receives' }, { label: 'รับเข้าสินค้า' }]}
-      >
+      <Layout title="รับเข้าสินค้า" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า', href: '/inventory/receives' }, { label: 'รับเข้าสินค้า' }]}>
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
         </div>
@@ -425,42 +329,23 @@ export default function StockReceivePage() {
   }
 
   return (
-    <Layout
-      title="รับเข้าสินค้า"
-      breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า', href: '/inventory/receives' }, { label: 'รับเข้าสินค้า' }]}
-    >
+    <Layout title="รับเข้าสินค้า" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า', href: '/inventory/receives' }, { label: 'รับเข้าสินค้า' }]}>
       <div className="space-y-4">
-        {/* Mode Switch — only show if supplier feature enabled */}
+        {/* Mode Switch */}
         {features.supplier && (
           <div className="flex gap-1 bg-gray-100 dark:bg-slate-700 rounded-lg p-1 w-fit">
-            <button
-              type="button"
-              onClick={() => handleModeChange('manual')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                mode === 'manual'
-                  ? 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
-              }`}
-            >
-              <Plus className="w-4 h-4" />
-              รับเข้าใหม่
+            <button type="button" onClick={() => handleModeChange('manual')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${mode === 'manual' ? 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'}`}>
+              <Plus className="w-4 h-4" />รับเข้าใหม่
             </button>
-            <button
-              type="button"
-              onClick={() => handleModeChange('po')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                mode === 'po'
-                  ? 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
-              }`}
-            >
-              <ClipboardList className="w-4 h-4" />
-              จาก PO
+            <button type="button" onClick={() => handleModeChange('po')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${mode === 'po' ? 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'}`}>
+              <ClipboardList className="w-4 h-4" />จาก PO
             </button>
           </div>
         )}
 
-        {/* Mode: Manual — Warehouse selector */}
+        {/* Warehouse selector (manual mode) */}
         {mode === 'manual' && (
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
@@ -470,11 +355,7 @@ export default function StockReceivePage() {
               <FormSelect
                 value={selectedWarehouseId}
                 onChange={setSelectedWarehouseId}
-                options={warehouses.map(wh => ({
-                  id: wh.id,
-                  label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}`,
-                  icon: wh.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined,
-                }))}
+                options={warehouses.map(wh => ({ id: wh.id, label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}`, icon: wh.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined }))}
                 placeholder="-- เลือกคลังสินค้า --"
                 searchPlaceholder="ค้นหาคลัง..."
                 icon={<Warehouse className="w-4 h-4" />}
@@ -483,7 +364,7 @@ export default function StockReceivePage() {
           </div>
         )}
 
-        {/* Mode: PO — PO selector (warehouse auto-set from PO) */}
+        {/* PO selector */}
         {mode === 'po' && (
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
@@ -493,14 +374,9 @@ export default function StockReceivePage() {
             <div className="w-full sm:w-96">
               <EntitySearchInput
                 value={selectedPOId}
-                onChange={(id) => handleSelectPO(id)}
+                onChange={handleSelectPO}
                 onClear={() => handleSelectPO('')}
-                options={availablePOs.map(po => ({
-                  id: po.id,
-                  label: po.po_number,
-                  subtitle: po.supplier_name,
-                  icon: <ClipboardList className="w-4 h-4 text-gray-400" />,
-                }))}
+                options={availablePOs.map(po => ({ id: po.id, label: po.po_number, subtitle: po.supplier_name, icon: <ClipboardList className="w-4 h-4 text-gray-400" /> }))}
                 placeholder="ค้นหา PO หรือชื่อ Supplier..."
                 icon={<ClipboardList className="w-4 h-4" />}
                 loading={posLoading}
@@ -516,330 +392,24 @@ export default function StockReceivePage() {
           </div>
         )}
 
-        {/* Desktop: Table + Search in one card */}
-        <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700">
-          {receiveItems.length > 0 && (
-            <>
-              <div className="overflow-x-auto">
-                <table className="data-table">
-                  <thead className="data-thead">
-                    <tr>
-                      <th className="data-th">สินค้า</th>
-                      <th className="data-th text-center w-28 whitespace-nowrap">สต๊อกปัจจุบัน</th>
-                      {mode === 'po' && <th className="data-th text-center w-24 whitespace-nowrap">จำนวน PO</th>}
-                      <th className="data-th text-center w-28">รับเข้า</th>
-                      <th className="data-th text-center w-28">ต้นทุน/ชิ้น</th>
-                      <th className="data-th w-12"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="data-tbody">
-                    {receiveItems.map((item, index) => (
-                      <tr key={item.variation_id} className="data-tr">
-                        <td className="px-6 py-3">
-                          <div className="flex items-center gap-2.5">
-                            {item.image ? (
-                              <img
-                                src={item.image}
-                                alt={item.name}
-                                className="w-12 h-12 rounded object-cover flex-shrink-0"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                <Package className="w-5 h-5 text-gray-400" />
-                              </div>
-                            )}
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
-                                {getDisplayName(item)}
-                              </div>
-                              <span className="text-xs text-gray-400 dark:text-slate-500">
-                                {getSubtitle(item)}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-3 text-center">
-                          {(() => {
-                            const stock = stockMap[item.variation_id] ?? null;
-                            if (stock === null) return <span className="text-xs text-gray-400">-</span>;
-                            return (
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                stock <= 0
-                                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                  : stock <= 5
-                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                    : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                              }`}>
-                                {stock.toLocaleString()}
-                              </span>
-                            );
-                          })()}
-                        </td>
-                        {mode === 'po' && (
-                          <td className="px-6 py-3 text-center">
-                            <span className="text-sm text-gray-500 dark:text-slate-400 font-medium">
-                              {item.po_quantity?.toLocaleString() ?? '-'}
-                            </span>
-                          </td>
-                        )}
-                        <td className="px-4 py-3 text-center">
-                          <div className="inline-flex items-center">
-                            <div className={`inline-flex items-center border rounded-lg overflow-hidden ${
-                              item.po_quantity != null && item.quantity !== item.po_quantity
-                                ? 'border-amber-400 dark:border-amber-500'
-                                : 'border-gray-300 dark:border-slate-600'
-                            }`}>
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateQuantity(index, item.quantity - 1)}
-                                disabled={item.quantity <= 1}
-                                className="w-7 h-7 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm border-r border-inherit"
-                              >
-                                −
-                              </button>
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={item.quantity}
-                                  onChange={e =>
-                                    handleUpdateQuantity(index, parseInt(e.target.value) || 1)
-                                  }
-                                  className={`${item.po_quantity != null && item.quantity !== item.po_quantity ? 'w-14 pr-7' : 'w-10'} h-7 px-1 text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none border-none`}
-                                />
-                                {item.po_quantity != null && item.quantity !== item.po_quantity && (
-                                  <span className="absolute right-0.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-px text-amber-600 dark:text-amber-400" title={`ต่างจาก PO ${Math.abs(item.quantity - item.po_quantity)} ชิ้น`}>
-                                    <AlertTriangle className="w-3 h-3" />
-                                    <span className="text-[9px] font-semibold">
-                                      {item.quantity > item.po_quantity ? '+' : ''}{item.quantity - item.po_quantity}
-                                    </span>
-                                  </span>
-                                )}
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateQuantity(index, item.quantity + 1)}
-                                className="w-7 h-7 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-l border-inherit"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-3 text-center">
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.unit_cost}
-                            onChange={e =>
-                              handleUpdateUnitCost(index, parseFloat(e.target.value) || 0)
-                            }
-                            className="w-24 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
-                          />
-                        </td>
-                        <td className="px-2 py-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveItem(index)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                            title="ลบ"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-          {/* Product Search */}
-          <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700">
-            <ProductSearchInput
-              products={products}
-              onSelect={(p) => handleAddProduct(p as Product)}
-              loading={productsLoading}
-              isAlreadyAdded={(p) => receiveItems.some(item => item.variation_id === p.id)}
-            />
-          </div>
-          {receiveItems.length === 0 && (
-            <div className="text-center py-8 text-gray-400 dark:text-slate-500">
-              <Package2 className="w-10 h-10 mx-auto mb-2" />
-              <p className="text-sm">เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน</p>
-            </div>
-          )}
-          {/* Summary row */}
-          {receiveItems.length > 0 && (
-            <div className="px-4 py-3 bg-gray-50 dark:bg-slate-800/50 border-t border-gray-200 dark:border-slate-700 rounded-b-lg flex items-center justify-between">
-              <span className="text-sm text-gray-500 dark:text-slate-400">
-                รวม {receiveItems.length} รายการ
-              </span>
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                จำนวนรวม: {receiveItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
-              </span>
-            </div>
-          )}
-        </div>
+        {/* Items Table */}
+        <ItemsTable
+          items={tableItems}
+          columns={mode === 'po' ? ['stock_badge', 'po_quantity', 'qty', 'unit_cost', 'total'] : ['stock_badge', 'qty', 'unit_cost', 'total']}
+          stockMap={stockMap}
+          products={products}
+          loadingProducts={productsLoading}
+          onAdd={handleAddProduct}
+          onUpdateField={handleUpdateField}
+          onRemove={handleRemoveItem}
+          emptyMessage={selectedWarehouseId ? 'เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน' : 'เลือกคลังสินค้าก่อน'}
+        />
 
-        {/* Mobile Cards */}
-        {receiveItems.length > 0 && (
-          <div className="md:hidden space-y-2">
-            {receiveItems.map((item, index) => (
-              <div
-                key={item.variation_id}
-                className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 p-3"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    {item.image ? (
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-12 h-12 rounded object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                        <Package className="w-6 h-6 text-gray-400" />
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2 break-words">
-                        {getDisplayName(item)}
-                      </p>
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-xs text-gray-400 dark:text-slate-500 truncate">
-                          {getSubtitle(item)}
-                        </p>
-                        {(() => {
-                          const stock = stockMap[item.variation_id] ?? null;
-                          if (stock === null) return null;
-                          return (
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${
-                              stock <= 0
-                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                : stock <= 5
-                                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                  : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            }`}>
-                              สต๊อก {stock.toLocaleString()}
-                            </span>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveItem(index)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className={`mt-2.5 grid gap-2 ${item.po_quantity != null ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                  {item.po_quantity != null && (
-                    <div>
-                      <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
-                        จำนวน PO
-                      </label>
-                      <div className="w-full h-[30px] flex items-center justify-center border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-gray-50 dark:bg-slate-700/50 text-gray-500 dark:text-slate-400 font-medium">
-                        {item.po_quantity.toLocaleString()}
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
-                      รับเข้า
-                    </label>
-                    <div className={`inline-flex items-center border rounded-lg overflow-hidden ${
-                      item.po_quantity != null && item.quantity !== item.po_quantity
-                        ? 'border-amber-400 dark:border-amber-500'
-                        : 'border-gray-300 dark:border-slate-600'
-                    }`}>
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateQuantity(index, item.quantity - 1)}
-                        disabled={item.quantity <= 1}
-                        className="w-[30px] h-[30px] flex-shrink-0 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm border-r border-inherit"
-                      >
-                        −
-                      </button>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={e =>
-                            handleUpdateQuantity(index, parseInt(e.target.value) || 1)
-                          }
-                          className={`${item.po_quantity != null && item.quantity !== item.po_quantity ? 'w-14 pr-7' : 'w-10'} h-[30px] px-1 text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none border-none`}
-                        />
-                        {item.po_quantity != null && item.quantity !== item.po_quantity && (
-                          <span className="absolute right-0.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-px text-amber-600 dark:text-amber-400">
-                            <AlertTriangle className="w-3 h-3" />
-                            <span className="text-[9px] font-semibold">
-                              {item.quantity > item.po_quantity ? '+' : ''}{item.quantity - item.po_quantity}
-                            </span>
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateQuantity(index, item.quantity + 1)}
-                        className="w-[30px] h-[30px] flex-shrink-0 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-l border-inherit"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">
-                      ต้นทุน/ชิ้น (฿)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.unit_cost}
-                      onChange={e =>
-                        handleUpdateUnitCost(index, parseFloat(e.target.value) || 0)
-                      }
-                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-
-          </div>
-        )}
-        {/* Mobile: Search + empty state — before summary so order matches desktop */}
-        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-          <ProductSearchInput
-            products={products}
-            onSelect={(p) => handleAddProduct(p as Product)}
-            loading={productsLoading}
-            isAlreadyAdded={(p) => receiveItems.some(item => item.variation_id === p.id)}
-          />
-          {receiveItems.length === 0 && (
-            <div className="text-center py-8 text-gray-400 dark:text-slate-500">
-              <Package2 className="w-10 h-10 mx-auto mb-2" />
-              <p className="text-sm">เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน</p>
-            </div>
-          )}
-        </div>
-        {/* Mobile summary */}
-        {receiveItems.length > 0 && (
-          <div className="md:hidden bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2.5 flex items-center justify-between">
-            <span className="text-sm text-gray-500 dark:text-slate-400">
-              รวม {receiveItems.length} รายการ
-            </span>
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              จำนวนรวม: {receiveItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น
-            </span>
+        {/* PO mismatch warning */}
+        {hasPOMismatch && (
+          <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 rounded-lg border border-amber-200 dark:border-amber-800">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            จำนวนรับเข้าไม่ตรงกับ PO บางรายการ
           </div>
         )}
 
@@ -847,13 +417,9 @@ export default function StockReceivePage() {
         {receiveItems.length > 0 && (
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-              <FileText className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-              หมายเหตุรวม
+              <FileText className="w-4 h-4 inline mr-1.5 -mt-0.5" />หมายเหตุรวม
             </label>
-            <textarea
-              value={batchNotes}
-              onChange={e => setBatchNotes(e.target.value)}
-              rows={3}
+            <textarea value={batchNotes} onChange={e => setBatchNotes(e.target.value)} rows={3}
               placeholder="หมายเหตุสำหรับการรับเข้าครั้งนี้..."
               className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
             />
@@ -862,35 +428,17 @@ export default function StockReceivePage() {
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-3 pb-4">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="px-5 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium"
-          >
+          <button type="button" onClick={() => router.push('/inventory/receives')}
+            className="px-5 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium">
             ยกเลิก
           </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="bg-[#F4511E] text-white px-5 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                กำลังบันทึก...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                บันทึกรับเข้า
-              </>
-            )}
+          <button type="button" onClick={handleSubmit} disabled={!canSubmit}
+            className="bg-[#F4511E] text-white px-5 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
+            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />กำลังบันทึก...</> : <><Save className="w-4 h-4" />บันทึกรับเข้า</>}
           </button>
         </div>
       </div>
 
-      {/* Confirm Dialog */}
       <ConfirmDialog
         open={showConfirm}
         onClose={() => setShowConfirm(false)}
@@ -912,10 +460,10 @@ export default function StockReceivePage() {
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-500 dark:text-slate-400">จำนวนรวม</span>
-            <span className="font-medium text-gray-900 dark:text-white">{receiveItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()} ชิ้น</span>
+            <span className="font-medium text-gray-900 dark:text-white">{receiveItems.reduce((s, i) => s + i.quantity, 0).toLocaleString()} ชิ้น</span>
           </div>
         </div>
-        {receiveItems.some(item => item.po_quantity != null && item.quantity !== item.po_quantity) && (
+        {hasPOMismatch && (
           <div className="mt-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5 text-sm text-amber-700 dark:text-amber-400">
             จำนวนรับเข้าไม่ตรงกับ PO บางรายการ
           </div>

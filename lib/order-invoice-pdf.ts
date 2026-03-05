@@ -55,11 +55,11 @@ export interface OrderInvoiceData {
     tax_company_name?: string;
     tax_id?: string;
     tax_branch?: string;
-    tax_address?: string;
-    tax_district?: string;
-    tax_amphoe?: string;
-    tax_province?: string;
-    tax_postal_code?: string;
+    billing_address?: string;
+    billing_district?: string;
+    billing_amphoe?: string;
+    billing_province?: string;
+    billing_postal_code?: string;
   } | null;
   delivery_name?: string;
   delivery_phone?: string;
@@ -235,8 +235,8 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
 
     // Tax address (if different from shipping)
     const taxAddress = [
-      data.customer?.tax_address, data.customer?.tax_district, data.customer?.tax_amphoe,
-      data.customer?.tax_province, data.customer?.tax_postal_code,
+      data.customer?.billing_address, data.customer?.billing_district, data.customer?.billing_amphoe,
+      data.customer?.billing_province, data.customer?.billing_postal_code,
     ].filter(Boolean).join(' ');
     if (taxAddress && taxAddress !== addressParts) {
       customerInfoStack.push({ text: `ที่อยู่ออกบิล: ${taxAddress}`, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });

@@ -107,8 +107,8 @@ export default function TagInput({
     <div ref={containerRef} className="relative">
       {/* Selected tags + input */}
       <div
-        className={`flex flex-wrap items-center gap-1 min-h-[42px] px-2 py-1.5 border rounded-lg cursor-text transition-colors bg-white dark:bg-slate-700 ${
-          open ? 'ring-2 ring-[#F4511E] border-transparent' : 'border-gray-300 dark:border-slate-600'
+        className={`flex flex-wrap items-center gap-1.5 min-h-[34px] px-2 py-1 border rounded-lg cursor-text transition-colors bg-white dark:bg-slate-800 ${
+          open ? 'ring-2 ring-[#F4511E] border-transparent' : 'border-gray-300 dark:border-slate-500'
         }`}
         onClick={() => { setOpen(true); inputRef.current?.focus(); }}
       >

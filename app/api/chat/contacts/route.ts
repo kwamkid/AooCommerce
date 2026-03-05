@@ -145,8 +145,7 @@ export async function GET(request: NextRequest) {
 
     for (const c of lineContacts) {
       const acc = (c.chat_account_id ? accountMap.get(c.chat_account_id) : undefined) || defaultAccountByPlatform.get('line');
-      const cust = c.customer ? { ...c.customer, customer_type: c.customer.customer_type_new || c.customer.customer_type } : c.customer;
-      if (cust) delete (cust as any).customer_type_new;
+      const cust = c.customer;
       unified.push({
         id: c.id,
         platform: 'line',
@@ -170,8 +169,7 @@ export async function GET(request: NextRequest) {
 
     for (const c of fbContacts) {
       const acc = (c.chat_account_id ? accountMap.get(c.chat_account_id) : undefined) || defaultAccountByPlatform.get('facebook');
-      const cust2 = c.customer ? { ...c.customer, customer_type: c.customer.customer_type_new || c.customer.customer_type } : c.customer;
-      if (cust2) delete (cust2 as any).customer_type_new;
+      const cust2 = c.customer;
       // Use proxy URL for FB/IG profile pictures (CDN URLs expire)
       const fbPictureUrl = c.chat_account_id
         ? `/api/chat/profile-picture?platform=${c.source === 'instagram' ? 'instagram' : 'facebook'}&psid=${c.fb_psid}&account_id=${c.chat_account_id}`
@@ -423,7 +421,7 @@ async function fetchLineContacts(companyId: string, filters: {
         *,
         customer:customers(
           id, name, customer_code, contact_person, phone, email,
-          customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code,
+          customer_type, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code,
           tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active
         )
       `)
@@ -465,7 +463,7 @@ async function fetchLineContacts(companyId: string, filters: {
     if (custIds.length > 0) {
       const { data: custs } = await supabaseAdmin
         .from('customers')
-        .select('id, name, customer_code, contact_person, phone, email, customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code, tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active')
+        .select('id, name, customer_code, contact_person, phone, email, customer_type, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code, tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active')
         .in('id', custIds);
       const custMap = new Map((custs || []).map(c => [c.id, c]));
       for (const c of contacts) {
@@ -544,7 +542,7 @@ async function fetchFbContacts(companyId: string, filters: {
         *,
         customer:customers(
           id, name, customer_code, contact_person, phone, email,
-          customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code,
+          customer_type, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code,
           tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active
         )
       `)
@@ -586,7 +584,7 @@ async function fetchFbContacts(companyId: string, filters: {
     if (custIds.length > 0) {
       const { data: custs } = await supabaseAdmin
         .from('customers')
-        .select('id, name, customer_code, contact_person, phone, email, customer_type_new, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code, tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active')
+        .select('id, name, customer_code, contact_person, phone, email, customer_type, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code, tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active')
         .in('id', custIds);
       const custMap = new Map((custs || []).map(c => [c.id, c]));
       for (const c of contacts) {

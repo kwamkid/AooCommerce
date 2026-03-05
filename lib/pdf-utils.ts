@@ -9,6 +9,7 @@ export interface CompanyInfo {
   phone?: string;
   tax_id?: string;
   tax_company_name?: string;
+  tax_branch?: string | null;
   logo_url?: string | null;
   vat_registered?: boolean;
 }
@@ -46,6 +47,7 @@ export async function fetchCompanyInfo(): Promise<CompanyInfo | null> {
       phone: co.phone || '',
       tax_id: co.tax_id || '',
       tax_company_name: co.tax_company_name || '',
+      tax_branch: co.tax_branch || null,
       logo_url: co.logo_url || null,
       vat_registered: co.vat_registered || false,
     };
@@ -102,21 +104,22 @@ export function buildCompanyStack(company: CompanyInfo | undefined, logoDataUrl:
   const stack: any[] = [];
 
   if (logoDataUrl) {
-    stack.push({ image: logoDataUrl, width: 50, height: 50, fit: [50, 50], margin: [0, 0, 0, 6] });
+    stack.push({ image: logoDataUrl, width: 40, height: 40, fit: [40, 40], margin: [0, 0, 0, 2] });
   }
 
   const companyName = company?.tax_company_name || company?.name || '';
   if (companyName) {
-    stack.push({ text: companyName, bold: true, fontSize: 12, color: '#333333' });
+    const branchText = company?.tax_branch ? ` (${company.tax_branch})` : '';
+    stack.push({ text: companyName + branchText, bold: true, fontSize: 11, color: '#333333' });
   }
   if (company?.address) {
-    stack.push({ text: company.address, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
+    stack.push({ text: company.address, fontSize: 10, color: '#666666' });
   }
   if (company?.tax_id) {
-    stack.push({ text: `เลขประจำตัวผู้เสียภาษี ${company.tax_id}`, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
+    stack.push({ text: `เลขประจำตัวผู้เสียภาษี ${company.tax_id}`, fontSize: 10, color: '#666666' });
   }
   if (company?.phone) {
-    stack.push({ text: `เบอร์มือถือ ${company.phone}`, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
+    stack.push({ text: `โทร ${company.phone}`, fontSize: 10, color: '#666666' });
   }
 
   return stack;
@@ -184,4 +187,68 @@ export function buildSignatureFooter(companyName: string, leftLabel: string, rig
 /** Format number with 2 decimal places and commas */
 export function formatPdfPrice(amount: number): string {
   return amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/**
+ * Build a copy label badge (ต้นฉบับ / สำเนา) positioned at top-right of page.
+ * Use as the last item in a page's content array (absolute positioned).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function buildCopyLabel(label: '(ต้นฉบับ)' | '(สำเนา)'): any {
+  const isOriginal = label === '(ต้นฉบับ)';
+  return {
+    absolutePosition: { x: 40, y: 30 },
+    text: label,
+    fontSize: 9,
+    color: isOriginal ? '#15803d' : '#6b7280',
+    bold: true,
+  };
+}
+
+/**
+ * Duplicate a pdfMake content array into 2 pages:
+ * page 1 = ต้นฉบับ, page 2 = สำเนา
+ *
+ * Usage:
+ *   const singlePageContent = [...];
+ *   docDefinition.content = withOriginalAndCopy(singlePageContent);
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+/**
+ * Returns a header function for pdfMake that shows ต้นฉบับ on page 1, สำเนา on page 2+
+ * Use as: header: withOriginalAndCopyHeader()
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function withOriginalAndCopyHeader(): (page: number, pages: number) => any {
+  return (page: number) => ({
+    text: page === 1 ? '(ต้นฉบับ)' : '(สำเนา)',
+    fontSize: 9,
+    bold: true,
+    color: page === 1 ? '#15803d' : '#6b7280',
+    margin: [40, 20, 0, 0],
+  });
+}
+
+/**
+ * Inject a copy label text node as the first item of a content array.
+ * Looks for the first `columns` block (the header row) and prepends label
+ * to the right-side stack's first text item subtitle.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function injectCopyLabel(pageContent: any[], label: string, color: string): any[] {
+  // Deep clone so layout functions etc. are preserved by re-running through JSON
+  // We add a standalone label text before all content
+  return [
+    { text: label, fontSize: 9, bold: true, color, margin: [0, 0, 0, -2] },
+    ...pageContent,
+  ];
+}
+
+export function withOriginalAndCopy(pageContent: any[]): any[] {
+  const clone = JSON.parse(JSON.stringify(pageContent));
+  return [
+    ...injectCopyLabel(pageContent, '(ต้นฉบับ)', '#15803d'),
+    { text: '', pageBreak: 'after' },
+    ...injectCopyLabel(clone, '(สำเนา)', '#6b7280'),
+  ];
 }

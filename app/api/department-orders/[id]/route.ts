@@ -15,7 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .from('department_orders')
       .select(`
         *,
-        customer:customers(id, name, customer_code, phone, customer_type, tax_id, tax_company_name, tax_address, tax_district, tax_amphoe, tax_province, tax_postal_code),
+        customer:customers(id, name, customer_code, phone, customer_type, tax_id, tax_company_name, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code),
         created_by_profile:user_profiles!department_orders_created_by_fkey(id, name),
         items:department_order_items(
           id, product_id, variation_id, product_name, variation_label,

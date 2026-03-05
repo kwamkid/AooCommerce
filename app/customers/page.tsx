@@ -1,9 +1,9 @@
 // Path: app/customers/page.tsx
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useFetchOnce } from '@/lib/use-fetch-once';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
 import Checkbox from '@/components/ui/Checkbox';
@@ -25,12 +25,19 @@ import {
   Mail,
   Trash2,
   Tags,
+  MoreHorizontal,
+  Link2,
+  ExternalLink,
+  Copy,
+  RefreshCw,
+  KeyRound,
 } from 'lucide-react';
 import TagBadge, { Tag, TAG_COLORS } from '@/components/ui/TagBadge';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import PlatformChipFilter from '@/app/components/PlatformChipFilter';
 import FormSelect from '@/components/ui/FormSelect';
+import ActionMenu, { ActionItem } from '@/app/orders/components/ActionMenu';
 
 // Column toggle system
 type ColumnKey = 'customer' | 'type' | 'channels' | 'tags' | 'address' | 'totalOrder' | 'orderCount' | 'branch';
@@ -71,14 +78,14 @@ interface Customer {
   contact_person?: string;
   phone?: string;
   email?: string;
-  tax_address?: string;
-  tax_district?: string;
-  tax_amphoe?: string;
-  tax_province?: string;
-  tax_postal_code?: string;
+  billing_address?: string;
+  billing_district?: string;
+  billing_amphoe?: string;
+  billing_province?: string;
+  billing_postal_code?: string;
   tax_id?: string;
   customer_type: string;
-  customer_type_new?: string; // From database
+
   credit_limit: number;
   credit_days: number;
   assigned_salesperson?: string;
@@ -94,6 +101,8 @@ interface Customer {
   order_count?: number;
   tags?: Tag[];
   channels?: string[];
+  portal_token?: string | null;
+  portal_access_code?: string | null;
 }
 
 // Customer type config
@@ -125,25 +134,27 @@ function CustomerTypeBadge({ type }: { type: string }) {
   );
 }
 
-export default function CustomersPage() {
+function CustomersPageContent() {
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
   const { features } = useFeatures();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
+  // Init state from URL params
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [totalCustomers, setTotalCustomers] = useState(0);
   const [loading, setLoading] = useState(true);
   const [dataFetched, setDataFetched] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') || '');
+  const [debouncedSearch, setDebouncedSearch] = useState(() => searchParams.get('q') || '');
   const [error, setError] = useState('');
-  const [filterType, setFilterType] = useState<string>('');
-  const [filterAmount, setFilterAmount] = useState<string>('');
-  const [filterOrderCount, setFilterOrderCount] = useState<string>('');
-  const [filterTag, setFilterTag] = useState<string>('');
-  const [filterChannel, setFilterChannel] = useState<string>('');
+  const [filterType, setFilterType] = useState<string>(() => searchParams.get('type') || '');
+  const [filterAmount, setFilterAmount] = useState<string>(() => searchParams.get('amount') || '');
+  const [filterOrderCount, setFilterOrderCount] = useState<string>(() => searchParams.get('orders') || '');
+  const [filterTag, setFilterTag] = useState<string>(() => searchParams.get('tag') || '');
+  const [filterChannel, setFilterChannel] = useState<string>(() => searchParams.get('channel') || '');
 
   // Tag management
   const [allTags, setAllTags] = useState<Tag[]>([]);
@@ -157,9 +168,12 @@ export default function CustomersPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
+  // Portal code regenerate
+  const [regeneratingCodeId, setRegeneratingCodeId] = useState<string | null>(null);
+
   // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(20);
+  const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page') || '1') || 1);
+  const [rowsPerPage, setRowsPerPage] = useState(() => parseInt(searchParams.get('limit') || '20') || 20);
 
   // Column visibility
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
@@ -182,7 +196,7 @@ export default function CustomersPage() {
   };
 
   const isCol = (key: ColumnKey) => {
-    if (key === 'branch' && !features.customer_branches) return false;
+    if (key === 'branch') return false;
     return visibleColumns.has(key);
   };
 
@@ -232,18 +246,63 @@ export default function CustomersPage() {
     }
   };
 
+  // Regenerate portal code
+  const handleRegenerateCode = async (customerId: string) => {
+    setRegeneratingCodeId(customerId);
+    setOpenMenuId(null);
+    try {
+      const res = await apiFetch(`/api/customers/${customerId}/regenerate-portal-code`, { method: 'POST' });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'ไม่สามารถสร้างรหัสใหม่ได้');
+      setCustomers(prev => prev.map(c => c.id === customerId ? { ...c, portal_access_code: result.data.portal_access_code } : c));
+      showToast('สร้างรหัส Portal ใหม่สำเร็จ', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setRegeneratingCodeId(null);
+    }
+  };
+
+  // Sync filters → URL (replace so back button goes to previous page, not previous filter state)
+  const syncUrl = useCallback((overrides: {
+    q?: string; type?: string; amount?: string; orders?: string; tag?: string; channel?: string; page?: number; limit?: number;
+  }) => {
+    const p = new URLSearchParams();
+    const q     = overrides.q       !== undefined ? overrides.q       : debouncedSearch;
+    const type  = overrides.type    !== undefined ? overrides.type    : filterType;
+    const amt   = overrides.amount  !== undefined ? overrides.amount  : filterAmount;
+    const ord   = overrides.orders  !== undefined ? overrides.orders  : filterOrderCount;
+    const tag   = overrides.tag     !== undefined ? overrides.tag     : filterTag;
+    const ch    = overrides.channel !== undefined ? overrides.channel : filterChannel;
+    const pg    = overrides.page    !== undefined ? overrides.page    : currentPage;
+    const lmt   = overrides.limit   !== undefined ? overrides.limit   : rowsPerPage;
+    if (q)    p.set('q', q);
+    if (type) p.set('type', type);
+    if (amt)  p.set('amount', amt);
+    if (ord)  p.set('orders', ord);
+    if (tag)  p.set('tag', tag);
+    if (ch)   p.set('channel', ch);
+    if (pg > 1)   p.set('page', String(pg));
+    if (lmt !== 20) p.set('limit', String(lmt));
+    const qs = p.toString();
+    router.replace(qs ? `/customers?${qs}` : '/customers', { scroll: false });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, filterType, filterAmount, filterOrderCount, filterTag, filterChannel, currentPage, rowsPerPage]);
+
   // Clear selection when filters change
   useEffect(() => {
     setSelectedIds(new Set());
   }, [debouncedSearch, filterType, filterAmount, filterOrderCount, filterTag, filterChannel, currentPage]);
 
-  // Debounce search
+  // Debounce search + sync URL
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
       setCurrentPage(1);
+      syncUrl({ q: searchTerm, page: 1 });
     }, 300);
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
   // Check auth
@@ -291,10 +350,7 @@ export default function CustomersPage() {
         const result = await res.json();
         if (!res.ok) throw new Error(result.error || 'Failed to fetch customers');
 
-        const data = (result.customers || []).map((c: any) => ({
-          ...c,
-          customer_type: c.customer_type_new || c.customer_type || 'retail',
-        }));
+        const data = result.customers || [];
 
         setCustomers(data as Customer[]);
         setTotalCustomers(result.total ?? data.length);
@@ -411,7 +467,7 @@ export default function CustomersPage() {
         ...c,
         tags: c.tags?.filter(t => t.id !== tag.id),
       })));
-      if (filterTag === tag.id) setFilterTag('');
+      if (filterTag === tag.id) { setFilterTag(''); syncUrl({ tag: '' }); }
       showToast('ลบแท็กสำเร็จ');
     } catch {
       showToast('ไม่สามารถลบแท็กได้', 'error');
@@ -476,7 +532,7 @@ export default function CustomersPage() {
             {/* Row 2: Channel chips */}
             <PlatformChipFilter
               value={filterChannel || 'all'}
-              onChange={(val) => { setFilterChannel(val === 'all' ? '' : val); setCurrentPage(1); }}
+              onChange={(val) => { const ch = val === 'all' ? '' : val; setFilterChannel(ch); setCurrentPage(1); syncUrl({ channel: ch, page: 1 }); }}
             />
 
             {/* Row 3: Filters */}
@@ -485,7 +541,7 @@ export default function CustomersPage() {
               <div className="flex-1 min-w-0">
                 <FormSelect
                   value={filterType}
-                  onChange={(val) => { setFilterType(val); setCurrentPage(1); }}
+                  onChange={(val) => { setFilterType(val); setCurrentPage(1); syncUrl({ type: val, page: 1 }); }}
                   options={activeTypes.map(([key, { label }]) => ({ id: key, label }))}
                   clearLabel="ประเภท"
                   searchThreshold={99}
@@ -496,7 +552,7 @@ export default function CustomersPage() {
               <div className="flex-1 min-w-0">
                 <FormSelect
                   value={filterAmount}
-                  onChange={(val) => { setFilterAmount(val); setCurrentPage(1); }}
+                  onChange={(val) => { setFilterAmount(val); setCurrentPage(1); syncUrl({ amount: val, page: 1 }); }}
                   options={[
                     { id: '0', label: 'ยังไม่มียอด' },
                     { id: '<10000', label: 'น้อยกว่า ฿10,000' },
@@ -513,7 +569,7 @@ export default function CustomersPage() {
               <div className="flex-1 min-w-0">
                 <FormSelect
                   value={filterOrderCount}
-                  onChange={(val) => { setFilterOrderCount(val); setCurrentPage(1); }}
+                  onChange={(val) => { setFilterOrderCount(val); setCurrentPage(1); syncUrl({ orders: val, page: 1 }); }}
                   options={[
                     { id: '0', label: 'ยังไม่มีบิล' },
                     { id: '1-5', label: '1 - 5 บิล' },
@@ -530,7 +586,7 @@ export default function CustomersPage() {
               <div className="flex-1 min-w-0">
                 <FormSelect
                   value={filterTag}
-                  onChange={(val) => { setFilterTag(val); setCurrentPage(1); }}
+                  onChange={(val) => { setFilterTag(val); setCurrentPage(1); syncUrl({ tag: val, page: 1 }); }}
                   options={allTags.map(t => ({ id: t.id, label: t.name }))}
                   clearLabel="แท็ก"
                   searchThreshold={99}
@@ -719,15 +775,50 @@ export default function CustomersPage() {
                     </td>
                     )}
 
-                    {/* ลบ */}
+                    {/* Action menu */}
                     <td className="w-[44px] px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => handleDeleteCustomer(customer.id, customer.name)}
-                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        title="ลบลูกค้า"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <ActionMenu items={(() => {
+                        const items: ActionItem[] = [];
+                        if (customer.customer_type === 'consignment_dealer' && customer.portal_token) {
+                          items.push({
+                            key: 'portal-link',
+                            label: 'ลิงก์ Portal',
+                            icon: <ExternalLink className="w-4 h-4 text-amber-500" />,
+                            onClick: () => window.open(`/portal/consignment/${customer.portal_token}`, '_blank'),
+                          });
+                          items.push({
+                            key: 'portal-copy',
+                            label: 'คัดลอกลิงก์',
+                            icon: <Copy className="w-4 h-4" />,
+                            onClick: () => { navigator.clipboard.writeText(`${window.location.origin}/portal/consignment/${customer.portal_token}`).then(() => showToast('คัดลอกลิงก์แล้ว', 'success')); },
+                          });
+                          items.push({
+                            key: 'portal-code',
+                            label: customer.portal_access_code ? `รหัส: ${customer.portal_access_code}` : 'รหัส Portal: ยังไม่มี',
+                            icon: <KeyRound className="w-4 h-4" />,
+                            onClick: customer.portal_access_code
+                              ? () => navigator.clipboard.writeText(customer.portal_access_code!).then(() => showToast('คัดลอกรหัสแล้ว', 'success'))
+                              : undefined,
+                            suffix: customer.portal_access_code ? <Copy className="w-3.5 h-3.5 text-gray-400" /> : undefined,
+                          });
+                          items.push({
+                            key: 'portal-regen',
+                            label: 'สร้างรหัสใหม่',
+                            icon: regeneratingCodeId === customer.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />,
+                            onClick: () => handleRegenerateCode(customer.id),
+                            disabled: regeneratingCodeId === customer.id,
+                          });
+                        }
+                        items.push({
+                          key: 'delete',
+                          label: 'ลบ',
+                          icon: <Trash2 className="w-4 h-4" />,
+                          danger: true,
+                          onClick: () => handleDeleteCustomer(customer.id, customer.name),
+                        });
+                        return items;
+                      })()}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -742,11 +833,11 @@ export default function CustomersPage() {
             startIdx={startIndex}
             endIdx={Math.min(endIndex, filteredCustomers.length)}
             recordsPerPage={rowsPerPage}
-            setRecordsPerPage={setRowsPerPage}
-            setPage={setCurrentPage}
+            setRecordsPerPage={(v) => { setRowsPerPage(v); syncUrl({ limit: v, page: 1 }); }}
+            setPage={(p) => { setCurrentPage(p); syncUrl({ page: p }); }}
           >
             <ColumnSettingsDropdown
-              configs={features.customer_branches ? COLUMN_CONFIGS : COLUMN_CONFIGS.filter(c => c.key !== 'branch')}
+              configs={COLUMN_CONFIGS.filter(c => c.key !== 'branch')}
               visible={visibleColumns}
               toggle={toggleColumn}
               buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
@@ -860,5 +951,19 @@ export default function CustomersPage() {
 
       {confirmDialog}
     </Layout>
+  );
+}
+
+export default function CustomersPage() {
+  return (
+    <Suspense fallback={
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+        </div>
+      </Layout>
+    }>
+      <CustomersPageContent />
+    </Suspense>
   );
 }
