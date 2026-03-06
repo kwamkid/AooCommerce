@@ -32,7 +32,7 @@ export default function InventoryPage() {
 
   useFetchOnce(async () => {
     try {
-      const res = await apiFetch('/api/warehouses');
+      const res = await apiFetch('/api/warehouses?include_consignment=true');
       if (res.ok) {
         const data = await res.json();
         setWarehouses(data.warehouses || []);

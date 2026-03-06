@@ -9,6 +9,8 @@ interface TaxInvoiceModalProps {
   orderId: string;
   orderNumber: string;
   customerId?: string;
+  /** ถ้า true = มี ABB อยู่แล้ว → ใช้ void_abbreviated_invoice แทน set_tax_invoice */
+  hasAbbrev?: boolean;
   onClose: () => void;
   onSaved: (updatedOrder: Record<string, unknown>) => void;
 }
@@ -17,6 +19,7 @@ export default function TaxInvoiceModal({
   orderId,
   orderNumber,
   customerId,
+  hasAbbrev = false,
   onClose,
   onSaved,
 }: TaxInvoiceModalProps) {
@@ -70,11 +73,13 @@ export default function TaxInvoiceModal({
 
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/orders/${orderId}`, {
+      const action = hasAbbrev ? 'void_abbreviated_invoice' : 'set_tax_invoice';
+      const res = await apiFetch('/api/orders', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'set_tax_invoice',
+          action,
+          id: orderId,
           tax_invoice_name: name.trim(),
           tax_invoice_tax_id: taxId.trim(),
           tax_invoice_branch: branch.trim(),
@@ -106,7 +111,7 @@ export default function TaxInvoiceModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-slate-700">
           <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">
-            ขอใบกำกับภาษีแบบเต็ม — {orderNumber}
+            ขอใบกำกับภาษี — {orderNumber}
           </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">
             <X className="w-5 h-5" />
@@ -122,6 +127,11 @@ export default function TaxInvoiceModal({
             </div>
           ) : (
             <>
+              {hasAbbrev && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+                  ระบบจะยกเลิกใบกำกับอย่างย่อที่ออกไปแล้ว และออกใบกำกับภาษีแทน
+                </p>
+              )}
               {/* Row 1: ชื่อบริษัท */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>

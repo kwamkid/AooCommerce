@@ -250,7 +250,8 @@ export async function POST(request: NextRequest) {
       const existing = itemMap[variation_id];
       const unitPrice = existing?.unit_price ?? 0;
       const gpRate = existing?.gp_rate ?? 0;
-      const ourAmount = qty_sold * unitPrice * (1 - gpRate / 100);
+      // unit_price is already net (after per-item GP deduction)
+      const ourAmount = qty_sold * unitPrice;
 
       totalQtySold += qty_sold;
       totalOurAmount += ourAmount;

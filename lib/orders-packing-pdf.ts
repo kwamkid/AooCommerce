@@ -22,6 +22,7 @@ import {
   loadLogoDataUrl,
   formatPdfDate,
   buildCompanyStack,
+  buildProductNameStack,
 } from './pdf-utils';
 
 // ─── Interfaces ──────────────────────────────────────────
@@ -67,10 +68,6 @@ export interface PackingListData {
 const THEME = { primary: '#6366f1' };
 
 // ─── Helpers ─────────────────────────────────────────────
-
-const MAX_NAME_LEN = 60;
-const truncateName = (name: string) =>
-  name.length > MAX_NAME_LEN ? name.slice(0, MAX_NAME_LEN) + '...' : name;
 
 function generateBarcodeDataUrl(value: string): string | null {
   if (!value) return null;
@@ -223,6 +220,7 @@ async function buildPickListContent(
   ];
 
   content.push({
+    columnGap: 16,
     columns: [
       {
         width: '*',
@@ -313,22 +311,17 @@ async function buildPickListContent(
   widths.push(30);
 
   const tableBody = items.map((item, idx) => {
-    const nameText = truncateName(item.product_name);
     const barcodeSource =
       item.barcode || item.sku || item.product_code || '';
     const showCodeInSubtitle =
       !hasBarcode ||
       (item.product_code && item.product_code !== barcodeSource);
-    const subtitleParts = [
+    const subtitle = [
       showCodeInSubtitle ? item.product_code : null,
       item.variation_label,
-    ].filter(Boolean);
-    const subtitle = subtitleParts.join(' | ');
+    ].filter(Boolean).join(' | ');
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const productStack: any[] = [{ text: nameText, fontSize: 11 }];
-    if (subtitle)
-      productStack.push({ text: subtitle, fontSize: 9, color: '#888888' });
+    const productStack = buildProductNameStack(item.product_name, subtitle);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const row: any[] = [];
@@ -686,20 +679,15 @@ function buildCompactPackingContent(
   widths.push(22);
 
   const tableBody = order.items.map((item) => {
-    const nameText = truncateName(item.product_name);
     const barcodeSource = item.barcode || item.sku || item.product_code || '';
     const showCodeInSubtitle =
       !hasBarcode || (item.product_code && item.product_code !== barcodeSource);
-    const subtitleParts = [
+    const subtitle = [
       showCodeInSubtitle ? item.product_code : null,
       item.variation_label,
-    ].filter(Boolean);
-    const subtitle = subtitleParts.join(' | ');
+    ].filter(Boolean).join(' | ');
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const productStack: any[] = [{ text: nameText, fontSize: 9 }];
-    if (subtitle)
-      productStack.push({ text: subtitle, fontSize: 7, color: '#888888' });
+    const productStack = buildProductNameStack(item.product_name, subtitle);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const row: any[] = [];

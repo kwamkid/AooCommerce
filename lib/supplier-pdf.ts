@@ -13,6 +13,7 @@ import {
   buildCompanyStack,
   buildCornerTriangle,
   buildSignatureFooter,
+  buildProductNameStack,
 } from './pdf-utils';
 
 // ─── PO PDF ─────────────────────────────────────────
@@ -106,6 +107,7 @@ export async function generatePOPdf(data: POData, company?: CompanyInfo): Promis
   ];
 
   content.push({
+    columnGap: 16,
     columns: [
       { width: '*', stack: companyStack },
       { width: 230, stack: rightStack },
@@ -145,9 +147,7 @@ export async function generatePOPdf(data: POData, company?: CompanyInfo): Promis
   data.items.forEach((item, idx) => {
     const lineTotal = item.quantity * (item.unit_cost || 0);
     const subtitle = getItemSubtitle(item);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const nameStack: any[] = [{ text: getItemName(item), fontSize: 11 }];
-    if (subtitle) nameStack.push({ text: subtitle, fontSize: 9, color: '#999999' });
+    const nameStack = buildProductNameStack(getItemName(item), subtitle);
 
     tableBody.push([
       { text: String(idx + 1), fontSize: 10, alignment: 'center' },
@@ -325,6 +325,7 @@ export async function generateReportPdf(data: SnapshotReportData, company?: Comp
   ];
 
   content.push({
+    columnGap: 16,
     columns: [
       { width: '*', stack: companyStack },
       { width: 250, stack: rightStack },
@@ -356,9 +357,7 @@ export async function generateReportPdf(data: SnapshotReportData, company?: Comp
 
       group.items.forEach((item, idx) => {
         const sub = getVarSub(item.variation);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const nameStack: any[] = [{ text: getVarName(item.variation), fontSize: 10 }];
-        if (sub) nameStack.push({ text: sub, fontSize: 8, color: '#999' });
+        const nameStack = buildProductNameStack(getVarName(item.variation), sub);
         rows.push([
           { text: String(idx + 1), fontSize: 9 },
           { stack: nameStack },

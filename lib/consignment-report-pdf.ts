@@ -1,9 +1,9 @@
 /**
- * Credit Note (ใบลดหนี้) PDF generation.
- * FlowAccount-style template matching order-invoice-pdf.ts design.
+ * Consignment Invoice (ใบแจ้งหนี้) PDF generation.
+ * FlowAccount-style template matching statement-pdf.ts design.
  *
- * Color: red #dc2626
- * Title: ใบลดหนี้ (if VAT → ใบลดหนี้/ใบกำกับภาษี)
+ * Color: orange #F4511E
+ * Title: ใบแจ้งหนี้
  */
 
 import {
@@ -21,61 +21,67 @@ import {
 
 // ─── Interfaces ──────────────────────────────────────────
 
-interface CnItemData {
+export interface ConsignmentReportPdfItem {
   product_name: string;
-  product_code?: string | null;
-  variation_label?: string | null;
-  quantity: number;
+  variation_label: string | null;
+  sku: string | null;
+  qty_sold: number;
   unit_price: number;
-  discount_amount: number;
-  total: number;
+  gp_rate: number;
+  our_amount: number;
 }
 
-interface CnData {
-  cn_number: string;
-  type: 'void' | 'refund' | 'exchange';
+export interface ConsignmentReportPdfData {
+  report_number: string;
+  period_year: number;
+  period_month: number;
   status: string;
-  reason?: string | null;
-  subtotal: number;
-  discount_amount: number;
-  vat_amount: number;
-  total_amount: number;
-  issued_at: string;
-  order?: {
-    order_number?: string;
-    source?: string;
-    customer?: {
-      name?: string;
-      phone?: string;
-    } | null;
+  created_at: string;
+  due_date: string | null;
+  notes: string | null;
+  customer: {
+    name: string;
+    customer_code?: string | null;
+    phone?: string | null;
+    tax_company_name?: string | null;
+    tax_id?: string | null;
+    tax_branch?: string | null;
+    billing_address?: string | null;
   } | null;
-  items: CnItemData[];
+  items: ConsignmentReportPdfItem[];
+  total_qty_sold: number;
+  total_sales: number;
+  total_gp_share: number;
+  our_amount: number;
 }
 
 // ─── Theme ──────────────────────────────────────────────
 
-const THEME = { primary: '#dc2626' };
+const THEME = { primary: '#F4511E' };
 
-// ─── Helpers ────────────────────────────────────────────
+const THAI_MONTHS = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
-function getCnTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    void: 'ยกเลิกบิล',
-    refund: 'คืนสินค้า',
-    exchange: 'เปลี่ยนสินค้า',
-  };
-  return labels[type] || type;
-}
+const STATUS_LABELS: Record<string, string> = {
+  draft: 'รอรายงาน',
+  received: 'รับแล้ว',
+  invoiced: 'ออก invoice',
+  billed: 'วางบิลแล้ว',
+  paid: 'ชำระแล้ว',
+  overdue: 'เกินกำหนด',
+  cancelled: 'ยกเลิก',
+};
 
 // ─── Main Export ─────────────────────────────────────────
 
-export async function generateCreditNotePdf(data: CnData, vatRegistered = false): Promise<Blob> {
+export async function generateConsignmentReportPdf(data: ConsignmentReportPdfData): Promise<Blob> {
   const company = await fetchCompanyInfo() || undefined;
   const pdfMake = await setupPdfMake();
   const logoDataUrl = company?.logo_url ? await loadLogoDataUrl(company.logo_url) : null;
 
-  const docTitle = vatRegistered ? 'ใบลดหนี้/ใบกำกับภาษี' : 'ใบลดหนี้';
-  const dateStr = formatPdfDate(data.issued_at);
+  const dateStr = formatPdfDate(data.created_at);
+  const periodStr = `${THAI_MONTHS[data.period_month]} ${data.period_year + 543}`;
+  const statusLabel = STATUS_LABELS[data.status] || data.status;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const content: any[] = [];
@@ -84,28 +90,32 @@ export async function generateCreditNotePdf(data: CnData, vatRegistered = false)
   // Section 1 — Header
   // ═══════════════════════════════════════════════════
 
-  const companyStack = buildCompanyStack(company, logoDataUrl);
+  const companyStack = buildCompanyStack(company, logoDataUrl, data.customer, THEME.primary);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const infoBoxRows: any[] = [
     [
       { text: 'เลขที่', fontSize: 10, color: THEME.primary, bold: true },
-      { text: data.cn_number, fontSize: 10, bold: true },
+      { text: data.report_number, fontSize: 10, bold: true },
     ],
     [
       { text: 'วันที่', fontSize: 10, color: THEME.primary, bold: true },
       { text: dateStr, fontSize: 10 },
     ],
     [
-      { text: 'ประเภท', fontSize: 10, color: THEME.primary, bold: true },
-      { text: getCnTypeLabel(data.type), fontSize: 10, bold: true },
+      { text: 'งวด', fontSize: 10, color: THEME.primary, bold: true },
+      { text: periodStr, fontSize: 10 },
+    ],
+    [
+      { text: 'สถานะ', fontSize: 10, color: THEME.primary, bold: true },
+      { text: statusLabel, fontSize: 10, bold: true },
     ],
   ];
 
-  if (data.order?.order_number) {
+  if (data.due_date) {
     infoBoxRows.push([
-      { text: 'อ้างอิง', fontSize: 10, color: THEME.primary, bold: true },
-      { text: data.order.order_number, fontSize: 10 },
+      { text: 'ครบกำหนด', fontSize: 10, color: THEME.primary, bold: true },
+      { text: formatPdfDate(data.due_date), fontSize: 10 },
     ]);
   }
 
@@ -119,7 +129,7 @@ export async function generateCreditNotePdf(data: CnData, vatRegistered = false)
       {
         width: 230,
         stack: [
-          { text: docTitle, fontSize: vatRegistered ? 18 : 24, bold: true, color: THEME.primary, alignment: 'right', margin: [0, 0, 0, 6] },
+          { text: 'ใบแจ้งหนี้', fontSize: 24, bold: true, color: THEME.primary, alignment: 'right', margin: [0, 0, 0, 6] },
           {
             table: {
               widths: [55, '*'],
@@ -144,91 +154,32 @@ export async function generateCreditNotePdf(data: CnData, vatRegistered = false)
   });
 
   // ═══════════════════════════════════════════════════
-  // Section 2 — Customer info + Reason
-  // ═══════════════════════════════════════════════════
-
-  const customerName = data.order?.customer?.name || '';
-  const customerPhone = data.order?.customer?.phone || '';
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const leftStack: any[] = [];
-  if (customerName) {
-    leftStack.push(
-      { text: 'ลูกค้า', fontSize: 10, bold: true, color: THEME.primary, margin: [0, 0, 0, 4] },
-      { text: customerName, fontSize: 12, bold: true, color: '#333333' },
-    );
-    if (customerPhone) {
-      leftStack.push({ text: `โทร: ${customerPhone}`, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
-    }
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rightStack: any[] = [];
-  if (data.reason) {
-    rightStack.push(
-      { text: 'เหตุผล', fontSize: 10, bold: true, color: THEME.primary, margin: [0, 0, 0, 4] },
-      { text: data.reason, fontSize: 10, color: '#555555' },
-    );
-  }
-
-  if (leftStack.length > 0 || rightStack.length > 0) {
-    content.push({
-      columns: [
-        { width: '*', stack: leftStack.length > 0 ? leftStack : [{ text: '' }] },
-        ...(rightStack.length > 0 ? [{ width: 200, stack: rightStack }] : []),
-      ],
-      margin: [0, 0, 0, 12],
-    });
-  }
-
-  // ═══════════════════════════════════════════════════
   // Section 3 — Items table
   // ═══════════════════════════════════════════════════
-
-  const hasDiscount = data.items.some(i => Number(i.discount_amount || 0) > 0);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const headerCols: any[] = [
     { text: '#', style: 'tableHeader', alignment: 'center' },
-    { text: 'รายละเอียด', style: 'tableHeader' },
+    { text: 'รายละเอียดสินค้า', style: 'tableHeader' },
     { text: 'จำนวน', style: 'tableHeader', alignment: 'center' },
     { text: 'ราคา/หน่วย', style: 'tableHeader', alignment: 'right' },
+    { text: 'รวม', style: 'tableHeader', alignment: 'right' },
   ];
-  const widths: (number | string)[] = [25, '*', 45, 70];
-
-  if (hasDiscount) {
-    headerCols.push({ text: 'ส่วนลด', style: 'tableHeader', alignment: 'right' });
-    widths.push(60);
-  }
-  headerCols.push({ text: 'รวม', style: 'tableHeader', alignment: 'right' });
-  widths.push(70);
+  const widths: (number | string)[] = [25, '*', 50, 80, 80];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tableBody: any[][] = [headerCols];
 
   data.items.forEach((item, idx) => {
-    const subtitle = [item.product_code, item.variation_label].filter(Boolean).join(' · ');
-    const nameContent = buildProductNameStack(item.product_name || '', subtitle);
+    const nameStack = buildProductNameStack(item.product_name, item.variation_label, item.sku);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const row: any[] = [
+    tableBody.push([
       { text: String(idx + 1), alignment: 'center', fontSize: 10, color: '#666666' },
-      { stack: nameContent },
-      { text: String(item.quantity), alignment: 'center', fontSize: 10 },
+      { stack: nameStack },
+      { text: String(item.qty_sold), alignment: 'center', fontSize: 10 },
       { text: formatPdfPrice(item.unit_price), alignment: 'right', fontSize: 10 },
-    ];
-
-    if (hasDiscount) {
-      row.push({
-        text: Number(item.discount_amount) > 0 ? formatPdfPrice(item.discount_amount) : '-',
-        alignment: 'right',
-        fontSize: 10,
-        color: '#999999',
-      });
-    }
-
-    row.push({ text: formatPdfPrice(item.total), alignment: 'right', fontSize: 10, bold: true });
-    tableBody.push(row);
+      { text: formatPdfPrice(item.our_amount), alignment: 'right', fontSize: 10, bold: true },
+    ]);
   });
 
   content.push({
@@ -262,33 +213,28 @@ export async function generateCreditNotePdf(data: CnData, vatRegistered = false)
       { text: `${data.items.length} รายการ`, fontSize: 10, alignment: 'right' },
     ],
     [
-      { text: 'รวมสินค้า', fontSize: 10, alignment: 'right', color: '#666666' },
-      { text: formatPdfPrice(data.subtotal), fontSize: 10, alignment: 'right' },
+      { text: 'จำนวนชิ้น', fontSize: 10, alignment: 'right', color: '#666666' },
+      { text: `${data.total_qty_sold} ชิ้น`, fontSize: 10, alignment: 'right' },
+    ],
+    [
+      { text: 'รวมเป็นเงิน', fontSize: 12, alignment: 'right', bold: true, color: THEME.primary },
+      { text: `฿${formatPdfPrice(data.our_amount)}`, fontSize: 12, alignment: 'right', bold: true, color: THEME.primary },
     ],
   ];
 
-  if (Number(data.discount_amount) > 0) {
-    summaryRows.push([
-      { text: 'ส่วนลด', fontSize: 10, alignment: 'right', color: '#666666' },
-      { text: `-${formatPdfPrice(data.discount_amount)}`, fontSize: 10, alignment: 'right', color: THEME.primary },
-    ]);
+  // Notes on left, summary on right
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const leftContent: any[] = [];
+  if (data.notes) {
+    leftContent.push(
+      { text: 'หมายเหตุ', fontSize: 10, bold: true, color: '#666666', margin: [0, 0, 0, 2] },
+      { text: data.notes, fontSize: 10, color: '#555555' },
+    );
   }
-
-  if (Number(data.vat_amount) > 0) {
-    summaryRows.push([
-      { text: 'VAT 7%', fontSize: 10, alignment: 'right', color: '#666666' },
-      { text: formatPdfPrice(data.vat_amount), fontSize: 10, alignment: 'right' },
-    ]);
-  }
-
-  summaryRows.push([
-    { text: 'รวมทั้งสิ้น', fontSize: 12, alignment: 'right', bold: true, color: THEME.primary },
-    { text: `฿${formatPdfPrice(data.total_amount)}`, fontSize: 12, alignment: 'right', bold: true, color: THEME.primary },
-  ]);
 
   content.push({
     columns: [
-      { width: '*', text: '' },
+      { width: '*', stack: leftContent.length > 0 ? leftContent : [{ text: '' }] },
       {
         width: 260,
         table: {
@@ -330,7 +276,7 @@ export async function generateCreditNotePdf(data: CnData, vatRegistered = false)
     },
     content: withOriginalAndCopy(content),
     background: buildCornerTriangle(THEME.primary),
-    footer: buildSignatureFooter(companyName, 'ผู้ออกเอกสาร', 'ผู้รับเอกสาร'),
+    footer: buildSignatureFooter(companyName, 'ผู้ขาย', 'ตัวแทนจำหน่าย'),
   };
 
   const pdfDoc = pdfMake.createPdf(docDefinition);

@@ -40,7 +40,12 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (status && status !== 'all') {
-      query = query.eq('status', status);
+      // "received" tab includes both received and partial_received
+      if (status === 'received') {
+        query = query.in('status', ['received', 'partial_received']);
+      } else {
+        query = query.eq('status', status);
+      }
     }
 
     if (search) {
@@ -81,6 +86,10 @@ export async function GET(request: NextRequest) {
     for (const row of statusRows || []) {
       const s = (row as { status: string }).status;
       statusCounts[s] = (statusCounts[s] || 0) + 1;
+    }
+    // Merge partial_received count into received for tab badge
+    if (statusCounts['partial_received']) {
+      statusCounts['received'] = (statusCounts['received'] || 0) + statusCounts['partial_received'];
     }
 
     return NextResponse.json({

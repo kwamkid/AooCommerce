@@ -54,6 +54,7 @@ export default function StockTransferPage() {
   const [sourceInventory, setSourceInventory] = useState<InventoryRecord[]>([]);
   const [destInventory, setDestInventory] = useState<InventoryRecord[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [allowOversell, setAllowOversell] = useState(true);
 
   const [products, setProducts] = useState<ProductSearchItem[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
@@ -117,6 +118,7 @@ export default function StockTransferPage() {
         const data = await res.json();
         const list: WarehouseItem[] = data.warehouses || [];
         setWarehouses(list);
+        if (data.stockConfig) setAllowOversell(data.stockConfig.allowOversell !== false);
         const def = list.find(wh => wh.is_default);
         if (def) setSourceWarehouseId(def.id);
         else if (list.length === 1) setSourceWarehouseId(list[0].id);
@@ -354,6 +356,8 @@ export default function StockTransferPage() {
             onRemove={handleRemoveItem}
             emptyMessage="เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน"
             showSummary={true}
+            stockMap={Object.fromEntries(sourceInventory.map(s => [s.variation_id, s.available]))}
+            disableOutOfStock={!allowOversell}
           />
         )}
 

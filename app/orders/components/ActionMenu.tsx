@@ -89,7 +89,9 @@ export default function ActionMenu({ items }: { items: ActionItem[] }) {
                     ? 'text-gray-400 dark:text-slate-500 cursor-default'
                     : item.danger
                       ? 'text-red-500 hover:bg-gray-50 dark:hover:bg-slate-700'
-                      : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                      : item.className
+                        ? `${item.className} hover:bg-gray-50 dark:hover:bg-slate-700`
+                        : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                 }`}
               >
                 {item.icon}

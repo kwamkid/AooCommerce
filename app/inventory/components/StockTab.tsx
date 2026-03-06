@@ -281,26 +281,17 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             />
           </div>
           {warehouses.length > 1 && (
-            <div className="w-40">
+            <div className="w-48">
               <FormSelect
                 value={warehouse}
                 onChange={v => setParams({ wh: v || null, dealer: null })}
-                options={warehouses.map(wh => ({ id: wh.id, label: wh.name }))}
+                options={[
+                  ...warehouses.filter(wh => wh.warehouse_type !== 'consignment').map(wh => ({ id: wh.id, label: wh.name })),
+                  ...warehouses.filter(wh => wh.warehouse_type === 'consignment').map(wh => ({ id: wh.id, label: `[ตัวแทน] ${wh.name}` })),
+                ]}
                 clearLabel="ทุกคลัง"
                 icon={<Warehouse className="w-4 h-4" />}
-              />
-            </div>
-          )}
-          {features.consignment && dealers.length > 0 && (
-            <div className="w-44">
-              <FormSelect
-                value={dealerFilter}
-                onChange={v => setParams({ dealer: v || null, wh: null })}
-                options={dealers}
-                clearLabel="ทุกตัวแทน"
-                placeholder="ตัวแทนฝากขาย"
-                searchPlaceholder="ค้นหาตัวแทน..."
-                icon={<Layers className="w-4 h-4" />}
+                searchThreshold={7}
               />
             </div>
           )}

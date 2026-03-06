@@ -15,6 +15,7 @@ import {
   ClipboardList, FileText, User, Ban,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
+import Tooltip from '@/components/ui/Tooltip';
 import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/replenishment-pdf';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateReplenishmentLabelPdf } from '@/lib/order-shipping-label-pdf';
@@ -43,7 +44,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   shipped: { label: 'กำลังส่ง', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/40' },
   pending_confirm: { label: 'รอยืนยัน', color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/40' },
   received: { label: 'รับครบแล้ว', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40' },
-  partial_received: { label: 'รับไม่ครบ', color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
+  partial_received: { label: 'รับไม่ครบ', color: 'text-yellow-700 dark:text-yellow-300', bg: 'bg-yellow-100 dark:bg-yellow-900/40' },
   cancelled: { label: 'ยกเลิก', color: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
 };
 
@@ -51,7 +52,8 @@ const STATUS_TABS = [
   { key: 'all',            label: 'ทั้งหมด',       active: 'bg-[#F4511E]',           inactive: 'bg-orange-50 dark:bg-orange-950/30',   labelColor: 'text-[#F4511E] dark:text-orange-400',       countColor: 'text-[#F4511E] dark:text-orange-300' },
   { key: 'pending',        label: 'ที่ต้องจัดส่ง', active: 'bg-orange-500',           inactive: 'bg-orange-50 dark:bg-orange-950/50',   labelColor: 'text-orange-600 dark:text-orange-400',      countColor: 'text-orange-700 dark:text-orange-300' },
   { key: 'shipped',        label: 'กำลังส่ง',       active: 'bg-amber-500',            inactive: 'bg-amber-50 dark:bg-amber-950/50',     labelColor: 'text-amber-600 dark:text-amber-400',        countColor: 'text-amber-700 dark:text-amber-300' },
-  { key: 'pending_confirm',label: 'รอยืนยัน',       active: 'bg-blue-600',             inactive: 'bg-blue-50 dark:bg-blue-950/50',       labelColor: 'text-blue-600 dark:text-blue-400',          countColor: 'text-blue-700 dark:text-blue-300' },
+  { key: 'pending_confirm',label: 'รอยืนยัน',       active: 'bg-blue-600',             inactive: 'bg-blue-50 dark:bg-blue-950/50',       labelColor: 'text-blue-600 dark:text-blue-400',          countColor: 'text-blue-700 dark:text-blue-300',
+    tooltip: 'ตัวแทนแจ้งรับของแล้ว แต่จำนวนไม่ตรง รอ Admin ตรวจสอบและยืนยัน' },
   { key: 'received',       label: 'รับแล้ว',         active: 'bg-emerald-600',          inactive: 'bg-emerald-50 dark:bg-emerald-950/50', labelColor: 'text-emerald-600 dark:text-emerald-400',    countColor: 'text-emerald-700 dark:text-emerald-300' },
   { key: 'cancelled',      label: 'ยกเลิก',          active: 'bg-gray-500',             inactive: 'bg-gray-100 dark:bg-gray-800',         labelColor: 'text-gray-500 dark:text-gray-400',          countColor: 'text-gray-600 dark:text-gray-300' },
 ];
@@ -561,6 +563,7 @@ function ReplenishmentsPageContent() {
           key: 'all',
           label: isPrinting && printingType === 'all' ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
           icon: isPrinting && printingType === 'all' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+          className: 'text-[#F4511E] font-medium',
           onClick: () => handlePrintAll(r.id),
           disabled: isPrinting,
         },
@@ -641,21 +644,36 @@ function ReplenishmentsPageContent() {
         </div>
 
         {/* Status Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex gap-2 flex-wrap">
           {STATUS_TABS.map(tab => {
             const count = getTabCount(tab.key);
             const isActive = activeStatus === tab.key;
             return (
-              <button
-                key={tab.key}
-                onClick={() => handleStatusChange(tab.key)}
-                className={`flex-shrink-0 rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
-                  isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
-                }`}
-              >
-                <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
-                <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
-              </button>
+              <div key={tab.key} className="flex-shrink-0">
+                {tab.tooltip ? (
+                  <Tooltip text={tab.tooltip}>
+                    <button
+                      onClick={() => handleStatusChange(tab.key)}
+                      className={`rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
+                        isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
+                      }`}
+                    >
+                      <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
+                      <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
+                    </button>
+                  </Tooltip>
+                ) : (
+                  <button
+                    onClick={() => handleStatusChange(tab.key)}
+                    className={`rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
+                      isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
+                    }`}
+                  >
+                    <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
+                    <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
@@ -680,7 +698,7 @@ function ReplenishmentsPageContent() {
                   <th className="data-th">ผู้ทำรายการ</th>
                   <th className="data-th">ผู้รับ</th>
                   <th className="data-th text-center">พิมพ์</th>
-                  <th className="data-th text-center">จัดการ</th>
+                  <th className="data-th text-right">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="data-tbody">
@@ -756,24 +774,19 @@ function ReplenishmentsPageContent() {
                       {/* พิมพ์ */}
                       <td className="data-td text-center" onClick={e => e.stopPropagation()}>
                         {r.status === 'pending' ? (
-                          <div
-                            className="flex items-center justify-center gap-1"
-                            title={[
-                              `ใบจัดของ: ${printed.has('packing') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`,
-                              `ใบส่งของ: ${printed.has('dn') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`,
-                              `ใบปะหน้า: ${printed.has('label') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`,
-                            ].join('\n')}
-                          >
-                            {isPrinting && <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />}
-                            <span className={`w-2.5 h-2.5 rounded-full ${printed.has('packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                            <span className={`w-2.5 h-2.5 rounded-full ${printed.has('dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                            <span className={`w-2.5 h-2.5 rounded-full ${printed.has('label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                          </div>
+                          <Tooltip text={`ใบจัดของ: ${printed.has('packing') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบส่งของ: ${printed.has('dn') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบปะหน้า: ${printed.has('label') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`}>
+                            <div className="flex items-center justify-center gap-1">
+                              {isPrinting && <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />}
+                              <span className={`w-2.5 h-2.5 rounded-full ${printed.has('packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                              <span className={`w-2.5 h-2.5 rounded-full ${printed.has('dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                              <span className={`w-2.5 h-2.5 rounded-full ${printed.has('label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                            </div>
+                          </Tooltip>
                         ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
                       </td>
                       {/* จัดการ */}
                       <td className="data-td" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-1">
+                        <div className="flex items-center justify-end gap-1">
                           {r.status === 'pending' && (
                             <button
                               onClick={() => setShipModalId(r.id)}

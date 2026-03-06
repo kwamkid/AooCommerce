@@ -55,6 +55,7 @@ export default function StockIssuePage() {
 
   const [stockMap, setStockMap] = useState<Record<string, number>>({});
   const [loadingStock, setLoadingStock] = useState(false);
+  const [allowOversell, setAllowOversell] = useState(true);
 
   const [items, setItems] = useState<IssueItem[]>([]);
   const [batchNotes, setBatchNotes] = useState('');
@@ -74,6 +75,7 @@ export default function StockIssuePage() {
         const data = await res.json();
         const whs: WarehouseItem[] = data.warehouses || [];
         setWarehouses(whs);
+        if (data.stockConfig) setAllowOversell(data.stockConfig.allowOversell !== false);
         if (whs.length > 0) setSelectedWarehouse(whs[0].id);
       }
     } catch {
@@ -165,10 +167,12 @@ export default function StockIssuePage() {
     setItems(items.filter((_, i) => i !== idx));
   };
 
-  const canSubmit = selectedWarehouse && items.length > 0 && items.every(i => i.reason.trim().length > 0);
+  const hasStockViolation = !allowOversell && items.some(i => i.quantity > (stockMap[i.variation_id] ?? 0));
+  const canSubmit = selectedWarehouse && items.length > 0 && items.every(i => i.reason.trim().length > 0) && !hasStockViolation;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
+    if (hasStockViolation) { showToast('บางรายการมีจำนวนเบิกเกินกว่า stock ที่มี', 'error'); return; }
     setShowConfirm(true);
   };
 
@@ -262,6 +266,7 @@ export default function StockIssuePage() {
             items={tableItems}
             columns={['stock_badge', 'qty', 'reason']}
             stockMap={stockMap}
+            disableOutOfStock={!allowOversell}
             reasonOptions={REASON_OPTIONS}
             products={products}
             loadingProducts={loadingProducts}

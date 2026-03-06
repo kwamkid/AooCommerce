@@ -18,6 +18,8 @@ import {
   buildCompanyStack,
   buildCornerTriangle,
   buildSignatureFooter,
+  buildProductNameStack,
+  withOriginalAndCopy,
 } from './pdf-utils';
 
 // ─── Interfaces ──────────────────────────────────────────
@@ -80,9 +82,6 @@ const THEMES = {
 };
 
 // ─── Helpers ─────────────────────────────────────────────
-
-const MAX_NAME_LEN = 70;
-const truncateName = (name: string) => name.length > MAX_NAME_LEN ? name.slice(0, MAX_NAME_LEN) + '...' : name;
 
 function getDocumentTitle(paymentStatus: string, vatRegistered: boolean): string {
   if (paymentStatus === 'paid') {
@@ -161,6 +160,7 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
   }
 
   content.push({
+    columnGap: 16,
     columns: [
       {
         width: '*',
@@ -285,13 +285,8 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
 
   // Table rows
   const tableBody = data.items.map((item, idx) => {
-    const nameText = truncateName(item.product_name);
-    const subtitleParts = [item.product_code, item.variation_label].filter(Boolean);
-    const subtitle = subtitleParts.join(' | ');
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const productStack: any[] = [{ text: nameText, fontSize: 11 }];
-    if (subtitle) productStack.push({ text: subtitle, fontSize: 9, color: '#888888' });
+    const subtitle = [item.product_code, item.variation_label].filter(Boolean).join(' | ');
+    const productStack = buildProductNameStack(item.product_name, subtitle);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const row: any[] = [
@@ -449,7 +444,7 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
     pageMargins: [40, 40, 40, 110] as [number, number, number, number],
     background: () => buildCornerTriangle(theme.primary),
     footer: buildSignatureFooter(company?.name || '', 'ผู้ออกเอกสาร', 'ผู้รับสินค้า'),
-    content,
+    content: withOriginalAndCopy(content),
     styles: {
       tableHeader: { bold: true, fontSize: 11, color: '#333333' },
     },

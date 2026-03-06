@@ -159,7 +159,7 @@ export default function ItemsTable({
 
   function ProductCell({ item }: { item: TableItem }) {
     const name = item.product_name + (item.variation_label ? ` - ${item.variation_label}` : '');
-    const sub = [item.product_code, item.sku && item.sku !== item.product_code ? item.sku : null].filter(Boolean).join(' · ');
+    const sub = [item.product_code, item.sku && item.sku !== item.product_code && item.sku !== item.variation_label ? item.sku : null].filter(Boolean).join(' · ');
     return (
       <div className="flex items-center gap-3">
         {item.image
@@ -233,7 +233,7 @@ export default function ItemsTable({
             <tr>
               <th className="data-th">สินค้า</th>
               {hasStockSource && <th className="data-th text-center" style={{width:'8rem'}}>สต๊อกต้นทาง</th>}
-              {hasStockDest && <th className="data-th text-center" style={{width:'8rem'}}>สต๊อกปลายทาง</th>}
+              {hasStockDest && <th className="data-th text-center" style={{width:'8rem'}}>สต๊อกที่ร้าน</th>}
               {hasPoQty && <th className="data-th text-center" style={{width:'6rem'}}>จำนวน PO</th>}
               <th className="data-th text-center" style={{width:'8rem'}}>จำนวน</th>
               {hasQtyReceived && <th className="data-th text-center" style={{width:'4.5rem'}}>รับแล้ว</th>}
@@ -397,7 +397,7 @@ export default function ItemsTable({
                   <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                     {(item.product_code || item.sku) && (
                       <p className="text-xs text-gray-400 dark:text-slate-500 truncate">
-                        {[item.product_code, item.sku && item.sku !== item.product_code ? item.sku : null].filter(Boolean).join(' · ')}
+                        {[item.product_code, item.sku && item.sku !== item.product_code && item.sku !== item.variation_label ? item.sku : null].filter(Boolean).join(' · ')}
                       </p>
                     )}
                     {hasStock && <StockBadge qty={stockQty} />}
@@ -438,7 +438,7 @@ export default function ItemsTable({
                 )}
                 {hasStockDest && (
                   <div>
-                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">สต๊อกปลายทาง</label>
+                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">สต๊อกที่ร้าน</label>
                     <StockBadge qty={item.stock_dest} destStyle />
                   </div>
                 )}

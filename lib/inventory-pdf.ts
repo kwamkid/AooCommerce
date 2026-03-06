@@ -13,6 +13,8 @@ import {
   buildCompanyStack,
   buildCornerTriangle,
   buildSignatureFooter,
+  buildProductNameStack,
+  withOriginalAndCopy,
 } from './pdf-utils';
 
 /** Generate a barcode as a data URL using JsBarcode on an off-screen canvas */
@@ -32,9 +34,6 @@ function generateBarcodeDataUrl(value: string): string | null {
     return null;
   }
 }
-
-const MAX_NAME_LEN = 70;
-const truncateName = (name: string) => name.length > MAX_NAME_LEN ? name.slice(0, MAX_NAME_LEN) + '...' : name;
 
 interface InventoryVariation {
   id: string;
@@ -247,6 +246,7 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
   }
 
   content.push({
+    columnGap: 16,
     columns: [
       {
         width: '*',
@@ -324,12 +324,9 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
   const tableBody = data.items.map((item, idx) => {
     const varLabel = getVariationLabel(item);
     const fullName = (item.variation?.product?.name || '-') + (varLabel ? ` - ${varLabel}` : '');
-    const nameText = truncateName(fullName);
     const subText = buildSubtitle(item);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const productStack: any[] = [{ text: nameText, fontSize: 11 }];
-    if (subText) productStack.push({ text: subText, fontSize: 9, color: '#888888' });
+    const productStack = buildProductNameStack(fullName, subText);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const row: any[] = [
@@ -455,7 +452,7 @@ export async function generateInventoryPdf({ type, data, company }: GeneratePdfO
     pageMargins: [40, 40, 40, 110] as [number, number, number, number],
     background: () => buildCornerTriangle(theme.primary),
     footer: buildSignatureFooter(company?.name || '', leftSignLabel, rightSignLabel),
-    content,
+    content: withOriginalAndCopy(content),
     styles: {
       tableHeader: { bold: true, fontSize: 11, color: '#333333' },
     },

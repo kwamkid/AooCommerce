@@ -17,6 +17,7 @@ import {
   formatPdfDate,
   formatPdfPrice,
   buildCornerTriangle,
+  buildProductNameStack,
 } from './pdf-utils';
 
 // Re-export the data interface so callers can use it
@@ -53,6 +54,12 @@ export interface AbbreviatedInvoiceData {
   delivery_name?: string;
   delivery_phone?: string;
   items: AbbreviatedInvoiceItem[];
+  // Running number fields
+  tax_invoice_number?: string;
+  tax_invoice_date?: string;
+  // Void support
+  tax_invoice_voided_at?: string | null;
+  tax_invoice_replaced_abbrev_number?: string | null; // ใบแทนที่
 }
 
 // ─── Themes ─────────────────────────────────────────────
@@ -63,10 +70,6 @@ const THEMES = {
 };
 
 // ─── Helpers ────────────────────────────────────────────
-
-const MAX_NAME_LEN = 50;
-const truncateName = (name: string) =>
-  name.length > MAX_NAME_LEN ? name.slice(0, MAX_NAME_LEN) + '...' : name;
 
 function getDocTitle(paymentStatus: string, vatRegistered: boolean): string {
   if (paymentStatus !== 'paid') return 'ใบแจ้งหนี้';
@@ -106,6 +109,7 @@ function buildCompactInvoiceContent(
   vatRegistered: boolean,
 ) {
   const isPaid = order.payment_status === 'paid';
+  const isVoided = !!order.tax_invoice_voided_at;
   const theme = isPaid ? THEMES.paid : THEMES.unpaid;
   const docTitle = getDocTitle(order.payment_status, vatRegistered);
   const dateStr = formatPdfDate(order.order_date || order.created_at);
@@ -148,6 +152,13 @@ function buildCompactInvoiceContent(
       { text: getPaymentStatusLabel(order.payment_status), fontSize: 8, bold: true },
     ],
   ];
+
+  if (order.tax_invoice_number) {
+    infoRows.push([
+      { text: 'เลขใบกำกับ', fontSize: 8, color: theme.primary, bold: true },
+      { text: order.tax_invoice_number, fontSize: 8, bold: true },
+    ]);
+  }
 
   if (isPaid && order.payment_method) {
     infoRows.push([
@@ -224,13 +235,8 @@ function buildCompactInvoiceContent(
   const widths: (number | string)[] = [20, '*', 35, 55, 60];
 
   const tableBody = order.items.map((item, idx) => {
-    const nameText = truncateName(item.product_name);
-    const subtitleParts = [item.product_code, item.variation_label].filter(Boolean);
-    const subtitle = subtitleParts.join(' | ');
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const productStack: any[] = [{ text: nameText, fontSize: 9 }];
-    if (subtitle) productStack.push({ text: subtitle, fontSize: 7, color: '#888888' });
+    const subtitle = [item.product_code, item.variation_label].filter(Boolean).join(' | ');
+    const productStack = buildProductNameStack(item.product_name, subtitle);
 
     return [
       { text: `${idx + 1}`, alignment: 'center', fontSize: 9, margin: [0, 1, 0, 0] },
@@ -328,6 +334,19 @@ function buildCompactInvoiceContent(
       },
     ],
   });
+
+  // ── Void watermark ──
+  if (isVoided) {
+    content.push({
+      text: 'ยกเลิก',
+      fontSize: 48,
+      bold: true,
+      color: '#dc262650',
+      alignment: 'center',
+      margin: [0, -120, 0, 0],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+  }
 
   return content;
 }

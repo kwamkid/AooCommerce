@@ -1083,6 +1083,55 @@ export async function PUT(request: NextRequest) {
           }
         }
 
+        // --- Auto-issue ABB for accepted a_cash orders ---
+        const acceptedManualIds = [...nonVerifyingIds, ...verifyingIds];
+        if (acceptedManualIds.length > 0) {
+          try {
+            const { issueAbbreviatedInvoice } = await import('@/lib/invoice-service');
+            // Get flow_type for accepted orders to filter a_cash only
+            const { data: acceptedOrders } = await supabaseAdmin
+              .from('orders')
+              .select('id, flow_type, tax_invoice_number')
+              .in('id', acceptedManualIds)
+              .eq('company_id', auth.companyId);
+
+            for (const o of acceptedOrders || []) {
+              if (o.flow_type === 'a_cash' && !o.tax_invoice_number) {
+                await issueAbbreviatedInvoice(o.id, auth.companyId!);
+              }
+            }
+          } catch (abbErr) {
+            console.error('[BULK ACCEPT ABB] Error:', abbErr);
+            // Non-blocking
+          }
+        }
+
+        // Also issue ABB for accepted Shopee orders (a_cash)
+        if (shopeeOrders.length > 0) {
+          try {
+            const { issueAbbreviatedInvoice } = await import('@/lib/invoice-service');
+            const acceptedShopeeIds = shopeeOrders
+              .filter(o => o.flow_type === 'a_cash')
+              .map(o => o.id);
+            // Re-check which were actually updated to processing
+            const { data: processedShopee } = await supabaseAdmin
+              .from('orders')
+              .select('id, tax_invoice_number')
+              .in('id', acceptedShopeeIds)
+              .eq('company_id', auth.companyId)
+              .eq('order_status', 'processing');
+
+            for (const o of processedShopee || []) {
+              if (!o.tax_invoice_number) {
+                await issueAbbreviatedInvoice(o.id, auth.companyId!);
+              }
+            }
+          } catch (abbErr) {
+            console.error('[BULK ACCEPT SHOPEE ABB] Error:', abbErr);
+          }
+        }
+        // --- End auto ABB ---
+
         return NextResponse.json({
           success: true,
           updated: updatedCount,
@@ -1387,35 +1436,25 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'ชื่อกิจการและเลขผู้เสียภาษีจำเป็นต้องกรอก' }, { status: 400 });
       }
 
-      // Generate running invoice number: INV-YYMMDD-NNNN
-      const now = new Date();
-      const yy = String(now.getFullYear()).slice(2);
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const dd = String(now.getDate()).padStart(2, '0');
-      const prefix = `INV-${yy}${mm}${dd}-`;
+      // Get company VAT status
+      const { data: companyData } = await supabaseAdmin
+        .from('companies').select('vat_registered').eq('id', auth.companyId).single();
+      const vatRegistered = companyData?.vat_registered ?? false;
 
-      const { data: lastInv } = await supabaseAdmin
-        .from('orders')
-        .select('tax_invoice_number')
-        .eq('company_id', auth.companyId)
-        .like('tax_invoice_number', `${prefix}%`)
-        .order('tax_invoice_number', { ascending: false })
-        .limit(1)
-        .single();
-
-      let seq = 1;
-      if (lastInv?.tax_invoice_number) {
-        const lastSeq = parseInt(lastInv.tax_invoice_number.replace(prefix, ''), 10);
-        if (!isNaN(lastSeq)) seq = lastSeq + 1;
+      // Generate number via RPC (monthly, thread-safe)
+      // TAX = มีชื่อ+เลขภาษี + จด VAT, REC = ไม่จด VAT
+      const rpcName = vatRegistered ? 'generate_tax_invoice_number' : 'generate_receipt_number';
+      const docType = vatRegistered ? 'tax' : 'receipt';
+      const { data: invoiceNumber, error: rpcErr } = await supabaseAdmin
+        .rpc(rpcName, { p_company_id: auth.companyId });
+      if (rpcErr || !invoiceNumber) {
+        return NextResponse.json({ error: 'ไม่สามารถสร้างเลขเอกสารได้' }, { status: 500 });
       }
-      const invoiceNumber = `${prefix}${String(seq).padStart(4, '0')}`;
 
-      // Check if retroactive (order paid_at month != today)
+      const now = new Date();
+      // Check if retroactive (order created in previous month)
       const { data: orderForRetro } = await supabaseAdmin
-        .from('orders')
-        .select('created_at, payment_status')
-        .eq('id', id)
-        .single();
+        .from('orders').select('created_at').eq('id', id).single();
       const orderMonth = orderForRetro?.created_at ? new Date(orderForRetro.created_at).getMonth() : now.getMonth();
       const isRetroactive = orderMonth !== now.getMonth();
 
@@ -1425,12 +1464,14 @@ export async function PUT(request: NextRequest) {
         .update({
           tax_invoice_requested: true,
           tax_invoice_type: 'full',
+          tax_invoice_doc_type: docType,
           tax_invoice_number: invoiceNumber,
           tax_invoice_date: now.toISOString().split('T')[0],
           tax_invoice_name,
           tax_invoice_tax_id,
           tax_invoice_branch: tax_invoice_branch || null,
           tax_invoice_address: tax_invoice_address || null,
+          vat_registered_at_issue: vatRegistered,
           is_retroactive: isRetroactive,
           updated_at: now.toISOString(),
         })
@@ -1461,12 +1502,129 @@ export async function PUT(request: NextRequest) {
           id,
           tax_invoice_requested: true,
           tax_invoice_type: 'full',
+          tax_invoice_doc_type: docType,
           tax_invoice_number: invoiceNumber,
           tax_invoice_date: now.toISOString().split('T')[0],
           tax_invoice_name,
           tax_invoice_tax_id,
           tax_invoice_branch,
           tax_invoice_address,
+        },
+      });
+    }
+
+    // --- set_abbreviated_invoice: ออกใบกำกับอย่างย่อ (ABB) / ใบเสร็จ (REC) ---
+    if (body.action === 'set_abbreviated_invoice') {
+      const { issueAbbreviatedInvoice } = await import('@/lib/invoice-service');
+      const result = await issueAbbreviatedInvoice(id, auth.companyId!);
+      if (!result.success) {
+        return NextResponse.json({ error: result.error || 'ไม่สามารถสร้างเลขเอกสารได้' }, { status: 500 });
+      }
+      return NextResponse.json({
+        success: true,
+        order: {
+          id,
+          tax_invoice_requested: true,
+          tax_invoice_type: 'abbreviated',
+          tax_invoice_doc_type: result.docType,
+          tax_invoice_number: result.invoiceNumber,
+          tax_invoice_date: new Date().toISOString().split('T')[0],
+        },
+      });
+    }
+
+    // --- void_abbreviated_invoice: void ABB แล้วออก TAX ใหม่ ---
+    if (body.action === 'void_abbreviated_invoice') {
+      const { tax_invoice_name, tax_invoice_tax_id, tax_invoice_branch, tax_invoice_address } = body;
+      if (!tax_invoice_name || !tax_invoice_tax_id) {
+        return NextResponse.json({ error: 'ชื่อกิจการและเลขผู้เสียภาษีจำเป็นต้องกรอก' }, { status: 400 });
+      }
+
+      // 1. ดึงข้อมูล order ปัจจุบัน
+      const { data: currentOrder } = await supabaseAdmin
+        .from('orders')
+        .select('tax_invoice_number, tax_invoice_doc_type, tax_invoice_voided_at')
+        .eq('id', id)
+        .eq('company_id', auth.companyId)
+        .single();
+
+      if (!currentOrder?.tax_invoice_number || currentOrder.tax_invoice_doc_type !== 'abbreviated') {
+        return NextResponse.json({ error: 'ไม่พบใบกำกับอย่างย่อที่จะ void' }, { status: 400 });
+      }
+      if (currentOrder.tax_invoice_voided_at) {
+        return NextResponse.json({ error: 'ใบกำกับนี้ถูก void ไปแล้ว' }, { status: 400 });
+      }
+
+      const abbrevNumber = currentOrder.tax_invoice_number;
+
+      // 2. ออกเลข TAX ใหม่
+      const { data: companyData } = await supabaseAdmin
+        .from('companies').select('vat_registered').eq('id', auth.companyId).single();
+      const vatRegistered = companyData?.vat_registered ?? true;
+      const { data: newInvoiceNumber, error: rpcErr } = await supabaseAdmin
+        .rpc('generate_tax_invoice_number', { p_company_id: auth.companyId });
+      if (rpcErr || !newInvoiceNumber) {
+        return NextResponse.json({ error: 'ไม่สามารถสร้างเลขเอกสารได้' }, { status: 500 });
+      }
+
+      const now = new Date();
+      const { data: orderForRetro } = await supabaseAdmin
+        .from('orders').select('created_at').eq('id', id).single();
+      const orderMonth = orderForRetro?.created_at ? new Date(orderForRetro.created_at).getMonth() : now.getMonth();
+      const isRetroactive = orderMonth !== now.getMonth();
+
+      // 3. อัปเดต order: void ABB + ออก TAX ใหม่ ในครั้งเดียว
+      const { error: updateErr } = await supabaseAdmin
+        .from('orders')
+        .update({
+          tax_invoice_requested: true,
+          tax_invoice_type: 'full',
+          tax_invoice_doc_type: 'tax',
+          tax_invoice_number: newInvoiceNumber,
+          tax_invoice_date: now.toISOString().split('T')[0],
+          tax_invoice_name,
+          tax_invoice_tax_id,
+          tax_invoice_branch: tax_invoice_branch || null,
+          tax_invoice_address: tax_invoice_address || null,
+          tax_invoice_voided_at: now.toISOString(),
+          tax_invoice_voided_reason: 'replaced_by_full',
+          tax_invoice_replaced_abbrev_number: abbrevNumber,
+          vat_registered_at_issue: vatRegistered,
+          is_retroactive: isRetroactive,
+          updated_at: now.toISOString(),
+        })
+        .eq('id', id)
+        .eq('company_id', auth.companyId);
+
+      if (updateErr) {
+        return NextResponse.json({ error: updateErr.message }, { status: 500 });
+      }
+
+      if (existingOrder.customer_id) {
+        await supabaseAdmin.from('customers').update({
+          tax_company_name: tax_invoice_name,
+          tax_id: tax_invoice_tax_id,
+          tax_branch: tax_invoice_branch || null,
+          billing_address: tax_invoice_address || null,
+          updated_at: now.toISOString(),
+        }).eq('id', existingOrder.customer_id);
+      }
+
+      return NextResponse.json({
+        success: true,
+        voided_number: abbrevNumber,
+        order: {
+          id,
+          tax_invoice_requested: true,
+          tax_invoice_type: 'full',
+          tax_invoice_doc_type: 'tax',
+          tax_invoice_number: newInvoiceNumber,
+          tax_invoice_date: now.toISOString().split('T')[0],
+          tax_invoice_name,
+          tax_invoice_tax_id,
+          tax_invoice_branch,
+          tax_invoice_address,
+          tax_invoice_replaced_abbrev_number: abbrevNumber,
         },
       });
     }

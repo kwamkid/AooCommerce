@@ -112,7 +112,7 @@ export default function ProcessingTab({
   const [overlayProgress, setOverlayProgress] = useState<number | undefined>();
 
   // Tax invoice modal
-  const [taxInvoiceModal, setTaxInvoiceModal] = useState<{ orderId: string; orderNumber: string; customerId?: string } | null>(null);
+  const [taxInvoiceModal, setTaxInvoiceModal] = useState<{ orderId: string; orderNumber: string; customerId?: string; hasAbbrev?: boolean } | null>(null);
 
   // Ship modal (single)
   const [shipModal, setShipModal] = useState<{ order: Order } | null>(null);
@@ -640,6 +640,87 @@ export default function ProcessingTab({
     }
   };
 
+  /** ออกใบกำกับอย่างย่อ (ABB) หรือใบเสร็จ (REC) แล้วพิมพ์ทันที */
+  const handleIssueAndPrintAbbreviated = async (orderId: string) => {
+    setActionLoading(true);
+    setOverlayTitle('กำลังออกเอกสาร...');
+    setOverlayProgress(undefined);
+    setOverlayMessage(undefined);
+    try {
+      // Issue the document via API
+      const res = await apiFetch('/api/orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_abbreviated_invoice', id: orderId }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || 'ออกเอกสารไม่สำเร็จ');
+      }
+      const result = await res.json();
+      const docType = result.order?.tax_invoice_doc_type || 'abbreviated';
+      const docLabel = docType === 'receipt' ? 'ใบเสร็จรับเงิน' : 'ใบกำกับอย่างย่อ';
+
+      setOverlayTitle(`กำลังสร้าง${docLabel}...`);
+
+      // Refresh orders list with updated invoice data
+      const orderData = await fetchOrderForPdf(orderId);
+      const abbrevData = {
+        ...orderData,
+        tax_invoice_number: result.order?.tax_invoice_number,
+        tax_invoice_date: result.order?.tax_invoice_date,
+        tax_invoice_voided_at: null,
+      };
+      const blob = await generateAbbreviatedInvoicePdf([abbrevData]);
+      showPdfPreview(blob, `${docLabel} ${result.order?.tax_invoice_number || ''}`);
+      markOrdersPrinted([orderId], 'invoice');
+      updateLocalPrintStatus(setOrders, [orderId], 'invoice');
+      // Update the order in local list with new invoice fields
+      setOrders(prev => prev.map(o => o.id === orderId ? {
+        ...o,
+        tax_invoice_requested: true,
+        tax_invoice_doc_type: result.order?.tax_invoice_doc_type,
+        tax_invoice_number: result.order?.tax_invoice_number,
+        tax_invoice_voided_at: null,
+      } : o));
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  /** พิมพ์ใบกำกับอย่างย่อ/ใบเสร็จที่มีอยู่แล้ว */
+  const handlePrintAbbreviated = async (order: Order) => {
+    setActionLoading(true);
+    const docLabel = order.tax_invoice_doc_type === 'receipt' ? 'ใบเสร็จรับเงิน' : 'ใบกำกับอย่างย่อ';
+    setOverlayTitle(`กำลังสร้าง${docLabel}...`);
+    setOverlayProgress(undefined);
+    setOverlayMessage(undefined);
+    try {
+      const orderData = await fetchOrderForPdf(order.id);
+      const blob = await generateAbbreviatedInvoicePdf([{
+        ...orderData,
+        tax_invoice_number: order.tax_invoice_number,
+        tax_invoice_date: orderData.tax_invoice_date,
+        tax_invoice_voided_at: order.tax_invoice_voided_at,
+      }]);
+      showPdfPreview(blob, `${docLabel} ${order.tax_invoice_number || ''}`);
+      markOrdersPrinted([order.id], 'invoice');
+      updateLocalPrintStatus(setOrders, [order.id], 'invoice');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  /** void ABB แล้วออก TAX ใหม่ (เปิด TaxInvoiceModal) หรือออก TAX ตรงๆ ถ้าไม่มี ABB */
+  const handleRequestFullInvoice = (order: Order) => {
+    const hasAbbrev = order.tax_invoice_doc_type === 'abbreviated' && !order.tax_invoice_voided_at;
+    setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id, hasAbbrev });
+  };
+
   const handleBulkPrintInvoices = async (orderIds: string[]) => {
     setActionLoading(true);
     setOverlayTitle('กำลังสร้างใบกำกับ/ใบเสร็จ...');
@@ -745,30 +826,79 @@ export default function ProcessingTab({
     // === Section 2: เอกสารการเงิน ===
     const section2Start = menuItems.length;
     if (order.payment_status !== 'paid') {
+      // ยังไม่จ่าย → ใบแจ้งหนี้
       menuItems.push({
         key: 'invoice', label: 'ใบแจ้งหนี้', icon: <Banknote className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
         className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
       });
-    }
-    if (order.payment_status === 'paid') {
-      menuItems.push({
-        key: 'receipt', label: 'ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
-        className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
-      });
-    }
-    if (vatRegistered && order.payment_status === 'paid' && order.tax_invoice_requested !== true) {
-      menuItems.push({
-        key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
-        className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
-      });
-      menuItems.push({
-        key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id }); },
-        className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
-      });
+    } else {
+      // จ่ายแล้ว → logic ตาม doc_type
+      const docType = order.tax_invoice_doc_type;
+      const hasDoc = !!order.tax_invoice_number;
+      const isVoided = !!order.tax_invoice_voided_at;
+
+      if (!hasDoc) {
+        // ยังไม่มีเอกสาร → ออกใหม่
+        if (vatRegistered) {
+          menuItems.push({
+            key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
+            onClick: (e) => { e.stopPropagation(); handleIssueAndPrintAbbreviated(order.id); },
+            className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
+          });
+          menuItems.push({
+            key: 'full-invoice', label: 'ขอใบกำกับภาษี', icon: <Banknote className="w-4 h-4" />,
+            onClick: (e) => { e.stopPropagation(); handleRequestFullInvoice(order); },
+            className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
+          });
+        } else {
+          menuItems.push({
+            key: 'receipt', label: 'ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
+            onClick: (e) => { e.stopPropagation(); handleIssueAndPrintAbbreviated(order.id); },
+            className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
+          });
+        }
+      } else if (docType === 'abbreviated' && !isVoided) {
+        // มี ABB ที่ยังไม่ void
+        menuItems.push({
+          key: 'print-abb', label: 'พิมพ์ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); handlePrintAbbreviated(order); },
+          className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
+        });
+        menuItems.push({
+          key: 'full-invoice', label: 'ขอใบกำกับภาษี', icon: <Banknote className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); handleRequestFullInvoice(order); },
+          className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
+        });
+      } else if (docType === 'abbreviated' && isVoided) {
+        // ABB ถูก void แล้ว (มี TAX อยู่แล้ว) — ไม่ควรเกิดสถานะนี้ แต่ก็แสดง print ABB voided
+        menuItems.push({
+          key: 'print-abb-voided', label: 'พิมพ์ใบกำกับอย่างย่อ (ยกเลิก)', icon: <Banknote className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); handlePrintAbbreviated(order); },
+          className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
+        });
+      } else if (docType === 'tax') {
+        // มี TAX แล้ว
+        menuItems.push({
+          key: 'print-tax', label: 'พิมพ์ใบกำกับภาษี', icon: <Banknote className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
+          className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
+        });
+      } else if (docType === 'receipt') {
+        // มี REC แล้ว
+        menuItems.push({
+          key: 'print-rec', label: 'พิมพ์ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); handlePrintAbbreviated(order); },
+          className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
+        });
+      } else {
+        // fallback: old INV-* or unknown
+        menuItems.push({
+          key: 'receipt-legacy', label: 'ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
+          className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
+        });
+      }
     }
     if (menuItems.length > section2Start && section2Start > 0) {
       menuItems[section2Start].dividerBefore = true;
@@ -994,13 +1124,23 @@ export default function ProcessingTab({
           orderId={taxInvoiceModal.orderId}
           orderNumber={taxInvoiceModal.orderNumber}
           customerId={taxInvoiceModal.customerId}
+          hasAbbrev={taxInvoiceModal.hasAbbrev}
           onClose={() => setTaxInvoiceModal(null)}
           onSaved={async (updatedOrder) => {
             setTaxInvoiceModal(null);
+            const ordId = updatedOrder.id as string;
+            // Update local order state with new invoice fields
+            setOrders(prev => prev.map(o => o.id === ordId ? {
+              ...o,
+              tax_invoice_requested: true,
+              tax_invoice_doc_type: updatedOrder.tax_invoice_doc_type as string,
+              tax_invoice_number: updatedOrder.tax_invoice_number as string,
+              tax_invoice_voided_at: null,
+            } : o));
             // Auto-generate and preview full invoice PDF
             try {
               const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
-              const orderData = await fetchOrderForPdf(updatedOrder.id as string);
+              const orderData = await fetchOrderForPdf(ordId);
               const blob = await generateFullInvoicePdf({
                 ...orderData,
                 tax_invoice_number: updatedOrder.tax_invoice_number,
@@ -1009,10 +1149,12 @@ export default function ProcessingTab({
                 tax_invoice_tax_id: updatedOrder.tax_invoice_tax_id,
                 tax_invoice_address: updatedOrder.tax_invoice_address,
                 tax_invoice_branch: updatedOrder.tax_invoice_branch,
+                tax_invoice_doc_type: updatedOrder.tax_invoice_doc_type,
+                tax_invoice_replaced_abbrev_number: updatedOrder.tax_invoice_replaced_abbrev_number,
               });
-              showPdfPreview(blob, 'ใบกำกับแบบเต็ม/ใบเสร็จรับเงิน');
-              markOrdersPrinted([updatedOrder.id as string], 'invoice');
-              updateLocalPrintStatus(setOrders, [updatedOrder.id as string], 'invoice');
+              showPdfPreview(blob, `ใบกำกับภาษี ${updatedOrder.tax_invoice_number || ''}`);
+              markOrdersPrinted([ordId], 'invoice');
+              updateLocalPrintStatus(setOrders, [ordId], 'invoice');
             } catch (err) {
               showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
             }

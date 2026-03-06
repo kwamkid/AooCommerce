@@ -16,6 +16,8 @@ import {
   buildCompanyStack,
   buildCornerTriangle,
   buildSignatureFooter,
+  buildProductNameStack,
+  withOriginalAndCopy,
 } from './pdf-utils';
 
 // ─── Interfaces ──────────────────────────────────────────
@@ -66,6 +68,8 @@ export interface FullInvoiceData {
   tax_invoice_tax_id?: string;
   tax_invoice_address?: string;
   tax_invoice_branch?: string;
+  tax_invoice_doc_type?: string; // 'tax' | 'receipt' | 'abbreviated' | legacy INV
+  tax_invoice_replaced_abbrev_number?: string | null; // อ้างอิง ABB ที่ถูก void
   items: FullInvoiceItem[];
 }
 
@@ -74,10 +78,6 @@ export interface FullInvoiceData {
 const THEME = { primary: '#15803d' }; // Always green — full invoice = paid + VAT
 
 // ─── Helpers ────────────────────────────────────────────
-
-const MAX_NAME_LEN = 70;
-const truncateName = (name: string) =>
-  name.length > MAX_NAME_LEN ? name.slice(0, MAX_NAME_LEN) + '...' : name;
 
 function getPaymentMethodLabel(method?: string): string {
   if (!method) return '-';
@@ -103,7 +103,7 @@ export async function generateFullInvoicePdf(
   const pdfMake = await setupPdfMake();
   const logoDataUrl = company?.logo_url ? await loadLogoDataUrl(company.logo_url) : null;
 
-  const docTitle = 'ใบกำกับแบบเต็ม/ใบเสร็จรับเงิน';
+  const docTitle = data.tax_invoice_doc_type === 'receipt' ? 'ใบเสร็จรับเงิน' : 'ใบกำกับภาษี/ใบเสร็จรับเงิน';
   const dateStr = formatPdfDate(data.order_date || data.created_at);
   const invoiceDateStr = data.tax_invoice_date
     ? formatPdfDate(data.tax_invoice_date)
@@ -127,7 +127,7 @@ export async function generateFullInvoicePdf(
 
   if (data.tax_invoice_number) {
     infoBoxRows.push([
-      { text: 'เลขใบกำกับ', fontSize: 10, color: THEME.primary, bold: true },
+      { text: 'เลขที่เอกสาร', fontSize: 10, color: THEME.primary, bold: true },
       { text: data.tax_invoice_number, fontSize: 10, bold: true },
     ]);
   }
@@ -137,6 +137,13 @@ export async function generateFullInvoicePdf(
     { text: invoiceDateStr, fontSize: 10 },
   ]);
 
+  if (data.tax_invoice_replaced_abbrev_number) {
+    infoBoxRows.push([
+      { text: 'อ้างอิงใบย่อ', fontSize: 10, color: '#b45309', bold: true },
+      { text: data.tax_invoice_replaced_abbrev_number, fontSize: 10, color: '#b45309' },
+    ]);
+  }
+
   if (data.payment_method) {
     infoBoxRows.push([
       { text: 'วิธีชำระ', fontSize: 10, color: THEME.primary, bold: true },
@@ -145,6 +152,7 @@ export async function generateFullInvoicePdf(
   }
 
   content.push({
+    columnGap: 16,
     columns: [
       {
         width: '*',
@@ -244,13 +252,8 @@ export async function generateFullInvoicePdf(
   widths.push(75);
 
   const tableBody = data.items.map((item, idx) => {
-    const nameText = truncateName(item.product_name);
-    const subtitleParts = [item.product_code, item.variation_label].filter(Boolean);
-    const subtitle = subtitleParts.join(' | ');
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const productStack: any[] = [{ text: nameText, fontSize: 11 }];
-    if (subtitle) productStack.push({ text: subtitle, fontSize: 9, color: '#888888' });
+    const subtitle = [item.product_code, item.variation_label].filter(Boolean).join(' | ');
+    const productStack = buildProductNameStack(item.product_name, subtitle);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const row: any[] = [
@@ -380,7 +383,7 @@ export async function generateFullInvoicePdf(
     pageMargins: [40, 40, 40, 110] as [number, number, number, number],
     background: () => buildCornerTriangle(THEME.primary),
     footer: buildSignatureFooter(company?.name || '', 'ผู้ออกเอกสาร', 'ผู้รับสินค้า'),
-    content,
+    content: withOriginalAndCopy(content),
     styles: {
       tableHeader: { bold: true, fontSize: 11, color: '#333333' },
     },

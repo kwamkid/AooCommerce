@@ -97,9 +97,51 @@ export async function loadLogoDataUrl(logoUrl: string): Promise<string | null> {
   } catch { return null; }
 }
 
+/** Build product name stack for PDF item tables.
+ * Truncates name to ~80 chars (approx 2 lines), deduplicates variation_label vs SKU.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function buildProductNameStack(
+  productName: string,
+  variationLabel?: string | null,
+  sku?: string | null,
+): any[] {
+  const maxLen = 80;
+  // Append variation label to product name: "ชื่อสินค้า - Variation"
+  const fullName = variationLabel && variationLabel !== sku
+    ? `${productName} - ${variationLabel}`
+    : productName;
+  const truncated = fullName.length > maxLen
+    ? fullName.slice(0, maxLen) + '...'
+    : fullName;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stack: any[] = [
+    { text: truncated, fontSize: 10, color: '#333333' },
+  ];
+  if (sku) {
+    stack.push({ text: sku, fontSize: 9, color: '#999999' });
+  }
+  return stack;
+}
+
 /** Build company header stack (logo + name + address/tax/phone) */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function buildCompanyStack(company: CompanyInfo | undefined, logoDataUrl: string | null): any[] {
+export interface PdfCustomerInfo {
+  name: string;
+  tax_company_name?: string | null;
+  tax_branch?: string | null;
+  tax_id?: string | null;
+  billing_address?: string | null;
+  phone?: string | null;
+}
+
+export function buildCompanyStack(
+  company: CompanyInfo | undefined,
+  logoDataUrl: string | null,
+  customer?: PdfCustomerInfo | null,
+  themeColor?: string,
+): any[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stack: any[] = [];
 
@@ -120,6 +162,24 @@ export function buildCompanyStack(company: CompanyInfo | undefined, logoDataUrl:
   }
   if (company?.phone) {
     stack.push({ text: `โทร ${company.phone}`, fontSize: 10, color: '#666666' });
+  }
+
+  // Append customer info in same cell (no gap from grid/columns)
+  if (customer) {
+    const color = themeColor || '#333333';
+    stack.push({ text: 'ลูกค้า', fontSize: 10, bold: true, color, margin: [0, 4, 0, 2] });
+    const displayName = customer.tax_company_name || customer.name;
+    const branchSuffix = customer.tax_company_name && customer.tax_branch ? ` (${customer.tax_branch})` : '';
+    stack.push({ text: displayName + branchSuffix, fontSize: 12, bold: true, color: '#333333' });
+    if (customer.billing_address) {
+      stack.push({ text: customer.billing_address, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
+    }
+    if (customer.tax_id) {
+      stack.push({ text: `เลขประจำตัวผู้เสียภาษี ${customer.tax_id}`, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
+    }
+    if (customer.phone) {
+      stack.push({ text: `โทร: ${customer.phone}`, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
+    }
   }
 
   return stack;
@@ -230,25 +290,34 @@ export function withOriginalAndCopyHeader(): (page: number, pages: number) => an
 }
 
 /**
- * Inject a copy label text node as the first item of a content array.
- * Looks for the first `columns` block (the header row) and prepends label
- * to the right-side stack's first text item subtitle.
+ * Deep clone that preserves functions (layout callbacks etc.)
+ * JSON.parse/stringify destroys functions — this recursive clone keeps them.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function injectCopyLabel(pageContent: any[], label: string, color: string): any[] {
-  // Deep clone so layout functions etc. are preserved by re-running through JSON
-  // We add a standalone label text before all content
-  return [
-    { text: label, fontSize: 9, bold: true, color, margin: [0, 0, 0, -2] },
-    ...pageContent,
-  ];
+function deepClone(obj: any): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(deepClone);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const copy: any = {};
+  for (const key of Object.keys(obj)) {
+    copy[key] = typeof obj[key] === 'function' ? obj[key] : deepClone(obj[key]);
+  }
+  return copy;
 }
 
+/**
+ * Duplicate a pdfMake content array into 2 sets of pages:
+ * first set = ต้นฉบับ (green label), second set = สำเนา (gray label)
+ *
+ * Uses deepClone that preserves layout functions (hLineWidth, etc.)
+ */
 export function withOriginalAndCopy(pageContent: any[]): any[] {
-  const clone = JSON.parse(JSON.stringify(pageContent));
+  const clone = deepClone(pageContent);
   return [
-    ...injectCopyLabel(pageContent, '(ต้นฉบับ)', '#15803d'),
+    { text: '(ต้นฉบับ)', fontSize: 9, bold: true, color: '#15803d', margin: [0, 0, 0, -2] },
+    ...pageContent,
     { text: '', pageBreak: 'after' },
-    ...injectCopyLabel(clone, '(สำเนา)', '#6b7280'),
+    { text: '(สำเนา)', fontSize: 9, bold: true, color: '#6b7280', margin: [0, 0, 0, -2] },
+    ...clone,
   ];
 }

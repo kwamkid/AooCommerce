@@ -87,7 +87,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Verify ownership
     const { data: existing } = await supabaseAdmin
       .from('replenishments')
-      .select('id, status')
+      .select('id, status, customer_id')
       .eq('id', id)
       .eq('company_id', auth.companyId)
       .single();
@@ -114,7 +114,29 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
-      return NextResponse.json({ success: true, status: 'shipped' });
+
+      // Auto issue invoice for Invoice Mode customers
+      let invoiceResult = null;
+      try {
+        const { data: customer } = await supabaseAdmin
+          .from('customers')
+          .select('consignment_mode')
+          .eq('id', existing.customer_id)
+          .single();
+
+        if (customer?.consignment_mode === 'invoice') {
+          const { issueReplenishmentInvoice } = await import('@/lib/invoice-service');
+          invoiceResult = await issueReplenishmentInvoice(id, auth.companyId);
+        }
+      } catch (err) {
+        console.error('Auto invoice on ship error:', err);
+      }
+
+      return NextResponse.json({
+        success: true,
+        status: 'shipped',
+        tax_invoice_number: invoiceResult?.invoiceNumber || null,
+      });
     }
 
     // === ACTION: CONFIRM (admin confirms after dealer receives) ===

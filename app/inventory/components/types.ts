@@ -4,6 +4,7 @@ export interface WarehouseItem {
   id: string;
   name: string;
   code: string | null;
+  warehouse_type?: 'internal' | 'consignment';
 }
 
 export type TabKey = 'stock' | 'history';
@@ -67,11 +68,12 @@ export const STOCK_COLUMN_CONFIGS: ColumnConfig<StockColumnKey>[] = [
 export const STOCK_COLUMNS_STORAGE_KEY = 'inventory-stock-visible-columns';
 
 // ===== History Types =====
-export type HistoryColumnKey = 'date' | 'type' | 'product' | 'qty' | 'balance' | 'warehouse' | 'reference' | 'user';
+export type HistoryColumnKey = 'date' | 'type' | 'image' | 'product' | 'qty' | 'balance' | 'warehouse' | 'reference' | 'user';
 
 export const HISTORY_COLUMN_CONFIGS: ColumnConfig<HistoryColumnKey>[] = [
   { key: 'date', label: 'วันที่', defaultVisible: true, alwaysVisible: true },
   { key: 'type', label: 'ประเภท', defaultVisible: true },
+  { key: 'image', label: 'รูป', defaultVisible: true },
   { key: 'product', label: 'สินค้า', defaultVisible: true },
   { key: 'qty', label: 'จำนวน', defaultVisible: true },
   { key: 'balance', label: 'คงเหลือ', defaultVisible: true },
@@ -97,6 +99,7 @@ export interface Transaction {
   warehouse_code: string;
   product_code: string;
   product_name: string;
+  product_image: string | null;
   sku: string | null;
   variation_label: string | null;
   created_by_name: string | null;

@@ -1,0 +1,553 @@
+'use client';
+
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Layout from '@/components/layout/Layout';
+import SearchInput from '@/components/ui/SearchInput';
+import { apiFetch } from '@/lib/api-client';
+import { useToast } from '@/lib/toast-context';
+import {
+  FileText, Loader2, RefreshCw, CheckCircle2,
+  AlertCircle, Clock, Package, Eye, Receipt,
+  Printer, Banknote,
+} from 'lucide-react';
+import { showPdfPreview } from '@/lib/print-pdf';
+import Pagination from '@/app/components/Pagination';
+import Tooltip from '@/components/ui/Tooltip';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
+
+interface Statement {
+  id: string;
+  statement_number: string;
+  status: string;
+  statement_date: string;
+  due_date: string | null;
+  period_year: number;
+  period_month: number;
+  total_amount: number;
+  paid_amount: number;
+  outstanding_amount: number;
+  tax_invoice_number: string | null;
+  receipt_number: string | null;
+  customer: { id: string; name: string; customer_code: string | null } | null;
+}
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  draft:          { label: 'แบบร่าง',      color: 'text-gray-600 dark:text-gray-300',    bg: 'bg-gray-100 dark:bg-gray-700/40' },
+  sent:           { label: 'รอชำระ',       color: 'text-blue-700 dark:text-blue-300',     bg: 'bg-blue-100 dark:bg-blue-900/40' },
+  partially_paid: { label: 'ชำระบางส่วน',  color: 'text-amber-700 dark:text-amber-300',   bg: 'bg-amber-100 dark:bg-amber-900/40' },
+  paid:           { label: 'ชำระแล้ว',     color: 'text-green-700 dark:text-green-300',   bg: 'bg-green-100 dark:bg-green-900/40' },
+  overdue:        { label: 'เกินกำหนด',    color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100 dark:bg-red-900/40' },
+};
+
+const STATUS_TABS = [
+  { key: 'all',            label: 'ทั้งหมด',       active: 'bg-indigo-500',    inactive: 'bg-indigo-50 dark:bg-indigo-950/30',   labelColor: 'text-indigo-600 dark:text-indigo-400',   countColor: 'text-indigo-700 dark:text-indigo-300' },
+  { key: 'sent',           label: 'รอชำระ',        active: 'bg-blue-600',      inactive: 'bg-blue-50 dark:bg-blue-950/50',       labelColor: 'text-blue-600 dark:text-blue-400',       countColor: 'text-blue-700 dark:text-blue-300' },
+  { key: 'partially_paid', label: 'ชำระบางส่วน',   active: 'bg-amber-500',     inactive: 'bg-amber-50 dark:bg-amber-950/50',     labelColor: 'text-amber-600 dark:text-amber-400',     countColor: 'text-amber-700 dark:text-amber-300' },
+  { key: 'paid',           label: 'ชำระแล้ว',      active: 'bg-emerald-600',   inactive: 'bg-emerald-50 dark:bg-emerald-950/50', labelColor: 'text-emerald-600 dark:text-emerald-400', countColor: 'text-emerald-700 dark:text-emerald-300' },
+  { key: 'overdue',        label: 'เกินกำหนด',     active: 'bg-red-500',       inactive: 'bg-red-50 dark:bg-red-950/50',         labelColor: 'text-red-500 dark:text-red-400',         countColor: 'text-red-600 dark:text-red-300' },
+];
+
+const THAI_MONTHS = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+const formatPeriod = (year: number, month: number) =>
+  `${THAI_MONTHS[month]} ${year + 543}`;
+
+const formatAmount = (n: number) =>
+  n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const formatDate = (d: string | null | undefined) => {
+  if (!d) return '-';
+  return new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
+};
+
+function StatementsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { showToast } = useToast();
+
+  const activeStatus = searchParams.get('status') || 'all';
+  const search = searchParams.get('q') || '';
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
+  const recordsPerPage = parseInt(searchParams.get('limit') || '20', 10);
+
+  const setParams = useCallback((updates: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    let pageReset = false;
+    for (const [k, v] of Object.entries(updates)) {
+      if (k !== 'page') pageReset = true;
+      if (!v || v === 'all' || v === '' || v === '1' || v === '20') {
+        params.delete(k);
+      } else {
+        params.set(k, v);
+      }
+    }
+    if (pageReset) params.delete('page');
+    const qs = params.toString();
+    router.replace(qs ? `?${qs}` : '/statements', { scroll: false });
+  }, [searchParams, router]);
+
+  const [statements, setStatements] = useState<Statement[]>([]);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  const fetchData = useCallback(async (showRefresh = false) => {
+    if (showRefresh) setIsRefreshing(true); else setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(recordsPerPage),
+      });
+      if (activeStatus !== 'all') params.set('status', activeStatus);
+      if (search.trim()) params.set('search', search.trim());
+
+      const res = await apiFetch(`/api/statements?${params}`);
+      if (!res.ok) throw new Error('fetch failed');
+      const data = await res.json();
+      setStatements(data.statements || []);
+      setStatusCounts(data.status_counts || {});
+      setTotalPages(Math.ceil((data.total || 0) / recordsPerPage));
+      setTotalRecords(data.total || 0);
+    } catch {
+      showToast('ไม่สามารถโหลดข้อมูลได้', 'error');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [activeStatus, search, currentPage, recordsPerPage]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Debounced search
+  const [searchInput, setSearchInput] = useState(search);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSearchChange = (val: string) => {
+    setSearchInput(val);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setParams({ q: val });
+    }, 400);
+  };
+  useEffect(() => { setSearchInput(search); }, [search]);
+
+  const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+  const getTabCount = (key: string) => key === 'all' ? totalCount : (statusCounts[key] || 0);
+
+  const startIdx = (currentPage - 1) * recordsPerPage;
+  const endIdx = Math.min(startIdx + statements.length, totalRecords);
+
+  // Print state
+  const [printingId, setPrintingId] = useState<string | null>(null);
+  const [printedDocs, setPrintedDocs] = useState<Record<string, Set<string>>>({});
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('st-printed-docs');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const map: Record<string, Set<string>> = {};
+        for (const [k, v] of Object.entries(parsed)) map[k] = new Set(v as string[]);
+        setPrintedDocs(map);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const markPrinted = (id: string, type: string) => {
+    setPrintedDocs(prev => {
+      const next = { ...prev };
+      next[id] = new Set(prev[id] || []);
+      next[id].add(type);
+      const serializable: Record<string, string[]> = {};
+      for (const [k, v] of Object.entries(next)) serializable[k] = Array.from(v);
+      localStorage.setItem('st-printed-docs', JSON.stringify(serializable));
+      return next;
+    });
+  };
+
+  const handlePrintStatement = async (st: Statement) => {
+    setPrintingId(st.id);
+    try {
+      const res = await apiFetch(`/api/statements/${st.id}`);
+      if (!res.ok) throw new Error('fetch failed');
+      const data = await res.json();
+      const detail = data.statement;
+      const stReports = data.reports || [];
+      const { generateStatementPdf } = await import('@/lib/statement-pdf');
+      const blob = await generateStatementPdf({
+        statement_number: detail.statement_number,
+        statement_date: detail.statement_date,
+        due_date: detail.due_date,
+        period_year: detail.period_year,
+        period_month: detail.period_month,
+        status: detail.status,
+        total_amount: detail.total_amount,
+        paid_amount: detail.paid_amount,
+        outstanding_amount: detail.outstanding_amount,
+        tax_invoice_number: detail.tax_invoice_number,
+        receipt_number: detail.receipt_number,
+        notes: detail.notes,
+        customer: detail.customer ? {
+          ...detail.customer,
+          billing_address: [detail.customer.billing_address, detail.customer.billing_district, detail.customer.billing_amphoe, detail.customer.billing_province, detail.customer.billing_postal_code].filter(Boolean).join(', ') || null,
+        } : null,
+        reports: stReports.map((r: any) => ({
+          report_number: r.report_number,
+          period_label: `${THAI_MONTHS[r.period_month]} ${r.period_year + 543}`,
+          total_qty_sold: r.total_qty_sold,
+          our_amount: r.our_amount,
+        })),
+      });
+      showPdfPreview(blob, `ใบวางบิล ${detail.statement_number}`);
+      markPrinted(st.id, 'statement');
+    } catch {
+      showToast('ไม่สามารถสร้าง PDF ได้', 'error');
+    } finally {
+      setPrintingId(null);
+    }
+  };
+
+  // Payment confirm state
+  const [paymentConfirm, setPaymentConfirm] = useState<Statement | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+
+  const handleRecordPayment = async (st: Statement) => {
+    setPaymentLoading(true);
+    try {
+      const payRes = await apiFetch(`/api/statements/${st.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'record_payment', amount: st.outstanding_amount }),
+      });
+      if (!payRes.ok) throw new Error('payment failed');
+      const payData = await payRes.json();
+
+      const docNums = [payData.tax_invoice_number, payData.receipt_number].filter(Boolean).join(', ');
+      showToast(`บันทึกการชำระแล้ว${docNums ? ` ออกเลข ${docNums}` : ''}`, 'success');
+      setPaymentConfirm(null);
+      fetchData(true);
+
+      // Auto print statement
+      setTimeout(() => handlePrintStatement(st), 300);
+    } catch {
+      showToast('เกิดข้อผิดพลาดในการบันทึกการชำระ', 'error');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const buildMenuItems = (st: Statement): ActionItem[] => {
+    const isPrinting = printingId === st.id;
+    const printed = printedDocs[st.id] || new Set<string>();
+    const dot = (key: string) => printed.has(key)
+      ? <span className="ml-auto w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+      : null;
+
+    const items: ActionItem[] = [
+      {
+        key: 'view',
+        label: 'ดูรายละเอียด',
+        icon: <Eye className="w-4 h-4" />,
+        onClick: () => router.push(`/statements/${st.id}`),
+      },
+      {
+        key: 'print_statement',
+        label: 'ใบวางบิล',
+        icon: isPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />,
+        suffix: dot('statement'),
+        onClick: () => handlePrintStatement(st),
+        disabled: isPrinting,
+        dividerBefore: true,
+      },
+    ];
+
+    // Payment action
+    if (['sent', 'partially_paid', 'overdue'].includes(st.status)) {
+      items.push({
+        key: 'payment',
+        label: 'ลูกค้าชำระแล้ว',
+        icon: <Banknote className="w-4 h-4" />,
+        onClick: () => setPaymentConfirm(st),
+        dividerBefore: true,
+      });
+    }
+
+    return items;
+  };
+
+  return (
+    <Layout>
+      <div className="space-y-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <FileText className="w-8 h-8 text-indigo-500" />
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">ใบวางบิล</h1>
+          </div>
+          <button
+            onClick={() => fetchData(true)}
+            disabled={isRefreshing}
+            className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-white transition-colors disabled:opacity-50"
+            title="รีเฟรช"
+          >
+            <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+
+        {/* Status Tabs */}
+        <div className="flex gap-2 flex-wrap">
+          {STATUS_TABS.map(tab => {
+            const count = getTabCount(tab.key);
+            const isActive = activeStatus === tab.key;
+            return (
+              <div key={tab.key} className="flex-shrink-0">
+                <button
+                  onClick={() => setParams({ status: tab.key })}
+                  className={`rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
+                    isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
+                  }`}
+                >
+                  <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
+                  <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Search */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาเลขที่ใบวางบิล, ชื่อตัวแทน..." />
+          </div>
+        </div>
+
+        {/* Desktop Table */}
+        <div className="data-table-wrap hidden md:block">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="data-thead">
+                <tr>
+                  <th className="data-th">เลขที่</th>
+                  <th className="data-th">ตัวแทน</th>
+                  <th className="data-th">งวด</th>
+                  <th className="data-th text-right">ยอด (บาท)</th>
+                  <th className="data-th text-right">คงเหลือ</th>
+                  <th className="data-th">สถานะ</th>
+                  <th className="data-th text-center">พิมพ์</th>
+                  <th className="data-th">ครบกำหนด</th>
+                  <th className="data-th">เอกสาร</th>
+                  <th className="data-th text-right">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="data-tbody">
+                {isLoading ? (
+                  <tr><td colSpan={10} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 text-indigo-500 animate-spin mx-auto" /></td></tr>
+                ) : statements.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="px-6 py-12 text-center">
+                      <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+                      <p className="text-gray-500 dark:text-slate-400 data-text">ไม่พบใบวางบิล</p>
+                    </td>
+                  </tr>
+                ) : statements.map(st => {
+                  const cfg = STATUS_CONFIG[st.status] || STATUS_CONFIG.draft;
+                  const isOverdue = st.due_date && new Date(st.due_date) < new Date() && st.status !== 'paid';
+                  return (
+                    <tr key={st.id} className="data-tr cursor-pointer" onClick={() => router.push(`/statements/${st.id}`)}>
+                      <td className="data-td">
+                        <p className="id-text-clickable text-gray-900 dark:text-white">{st.statement_number}</p>
+                        <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(st.statement_date)}</p>
+                      </td>
+                      <td className="data-td">
+                        <p className="data-text text-gray-900 dark:text-white font-medium">{st.customer?.name || '-'}</p>
+                        {st.customer?.customer_code && (
+                          <p className="data-timestamp text-gray-400 dark:text-slate-500">{st.customer.customer_code}</p>
+                        )}
+                      </td>
+                      <td className="data-td">
+                        <span className="data-text text-gray-700 dark:text-slate-300">{formatPeriod(st.period_year, st.period_month)}</span>
+                      </td>
+                      <td className="data-td text-right">
+                        <span className="data-number text-gray-900 dark:text-white">{formatAmount(st.total_amount)}</span>
+                      </td>
+                      <td className="data-td text-right">
+                        <span className={`data-number font-medium ${st.outstanding_amount > 0 ? 'text-gray-900 dark:text-white' : 'text-green-600 dark:text-green-400'}`}>
+                          {st.outstanding_amount > 0 ? formatAmount(st.outstanding_amount) : 'ครบ'}
+                        </span>
+                      </td>
+                      <td className="data-td">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
+                          {st.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
+                          {cfg.label}
+                        </span>
+                      </td>
+                      {/* พิมพ์ */}
+                      <td className="data-td text-center" onClick={e => e.stopPropagation()}>
+                        {(() => {
+                          const printed = printedDocs[st.id] || new Set<string>();
+                          const isPrinting = printingId === st.id;
+                          return (
+                            <Tooltip text={`ใบวางบิล: ${printed.has('statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`}>
+                              <div className="flex items-center justify-center gap-1">
+                                {isPrinting && <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />}
+                                <span className={`w-2.5 h-2.5 rounded-full ${printed.has('statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                              </div>
+                            </Tooltip>
+                          );
+                        })()}
+                      </td>
+                      <td className="data-td">
+                        {st.due_date ? (
+                          <span className={`data-text flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
+                            {isOverdue && <AlertCircle className="w-3.5 h-3.5" />}
+                            {formatDate(st.due_date)}
+                          </span>
+                        ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
+                      </td>
+                      <td className="data-td text-xs">
+                        {st.tax_invoice_number && (
+                          <div className="text-green-600 dark:text-green-400 font-mono">{st.tax_invoice_number}</div>
+                        )}
+                        {st.receipt_number && (
+                          <div className="text-blue-600 dark:text-blue-400 font-mono">{st.receipt_number}</div>
+                        )}
+                        {!st.tax_invoice_number && !st.receipt_number && <span className="text-gray-400">-</span>}
+                      </td>
+                      {/* จัดการ */}
+                      <td className="data-td" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          {['sent', 'partially_paid', 'overdue'].includes(st.status) && (
+                            <button
+                              onClick={() => setPaymentConfirm(st)}
+                              className="flex items-center gap-1.5 px-2.5 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors whitespace-nowrap"
+                            >
+                              <Banknote className="w-4 h-4" />
+                              <span className="hidden lg:inline">ลูกค้าชำระแล้ว</span>
+                            </button>
+                          )}
+                          {st.status === 'paid' && (
+                            <CheckCircle2 className="w-5 h-5 text-green-500" />
+                          )}
+                          <ActionMenu items={buildMenuItems(st)} />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <Pagination
+            currentPage={currentPage} totalPages={totalPages} totalRecords={totalRecords}
+            startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
+            setRecordsPerPage={v => setParams({ limit: String(v) })}
+            setPage={v => setParams({ page: String(v) })}
+          />
+        </div>
+
+        {/* Mobile Cards */}
+        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+          {isLoading ? (
+            <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 text-indigo-500 animate-spin" /></div>
+          ) : statements.length === 0 ? (
+            <div className="text-center py-16">
+              <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-slate-400 data-text">ไม่พบใบวางบิล</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 dark:divide-slate-700">
+              {statements.map(st => {
+                const cfg = STATUS_CONFIG[st.status] || STATUS_CONFIG.draft;
+                return (
+                  <div key={st.id} className="p-4 cursor-pointer" onClick={() => router.push(`/statements/${st.id}`)}>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="id-text-clickable text-gray-900 dark:text-white">{st.statement_number}</p>
+                        <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(st.statement_date)}</p>
+                      </div>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
+                        {cfg.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{st.customer?.name || '-'}</span>
+                      <span className="data-number text-gray-900 dark:text-white">{formatAmount(st.total_amount)}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-slate-500">
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatPeriod(st.period_year, st.period_month)}</span>
+                      {st.outstanding_amount > 0 && <span>คงเหลือ {formatAmount(st.outstanding_amount)}</span>}
+                    </div>
+                    {/* Action buttons */}
+                    <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                      {['sent', 'partially_paid', 'overdue'].includes(st.status) && (
+                        <button
+                          onClick={() => setPaymentConfirm(st)}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                        >
+                          <Banknote className="w-4 h-4" /> ลูกค้าชำระแล้ว
+                        </button>
+                      )}
+                      {st.status === 'paid' && (
+                        <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600">
+                          <CheckCircle2 className="w-4 h-4" /> ชำระแล้ว
+                        </span>
+                      )}
+                      {/* Print indicator (mobile) */}
+                      {(() => {
+                        const printed = printedDocs[st.id] || new Set<string>();
+                        return (
+                          <div className="flex items-center gap-1">
+                            <span className={`w-2 h-2 rounded-full ${printed.has('statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                          </div>
+                        );
+                      })()}
+                      <ActionMenu items={buildMenuItems(st)} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <Pagination
+            currentPage={currentPage} totalPages={totalPages} totalRecords={totalRecords}
+            startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
+            setRecordsPerPage={v => setParams({ limit: String(v) })}
+            setPage={v => setParams({ page: String(v) })}
+          />
+        </div>
+      </div>
+
+      {/* Payment Confirm Dialog */}
+      <ConfirmDialog
+        open={!!paymentConfirm}
+        onClose={() => !paymentLoading && setPaymentConfirm(null)}
+        onConfirm={() => paymentConfirm && handleRecordPayment(paymentConfirm)}
+        icon={<Banknote className="w-6 h-6 text-[#F4511E]" />}
+        title="ลูกค้าชำระแล้ว"
+        description={paymentConfirm ? `ยืนยันการชำระเงินของ ${paymentConfirm.customer?.name || '-'}\nใบวางบิล ${paymentConfirm.statement_number} จำนวน ฿${formatAmount(paymentConfirm.outstanding_amount)}` : ''}
+        confirmLabel={paymentLoading ? 'กำลังบันทึก...' : 'ยืนยันการชำระ'}
+        confirmIcon={paymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+        loading={paymentLoading}
+      />
+    </Layout>
+  );
+}
+
+export default function StatementsPage() {
+  return (
+    <Suspense fallback={
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+        </div>
+      </Layout>
+    }>
+      <StatementsContent />
+    </Suspense>
+  );
+}

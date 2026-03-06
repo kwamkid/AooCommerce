@@ -97,7 +97,12 @@ function NewReplenishmentPageContent() {
         const r = await res.json();
         throw new Error(r.error || 'Failed');
       }
-      showToast('จัดส่งเรียบร้อย', 'success');
+      const data = await res.json();
+      if (data.tax_invoice_number) {
+        showToast(`จัดส่งเรียบร้อย + ออกเอกสาร ${data.tax_invoice_number}`, 'success');
+      } else {
+        showToast('จัดส่งเรียบร้อย', 'success');
+      }
       setShowShipModal(false);
       resetShipForm();
       // Reload page to refresh status

@@ -60,6 +60,8 @@ interface ReplenishmentItem {
   gp_level: number;
 }
 
+interface StockRecord { variation_id: string; quantity: number; available: number; }
+
 export interface ReplenishmentFormState {
   status: string;
   replenishmentNumber: string;
@@ -125,6 +127,11 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   const [gpContext, setGpContext] = useState<GpResolverContext | null>(null);
   const [loadingGpData, setLoadingGpData] = useState(false);
   const latestCustomerIdRef = useRef('');
+
+  // Stock lookups for columns
+  const [sourceInventory, setSourceInventory] = useState<StockRecord[]>([]);
+  const [dealerInventory, setDealerInventory] = useState<StockRecord[]>([]);
+  const [allowOversell, setAllowOversell] = useState(true);
 
   const isEditMode = !!replenishmentId;
   const isDisabled = viewMode || (isEditMode && existingStatus !== 'pending');
@@ -265,6 +272,40 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
       .catch(() => showToast('ไม่สามารถโหลดข้อมูลได้', 'error'))
       .finally(() => setLoadingExisting(false));
   }, [replenishmentId]);
+
+  // Fetch allowOversell from stock config
+  useEffect(() => {
+    apiFetch('/api/warehouses')
+      .then(r => r.json())
+      .then(d => { if (d.stockConfig) setAllowOversell(d.stockConfig.allowOversell !== false); })
+      .catch(() => {});
+  }, []);
+
+  // Fetch source warehouse inventory (for stock_source column)
+  useEffect(() => {
+    if (!warehouseId || isEditMode) { setSourceInventory([]); return; }
+    apiFetch(`/api/inventory?warehouse_id=${warehouseId}&limit=9999`)
+      .then(r => r.json())
+      .then(d => setSourceInventory((d.items || []).map((i: { variation_id: string; quantity: number; available: number }) => ({ variation_id: i.variation_id, quantity: i.quantity, available: i.available ?? i.quantity }))))
+      .catch(() => setSourceInventory([]));
+  }, [warehouseId, isEditMode]);
+
+  // Fetch dealer consignment inventory (for stock_dest column)
+  useEffect(() => {
+    if (!selectedCustomerId || isEditMode) { setDealerInventory([]); return; }
+    apiFetch(`/api/inventory?dealer_id=${selectedCustomerId}&limit=9999`)
+      .then(r => r.json())
+      .then(d => {
+        const records: StockRecord[] = (d.items || []).map((i: {
+          variation_id: string; consign_breakdown: { customer_id: string; qty: number }[];
+        }) => {
+          const b = i.consign_breakdown?.find((x: { customer_id: string }) => x.customer_id === selectedCustomerId);
+          return { variation_id: i.variation_id, quantity: b?.qty ?? 0, available: b?.qty ?? 0 };
+        }).filter((r: StockRecord) => r.quantity > 0);
+        setDealerInventory(records);
+      })
+      .catch(() => setDealerInventory([]));
+  }, [selectedCustomerId, isEditMode]);
 
   // ESC key closes lightbox
   useEffect(() => {
@@ -824,8 +865,11 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                 quantity: i.quantity,
                 unit_price: i.unit_price,
                 gpInfo: gpInfoText(i),
+                stock_dest: selectedCustomerId ? (dealerInventory.find(s => s.variation_id === (i.variation_id ?? i.product_id))?.quantity ?? 0) : null,
               }))}
-              columns={['qty', 'unit_price', 'total']}
+              columns={['stock_dest', 'qty', 'unit_price', 'total']}
+              stockMap={warehouseId ? Object.fromEntries(sourceInventory.map(s => [s.variation_id, s.available])) : {}}
+              disableOutOfStock={!allowOversell}
               products={isDisabled ? undefined : products}
               loadingProducts={loadingProducts}
               inputRef={searchInputRef}

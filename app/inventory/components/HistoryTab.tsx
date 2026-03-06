@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
-import { Loader2, Search, Warehouse, ArrowDownUp, ExternalLink, X } from 'lucide-react';
+import { Loader2, Search, Warehouse, ArrowDownUp, ExternalLink, X, Package2 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
@@ -48,6 +48,15 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
     }
     return new Set(HISTORY_COLUMN_CONFIGS.filter(c => c.defaultVisible).map(c => c.key));
   });
+
+  // Lightbox
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  useEffect(() => {
+    if (!lightboxImage) return;
+    const handle = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxImage(null); };
+    window.addEventListener('keydown', handle);
+    return () => window.removeEventListener('keydown', handle);
+  }, [lightboxImage]);
 
   const toggleColumn = (key: HistoryColumnKey) => {
     const config = HISTORY_COLUMN_CONFIGS.find(c => c.key === key);
@@ -173,15 +182,18 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
       <div className="data-filter-card">
         <div className="flex items-center gap-2 flex-wrap">
           {warehouses.length > 1 && (
-            <div className="w-40">
+            <div className="w-48">
               <FormSelect
                 value={warehouseFilter}
                 onChange={v => { setWarehouseFilter(v); setPage(1); }}
-                options={warehouses.map(wh => ({ id: wh.id, label: wh.name }))}
+                options={[
+                  ...warehouses.filter(wh => wh.warehouse_type !== 'consignment').map(wh => ({ id: wh.id, label: wh.name })),
+                  ...warehouses.filter(wh => wh.warehouse_type === 'consignment').map(wh => ({ id: wh.id, label: `[ตัวแทน] ${wh.name}` })),
+                ]}
                 clearLabel="ทุกคลัง"
                 placeholder="คลัง"
                 icon={<Warehouse className="w-4 h-4" />}
-                searchThreshold={99}
+                searchThreshold={7}
               />
             </div>
           )}
@@ -234,9 +246,17 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
                 <tr>
                   {visibleColumns.has('date') && <th className="data-th">วันที่</th>}
                   {visibleColumns.has('type') && <th className="data-th">ประเภท</th>}
+                  {visibleColumns.has('image') && <th className="data-th" style={{ width: '60px' }}>รูป</th>}
                   {visibleColumns.has('product') && <th className="data-th">สินค้า</th>}
                   {visibleColumns.has('qty') && <th className="data-th text-right">จำนวน</th>}
-                  {visibleColumns.has('balance') && <th className="data-th text-right">คงเหลือ</th>}
+                  {visibleColumns.has('balance') && (
+                    <th className="data-th text-right">
+                      คงเหลือ
+                      {!warehouseFilter && (
+                        <span className="ml-1 text-amber-400 cursor-help" title="ค่านี้เป็นยอดต่อคลัง ไม่ใช่ยอดรวมทุกคลัง">⚠</span>
+                      )}
+                    </th>
+                  )}
                   {visibleColumns.has('warehouse') && <th className="data-th">คลัง</th>}
                   {visibleColumns.has('reference') && <th className="data-th">อ้างอิง</th>}
                   {visibleColumns.has('user') && <th className="data-th">ผู้ทำรายการ</th>}
@@ -253,6 +273,26 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
                     )}
                     {visibleColumns.has('type') && (
                       <td className="px-6 py-4">{getTypeBadge(tx.type)}</td>
+                    )}
+                    {visibleColumns.has('image') && (
+                      <td className="pl-4 pr-1 py-1.5 whitespace-nowrap" style={{ width: '60px', minWidth: '60px' }}>
+                        {tx.product_image ? (
+                          <img
+                            src={tx.product_image}
+                            alt=""
+                            style={{ width: '40px', height: '40px', minWidth: '40px', minHeight: '40px' }}
+                            className="object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => setLightboxImage(tx.product_image!)}
+                          />
+                        ) : (
+                          <div
+                            style={{ width: '40px', height: '40px', minWidth: '40px', minHeight: '40px' }}
+                            className="bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center"
+                          >
+                            <Package2 className="w-5 h-5 text-gray-400" />
+                          </div>
+                        )}
+                      </td>
                     )}
                     {visibleColumns.has('product') && (
                       <td className="px-6 py-4">
@@ -320,6 +360,28 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
               dropUp
             />
           </Pagination>
+        </div>
+      )}
+
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70"
+          onClick={() => setLightboxImage(null)}
+          role="dialog"
+        >
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={lightboxImage}
+            alt="Product"
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </>

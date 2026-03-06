@@ -43,6 +43,8 @@ import {
   ClipboardList,
   ReceiptText,
   Handshake,
+  FileText,
+  Store,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -73,8 +75,6 @@ const menuSections: MenuSection[] = [
       { label: 'Chat', href: '/chat', icon: <MessageCircle className="w-5 h-5" />, roles: ['admin', 'sales'] },
       { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-5 h-5" />, roles: ['admin', 'sales', 'account', 'warehouse'] },
       { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-5 h-5" />, roles: ['admin', 'sales', 'warehouse'] },
-      { label: 'เติมสินค้าตัวแทน', href: '/replenishments', icon: <ArrowUpFromLine className="w-5 h-5" />, roles: ['admin', 'sales'] },
-      { label: 'รายงานฝากขาย', href: '/consignment/reports', icon: <ClipboardList className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
       { label: 'ส่งห้าง', href: '/department-orders', icon: <Building2 className="w-5 h-5" />, roles: ['admin', 'sales'] },
     ]
   },
@@ -93,14 +93,9 @@ const menuSections: MenuSection[] = [
     ]
   },
   {
-    title: 'เอกสารบัญชี',
-    items: [
-      { label: 'ใบลดหนี้', href: '/credit-notes', icon: <ReceiptText className="w-5 h-5" />, roles: ['admin', 'account'] },
-    ]
-  },
-  {
     title: 'รายงาน',
     items: [
+      { label: 'เอกสารบัญชี', href: '/invoices/tax', icon: <FileText className="w-5 h-5" />, roles: ['admin', 'account'] },
       { label: 'รายงานยอดขาย', href: '/reports/sales', icon: <BarChart3 className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
       { label: 'รายงานซัพพลายเออร์', href: '/reports/supplier', icon: <Factory className="w-5 h-5" />, roles: ['admin', 'account'] }
     ]
@@ -127,6 +122,8 @@ export default function Sidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [productsOpen, setProductsOpen] = useState(false);
+  const [accountingOpen, setAccountingOpen] = useState(false);
+  const [consignmentOpen, setConsignmentOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [orderReadyCount, setOrderReadyCount] = useState(0);
@@ -160,6 +157,8 @@ export default function Sidebar() {
     if (pathname?.startsWith('/settings')) setSettingsOpen(true);
     if (pathname?.startsWith('/inventory')) setInventoryOpen(true);
     if (pathname?.startsWith('/products') || pathname === '/settings/categories' || pathname === '/settings/brands') setProductsOpen(true);
+    if (pathname?.startsWith('/invoices') || pathname?.startsWith('/credit-notes') || pathname?.startsWith('/statements')) setAccountingOpen(true);
+    if (pathname?.startsWith('/replenishments') || pathname?.startsWith('/consignment')) setConsignmentOpen(true);
   }, [pathname]);
 
   useEffect(() => {
@@ -316,8 +315,6 @@ export default function Sidebar() {
         if (item.href === '/reports/delivery-summary' && !features.delivery_date.enabled) return false;
         if (item.href === '/reports/supplier' && !features.supplier) return false;
         if (item.href === '/settings/suppliers' && !features.supplier) return false;
-        if (item.href === '/replenishments' && !features.consignment) return false;
-        if (item.href === '/consignment/reports' && !features.consignment) return false;
         if (item.href === '/department-orders' && !features.department_store) return false;
         // Hide inventory when stock is disabled
         if (item.href === '/inventory' && !stockEnabled) return false;
@@ -521,6 +518,38 @@ export default function Sidebar() {
             {/* Menu Sections */}
             {!authLoading && !companyLoading && !featuresLoading && filteredSections.map((section, sectionIndex) => (
               <div key={sectionIndex}>
+                {/* Consignment Section — render before สินค้า */}
+                {section.title === 'สินค้า' && features.consignment && (effectiveRoles.has('admin') || effectiveRoles.has('sales') || effectiveRoles.has('account')) && (
+                  <>
+                    <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
+                      ฝากขาย
+                    </h3>
+                    <button
+                      onClick={() => setConsignmentOpen(!consignmentOpen)}
+                      className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
+                        pathname?.startsWith('/replenishments') || pathname?.startsWith('/consignment')
+                          ? 'text-[#F4511E]'
+                          : 'text-gray-300 hover:text-[#F4511E]'
+                      }`}
+                    >
+                      <Store className="w-5 h-5" />
+                      <span className="text-[16px] font-medium ml-3">ระบบฝากขาย</span>
+                      <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${consignmentOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {consignmentOpen && (
+                      <div className="ml-3 border-l border-white/10">
+                        <Link href="/replenishments" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/replenishments' || pathname?.startsWith('/replenishments/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                          <ArrowUpFromLine className="w-4 h-4" />
+                          <span className="text-[16px] font-medium">เติมสินค้าตัวแทน</span>
+                        </Link>
+                        <Link href="/consignment/reports" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/consignment/reports' || pathname?.startsWith('/consignment/reports/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                          <ClipboardList className="w-4 h-4" />
+                          <span className="text-[16px] font-medium">ยอดขายตัวแทน</span>
+                        </Link>
+                      </div>
+                    )}
+                  </>
+                )}
                 <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
                   {section.title}
                 </h3>
@@ -560,6 +589,51 @@ export default function Sidebar() {
                               <span className="text-[16px] font-medium">แบรนด์</span>
                             </Link>
                             )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  // เอกสารบัญชี: render as collapsible with submenu
+                  if (item.href === '/invoices/tax') {
+                    const isAccountingPage = pathname?.startsWith('/invoices') || pathname?.startsWith('/credit-notes') || pathname?.startsWith('/statements');
+                    return (
+                      <div key={item.href}>
+                        <button
+                          onClick={() => setAccountingOpen(!accountingOpen)}
+                          className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
+                            isAccountingPage
+                              ? 'text-[#F4511E]'
+                              : 'text-gray-300 hover:text-[#F4511E]'
+                          }`}
+                        >
+                          {item.icon}
+                          <span className="text-[16px] font-medium ml-3">{item.label}</span>
+                          <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${accountingOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {accountingOpen && (
+                          <div className="ml-3 border-l border-white/10">
+                            <Link href="/invoices/tax" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/tax' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <FileText className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">ใบกำกับภาษี</span>
+                            </Link>
+                            <Link href="/invoices/receipts" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/receipts' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <Receipt className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">ใบเสร็จรับเงิน</span>
+                            </Link>
+                            <Link href="/invoices/abbreviated" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/abbreviated' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <ReceiptText className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">ใบกำกับอย่างย่อ</span>
+                            </Link>
+                            <Link href="/credit-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/credit-notes' || pathname?.startsWith('/credit-notes/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <ReceiptText className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">ใบลดหนี้</span>
+                            </Link>
+                            <Link href="/statements" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/statements' || pathname?.startsWith('/statements/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <ClipboardList className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">ใบวางบิล</span>
+                            </Link>
                           </div>
                         )}
                       </div>

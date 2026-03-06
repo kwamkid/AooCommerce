@@ -26,6 +26,7 @@ function mapTransaction(tx: any, userMap: Record<string, string>) {
     warehouse_code: tx.warehouse_code ?? tx.warehouse?.code ?? '',
     product_code: tx.product_code ?? tx.variation?.product?.code ?? '',
     product_name: tx.product_name ?? tx.variation?.product?.name ?? '',
+    product_image: tx.product_image ?? null,
     sku: tx.sku ?? tx.variation?.sku ?? '',
     variation_label: varLabel,
     created_by_name: tx.created_by ? (userMap[tx.created_by] || '') : '',
@@ -131,19 +132,55 @@ export async function GET(request: NextRequest) {
       count = viewResult.count;
     }
 
-    // Fetch user profiles for created_by
+    // Fetch user profiles + product images in parallel
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const userIds = [...new Set((data || []).map((tx: any) => tx.created_by).filter(Boolean))];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const variationIds = [...new Set((data || []).map((tx: any) => tx.variation_id).filter(Boolean))];
+
     const userMap: Record<string, string> = {};
-    if (userIds.length > 0) {
-      const { data: profiles } = await supabaseAdmin
-        .from('user_profiles')
-        .select('id, name')
-        .in('id', userIds);
-      (profiles || []).forEach((p: { id: string; name: string }) => {
-        userMap[p.id] = p.name || '';
-      });
+    const imageMap: Record<string, string> = {};
+
+    const [profilesResult, imagesResult] = await Promise.all([
+      userIds.length > 0
+        ? supabaseAdmin.from('user_profiles').select('id, name').in('id', userIds)
+        : Promise.resolve({ data: null }),
+      variationIds.length > 0
+        ? supabaseAdmin.from('product_images').select('variation_id, image_url').in('variation_id', variationIds).order('sort_order', { ascending: true })
+        : Promise.resolve({ data: null }),
+    ]);
+
+    (profilesResult.data || []).forEach((p: { id: string; name: string }) => {
+      userMap[p.id] = p.name || '';
+    });
+    // First image per variation wins
+    (imagesResult.data || []).forEach((img: { variation_id: string; image_url: string }) => {
+      if (!imageMap[img.variation_id]) imageMap[img.variation_id] = img.image_url;
+    });
+
+    // Also check product.image for variations without product_images
+    if (variationIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const missingImageVarIds = variationIds.filter((vid: string) => !imageMap[vid]);
+      if (missingImageVarIds.length > 0) {
+        const { data: pvData } = await supabaseAdmin
+          .from('product_variations')
+          .select('id, product:products(image)')
+          .in('id', missingImageVarIds);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (pvData || []).forEach((pv: any) => {
+          if (pv.product?.image) imageMap[pv.id] = pv.product.image;
+        });
+      }
     }
+
+    // Attach images to data rows
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (data || []).forEach((tx: any) => {
+      if (tx.variation_id && imageMap[tx.variation_id]) {
+        tx.product_image = imageMap[tx.variation_id];
+      }
+    });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const transactions = (data || []).map((tx: any) => mapTransaction(tx, userMap));
