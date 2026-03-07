@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
         id, statement_number, status, statement_date, due_date,
         period_year, period_month,
         total_amount, paid_amount, outstanding_amount,
-        tax_invoice_number, receipt_number,
         notes, created_at,
         customer:customers(id, name, customer_code)
       `, { count: 'exact' })
@@ -45,7 +44,7 @@ export async function GET(request: NextRequest) {
     }
     if (search) {
       query = query.or(
-        `statement_number.ilike.%${search}%,tax_invoice_number.ilike.%${search}%`
+        `statement_number.ilike.%${search}%`
       );
     }
 
@@ -71,8 +70,35 @@ export async function GET(request: NextRequest) {
       if (row.status in statusCounts) statusCounts[row.status]++;
     }
 
+    // Enrich with document data from document tables
+    const statementIds = (data || []).map((s: any) => s.id);
+    let docMap: Record<string, { tax_invoice_number?: string; receipt_number?: string }> = {};
+    if (statementIds.length > 0) {
+      const [taxRes, recRes] = await Promise.all([
+        supabaseAdmin.from('tax_invoices')
+          .select('source_id, invoice_number')
+          .eq('source_type', 'statement').eq('company_id', companyId)
+          .in('source_id', statementIds),
+        supabaseAdmin.from('receipts')
+          .select('source_id, receipt_number')
+          .eq('source_type', 'statement').eq('company_id', companyId)
+          .in('source_id', statementIds),
+      ]);
+      for (const row of taxRes.data || []) {
+        docMap[row.source_id] = { ...docMap[row.source_id], tax_invoice_number: row.invoice_number };
+      }
+      for (const row of recRes.data || []) {
+        docMap[row.source_id] = { ...docMap[row.source_id], receipt_number: row.receipt_number };
+      }
+    }
+    const enrichedStatements = (data || []).map((s: any) => ({
+      ...s,
+      tax_invoice_number: docMap[s.id]?.tax_invoice_number || null,
+      receipt_number: docMap[s.id]?.receipt_number || null,
+    }));
+
     return NextResponse.json({
-      statements: data || [],
+      statements: enrichedStatements,
       total: count || 0,
       status_counts: statusCounts,
     });

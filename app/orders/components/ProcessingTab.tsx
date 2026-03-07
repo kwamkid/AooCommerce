@@ -26,9 +26,11 @@ import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { markOrdersPrinted, updateLocalPrintStatus } from '@/lib/print-tracking';
 import { useCompany } from '@/lib/company-context';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
+import { getAvailablePrintActions, type PrintAction } from '@/lib/print-actions';
 import OrderCard from './OrderCard';
 import ActionMenu, { ActionItem } from './ActionMenu';
 import TaxInvoiceModal from './TaxInvoiceModal';
+import PrintAfterActionModal from '@/components/orders/PrintAfterActionModal';
 import Pagination from '@/app/components/Pagination';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import {
@@ -113,6 +115,13 @@ export default function ProcessingTab({
 
   // Tax invoice modal
   const [taxInvoiceModal, setTaxInvoiceModal] = useState<{ orderId: string; orderNumber: string; customerId?: string; hasAbbrev?: boolean } | null>(null);
+
+  // Print after action modal
+  const [printModal, setPrintModal] = useState<{
+    title: string;
+    orderIds: string[];
+    options: Array<{ key: string; label: string; count: number; defaultChecked: boolean }>;
+  } | null>(null);
 
   // Ship modal (single)
   const [shipModal, setShipModal] = useState<{ order: Order } | null>(null);
@@ -403,6 +412,17 @@ export default function ProcessingTab({
       const shipped = result.shipped ?? 0;
       if (shipped > 0) {
         showToast(`จัดส่งสำเร็จ ${shipped} รายการ`, 'success');
+        // Show print dialog after successful bulk ship
+        const shippedIds = bulkShipItems.map(i => i.id);
+        setPrintModal({
+          title: `จัดส่งสำเร็จ ${shipped} รายการ`,
+          orderIds: shippedIds,
+          options: [
+            { key: 'label', label: 'ใบปะหน้า', count: shipped, defaultChecked: true },
+            { key: 'packing', label: 'ใบจัดของ', count: shipped, defaultChecked: true },
+            { key: 'invoice', label: 'ใบกำกับ/ใบเสร็จ', count: shipped, defaultChecked: false },
+          ],
+        });
       } else {
         showToast('ไม่มีออเดอร์ที่จัดส่งได้ (อาจเปลี่ยนสถานะไปแล้ว)', 'error');
       }
@@ -721,6 +741,73 @@ export default function ProcessingTab({
     setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id, hasAbbrev });
   };
 
+  /** พิมพ์ใบกำกับภาษี (existing full tax invoice) */
+  const handlePrintFullTax = async (orderId: string) => {
+    setActionLoading(true);
+    setOverlayTitle('กำลังสร้างใบกำกับภาษี...');
+    setOverlayProgress(undefined);
+    setOverlayMessage(undefined);
+    try {
+      const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+      const orderData = await fetchOrderForPdf(orderId);
+      const blob = await generateFullInvoicePdf(orderData);
+      showPdfPreview(blob, `ใบกำกับภาษี ${orderData.tax_invoice_number || ''}`);
+      markOrdersPrinted([orderId], 'invoice');
+      updateLocalPrintStatus(setOrders, [orderId], 'invoice');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  /** พิมพ์ใบส่งสินค้า (DN) */
+  const handlePrintDN = async (orderId: string) => {
+    setActionLoading(true);
+    setOverlayTitle('กำลังสร้างใบส่งสินค้า...');
+    setOverlayProgress(undefined);
+    setOverlayMessage(undefined);
+    try {
+      const { generateOrderDnPdf } = await import('@/lib/order-dn-pdf');
+      const orderData = await fetchOrderForPdf(orderId);
+      const blob = await generateOrderDnPdf({
+        dn_number: orderData.dn_number,
+        order_number: orderData.order_number,
+        dn_date: orderData.created_at,
+        delivery_name: orderData.delivery_name || '',
+        delivery_phone: orderData.delivery_phone,
+        delivery_address: orderData.delivery_address,
+        delivery_district: orderData.delivery_district,
+        delivery_amphoe: orderData.delivery_amphoe,
+        delivery_province: orderData.delivery_province,
+        delivery_postal_code: orderData.delivery_postal_code,
+        notes: orderData.notes,
+        items: (orderData.items || []).map((item: any) => ({
+          product_name: item.product_name,
+          variation_label: item.variation_label,
+          sku: item.sku,
+          quantity: item.quantity,
+        })),
+      });
+      showPdfPreview(blob, `ใบส่งสินค้า ${orderData.dn_number || ''}`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  /** Handle print modal selections */
+  const handlePrintModalPrint = async (selectedKeys: string[]) => {
+    if (!printModal) return;
+    const ids = printModal.orderIds;
+    for (const key of selectedKeys) {
+      if (key === 'label') await handlePrintLabels(ids);
+      if (key === 'packing') await handlePrintPackingSlips(ids);
+      if (key === 'invoice') await handleBulkPrintInvoices(ids);
+    }
+  };
+
   const handleBulkPrintInvoices = async (orderIds: string[]) => {
     setActionLoading(true);
     setOverlayTitle('กำลังสร้างใบกำกับ/ใบเสร็จ...');
@@ -776,7 +863,6 @@ export default function ProcessingTab({
   };
 
   const renderCardActions = (order: Order) => {
-    const isShopee = order.source === 'shopee';
     const isMarketplace = isMarketplaceSource(order.source);
     const isOnHold = order.fulfillment_status === 'on_hold';
     const primaryActions: React.ReactNode[] = [];
@@ -809,99 +895,77 @@ export default function ProcessingTab({
       );
     }
 
-    // === Section 1: เอกสารจัดส่ง ===
-    if (!isOnHold) {
-      menuItems.push({
-        key: 'packing', label: 'ใบจัดของ', icon: <ClipboardList className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); handlePrintPackingSlips([order.id]); },
-        className: 'p-1.5 text-gray-400 hover:text-indigo-600 transition-colors rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30',
-      });
-      menuItems.push({
-        key: 'print', label: `ใบปะหน้า${isMarketplace ? ` ${order.source === 'tiktok' ? 'TikTok Shop' : order.source === 'line_shopping' ? 'LINE Shopping' : order.source?.charAt(0).toUpperCase() + (order.source?.slice(1) || '')}` : ''}`, icon: <Printer className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); handlePrintLabels([order.id]); },
-        className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
-      });
-    }
+    // === Print actions (from centralized getAvailablePrintActions) ===
+    const printActions = getAvailablePrintActions({
+      order_status: order.order_status,
+      payment_status: order.payment_status,
+      flow_type: order.flow_type || null,
+      tax_invoice_number: order.tax_invoice_number || null,
+      tax_invoice_doc_type: order.tax_invoice_doc_type || null,
+      tax_invoice_voided_at: order.tax_invoice_voided_at || null,
+      dn_number: order.dn_number || null,
+      source: order.source || null,
+      is_on_hold: isOnHold,
+      vatRegistered,
+    });
 
-    // === Section 2: เอกสารการเงิน ===
-    const section2Start = menuItems.length;
-    if (order.payment_status !== 'paid') {
-      // ยังไม่จ่าย → ใบแจ้งหนี้
-      menuItems.push({
-        key: 'invoice', label: 'ใบแจ้งหนี้', icon: <Banknote className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
-        className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
-      });
-    } else {
-      // จ่ายแล้ว → logic ตาม doc_type
-      const docType = order.tax_invoice_doc_type;
-      const hasDoc = !!order.tax_invoice_number;
-      const isVoided = !!order.tax_invoice_voided_at;
-
-      if (!hasDoc) {
-        // ยังไม่มีเอกสาร → ออกใหม่
-        if (vatRegistered) {
-          menuItems.push({
-            key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
-            onClick: (e) => { e.stopPropagation(); handleIssueAndPrintAbbreviated(order.id); },
-            className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
-          });
-          menuItems.push({
-            key: 'full-invoice', label: 'ขอใบกำกับภาษี', icon: <Banknote className="w-4 h-4" />,
-            onClick: (e) => { e.stopPropagation(); handleRequestFullInvoice(order); },
-            className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
-          });
-        } else {
-          menuItems.push({
-            key: 'receipt', label: 'ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
-            onClick: (e) => { e.stopPropagation(); handleIssueAndPrintAbbreviated(order.id); },
-            className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
-          });
-        }
-      } else if (docType === 'abbreviated' && !isVoided) {
-        // มี ABB ที่ยังไม่ void
-        menuItems.push({
-          key: 'print-abb', label: 'พิมพ์ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
-          onClick: (e) => { e.stopPropagation(); handlePrintAbbreviated(order); },
-          className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
-        });
-        menuItems.push({
-          key: 'full-invoice', label: 'ขอใบกำกับภาษี', icon: <Banknote className="w-4 h-4" />,
-          onClick: (e) => { e.stopPropagation(); handleRequestFullInvoice(order); },
-          className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
-        });
-      } else if (docType === 'abbreviated' && isVoided) {
-        // ABB ถูก void แล้ว (มี TAX อยู่แล้ว) — ไม่ควรเกิดสถานะนี้ แต่ก็แสดง print ABB voided
-        menuItems.push({
-          key: 'print-abb-voided', label: 'พิมพ์ใบกำกับอย่างย่อ (ยกเลิก)', icon: <Banknote className="w-4 h-4" />,
-          onClick: (e) => { e.stopPropagation(); handlePrintAbbreviated(order); },
-          className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
-        });
-      } else if (docType === 'tax') {
-        // มี TAX แล้ว
-        menuItems.push({
-          key: 'print-tax', label: 'พิมพ์ใบกำกับภาษี', icon: <Banknote className="w-4 h-4" />,
-          onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
-          className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
-        });
-      } else if (docType === 'receipt') {
-        // มี REC แล้ว
-        menuItems.push({
-          key: 'print-rec', label: 'พิมพ์ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
-          onClick: (e) => { e.stopPropagation(); handlePrintAbbreviated(order); },
-          className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
-        });
-      } else {
-        // fallback: old INV-* or unknown
-        menuItems.push({
-          key: 'receipt-legacy', label: 'ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
-          onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
-          className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
-        });
+    // Map each print action to a menu item with the correct handler
+    const getPrintActionHandler = (action: PrintAction, order: Order): ((e: React.MouseEvent) => void) => {
+      switch (action.type) {
+        case 'packing':
+          return (e) => { e.stopPropagation(); handlePrintPackingSlips([order.id]); };
+        case 'shipping_label':
+          return (e) => { e.stopPropagation(); handlePrintLabels([order.id]); };
+        case 'invoice':
+          return (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); };
+        case 'abbreviated':
+        case 'receipt':
+          return (e) => { e.stopPropagation(); handleIssueAndPrintAbbreviated(order.id); };
+        case 'print_abbreviated':
+        case 'print_receipt':
+          return (e) => { e.stopPropagation(); handlePrintAbbreviated(order); };
+        case 'request_full':
+          return (e) => { e.stopPropagation(); handleRequestFullInvoice(order); };
+        case 'print_full_tax':
+          return (e) => { e.stopPropagation(); handlePrintFullTax(order.id); };
+        case 'dn':
+          return (e) => { e.stopPropagation(); handlePrintDN(order.id); };
+        default:
+          return (e) => { e.stopPropagation(); };
       }
-    }
-    if (menuItems.length > section2Start && section2Start > 0) {
-      menuItems[section2Start].dividerBefore = true;
+    };
+
+    let firstFinancialAdded = false;
+    for (const action of printActions) {
+      const labelOverride = action.type === 'shipping_label' && isMarketplace
+        ? `ใบปะหน้า ${order.source === 'tiktok' ? 'TikTok Shop' : order.source === 'line_shopping' ? 'LINE Shopping' : order.source?.charAt(0).toUpperCase() + (order.source?.slice(1) || '')}`
+        : action.label;
+
+      const icon = action.category === 'shipping'
+        ? (action.type === 'packing' ? <ClipboardList className="w-4 h-4" /> : <Printer className="w-4 h-4" />)
+        : <Banknote className="w-4 h-4" />;
+
+      const item: ActionItem = {
+        key: action.type,
+        label: labelOverride,
+        icon,
+        onClick: getPrintActionHandler(action, order),
+        className: action.category === 'shipping'
+          ? (action.type === 'packing'
+              ? 'p-1.5 text-gray-400 hover:text-indigo-600 transition-colors rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
+              : 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30')
+          : (action.type === 'request_full' || action.type === 'print_full_tax'
+              ? 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30'
+              : 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30'),
+      };
+
+      // Add divider before first financial item
+      if (action.category === 'financial' && !firstFinancialAdded && menuItems.length > 0) {
+        item.dividerBefore = true;
+        firstFinancialAdded = true;
+      }
+
+      menuItems.push(item);
     }
 
     // === Section 3: อื่นๆ ===
@@ -1160,6 +1224,17 @@ export default function ProcessingTab({
             }
             fetchOrders();
           }}
+        />
+      )}
+
+      {/* Print After Action Modal */}
+      {printModal && (
+        <PrintAfterActionModal
+          open={!!printModal}
+          onClose={() => setPrintModal(null)}
+          title={printModal.title}
+          options={printModal.options}
+          onPrint={handlePrintModalPrint}
         />
       )}
 

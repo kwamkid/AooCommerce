@@ -16,6 +16,7 @@ import ItemsTable, { type TableItem as OrderTableItem } from '@/components/ui/It
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
+import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import {
   Plus,
@@ -1764,97 +1765,40 @@ export default function OrderForm({
       {hasProducts && (
         <div className={`${summaryWide ? 'w-[340px] flex-shrink-0 sticky top-4' : 'w-full'}`}>
           <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-            <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4">
-              <h3 className="text-base font-semibold text-gray-700 dark:text-slate-300 mb-3">สรุปคำสั่งซื้อ</h3>
-              <div className="space-y-2 text-base">
-                <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                  <span>ยอดรวมสินค้า (รวม VAT)</span>
-                  <span>฿{formatPrice(itemsTotal)}</span>
-                </div>
-                <div className="flex justify-between items-center text-gray-500 dark:text-slate-400">
-                  <span>ค่าจัดส่ง</span>
-                  {/* Show inline input when single branch, show total when multiple branches */}
-                  <div className="relative w-[108px]">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={branchOrders[0]?.shipping_fee || ''}
-                      onChange={(e) => handleUpdateShippingFee(parseFloat(e.target.value) || 0)}
-                      placeholder="0"
-                      disabled={isReadOnly}
-                      className="w-full px-2 pr-7 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
-                    />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-slate-500 pointer-events-none">฿</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500 dark:text-slate-400">ส่วนลดรวม</span>
-                  <div className="flex items-stretch w-[108px]">
-                    <input
-                      type="number"
-                      min="0"
-                      max={orderDiscountType === 'percent' ? 100 : undefined}
-                      step="0.01"
-                      value={orderDiscount}
-                      onChange={(e) => setOrderDiscount(parseFloat(e.target.value) || 0)}
-                      disabled={isReadOnly}
-                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-l-lg border-r-0 text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent');
-                        setOrderDiscount(0);
-                      }}
-                      disabled={isReadOnly}
-                      className="px-2 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[28px] flex items-center justify-center disabled:opacity-50"
-                      title={orderDiscountType === 'percent' ? 'เปลี่ยนเป็นจำนวนเงิน' : 'เปลี่ยนเป็นเปอร์เซ็นต์'}
-                    >
-                      {orderDiscountType === 'percent' ? '%' : '฿'}
-                    </button>
-                  </div>
-                </div>
-                {vatRegistered && (
+            <OrderSummaryBox
+              title="สรุปคำสั่งซื้อ"
+              subtotalAmount={itemsTotal}
+              vatRegistered={vatRegistered}
+              shippingFee={branchOrders[0]?.shipping_fee || 0}
+              onShippingChange={!isReadOnly ? handleUpdateShippingFee : undefined}
+              discountValue={orderDiscount}
+              discountType={orderDiscountType}
+              onDiscountChange={!isReadOnly ? setOrderDiscount : undefined}
+              onDiscountTypeToggle={!isReadOnly ? () => { setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent'); setOrderDiscount(0); } : undefined}
+              readOnly={isReadOnly}
+            >
+              {(() => {
+                const credit = exchangeCreditAmount || storedExchangeCredit || 0;
+                if (credit <= 0) return null;
+                const diff = total - credit;
+                return (
                   <>
-                    <div className="flex justify-between text-gray-500 dark:text-slate-400 pt-2 border-t border-gray-200 dark:border-slate-600">
-                      <span>ยอดก่อน VAT</span>
-                      <span>฿{formatPrice(subtotal)}</span>
+                    <div className="flex justify-between text-sm text-green-600 dark:text-green-400 pt-2 border-t border-gray-200 dark:border-slate-600">
+                      <span>เครดิตจากการเปลี่ยนสินค้า</span>
+                      <span>-฿{formatPrice(credit)}</span>
                     </div>
-                    <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                      <span>VAT 7%</span>
-                      <span>฿{formatPrice(vat)}</span>
+                    <div className={`flex justify-between items-center text-lg font-bold mt-1 px-3 py-2 rounded-lg ${
+                      diff > 0
+                        ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20'
+                        : 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20'
+                    }`}>
+                      <span>{diff > 0 ? 'ลูกค้าจ่ายเพิ่ม' : diff < 0 ? 'คืนเงินลูกค้า' : 'ไม่มีส่วนต่าง'}</span>
+                      <span>฿{formatPrice(Math.abs(diff))}</span>
                     </div>
                   </>
-                )}
-                <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200 dark:border-slate-600 text-gray-900 dark:text-slate-100">
-                  <span>ยอดรวมสุทธิ</span>
-                  <span className="text-[#F4511E]">฿{formatPrice(total)}</span>
-                </div>
-                {/* Exchange: price difference summary (create mode or view existing) */}
-                {(() => {
-                  const credit = exchangeCreditAmount || storedExchangeCredit || 0;
-                  if (credit <= 0) return null;
-                  const diff = total - credit;
-                  return (
-                    <>
-                      <div className="flex justify-between text-sm text-green-600 dark:text-green-400 pt-2 border-t border-gray-200 dark:border-slate-600">
-                        <span>เครดิตจากการเปลี่ยนสินค้า</span>
-                        <span>-฿{formatPrice(credit)}</span>
-                      </div>
-                      <div className={`flex justify-between items-center text-lg font-bold mt-1 px-3 py-2 rounded-lg ${
-                        diff > 0
-                          ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20'
-                          : 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20'
-                      }`}>
-                        <span>{diff > 0 ? 'ลูกค้าจ่ายเพิ่ม' : diff < 0 ? 'คืนเงินลูกค้า' : 'ไม่มีส่วนต่าง'}</span>
-                        <span>฿{formatPrice(Math.abs(diff))}</span>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
+                );
+              })()}
+            </OrderSummaryBox>
           </div>
         </div>
       )}

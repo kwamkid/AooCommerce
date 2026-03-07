@@ -21,8 +21,11 @@ import {
   ImageIcon,
   X,
 } from 'lucide-react';
+import { generatePackingPdf } from '@/lib/orders-packing-pdf';
+import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
-import { showPdfPreview } from '@/lib/print-pdf';
+import { generateAbbreviatedInvoicePdf } from '@/lib/order-invoice-abbreviated-pdf';
+import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { markOrdersPrinted, updateLocalPrintStatus } from '@/lib/print-tracking';
 import { useCompany } from '@/lib/company-context';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
@@ -30,6 +33,7 @@ import OrderCard from './OrderCard';
 import ActionMenu, { ActionItem } from './ActionMenu';
 import TaxInvoiceModal from './TaxInvoiceModal';
 import SplitParcelModal from './SplitParcelModal';
+import PrintAfterActionModal from '@/components/orders/PrintAfterActionModal';
 import Pagination from '@/app/components/Pagination';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { Order } from './types';
@@ -454,6 +458,19 @@ export default function ReadyToShipTab({
       // Show results
       if (successCount > 0) {
         showToast(`กดรับสำเร็จ ${successCount} รายการ`, 'success');
+        // Show print dialog after successful accept
+        setPrintModal({
+          title: `กดรับสำเร็จ ${successCount} รายการ`,
+          orderIds: ids.filter(id => {
+            const o = orders.find(o => o.id === id);
+            return o && !isMarketplaceSource(o.source);
+          }),
+          options: [
+            { key: 'label', label: 'ใบปะหน้า', count: successCount, defaultChecked: true },
+            { key: 'packing', label: 'ใบจัดของ', count: successCount, defaultChecked: true },
+            { key: 'invoice', label: 'ใบกำกับ/ใบเสร็จ', count: successCount, defaultChecked: false },
+          ],
+        });
       }
       if (errors.length > 0) {
         showToast(errors.join('\n'), 'error');
@@ -504,6 +521,13 @@ export default function ReadyToShipTab({
   const [actionLoading, setActionLoading] = useState(false);
   const [taxInvoiceModal, setTaxInvoiceModal] = useState<{ orderId: string; orderNumber: string; customerId?: string } | null>(null);
 
+  // Print after action modal
+  const [printModal, setPrintModal] = useState<{
+    title: string;
+    orderIds: string[];
+    options: Array<{ key: string; label: string; count: number; defaultChecked: boolean }>;
+  } | null>(null);
+
   const handlePrintInvoice = async (orderId: string) => {
     setActionLoading(true);
     try {
@@ -518,6 +542,63 @@ export default function ReadyToShipTab({
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const fetchOrderForPdf = async (orderId: string) => {
+    const res = await apiFetch(`/api/orders/${orderId}`);
+    if (!res.ok) throw new Error('Failed to fetch order');
+    const result = await res.json();
+    return result.order;
+  };
+
+  /** For dropship orders, sender = agent's name (not our company) */
+  const getDropshipSender = (orderData: any) => {
+    if (orderData.customer?.customer_type !== 'dropship') return {};
+    return {
+      sender_name: orderData.customer.name || '',
+      sender_phone: orderData.customer.phone || '',
+    };
+  };
+
+  /** Handle print modal selections */
+  const handlePrintModalPrint = async (selectedKeys: string[]) => {
+    if (!printModal) return;
+    const ids = printModal.orderIds;
+    for (const key of selectedKeys) {
+      if (key === 'label') {
+        // Generate shipping labels
+        const blobs: Blob[] = [];
+        for (const id of ids) {
+          const orderData = await fetchOrderForPdf(id);
+          blobs.push(await generateShippingLabelPdf({ data: { ...orderData, ...getDropshipSender(orderData) } }));
+        }
+        const merged = await mergePdfBlobs(blobs);
+        showPdfPreview(merged, 'ใบปะหน้า');
+        markOrdersPrinted(ids, 'label');
+        updateLocalPrintStatus(setOrders, ids, 'label');
+      }
+      if (key === 'packing') {
+        const ordersData = [];
+        for (const id of ids) {
+          ordersData.push(await fetchOrderForPdf(id));
+        }
+        const blob = await generatePackingPdf(ordersData);
+        showPdfPreview(blob, 'ใบจัดของ');
+        markOrdersPrinted(ids, 'packing');
+        updateLocalPrintStatus(setOrders, ids, 'packing');
+      }
+      if (key === 'invoice') {
+        // Bulk print invoices (abbreviated format)
+        const ordersData = [];
+        for (const id of ids) {
+          ordersData.push(await fetchOrderForPdf(id));
+        }
+        const blob = await generateAbbreviatedInvoicePdf(ordersData);
+        showPdfPreview(blob, 'ใบกำกับ/ใบเสร็จ');
+        markOrdersPrinted(ids, 'invoice');
+        updateLocalPrintStatus(setOrders, ids, 'invoice');
+      }
     }
   };
 
@@ -1045,6 +1126,17 @@ export default function ReadyToShipTab({
             }
             fetchOrders();
           }}
+        />
+      )}
+
+      {/* Print After Action Modal */}
+      {printModal && (
+        <PrintAfterActionModal
+          open={!!printModal}
+          onClose={() => setPrintModal(null)}
+          title={printModal.title}
+          options={printModal.options}
+          onPrint={handlePrintModalPrint}
         />
       )}
 

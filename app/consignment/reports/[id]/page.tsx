@@ -15,6 +15,7 @@ import { useCompany } from '@/lib/company-context';
 import { formatNumber } from '@/lib/utils/format';
 import { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
+import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import { type GpResolverContext, resolveGp, fetchGpContext } from '@/lib/gp-resolver';
 import { showPdfPreview } from '@/lib/print-pdf';
 
@@ -337,6 +338,7 @@ function EditReportContent() {
   // ─── Calculations ──────────────────────────────────
 
   // selling_price is already net (after per-item GP deduction)
+  const vatRegistered = currentCompany?.vat_registered || false;
   const totalQty = items.reduce((s, i) => s + i.qty_sold, 0);
   const totalOurAmount = items.reduce((sum, i) => sum + i.qty_sold * i.selling_price, 0);
   const hasItems = items.length > 0;
@@ -770,23 +772,11 @@ function EditReportContent() {
           {hasItems && (
             <div className="w-full sm:w-[300px] flex-shrink-0 sm:sticky sm:top-4">
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-                <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4">
-                  <h3 className="text-base font-semibold text-gray-700 dark:text-slate-300 mb-3">สรุปยอดขาย</h3>
-                  <div className="space-y-2 text-base">
-                    <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                      <span>จำนวนรายการ</span>
-                      <span>{items.length} รายการ</span>
-                    </div>
-                    <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                      <span>จำนวนชิ้น</span>
-                      <span>{totalQty} ชิ้น</span>
-                    </div>
-                    <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200 dark:border-slate-600 text-gray-900 dark:text-slate-100">
-                      <span>ยอดที่ต้องชำระ</span>
-                      <span className="text-[#F4511E]">฿{formatNumber(totalOurAmount)}</span>
-                    </div>
-                  </div>
-                </div>
+                <OrderSummaryBox
+                  title="สรุปยอดขาย"
+                  subtotalAmount={totalOurAmount}
+                  vatRegistered={vatRegistered}
+                />
               </div>
             </div>
           )}

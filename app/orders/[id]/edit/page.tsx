@@ -18,6 +18,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
+import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 
@@ -1004,49 +1005,15 @@ export default function EditOrderPage() {
 
               {/* Right Column (Desktop) / First on Mobile - Order Summary */}
               <div className="order-1 md:order-2">
-                <h2 className="text-lg font-semibold mb-4">สรุปคำสั่งซื้อ</h2>
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm text-gray-600 dark:text-slate-400">
-                    <span>ยอดรวมสินค้า (รวม VAT)</span>
-                    <span>฿{formatPrice(itemsTotal)}</span>
-                  </div>
-                  {totalShippingFee > 0 && (
-                    <div className="flex justify-between text-sm text-gray-600 dark:text-slate-400">
-                      <span>ค่าจัดส่ง</span>
-                      <span>฿{formatPrice(totalShippingFee)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center">
-                    <span>ส่วนลดรวม</span>
-                    <div className="flex">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={orderDiscount}
-                        onChange={(e) => setOrderDiscount(Math.min(itemsTotal, Math.max(0, parseFloat(e.target.value) || 0)))}
-                        className="w-24 px-3 py-1 border border-gray-300 dark:border-slate-600 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                      />
-                      <span className="px-2 py-1 border border-l-0 border-gray-300 dark:border-slate-600 rounded-r bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 text-sm font-bold flex items-center">฿</span>
-                    </div>
-                  </div>
-                  {vatRegistered && (
-                    <>
-                      <div className="flex justify-between text-sm text-gray-600 pt-2 border-t">
-                        <span>ยอดก่อน VAT</span>
-                        <span>฿{formatPrice(subtotal)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-gray-600 dark:text-slate-400">
-                        <span>VAT 7%</span>
-                        <span>฿{formatPrice(vat)}</span>
-                      </div>
-                    </>
-                  )}
-                  <div className="flex justify-between text-xl font-bold pt-3 border-t">
-                    <span>ยอดรวมสุทธิ</span>
-                    <span className="text-[#F4511E]">฿{formatPrice(total)}</span>
-                  </div>
-                </div>
+                <OrderSummaryBox
+                  title="สรุปคำสั่งซื้อ"
+                  subtotalAmount={itemsTotal}
+                  vatRegistered={vatRegistered}
+                  shippingFee={totalShippingFee}
+                  discountValue={orderDiscount}
+                  discountType="amount"
+                  onDiscountChange={(v) => setOrderDiscount(Math.min(itemsTotal, Math.max(0, v)))}
+                />
               </div>
             </div>
           </div>

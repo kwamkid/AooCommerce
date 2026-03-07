@@ -65,7 +65,34 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         || null,
     }));
 
-    return NextResponse.json({ replenishment: { ...data, items } });
+    // Enrich with document data from document tables
+    const [taxRes, recRes, dnRes] = await Promise.all([
+      supabaseAdmin.from('tax_invoices')
+        .select('invoice_number, invoice_date')
+        .eq('source_type', 'replenishment').eq('source_id', id).eq('company_id', auth.companyId)
+        .maybeSingle(),
+      supabaseAdmin.from('receipts')
+        .select('receipt_number, receipt_date')
+        .eq('source_type', 'replenishment').eq('source_id', id).eq('company_id', auth.companyId)
+        .maybeSingle(),
+      supabaseAdmin.from('delivery_notes')
+        .select('dn_number, dn_date')
+        .eq('source_type', 'replenishment').eq('source_id', id).eq('company_id', auth.companyId)
+        .maybeSingle(),
+    ]);
+
+    const docType = taxRes.data ? 'tax' : recRes.data ? 'receipt' : null;
+    const enriched = {
+      ...data,
+      items,
+      tax_invoice_number: taxRes.data?.invoice_number || recRes.data?.receipt_number || null,
+      tax_invoice_date: taxRes.data?.invoice_date || recRes.data?.receipt_date || null,
+      tax_invoice_doc_type: docType,
+      dn_number: dnRes.data?.dn_number || null,
+      dn_date: dnRes.data?.dn_date || null,
+    };
+
+    return NextResponse.json({ replenishment: enriched });
   } catch (err) {
     console.error('Replenishment GET [id] error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -115,8 +142,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         })
         .eq('id', id);
 
-      // Auto issue invoice for Invoice Mode customers
-      let invoiceResult = null;
+      // Auto issue document on ship for ALL consignment/credit replenishments
+      // - จด VAT: Invoice mode → TAX, DN mode → no doc (DN mode issues TAX at statement payment)
+      // - ไม่จด VAT: ALL modes → DN (ใบส่งสินค้า)
+      let docResult = null;
       try {
         const { data: customer } = await supabaseAdmin
           .from('customers')
@@ -124,18 +153,35 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           .eq('id', existing.customer_id)
           .single();
 
-        if (customer?.consignment_mode === 'invoice') {
-          const { issueReplenishmentInvoice } = await import('@/lib/invoice-service');
-          invoiceResult = await issueReplenishmentInvoice(id, auth.companyId);
+        const { issueReplenishmentInvoice, issueReplenishmentDN } = await import('@/lib/invoice-service');
+        const { data: company } = await supabaseAdmin
+          .from('companies')
+          .select('vat_registered')
+          .eq('id', auth.companyId)
+          .single();
+        const vatRegistered = company?.vat_registered ?? false;
+
+        if (vatRegistered) {
+          if (customer?.consignment_mode === 'invoice') {
+            // จด VAT + Invoice mode → TAX
+            docResult = await issueReplenishmentInvoice(id, auth.companyId);
+          } else {
+            // จด VAT + DN mode → DN (ใบส่งสินค้า)
+            docResult = await issueReplenishmentDN(id, auth.companyId);
+          }
+        } else {
+          // ไม่จด VAT: ALL modes → DN (ใบส่งสินค้า)
+          docResult = await issueReplenishmentDN(id, auth.companyId);
         }
       } catch (err) {
-        console.error('Auto invoice on ship error:', err);
+        console.error('Auto document on ship error:', err);
       }
 
       return NextResponse.json({
         success: true,
         status: 'shipped',
-        tax_invoice_number: invoiceResult?.invoiceNumber || null,
+        tax_invoice_number: docResult?.invoiceNumber || null,
+        doc_type: docResult?.docType || null,
       });
     }
 

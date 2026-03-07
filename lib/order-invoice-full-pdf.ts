@@ -103,7 +103,11 @@ export async function generateFullInvoicePdf(
   const pdfMake = await setupPdfMake();
   const logoDataUrl = company?.logo_url ? await loadLogoDataUrl(company.logo_url) : null;
 
-  const docTitle = data.tax_invoice_doc_type === 'receipt' ? 'ใบเสร็จรับเงิน' : 'ใบกำกับภาษี/ใบเสร็จรับเงิน';
+  const docTitle = data.tax_invoice_doc_type === 'receipt'
+    ? 'ใบเสร็จรับเงิน'
+    : data.tax_invoice_doc_type === 'tax_receipt' || data.payment_status === 'paid'
+      ? 'ใบกำกับภาษี/ใบเสร็จรับเงิน'
+      : 'ใบกำกับภาษี';
   const dateStr = formatPdfDate(data.order_date || data.created_at);
   const invoiceDateStr = data.tax_invoice_date
     ? formatPdfDate(data.tax_invoice_date)

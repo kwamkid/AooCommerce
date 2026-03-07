@@ -633,6 +633,32 @@ export async function POST(request: NextRequest) {
     }
     // --- End exchange CN ---
 
+    // --- Insert INV record (ใบแจ้งหนี้) into document table ---
+    try {
+      const { insertInvoice } = await import('@/lib/invoice-service');
+      const { data: invNumber } = await supabaseAdmin
+        .rpc('generate_invoice_number', { p_company_id: auth.companyId });
+      if (invNumber) {
+        // Get customer name
+        let custName: string | null = null;
+        if (orderData.customer_id) {
+          const { data: cData } = await supabaseAdmin
+            .from('customers').select('name').eq('id', orderData.customer_id).single();
+          custName = cData?.name || null;
+        }
+        await insertInvoice({
+          company_id: auth.companyId!,
+          invoice_number: invNumber,
+          invoice_date: new Date().toISOString().split('T')[0],
+          order_id: order.id,
+          customer_id: orderData.customer_id || null,
+          customer_name: custName,
+          total_amount: totalAmount,
+          vat_amount: vatAmount,
+        });
+      }
+    } catch (e) { console.error('[POST /orders] INV insert:', e); }
+
     // Fetch complete order details (rpc returns array)
     const { data: completeOrder } = await supabaseAdmin
       .rpc('get_order_details', { p_order_id: order.id });
@@ -1083,54 +1109,15 @@ export async function PUT(request: NextRequest) {
           }
         }
 
-        // --- Auto-issue ABB for accepted a_cash orders ---
-        const acceptedManualIds = [...nonVerifyingIds, ...verifyingIds];
-        if (acceptedManualIds.length > 0) {
-          try {
-            const { issueAbbreviatedInvoice } = await import('@/lib/invoice-service');
-            // Get flow_type for accepted orders to filter a_cash only
-            const { data: acceptedOrders } = await supabaseAdmin
-              .from('orders')
-              .select('id, flow_type, tax_invoice_number')
-              .in('id', acceptedManualIds)
-              .eq('company_id', auth.companyId);
-
-            for (const o of acceptedOrders || []) {
-              if (o.flow_type === 'a_cash' && !o.tax_invoice_number) {
-                await issueAbbreviatedInvoice(o.id, auth.companyId!);
-              }
-            }
-          } catch (abbErr) {
-            console.error('[BULK ACCEPT ABB] Error:', abbErr);
-            // Non-blocking
+        // --- Auto-issue documents for all accepted orders ---
+        {
+          const { autoIssueDocument } = await import('@/lib/invoice-service');
+          const allAcceptedIds = [...nonVerifyingIds, ...verifyingIds,
+            ...shopeeOrders.map(o => o.id)];
+          for (const oid of allAcceptedIds) {
+            autoIssueDocument(oid, auth.companyId!).catch(() => {});
           }
         }
-
-        // Also issue ABB for accepted Shopee orders (a_cash)
-        if (shopeeOrders.length > 0) {
-          try {
-            const { issueAbbreviatedInvoice } = await import('@/lib/invoice-service');
-            const acceptedShopeeIds = shopeeOrders
-              .filter(o => o.flow_type === 'a_cash')
-              .map(o => o.id);
-            // Re-check which were actually updated to processing
-            const { data: processedShopee } = await supabaseAdmin
-              .from('orders')
-              .select('id, tax_invoice_number')
-              .in('id', acceptedShopeeIds)
-              .eq('company_id', auth.companyId)
-              .eq('order_status', 'processing');
-
-            for (const o of processedShopee || []) {
-              if (!o.tax_invoice_number) {
-                await issueAbbreviatedInvoice(o.id, auth.companyId!);
-              }
-            }
-          } catch (abbErr) {
-            console.error('[BULK ACCEPT SHOPEE ABB] Error:', abbErr);
-          }
-        }
-        // --- End auto ABB ---
 
         return NextResponse.json({
           success: true,
@@ -1398,6 +1385,12 @@ export async function PUT(request: NextRequest) {
           import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(allVarIds)).catch(() => {});
         }
 
+        // Auto-issue documents for shipped orders (Flow B: TAX/DN, Flow A completed: ABB/REC)
+        const { autoIssueDocument } = await import('@/lib/invoice-service');
+        for (const order of ordersToShip || []) {
+          autoIssueDocument(order.id, auth.companyId!).catch(() => {});
+        }
+
         return NextResponse.json({ success: true, shipped: shippedCount });
       }
 
@@ -1442,7 +1435,6 @@ export async function PUT(request: NextRequest) {
       const vatRegistered = companyData?.vat_registered ?? false;
 
       // Generate number via RPC (monthly, thread-safe)
-      // TAX = มีชื่อ+เลขภาษี + จด VAT, REC = ไม่จด VAT
       const rpcName = vatRegistered ? 'generate_tax_invoice_number' : 'generate_receipt_number';
       const docType = vatRegistered ? 'tax' : 'receipt';
       const { data: invoiceNumber, error: rpcErr } = await supabaseAdmin
@@ -1452,37 +1444,23 @@ export async function PUT(request: NextRequest) {
       }
 
       const now = new Date();
-      // Check if retroactive (order created in previous month)
-      const { data: orderForRetro } = await supabaseAdmin
-        .from('orders').select('created_at').eq('id', id).single();
-      const orderMonth = orderForRetro?.created_at ? new Date(orderForRetro.created_at).getMonth() : now.getMonth();
-      const isRetroactive = orderMonth !== now.getMonth();
+      const dateStr = now.toISOString().split('T')[0];
 
-      // Save to order
-      const { error: updateErr } = await supabaseAdmin
+      // Save tax info on order (customer request fields — NOT document tracking)
+      await supabaseAdmin
         .from('orders')
         .update({
           tax_invoice_requested: true,
-          tax_invoice_type: 'full',
-          tax_invoice_doc_type: docType,
-          tax_invoice_number: invoiceNumber,
-          tax_invoice_date: now.toISOString().split('T')[0],
           tax_invoice_name,
           tax_invoice_tax_id,
           tax_invoice_branch: tax_invoice_branch || null,
           tax_invoice_address: tax_invoice_address || null,
-          vat_registered_at_issue: vatRegistered,
-          is_retroactive: isRetroactive,
           updated_at: now.toISOString(),
         })
         .eq('id', id)
         .eq('company_id', auth.companyId);
 
-      if (updateErr) {
-        return NextResponse.json({ error: updateErr.message }, { status: 500 });
-      }
-
-      // Also update customer tax fields (for future pre-fill)
+      // Update customer tax fields (for future pre-fill)
       if (existingOrder.customer_id) {
         await supabaseAdmin
           .from('customers')
@@ -1496,15 +1474,37 @@ export async function PUT(request: NextRequest) {
           .eq('id', existingOrder.customer_id);
       }
 
+      // Insert into document table (single source of truth)
+      const { data: oi } = await supabaseAdmin
+        .from('orders').select('total_amount, vat_amount').eq('id', id).single();
+      if (docType === 'tax') {
+        const { insertTaxInvoice } = await import('@/lib/invoice-service');
+        await insertTaxInvoice({
+          company_id: auth.companyId!, invoice_number: invoiceNumber, invoice_date: dateStr,
+          source_type: 'order', source_id: id, customer_id: existingOrder.customer_id,
+          customer_name: tax_invoice_name, customer_tax_id: tax_invoice_tax_id,
+          customer_branch: tax_invoice_branch || null, customer_address: tax_invoice_address || null,
+          total_amount: oi?.total_amount ?? 0, vat_amount: oi?.vat_amount ?? 0,
+          is_receipt: false,
+        });
+      } else {
+        const { insertReceipt } = await import('@/lib/invoice-service');
+        await insertReceipt({
+          company_id: auth.companyId!, receipt_number: invoiceNumber, receipt_date: dateStr,
+          source_type: 'order', source_id: id, customer_id: existingOrder.customer_id,
+          customer_name: tax_invoice_name, customer_address: tax_invoice_address || null,
+          total_amount: oi?.total_amount ?? 0,
+        });
+      }
+
       return NextResponse.json({
         success: true,
         order: {
           id,
           tax_invoice_requested: true,
-          tax_invoice_type: 'full',
           tax_invoice_doc_type: docType,
           tax_invoice_number: invoiceNumber,
-          tax_invoice_date: now.toISOString().split('T')[0],
+          tax_invoice_date: dateStr,
           tax_invoice_name,
           tax_invoice_tax_id,
           tax_invoice_branch,
@@ -1524,8 +1524,6 @@ export async function PUT(request: NextRequest) {
         success: true,
         order: {
           id,
-          tax_invoice_requested: true,
-          tax_invoice_type: 'abbreviated',
           tax_invoice_doc_type: result.docType,
           tax_invoice_number: result.invoiceNumber,
           tax_invoice_date: new Date().toISOString().split('T')[0],
@@ -1540,27 +1538,22 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'ชื่อกิจการและเลขผู้เสียภาษีจำเป็นต้องกรอก' }, { status: 400 });
       }
 
-      // 1. ดึงข้อมูล order ปัจจุบัน
-      const { data: currentOrder } = await supabaseAdmin
-        .from('orders')
-        .select('tax_invoice_number, tax_invoice_doc_type, tax_invoice_voided_at')
-        .eq('id', id)
+      // 1. ดึง ABB จาก document table
+      const { data: abbRow } = await supabaseAdmin
+        .from('abbreviated_invoices')
+        .select('id, invoice_number, voided_at')
+        .eq('order_id', id)
         .eq('company_id', auth.companyId)
-        .single();
+        .is('voided_at', null)
+        .maybeSingle();
 
-      if (!currentOrder?.tax_invoice_number || currentOrder.tax_invoice_doc_type !== 'abbreviated') {
+      if (!abbRow) {
         return NextResponse.json({ error: 'ไม่พบใบกำกับอย่างย่อที่จะ void' }, { status: 400 });
       }
-      if (currentOrder.tax_invoice_voided_at) {
-        return NextResponse.json({ error: 'ใบกำกับนี้ถูก void ไปแล้ว' }, { status: 400 });
-      }
 
-      const abbrevNumber = currentOrder.tax_invoice_number;
+      const abbrevNumber = abbRow.invoice_number;
 
       // 2. ออกเลข TAX ใหม่
-      const { data: companyData } = await supabaseAdmin
-        .from('companies').select('vat_registered').eq('id', auth.companyId).single();
-      const vatRegistered = companyData?.vat_registered ?? true;
       const { data: newInvoiceNumber, error: rpcErr } = await supabaseAdmin
         .rpc('generate_tax_invoice_number', { p_company_id: auth.companyId });
       if (rpcErr || !newInvoiceNumber) {
@@ -1568,37 +1561,21 @@ export async function PUT(request: NextRequest) {
       }
 
       const now = new Date();
-      const { data: orderForRetro } = await supabaseAdmin
-        .from('orders').select('created_at').eq('id', id).single();
-      const orderMonth = orderForRetro?.created_at ? new Date(orderForRetro.created_at).getMonth() : now.getMonth();
-      const isRetroactive = orderMonth !== now.getMonth();
+      const dateStr = now.toISOString().split('T')[0];
 
-      // 3. อัปเดต order: void ABB + ออก TAX ใหม่ ในครั้งเดียว
-      const { error: updateErr } = await supabaseAdmin
+      // 3. Save tax info on order (customer request fields)
+      await supabaseAdmin
         .from('orders')
         .update({
           tax_invoice_requested: true,
-          tax_invoice_type: 'full',
-          tax_invoice_doc_type: 'tax',
-          tax_invoice_number: newInvoiceNumber,
-          tax_invoice_date: now.toISOString().split('T')[0],
           tax_invoice_name,
           tax_invoice_tax_id,
           tax_invoice_branch: tax_invoice_branch || null,
           tax_invoice_address: tax_invoice_address || null,
-          tax_invoice_voided_at: now.toISOString(),
-          tax_invoice_voided_reason: 'replaced_by_full',
-          tax_invoice_replaced_abbrev_number: abbrevNumber,
-          vat_registered_at_issue: vatRegistered,
-          is_retroactive: isRetroactive,
           updated_at: now.toISOString(),
         })
         .eq('id', id)
         .eq('company_id', auth.companyId);
-
-      if (updateErr) {
-        return NextResponse.json({ error: updateErr.message }, { status: 500 });
-      }
 
       if (existingOrder.customer_id) {
         await supabaseAdmin.from('customers').update({
@@ -1610,16 +1587,43 @@ export async function PUT(request: NextRequest) {
         }).eq('id', existingOrder.customer_id);
       }
 
+      // 4. Void ABB in document table
+      await supabaseAdmin.from('abbreviated_invoices')
+        .update({ voided_at: now.toISOString(), voided_reason: 'replaced_by_full' })
+        .eq('id', abbRow.id);
+
+      // 5. Insert new TAX in document table
+      const { insertTaxInvoice } = await import('@/lib/invoice-service');
+      const { data: oi } = await supabaseAdmin
+        .from('orders').select('total_amount, vat_amount').eq('id', id).single();
+      await insertTaxInvoice({
+        company_id: auth.companyId!, invoice_number: newInvoiceNumber, invoice_date: dateStr,
+        source_type: 'order', source_id: id, customer_id: existingOrder.customer_id,
+        customer_name: tax_invoice_name, customer_tax_id: tax_invoice_tax_id,
+        customer_branch: tax_invoice_branch || null, customer_address: tax_invoice_address || null,
+        total_amount: oi?.total_amount ?? 0, vat_amount: oi?.vat_amount ?? 0,
+        is_receipt: false,
+      });
+
+      // 6. Set cross-references ABB ↔ TAX
+      const { data: taxRow } = await supabaseAdmin.from('tax_invoices')
+        .select('id').eq('company_id', auth.companyId).eq('invoice_number', newInvoiceNumber).single();
+      if (taxRow) {
+        await supabaseAdmin.from('abbreviated_invoices')
+          .update({ replaced_by_tax_id: taxRow.id }).eq('id', abbRow.id);
+        await supabaseAdmin.from('tax_invoices')
+          .update({ replaces_abbreviated_id: abbRow.id }).eq('id', taxRow.id);
+      }
+
       return NextResponse.json({
         success: true,
         voided_number: abbrevNumber,
         order: {
           id,
           tax_invoice_requested: true,
-          tax_invoice_type: 'full',
           tax_invoice_doc_type: 'tax',
           tax_invoice_number: newInvoiceNumber,
-          tax_invoice_date: now.toISOString().split('T')[0],
+          tax_invoice_date: dateStr,
           tax_invoice_name,
           tax_invoice_tax_id,
           tax_invoice_branch,
@@ -2152,6 +2156,12 @@ export async function PUT(request: NextRequest) {
         }
       }
       // --- End stock logic on status change ---
+
+      // Auto-issue document (ABB/REC) after any status/payment change
+      {
+        const { autoIssueDocument } = await import('@/lib/invoice-service');
+        autoIssueDocument(id, auth.companyId!).catch(() => {});
+      }
 
       return NextResponse.json({
         success: true,

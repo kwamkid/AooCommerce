@@ -399,6 +399,10 @@ export async function POST(request: NextRequest) {
             }).eq('order_id', order.id);
           }
 
+          // Auto-issue document (ABB/REC)
+          const { autoIssueDocument } = await import('@/lib/invoice-service');
+          autoIssueDocument(order.id, companyId).catch(() => {});
+
           parallelResults.push({ order_id: order.id, order_sn: order.external_order_sn || '', success: true });
         } else if (orderErrorMap.has(order.id)) {
           parallelResults.push({ order_id: order.id, order_sn: order.external_order_sn || '', success: false, error: orderErrorMap.get(order.id) });

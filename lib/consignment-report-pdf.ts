@@ -53,6 +53,13 @@ export interface ConsignmentReportPdfData {
   total_sales: number;
   total_gp_share: number;
   our_amount: number;
+  /** When set, renders as ใบกำกับภาษี/ใบเสร็จ instead of ใบแจ้งหนี้ */
+  tax_invoice_number?: string | null;
+  receipt_number?: string | null;
+  tax_invoice_date?: string | null;
+  receipt_date?: string | null;
+  /** Company VAT registered at time of issue */
+  vat_registered?: boolean;
 }
 
 // ─── Theme ──────────────────────────────────────────────
@@ -83,6 +90,21 @@ export async function generateConsignmentReportPdf(data: ConsignmentReportPdfDat
   const periodStr = `${THAI_MONTHS[data.period_month]} ${data.period_year + 543}`;
   const statusLabel = STATUS_LABELS[data.status] || data.status;
 
+  // Determine document mode: tax invoice/receipt vs regular invoice
+  const isTaxInvoiceMode = !!(data.tax_invoice_number || data.receipt_number);
+  const vatRegistered = data.vat_registered ?? false;
+
+  let docTitle: string;
+  let docTheme: string;
+  if (isTaxInvoiceMode) {
+    docTitle = vatRegistered ? 'ใบกำกับภาษี/ใบเสร็จรับเงิน' : 'ใบเสร็จรับเงิน';
+    docTheme = '#15803d'; // green for paid
+  } else {
+    docTitle = 'ใบแจ้งหนี้';
+    docTheme = THEME.primary; // orange
+  }
+  const titleFontSize = docTitle.length > 14 ? 18 : 24;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const content: any[] = [];
 
@@ -93,30 +115,63 @@ export async function generateConsignmentReportPdf(data: ConsignmentReportPdfDat
   const companyStack = buildCompanyStack(company, logoDataUrl, data.customer, THEME.primary);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const infoBoxRows: any[] = [
-    [
-      { text: 'เลขที่', fontSize: 10, color: THEME.primary, bold: true },
-      { text: data.report_number, fontSize: 10, bold: true },
-    ],
-    [
-      { text: 'วันที่', fontSize: 10, color: THEME.primary, bold: true },
-      { text: dateStr, fontSize: 10 },
-    ],
-    [
-      { text: 'งวด', fontSize: 10, color: THEME.primary, bold: true },
-      { text: periodStr, fontSize: 10 },
-    ],
-    [
-      { text: 'สถานะ', fontSize: 10, color: THEME.primary, bold: true },
-      { text: statusLabel, fontSize: 10, bold: true },
-    ],
-  ];
+  const infoBoxRows: any[] = [];
 
-  if (data.due_date) {
+  if (isTaxInvoiceMode) {
+    // Tax invoice / receipt mode — show document numbers
+    if (data.tax_invoice_number) {
+      infoBoxRows.push([
+        { text: 'เลขที่', fontSize: 10, color: docTheme, bold: true },
+        { text: data.tax_invoice_number, fontSize: 10, bold: true },
+      ]);
+      if (data.tax_invoice_date) {
+        infoBoxRows.push([
+          { text: 'วันที่ออก', fontSize: 10, color: docTheme, bold: true },
+          { text: formatPdfDate(data.tax_invoice_date), fontSize: 10 },
+        ]);
+      }
+    }
+    if (data.receipt_number && data.receipt_number !== data.tax_invoice_number) {
+      infoBoxRows.push([
+        { text: 'เลขใบเสร็จ', fontSize: 10, color: docTheme, bold: true },
+        { text: data.receipt_number, fontSize: 10, bold: true },
+      ]);
+    }
     infoBoxRows.push([
-      { text: 'ครบกำหนด', fontSize: 10, color: THEME.primary, bold: true },
-      { text: formatPdfDate(data.due_date), fontSize: 10 },
+      { text: 'อ้างอิง', fontSize: 10, color: docTheme, bold: true },
+      { text: data.report_number, fontSize: 10 },
     ]);
+    infoBoxRows.push([
+      { text: 'งวด', fontSize: 10, color: docTheme, bold: true },
+      { text: periodStr, fontSize: 10 },
+    ]);
+  } else {
+    // Regular invoice mode
+    infoBoxRows.push(
+      [
+        { text: 'เลขที่', fontSize: 10, color: docTheme, bold: true },
+        { text: data.report_number, fontSize: 10, bold: true },
+      ],
+      [
+        { text: 'วันที่', fontSize: 10, color: docTheme, bold: true },
+        { text: dateStr, fontSize: 10 },
+      ],
+      [
+        { text: 'งวด', fontSize: 10, color: docTheme, bold: true },
+        { text: periodStr, fontSize: 10 },
+      ],
+      [
+        { text: 'สถานะ', fontSize: 10, color: docTheme, bold: true },
+        { text: statusLabel, fontSize: 10, bold: true },
+      ],
+    );
+
+    if (data.due_date) {
+      infoBoxRows.push([
+        { text: 'ครบกำหนด', fontSize: 10, color: docTheme, bold: true },
+        { text: formatPdfDate(data.due_date), fontSize: 10 },
+      ]);
+    }
   }
 
   content.push({
@@ -129,7 +184,7 @@ export async function generateConsignmentReportPdf(data: ConsignmentReportPdfDat
       {
         width: 230,
         stack: [
-          { text: 'ใบแจ้งหนี้', fontSize: 24, bold: true, color: THEME.primary, alignment: 'right', margin: [0, 0, 0, 6] },
+          { text: docTitle, fontSize: titleFontSize, bold: true, color: docTheme, alignment: 'right', margin: [0, 0, 0, 6] },
           {
             table: {
               widths: [55, '*'],
@@ -216,11 +271,28 @@ export async function generateConsignmentReportPdf(data: ConsignmentReportPdfDat
       { text: 'จำนวนชิ้น', fontSize: 10, alignment: 'right', color: '#666666' },
       { text: `${data.total_qty_sold} ชิ้น`, fontSize: 10, alignment: 'right' },
     ],
-    [
-      { text: 'รวมเป็นเงิน', fontSize: 12, alignment: 'right', bold: true, color: THEME.primary },
-      { text: `฿${formatPdfPrice(data.our_amount)}`, fontSize: 12, alignment: 'right', bold: true, color: THEME.primary },
-    ],
   ];
+
+  if (isTaxInvoiceMode && vatRegistered) {
+    const totalWithVAT = data.our_amount;
+    const subtotalExVAT = Math.round((totalWithVAT / 1.07) * 100) / 100;
+    const vatAmt = totalWithVAT - subtotalExVAT;
+    summaryRows.push(
+      [
+        { text: 'ยอดก่อน VAT', fontSize: 10, alignment: 'right', color: '#666666' },
+        { text: `฿${formatPdfPrice(subtotalExVAT)}`, fontSize: 10, alignment: 'right' },
+      ],
+      [
+        { text: 'VAT 7%', fontSize: 10, alignment: 'right', color: '#666666' },
+        { text: `฿${formatPdfPrice(vatAmt)}`, fontSize: 10, alignment: 'right' },
+      ],
+    );
+  }
+
+  summaryRows.push([
+    { text: 'รวมเป็นเงิน', fontSize: 12, alignment: 'right', bold: true, color: docTheme },
+    { text: `฿${formatPdfPrice(data.our_amount)}`, fontSize: 12, alignment: 'right', bold: true, color: docTheme },
+  ]);
 
   // Notes on left, summary on right
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -275,8 +347,8 @@ export async function generateConsignmentReportPdf(data: ConsignmentReportPdfDat
       },
     },
     content: withOriginalAndCopy(content),
-    background: buildCornerTriangle(THEME.primary),
-    footer: buildSignatureFooter(companyName, 'ผู้ขาย', 'ตัวแทนจำหน่าย'),
+    background: buildCornerTriangle(docTheme),
+    footer: buildSignatureFooter(companyName, isTaxInvoiceMode ? 'ผู้ออกเอกสาร' : 'ผู้ขาย', 'ตัวแทนจำหน่าย'),
   };
 
   const pdfDoc = pdfMake.createPdf(docDefinition);

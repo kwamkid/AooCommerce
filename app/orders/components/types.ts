@@ -50,6 +50,7 @@ export interface Order {
   tax_invoice_number?: string | null;
   tax_invoice_voided_at?: string | null;
   flow_type?: string | null;
+  dn_number?: string | null;
   customer_type?: string | null;
   printed_label_at?: string | null;
   printed_packing_at?: string | null;

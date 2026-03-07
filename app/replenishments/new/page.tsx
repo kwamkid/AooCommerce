@@ -12,6 +12,7 @@ import ReplenishmentForm, { type ReplenishmentFormState } from '@/components/rep
 import FormSelect from '@/components/ui/FormSelect';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
+import { showPdfPreview } from '@/lib/print-pdf';
 
 interface WarehouseItem {
   id: string;
@@ -24,7 +25,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   shipped: { label: 'กำลังส่ง', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/40' },
   pending_confirm: { label: 'รอยืนยัน', color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/40' },
   received: { label: 'รับครบแล้ว', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40' },
-  partial_received: { label: 'รับไม่ครบ', color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
+  partial_received: { label: 'รับไม่ครบ', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40' },
   cancelled: { label: 'ยกเลิก', color: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
 };
 
@@ -105,6 +106,79 @@ function NewReplenishmentPageContent() {
       }
       setShowShipModal(false);
       resetShipForm();
+
+      // Auto-print the issued document (DN or TAX invoice)
+      // Generate PDF before reload so the user sees it
+      let pdfBlob: Blob | null = null;
+      let pdfTitle = '';
+      try {
+        if (data.doc_type === 'dn' && data.tax_invoice_number) {
+          const { generateReplenishmentPdf } = await import('@/lib/replenishment-pdf');
+          const rpRes = await apiFetch(`/api/replenishments/${replenishmentId}`);
+          if (rpRes.ok) {
+            const rpData = await rpRes.json();
+            const rp = rpData.replenishment;
+            pdfBlob = await generateReplenishmentPdf({
+              data: {
+                id: rp.id,
+                replenishment_number: rp.replenishment_number,
+                status: rp.status,
+                notes: rp.notes,
+                created_at: rp.created_at,
+                receive_token: rp.receive_token,
+                total_amount: rp.total_amount,
+                shipping_fee: rp.shipping_fee,
+                customer: rp.customer ? {
+                  name: rp.customer.name,
+                  customer_code: rp.customer.customer_code,
+                  phone: rp.customer.phone,
+                  billing_address: rp.customer.billing_address,
+                  billing_district: rp.customer.billing_district,
+                  billing_amphoe: rp.customer.billing_amphoe,
+                  billing_province: rp.customer.billing_province,
+                  billing_postal_code: rp.customer.billing_postal_code,
+                } : null,
+                created_by_name: rp.created_by_profile?.name,
+                items: (rp.items || []).map((i: any) => ({
+                  product_name: i.product_name,
+                  variation_label: i.variation_label,
+                  sku: i.sku,
+                  quantity: i.quantity,
+                  unit_price: i.unit_price,
+                })),
+              },
+            });
+            pdfTitle = `ใบส่งสินค้า ${data.tax_invoice_number}`;
+          }
+        } else if (data.doc_type === 'tax' && data.tax_invoice_number) {
+          const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+          const rpRes = await apiFetch(`/api/replenishments/${replenishmentId}`);
+          if (rpRes.ok) {
+            const rpData = await rpRes.json();
+            const rp = rpData.replenishment;
+            pdfBlob = await generateFullInvoicePdf({
+              ...rp,
+              tax_invoice_number: data.tax_invoice_number,
+              tax_invoice_date: data.tax_invoice_date,
+              tax_invoice_doc_type: 'tax',
+            });
+            pdfTitle = `ใบกำกับภาษี ${data.tax_invoice_number}`;
+          }
+        }
+      } catch (printErr) {
+        console.error('Auto-print after ship failed:', printErr);
+      }
+
+      if (pdfBlob) {
+        // Open PDF in new tab so it persists after page reload
+        const url = URL.createObjectURL(pdfBlob);
+        const win = window.open(url, '_blank');
+        if (!win) {
+          // Fallback: show in overlay (will be lost on reload, but better than nothing)
+          showPdfPreview(pdfBlob, pdfTitle);
+        }
+      }
+
       // Reload page to refresh status
       window.location.reload();
     } catch (err) {

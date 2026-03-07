@@ -185,7 +185,14 @@ function ConsignmentReportsContent() {
   };
 
   // Generate invoice blob (reusable for single print + merge)
-  const generateInvoiceBlob = async (reportId: string): Promise<Blob> => {
+  // taxInvoiceOverride: pass statement's tax_invoice_number/receipt_number to render as ใบกำกับภาษี/ใบเสร็จ
+  const generateInvoiceBlob = async (reportId: string, taxInvoiceOverride?: {
+    tax_invoice_number?: string | null;
+    receipt_number?: string | null;
+    tax_invoice_date?: string | null;
+    receipt_date?: string | null;
+    vat_registered?: boolean;
+  }): Promise<Blob> => {
     const res = await apiFetch(`/api/consignment/reports/${reportId}`);
     if (!res.ok) throw new Error('fetch failed');
     const data = await res.json();
@@ -221,6 +228,7 @@ function ConsignmentReportsContent() {
       total_sales: r.our_amount,
       total_gp_share: 0,
       our_amount: r.our_amount,
+      ...(taxInvoiceOverride || {}),
     });
   };
 
@@ -264,8 +272,28 @@ function ConsignmentReportsContent() {
     setPrintingId(reportId);
     setPrintingType('invoice');
     try {
-      const blob = await generateInvoiceBlob(reportId);
-      showPdfPreview(blob, 'ใบแจ้งหนี้');
+      // Check if this report is paid — if so, render as ใบกำกับภาษี/ใบเสร็จ
+      const report = reports.find(r => r.id === reportId);
+      let taxOverride: Parameters<typeof generateInvoiceBlob>[1];
+      if (report?.status === 'paid' && report.statement_id) {
+        const stRes = await apiFetch(`/api/statements/${report.statement_id}`);
+        if (stRes.ok) {
+          const stData = await stRes.json();
+          const st = stData.statement;
+          if (st?.tax_invoice_number || st?.receipt_number) {
+            taxOverride = {
+              tax_invoice_number: st.tax_invoice_number,
+              receipt_number: st.receipt_number,
+              tax_invoice_date: st.tax_invoice_date,
+              receipt_date: st.receipt_date,
+              vat_registered: !!st.tax_invoice_number,
+            };
+          }
+        }
+      }
+      const blob = await generateInvoiceBlob(reportId, taxOverride);
+      const title = taxOverride ? 'ใบกำกับภาษี/ใบเสร็จ' : 'ใบแจ้งหนี้';
+      showPdfPreview(blob, title);
       markPrinted(reportId, 'invoice');
     } catch {
       showToast('ไม่สามารถสร้าง PDF ได้', 'error');
@@ -295,12 +323,29 @@ function ConsignmentReportsContent() {
     setPrintingId(report.id);
     setPrintingType('all');
     try {
+      // Fetch statement to check if paid (has tax_invoice_number/receipt_number)
+      const stRes = await apiFetch(`/api/statements/${report.statement_id}`);
+      const stData = stRes.ok ? await stRes.json() : null;
+      const st = stData?.statement;
+
+      const isPaid = st?.status === 'paid';
+      const taxOverride = isPaid && (st?.tax_invoice_number || st?.receipt_number)
+        ? {
+          tax_invoice_number: st.tax_invoice_number,
+          receipt_number: st.receipt_number,
+          tax_invoice_date: st.tax_invoice_date,
+          receipt_date: st.receipt_date,
+          vat_registered: !!st.tax_invoice_number,
+        }
+        : undefined;
+
       const [invoiceBlob, statementBlob] = await Promise.all([
-        generateInvoiceBlob(report.id),
+        generateInvoiceBlob(report.id, taxOverride),
         generateStatementBlob(report.statement_id),
       ]);
       const merged = await mergePdfBlobs([invoiceBlob, statementBlob]);
-      showPdfPreview(merged, `เอกสารทั้งหมด ${report.report_number}`);
+      const title = taxOverride ? `ใบกำกับภาษี/ใบเสร็จ + ใบวางบิล ${report.report_number}` : `เอกสารทั้งหมด ${report.report_number}`;
+      showPdfPreview(merged, title);
       markPrinted(report.id, 'invoice');
       markPrinted(report.id, 'statement');
     } catch {
@@ -345,8 +390,8 @@ function ConsignmentReportsContent() {
       setPaymentConfirm(null);
       fetchReports(true);
 
-      // Auto print merged invoice + statement
-      setTimeout(() => handlePrintAll(report), 300);
+      // Auto print invoice only (ไม่ต้องรวมใบวางบิล — พิมพ์ไปแล้วตอน billed)
+      setTimeout(() => handlePrintInvoice(report.id), 300);
     } catch {
       showToast('เกิดข้อผิดพลาดในการบันทึกการชำระ', 'error');
     } finally {
@@ -370,11 +415,11 @@ function ConsignmentReportsContent() {
       },
     ];
 
-    // Print: ใบแจ้งหนี้ (available for billed/paid/invoiced)
+    // Print: ใบแจ้งหนี้ (billed/invoiced) or ใบกำกับภาษี/ใบเสร็จ (paid)
     if (['invoiced', 'billed', 'paid'].includes(report.status)) {
       items.push({
         key: 'invoice',
-        label: 'ใบแจ้งหนี้',
+        label: report.status === 'paid' ? 'ใบกำกับภาษี/ใบเสร็จ' : 'ใบแจ้งหนี้',
         icon: isPrinting && printingType === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />,
         suffix: dot('invoice'),
         onClick: () => handlePrintInvoice(report.id),
@@ -585,7 +630,7 @@ function ConsignmentReportsContent() {
                           const hasDocs = ['invoiced', 'billed', 'paid'].includes(report.status);
                           if (!hasDocs) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
                           return (
-                            <Tooltip text={`ใบแจ้งหนี้: ${printed.has('invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${report.statement_id ? (printed.has('statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
+                            <Tooltip text={`${report.status === 'paid' ? 'ใบกำกับภาษี/ใบเสร็จ' : 'ใบแจ้งหนี้'}: ${printed.has('invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${report.statement_id ? (printed.has('statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
                               <div className="flex items-center justify-center gap-1">
                                 {isPrinting && <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />}
                                 <span className={`w-2.5 h-2.5 rounded-full ${printed.has('invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
@@ -757,11 +802,19 @@ function ConsignmentReportsContent() {
         onConfirm={() => paymentConfirm && handleRecordPayment(paymentConfirm)}
         icon={<Banknote className="w-6 h-6 text-[#F4511E]" />}
         title="ลูกค้าชำระแล้ว"
-        description={paymentConfirm ? `ยืนยันการชำระเงินของ ${paymentConfirm.customer?.name || '-'}\nรายงาน ${paymentConfirm.report_number} จำนวน ฿${formatAmount(paymentConfirm.our_amount)}` : ''}
         confirmLabel={paymentLoading ? 'กำลังบันทึก...' : 'ยืนยันการชำระ'}
         confirmIcon={paymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
         loading={paymentLoading}
-      />
+      >
+        {paymentConfirm && (
+          <div className="text-base text-gray-600 dark:text-slate-300 mt-2 space-y-1 text-center">
+            <p>ยืนยันการชำระเงินของ <span className="font-semibold">{paymentConfirm.customer?.name || '-'}</span></p>
+            <p>รายงาน <span className="font-semibold">{paymentConfirm.report_number}</span></p>
+            <p>งวด <span className="font-semibold">{formatPeriod(paymentConfirm.period_year, paymentConfirm.period_month)}</span></p>
+            <p>จำนวน <span className="font-semibold text-[#F4511E]">฿{formatAmount(paymentConfirm.our_amount)}</span></p>
+          </div>
+        )}
+      </ConfirmDialog>
     </Layout>
   );
 }

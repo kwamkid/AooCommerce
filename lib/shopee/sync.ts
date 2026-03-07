@@ -561,6 +561,12 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
       }
       statusUpdated = true;
 
+      // Auto-issue document (ABB/REC) for orders that progressed past READY_TO_SHIP
+      if (['PROCESSED', 'SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'].includes(shopeeOrder.order_status)) {
+        const { autoIssueDocument } = await import('@/lib/invoice-service');
+        autoIssueDocument(existing.id, companyId).catch(() => {});
+      }
+
       // Stock return for CANCELLED/IN_CANCEL orders
       if (['CANCELLED', 'IN_CANCEL'].includes(shopeeOrder.order_status) && existing.warehouse_id) {
         await returnStockForCancelledOrder(
@@ -1048,10 +1054,9 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
       is_split: shopeeOrder.split_up === true && (shopeeOrder.package_list || []).length > 1,
       flow_type: 'a_cash', // Marketplace orders always use cash flow regardless of customer type
       created_at: new Date(shopeeOrder.create_time * 1000).toISOString(),
-      // Tax invoice from Shopee Buyer Tax Invoice feature
+      // Tax invoice from Shopee Buyer Tax Invoice feature (customer request fields)
       ...(shopeeOrder.invoice_data?.tax_code ? {
         tax_invoice_requested: true,
-        tax_invoice_type: 'full',
         tax_invoice_tax_id: shopeeOrder.invoice_data.tax_code,
         tax_invoice_name: shopeeOrder.recipient_address?.name || shopeeOrder.buyer_username || null,
       } : {}),

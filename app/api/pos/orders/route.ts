@@ -476,6 +476,12 @@ export async function POST(request: NextRequest) {
         .eq('id', pos_session_id);
     }
 
+    // Auto-issue document (ABB/REC) for POS orders
+    {
+      const { autoIssueDocument } = await import('@/lib/invoice-service');
+      autoIssueDocument(order.id, auth.companyId!).catch(() => {});
+    }
+
     // Return order with receipt data
     return NextResponse.json({
       order: {

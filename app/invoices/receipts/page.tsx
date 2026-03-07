@@ -8,15 +8,19 @@ import { Receipt, Search, Printer, ExternalLink } from 'lucide-react';
 import { showPdfPreview } from '@/lib/print-pdf';
 import Pagination from '@/app/components/Pagination';
 
-interface Invoice {
+interface InvoiceRow {
   id: string;
-  order_number: string;
-  tax_invoice_number: string;
+  doc_id: string;
+  source_type: 'order' | 'statement' | 'replenishment';
+  source_id: string;
+  source_number: string | null;
+  order_number: string | null;
+  tax_invoice_number: string; // receipt_number aliased
   tax_invoice_date: string;
   tax_invoice_name: string | null;
   tax_invoice_address: string | null;
   total_amount: number;
-  customer: { id: string; name: string; contact_person: string | null } | null;
+  customer: { id: string; name: string } | null;
 }
 
 function formatDate(d: string | null) {
@@ -40,8 +44,21 @@ function getMonthOptions() {
   return opts;
 }
 
+function getSourceLink(inv: InvoiceRow): { href: string; label: string } {
+  switch (inv.source_type) {
+    case 'order':
+      return { href: `/orders/${inv.source_id}`, label: inv.source_number || '-' };
+    case 'statement':
+      return { href: `/consignment/reports`, label: inv.source_number || 'ใบวางบิล' };
+    case 'replenishment':
+      return { href: `/inventory`, label: inv.source_number || 'เติมสินค้า' };
+    default:
+      return { href: '#', label: '-' };
+  }
+}
+
 export default function ReceiptsPage() {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -73,20 +90,23 @@ export default function ReceiptsPage() {
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 
-  const handlePrint = async (inv: Invoice) => {
+  const handlePrint = async (inv: InvoiceRow) => {
     try {
-      const res = await apiFetch(`/api/orders/${inv.id}?include_items=true`);
-      if (!res.ok) return;
-      const orderData = await res.json();
-      const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
-      const blob = await generateFullInvoicePdf({
-        ...orderData,
-        tax_invoice_number: inv.tax_invoice_number,
-        tax_invoice_date: inv.tax_invoice_date,
-        tax_invoice_name: inv.tax_invoice_name,
-        tax_invoice_doc_type: 'receipt',
-      });
-      showPdfPreview(blob, `ใบเสร็จรับเงิน ${inv.tax_invoice_number}`);
+      if (inv.source_type === 'order') {
+        const res = await apiFetch(`/api/orders/${inv.source_id}?include_items=true`);
+        if (!res.ok) return;
+        const orderData = await res.json();
+        const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+        const blob = await generateFullInvoicePdf({
+          ...orderData,
+          tax_invoice_number: inv.tax_invoice_number,
+          tax_invoice_date: inv.tax_invoice_date,
+          tax_invoice_name: inv.tax_invoice_name,
+          tax_invoice_doc_type: 'receipt',
+        });
+        showPdfPreview(blob, `ใบเสร็จรับเงิน ${inv.tax_invoice_number}`);
+      }
+      // statement/replenishment REC — TODO: add print support when needed
     } catch (e) {
       console.error(e);
     }
@@ -143,38 +163,46 @@ export default function ReceiptsPage() {
                   <tr>
                     <th className="data-th">เลขที่ใบเสร็จ</th>
                     <th className="data-th">วันที่ออก</th>
-                    <th className="data-th">คำสั่งซื้อ</th>
+                    <th className="data-th">อ้างอิง</th>
                     <th className="data-th">ชื่อ / ที่อยู่</th>
                     <th className="data-th text-right">ยอด (บาท)</th>
                     <th className="data-th text-center">พิมพ์</th>
                   </tr>
                 </thead>
                 <tbody className="data-tbody">
-                  {invoices.map(inv => (
-                    <tr key={inv.id} className="data-tr">
-                      <td className="px-6 py-4">
-                        <span className="font-mono text-sm font-medium text-[#F4511E]">{inv.tax_invoice_number}</span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300 whitespace-nowrap">{formatDate(inv.tax_invoice_date)}</td>
-                      <td className="px-6 py-4">
-                        <Link href={`/orders/${inv.id}`} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
-                          {inv.order_number} <ExternalLink className="w-3 h-3" />
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900 dark:text-white">{inv.tax_invoice_name || inv.customer?.name || '-'}</div>
-                        {inv.tax_invoice_address && (
-                          <div className="text-xs text-gray-400 truncate max-w-[200px]">{inv.tax_invoice_address}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right text-sm font-medium text-gray-900 dark:text-white">{formatMoney(inv.total_amount)}</td>
-                      <td className="px-6 py-4 text-center">
-                        <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors" title="พิมพ์">
-                          <Printer className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {invoices.map(inv => {
+                    const link = getSourceLink(inv);
+                    return (
+                      <tr key={inv.doc_id} className="data-tr">
+                        <td className="px-6 py-4">
+                          <span className="font-mono text-sm font-medium text-[#F4511E]">{inv.tax_invoice_number}</span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300 whitespace-nowrap">{formatDate(inv.tax_invoice_date)}</td>
+                        <td className="px-6 py-4">
+                          <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
+                            {link.label} <ExternalLink className="w-3 h-3" />
+                          </Link>
+                          {inv.source_type !== 'order' && (
+                            <div className="text-xs text-gray-400">
+                              {inv.source_type === 'statement' ? 'ใบวางบิล' : 'เติมสินค้า'}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900 dark:text-white">{inv.tax_invoice_name || inv.customer?.name || '-'}</div>
+                          {inv.tax_invoice_address && (
+                            <div className="text-xs text-gray-400 truncate max-w-[200px]">{inv.tax_invoice_address}</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right text-sm font-medium text-gray-900 dark:text-white">{formatMoney(inv.total_amount)}</td>
+                        <td className="px-6 py-4 text-center">
+                          <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors" title="พิมพ์">
+                            <Printer className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

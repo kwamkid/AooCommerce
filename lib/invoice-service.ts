@@ -5,17 +5,161 @@
  * - issueAbbreviatedInvoice()    → ABB-YYYYMM-NNNN หรือ REC-YYYYMM-NNNN
  * - issueFullTaxInvoice()        → TAX-YYYYMM-NNNN (จด VAT) หรือ REC-YYYYMM-NNNN (ไม่จด)
  * - issueReceipt()               → REC-YYYYMM-NNNN
- * - issueConsignmentInvoices()   → TAX + REC พร้อมกัน (สำหรับ statement)
+ * - issueConsignmentInvoices()   → TAX เลขเดียว (จด VAT) หรือ REC เลขเดียว (ไม่จด) — สำหรับ statement
  *
  * Flow ที่ใช้:
  * - Flow A (a_cash): กดรับออเดอร์ → issueAbbreviatedInvoice()
  * - Flow A: ลูกค้าขอใบเต็ม → issueFullTaxInvoice() (void ABB + issue TAX)
- * - Flow C (c_consign DN): ชำระเงินครบ → issueConsignmentInvoices() (TAX + REC on statement)
+ * - Flow C (c_consign DN): ชำระเงินครบ → issueConsignmentInvoices() (TAX or REC เลขเดียว on statement)
  * - Flow D (d_statement): ส่งของ → issueFullTaxInvoice()
  * - Flow B (b_credit): ชำระเงิน → issueReceipt() (TODO)
  */
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
+
+// ─── Document table insert helpers (dual-write) ─────────
+// Non-throwing: failures are logged but never break the business operation.
+// All use ON CONFLICT DO NOTHING for idempotency.
+
+export async function insertTaxInvoice(params: {
+  company_id: string;
+  invoice_number: string;
+  invoice_date: string;
+  source_type: 'order' | 'statement' | 'replenishment';
+  source_id: string;
+  customer_id?: string | null;
+  customer_name?: string | null;
+  customer_tax_id?: string | null;
+  customer_branch?: string | null;
+  customer_address?: string | null;
+  total_amount: number;
+  vat_amount?: number;
+  is_receipt?: boolean;
+  replaces_abbreviated_id?: string | null;
+}) {
+  try {
+    await supabaseAdmin.from('tax_invoices').upsert({
+      company_id: params.company_id,
+      invoice_number: params.invoice_number,
+      invoice_date: params.invoice_date,
+      source_type: params.source_type,
+      source_id: params.source_id,
+      customer_id: params.customer_id || null,
+      customer_name: params.customer_name || null,
+      customer_tax_id: params.customer_tax_id || null,
+      customer_branch: params.customer_branch || null,
+      customer_address: params.customer_address || null,
+      total_amount: params.total_amount,
+      vat_amount: params.vat_amount ?? 0,
+      is_receipt: params.is_receipt ?? false,
+      replaces_abbreviated_id: params.replaces_abbreviated_id || null,
+    }, { onConflict: 'company_id,invoice_number', ignoreDuplicates: true });
+  } catch (e) {
+    console.error('[insertTaxInvoice]', e);
+  }
+}
+
+export async function insertReceipt(params: {
+  company_id: string;
+  receipt_number: string;
+  receipt_date: string;
+  source_type: 'order' | 'statement' | 'replenishment';
+  source_id: string;
+  customer_id?: string | null;
+  customer_name?: string | null;
+  customer_address?: string | null;
+  total_amount: number;
+}) {
+  try {
+    await supabaseAdmin.from('receipts').upsert({
+      company_id: params.company_id,
+      receipt_number: params.receipt_number,
+      receipt_date: params.receipt_date,
+      source_type: params.source_type,
+      source_id: params.source_id,
+      customer_id: params.customer_id || null,
+      customer_name: params.customer_name || null,
+      customer_address: params.customer_address || null,
+      total_amount: params.total_amount,
+    }, { onConflict: 'company_id,receipt_number', ignoreDuplicates: true });
+  } catch (e) {
+    console.error('[insertReceipt]', e);
+  }
+}
+
+export async function insertAbbreviatedInvoice(params: {
+  company_id: string;
+  invoice_number: string;
+  invoice_date: string;
+  order_id: string;
+  customer_id?: string | null;
+  total_amount: number;
+  vat_amount?: number;
+}) {
+  try {
+    await supabaseAdmin.from('abbreviated_invoices').upsert({
+      company_id: params.company_id,
+      invoice_number: params.invoice_number,
+      invoice_date: params.invoice_date,
+      order_id: params.order_id,
+      customer_id: params.customer_id || null,
+      total_amount: params.total_amount,
+      vat_amount: params.vat_amount ?? 0,
+    }, { onConflict: 'company_id,invoice_number', ignoreDuplicates: true });
+  } catch (e) {
+    console.error('[insertAbbreviatedInvoice]', e);
+  }
+}
+
+export async function insertDeliveryNote(params: {
+  company_id: string;
+  dn_number: string;
+  dn_date: string;
+  source_type: 'order' | 'replenishment';
+  source_id: string;
+  customer_id?: string | null;
+  total_amount: number;
+}) {
+  try {
+    await supabaseAdmin.from('delivery_notes').upsert({
+      company_id: params.company_id,
+      dn_number: params.dn_number,
+      dn_date: params.dn_date,
+      source_type: params.source_type,
+      source_id: params.source_id,
+      customer_id: params.customer_id || null,
+      total_amount: params.total_amount,
+    }, { onConflict: 'company_id,dn_number', ignoreDuplicates: true });
+  } catch (e) {
+    console.error('[insertDeliveryNote]', e);
+  }
+}
+
+export async function insertInvoice(params: {
+  company_id: string;
+  invoice_number: string;
+  invoice_date: string;
+  order_id: string;
+  customer_id?: string | null;
+  customer_name?: string | null;
+  total_amount: number;
+  vat_amount?: number;
+}) {
+  try {
+    await supabaseAdmin.from('invoices').upsert({
+      company_id: params.company_id,
+      invoice_number: params.invoice_number,
+      invoice_date: params.invoice_date,
+      order_id: params.order_id,
+      customer_id: params.customer_id || null,
+      customer_name: params.customer_name || null,
+      total_amount: params.total_amount,
+      vat_amount: params.vat_amount ?? 0,
+    }, { onConflict: 'company_id,invoice_number', ignoreDuplicates: true });
+  } catch (e) {
+    console.error('[insertInvoice]', e);
+  }
+}
 
 // ─── Shared helper: get company VAT status ───
 async function getCompanyVat(companyId: string): Promise<boolean> {
@@ -62,26 +206,29 @@ export async function issueAbbreviatedInvoice(
   companyId: string,
 ): Promise<IssueAbbreviatedResult> {
   try {
-    // Check if already issued
-    const { data: existing } = await supabaseAdmin
-      .from('orders')
-      .select('tax_invoice_number')
-      .eq('id', orderId)
+    // Check if already issued — query document tables
+    const { data: existingAbb } = await supabaseAdmin
+      .from('abbreviated_invoices')
+      .select('invoice_number')
+      .eq('order_id', orderId)
       .eq('company_id', companyId)
-      .single();
-
-    if (existing?.tax_invoice_number) {
-      return { success: true, invoiceNumber: existing.tax_invoice_number, docType: 'abbreviated' };
+      .is('voided_at', null)
+      .maybeSingle();
+    if (existingAbb) {
+      return { success: true, invoiceNumber: existingAbb.invoice_number, docType: 'abbreviated' };
+    }
+    const { data: existingRec } = await supabaseAdmin
+      .from('receipts')
+      .select('receipt_number')
+      .eq('source_type', 'order').eq('source_id', orderId)
+      .eq('company_id', companyId)
+      .maybeSingle();
+    if (existingRec) {
+      return { success: true, invoiceNumber: existingRec.receipt_number, docType: 'receipt' };
     }
 
     // Get company VAT status
-    const { data: companyData } = await supabaseAdmin
-      .from('companies')
-      .select('vat_registered')
-      .eq('id', companyId)
-      .single();
-
-    const vatRegistered = companyData?.vat_registered ?? false;
+    const vatRegistered = await getCompanyVat(companyId);
     const rpcName = vatRegistered ? 'generate_abbreviated_number' : 'generate_receipt_number';
     const docType = vatRegistered ? 'abbreviated' : 'receipt';
 
@@ -93,23 +240,25 @@ export async function issueAbbreviatedInvoice(
       return { success: false, error: rpcErr?.message || 'ไม่สามารถสร้างเลขที่เอกสารได้' };
     }
 
-    // Update order
     const now = new Date();
-    const { error: updateErr } = await supabaseAdmin
-      .from('orders')
-      .update({
-        tax_invoice_requested: true,
-        tax_invoice_type: 'abbreviated',
-        tax_invoice_doc_type: docType,
-        tax_invoice_number: invoiceNumber,
-        tax_invoice_date: now.toISOString().split('T')[0],
-        vat_registered_at_issue: vatRegistered,
-      })
-      .eq('id', orderId)
-      .eq('company_id', companyId);
+    const dateStr = now.toISOString().split('T')[0];
 
-    if (updateErr) {
-      return { success: false, error: updateErr.message };
+    // Insert into document table (single source of truth)
+    const { data: orderInfo } = await supabaseAdmin
+      .from('orders').select('customer_id, total_amount, vat_amount').eq('id', orderId).single();
+
+    if (docType === 'abbreviated') {
+      await insertAbbreviatedInvoice({
+        company_id: companyId, invoice_number: invoiceNumber, invoice_date: dateStr,
+        order_id: orderId, customer_id: orderInfo?.customer_id,
+        total_amount: orderInfo?.total_amount ?? 0, vat_amount: orderInfo?.vat_amount ?? 0,
+      });
+    } else {
+      await insertReceipt({
+        company_id: companyId, receipt_number: invoiceNumber, receipt_date: dateStr,
+        source_type: 'order', source_id: orderId, customer_id: orderInfo?.customer_id,
+        total_amount: orderInfo?.total_amount ?? 0,
+      });
     }
 
     return {
@@ -153,25 +302,28 @@ export async function issueFullTaxInvoice(
     }
 
     const now = new Date();
-    const { error: updateErr } = await supabaseAdmin
-      .from('orders')
-      .update({
-        tax_invoice_requested: true,
-        tax_invoice_type: 'full',
-        tax_invoice_doc_type: docType,
-        tax_invoice_number: invoiceNumber,
-        tax_invoice_date: now.toISOString().split('T')[0],
-        tax_invoice_name: taxInfo.name,
-        tax_invoice_tax_id: taxInfo.taxId,
-        tax_invoice_branch: taxInfo.branch || 'สำนักงานใหญ่',
-        tax_invoice_address: taxInfo.address || null,
-        vat_registered_at_issue: vatRegistered,
-      })
-      .eq('id', orderId)
-      .eq('company_id', companyId);
+    const dateStr = now.toISOString().split('T')[0];
 
-    if (updateErr) {
-      return { success: false, error: updateErr.message };
+    // Insert into document table (single source of truth)
+    const { data: orderInfo } = await supabaseAdmin
+      .from('orders').select('customer_id, total_amount, vat_amount').eq('id', orderId).single();
+
+    if (docType === 'tax') {
+      await insertTaxInvoice({
+        company_id: companyId, invoice_number: invoiceNumber, invoice_date: dateStr,
+        source_type: 'order', source_id: orderId, customer_id: orderInfo?.customer_id,
+        customer_name: taxInfo.name, customer_tax_id: taxInfo.taxId,
+        customer_branch: taxInfo.branch || 'สำนักงานใหญ่', customer_address: taxInfo.address || null,
+        total_amount: orderInfo?.total_amount ?? 0, vat_amount: orderInfo?.vat_amount ?? 0,
+        is_receipt: false,
+      });
+    } else {
+      await insertReceipt({
+        company_id: companyId, receipt_number: invoiceNumber, receipt_date: dateStr,
+        source_type: 'order', source_id: orderId, customer_id: orderInfo?.customer_id,
+        customer_name: taxInfo.name, customer_address: taxInfo.address || null,
+        total_amount: orderInfo?.total_amount ?? 0,
+      });
     }
 
     return { success: true, invoiceNumber, docType };
@@ -199,22 +351,16 @@ export async function issueReceipt(
     }
 
     const now = new Date();
-    const { error: updateErr } = await supabaseAdmin
-      .from('orders')
-      .update({
-        tax_invoice_requested: true,
-        tax_invoice_type: 'full',
-        tax_invoice_doc_type: 'receipt',
-        tax_invoice_number: invoiceNumber,
-        tax_invoice_date: now.toISOString().split('T')[0],
-        vat_registered_at_issue: false,
-      })
-      .eq('id', orderId)
-      .eq('company_id', companyId);
+    const dateStr = now.toISOString().split('T')[0];
 
-    if (updateErr) {
-      return { success: false, error: updateErr.message };
-    }
+    // Insert into document table (single source of truth)
+    const { data: orderInfo } = await supabaseAdmin
+      .from('orders').select('customer_id, total_amount').eq('id', orderId).single();
+    await insertReceipt({
+      company_id: companyId, receipt_number: invoiceNumber, receipt_date: dateStr,
+      source_type: 'order', source_id: orderId, customer_id: orderInfo?.customer_id,
+      total_amount: orderInfo?.total_amount ?? 0,
+    });
 
     return { success: true, invoiceNumber, docType: 'receipt' };
   } catch (err) {
@@ -242,16 +388,24 @@ export async function issueReplenishmentInvoice(
   companyId: string,
 ): Promise<IssueResult> {
   try {
-    // Check if already issued
-    const { data: existing } = await supabaseAdmin
-      .from('replenishments')
-      .select('tax_invoice_number')
-      .eq('id', replenishmentId)
+    // Check if already issued — query document tables
+    const { data: existingTax } = await supabaseAdmin
+      .from('tax_invoices')
+      .select('invoice_number')
+      .eq('source_type', 'replenishment').eq('source_id', replenishmentId)
       .eq('company_id', companyId)
-      .single();
-
-    if (existing?.tax_invoice_number) {
-      return { success: true, invoiceNumber: existing.tax_invoice_number };
+      .maybeSingle();
+    if (existingTax) {
+      return { success: true, invoiceNumber: existingTax.invoice_number };
+    }
+    const { data: existingRec } = await supabaseAdmin
+      .from('receipts')
+      .select('receipt_number')
+      .eq('source_type', 'replenishment').eq('source_id', replenishmentId)
+      .eq('company_id', companyId)
+      .maybeSingle();
+    if (existingRec) {
+      return { success: true, invoiceNumber: existingRec.receipt_number };
     }
 
     const vatRegistered = await getCompanyVat(companyId);
@@ -266,20 +420,23 @@ export async function issueReplenishmentInvoice(
     }
 
     const now = new Date().toISOString().split('T')[0];
-    const { error: updateErr } = await supabaseAdmin
-      .from('replenishments')
-      .update({
-        tax_invoice_number: invoiceNumber,
-        tax_invoice_date: now,
-        tax_invoice_doc_type: docType,
-        vat_registered_at_issue: vatRegistered,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', replenishmentId)
-      .eq('company_id', companyId);
 
-    if (updateErr) {
-      return { success: false, error: updateErr.message };
+    // Insert into document table (single source of truth)
+    const { data: repInfo } = await supabaseAdmin
+      .from('replenishments').select('customer_id, total_amount').eq('id', replenishmentId).single();
+    if (docType === 'tax') {
+      await insertTaxInvoice({
+        company_id: companyId, invoice_number: invoiceNumber, invoice_date: now,
+        source_type: 'replenishment', source_id: replenishmentId,
+        customer_id: repInfo?.customer_id, total_amount: repInfo?.total_amount ?? 0,
+        is_receipt: false,
+      });
+    } else {
+      await insertReceipt({
+        company_id: companyId, receipt_number: invoiceNumber, receipt_date: now,
+        source_type: 'replenishment', source_id: replenishmentId,
+        customer_id: repInfo?.customer_id, total_amount: repInfo?.total_amount ?? 0,
+      });
     }
 
     return { success: true, invoiceNumber, docType };
@@ -289,76 +446,303 @@ export async function issueReplenishmentInvoice(
   }
 }
 
+/**
+ * ออกใบกำกับภาษี/ใบเสร็จรับเงิน สำหรับ consignment statement
+ *
+ * - จด VAT → เลขเดียว TAX-xxx (เป็นทั้งใบกำกับภาษีและใบเสร็จรับเงิน)
+ *   เก็บใน tax_invoice_number + receipt_number = เลขเดียวกัน
+ * - ไม่จด VAT → เลขเดียว REC-xxx (ใบเสร็จรับเงิน)
+ *   เก็บใน receipt_number เท่านั้น
+ */
 export async function issueConsignmentInvoices(
   statementId: string,
   companyId: string,
 ): Promise<IssueConsignmentResult> {
   try {
-    // Check if already issued
-    const { data: statement } = await supabaseAdmin
-      .from('statements')
-      .select('id, tax_invoice_number, receipt_number, status')
-      .eq('id', statementId)
+    // Check if already issued — query document tables
+    const { data: existingTax } = await supabaseAdmin
+      .from('tax_invoices')
+      .select('invoice_number')
+      .eq('source_type', 'statement').eq('source_id', statementId)
       .eq('company_id', companyId)
-      .single();
-
-    if (!statement) {
-      return { success: false, error: 'ไม่พบใบวางบิล' };
+      .maybeSingle();
+    if (existingTax) {
+      return { success: true, taxNumber: existingTax.invoice_number, recNumber: existingTax.invoice_number };
     }
-
-    if (statement.tax_invoice_number && statement.receipt_number) {
-      return {
-        success: true,
-        taxNumber: statement.tax_invoice_number,
-        recNumber: statement.receipt_number,
-      };
+    const { data: existingRec } = await supabaseAdmin
+      .from('receipts')
+      .select('receipt_number')
+      .eq('source_type', 'statement').eq('source_id', statementId)
+      .eq('company_id', companyId)
+      .maybeSingle();
+    if (existingRec) {
+      return { success: true, recNumber: existingRec.receipt_number };
     }
 
     const vatRegistered = await getCompanyVat(companyId);
     const now = new Date().toISOString().split('T')[0];
 
-    let taxNumber: string | undefined;
-    let recNumber: string | undefined;
+    let invoiceNumber: string;
 
-    // Generate TAX number (only if VAT registered)
     if (vatRegistered) {
+      // จด VAT → ใบกำกับภาษี/ใบเสร็จรับเงิน (เลขเดียว TAX-xxx)
       const { data, error } = await supabaseAdmin
         .rpc('generate_tax_invoice_number', { p_company_id: companyId });
       if (error || !data) {
         return { success: false, error: 'ไม่สามารถสร้างเลขที่ใบกำกับภาษีได้' };
       }
-      taxNumber = data;
-    }
+      invoiceNumber = data;
 
-    // Generate REC number
-    {
+      // Insert into document table (single source of truth) — TAX+REC combined
+      const { data: stInfo } = await supabaseAdmin
+        .from('statements').select('customer_id, total_amount').eq('id', statementId).single();
+      await insertTaxInvoice({
+        company_id: companyId, invoice_number: invoiceNumber, invoice_date: now,
+        source_type: 'statement', source_id: statementId,
+        customer_id: stInfo?.customer_id, total_amount: stInfo?.total_amount ?? 0,
+        is_receipt: true,
+      });
+
+      return { success: true, taxNumber: invoiceNumber, recNumber: invoiceNumber };
+    } else {
+      // ไม่จด VAT → ใบเสร็จรับเงิน (เลขเดียว REC-xxx)
       const { data, error } = await supabaseAdmin
         .rpc('generate_receipt_number', { p_company_id: companyId });
       if (error || !data) {
         return { success: false, error: 'ไม่สามารถสร้างเลขที่ใบเสร็จได้' };
       }
-      recNumber = data;
+      invoiceNumber = data;
+
+      // Insert into document table (single source of truth)
+      const { data: stInfo2 } = await supabaseAdmin
+        .from('statements').select('customer_id, total_amount').eq('id', statementId).single();
+      await insertReceipt({
+        company_id: companyId, receipt_number: invoiceNumber, receipt_date: now,
+        source_type: 'statement', source_id: statementId,
+        customer_id: stInfo2?.customer_id, total_amount: stInfo2?.total_amount ?? 0,
+      });
+
+      return { success: true, recNumber: invoiceNumber };
     }
-
-    // Update statement with invoice numbers
-    const { error: updateErr } = await supabaseAdmin
-      .from('statements')
-      .update({
-        tax_invoice_number: taxNumber || null,
-        tax_invoice_date: taxNumber ? now : null,
-        receipt_number: recNumber,
-        receipt_date: now,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', statementId);
-
-    if (updateErr) {
-      return { success: false, error: updateErr.message };
-    }
-
-    return { success: true, taxNumber, recNumber };
   } catch (err) {
     console.error('[issueConsignmentInvoices] Error:', err);
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+// ─── Delivery Note (DN) ───────────────────────────────────
+
+/**
+ * ออกใบส่งสินค้า (DN) สำหรับ order — บริษัทไม่จด VAT ที่ส่งของก่อนรับเงิน
+ *
+ * ใช้กับ: Flow B (b_credit, no VAT) — ส่งของ
+ * เก็บใน orders.dn_number + dn_date
+ */
+export async function issueOrderDN(
+  orderId: string,
+  companyId: string,
+): Promise<IssueResult> {
+  try {
+    // Check if already issued — query document table
+    const { data: existing } = await supabaseAdmin
+      .from('delivery_notes')
+      .select('dn_number')
+      .eq('source_type', 'order').eq('source_id', orderId)
+      .eq('company_id', companyId)
+      .maybeSingle();
+
+    if (existing) {
+      return { success: true, invoiceNumber: existing.dn_number, docType: 'dn' };
+    }
+
+    const { data: dnNumber, error: rpcErr } = await supabaseAdmin
+      .rpc('generate_dn_number', { p_company_id: companyId });
+
+    if (rpcErr || !dnNumber) {
+      return { success: false, error: rpcErr?.message || 'ไม่สามารถสร้างเลข DN ได้' };
+    }
+
+    const now = new Date().toISOString().split('T')[0];
+
+    // Insert into document table (single source of truth)
+    const { data: orderInfo } = await supabaseAdmin
+      .from('orders').select('customer_id, total_amount').eq('id', orderId).single();
+    await insertDeliveryNote({
+      company_id: companyId, dn_number: dnNumber, dn_date: now,
+      source_type: 'order', source_id: orderId,
+      customer_id: orderInfo?.customer_id, total_amount: orderInfo?.total_amount ?? 0,
+    });
+
+    return { success: true, invoiceNumber: dnNumber, docType: 'dn' };
+  } catch (err) {
+    console.error('[issueOrderDN] Error:', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+/**
+ * ออกใบส่งสินค้า (DN) สำหรับ replenishment — บริษัทไม่จด VAT
+ *
+ * ใช้กับ: Flow C (dn mode, no VAT) + Flow D (invoice mode, no VAT) — ส่งของ
+ * เก็บใน replenishments.dn_number + dn_date
+ */
+export async function issueReplenishmentDN(
+  replenishmentId: string,
+  companyId: string,
+): Promise<IssueResult> {
+  try {
+    // Check if already issued — query document table
+    const { data: existing } = await supabaseAdmin
+      .from('delivery_notes')
+      .select('dn_number')
+      .eq('source_type', 'replenishment').eq('source_id', replenishmentId)
+      .eq('company_id', companyId)
+      .maybeSingle();
+
+    if (existing) {
+      return { success: true, invoiceNumber: existing.dn_number, docType: 'dn' };
+    }
+
+    const { data: dnNumber, error: rpcErr } = await supabaseAdmin
+      .rpc('generate_dn_number', { p_company_id: companyId });
+
+    if (rpcErr || !dnNumber) {
+      return { success: false, error: rpcErr?.message || 'ไม่สามารถสร้างเลข DN ได้' };
+    }
+
+    const now = new Date().toISOString().split('T')[0];
+
+    // Insert into document table (single source of truth)
+    const { data: repInfo } = await supabaseAdmin
+      .from('replenishments').select('customer_id, total_amount').eq('id', replenishmentId).single();
+    await insertDeliveryNote({
+      company_id: companyId, dn_number: dnNumber, dn_date: now,
+      source_type: 'replenishment', source_id: replenishmentId,
+      customer_id: repInfo?.customer_id, total_amount: repInfo?.total_amount ?? 0,
+    });
+
+    return { success: true, invoiceNumber: dnNumber, docType: 'dn' };
+  } catch (err) {
+    console.error('[issueReplenishmentDN] Error:', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+// ─── Centralized Auto-Issue ───────────────────────────────
+
+/**
+ * Auto-issue document based on order's flow_type and current state.
+ * Call this after any order_status or payment_status change.
+ * It will decide what to issue (or skip) — safe to call multiple times (idempotent).
+ *
+ * Flow A (a_cash): กดรับ (processing+) AND paid → ABB/REC
+ * Flow B (b_credit): ส่งของ (shipping+) → TAX (VAT) or DN (no VAT)
+ * Flow B (b_credit): จ่ายเงินครบ (paid) AND shipped → REC
+ */
+export async function autoIssueDocument(
+  orderId: string,
+  companyId: string,
+): Promise<void> {
+  try {
+    const { data: order } = await supabaseAdmin
+      .from('orders')
+      .select('flow_type, order_status, payment_status')
+      .eq('id', orderId)
+      .eq('company_id', companyId)
+      .single();
+    if (!order) return;
+
+    // Helper: check if any ABB/REC/TAX doc already exists for this order
+    const hasAbbOrRec = async () => {
+      const { count: abbCount } = await supabaseAdmin
+        .from('abbreviated_invoices').select('id', { count: 'exact', head: true })
+        .eq('order_id', orderId).eq('company_id', companyId).is('voided_at', null);
+      if (abbCount && abbCount > 0) return true;
+      // Check receipts sourced from this order (non-POS)
+      const { count: recCount } = await supabaseAdmin
+        .from('receipts').select('id', { count: 'exact', head: true })
+        .eq('source_type', 'order').eq('source_id', orderId).eq('company_id', companyId);
+      if (recCount && recCount > 0) return true;
+      // Check tax invoices sourced from this order
+      const { count: taxCount } = await supabaseAdmin
+        .from('tax_invoices').select('id', { count: 'exact', head: true })
+        .eq('source_type', 'order').eq('source_id', orderId).eq('company_id', companyId);
+      return (taxCount && taxCount > 0);
+    };
+
+    const hasDN = async () => {
+      const { count } = await supabaseAdmin
+        .from('delivery_notes').select('id', { count: 'exact', head: true })
+        .eq('source_type', 'order').eq('source_id', orderId).eq('company_id', companyId);
+      return (count && count > 0);
+    };
+
+    // ─── Flow A (a_cash): ABB/REC when accepted (processing+) AND paid ───
+    if (order.flow_type === 'a_cash'
+        && ['processing', 'shipping', 'completed'].includes(order.order_status)
+        && order.payment_status === 'paid') {
+      if (!(await hasAbbOrRec())) {
+        await issueAbbreviatedInvoice(orderId, companyId);
+      }
+      return;
+    }
+
+    // ─── Flow B (b_credit): ส่งของ → TAX (VAT) or DN (no VAT) ───
+    if (order.flow_type === 'b_credit'
+        && ['shipping', 'completed'].includes(order.order_status)) {
+      const vatRegistered = await getCompanyVat(companyId);
+      if (vatRegistered) {
+        // จด VAT → ออก TAX (ถ้ายังไม่มี)
+        const { count: taxCount } = await supabaseAdmin
+          .from('tax_invoices').select('id', { count: 'exact', head: true })
+          .eq('source_type', 'order').eq('source_id', orderId).eq('company_id', companyId);
+        if (!taxCount || taxCount === 0) {
+          const { data: invoiceNumber, error: rpcErr } = await supabaseAdmin
+            .rpc('generate_tax_invoice_number', { p_company_id: companyId });
+          if (!rpcErr && invoiceNumber) {
+            const dateStr = new Date().toISOString().split('T')[0];
+            const { data: oi } = await supabaseAdmin
+              .from('orders').select('customer_id, total_amount, vat_amount').eq('id', orderId).single();
+            await insertTaxInvoice({
+              company_id: companyId, invoice_number: invoiceNumber, invoice_date: dateStr,
+              source_type: 'order', source_id: orderId, customer_id: oi?.customer_id,
+              total_amount: oi?.total_amount ?? 0, vat_amount: oi?.vat_amount ?? 0,
+              is_receipt: false,
+            });
+          }
+        }
+      } else {
+        // ไม่จด VAT → ออก DN
+        if (!(await hasDN())) {
+          await issueOrderDN(orderId, companyId);
+        }
+      }
+    }
+
+    // ─── Flow B (b_credit): จ่ายเงินครบ → REC ───
+    if (order.flow_type === 'b_credit'
+        && order.payment_status === 'paid'
+        && ['shipping', 'completed'].includes(order.order_status)) {
+      // Check if REC already exists for this order
+      const { count: recCount } = await supabaseAdmin
+        .from('receipts').select('id', { count: 'exact', head: true })
+        .eq('source_type', 'order').eq('source_id', orderId).eq('company_id', companyId);
+      if (!recCount || recCount === 0) {
+        const { data: recNumber } = await supabaseAdmin
+          .rpc('generate_receipt_number', { p_company_id: companyId });
+        if (recNumber) {
+          const recDate = new Date().toISOString().split('T')[0];
+          const { data: oi } = await supabaseAdmin
+            .from('orders').select('customer_id, total_amount').eq('id', orderId).single();
+          await insertReceipt({
+            company_id: companyId, receipt_number: recNumber, receipt_date: recDate,
+            source_type: 'order', source_id: orderId, customer_id: oi?.customer_id,
+            total_amount: oi?.total_amount ?? 0,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`[autoIssueDocument] Error for order ${orderId}:`, err);
   }
 }

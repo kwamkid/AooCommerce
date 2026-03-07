@@ -10,17 +10,17 @@ import Pagination from '@/app/components/Pagination';
 import TaxInvoiceModal from '@/app/orders/components/TaxInvoiceModal';
 
 interface Invoice {
-  id: string;
-  order_number: string;
+  id: string; // order_id (for backward compat)
+  doc_id: string;
+  order_number: string | null;
   tax_invoice_number: string;
   tax_invoice_date: string;
   tax_invoice_voided_at: string | null;
   tax_invoice_voided_reason: string | null;
-  tax_invoice_replaced_abbrev_number: string | null;
+  tax_invoice_replaced_abbrev_number: string | null; // the TAX number that replaced this ABB
   total_amount: number;
   customer_id: string | null;
-  customer: { id: string; name: string; contact_person: string | null } | null;
-  delivery_name?: string;
+  customer: { id: string; name: string } | null;
 }
 
 function formatDate(d: string | null) {
@@ -114,7 +114,7 @@ export default function AbbreviatedInvoicesPage() {
     setOpenMenuId(null);
     setTaxModal({
       orderId: inv.id,
-      orderNumber: inv.order_number,
+      orderNumber: inv.order_number || '',
       customerId: inv.customer_id || inv.customer?.id,
     });
   };
@@ -210,7 +210,7 @@ export default function AbbreviatedInvoicesPage() {
                     const isVoided = !!inv.tax_invoice_voided_at;
                     const canIssueFullInvoice = !isVoided;
                     return (
-                      <tr key={inv.id} className={`data-tr ${isVoided ? 'opacity-60' : ''}`}>
+                      <tr key={inv.doc_id} className={`data-tr ${isVoided ? 'opacity-60' : ''}`}>
                         <td className="px-6 py-4">
                           <span className={`font-mono text-sm font-medium ${isVoided ? 'text-gray-400 line-through' : 'text-[#F4511E]'}`}>
                             {inv.tax_invoice_number}
@@ -219,7 +219,7 @@ export default function AbbreviatedInvoicesPage() {
                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300 whitespace-nowrap">{formatDate(inv.tax_invoice_date)}</td>
                         <td className="px-6 py-4">
                           <Link href={`/orders/${inv.id}`} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
-                            {inv.order_number} <ExternalLink className="w-3 h-3" />
+                            {inv.order_number || '-'} <ExternalLink className="w-3 h-3" />
                           </Link>
                         </td>
                         <td className="px-6 py-4">
@@ -245,13 +245,13 @@ export default function AbbreviatedInvoicesPage() {
                             {canIssueFullInvoice && (
                               <div className="relative">
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === inv.id ? null : inv.id); }}
+                                  onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === inv.doc_id ? null : inv.doc_id); }}
                                   className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
                                   title="เพิ่มเติม"
                                 >
                                   <MoreHorizontal className="w-4 h-4" />
                                 </button>
-                                {openMenuId === inv.id && (
+                                {openMenuId === inv.doc_id && (
                                   <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-600 py-1 min-w-[220px]">
                                     <button
                                       onClick={() => handleIssueFullInvoice(inv)}

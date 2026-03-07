@@ -13,6 +13,7 @@ import { formatNumber } from '@/lib/utils/format';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
+import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import { type GpResolverContext, resolveGp, fetchGpContext } from '@/lib/gp-resolver';
 import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/replenishment-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
@@ -558,6 +559,32 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
 
   return (
     <div className="space-y-4">
+      {/* Invoice Info (Invoice Mode — auto-issued on ship) */}
+      {existingData?.tax_invoice_number && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200 dark:border-purple-800 p-5">
+          <div className="flex items-center gap-2 mb-2 text-purple-700 dark:text-purple-400">
+            <Receipt className="w-5 h-5" />
+            <span className="font-bold">
+              {existingData.tax_invoice_doc_type === 'tax' ? 'ใบกำกับภาษี' : 'ใบเสร็จรับเงิน'}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+            <div>
+              <span className="text-gray-500 dark:text-slate-400">เลขที่: </span>
+              <span className="font-medium text-gray-900 dark:text-white">{existingData.tax_invoice_number}</span>
+            </div>
+            {existingData.tax_invoice_date && (
+              <div>
+                <span className="text-gray-500 dark:text-slate-400">วันที่: </span>
+                <span className="text-gray-700 dark:text-slate-300">
+                  {new Date(existingData.tax_invoice_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* QR Code Block (shipped status) */}
       {isShipped && receiveToken && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-amber-200 dark:border-amber-800 p-5">
@@ -977,73 +1004,18 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         {hasItems && (
           <div className="w-full sm:w-[300px] flex-shrink-0 sm:sticky sm:top-4">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-              <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4">
-                <h3 className="text-base font-semibold text-gray-700 dark:text-slate-300 mb-3">สรุปใบเติมสินค้า</h3>
-                <div className="space-y-2 text-base">
-                  <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                    <span>ยอดรวมสินค้า{vatRegistered ? ' (รวม VAT)' : ''}</span>
-                    <span>฿{formatNumber(subtotalBeforeDiscount)}</span>
-                  </div>
-                  {!isDisabled ? (
-                    <>
-                      <div className="flex justify-between items-center text-gray-500 dark:text-slate-400">
-                        <span>ค่าจัดส่ง</span>
-                        <div className="relative w-[108px]">
-                          <input
-                            type="number" min={0} step={0.01}
-                            value={shippingFee || ''}
-                            onChange={e => setShippingFee(parseFloat(e.target.value) || 0)}
-                            placeholder="0"
-                            className="w-full px-2 pr-7 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-slate-500 pointer-events-none">฿</span>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-500 dark:text-slate-400">ส่วนลดรวม</span>
-                        <div className="flex items-stretch w-[108px]">
-                          <input
-                            type="number" min={0} max={orderDiscountType === 'percent' ? 100 : undefined} step={0.01}
-                            value={orderDiscount}
-                            onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
-                            className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-l-lg border-r-0 text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => { setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent'); setOrderDiscount(0); }}
-                            className="px-2 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[28px] flex items-center justify-center"
-                          >
-                            {orderDiscountType === 'percent' ? '%' : '฿'}
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    shippingFee > 0 && (
-                      <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                        <span>ค่าจัดส่ง</span>
-                        <span>฿{formatNumber(shippingFee)}</span>
-                      </div>
-                    )
-                  )}
-                  {vatRegistered && (
-                    <>
-                      <div className="flex justify-between text-gray-500 dark:text-slate-400 pt-2 border-t border-gray-200 dark:border-slate-600">
-                        <span>ยอดก่อน VAT</span>
-                        <span>฿{formatNumber(subtotalExVAT)}</span>
-                      </div>
-                      <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                        <span>VAT 7%</span>
-                        <span>฿{formatNumber(vat)}</span>
-                      </div>
-                    </>
-                  )}
-                  <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200 dark:border-slate-600 text-gray-900 dark:text-slate-100">
-                    <span>ยอดรวมสุทธิ</span>
-                    <span className="text-[#F4511E]">฿{formatNumber(totalAmount)}</span>
-                  </div>
-                </div>
-              </div>
+              <OrderSummaryBox
+                title="สรุปใบเติมสินค้า"
+                subtotalAmount={subtotalBeforeDiscount}
+                vatRegistered={vatRegistered}
+                shippingFee={shippingFee}
+                onShippingChange={!isDisabled ? setShippingFee : undefined}
+                discountValue={orderDiscount}
+                discountType={orderDiscountType}
+                onDiscountChange={!isDisabled ? setOrderDiscount : undefined}
+                onDiscountTypeToggle={!isDisabled ? () => { setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent'); setOrderDiscount(0); } : undefined}
+                readOnly={isDisabled}
+              />
             </div>
           </div>
         )}
@@ -1114,7 +1086,7 @@ function StatusBadge({ status }: { status: string }) {
     shipped: { label: 'กำลังส่ง', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/40' },
     pending_confirm: { label: 'รอยืนยัน', color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/40' },
     received: { label: 'รับครบแล้ว', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40' },
-    partial_received: { label: 'รับไม่ครบ', color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
+    partial_received: { label: 'รับไม่ครบ', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40' },
     cancelled: { label: 'ยกเลิก', color: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
   };
   const c = config[status] || config.pending;

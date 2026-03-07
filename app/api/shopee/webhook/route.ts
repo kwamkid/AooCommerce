@@ -317,6 +317,12 @@ async function handleOrderTracking(
     console.error(`[Shopee Webhook] Failed to update order tracking for ${orderSn}:`, orderErr.message);
   } else {
     console.log(`[Shopee Webhook] Updated order tracking: ${orderSn} → ${trackingNo}${updatePayload.order_status ? ' (→ shipping)' : ''}`);
+
+    // Auto-issue document (ABB/REC) if status changed
+    if (updatePayload.order_status) {
+      const { autoIssueDocument } = await import('@/lib/invoice-service');
+      autoIssueDocument(order.id, account.company_id).catch(() => {});
+    }
   }
 }
 

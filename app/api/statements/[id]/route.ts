@@ -22,9 +22,8 @@ export async function GET(
         id, statement_number, status, statement_date, due_date,
         period_year, period_month,
         total_amount, paid_amount, outstanding_amount,
-        tax_invoice_number, tax_invoice_date,
-        receipt_number, receipt_date,
         notes, created_at,
+        customer_id,
         customer:customers(id, name, customer_code, phone,
           tax_company_name, tax_id, tax_branch,
           billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code
@@ -60,8 +59,28 @@ export async function GET(
       .eq('statement_id', id)
       .order('paid_at', { ascending: false });
 
+    // Enrich with document data from document tables
+    const [taxRes, recRes] = await Promise.all([
+      supabaseAdmin.from('tax_invoices')
+        .select('invoice_number, invoice_date')
+        .eq('source_type', 'statement').eq('source_id', id).eq('company_id', companyId)
+        .maybeSingle(),
+      supabaseAdmin.from('receipts')
+        .select('receipt_number, receipt_date')
+        .eq('source_type', 'statement').eq('source_id', id).eq('company_id', companyId)
+        .maybeSingle(),
+    ]);
+
+    const enrichedStatement = {
+      ...statement,
+      tax_invoice_number: taxRes.data?.invoice_number || null,
+      tax_invoice_date: taxRes.data?.invoice_date || null,
+      receipt_number: recRes.data?.receipt_number || null,
+      receipt_date: recRes.data?.receipt_date || null,
+    };
+
     return NextResponse.json({
-      statement,
+      statement: enrichedStatement,
       reports: reports || [],
       payments: payments || [],
     });
@@ -164,7 +183,7 @@ export async function PUT(
             .single();
 
           if (cust?.consignment_mode === 'dn') {
-            // DN mode: ออก TAX + REC (หรือแค่ REC ถ้า no VAT)
+            // DN mode: จด VAT → ใบกำกับภาษี/ใบเสร็จ (TAX เลขเดียว), ไม่จด → ใบเสร็จ (REC เลขเดียว)
             const { issueConsignmentInvoices } = await import('@/lib/invoice-service');
             const result = await issueConsignmentInvoices(id, companyId);
             if (result.success) {
@@ -175,11 +194,14 @@ export async function PUT(
             const { data: recNumber } = await supabaseAdmin
               .rpc('generate_receipt_number', { p_company_id: companyId });
             if (recNumber) {
-              await supabaseAdmin.from('statements').update({
-                receipt_number: recNumber,
-                receipt_date: new Date().toISOString().split('T')[0],
-                updated_at: new Date().toISOString(),
-              }).eq('id', id);
+              const recDate = new Date().toISOString().split('T')[0];
+              // Insert into document table (single source of truth)
+              const { insertReceipt } = await import('@/lib/invoice-service');
+              await insertReceipt({
+                company_id: companyId, receipt_number: recNumber, receipt_date: recDate,
+                source_type: 'statement', source_id: id, customer_id: statement.customer_id,
+                total_amount: statement.total_amount ?? 0,
+              });
               autoInvoiceResult = { recNumber };
             }
           }

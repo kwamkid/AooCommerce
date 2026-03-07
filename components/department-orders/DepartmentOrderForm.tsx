@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
+import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 
 interface Customer {
   id: string;
@@ -409,45 +410,15 @@ export default function DepartmentOrderForm({ warehouseId }: Props) {
         {hasItems && (
           <div className="w-full sm:w-[300px] flex-shrink-0 sm:sticky sm:top-4">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-              <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4">
-                <h3 className="text-base font-semibold text-gray-700 dark:text-slate-300 mb-3">สรุปใบส่งห้าง</h3>
-                <div className="space-y-2 text-base">
-                  <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                    <span>ยอดรวมสินค้า (รวม VAT)</span>
-                    <span>฿{subtotalBeforeDiscount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500 dark:text-slate-400">ส่วนลดรวม</span>
-                    <div className="flex items-stretch w-[108px]">
-                      <input
-                        type="number" min={0} max={orderDiscountType === 'percent' ? 100 : undefined} step={0.01}
-                        value={orderDiscount}
-                        onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
-                        className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-l-lg border-r-0 text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => { setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent'); setOrderDiscount(0); }}
-                        className="px-2 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[28px] flex items-center justify-center"
-                      >
-                        {orderDiscountType === 'percent' ? '%' : '฿'}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex justify-between text-gray-500 dark:text-slate-400 pt-2 border-t border-gray-200 dark:border-slate-600">
-                    <span>ยอดก่อน VAT</span>
-                    <span>฿{beforeVat.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                    <span>VAT 7%</span>
-                    <span>฿{vatAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200 dark:border-slate-600 text-gray-900 dark:text-slate-100">
-                    <span>ยอดรวมสุทธิ</span>
-                    <span className="text-[#F4511E]">฿{totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                </div>
-              </div>
+              <OrderSummaryBox
+                title="สรุปใบส่งห้าง"
+                subtotalAmount={subtotalBeforeDiscount}
+                vatRegistered={true}
+                discountValue={orderDiscount}
+                discountType={orderDiscountType}
+                onDiscountChange={setOrderDiscount}
+                onDiscountTypeToggle={() => { setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent'); setOrderDiscount(0); }}
+              />
             </div>
           </div>
         )}

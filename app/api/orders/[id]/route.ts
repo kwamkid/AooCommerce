@@ -176,9 +176,82 @@ export async function GET(
       }
     }
 
-    // Combine order with enriched items
+    // Enrich with document data from document tables
+    const [abbRes, taxRes, recRes, dnRes] = await Promise.all([
+      supabaseAdmin.from('abbreviated_invoices')
+        .select('invoice_number, invoice_date, voided_at, voided_reason')
+        .eq('order_id', orderId).eq('company_id', auth.companyId)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabaseAdmin.from('tax_invoices')
+        .select('invoice_number, invoice_date, customer_name, customer_tax_id, customer_branch, customer_address, replaces_abbreviated_id')
+        .eq('source_type', 'order').eq('source_id', orderId).eq('company_id', auth.companyId)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabaseAdmin.from('receipts')
+        .select('receipt_number, receipt_date')
+        .eq('source_type', 'order').eq('source_id', orderId).eq('company_id', auth.companyId)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabaseAdmin.from('delivery_notes')
+        .select('dn_number, dn_date')
+        .eq('source_type', 'order').eq('source_id', orderId).eq('company_id', auth.companyId)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+
+    const abb = abbRes.data;
+    const tax = taxRes.data;
+    const rec = recRes.data;
+    const dn = dnRes.data;
+
+    // Derive document fields (same shape as old columns for backward compat)
+    let taxInvoiceDocType: string | null = null;
+    let taxInvoiceNumber: string | null = null;
+    let taxInvoiceDate: string | null = null;
+    let taxInvoiceVoidedAt: string | null = null;
+    let taxInvoiceReplacedAbbrevNumber: string | null = null;
+
+    if (tax) {
+      taxInvoiceDocType = 'tax';
+      taxInvoiceNumber = tax.invoice_number;
+      taxInvoiceDate = tax.invoice_date;
+      // If TAX replaces ABB, get the ABB number
+      if (tax.replaces_abbreviated_id && abb) {
+        taxInvoiceReplacedAbbrevNumber = abb.invoice_number;
+      }
+    } else if (abb && !abb.voided_at) {
+      taxInvoiceDocType = 'abbreviated';
+      taxInvoiceNumber = abb.invoice_number;
+      taxInvoiceDate = abb.invoice_date;
+    } else if (abb && abb.voided_at) {
+      // Voided ABB — show the TAX that replaced it
+      taxInvoiceDocType = 'abbreviated';
+      taxInvoiceNumber = abb.invoice_number;
+      taxInvoiceDate = abb.invoice_date;
+      taxInvoiceVoidedAt = abb.voided_at;
+    } else if (rec) {
+      taxInvoiceDocType = 'receipt';
+      taxInvoiceNumber = rec.receipt_number;
+      taxInvoiceDate = rec.receipt_date;
+    }
+
+    // Combine order with enriched items + document data
     const orderWithItems = {
       ...order,
+      // Override with document table data
+      tax_invoice_doc_type: taxInvoiceDocType,
+      tax_invoice_number: taxInvoiceNumber,
+      tax_invoice_date: taxInvoiceDate,
+      tax_invoice_voided_at: taxInvoiceVoidedAt,
+      tax_invoice_replaced_abbrev_number: taxInvoiceReplacedAbbrevNumber,
+      receipt_number: rec?.receipt_number || null,
+      receipt_date: rec?.receipt_date || null,
+      dn_number: dn?.dn_number || null,
+      dn_date: dn?.dn_date || null,
+      // Tax customer info from TAX doc (if available) or keep order's fields
+      ...(tax ? {
+        tax_invoice_name: tax.customer_name || order.tax_invoice_name,
+        tax_invoice_tax_id: tax.customer_tax_id || order.tax_invoice_tax_id,
+        tax_invoice_branch: tax.customer_branch || order.tax_invoice_branch,
+        tax_invoice_address: tax.customer_address || order.tax_invoice_address,
+      } : {}),
       items: itemsEnriched,
       parcels,
     };

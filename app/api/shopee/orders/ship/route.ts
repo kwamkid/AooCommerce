@@ -142,6 +142,10 @@ export async function POST(request: NextRequest) {
           .eq('id', order_id)
           .eq('company_id', companyId);
 
+        // Auto-issue document (ABB/REC)
+        const { autoIssueDocument } = await import('@/lib/invoice-service');
+        autoIssueDocument(order_id, companyId).catch(() => {});
+
         return NextResponse.json({ success: true, external_status: 'PROCESSED', order_status: 'processing' });
       }
     }
@@ -195,6 +199,10 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', order_id)
       .eq('company_id', companyId);
+
+    // Auto-issue document (ABB/REC)
+    const { autoIssueDocument } = await import('@/lib/invoice-service');
+    autoIssueDocument(order_id, companyId).catch(() => {});
 
     return NextResponse.json({
       success: true,
