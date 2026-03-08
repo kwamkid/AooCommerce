@@ -415,6 +415,20 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   const subtotalExVAT = vatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
   const vat = vatRegistered ? totalWithVAT - subtotalExVAT : 0;
   const totalAmount = totalWithVAT;
+
+  // Confirmed subtotal (for pending_confirm / completed with mismatch)
+  const confirmedSubtotal = (isPendingConfirm || isCompleted) && hasMismatch
+    ? items.reduce((sum, i) => {
+        const cQty = confirmedQuantities[i.id!] ?? i.received_quantity;
+        return sum + cQty * i.unit_price;
+      }, 0)
+    : null;
+  const confirmedDiscountAmount = confirmedSubtotal !== null
+    ? (orderDiscountType === 'percent' ? confirmedSubtotal * orderDiscount / 100 : orderDiscount)
+    : 0;
+  const confirmedTotalWithVAT = confirmedSubtotal !== null
+    ? Math.max(0, confirmedSubtotal - confirmedDiscountAmount + shippingFee)
+    : null;
   const hasItems = items.length > 0;
 
   // Submit (create new)
@@ -796,19 +810,19 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                             </div>
                           </td>
                           <td className="text-center px-3 py-3 font-medium text-gray-700 dark:text-slate-300">{item.quantity}</td>
-                          <td className={`text-center px-3 py-3 font-bold ${isMismatch ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
+                          <td className={`text-center px-3 py-3 font-bold ${isMismatch ? (diff < 0 ? 'text-blue-600 dark:text-blue-400' : 'text-amber-600 dark:text-amber-400') : 'text-green-600 dark:text-green-400'}`}>
                             {item.received_quantity}
                             {diff > 0 && <div className="text-xs text-red-500">ขาด {diff}</div>}
+                            {diff < 0 && <div className="text-xs text-blue-500">เกิน {Math.abs(diff)}</div>}
                           </td>
                           {hasMismatch && (
                             <td className="text-center px-3 py-3">
                               <input
                                 type="number"
                                 min={0}
-                                max={item.quantity}
                                 value={confirmedQuantities[item.id!] ?? item.received_quantity}
                                 onChange={e => {
-                                  const v = Math.min(item.quantity, Math.max(0, parseInt(e.target.value) || 0));
+                                  const v = Math.max(0, parseInt(e.target.value) || 0);
                                   setConfirmedQuantities(prev => ({ ...prev, [item.id!]: v }));
                                 }}
                                 className="w-16 px-2 py-1.5 text-center border border-amber-300 dark:border-amber-700 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 font-bold focus:outline-none focus:ring-2 focus:ring-amber-400"
@@ -863,9 +877,10 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                             </div>
                           </td>
                           <td className="text-center px-3 py-3 text-gray-700 dark:text-slate-300">{item.quantity}</td>
-                          <td className={`text-center px-3 py-3 font-bold ${isMismatch ? 'text-amber-600' : 'text-green-600'}`}>
+                          <td className={`text-center px-3 py-3 font-bold ${isMismatch ? (diff < 0 ? 'text-blue-600' : 'text-amber-600') : 'text-green-600'}`}>
                             {item.received_quantity}
                             {diff > 0 && <div className="text-xs text-red-500">ขาด {diff}</div>}
+                            {diff < 0 && <div className="text-xs text-blue-500">เกิน {Math.abs(diff)}</div>}
                           </td>
                           {hasMismatch && (
                             <td className="text-center px-3 py-3 font-bold text-gray-700 dark:text-slate-300">
@@ -1015,7 +1030,38 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                 onDiscountChange={!isDisabled ? setOrderDiscount : undefined}
                 onDiscountTypeToggle={!isDisabled ? () => { setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent'); setOrderDiscount(0); } : undefined}
                 readOnly={isDisabled}
-              />
+              >
+                {confirmedTotalWithVAT !== null && confirmedTotalWithVAT !== totalWithVAT && (
+                  <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800">
+                    <div className="flex justify-between text-sm text-gray-500 dark:text-slate-400">
+                      <span>ยอดตามที่รับจริง</span>
+                      <span>฿{formatNumber(confirmedSubtotal!)}</span>
+                    </div>
+                    {vatRegistered && (
+                      <>
+                        <div className="flex justify-between text-sm text-gray-500 dark:text-slate-400 mt-1">
+                          <span>ยอดก่อน VAT</span>
+                          <span>฿{formatNumber(Math.round((confirmedTotalWithVAT / 1.07) * 100) / 100)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-gray-500 dark:text-slate-400 mt-1">
+                          <span>VAT 7%</span>
+                          <span>฿{formatNumber(confirmedTotalWithVAT - Math.round((confirmedTotalWithVAT / 1.07) * 100) / 100)}</span>
+                        </div>
+                      </>
+                    )}
+                    <div className="flex justify-between font-bold text-base mt-1">
+                      <span className="text-amber-700 dark:text-amber-400">ยอดยืนยัน</span>
+                      <span className="text-amber-600 dark:text-amber-400">฿{formatNumber(confirmedTotalWithVAT)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1">
+                      <span>ส่วนต่าง</span>
+                      <span className={confirmedTotalWithVAT < totalWithVAT ? 'text-red-500' : 'text-blue-500'}>
+                        {confirmedTotalWithVAT < totalWithVAT ? '-' : '+'}฿{formatNumber(Math.abs(totalWithVAT - confirmedTotalWithVAT))}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </OrderSummaryBox>
             </div>
           </div>
         )}

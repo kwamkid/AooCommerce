@@ -3,6 +3,7 @@ import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemEnrichment
 import { getCategoryName } from '@/lib/shopee/product-sync';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
+import { reserveStock as reserveStockService, returnStock as returnStockService, unreserveStock as unreserveStockService } from '@/lib/stock-service';
 
 // --- Sync Progress Types ---
 
@@ -2228,12 +2229,8 @@ async function findOrCreateVariationBySku(
   };
 }
 
-// --- Stock Reservation ---
+// --- Stock Reservation (delegates to centralized stock-service) ---
 
-/**
- * Reserve stock for a variation in a warehouse.
- * Same pattern as order creation flow in /api/orders/route.ts
- */
 async function reserveStock(
   companyId: string,
   warehouseId: string,
@@ -2243,77 +2240,21 @@ async function reserveStock(
   orderNumber: string
 ): Promise<void> {
   try {
-    const { data: existingInv } = await supabaseAdmin
-      .from('inventory')
-      .select('id, quantity, reserved_quantity')
-      .eq('warehouse_id', warehouseId)
-      .eq('variation_id', variationId)
-      .eq('company_id', companyId)
-      .single();
-
-    if (existingInv) {
-      const newReserved = (existingInv.reserved_quantity || 0) + quantity;
-      await supabaseAdmin
-        .from('inventory')
-        .update({
-          reserved_quantity: newReserved,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existingInv.id);
-
-      await supabaseAdmin
-        .from('inventory_transactions')
-        .insert({
-          company_id: companyId,
-          warehouse_id: warehouseId,
-          variation_id: variationId,
-          type: 'reserve',
-          quantity,
-          balance_after: existingInv.quantity,
-          reference_type: 'order',
-          reference_id: orderId,
-          notes: `Reserve for Shopee order ${orderNumber}`,
-          created_at: new Date().toISOString(),
-        });
-    } else {
-      // Create inventory row with 0 quantity and reserved
-      await supabaseAdmin
-        .from('inventory')
-        .insert({
-          company_id: companyId,
-          warehouse_id: warehouseId,
-          variation_id: variationId,
-          quantity: 0,
-          reserved_quantity: quantity,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-
-      await supabaseAdmin
-        .from('inventory_transactions')
-        .insert({
-          company_id: companyId,
-          warehouse_id: warehouseId,
-          variation_id: variationId,
-          type: 'reserve',
-          quantity,
-          balance_after: 0,
-          reference_type: 'order',
-          reference_id: orderId,
-          notes: `Reserve for Shopee order ${orderNumber}`,
-          created_at: new Date().toISOString(),
-        });
-    }
+    await reserveStockService({
+      supabase: supabaseAdmin,
+      companyId,
+      warehouseId,
+      variationId,
+      qty: quantity,
+      referenceType: 'order',
+      referenceId: orderId,
+      notes: `Reserve for Shopee order ${orderNumber}`,
+    });
   } catch (err) {
     console.error(`[Shopee Sync] Stock reserve error for variation ${variationId}:`, err);
   }
 }
 
-/**
- * Return/unreserve stock when a Shopee order is cancelled.
- * - If order was NOT yet shipped (new/ready_to_ship/processing): unreserve (ลด reserved_quantity)
- * - If order was already shipped (shipping/completed): return stock (เพิ่ม quantity กลับ)
- */
 async function returnStockForCancelledOrder(
   companyId: string,
   orderId: string,
@@ -2330,67 +2271,24 @@ async function returnStockForCancelledOrder(
 
     if (!orderItems || orderItems.length === 0) return;
 
-    // Determine if stock was already deducted (shipped) or just reserved
     const wasShipped = ['shipping', 'completed'].includes(previousOrderStatus);
+    const stockFn = wasShipped ? returnStockService : unreserveStockService;
 
     for (const oi of orderItems) {
       if (!oi.variation_id) continue;
       try {
-        const { data: inv } = await supabaseAdmin
-          .from('inventory')
-          .select('id, quantity, reserved_quantity')
-          .eq('warehouse_id', warehouseId)
-          .eq('variation_id', oi.variation_id)
-          .eq('company_id', companyId)
-          .single();
-
-        if (!inv) continue;
-
-        if (wasShipped) {
-          // Stock was deducted → return quantity
-          const newQty = (inv.quantity || 0) + oi.quantity;
-          await supabaseAdmin
-            .from('inventory')
-            .update({ quantity: newQty, updated_at: new Date().toISOString() })
-            .eq('id', inv.id);
-
-          await supabaseAdmin
-            .from('inventory_transactions')
-            .insert({
-              company_id: companyId,
-              warehouse_id: warehouseId,
-              variation_id: oi.variation_id,
-              type: 'return',
-              quantity: oi.quantity,
-              balance_after: newQty,
-              reference_type: 'order',
-              reference_id: orderId,
-              notes: `Return stock for cancelled Shopee order ${orderSn}`,
-              created_at: new Date().toISOString(),
-            });
-        } else {
-          // Stock was only reserved → unreserve
-          const newReserved = Math.max(0, (inv.reserved_quantity || 0) - oi.quantity);
-          await supabaseAdmin
-            .from('inventory')
-            .update({ reserved_quantity: newReserved, updated_at: new Date().toISOString() })
-            .eq('id', inv.id);
-
-          await supabaseAdmin
-            .from('inventory_transactions')
-            .insert({
-              company_id: companyId,
-              warehouse_id: warehouseId,
-              variation_id: oi.variation_id,
-              type: 'unreserve',
-              quantity: oi.quantity,
-              balance_after: inv.quantity,
-              reference_type: 'order',
-              reference_id: orderId,
-              notes: `Unreserve for cancelled Shopee order ${orderSn}`,
-              created_at: new Date().toISOString(),
-            });
-        }
+        await stockFn({
+          supabase: supabaseAdmin,
+          companyId,
+          warehouseId,
+          variationId: oi.variation_id,
+          qty: oi.quantity,
+          referenceType: 'order',
+          referenceId: orderId,
+          notes: wasShipped
+            ? `Return stock for cancelled Shopee order ${orderSn}`
+            : `Unreserve for cancelled Shopee order ${orderSn}`,
+        });
       } catch (itemErr) {
         console.error(`[Shopee Sync] Stock return error for variation ${oi.variation_id}:`, itemErr);
       }

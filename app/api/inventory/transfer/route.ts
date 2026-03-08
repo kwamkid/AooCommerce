@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, hasAnyRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
+import { transferOut, transferIn, InsufficientStockError } from '@/lib/stock-service';
 
 // POST - Transfer stock between warehouses
 export async function POST(request: NextRequest) {
@@ -59,99 +60,46 @@ export async function POST(request: NextRequest) {
     const transferGroupId = crypto.randomUUID();
     const results = [];
     const errors = [];
+    const noteText = batchNotes || 'โอนย้ายสินค้า';
 
     for (const item of items) {
       const { variation_id, quantity } = item;
       if (!variation_id || !quantity || quantity <= 0) continue;
 
-      // Check source inventory
-      const { data: sourceInv } = await supabaseAdmin
-        .from('inventory')
-        .select('id, quantity, reserved_quantity')
-        .eq('warehouse_id', from_warehouse_id)
-        .eq('variation_id', variation_id)
-        .single();
-
-      const sourceQty = sourceInv?.quantity || 0;
-      const sourceReserved = sourceInv?.reserved_quantity || 0;
-      const sourceAvailable = sourceQty - sourceReserved;
-
-      if (quantity > sourceAvailable) {
-        errors.push({
-          variation_id,
-          error: `สินค้ามี ${sourceAvailable} ชิ้นพร้อมโอน (คงเหลือ ${sourceQty}, จอง ${sourceReserved}) แต่ขอโอน ${quantity} ชิ้น`,
-        });
-        continue;
-      }
-
-      // Deduct from source
-      const newSourceQty = sourceQty - quantity;
-      if (sourceInv) {
-        await supabaseAdmin
-          .from('inventory')
-          .update({ quantity: newSourceQty, updated_at: new Date().toISOString() })
-          .eq('id', sourceInv.id);
-      }
-
-      // Add to destination (upsert)
-      const { data: destInv } = await supabaseAdmin
-        .from('inventory')
-        .select('id, quantity')
-        .eq('warehouse_id', to_warehouse_id)
-        .eq('variation_id', variation_id)
-        .single();
-
-      const newDestQty = (destInv?.quantity || 0) + quantity;
-      if (destInv) {
-        await supabaseAdmin
-          .from('inventory')
-          .update({ quantity: newDestQty, updated_at: new Date().toISOString() })
-          .eq('id', destInv.id);
-      } else {
-        await supabaseAdmin
-          .from('inventory')
-          .insert({
-            company_id: auth.companyId,
-            warehouse_id: to_warehouse_id,
-            variation_id,
-            quantity: newDestQty,
-            reserved_quantity: 0,
-          });
-      }
-
-      // Create transfer_out transaction (source)
-      await supabaseAdmin
-        .from('inventory_transactions')
-        .insert({
-          company_id: auth.companyId,
-          warehouse_id: from_warehouse_id,
-          variation_id,
-          type: 'transfer_out',
-          quantity,
-          balance_after: newSourceQty,
-          reference_type: 'transfer',
-          reference_id: transferGroupId,
-          notes: batchNotes || 'โอนย้ายสินค้า',
-          created_by: auth.userId,
+      try {
+        const outResult = await transferOut({
+          supabase: supabaseAdmin,
+          companyId: auth.companyId!,
+          warehouseId: from_warehouse_id,
+          variationId: variation_id,
+          qty: quantity,
+          referenceType: 'transfer',
+          referenceId: transferGroupId,
+          notes: noteText,
+          createdBy: auth.userId,
+          checkAvailable: true,
         });
 
-      // Create transfer_in transaction (destination)
-      await supabaseAdmin
-        .from('inventory_transactions')
-        .insert({
-          company_id: auth.companyId,
-          warehouse_id: to_warehouse_id,
-          variation_id,
-          type: 'transfer_in',
-          quantity,
-          balance_after: newDestQty,
-          reference_type: 'transfer',
-          reference_id: transferGroupId,
-          notes: batchNotes || 'โอนย้ายสินค้า',
-          created_by: auth.userId,
+        const inResult = await transferIn({
+          supabase: supabaseAdmin,
+          companyId: auth.companyId!,
+          warehouseId: to_warehouse_id,
+          variationId: variation_id,
+          qty: quantity,
+          referenceType: 'transfer',
+          referenceId: transferGroupId,
+          notes: noteText,
+          createdBy: auth.userId,
         });
 
-      results.push({ variation_id, quantity, from_balance: newSourceQty, to_balance: newDestQty });
+        results.push({ variation_id, quantity, from_balance: outResult.balanceAfter, to_balance: inResult.balanceAfter });
+      } catch (err) {
+        if (err instanceof InsufficientStockError) {
+          errors.push({ variation_id, error: `สินค้ามี ${err.available} ชิ้นพร้อมโอน (คงเหลือ ${err.currentQty}, จอง ${err.reservedQty}) แต่ขอโอน ${quantity} ชิ้น` });
+        } else {
+          throw err;
+        }
+      }
     }
 
     // Auto-sync stock to Shopee if linked

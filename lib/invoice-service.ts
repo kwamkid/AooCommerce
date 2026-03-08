@@ -628,6 +628,177 @@ export async function issueReplenishmentDN(
   }
 }
 
+// ─── Replenishment Partial Receive — Adjustment Documents ────
+
+/**
+ * ออกใบลดหนี้ (Credit Note) สำหรับ replenishment ที่รับขาด
+ * เรียกตอน confirm action เมื่อ confirmed_total < total_amount
+ */
+export async function issueReplenishmentCreditNote(
+  replenishmentId: string,
+  companyId: string,
+  shortfallItems: {
+    replenishment_item_id: string;
+    variation_id: string;
+    product_name: string;
+    variation_label: string;
+    shortfall_qty: number;
+    unit_price: number;
+  }[],
+  createdBy: string,
+): Promise<{ cnNumber: string } | null> {
+  try {
+    if (!shortfallItems.length) return null;
+
+    // Check if CN already issued for this replenishment
+    const { data: existingCN } = await supabaseAdmin
+      .from('credit_notes')
+      .select('cn_number')
+      .eq('source_type', 'replenishment')
+      .eq('source_id', replenishmentId)
+      .eq('company_id', companyId)
+      .maybeSingle();
+    if (existingCN) return { cnNumber: existingCN.cn_number };
+
+    // Generate CN number
+    const { data: cnNumber, error: rpcErr } = await supabaseAdmin
+      .rpc('generate_cn_number', { p_company_id: companyId });
+    if (rpcErr || !cnNumber) {
+      console.error('[issueReplenishmentCreditNote] RPC error:', rpcErr);
+      return null;
+    }
+
+    // Calculate totals
+    const subtotal = shortfallItems.reduce((sum, i) => sum + i.shortfall_qty * i.unit_price, 0);
+
+    // Insert credit note header
+    const { data: cn, error: cnErr } = await supabaseAdmin
+      .from('credit_notes')
+      .insert({
+        company_id: companyId,
+        cn_number: cnNumber,
+        source_type: 'replenishment',
+        source_id: replenishmentId,
+        order_id: null,
+        type: 'refund',
+        status: 'issued',
+        reason: 'รับสินค้าไม่ครบตามจำนวนที่ส่ง',
+        subtotal,
+        discount_amount: 0,
+        vat_amount: 0,
+        total_amount: subtotal,
+        issued_at: new Date().toISOString(),
+        created_by: createdBy,
+      })
+      .select('id')
+      .single();
+
+    if (cnErr || !cn) {
+      console.error('[issueReplenishmentCreditNote] Insert error:', cnErr);
+      return null;
+    }
+
+    // Insert credit note items
+    const cnItems = shortfallItems.map((i) => ({
+      credit_note_id: cn.id,
+      replenishment_item_id: i.replenishment_item_id,
+      variation_id: i.variation_id,
+      product_name: i.product_name,
+      variation_label: i.variation_label,
+      quantity: i.shortfall_qty,
+      unit_price: i.unit_price,
+      discount_amount: 0,
+      total: i.shortfall_qty * i.unit_price,
+    }));
+
+    await supabaseAdmin.from('credit_note_items').insert(cnItems);
+
+    console.log(`[issueReplenishmentCreditNote] Issued ${cnNumber} for replenishment ${replenishmentId}`);
+    return { cnNumber };
+  } catch (err) {
+    console.error('[issueReplenishmentCreditNote] Error:', err);
+    return null;
+  }
+}
+
+/**
+ * ออกเอกสารเพิ่มเติมสำหรับ replenishment ที่รับเกิน
+ * ออก DN หรือ TAX ใบใหม่สำหรับส่วนเกิน
+ */
+export async function issueReplenishmentExcessDocument(
+  replenishmentId: string,
+  companyId: string,
+  excessAmount: number,
+): Promise<IssueResult> {
+  try {
+    if (excessAmount <= 0) return { success: false, error: 'No excess amount' };
+
+    // Determine document type based on VAT + consignment mode
+    const { data: rep } = await supabaseAdmin
+      .from('replenishments')
+      .select('customer_id')
+      .eq('id', replenishmentId)
+      .single();
+    if (!rep) return { success: false, error: 'Replenishment not found' };
+
+    const { data: customer } = await supabaseAdmin
+      .from('customers')
+      .select('consignment_mode')
+      .eq('id', rep.customer_id)
+      .single();
+
+    const vatRegistered = await getCompanyVat(companyId);
+    const now = new Date().toISOString().split('T')[0];
+
+    if (vatRegistered && customer?.consignment_mode === 'invoice') {
+      // Invoice mode + VAT → additional TAX
+      const rpcName = 'generate_tax_invoice_number';
+      const { data: invoiceNumber, error: rpcErr } = await supabaseAdmin
+        .rpc(rpcName, { p_company_id: companyId });
+      if (rpcErr || !invoiceNumber) {
+        return { success: false, error: rpcErr?.message || 'ไม่สามารถสร้างเลขที่เอกสารได้' };
+      }
+
+      await insertTaxInvoice({
+        company_id: companyId,
+        invoice_number: invoiceNumber,
+        invoice_date: now,
+        source_type: 'replenishment',
+        source_id: `${replenishmentId}_excess`,
+        customer_id: rep.customer_id,
+        total_amount: excessAmount,
+        is_receipt: false,
+      });
+
+      console.log(`[issueReplenishmentExcessDocument] Issued TAX ${invoiceNumber} (excess) for replenishment ${replenishmentId}`);
+      return { success: true, invoiceNumber, docType: 'tax' };
+    } else {
+      // DN mode or no VAT → additional DN
+      const { data: dnNumber, error: rpcErr } = await supabaseAdmin
+        .rpc('generate_dn_number', { p_company_id: companyId });
+      if (rpcErr || !dnNumber) {
+        return { success: false, error: rpcErr?.message || 'ไม่สามารถสร้างเลข DN ได้' };
+      }
+
+      await insertDeliveryNote({
+        company_id: companyId,
+        dn_number: dnNumber,
+        dn_date: now,
+        source_type: 'replenishment',
+        source_id: `${replenishmentId}_excess`,
+        customer_id: rep.customer_id,
+        total_amount: excessAmount,
+      });
+
+      console.log(`[issueReplenishmentExcessDocument] Issued DN ${dnNumber} (excess) for replenishment ${replenishmentId}`);
+      return { success: true, invoiceNumber: dnNumber, docType: 'dn' };
+    }
+  } catch (err) {
+    console.error('[issueReplenishmentExcessDocument] Error:', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
 // ─── Centralized Auto-Issue ───────────────────────────────
 
 /**

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, hasAnyRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
+import { adjustStock } from '@/lib/stock-service';
 
 // Fallback: legacy query when views/RPC not yet created
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,7 +19,7 @@ async function legacyInventoryQuery(companyId: string, warehouseId: string | nul
     (() => {
       let q = supabaseAdmin
         .from('inventory')
-        .select('variation_id, quantity, reserved_quantity, updated_at')
+        .select('variation_id, quantity, reserved_quantity, in_transit_quantity, updated_at')
         .eq('company_id', companyId);
       if (warehouseId) q = q.eq('warehouse_id', warehouseId);
       return q;
@@ -42,13 +43,14 @@ async function legacyInventoryQuery(companyId: string, warehouseId: string | nul
   }
 
   // Build stock map
-  const stockMap: Record<string, { quantity: number; reserved_quantity: number; updated_at: string | null }> = {};
+  const stockMap: Record<string, { quantity: number; reserved_quantity: number; in_transit_quantity: number; updated_at: string | null }> = {};
   for (const inv of inventoryData) {
     if (!stockMap[inv.variation_id]) {
-      stockMap[inv.variation_id] = { quantity: 0, reserved_quantity: 0, updated_at: null };
+      stockMap[inv.variation_id] = { quantity: 0, reserved_quantity: 0, in_transit_quantity: 0, updated_at: null };
     }
     stockMap[inv.variation_id].quantity += (inv.quantity || 0);
     stockMap[inv.variation_id].reserved_quantity += (inv.reserved_quantity || 0);
+    stockMap[inv.variation_id].in_transit_quantity += (inv.in_transit_quantity || 0);
     if (!stockMap[inv.variation_id].updated_at || inv.updated_at > stockMap[inv.variation_id].updated_at!) {
       stockMap[inv.variation_id].updated_at = inv.updated_at;
     }
@@ -57,7 +59,7 @@ async function legacyInventoryQuery(companyId: string, warehouseId: string | nul
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let items = variations.map((v: any) => {
     const product = v.product;
-    const stock = stockMap[v.id] || { quantity: 0, reserved_quantity: 0, updated_at: null };
+    const stock = stockMap[v.id] || { quantity: 0, reserved_quantity: 0, in_transit_quantity: 0, updated_at: null };
     const available = stock.quantity - stock.reserved_quantity;
     return {
       variation_id: v.id,
@@ -73,6 +75,7 @@ async function legacyInventoryQuery(companyId: string, warehouseId: string | nul
       min_stock: (v.min_stock as number) || 0,
       quantity: stock.quantity,
       reserved_quantity: stock.reserved_quantity,
+      in_transit_quantity: stock.in_transit_quantity,
       available,
       updated_at: stock.updated_at,
     };
@@ -149,8 +152,15 @@ export async function GET(request: NextRequest) {
           .in('warehouse_id', consignWarehouseIds)
       : Promise.resolve({ data: [] });
 
+    // Fetch in-transit breakdown from shipped replenishments
+    const inTransitPromise = supabaseAdmin
+      .from('replenishment_items')
+      .select('variation_id, quantity, replenishment:replenishments!inner(customer_id, warehouse_id, status)')
+      .eq('replenishment.company_id', auth.companyId!)
+      .eq('replenishment.status', 'shipped');
+
     // Try new RPC first (supports all filters + server-side pagination)
-    const [rpcResult, consignStockRes] = await Promise.all([
+    const [rpcResult, consignStockRes, inTransitRes] = await Promise.all([
       supabaseAdmin.rpc('get_inventory_filtered', {
         p_company_id: auth.companyId,
         p_warehouse_id: dealerWarehouseId || warehouseId || null,
@@ -163,7 +173,52 @@ export async function GET(request: NextRequest) {
         p_offset: dealerWarehouseId ? 0 : offset,
       }),
       consignStockPromise,
+      inTransitPromise,
     ]);
+
+    // Build in-transit map: variation_id → { total, breakdown by customer }
+    const inTransitMap: Record<string, { total: number; breakdown: { customer_id: string; customer_name: string; qty: number }[] }> = {};
+    // Need customer names for breakdown
+    const customerIdsForTransit = new Set<string>();
+    for (const row of inTransitRes.data || []) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rep = row.replenishment as any;
+      if (rep?.customer_id) customerIdsForTransit.add(rep.customer_id);
+    }
+    const transitCustomerMap: Record<string, string> = {};
+    if (customerIdsForTransit.size > 0) {
+      const { data: customers } = await supabaseAdmin
+        .from('customers')
+        .select('id, name')
+        .in('id', [...customerIdsForTransit]);
+      for (const c of customers || []) {
+        transitCustomerMap[c.id] = c.name;
+      }
+    }
+    for (const row of inTransitRes.data || []) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rep = row.replenishment as any;
+      if (!row.variation_id || !rep?.customer_id) continue;
+      const qty = row.quantity || 0;
+      if (qty <= 0) continue;
+
+      if (!inTransitMap[row.variation_id]) {
+        inTransitMap[row.variation_id] = { total: 0, breakdown: [] };
+      }
+      inTransitMap[row.variation_id].total += qty;
+
+      // Merge by customer_id
+      const existing = inTransitMap[row.variation_id].breakdown.find(b => b.customer_id === rep.customer_id);
+      if (existing) {
+        existing.qty += qty;
+      } else {
+        inTransitMap[row.variation_id].breakdown.push({
+          customer_id: rep.customer_id,
+          customer_name: transitCustomerMap[rep.customer_id] || 'ไม่ทราบ',
+          qty,
+        });
+      }
+    }
 
     // Build consignment maps from inventory data
     const warehouseMap: Record<string, { customer_id: string; name: string }> = {};
@@ -186,14 +241,17 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Helper to attach consign fields
+    // Helper to attach consign + in_transit fields
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const attachConsign = (item: any) => {
       const c = consignMap[item.variation_id];
+      const t = inTransitMap[item.variation_id];
       return {
         ...item,
         consign_qty: c?.total ?? 0,
         consign_breakdown: c?.breakdown ?? [],
+        in_transit_quantity: t?.total ?? 0,
+        in_transit_breakdown: t?.breakdown ?? [],
       };
     };
 
@@ -405,59 +463,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Warehouse not found' }, { status: 404 });
     }
 
-    // Get current inventory
-    const { data: existing } = await supabaseAdmin
-      .from('inventory')
-      .select('id, quantity')
-      .eq('warehouse_id', warehouse_id)
-      .eq('variation_id', variation_id)
-      .single();
-
-    const oldQuantity = existing?.quantity || 0;
-    const adjustAmount = new_quantity - oldQuantity;
-
-    if (adjustAmount === 0) {
-      return NextResponse.json({ success: true, message: 'No change needed' });
-    }
-
-    // Upsert inventory
-    if (existing) {
-      await supabaseAdmin
-        .from('inventory')
-        .update({
-          quantity: new_quantity,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id);
-    } else {
-      await supabaseAdmin
-        .from('inventory')
-        .insert({
-          company_id: auth.companyId,
-          warehouse_id,
-          variation_id,
-          quantity: new_quantity,
-          reserved_quantity: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-    }
-
-    // Create transaction log
-    await supabaseAdmin
-      .from('inventory_transactions')
-      .insert({
-        company_id: auth.companyId,
-        warehouse_id,
-        variation_id,
-        type: 'adjust',
-        quantity: Math.abs(adjustAmount),
-        balance_after: new_quantity,
-        reference_type: 'manual',
-        notes: notes || `ปรับ stock จาก ${oldQuantity} เป็น ${new_quantity}`,
-        created_by: auth.userId,
-        created_at: new Date().toISOString(),
-      });
+    await adjustStock({
+      supabase: supabaseAdmin,
+      companyId: auth.companyId!,
+      warehouseId: warehouse_id,
+      variationId: variation_id,
+      newQuantity: new_quantity,
+      referenceType: 'manual',
+      referenceId: '',
+      notes: notes || `ปรับ stock เป็น ${new_quantity}`,
+      createdBy: auth.userId,
+    });
 
     // Auto-sync stock to Shopee if linked
     const { triggerShopeeStockSync } = await import('@/lib/shopee/auto-sync');

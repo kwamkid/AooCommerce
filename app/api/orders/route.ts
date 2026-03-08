@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { createCreditNote } from '@/lib/credit-notes/auto-cn';
+import { reserveStock, unreserveStock, returnStock, deductAndUnreserve } from '@/lib/stock-service';
 
 // Type definitions
 interface OrderItemInput {
@@ -486,76 +487,17 @@ export async function POST(request: NextRequest) {
           for (const item of itemsWithTotals) {
             if (!item.variation_id) continue;
             try {
-              // Check existing inventory row
-              const { data: existingInv } = await supabaseAdmin
-                .from('inventory')
-                .select('id, quantity, reserved_quantity')
-                .eq('warehouse_id', warehouseId)
-                .eq('variation_id', item.variation_id)
-                .eq('company_id', auth.companyId)
-                .single();
-
-              if (existingInv) {
-                const available = (existingInv.quantity || 0) - (existingInv.reserved_quantity || 0);
-                if (available < item.quantity) {
-                  console.warn(`[STOCK RESERVE] Insufficient stock for variation ${item.variation_id}: available=${available}, requested=${item.quantity}. Reserving anyway.`);
-                }
-                const newReserved = (existingInv.reserved_quantity || 0) + item.quantity;
-                await supabaseAdmin
-                  .from('inventory')
-                  .update({
-                    reserved_quantity: newReserved,
-                    updated_at: new Date().toISOString(),
-                  })
-                  .eq('id', existingInv.id);
-
-                // Create reserve transaction
-                await supabaseAdmin
-                  .from('inventory_transactions')
-                  .insert({
-                    company_id: auth.companyId,
-                    warehouse_id: warehouseId,
-                    variation_id: item.variation_id,
-                    type: 'reserve',
-                    quantity: item.quantity,
-                    balance_after: existingInv.quantity,
-                    reference_type: 'order',
-                    reference_id: order.id,
-                    notes: `Reserve for order ${order.order_number}`,
-                    created_by: auth.userId,
-                    created_at: new Date().toISOString(),
-                  });
-              } else {
-                // Create inventory row with 0 quantity and reserved
-                console.warn(`[STOCK RESERVE] No inventory row for variation ${item.variation_id} in warehouse ${warehouseId}. Creating with 0 qty.`);
-                await supabaseAdmin
-                  .from('inventory')
-                  .insert({
-                    company_id: auth.companyId,
-                    warehouse_id: warehouseId,
-                    variation_id: item.variation_id,
-                    quantity: 0,
-                    reserved_quantity: item.quantity,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                  });
-
-                await supabaseAdmin
-                  .from('inventory_transactions')
-                  .insert({
-                    company_id: auth.companyId,
-                    warehouse_id: warehouseId,
-                    variation_id: item.variation_id,
-                    type: 'reserve',
-                    quantity: item.quantity,
-                    balance_after: 0,
-                    reference_type: 'order',
-                    reference_id: order.id,
-                    notes: `Reserve for order ${order.order_number}`,
-                    created_by: auth.userId,
-                    created_at: new Date().toISOString(),
-                  });
-              }
+              await reserveStock({
+                supabase: supabaseAdmin,
+                companyId: auth.companyId!,
+                warehouseId,
+                variationId: item.variation_id,
+                qty: item.quantity,
+                referenceType: 'order',
+                referenceId: order.id,
+                notes: `Reserve for order ${order.order_number}`,
+                createdBy: auth.userId,
+              });
             } catch (itemStockErr) {
               console.error(`[STOCK RESERVE] Error reserving stock for variation ${item.variation_id}:`, itemStockErr);
             }
@@ -1163,60 +1105,18 @@ export async function PUT(request: NextRequest) {
                   .eq('company_id', auth.companyId);
                 for (const oi of orderItems || []) {
                   if (!oi.variation_id) continue;
-                  const { data: inv } = await supabaseAdmin
-                    .from('inventory')
-                    .select('id, quantity, reserved_quantity')
-                    .eq('warehouse_id', order.warehouse_id)
-                    .eq('variation_id', oi.variation_id)
-                    .eq('company_id', auth.companyId)
-                    .single();
-                  if (!inv) continue;
-
-                  if (wasShipped) {
-                    // Stock was deducted → return quantity
-                    const newQty = (inv.quantity || 0) + oi.quantity;
-                    await supabaseAdmin
-                      .from('inventory')
-                      .update({ quantity: newQty, updated_at: new Date().toISOString() })
-                      .eq('id', inv.id);
-                    await supabaseAdmin
-                      .from('inventory_transactions')
-                      .insert({
-                        company_id: auth.companyId,
-                        warehouse_id: order.warehouse_id,
-                        variation_id: oi.variation_id,
-                        type: 'return',
-                        quantity: oi.quantity,
-                        balance_after: newQty,
-                        reference_type: 'order',
-                        reference_id: order.id,
-                        notes: 'Return stock for cancelled order',
-                        created_by: auth.userId,
-                        created_at: new Date().toISOString(),
-                      });
-                  } else {
-                    // Stock was only reserved → unreserve
-                    const newReserved = Math.max(0, (inv.reserved_quantity || 0) - oi.quantity);
-                    await supabaseAdmin
-                      .from('inventory')
-                      .update({ reserved_quantity: newReserved, updated_at: new Date().toISOString() })
-                      .eq('id', inv.id);
-                    await supabaseAdmin
-                      .from('inventory_transactions')
-                      .insert({
-                        company_id: auth.companyId,
-                        warehouse_id: order.warehouse_id,
-                        variation_id: oi.variation_id,
-                        type: 'unreserve',
-                        quantity: oi.quantity,
-                        balance_after: inv.quantity,
-                        reference_type: 'order',
-                        reference_id: order.id,
-                        notes: 'Unreserve for cancelled order',
-                        created_by: auth.userId,
-                        created_at: new Date().toISOString(),
-                      });
-                  }
+                  const stockFn = wasShipped ? returnStock : unreserveStock;
+                  await stockFn({
+                    supabase: supabaseAdmin,
+                    companyId: auth.companyId!,
+                    warehouseId: order.warehouse_id,
+                    variationId: oi.variation_id,
+                    qty: oi.quantity,
+                    referenceType: 'order',
+                    referenceId: order.id,
+                    notes: wasShipped ? 'Return stock for cancelled order' : 'Unreserve for cancelled order',
+                    createdBy: auth.userId,
+                  });
                 }
               } catch (e) {
                 console.error('[BULK CANCEL] Stock error for order', order.id, e);
@@ -1338,37 +1238,18 @@ export async function PUT(request: NextRequest) {
                 for (const oi of orderItems || []) {
                   if (!oi.variation_id) continue;
                   try {
-                    const { data: inv } = await supabaseAdmin
-                      .from('inventory')
-                      .select('id, quantity, reserved_quantity')
-                      .eq('warehouse_id', order.warehouse_id)
-                      .eq('variation_id', oi.variation_id)
-                      .eq('company_id', auth.companyId)
-                      .single();
-                    if (inv) {
-                      const newQty = (inv.quantity || 0) - oi.quantity;
-                      const newReserved = Math.max(0, (inv.reserved_quantity || 0) - oi.quantity);
-                      await supabaseAdmin
-                        .from('inventory')
-                        .update({ quantity: newQty, reserved_quantity: newReserved, updated_at: new Date().toISOString() })
-                        .eq('id', inv.id);
-                      await supabaseAdmin
-                        .from('inventory_transactions')
-                        .insert({
-                          company_id: auth.companyId,
-                          warehouse_id: order.warehouse_id,
-                          variation_id: oi.variation_id,
-                          type: 'out',
-                          quantity: oi.quantity,
-                          balance_after: newQty,
-                          reference_type: 'order',
-                          reference_id: order.id,
-                          notes: 'Deduct for bulk shipment',
-                          created_by: auth.userId,
-                          created_at: new Date().toISOString(),
-                        });
-                      allVarIds.push(oi.variation_id);
-                    }
+                    await deductAndUnreserve({
+                      supabase: supabaseAdmin,
+                      companyId: auth.companyId!,
+                      warehouseId: order.warehouse_id,
+                      variationId: oi.variation_id,
+                      qty: oi.quantity,
+                      referenceType: 'order',
+                      referenceId: order.id,
+                      notes: 'Deduct for bulk shipment',
+                      createdBy: auth.userId,
+                    });
+                    allVarIds.push(oi.variation_id);
                   } catch (e) {
                     console.error('[BULK SHIP] Stock error', e);
                   }

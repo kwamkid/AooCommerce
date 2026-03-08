@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, hasAnyRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
+import { addStock } from '@/lib/stock-service';
 
 // GET - List receives or get single
 export async function GET(request: NextRequest) {
@@ -210,43 +211,20 @@ export async function POST(request: NextRequest) {
         console.error('Insert receive item error:', itemError.message);
       }
 
-      // Upsert inventory
-      const { data: existing } = await supabaseAdmin
-        .from('inventory')
-        .select('id, quantity')
-        .eq('warehouse_id', warehouse_id)
-        .eq('variation_id', variation_id)
-        .single();
-
-      const newQuantity = (existing?.quantity || 0) + quantity;
-      if (existing) {
-        await supabaseAdmin
-          .from('inventory')
-          .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
-          .eq('id', existing.id);
-      } else {
-        await supabaseAdmin
-          .from('inventory')
-          .insert({ company_id: auth.companyId, warehouse_id, variation_id, quantity: newQuantity, reserved_quantity: 0 });
-      }
-
-      // Create transaction
-      const txInsert: Record<string, unknown> = {
-        company_id: auth.companyId,
-        warehouse_id,
-        variation_id,
-        type: 'in',
-        quantity,
-        balance_after: newQuantity,
-        reference_type: 'receive',
-        reference_id: receive.id,
+      // Add stock via centralized service
+      const result = await addStock({
+        supabase: supabaseAdmin,
+        companyId: auth.companyId!,
+        warehouseId: warehouse_id,
+        variationId: variation_id,
+        qty: quantity,
+        referenceType: 'receive',
+        referenceId: receive.id,
         notes: itemNotes || notes || `รับเข้า ${receiveNumber}`,
-        created_by: auth.userId,
-      };
-      if (unit_cost) txInsert.unit_cost = unit_cost;
-      await supabaseAdmin
-        .from('inventory_transactions')
-        .insert(txInsert);
+        createdBy: auth.userId,
+        unitCost: unit_cost || undefined,
+      });
+      const newQuantity = result.balanceAfter;
 
       // Always update cost_price on variation when unit_cost is provided
       if (unit_cost && unit_cost > 0) {

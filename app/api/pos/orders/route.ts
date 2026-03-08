@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
+import { deductStock } from '@/lib/stock-service';
 
 interface PosItemInput {
   variation_id: string;
@@ -392,40 +393,17 @@ export async function POST(request: NextRequest) {
       for (const item of itemsWithTotals) {
         if (!item.variation_id) continue;
         try {
-          const { data: inv } = await supabaseAdmin
-            .from('inventory')
-            .select('id, quantity')
-            .eq('warehouse_id', warehouseId)
-            .eq('variation_id', item.variation_id)
-            .eq('company_id', auth.companyId)
-            .single();
-
-          if (inv) {
-            const newQty = Number(inv.quantity || 0) - item.quantity;
-            await supabaseAdmin
-              .from('inventory')
-              .update({
-                quantity: newQty,
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', inv.id);
-
-            await supabaseAdmin
-              .from('inventory_transactions')
-              .insert({
-                company_id: auth.companyId,
-                warehouse_id: warehouseId,
-                variation_id: item.variation_id,
-                type: 'out',
-                quantity: item.quantity,
-                balance_after: newQty,
-                reference_type: 'pos_order',
-                reference_id: order.id,
-                notes: `POS ขาย ${receiptNumResult.data}`,
-                created_by: auth.userId,
-                created_at: new Date().toISOString(),
-              });
-          }
+          await deductStock({
+            supabase: supabaseAdmin,
+            companyId: auth.companyId,
+            warehouseId,
+            variationId: item.variation_id,
+            qty: item.quantity,
+            referenceType: 'pos_order',
+            referenceId: order.id,
+            notes: `POS ขาย ${receiptNumResult.data}`,
+            createdBy: auth.userId,
+          });
         } catch (stockErr) {
           console.error('[POS] Stock deduction error:', stockErr);
         }

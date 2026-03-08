@@ -20,6 +20,7 @@ import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/reple
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateReplenishmentLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
+import { markPrinted } from '@/lib/print-tracking';
 
 interface Replenishment {
   id: string;
@@ -28,6 +29,9 @@ interface Replenishment {
   total_amount: number;
   shipping_carrier?: string | null;
   tracking_number?: string | null;
+  printed_packing_at?: string | null;
+  printed_dn_at?: string | null;
+  printed_label_at?: string | null;
   receive_token?: string | null;
   receiver_name?: string | null;
   receive_photo_url?: string | null;
@@ -242,44 +246,20 @@ function ReplenishmentsPageContent() {
     showToast('คัดลอกลิงก์แล้ว', 'success');
   };
 
-  // Print state tracking (localStorage)
-  const PRINT_KEY = 'replenishment_printed';
-  const getPrintedDocs = useCallback((id: string): Set<string> => {
-    try {
-      const raw = localStorage.getItem(PRINT_KEY);
-      const map = raw ? JSON.parse(raw) : {};
-      return new Set(map[id] || []);
-    } catch { return new Set(); }
-  }, []);
-  const markPrinted = useCallback((id: string, docType: string) => {
-    try {
-      const raw = localStorage.getItem(PRINT_KEY);
-      const map = raw ? JSON.parse(raw) : {};
-      const current = new Set<string>(map[id] || []);
-      current.add(docType);
-      map[id] = Array.from(current);
-      localStorage.setItem(PRINT_KEY, JSON.stringify(map));
-    } catch {}
-  }, []);
-  // Track printed docs in state so UI updates without re-fetch
-  const [printedDocs, setPrintedDocs] = useState<Record<string, Set<string>>>({});
+  // Print state tracking (DB-backed via printed_*_at columns)
+  const isPrintedDoc = (r: Replenishment, docType: string) => {
+    const col = `printed_${docType}_at` as keyof Replenishment;
+    return !!r[col];
+  };
   const markPrintedAndUpdate = useCallback((id: string, docType: string) => {
-    markPrinted(id, docType);
-    setPrintedDocs(prev => {
-      const current = new Set(prev[id] || []);
-      current.add(docType);
-      return { ...prev, [id]: current };
-    });
-  }, [markPrinted]);
-  // Load print state from localStorage when replenishments load
-  useEffect(() => {
-    if (replenishments.length === 0) return;
-    const map: Record<string, Set<string>> = {};
-    for (const r of replenishments) {
-      map[r.id] = getPrintedDocs(r.id);
-    }
-    setPrintedDocs(map);
-  }, [replenishments, getPrintedDocs]);
+    // Fire-and-forget DB update
+    markPrinted('replenishment', [id], docType);
+    // Optimistic local state update
+    const col = `printed_${docType}_at` as keyof Replenishment;
+    setReplenishments(prev => prev.map(r =>
+      r.id === id ? { ...r, [col]: new Date().toISOString() } : r
+    ));
+  }, []);
 
   // Fetch replenishment data for PDF
   const fetchReplenishmentForPdf = async (id: string) => {
@@ -318,11 +298,13 @@ function ReplenishmentsPageContent() {
           billing_postal_code: replenishment.customer.billing_postal_code,
         } : null,
         created_by_name: replenishment.created_by_profile?.name,
+        confirm_notes: replenishment.confirm_notes,
         items: (replenishment.items || []).map((i: any) => ({
           product_name: i.product_name,
           variation_label: i.variation_label,
           sku: i.sku,
           quantity: i.quantity,
+          confirmed_quantity: i.confirmed_quantity,
           unit_price: i.unit_price || 0,
           image: i.image,
         })),
@@ -414,8 +396,8 @@ function ReplenishmentsPageContent() {
     }
   };
 
-  // Print all documents at once
-  const handlePrintAll = async (id: string) => {
+  // Print all documents at once (skipDn=true for pending status — DN hasn't been issued yet)
+  const handlePrintAll = async (id: string, skipDn = false) => {
     setPrintingId(id);
     setPrintingType('all');
     try {
@@ -449,37 +431,42 @@ function ReplenishmentsPageContent() {
       };
       const packingBlob = await generatePackingPdf([packingOrderData]);
 
-      // 2. DN
-      const pdfData: ReplenishmentPdfData = {
-        id: replenishment.id,
-        replenishment_number: replenishment.replenishment_number,
-        status: replenishment.status,
-        notes: replenishment.notes,
-        created_at: replenishment.created_at,
-        receive_token: replenishment.receive_token,
-        total_amount: replenishment.total_amount,
-        shipping_fee: replenishment.shipping_fee,
-        customer: replenishment.customer ? {
-          name: replenishment.customer.name,
-          customer_code: replenishment.customer.customer_code,
-          phone: replenishment.customer.phone,
-          billing_address: replenishment.customer.billing_address,
-          billing_district: replenishment.customer.billing_district,
-          billing_amphoe: replenishment.customer.billing_amphoe,
-          billing_province: replenishment.customer.billing_province,
-          billing_postal_code: replenishment.customer.billing_postal_code,
-        } : null,
-        created_by_name: replenishment.created_by_profile?.name,
-        items: (replenishment.items || []).map((i: any) => ({
-          product_name: i.product_name,
-          variation_label: i.variation_label,
-          sku: i.sku,
-          quantity: i.quantity,
-          unit_price: i.unit_price || 0,
-          image: i.image,
-        })),
-      };
-      const dnBlob = await generateReplenishmentPdf({ data: pdfData });
+      // 2. DN (skip if not yet shipped)
+      let dnBlob: Blob | null = null;
+      if (!skipDn) {
+        const pdfData: ReplenishmentPdfData = {
+          id: replenishment.id,
+          replenishment_number: replenishment.replenishment_number,
+          status: replenishment.status,
+          notes: replenishment.notes,
+          created_at: replenishment.created_at,
+          receive_token: replenishment.receive_token,
+          total_amount: replenishment.total_amount,
+          shipping_fee: replenishment.shipping_fee,
+          customer: replenishment.customer ? {
+            name: replenishment.customer.name,
+            customer_code: replenishment.customer.customer_code,
+            phone: replenishment.customer.phone,
+            billing_address: replenishment.customer.billing_address,
+            billing_district: replenishment.customer.billing_district,
+            billing_amphoe: replenishment.customer.billing_amphoe,
+            billing_province: replenishment.customer.billing_province,
+            billing_postal_code: replenishment.customer.billing_postal_code,
+          } : null,
+          created_by_name: replenishment.created_by_profile?.name,
+          confirm_notes: replenishment.confirm_notes,
+          items: (replenishment.items || []).map((i: any) => ({
+            product_name: i.product_name,
+            variation_label: i.variation_label,
+            sku: i.sku,
+            quantity: i.quantity,
+            confirmed_quantity: i.confirmed_quantity,
+            unit_price: i.unit_price || 0,
+            image: i.image,
+          })),
+        };
+        dnBlob = await generateReplenishmentPdf({ data: pdfData });
+      }
 
       // 3. Label (A4)
       const labelData = {
@@ -502,10 +489,11 @@ function ReplenishmentsPageContent() {
       };
       const labelBlob = await generateReplenishmentLabelPdf({ data: labelData });
 
-      const merged = await mergePdfBlobs([packingBlob, dnBlob, labelBlob]);
+      const blobs = [packingBlob, dnBlob, labelBlob].filter((b): b is Blob => b !== null);
+      const merged = await mergePdfBlobs(blobs);
       showPdfPreview(merged, 'เอกสารทั้งหมด');
       markPrintedAndUpdate(id, 'packing');
-      markPrintedAndUpdate(id, 'dn');
+      if (!skipDn) markPrintedAndUpdate(id, 'dn');
       markPrintedAndUpdate(id, 'label');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
@@ -518,8 +506,7 @@ function ReplenishmentsPageContent() {
   // Action menu items per status
   const getMenuItems = (r: Replenishment): ActionItem[] => {
     const isPrinting = printingId === r.id;
-    const printed = printedDocs[r.id] || new Set<string>();
-    const dot = (key: string) => printed.has(key)
+    const dot = (key: string) => isPrintedDoc(r, key)
       ? <span className="ml-auto w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
       : null;
 
@@ -533,6 +520,7 @@ function ReplenishmentsPageContent() {
     ];
 
     if (r.status === 'pending') {
+      // ยังไม่จัดส่ง — ใบจัดของ + ใบปะหน้า (เตรียมของ) แต่ไม่มี DN (ออกตอนกดจัดส่ง)
       items.push(
         {
           key: 'packing',
@@ -542,14 +530,6 @@ function ReplenishmentsPageContent() {
           onClick: () => handlePrintPacking(r.id),
           disabled: isPrinting,
           dividerBefore: true,
-        },
-        {
-          key: 'dn',
-          label: 'ใบส่งของ (DN)',
-          icon: isPrinting && printingType === 'dn' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />,
-          suffix: dot('dn'),
-          onClick: () => handlePrintDN(r.id),
-          disabled: isPrinting,
         },
         {
           key: 'label',
@@ -564,7 +544,7 @@ function ReplenishmentsPageContent() {
           label: isPrinting && printingType === 'all' ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
           icon: isPrinting && printingType === 'all' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
           className: 'text-[#F4511E] font-medium',
-          onClick: () => handlePrintAll(r.id),
+          onClick: () => handlePrintAll(r.id, true),
           disabled: isPrinting,
         },
         {
@@ -713,7 +693,6 @@ function ReplenishmentsPageContent() {
                   </tr>
                 ) : replenishments.map(r => {
                   const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending;
-                  const printed = printedDocs[r.id] || new Set<string>();
                   const isPrinting = printingId === r.id;
                   const itemCount = r.replenishment_items?.length || 0;
                   return (
@@ -773,13 +752,13 @@ function ReplenishmentsPageContent() {
                       </td>
                       {/* พิมพ์ */}
                       <td className="data-td text-center" onClick={e => e.stopPropagation()}>
-                        {r.status === 'pending' ? (
-                          <Tooltip text={`ใบจัดของ: ${printed.has('packing') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบส่งของ: ${printed.has('dn') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบปะหน้า: ${printed.has('label') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`}>
-                            <div className="flex items-center justify-center gap-1">
-                              {isPrinting && <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />}
-                              <span className={`w-2.5 h-2.5 rounded-full ${printed.has('packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                              <span className={`w-2.5 h-2.5 rounded-full ${printed.has('dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                              <span className={`w-2.5 h-2.5 rounded-full ${printed.has('label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                        {r.status !== 'cancelled' ? (
+                          <Tooltip text={`ใบจัดของ: ${isPrintedDoc(r, 'packing') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบปะหน้า: ${isPrintedDoc(r, 'label') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบส่งของ: ${isPrintedDoc(r, 'dn') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`}>
+                            <div className="relative flex items-center justify-center gap-1">
+                              {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
+                              <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                              <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                              <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                             </div>
                           </Tooltip>
                         ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
@@ -835,7 +814,6 @@ function ReplenishmentsPageContent() {
             <div className="divide-y divide-gray-100 dark:divide-slate-700">
               {replenishments.map(r => {
                 const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending;
-                const printed = printedDocs[r.id] || new Set<string>();
                 const isPrinting = printingId === r.id;
                 return (
                   <div key={r.id} className="p-4">
@@ -870,12 +848,12 @@ function ReplenishmentsPageContent() {
                           <span>{(r.replenishment_items?.length || 0)} รายการ</span>
                           {r.created_by_profile?.name && <span>{r.created_by_profile.name}</span>}
                         </div>
-                        {r.status === 'pending' && (
-                          <div className="flex items-center gap-1" title="สถานะการพิมพ์">
-                            {isPrinting && <Loader2 className="w-2.5 h-2.5 text-gray-400 animate-spin" />}
-                            <span className={`w-2 h-2 rounded-full ${printed.has('packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                            <span className={`w-2 h-2 rounded-full ${printed.has('dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                            <span className={`w-2 h-2 rounded-full ${printed.has('label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                        {r.status !== 'cancelled' && (
+                          <div className="relative flex items-center gap-1" title="สถานะการพิมพ์">
+                            {isPrinting && <Loader2 className="w-3 h-3 text-gray-400 animate-spin absolute" />}
+                            <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                            <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                            <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                           </div>
                         )}
                       </div>

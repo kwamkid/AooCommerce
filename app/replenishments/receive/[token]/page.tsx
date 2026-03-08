@@ -329,11 +329,14 @@ export default function ReplenishmentReceivePage() {
                       </div>
                       <div className="text-right flex-shrink-0">
                         <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>ส่ง {sent}</div>
-                        <div className={`font-bold ${received === sent ? (dark ? 'text-green-400' : 'text-green-600') : (dark ? 'text-amber-400' : 'text-amber-600')}`}>
+                        <div className={`font-bold ${received === sent ? (dark ? 'text-green-400' : 'text-green-600') : received > sent ? (dark ? 'text-blue-400' : 'text-blue-600') : (dark ? 'text-amber-400' : 'text-amber-600')}`}>
                           รับ {received}
                         </div>
                         {diff > 0 && (
                           <div className={`text-xs ${dark ? 'text-red-400' : 'text-red-500'}`}>ขาด {diff}</div>
+                        )}
+                        {diff < 0 && (
+                          <div className={`text-xs ${dark ? 'text-blue-400' : 'text-blue-500'}`}>เกิน {Math.abs(diff)}</div>
                         )}
                       </div>
                     </div>
@@ -407,21 +410,22 @@ export default function ReplenishmentReceivePage() {
                           <input
                             type="number"
                             min={0}
-                            max={item.quantity}
                             value={qty}
                             onChange={(e) => {
-                              const v = Math.min(item.quantity, Math.max(0, parseInt(e.target.value) || 0));
+                              const v = Math.max(0, parseInt(e.target.value) || 0);
                               setQuantities(prev => ({ ...prev, [item.id]: v }));
                             }}
                             className={`w-16 h-9 text-center rounded-lg text-lg font-bold border focus:outline-none focus:ring-2 focus:ring-amber-400 ${
                               qty < item.quantity
                                 ? dark ? 'bg-amber-900/30 border-amber-700 text-amber-400' : 'bg-amber-50 border-amber-300 text-amber-700'
-                                : dark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-gray-300 text-gray-900'
+                                : qty > item.quantity
+                                  ? dark ? 'bg-blue-900/30 border-blue-700 text-blue-400' : 'bg-blue-50 border-blue-300 text-blue-700'
+                                  : dark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-gray-300 text-gray-900'
                             }`}
                           />
                           <button
                             type="button"
-                            onClick={() => setQuantities(prev => ({ ...prev, [item.id]: Math.min(item.quantity, (prev[item.id] ?? item.quantity) + 1) }))}
+                            onClick={() => setQuantities(prev => ({ ...prev, [item.id]: (prev[item.id] ?? item.quantity) + 1 }))}
                             className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg font-bold transition-colors ${dark ? 'bg-slate-600 text-white hover:bg-slate-500' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                           >
                             +
@@ -446,6 +450,14 @@ export default function ReplenishmentReceivePage() {
                   <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${dark ? 'text-amber-400' : 'text-amber-500'}`} />
                   <span className={`text-sm ${dark ? 'text-amber-400' : 'text-amber-700'}`}>
                     รับไม่ครบ: {totalReceived}/{totalSent} ชิ้น (ขาด {totalSent - totalReceived} ชิ้น)
+                  </span>
+                </div>
+              )}
+              {totalReceived > totalSent && (
+                <div className={`rounded-lg p-3 flex items-center gap-2 mb-4 ${dark ? 'bg-blue-900/20 border border-blue-800' : 'bg-blue-50 border border-blue-200'}`}>
+                  <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${dark ? 'text-blue-400' : 'text-blue-500'}`} />
+                  <span className={`text-sm ${dark ? 'text-blue-400' : 'text-blue-700'}`}>
+                    รับเกิน: {totalReceived}/{totalSent} ชิ้น (เกิน {totalReceived - totalSent} ชิ้น)
                   </span>
                 </div>
               )}

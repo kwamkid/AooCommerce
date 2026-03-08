@@ -27,6 +27,7 @@ export interface ReplenishmentPdfItem {
   variation_label: string | null;
   sku: string | null;
   quantity: number;
+  confirmed_quantity?: number | null;  // ถ้ายืนยันแล้ว ให้แสดงจำนวนนี้แทน
   unit_price: number;
   image?: string | null;
 }
@@ -54,6 +55,7 @@ export interface ReplenishmentPdfData {
     billing_postal_code?: string | null;
   } | null;
   created_by_name?: string | null;
+  confirm_notes?: string | null;
   items: ReplenishmentPdfItem[];
 }
 
@@ -92,6 +94,31 @@ export async function generateReplenishmentPdf({ data, company, vatRegistered = 
 
   const companyStack = buildCompanyStack(company, logoDataUrl);
 
+  // Customer info — append to left column (under company info)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const leftStack: any[] = [...companyStack];
+  if (data.customer) {
+    const addr = [
+      data.customer.billing_address,
+      data.customer.billing_district,
+      data.customer.billing_amphoe,
+      data.customer.billing_province,
+      data.customer.billing_postal_code,
+    ].filter(Boolean).join(' ');
+
+    const custName = data.customer.tax_company_name || data.customer.name;
+    const branchText = data.customer.tax_branch ? `  ${data.customer.tax_branch}` : '';
+
+    leftStack.push({ text: 'ลูกค้า', fontSize: 10, color: THEME_COLOR, bold: true, margin: [0, 6, 0, 1] });
+    leftStack.push({ text: custName + branchText, fontSize: 10, bold: true });
+    if (addr) {
+      leftStack.push({ text: addr, fontSize: 10 });
+    }
+    if (data.customer.tax_id) {
+      leftStack.push({ text: `เลขประจำตัวผู้เสียภาษี ${data.customer.tax_id}`, fontSize: 10, color: '#666666' });
+    }
+  }
+
   // Info box rows
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const infoBoxRows: any[] = [
@@ -125,42 +152,11 @@ export async function generateReplenishmentPdf({ data, company, vatRegistered = 
   content.push({
     columnGap: 16,
     columns: [
-      { width: '*', stack: companyStack.length > 0 ? companyStack : [{ text: '' }] },
+      { width: '*', stack: leftStack.length > 0 ? leftStack : [{ text: '' }] },
       { width: 220, stack: rightStack },
     ],
-    margin: [0, 0, 0, 4],
+    margin: [0, 0, 0, 8],
   });
-
-  // ═══════════════════════════════════════════════════
-  // ส่วนที่ 1.5 — ข้อมูลผู้รับ (ใต้ header, full width)
-  // ═══════════════════════════════════════════════════
-
-  if (data.customer) {
-    const addr = [
-      data.customer.billing_address,
-      data.customer.billing_district,
-      data.customer.billing_amphoe,
-      data.customer.billing_province,
-      data.customer.billing_postal_code,
-    ].filter(Boolean).join(' ');
-
-    const custName = data.customer.tax_company_name || data.customer.name;
-    const branchText = data.customer.tax_branch ? `  ${data.customer.tax_branch}` : '';
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const destStack: any[] = [
-      { text: 'ลูกค้า', fontSize: 10, color: THEME_COLOR, bold: true, margin: [0, 0, 0, 1] },
-      { text: custName + branchText, fontSize: 10, bold: true },
-    ];
-    if (addr) {
-      destStack.push({ text: addr, fontSize: 10 });
-    }
-    if (data.customer.tax_id) {
-      destStack.push({ text: `เลขประจำตัวผู้เสียภาษี ${data.customer.tax_id}`, fontSize: 10, color: '#666666' });
-    }
-
-    content.push({ stack: destStack, margin: [0, 0, 0, 8] });
-  }
 
   // ═══════════════════════════════════════════════════
   // ส่วนที่ 2 — ตารางรายการ (Items Table)
@@ -176,18 +172,26 @@ export async function generateReplenishmentPdf({ data, company, vatRegistered = 
   ];
   const widths: (number | string)[] = [25, '*', 50, 70, 70];
 
+  // ใช้ confirmed_quantity เฉพาะเมื่อ status = received/partial_received (ยืนยันรับแล้ว)
+  const isConfirmed = ['received', 'partial_received'].includes(data.status);
+
   const tableBody = data.items.map((item, idx) => {
+    const displayQty = (isConfirmed && item.confirmed_quantity != null) ? item.confirmed_quantity : item.quantity;
     const fullName = item.product_name + (item.variation_label ? ` - ${item.variation_label}` : '');
-    const subText = item.sku ? `SKU: ${item.sku}` : null;
+    // ถ้าจำนวนไม่ตรง แสดงหมายเหตุ
+    const hasMismatch = isConfirmed && item.confirmed_quantity != null && item.confirmed_quantity !== item.quantity;
+    const mismatchNote = hasMismatch ? `(ส่ง ${item.quantity} รับ ${item.confirmed_quantity})` : null;
+    const subParts = [item.sku ? `SKU: ${item.sku}` : null, mismatchNote].filter(Boolean);
+    const subText = subParts.length > 0 ? subParts.join('  ') : null;
 
     const productStack = buildProductNameStack(fullName, subText);
 
-    const lineTotal = item.unit_price * item.quantity;
+    const lineTotal = item.unit_price * displayQty;
 
     return [
       { text: `${idx + 1}`, alignment: 'center', fontSize: 10 },
       { stack: productStack },
-      { text: `${item.quantity}`, alignment: 'center', fontSize: 10 },
+      { text: `${displayQty}`, alignment: 'center', fontSize: 10 },
       { text: formatPdfPrice(item.unit_price), alignment: 'right', fontSize: 10 },
       { text: formatPdfPrice(lineTotal), alignment: 'right', fontSize: 10 },
     ];
@@ -215,8 +219,11 @@ export async function generateReplenishmentPdf({ data, company, vatRegistered = 
   // ส่วนที่ 3 — สรุปยอด + หมายเหตุ
   // ═══════════════════════════════════════════════════
 
-  const totalQty = data.items.reduce((s, i) => s + i.quantity, 0);
-  const subtotal = data.items.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+  const totalQty = data.items.reduce((s, i) => s + ((isConfirmed && i.confirmed_quantity != null) ? i.confirmed_quantity : i.quantity), 0);
+  const subtotal = data.items.reduce((s, i) => {
+    const qty = (isConfirmed && i.confirmed_quantity != null) ? i.confirmed_quantity : i.quantity;
+    return s + i.unit_price * qty;
+  }, 0);
   const shippingFee = data.shipping_fee || 0;
   const preVat = subtotal + shippingFee;
   const vatAmount = vatRegistered ? Math.round(preVat * 7 / 107 * 100) / 100 : 0;
@@ -262,6 +269,10 @@ export async function generateReplenishmentPdf({ data, company, vatRegistered = 
   if (data.notes) {
     notesStack.push({ text: 'หมายเหตุ:', fontSize: 10, bold: true, color: '#666666', margin: [0, 0, 0, 1] });
     notesStack.push({ text: data.notes, fontSize: 10, color: '#555555' });
+  }
+  if (data.confirm_notes) {
+    notesStack.push({ text: 'หมายเหตุการยืนยัน:', fontSize: 10, bold: true, color: '#b45309', margin: [0, 4, 0, 1] });
+    notesStack.push({ text: data.confirm_notes, fontSize: 10, color: '#555555' });
   }
   if (qrDataUrl) {
     notesStack.push({ image: qrDataUrl, width: 50, height: 50, margin: [0, 6, 0, 0] });

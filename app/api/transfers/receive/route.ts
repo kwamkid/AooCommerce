@@ -2,6 +2,7 @@
 // Public API for transfer receive — no authentication required
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { transferIn, returnStock } from '@/lib/stock-service';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -154,77 +155,31 @@ export async function POST(request: NextRequest) {
 
       // Add to destination warehouse
       if (qty_received > 0) {
-        const { data: destInv } = await supabaseAdmin
-          .from('inventory')
-          .select('id, quantity')
-          .eq('warehouse_id', transfer.to_warehouse_id)
-          .eq('variation_id', transferItem.variation_id)
-          .single();
-
-        const newDestQty = (destInv?.quantity || 0) + qty_received;
-        if (destInv) {
-          await supabaseAdmin
-            .from('inventory')
-            .update({ quantity: newDestQty, updated_at: new Date().toISOString() })
-            .eq('id', destInv.id);
-        } else {
-          await supabaseAdmin
-            .from('inventory')
-            .insert({
-              company_id: transfer.company_id,
-              warehouse_id: transfer.to_warehouse_id,
-              variation_id: transferItem.variation_id,
-              quantity: newDestQty,
-              reserved_quantity: 0,
-            });
-        }
-
-        await supabaseAdmin
-          .from('inventory_transactions')
-          .insert({
-            company_id: transfer.company_id,
-            warehouse_id: transfer.to_warehouse_id,
-            variation_id: transferItem.variation_id,
-            type: 'transfer_in',
-            quantity: qty_received,
-            balance_after: newDestQty,
-            reference_type: 'transfer',
-            reference_id: transfer.id,
-            notes: `รับโอนย้ายเข้า ${transfer.transfer_number}`,
-          });
+        await transferIn({
+          supabase: supabaseAdmin,
+          companyId: transfer.company_id,
+          warehouseId: transfer.to_warehouse_id,
+          variationId: transferItem.variation_id,
+          qty: qty_received,
+          referenceType: 'transfer',
+          referenceId: transfer.id,
+          notes: `รับโอนย้ายเข้า ${transfer.transfer_number}`,
+        });
       }
 
       // Return shortfall to source
       const shortfall = transferItem.qty_sent - qty_received;
       if (shortfall > 0) {
-        const { data: sourceInv } = await supabaseAdmin
-          .from('inventory')
-          .select('id, quantity')
-          .eq('warehouse_id', transfer.from_warehouse_id)
-          .eq('variation_id', transferItem.variation_id)
-          .single();
-
-        const newSourceQty = (sourceInv?.quantity || 0) + shortfall;
-        if (sourceInv) {
-          await supabaseAdmin
-            .from('inventory')
-            .update({ quantity: newSourceQty, updated_at: new Date().toISOString() })
-            .eq('id', sourceInv.id);
-        }
-
-        await supabaseAdmin
-          .from('inventory_transactions')
-          .insert({
-            company_id: transfer.company_id,
-            warehouse_id: transfer.from_warehouse_id,
-            variation_id: transferItem.variation_id,
-            type: 'return',
-            quantity: shortfall,
-            balance_after: newSourceQty,
-            reference_type: 'transfer',
-            reference_id: transfer.id,
-            notes: `คืนจากโอนย้าย ${transfer.transfer_number} (รับไม่ครบ)`,
-          });
+        await returnStock({
+          supabase: supabaseAdmin,
+          companyId: transfer.company_id,
+          warehouseId: transfer.from_warehouse_id,
+          variationId: transferItem.variation_id,
+          qty: shortfall,
+          referenceType: 'transfer',
+          referenceId: transfer.id,
+          notes: `คืนจากโอนย้าย ${transfer.transfer_number} (รับไม่ครบ)`,
+        });
       }
     }
 

@@ -1,6 +1,7 @@
 // Admin API for consignment reports — requires authentication
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { deductStock } from '@/lib/stock-service';
 
 // GET — List consignment reports with filters
 export async function GET(request: NextRequest) {
@@ -95,6 +96,7 @@ export async function GET(request: NextRequest) {
       .select(`
         id, report_number, period_year, period_month, status,
         total_qty_sold, our_amount, due_date, report_token, statement_id,
+        printed_invoice_at, printed_statement_at,
         created_at, confirmed_at, received_at, notes,
         customer:customers(id, name, customer_code)
       `, { count: 'exact' })
@@ -316,37 +318,17 @@ export async function POST(request: NextRequest) {
         for (const item of itemsWithAmounts) {
           if (!item.variation_id || item.qty_sold <= 0) continue;
 
-          const { data: inv } = await supabaseAdmin
-            .from('inventory')
-            .select('id, quantity')
-            .eq('company_id', companyId)
-            .eq('warehouse_id', warehouse.id)
-            .eq('variation_id', item.variation_id)
-            .single();
-
-          if (!inv) continue;
-
-          const newQty = Math.max(0, (inv.quantity || 0) - item.qty_sold);
-
-          await supabaseAdmin
-            .from('inventory')
-            .update({ quantity: newQty, updated_at: now })
-            .eq('id', inv.id);
-
-          await supabaseAdmin
-            .from('inventory_transactions')
-            .insert({
-              company_id: companyId,
-              warehouse_id: warehouse.id,
-              variation_id: item.variation_id,
-              type: 'out',
-              quantity: item.qty_sold,
-              balance_after: newQty,
-              reference_type: 'consignment_report',
-              reference_id: report.id,
-              notes: `ตัดสต๊อกจากรายงาน (คีย์โดย admin) ${reportNumber}`,
-              created_by: userId ?? null,
-            });
+          await deductStock({
+            supabase: supabaseAdmin,
+            companyId,
+            warehouseId: warehouse.id,
+            variationId: item.variation_id,
+            qty: item.qty_sold,
+            referenceType: 'consignment_report',
+            referenceId: report.id,
+            notes: `ตัดสต๊อกจากรายงาน (คีย์โดย admin) ${reportNumber}`,
+            createdBy: userId ?? null,
+          });
         }
       }
     }

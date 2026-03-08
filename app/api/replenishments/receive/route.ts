@@ -1,6 +1,7 @@
 // Public API for replenishment receive — no authentication required
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { receiveFromTransit } from '@/lib/stock-service';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -201,6 +202,45 @@ export async function POST(request: NextRequest) {
         receive_notes: receiveNotes?.trim() || null,
       })
       .eq('id', replenishment.id);
+
+    // If all match (auto-received), add stock to consignment warehouse + clear in_transit
+    if (allMatch) {
+      try {
+        const { data: consignWarehouse } = await supabaseAdmin
+          .from('warehouses')
+          .select('id')
+          .eq('company_id', replenishment.company_id)
+          .eq('customer_id', replenishment.customer_id)
+          .eq('warehouse_type', 'consignment')
+          .single();
+
+        if (consignWarehouse) {
+          const allItems = replenishment.items as {
+            id: string; variation_id: string | null; quantity: number;
+          }[];
+
+          for (const item of allItems) {
+            if (!item.variation_id) continue;
+            const qty = item.quantity || 0;
+            if (qty <= 0) continue;
+
+            await receiveFromTransit({
+              supabase: supabaseAdmin,
+              companyId: replenishment.company_id,
+              sourceWarehouseId: replenishment.warehouse_id || '',
+              destWarehouseId: consignWarehouse.id,
+              variationId: item.variation_id,
+              qty,
+              referenceType: 'replenishment',
+              referenceId: replenishment.id,
+              notes: `รับเข้าคลังตัวแทน: ${replenishment.replenishment_number}`,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Auto-receive inventory update error:', err);
+      }
+    }
 
     return NextResponse.json({ success: true, status: newStatus });
   } catch (error) {

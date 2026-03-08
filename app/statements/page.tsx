@@ -12,6 +12,7 @@ import {
   Printer, Banknote,
 } from 'lucide-react';
 import { showPdfPreview } from '@/lib/print-pdf';
+import { markPrinted as markPrintedDB } from '@/lib/print-tracking';
 import Pagination from '@/app/components/Pagination';
 import Tooltip from '@/components/ui/Tooltip';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -30,6 +31,7 @@ interface Statement {
   outstanding_amount: number;
   tax_invoice_number: string | null;
   receipt_number: string | null;
+  printed_statement_at?: string | null;
   customer: { id: string; name: string; customer_code: string | null } | null;
 }
 
@@ -141,32 +143,19 @@ function StatementsContent() {
   const startIdx = (currentPage - 1) * recordsPerPage;
   const endIdx = Math.min(startIdx + statements.length, totalRecords);
 
-  // Print state
+  // Print state (DB-backed via printed_*_at columns)
   const [printingId, setPrintingId] = useState<string | null>(null);
-  const [printedDocs, setPrintedDocs] = useState<Record<string, Set<string>>>({});
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('st-printed-docs');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const map: Record<string, Set<string>> = {};
-        for (const [k, v] of Object.entries(parsed)) map[k] = new Set(v as string[]);
-        setPrintedDocs(map);
-      }
-    } catch { /* ignore */ }
-  }, []);
-
+  const isPrintedDoc = (st: Statement, docType: string) => {
+    const col = `printed_${docType}_at` as keyof Statement;
+    return !!st[col];
+  };
   const markPrinted = (id: string, type: string) => {
-    setPrintedDocs(prev => {
-      const next = { ...prev };
-      next[id] = new Set(prev[id] || []);
-      next[id].add(type);
-      const serializable: Record<string, string[]> = {};
-      for (const [k, v] of Object.entries(next)) serializable[k] = Array.from(v);
-      localStorage.setItem('st-printed-docs', JSON.stringify(serializable));
-      return next;
-    });
+    markPrintedDB('statement', [id], type);
+    const col = `printed_${type}_at` as keyof Statement;
+    setStatements(prev => prev.map(s =>
+      s.id === id ? { ...s, [col]: new Date().toISOString() } : s
+    ));
   };
 
   const handlePrintStatement = async (st: Statement) => {
@@ -242,8 +231,7 @@ function StatementsContent() {
 
   const buildMenuItems = (st: Statement): ActionItem[] => {
     const isPrinting = printingId === st.id;
-    const printed = printedDocs[st.id] || new Set<string>();
-    const dot = (key: string) => printed.has(key)
+    const dot = (key: string) => isPrintedDoc(st, key)
       ? <span className="ml-auto w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
       : null;
 
@@ -389,13 +377,12 @@ function StatementsContent() {
                       {/* พิมพ์ */}
                       <td className="data-td text-center" onClick={e => e.stopPropagation()}>
                         {(() => {
-                          const printed = printedDocs[st.id] || new Set<string>();
                           const isPrinting = printingId === st.id;
                           return (
-                            <Tooltip text={`ใบวางบิล: ${printed.has('statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`}>
-                              <div className="flex items-center justify-center gap-1">
-                                {isPrinting && <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />}
-                                <span className={`w-2.5 h-2.5 rounded-full ${printed.has('statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                            <Tooltip text={`ใบวางบิล: ${isPrintedDoc(st, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`}>
+                              <div className="relative flex items-center justify-center gap-1">
+                                {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
+                                <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(st, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                               </div>
                             </Tooltip>
                           );
@@ -498,14 +485,9 @@ function StatementsContent() {
                         </span>
                       )}
                       {/* Print indicator (mobile) */}
-                      {(() => {
-                        const printed = printedDocs[st.id] || new Set<string>();
-                        return (
-                          <div className="flex items-center gap-1">
-                            <span className={`w-2 h-2 rounded-full ${printed.has('statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                          </div>
-                        );
-                      })()}
+                      <div className="flex items-center gap-1">
+                        <span className={`w-2 h-2 rounded-full ${isPrintedDoc(st, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                      </div>
                       <ActionMenu items={buildMenuItems(st)} />
                     </div>
                   </div>

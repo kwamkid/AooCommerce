@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { reserveStock } from '@/lib/stock-service';
 
 // GET /api/replenishments
 export async function GET(request: NextRequest) {
@@ -31,6 +32,9 @@ export async function GET(request: NextRequest) {
         received_at,
         receiver_name,
         receive_photo_url,
+        printed_packing_at,
+        printed_dn_at,
+        printed_label_at,
         created_at,
         customer:customers(id, name, customer_code, phone, customer_type),
         created_by_profile:user_profiles!replenishments_created_by_fkey(id, name),
@@ -117,7 +121,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { customer_id, notes, internal_notes, items, shipping_fee } = body;
+    const { customer_id, warehouse_id, notes, internal_notes, items, shipping_fee } = body;
 
     if (!customer_id) {
       return NextResponse.json({ error: 'customer_id is required' }, { status: 400 });
@@ -157,6 +161,7 @@ export async function POST(request: NextRequest) {
         company_id: auth.companyId,
         replenishment_number: numberData,
         customer_id,
+        warehouse_id: warehouse_id || null,
         status: 'pending',
         notes: notes || null,
         internal_notes: internal_notes || null,
@@ -213,6 +218,27 @@ export async function POST(request: NextRequest) {
       // Rollback replenishment
       await supabaseAdmin.from('replenishments').delete().eq('id', replenishment.id);
       return NextResponse.json({ error: itemsError.message }, { status: 500 });
+    }
+
+    // Reserve stock on source warehouse (if warehouse_id provided)
+    if (warehouse_id) {
+      for (const item of items as { variation_id?: string; quantity: number }[]) {
+        if (!item.variation_id) continue;
+        const qty = item.quantity || 0;
+        if (qty <= 0) continue;
+
+        await reserveStock({
+          supabase: supabaseAdmin,
+          companyId: auth.companyId!,
+          warehouseId: warehouse_id,
+          variationId: item.variation_id,
+          qty,
+          referenceType: 'replenishment',
+          referenceId: replenishment.id,
+          notes: `จองสต๊อกสำหรับใบเติมสินค้า ${replenishment.replenishment_number}`,
+          createdBy: auth.userId,
+        });
+      }
     }
 
     return NextResponse.json({

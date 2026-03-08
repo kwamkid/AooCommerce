@@ -14,7 +14,7 @@ import {
   InventoryItem, WarehouseItem, StockColumnKey,
   STOCK_COLUMN_CONFIGS, STOCK_COLUMNS_STORAGE_KEY,
   getVariationLabel, getProductDisplayName, getProductSubtitle,
-  ConsignBreakdownItem,
+  ConsignBreakdownItem, InTransitBreakdownItem,
 } from './types';
 
 interface FilterOption { id: string; label: string; subtitle?: string }
@@ -401,6 +401,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                   {visibleColumns.has('sku') && <th className="data-th">SKU</th>}
                   {visibleColumns.has('quantity') && <th className="data-th text-right">จำนวน</th>}
                   {visibleColumns.has('reserved') && <th className="data-th text-right">จอง</th>}
+                  {visibleColumns.has('in_transit') && features.consignment && <th className="data-th text-right" title="สินค้ากำลังจัดส่งไปตัวแทน">กำลังส่ง</th>}
                   {visibleColumns.has('available') && <th className="data-th text-right">พร้อมขาย</th>}
                   {visibleColumns.has('consign') && features.consignment && <th className="data-th text-right" title="สต๊อกที่อยู่กับตัวแทนฝากขาย">ฝากขาย</th>}
                   {visibleColumns.has('min') && <th className="data-th text-right">Min</th>}
@@ -447,6 +448,30 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                       )}
                       {visibleColumns.has('reserved') && (
                         <td className="px-6 py-4 text-right text-sm text-amber-600 dark:text-amber-400">{item.reserved_quantity > 0 ? item.reserved_quantity.toLocaleString() : '-'}</td>
+                      )}
+                      {visibleColumns.has('in_transit') && features.consignment && (
+                        <td className="px-6 py-4 text-right text-sm">
+                          {(item.in_transit_quantity ?? 0) > 0 ? (
+                            <div className="group relative inline-block">
+                              <span className="font-medium text-blue-600 dark:text-blue-400 cursor-default">
+                                {(item.in_transit_quantity ?? 0).toLocaleString()}
+                              </span>
+                              {(item.in_transit_breakdown?.length ?? 0) > 0 && (
+                                <div className="absolute right-0 bottom-full mb-1.5 hidden group-hover:block z-50 min-w-[180px] bg-gray-900 dark:bg-slate-700 text-white text-xs rounded-lg p-2.5 shadow-xl pointer-events-none">
+                                  <div className="font-medium mb-1.5 text-gray-300">กำลังส่งไปตัวแทน</div>
+                                  {(item.in_transit_breakdown as InTransitBreakdownItem[]).map(b => (
+                                    <div key={b.customer_id} className="flex justify-between gap-3">
+                                      <span className="truncate text-gray-200">{b.customer_name}</span>
+                                      <span className="font-bold flex-shrink-0">{b.qty.toLocaleString()}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-300 dark:text-slate-600">-</span>
+                          )}
+                        </td>
                       )}
                       {visibleColumns.has('available') && (
                         <td className="px-6 py-4 text-right text-sm font-medium text-gray-900 dark:text-white">{item.available.toLocaleString()}</td>

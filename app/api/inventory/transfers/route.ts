@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, hasAnyRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
+import { reserveStock, deductAndUnreserve, transferIn, returnStock, unreserveStock } from '@/lib/stock-service';
 
 function canManageWarehouse(roles: string[] | undefined, memberWarehouseIds: string[] | null, warehouseId: string): boolean {
   if (isAdminRole(roles)) return true;
@@ -229,36 +230,17 @@ export async function POST(request: NextRequest) {
         });
 
       // Reserve stock at source warehouse
-      const { data: sourceInv } = await supabaseAdmin
-        .from('inventory')
-        .select('id, quantity, reserved_quantity')
-        .eq('warehouse_id', from_warehouse_id)
-        .eq('variation_id', item.variation_id)
-        .single();
-
-      const newReserved = (sourceInv?.reserved_quantity || 0) + item.quantity;
-      if (sourceInv) {
-        await supabaseAdmin
-          .from('inventory')
-          .update({ reserved_quantity: newReserved, updated_at: new Date().toISOString() })
-          .eq('id', sourceInv.id);
-      }
-
-      // Create reserve transaction
-      await supabaseAdmin
-        .from('inventory_transactions')
-        .insert({
-          company_id: auth.companyId,
-          warehouse_id: from_warehouse_id,
-          variation_id: item.variation_id,
-          type: 'reserve',
-          quantity: item.quantity,
-          balance_after: sourceInv?.quantity || 0,
-          reference_type: 'transfer',
-          reference_id: transfer.id,
-          notes: `จองสินค้าโอนย้าย ${transferNumber}`,
-          created_by: auth.userId,
-        });
+      await reserveStock({
+        supabase: supabaseAdmin,
+        companyId: auth.companyId!,
+        warehouseId: from_warehouse_id,
+        variationId: item.variation_id,
+        qty: item.quantity,
+        referenceType: 'transfer',
+        referenceId: transfer.id,
+        notes: `จองสินค้าโอนย้าย ${transferNumber}`,
+        createdBy: auth.userId,
+      });
 
       results.push({ variation_id: item.variation_id, qty_sent: item.quantity });
     }
@@ -323,37 +305,18 @@ export async function PUT(request: NextRequest) {
 
       // Deduct quantity + release reserved_quantity at source
       for (const item of transfer.items) {
-        const { data: sourceInv } = await supabaseAdmin
-          .from('inventory')
-          .select('id, quantity, reserved_quantity')
-          .eq('warehouse_id', transfer.from_warehouse_id)
-          .eq('variation_id', item.variation_id)
-          .single();
-
-        const newQty = (sourceInv?.quantity || 0) - item.qty_sent;
-        const newReserved = Math.max(0, (sourceInv?.reserved_quantity || 0) - item.qty_sent);
-
-        if (sourceInv) {
-          await supabaseAdmin
-            .from('inventory')
-            .update({ quantity: newQty, reserved_quantity: newReserved, updated_at: new Date().toISOString() })
-            .eq('id', sourceInv.id);
-        }
-
-        await supabaseAdmin
-          .from('inventory_transactions')
-          .insert({
-            company_id: auth.companyId,
-            warehouse_id: transfer.from_warehouse_id,
-            variation_id: item.variation_id,
-            type: 'transfer_out',
-            quantity: item.qty_sent,
-            balance_after: newQty,
-            reference_type: 'transfer',
-            reference_id: transfer.id,
-            notes: `โอนย้ายออก ${transfer.transfer_number}`,
-            created_by: auth.userId,
-          });
+        await deductAndUnreserve({
+          supabase: supabaseAdmin,
+          companyId: auth.companyId!,
+          warehouseId: transfer.from_warehouse_id,
+          variationId: item.variation_id,
+          qty: item.qty_sent,
+          referenceType: 'transfer',
+          referenceId: transfer.id,
+          notes: `โอนย้ายออก ${transfer.transfer_number}`,
+          createdBy: auth.userId,
+          transactionType: 'transfer_out',
+        });
       }
 
       await supabaseAdmin
@@ -403,82 +366,33 @@ export async function PUT(request: NextRequest) {
           .eq('id', item_id);
 
         if (qty_received > 0) {
-          // Add to destination warehouse
-          const { data: destInv } = await supabaseAdmin
-            .from('inventory')
-            .select('id, quantity')
-            .eq('warehouse_id', transfer.to_warehouse_id)
-            .eq('variation_id', transferItem.variation_id)
-            .single();
-
-          const newDestQty = (destInv?.quantity || 0) + qty_received;
-          if (destInv) {
-            await supabaseAdmin
-              .from('inventory')
-              .update({ quantity: newDestQty, updated_at: new Date().toISOString() })
-              .eq('id', destInv.id);
-          } else {
-            await supabaseAdmin
-              .from('inventory')
-              .insert({
-                company_id: auth.companyId,
-                warehouse_id: transfer.to_warehouse_id,
-                variation_id: transferItem.variation_id,
-                quantity: newDestQty,
-                reserved_quantity: 0,
-              });
-          }
-
-          // Create transfer_in transaction
-          await supabaseAdmin
-            .from('inventory_transactions')
-            .insert({
-              company_id: auth.companyId,
-              warehouse_id: transfer.to_warehouse_id,
-              variation_id: transferItem.variation_id,
-              type: 'transfer_in',
-              quantity: qty_received,
-              balance_after: newDestQty,
-              reference_type: 'transfer',
-              reference_id: transfer.id,
-              notes: `รับโอนย้ายเข้า ${transfer.transfer_number}`,
-              created_by: auth.userId,
-            });
+          await transferIn({
+            supabase: supabaseAdmin,
+            companyId: auth.companyId!,
+            warehouseId: transfer.to_warehouse_id,
+            variationId: transferItem.variation_id,
+            qty: qty_received,
+            referenceType: 'transfer',
+            referenceId: transfer.id,
+            notes: `รับโอนย้ายเข้า ${transfer.transfer_number}`,
+            createdBy: auth.userId,
+          });
         }
 
         // If qty_received < qty_sent, return the difference to source
         const shortfall = transferItem.qty_sent - qty_received;
         if (shortfall > 0) {
-          const { data: sourceInv } = await supabaseAdmin
-            .from('inventory')
-            .select('id, quantity')
-            .eq('warehouse_id', transfer.from_warehouse_id)
-            .eq('variation_id', transferItem.variation_id)
-            .single();
-
-          const newSourceQty = (sourceInv?.quantity || 0) + shortfall;
-          if (sourceInv) {
-            await supabaseAdmin
-              .from('inventory')
-              .update({ quantity: newSourceQty, updated_at: new Date().toISOString() })
-              .eq('id', sourceInv.id);
-          }
-
-          // Create return transaction for shortfall
-          await supabaseAdmin
-            .from('inventory_transactions')
-            .insert({
-              company_id: auth.companyId,
-              warehouse_id: transfer.from_warehouse_id,
-              variation_id: transferItem.variation_id,
-              type: 'return',
-              quantity: shortfall,
-              balance_after: newSourceQty,
-              reference_type: 'transfer',
-              reference_id: transfer.id,
-              notes: `คืนจากโอนย้าย ${transfer.transfer_number} (รับไม่ครบ)`,
-              created_by: auth.userId,
-            });
+          await returnStock({
+            supabase: supabaseAdmin,
+            companyId: auth.companyId!,
+            warehouseId: transfer.from_warehouse_id,
+            variationId: transferItem.variation_id,
+            qty: shortfall,
+            referenceType: 'transfer',
+            referenceId: transfer.id,
+            notes: `คืนจากโอนย้าย ${transfer.transfer_number} (รับไม่ครบ)`,
+            createdBy: auth.userId,
+          });
         }
       }
 
@@ -546,70 +460,33 @@ export async function PUT(request: NextRequest) {
       }
 
       if (transfer.status === 'pending') {
-        // Unreserve stock
         for (const item of transfer.items) {
-          const { data: sourceInv } = await supabaseAdmin
-            .from('inventory')
-            .select('id, quantity, reserved_quantity')
-            .eq('warehouse_id', transfer.from_warehouse_id)
-            .eq('variation_id', item.variation_id)
-            .single();
-
-          const newReserved = Math.max(0, (sourceInv?.reserved_quantity || 0) - item.qty_sent);
-          if (sourceInv) {
-            await supabaseAdmin
-              .from('inventory')
-              .update({ reserved_quantity: newReserved, updated_at: new Date().toISOString() })
-              .eq('id', sourceInv.id);
-          }
-
-          await supabaseAdmin
-            .from('inventory_transactions')
-            .insert({
-              company_id: auth.companyId,
-              warehouse_id: transfer.from_warehouse_id,
-              variation_id: item.variation_id,
-              type: 'unreserve',
-              quantity: item.qty_sent,
-              balance_after: sourceInv?.quantity || 0,
-              reference_type: 'transfer',
-              reference_id: transfer.id,
-              notes: `ยกเลิกจองโอนย้าย ${transfer.transfer_number}`,
-              created_by: auth.userId,
-            });
+          await unreserveStock({
+            supabase: supabaseAdmin,
+            companyId: auth.companyId!,
+            warehouseId: transfer.from_warehouse_id,
+            variationId: item.variation_id,
+            qty: item.qty_sent,
+            referenceType: 'transfer',
+            referenceId: transfer.id,
+            notes: `ยกเลิกจองโอนย้าย ${transfer.transfer_number}`,
+            createdBy: auth.userId,
+          });
         }
       } else {
         // shipping → cancelled: return stock to source
         for (const item of transfer.items) {
-          const { data: sourceInv } = await supabaseAdmin
-            .from('inventory')
-            .select('id, quantity')
-            .eq('warehouse_id', transfer.from_warehouse_id)
-            .eq('variation_id', item.variation_id)
-            .single();
-
-          const newSourceQty = (sourceInv?.quantity || 0) + item.qty_sent;
-          if (sourceInv) {
-            await supabaseAdmin
-              .from('inventory')
-              .update({ quantity: newSourceQty, updated_at: new Date().toISOString() })
-              .eq('id', sourceInv.id);
-          }
-
-          await supabaseAdmin
-            .from('inventory_transactions')
-            .insert({
-              company_id: auth.companyId,
-              warehouse_id: transfer.from_warehouse_id,
-              variation_id: item.variation_id,
-              type: 'return',
-              quantity: item.qty_sent,
-              balance_after: newSourceQty,
-              reference_type: 'transfer',
-              reference_id: transfer.id,
-              notes: `คืนจากยกเลิกโอนย้าย ${transfer.transfer_number}`,
-              created_by: auth.userId,
-            });
+          await returnStock({
+            supabase: supabaseAdmin,
+            companyId: auth.companyId!,
+            warehouseId: transfer.from_warehouse_id,
+            variationId: item.variation_id,
+            qty: item.qty_sent,
+            referenceType: 'transfer',
+            referenceId: transfer.id,
+            notes: `คืนจากยกเลิกโอนย้าย ${transfer.transfer_number}`,
+            createdBy: auth.userId,
+          });
         }
       }
 

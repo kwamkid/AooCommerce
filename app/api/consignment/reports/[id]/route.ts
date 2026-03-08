@@ -1,6 +1,7 @@
 // Admin API for consignment report detail — requires authentication
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { deductStock } from '@/lib/stock-service';
 
 // GET — Fetch single report detail with items, customer, batch info
 export async function GET(
@@ -115,37 +116,17 @@ export async function PUT(
       for (const item of reportItems || []) {
         if (!item.variation_id || item.qty_sold <= 0) continue;
 
-        const { data: inv } = await supabaseAdmin
-          .from('inventory')
-          .select('id, quantity')
-          .eq('company_id', companyId)
-          .eq('warehouse_id', warehouse.id)
-          .eq('variation_id', item.variation_id)
-          .single();
-
-        if (!inv) continue; // no stock record — skip
-
-        const newQty = Math.max(0, (inv.quantity || 0) - item.qty_sold);
-
-        await supabaseAdmin
-          .from('inventory')
-          .update({ quantity: newQty, updated_at: new Date().toISOString() })
-          .eq('id', inv.id);
-
-        await supabaseAdmin
-          .from('inventory_transactions')
-          .insert({
-            company_id: companyId,
-            warehouse_id: warehouse.id,
-            variation_id: item.variation_id,
-            type: 'out',
-            quantity: item.qty_sold,
-            balance_after: newQty,
-            reference_type: 'consignment_report',
-            reference_id: reportId,
-            notes: `ตัดสต๊อกจากรายงานฝากขาย ${reportId}`,
-            created_by: userId ?? null,
-          });
+        await deductStock({
+          supabase: supabaseAdmin,
+          companyId,
+          warehouseId: warehouse.id,
+          variationId: item.variation_id,
+          qty: item.qty_sold,
+          referenceType: 'consignment_report',
+          referenceId: reportId,
+          notes: `ตัดสต๊อกจากรายงานฝากขาย ${reportId}`,
+          createdBy: userId ?? null,
+        });
       }
 
       // 4. Update report status

@@ -7,10 +7,16 @@ export interface WarehouseItem {
   warehouse_type?: 'internal' | 'consignment';
 }
 
-export type TabKey = 'stock' | 'history';
+export type TabKey = 'stock' | 'history' | 'monitor';
 
 // ===== Stock Types =====
 export interface ConsignBreakdownItem {
+  customer_id: string;
+  customer_name: string;
+  qty: number;
+}
+
+export interface InTransitBreakdownItem {
   customer_id: string;
   customer_name: string;
   qty: number;
@@ -41,9 +47,12 @@ export interface InventoryItem {
   // Consignment stock (optional — only present if consignment feature enabled)
   consign_qty?: number;
   consign_breakdown?: ConsignBreakdownItem[];
+  // In-transit stock (optional — replenishments being shipped)
+  in_transit_quantity?: number;
+  in_transit_breakdown?: InTransitBreakdownItem[];
 }
 
-export type StockColumnKey = 'image' | 'product' | 'sku' | 'quantity' | 'reserved' | 'available' | 'consign' | 'min' | 'status' | 'actions';
+export type StockColumnKey = 'image' | 'product' | 'sku' | 'quantity' | 'reserved' | 'in_transit' | 'available' | 'consign' | 'min' | 'status' | 'actions';
 
 export interface ColumnConfig<T extends string> {
   key: T;
@@ -58,6 +67,7 @@ export const STOCK_COLUMN_CONFIGS: ColumnConfig<StockColumnKey>[] = [
   { key: 'sku', label: 'SKU', defaultVisible: false },
   { key: 'quantity', label: 'จำนวน', defaultVisible: true },
   { key: 'reserved', label: 'จอง', defaultVisible: true },
+  { key: 'in_transit', label: 'กำลังส่ง', defaultVisible: true },
   { key: 'available', label: 'พร้อมขาย', defaultVisible: true },
   { key: 'consign', label: 'ฝากขาย', defaultVisible: true },
   { key: 'min', label: 'Min', defaultVisible: false },

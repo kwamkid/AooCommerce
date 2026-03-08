@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import {
   ArrowLeft, ArrowUpFromLine, Warehouse, Send, Copy, CheckCircle2,
@@ -37,6 +37,7 @@ const SHIPPING_METHODS = [
 
 function NewReplenishmentPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const replenishmentId = searchParams.get('id') || undefined;
   const viewMode = searchParams.get('view') === '1';
   const { showToast } = useToast();
@@ -170,17 +171,12 @@ function NewReplenishmentPageContent() {
       }
 
       if (pdfBlob) {
-        // Open PDF in new tab so it persists after page reload
-        const url = URL.createObjectURL(pdfBlob);
-        const win = window.open(url, '_blank');
-        if (!win) {
-          // Fallback: show in overlay (will be lost on reload, but better than nothing)
-          showPdfPreview(pdfBlob, pdfTitle);
-        }
+        // Open browser print dialog directly
+        showPdfPreview(pdfBlob, pdfTitle);
       }
 
-      // Reload page to refresh status
-      window.location.reload();
+      // Navigate back to list
+      router.push('/replenishments');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {

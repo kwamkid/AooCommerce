@@ -13,6 +13,7 @@ import {
   Banknote,
 } from 'lucide-react';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
+import { markPrinted as markPrintedDB } from '@/lib/print-tracking';
 import Pagination from '@/app/components/Pagination';
 import Tooltip from '@/components/ui/Tooltip';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -30,6 +31,8 @@ interface ConsignmentReport {
   due_date: string | null;
   report_token: string | null;
   statement_id: string | null;
+  printed_invoice_at?: string | null;
+  printed_statement_at?: string | null;
   created_at: string;
   customer: { id: string; name: string; customer_code: string | null } | null;
 }
@@ -153,35 +156,20 @@ function ConsignmentReportsContent() {
     navigator.clipboard.writeText(url).then(() => showToast('คัดลอกลิงก์แล้ว', 'success'));
   };
 
-  // Print state
+  // Print state (DB-backed via printed_*_at columns)
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [printingType, setPrintingType] = useState<string | null>(null);
-  const [printedDocs, setPrintedDocs] = useState<Record<string, Set<string>>>({});
 
-  // Load printed docs from localStorage
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('csr-printed-docs');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const map: Record<string, Set<string>> = {};
-        for (const [k, v] of Object.entries(parsed)) map[k] = new Set(v as string[]);
-        setPrintedDocs(map);
-      }
-    } catch { /* ignore */ }
-  }, []);
-
+  const isPrintedDoc = (r: ConsignmentReport, docType: string) => {
+    const col = `printed_${docType}_at` as keyof ConsignmentReport;
+    return !!r[col];
+  };
   const markPrinted = (id: string, type: string) => {
-    setPrintedDocs(prev => {
-      const next = { ...prev };
-      next[id] = new Set(prev[id] || []);
-      next[id].add(type);
-      // Persist
-      const serializable: Record<string, string[]> = {};
-      for (const [k, v] of Object.entries(next)) serializable[k] = Array.from(v);
-      localStorage.setItem('csr-printed-docs', JSON.stringify(serializable));
-      return next;
-    });
+    markPrintedDB('consignment_report', [id], type);
+    const col = `printed_${type}_at` as keyof ConsignmentReport;
+    setReports(prev => prev.map(r =>
+      r.id === id ? { ...r, [col]: new Date().toISOString() } : r
+    ));
   };
 
   // Generate invoice blob (reusable for single print + merge)
@@ -401,8 +389,7 @@ function ConsignmentReportsContent() {
 
   const buildMenuItems = (report: ConsignmentReport): ActionItem[] => {
     const isPrinting = printingId === report.id;
-    const printed = printedDocs[report.id] || new Set<string>();
-    const dot = (key: string) => printed.has(key)
+    const dot = (key: string) => isPrintedDoc(report, key)
       ? <span className="ml-auto w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
       : null;
 
@@ -625,16 +612,15 @@ function ConsignmentReportsContent() {
                       {/* พิมพ์ */}
                       <td className="data-td text-center" onClick={e => e.stopPropagation()}>
                         {(() => {
-                          const printed = printedDocs[report.id] || new Set<string>();
                           const isPrinting = printingId === report.id;
                           const hasDocs = ['invoiced', 'billed', 'paid'].includes(report.status);
                           if (!hasDocs) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
                           return (
-                            <Tooltip text={`${report.status === 'paid' ? 'ใบกำกับภาษี/ใบเสร็จ' : 'ใบแจ้งหนี้'}: ${printed.has('invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${report.statement_id ? (printed.has('statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
-                              <div className="flex items-center justify-center gap-1">
-                                {isPrinting && <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />}
-                                <span className={`w-2.5 h-2.5 rounded-full ${printed.has('invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                                <span className={`w-2.5 h-2.5 rounded-full ${printed.has('statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                            <Tooltip text={`${report.status === 'paid' ? 'ใบกำกับภาษี/ใบเสร็จ' : 'ใบแจ้งหนี้'}: ${isPrintedDoc(report, 'invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${report.statement_id ? (isPrintedDoc(report, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
+                              <div className="relative flex items-center justify-center gap-1">
+                                {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
+                                <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                                <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(report, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                               </div>
                             </Tooltip>
                           );
@@ -770,15 +756,12 @@ function ConsignmentReportsContent() {
                         </span>
                       )}
                       {/* Print indicators (mobile) */}
-                      {['invoiced', 'billed', 'paid'].includes(report.status) && (() => {
-                        const printed = printedDocs[report.id] || new Set<string>();
-                        return (
-                          <div className="flex items-center gap-1">
-                            <span className={`w-2 h-2 rounded-full ${printed.has('invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                            <span className={`w-2 h-2 rounded-full ${printed.has('statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                          </div>
-                        );
-                      })()}
+                      {['invoiced', 'billed', 'paid'].includes(report.status) && (
+                        <div className="flex items-center gap-1">
+                          <span className={`w-2 h-2 rounded-full ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                          <span className={`w-2 h-2 rounded-full ${isPrintedDoc(report, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                        </div>
+                      )}
                       <ActionMenu items={buildMenuItems(report)} />
                     </div>
                   </div>

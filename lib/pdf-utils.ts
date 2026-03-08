@@ -306,6 +306,25 @@ function deepClone(obj: any): any {
 }
 
 /**
+ * Inject ต้นฉบับ/สำเนา label into right column stack, right below the document title.
+ * Expects content[0] to be a columns layout with the right column containing title + info box.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function injectCopyLabel(pageContent: any[], label: string, color: string): void {
+  const header = pageContent[0];
+  if (header?.columns && Array.isArray(header.columns)) {
+    // Right column is the last column with a stack
+    const rightCol = header.columns[header.columns.length - 1];
+    if (rightCol?.stack && Array.isArray(rightCol.stack)) {
+      // Insert label right after the title (position 1)
+      rightCol.stack.splice(1, 0, {
+        text: label, fontSize: 9, bold: true, color, alignment: 'right', margin: [0, -4, 0, 4],
+      });
+    }
+  }
+}
+
+/**
  * Duplicate a pdfMake content array into 2 sets of pages:
  * first set = ต้นฉบับ (green label), second set = สำเนา (gray label)
  *
@@ -313,11 +332,11 @@ function deepClone(obj: any): any {
  */
 export function withOriginalAndCopy(pageContent: any[]): any[] {
   const clone = deepClone(pageContent);
+  injectCopyLabel(pageContent, '(ต้นฉบับ)', '#15803d');
+  injectCopyLabel(clone, '(สำเนา)', '#6b7280');
   return [
-    { text: '(ต้นฉบับ)', fontSize: 9, bold: true, color: '#15803d', margin: [0, 0, 0, -2] },
     ...pageContent,
     { text: '', pageBreak: 'after' },
-    { text: '(สำเนา)', fontSize: 9, bold: true, color: '#6b7280', margin: [0, 0, 0, -2] },
     ...clone,
   ];
 }

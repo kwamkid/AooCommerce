@@ -19,7 +19,7 @@ export async function GET(
     const { data: cn, error } = await supabaseAdmin
       .from('credit_notes')
       .select(`
-        id, cn_number, order_id, type, status, reason,
+        id, cn_number, order_id, source_type, source_id, type, status, reason,
         subtotal, discount_amount, vat_amount, total_amount,
         exchange_order_id, issued_at, created_at, created_by
       `)
@@ -31,21 +31,41 @@ export async function GET(
       return NextResponse.json({ error: 'Credit note not found' }, { status: 404 });
     }
 
-    // Fetch order + customer separately
-    const { data: order } = await supabaseAdmin
-      .from('orders')
-      .select('id, order_number, source, customer_id')
-      .eq('id', cn.order_id)
-      .single();
-
+    // Fetch order or replenishment + customer separately
+    let order = null;
+    let replenishment = null;
     let customer = null;
-    if (order?.customer_id) {
-      const { data: cust } = await supabaseAdmin
-        .from('customers')
-        .select('name, phone')
-        .eq('id', order.customer_id)
+
+    if (cn.source_type === 'replenishment' && cn.source_id) {
+      const { data: rep } = await supabaseAdmin
+        .from('replenishments')
+        .select('id, replenishment_number, customer_id')
+        .eq('id', cn.source_id)
         .single();
-      customer = cust;
+      replenishment = rep;
+      if (rep?.customer_id) {
+        const { data: cust } = await supabaseAdmin
+          .from('customers')
+          .select('name, phone')
+          .eq('id', rep.customer_id)
+          .single();
+        customer = cust;
+      }
+    } else if (cn.order_id) {
+      const { data: ord } = await supabaseAdmin
+        .from('orders')
+        .select('id, order_number, source, customer_id')
+        .eq('id', cn.order_id)
+        .single();
+      order = ord;
+      if (ord?.customer_id) {
+        const { data: cust } = await supabaseAdmin
+          .from('customers')
+          .select('name, phone')
+          .eq('id', ord.customer_id)
+          .single();
+        customer = cust;
+      }
     }
 
     // Fetch creator info
@@ -102,6 +122,7 @@ export async function GET(
       credit_note: {
         ...cn,
         order: order ? { ...order, customer } : null,
+        replenishment: replenishment ? { ...replenishment, customer } : null,
         exchange_order: exchangeOrder,
         creator,
         items: enrichedItems,

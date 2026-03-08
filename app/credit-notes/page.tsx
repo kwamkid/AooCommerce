@@ -17,7 +17,9 @@ import SearchInput from '@/components/ui/SearchInput';
 interface CreditNote {
   id: string;
   cn_number: string;
-  order_id: string;
+  order_id: string | null;
+  source_type: 'order' | 'replenishment';
+  source_id: string | null;
   type: 'void' | 'refund' | 'exchange';
   status: 'issued' | 'cancelled';
   reason: string | null;
@@ -27,6 +29,7 @@ interface CreditNote {
   total_amount: number;
   issued_at: string;
   order?: { order_number: string; source: string } | null;
+  replenishment?: { replenishment_number: string } | null;
   creator?: { email: string } | null;
 }
 
@@ -192,7 +195,11 @@ export default function CreditNotesPage() {
                           </span>
                         </td>
                         <td className="data-td">
-                          <span className="id-text text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">{cn.order?.order_number || '-'}</span>
+                          {cn.source_type === 'replenishment' && cn.replenishment ? (
+                            <span className="id-text text-amber-600 dark:text-amber-400">{cn.replenishment.replenishment_number}</span>
+                          ) : (
+                            <span className="id-text text-blue-600 dark:text-blue-400">{cn.order?.order_number || '-'}</span>
+                          )}
                         </td>
                         <td className="data-td whitespace-nowrap">
                           <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${typeConfig.color}`}>
@@ -239,7 +246,7 @@ export default function CreditNotesPage() {
                         </span>
                       </div>
                       <div className="text-xs text-gray-400 dark:text-slate-500">
-                        {cn.order?.order_number || '-'} · {new Date(cn.issued_at).toLocaleDateString('th-TH')}
+                        {cn.source_type === 'replenishment' ? cn.replenishment?.replenishment_number : cn.order?.order_number || '-'} · {new Date(cn.issued_at).toLocaleDateString('th-TH')}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

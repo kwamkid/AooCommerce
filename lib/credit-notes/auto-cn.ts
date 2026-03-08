@@ -3,6 +3,7 @@
  * Used by both the API POST handler and Shopee webhook auto-CN.
  */
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { returnStock, unreserveStock } from '@/lib/stock-service';
 import { getStockConfig } from '@/lib/stock-utils';
 
 interface CreateCnParams {
@@ -169,59 +170,18 @@ export async function createCreditNote(params: CreateCnParams): Promise<CreateCn
       for (const item of cnItems) {
         if (!item.variation_id) continue;
         try {
-          const { data: inv } = await supabaseAdmin
-            .from('inventory')
-            .select('id, quantity, reserved_quantity')
-            .eq('warehouse_id', order.warehouse_id)
-            .eq('variation_id', item.variation_id)
-            .eq('company_id', companyId)
-            .single();
-
-          if (!inv) continue;
-
-          if (wasShipped) {
-            const newQty = Number(inv.quantity || 0) + item.quantity;
-            await supabaseAdmin
-              .from('inventory')
-              .update({ quantity: newQty, updated_at: new Date().toISOString() })
-              .eq('id', inv.id);
-            await supabaseAdmin
-              .from('inventory_transactions')
-              .insert({
-                company_id: companyId,
-                warehouse_id: order.warehouse_id,
-                variation_id: item.variation_id,
-                type: 'return',
-                quantity: item.quantity,
-                balance_after: newQty,
-                reference_type: 'credit_note',
-                reference_id: cn.id,
-                notes: `CN ${cnNumber} — ${reason || type}`,
-                created_by: createdBy || null,
-                created_at: new Date().toISOString(),
-              });
-          } else {
-            const newReserved = Math.max(0, Number(inv.reserved_quantity || 0) - item.quantity);
-            await supabaseAdmin
-              .from('inventory')
-              .update({ reserved_quantity: newReserved, updated_at: new Date().toISOString() })
-              .eq('id', inv.id);
-            await supabaseAdmin
-              .from('inventory_transactions')
-              .insert({
-                company_id: companyId,
-                warehouse_id: order.warehouse_id,
-                variation_id: item.variation_id,
-                type: 'unreserve',
-                quantity: item.quantity,
-                balance_after: Number(inv.quantity || 0),
-                reference_type: 'credit_note',
-                reference_id: cn.id,
-                notes: `CN ${cnNumber} — ${reason || type}`,
-                created_by: createdBy || null,
-                created_at: new Date().toISOString(),
-              });
-          }
+          const stockFn = wasShipped ? returnStock : unreserveStock;
+          await stockFn({
+            supabase: supabaseAdmin,
+            companyId,
+            warehouseId: order.warehouse_id,
+            variationId: item.variation_id,
+            qty: item.quantity,
+            referenceType: 'credit_note',
+            referenceId: cn.id,
+            notes: `CN ${cnNumber} — ${reason || type}`,
+            createdBy: createdBy || null,
+          });
         } catch (stockErr) {
           console.error('[CN] Stock error:', stockErr);
         }

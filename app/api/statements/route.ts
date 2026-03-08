@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
         id, statement_number, status, statement_date, due_date,
         period_year, period_month,
         total_amount, paid_amount, outstanding_amount,
+        printed_statement_at,
         notes, created_at,
         customer:customers(id, name, customer_code)
       `, { count: 'exact' })

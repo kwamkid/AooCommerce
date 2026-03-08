@@ -62,8 +62,9 @@ export async function GET(request: NextRequest) {
     if (warehouseId) query = query.eq('warehouse_id', warehouseId);
     if (variationId) query = query.eq('variation_id', variationId);
     if (type) query = query.eq('type', type);
-    if (dateFrom) query = query.gte('created_at', dateFrom);
-    if (dateTo) query = query.lte('created_at', dateTo + 'T23:59:59.999Z');
+    // Convert bare dates to Bangkok timezone (UTC+7) boundaries
+    if (dateFrom) query = query.gte('created_at', dateFrom.includes('T') ? dateFrom : dateFrom + 'T00:00:00+07:00');
+    if (dateTo) query = query.lte('created_at', dateTo.includes('T') ? dateTo : dateTo + 'T23:59:59.999+07:00');
 
     if (search) {
       const s = `%${search}%`;
@@ -103,8 +104,8 @@ export async function GET(request: NextRequest) {
       if (warehouseId) fallbackQuery = fallbackQuery.eq('warehouse_id', warehouseId);
       if (variationId) fallbackQuery = fallbackQuery.eq('variation_id', variationId);
       if (type) fallbackQuery = fallbackQuery.eq('type', type);
-      if (dateFrom) fallbackQuery = fallbackQuery.gte('created_at', dateFrom);
-      if (dateTo) fallbackQuery = fallbackQuery.lte('created_at', dateTo + 'T23:59:59.999Z');
+      if (dateFrom) fallbackQuery = fallbackQuery.gte('created_at', dateFrom.includes('T') ? dateFrom : dateFrom + 'T00:00:00+07:00');
+      if (dateTo) fallbackQuery = fallbackQuery.lte('created_at', dateTo.includes('T') ? dateTo : dateTo + 'T23:59:59.999+07:00');
 
       const fallbackResult = await fallbackQuery.range(offset, offset + limit - 1);
       if (fallbackResult.error) throw fallbackResult.error;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, hasAnyRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
+import { addStock } from '@/lib/stock-service';
 
 // POST - Receive stock into warehouse
 export async function POST(request: NextRequest) {
@@ -46,50 +47,20 @@ export async function POST(request: NextRequest) {
       const { variation_id, quantity, unit_cost, notes } = item;
       if (!variation_id || !quantity || quantity <= 0) continue;
 
-      // Upsert inventory
-      const { data: existing } = await supabaseAdmin
-        .from('inventory')
-        .select('id, quantity')
-        .eq('warehouse_id', warehouse_id)
-        .eq('variation_id', variation_id)
-        .single();
+      const result = await addStock({
+        supabase: supabaseAdmin,
+        companyId: auth.companyId!,
+        warehouseId: warehouse_id,
+        variationId: variation_id,
+        qty: quantity,
+        referenceType: 'manual',
+        referenceId: '',
+        notes: notes || batchNotes || 'รับเข้าสินค้า',
+        createdBy: auth.userId,
+        unitCost: unit_cost || null,
+      });
 
-      const newQuantity = (existing?.quantity || 0) + quantity;
-
-      if (existing) {
-        await supabaseAdmin
-          .from('inventory')
-          .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
-          .eq('id', existing.id);
-      } else {
-        await supabaseAdmin
-          .from('inventory')
-          .insert({
-            company_id: auth.companyId,
-            warehouse_id,
-            variation_id,
-            quantity: newQuantity,
-            reserved_quantity: 0,
-          });
-      }
-
-      // Create transaction
-      await supabaseAdmin
-        .from('inventory_transactions')
-        .insert({
-          company_id: auth.companyId,
-          warehouse_id,
-          variation_id,
-          type: 'in',
-          quantity,
-          unit_cost: unit_cost || null,
-          balance_after: newQuantity,
-          reference_type: 'manual',
-          notes: notes || batchNotes || 'รับเข้าสินค้า',
-          created_by: auth.userId,
-        });
-
-      results.push({ variation_id, quantity, new_balance: newQuantity });
+      results.push({ variation_id, quantity, new_balance: result.balanceAfter });
     }
 
     // Auto-sync stock to Shopee if linked

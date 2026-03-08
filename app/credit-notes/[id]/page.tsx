@@ -21,7 +21,9 @@ import {
 interface CreditNoteDetail {
   id: string;
   cn_number: string;
-  order_id: string;
+  order_id: string | null;
+  source_type: 'order' | 'replenishment';
+  source_id: string | null;
   type: 'void' | 'refund' | 'exchange';
   status: 'issued' | 'cancelled';
   reason: string | null;
@@ -38,9 +40,15 @@ interface CreditNoteDetail {
     customer_id?: string;
     customer?: { name: string; phone: string } | null;
   } | null;
+  replenishment?: {
+    id: string;
+    replenishment_number: string;
+    customer_id?: string;
+    customer?: { name: string; phone: string } | null;
+  } | null;
   exchange_order_id?: string | null;
   exchange_order?: { id: string; order_number: string; source: string } | null;
-  creator?: { email: string } | null;
+  creator?: { email: string; name?: string } | null;
   items: {
     id: string;
     product_name: string;
@@ -206,31 +214,64 @@ export default function CreditNoteDetailPage() {
             </div>
           </div>
 
-          {/* Right: Order reference */}
+          {/* Right: Source reference */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-3">
-            <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">อ้างอิงบิลเดิม</div>
+            <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">
+              {cn.source_type === 'replenishment' ? 'อ้างอิงใบเติมสินค้า' : 'อ้างอิงบิลเดิม'}
+            </div>
             <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500 dark:text-slate-400">เลขที่บิล</span>
-                <button
-                  onClick={() => router.push(`/orders/${cn.order_id}`)}
-                  className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium"
-                >
-                  {cn.order?.order_number || '-'}
-                  <ExternalLink className="w-3 h-3" />
-                </button>
-              </div>
-              {cn.order?.customer && (
+              {cn.source_type === 'replenishment' && cn.replenishment ? (
                 <>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500 dark:text-slate-400">ลูกค้า</span>
-                    <span className="text-gray-900 dark:text-white">{cn.order.customer.name}</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500 dark:text-slate-400">เลขที่ใบเติม</span>
+                    <button
+                      onClick={() => router.push(`/replenishments/${cn.source_id}`)}
+                      className="text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      {cn.replenishment.replenishment_number}
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
                   </div>
-                  {cn.order.customer.phone && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 dark:text-slate-400">เบอร์</span>
-                      <span className="text-gray-900 dark:text-white">{cn.order.customer.phone}</span>
-                    </div>
+                  {cn.replenishment.customer && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 dark:text-slate-400">ตัวแทน</span>
+                        <span className="text-gray-900 dark:text-white">{cn.replenishment.customer.name}</span>
+                      </div>
+                      {cn.replenishment.customer.phone && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500 dark:text-slate-400">เบอร์</span>
+                          <span className="text-gray-900 dark:text-white">{cn.replenishment.customer.phone}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500 dark:text-slate-400">เลขที่บิล</span>
+                    <button
+                      onClick={() => cn.order_id && router.push(`/orders/${cn.order_id}`)}
+                      className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      {cn.order?.order_number || '-'}
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  </div>
+                  {cn.order?.customer && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 dark:text-slate-400">ลูกค้า</span>
+                        <span className="text-gray-900 dark:text-white">{cn.order.customer.name}</span>
+                      </div>
+                      {cn.order.customer.phone && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500 dark:text-slate-400">เบอร์</span>
+                          <span className="text-gray-900 dark:text-white">{cn.order.customer.phone}</span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}

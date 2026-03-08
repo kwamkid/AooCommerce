@@ -66,21 +66,22 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = (page - 1) * limit;
 
-    // If searching by order number, resolve order IDs first
+    // If searching by order/replenishment number, resolve IDs first
     let searchOrderIds: string[] | null = null;
+    let searchRepIds: string[] | null = null;
     if (search) {
-      const { data: matchedOrders } = await supabaseAdmin
-        .from('orders')
-        .select('id')
-        .eq('company_id', auth.companyId)
-        .ilike('order_number', `%${search}%`);
-      searchOrderIds = (matchedOrders || []).map(o => o.id);
+      const [matchedOrders, matchedReps] = await Promise.all([
+        supabaseAdmin.from('orders').select('id').eq('company_id', auth.companyId).ilike('order_number', `%${search}%`),
+        supabaseAdmin.from('replenishments').select('id').eq('company_id', auth.companyId).ilike('replenishment_number', `%${search}%`),
+      ]);
+      searchOrderIds = (matchedOrders.data || []).map(o => o.id);
+      searchRepIds = (matchedReps.data || []).map(r => r.id);
     }
 
     let query = supabaseAdmin
       .from('credit_notes')
       .select(`
-        id, cn_number, order_id, type, status, reason,
+        id, cn_number, order_id, source_type, source_id, type, status, reason,
         subtotal, discount_amount, vat_amount, total_amount,
         exchange_order_id, issued_at, created_at, created_by
       `, { count: 'exact' })
@@ -94,12 +95,15 @@ export async function GET(request: NextRequest) {
       query = query.eq('type', type);
     }
     if (search) {
-      // Search by cn_number OR by matching order numbers
+      // Search by cn_number OR by matching order/replenishment numbers
+      const orParts = [`cn_number.ilike.%${search}%`];
       if (searchOrderIds && searchOrderIds.length > 0) {
-        query = query.or(`cn_number.ilike.%${search}%,order_id.in.(${searchOrderIds.join(',')})`);
-      } else {
-        query = query.ilike('cn_number', `%${search}%`);
+        orParts.push(`order_id.in.(${searchOrderIds.join(',')})`);
       }
+      if (searchRepIds && searchRepIds.length > 0) {
+        orParts.push(`source_id.in.(${searchRepIds.join(',')})`);
+      }
+      query = query.or(orParts.join(','));
     }
 
     query = query.range(offset, offset + limit - 1);
@@ -111,24 +115,38 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Enrich with order number
+    // Enrich with order/replenishment details
     const enriched = data || [];
     if (enriched.length > 0) {
-      const orderIds = [...new Set(enriched.map(cn => cn.order_id))];
-      // Also include exchange_order_ids
+      // Collect order IDs (from order_id + exchange_order_id)
+      const orderIds = enriched.map(cn => cn.order_id).filter(Boolean);
       const exchangeIds = enriched.map(cn => cn.exchange_order_id).filter(Boolean);
       const allOrderIds = [...new Set([...orderIds, ...exchangeIds])];
 
-      const { data: orders } = await supabaseAdmin
-        .from('orders')
-        .select('id, order_number, source')
-        .in('id', allOrderIds);
+      // Collect replenishment IDs
+      const repIds = enriched
+        .filter(cn => cn.source_type === 'replenishment' && cn.source_id)
+        .map(cn => cn.source_id);
 
-      const orderMap = new Map((orders || []).map(o => [o.id, o]));
+      const [ordersRes, repsRes] = await Promise.all([
+        allOrderIds.length > 0
+          ? supabaseAdmin.from('orders').select('id, order_number, source').in('id', allOrderIds)
+          : Promise.resolve({ data: [] }),
+        repIds.length > 0
+          ? supabaseAdmin.from('replenishments').select('id, replenishment_number, customer_id').in('id', repIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const orderMap = new Map(((ordersRes as any).data || []).map((o: any) => [o.id, o]));
+      const repMap = new Map(((repsRes as any).data || []).map((r: any) => [r.id, r]));
+
       for (const cn of enriched) {
-        (cn as any).order = orderMap.get(cn.order_id) || null;
+        (cn as any).order = cn.order_id ? orderMap.get(cn.order_id) || null : null;
         if (cn.exchange_order_id) {
           (cn as any).exchange_order = orderMap.get(cn.exchange_order_id) || null;
+        }
+        if (cn.source_type === 'replenishment' && cn.source_id) {
+          (cn as any).replenishment = repMap.get(cn.source_id) || null;
         }
       }
     }

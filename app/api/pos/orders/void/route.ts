@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
+import { returnStock } from '@/lib/stock-service';
 
 // POST — Void a POS order
 export async function POST(request: NextRequest) {
@@ -47,40 +48,17 @@ export async function POST(request: NextRequest) {
       for (const item of (orderItems || [])) {
         if (!item.variation_id) continue;
         try {
-          const { data: inv } = await supabaseAdmin
-            .from('inventory')
-            .select('id, quantity')
-            .eq('warehouse_id', order.warehouse_id)
-            .eq('variation_id', item.variation_id)
-            .eq('company_id', auth.companyId)
-            .single();
-
-          if (inv) {
-            const newQty = Number(inv.quantity || 0) + item.quantity;
-            await supabaseAdmin
-              .from('inventory')
-              .update({
-                quantity: newQty,
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', inv.id);
-
-            await supabaseAdmin
-              .from('inventory_transactions')
-              .insert({
-                company_id: auth.companyId,
-                warehouse_id: order.warehouse_id,
-                variation_id: item.variation_id,
-                type: 'return',
-                quantity: item.quantity,
-                balance_after: newQty,
-                reference_type: 'pos_order',
-                reference_id: order_id,
-                notes: `POS Void ${order.receipt_number || ''} — ${reason || ''}`,
-                created_by: auth.userId,
-                created_at: new Date().toISOString(),
-              });
-          }
+          await returnStock({
+            supabase: supabaseAdmin,
+            companyId: auth.companyId,
+            warehouseId: order.warehouse_id,
+            variationId: item.variation_id,
+            qty: item.quantity,
+            referenceType: 'pos_order',
+            referenceId: order_id,
+            notes: `POS Void ${order.receipt_number || ''} — ${reason || ''}`,
+            createdBy: auth.userId,
+          });
         } catch (stockErr) {
           console.error('[POS Void] Stock return error:', stockErr);
         }

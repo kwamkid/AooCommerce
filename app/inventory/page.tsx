@@ -6,20 +6,21 @@ import Link from 'next/link';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Package2, Warehouse, ClipboardList,
+  Package2, Warehouse, ClipboardList, Activity,
   ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight,
 } from 'lucide-react';
 import { WarehouseItem, TabKey } from './components/types';
 import StockTab from './components/StockTab';
 import HistoryTab from './components/HistoryTab';
+import MonitorTab from './components/MonitorTab';
 
 export default function InventoryPage() {
   const [activeTab, setActiveTabState] = useState<TabKey>('stock');
 
   // Read hash on mount (client-only to avoid hydration mismatch)
   useEffect(() => {
-    const hash = window.location.hash.replace('#', '');
-    if (hash === 'history') setActiveTabState('history');
+    const hash = window.location.hash.replace('#', '') as TabKey;
+    if (hash === 'history' || hash === 'monitor') setActiveTabState(hash);
   }, []);
 
   const setActiveTab = (tab: TabKey) => {
@@ -80,6 +81,9 @@ export default function InventoryPage() {
           <button onClick={() => setActiveTab('history')} className={tabClass('history')}>
             <ClipboardList className="w-4 h-4" /> ประวัติ
           </button>
+          <button onClick={() => setActiveTab('monitor')} className={tabClass('monitor')}>
+            <Activity className="w-4 h-4" /> Monitor
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -102,6 +106,9 @@ export default function InventoryPage() {
             filterProductLabel={historyProductLabel}
             onFilterCleared={() => { setHistoryVariationId(''); setHistoryProductLabel(''); }}
           />
+        )}
+        {activeTab === 'monitor' && (
+          <MonitorTab warehouses={warehouses} />
         )}
       </div>
     </Layout>

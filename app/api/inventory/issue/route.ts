@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, hasAnyRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
+import { deductStock, InsufficientStockError } from '@/lib/stock-service';
 
 // POST - Issue stock out of warehouse (manual)
 export async function POST(request: NextRequest) {
@@ -48,52 +49,29 @@ export async function POST(request: NextRequest) {
       const { variation_id, quantity, reason, notes } = item;
       if (!variation_id || !quantity || quantity <= 0) continue;
 
-      // Get current inventory
-      const { data: existing } = await supabaseAdmin
-        .from('inventory')
-        .select('id, quantity, reserved_quantity')
-        .eq('warehouse_id', warehouse_id)
-        .eq('variation_id', variation_id)
-        .single();
-
-      const currentQty = existing?.quantity || 0;
-      const reservedQty = existing?.reserved_quantity || 0;
-      const available = currentQty - reservedQty;
-
-      if (quantity > available) {
-        errors.push({
-          variation_id,
-          error: `สินค้ามี ${available} ชิ้นพร้อมเบิก (คงเหลือ ${currentQty}, จอง ${reservedQty}) แต่ขอเบิก ${quantity} ชิ้น`,
-        });
-        continue;
-      }
-
-      const newQuantity = currentQty - quantity;
-
-      if (existing) {
-        await supabaseAdmin
-          .from('inventory')
-          .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
-          .eq('id', existing.id);
-      }
-
-      // Create transaction
       const noteText = [reason, notes, batchNotes].filter(Boolean).join(' - ') || 'เบิกออกสินค้า';
-      await supabaseAdmin
-        .from('inventory_transactions')
-        .insert({
-          company_id: auth.companyId,
-          warehouse_id,
-          variation_id,
-          type: 'out',
-          quantity,
-          balance_after: newQuantity,
-          reference_type: 'manual',
-          notes: noteText,
-          created_by: auth.userId,
-        });
 
-      results.push({ variation_id, quantity, new_balance: newQuantity });
+      try {
+        const result = await deductStock({
+          supabase: supabaseAdmin,
+          companyId: auth.companyId!,
+          warehouseId: warehouse_id,
+          variationId: variation_id,
+          qty: quantity,
+          referenceType: 'manual',
+          referenceId: '',
+          notes: noteText,
+          createdBy: auth.userId,
+          checkAvailable: true,
+        });
+        results.push({ variation_id, quantity, new_balance: result.balanceAfter });
+      } catch (err) {
+        if (err instanceof InsufficientStockError) {
+          errors.push({ variation_id, error: err.message });
+        } else {
+          throw err;
+        }
+      }
     }
 
     // Auto-sync stock to Shopee if linked

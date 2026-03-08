@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { shipToTransit, receiveFromTransit, unreserveStock, cancelFromShipped, reserveStock, deductStock } from '@/lib/stock-service';
 
 // GET /api/replenishments/[id]
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -114,7 +115,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Verify ownership
     const { data: existing } = await supabaseAdmin
       .from('replenishments')
-      .select('id, status, customer_id')
+      .select('id, status, customer_id, warehouse_id')
       .eq('id', id)
       .eq('company_id', auth.companyId)
       .single();
@@ -141,6 +142,38 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
+
+      // Deduct stock from source warehouse: quantity -= qty, reserved -= qty, in_transit += qty
+      if (existing.warehouse_id) {
+        const { data: shipItems } = await supabaseAdmin
+          .from('replenishment_items')
+          .select('variation_id, quantity')
+          .eq('replenishment_id', id);
+
+        const { data: rpForNumber } = await supabaseAdmin
+          .from('replenishments')
+          .select('replenishment_number')
+          .eq('id', id)
+          .single();
+
+        for (const item of (shipItems || []) as { variation_id: string | null; quantity: number }[]) {
+          if (!item.variation_id) continue;
+          const qty = item.quantity || 0;
+          if (qty <= 0) continue;
+
+          await shipToTransit({
+            supabase: supabaseAdmin,
+            companyId: auth.companyId!,
+            warehouseId: existing.warehouse_id,
+            variationId: item.variation_id,
+            qty,
+            referenceType: 'replenishment',
+            referenceId: id,
+            notes: `จัดส่งสินค้าตัวแทน: ${rpForNumber?.replenishment_number || id}`,
+            createdBy: auth.userId,
+          });
+        }
+      }
 
       // Auto issue document on ship for ALL consignment/credit replenishments
       // - จด VAT: Invoice mode → TAX, DN mode → no doc (DN mode issues TAX at statement payment)
@@ -190,7 +223,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (existing.status !== 'pending_confirm') {
         return NextResponse.json({ error: 'สามารถยืนยันได้เฉพาะสถานะ "รอยืนยัน" เท่านั้น' }, { status: 400 });
       }
-      const { confirmed_items } = body;
+      const { confirmed_items, confirm_notes } = body;
       if (!confirmed_items || !Array.isArray(confirmed_items)) {
         return NextResponse.json({ error: 'confirmed_items is required' }, { status: 400 });
       }
@@ -204,31 +237,39 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           .eq('replenishment_id', id);
       }
 
-      // Determine final status
+      // Re-fetch items with updated confirmed_quantity + product info for CN
       const { data: allItems } = await supabaseAdmin
         .from('replenishment_items')
-        .select('id, variation_id, quantity, confirmed_quantity, unit_price, gp_rate')
+        .select('id, variation_id, quantity, confirmed_quantity, unit_price, gp_rate, product_name, variation_label')
         .eq('replenishment_id', id);
 
-      const allConfirmed = (allItems || []).every(
-        (i: { quantity: number; confirmed_quantity: number }) => i.confirmed_quantity >= i.quantity
+      // Determine final status: exact match = received, any mismatch = partial_received
+      const allMatch = (allItems || []).every(
+        (i: { quantity: number; confirmed_quantity: number }) => i.confirmed_quantity === i.quantity
       );
-      const newStatus = allConfirmed ? 'received' : 'partial_received';
+      const newStatus = allMatch ? 'received' : 'partial_received';
+
+      // Calculate confirmed_total
+      const confirmedTotal = (allItems || []).reduce((sum: number, item: { confirmed_quantity: number; quantity: number; unit_price: number }) => {
+        const qty = item.confirmed_quantity > 0 ? item.confirmed_quantity : item.quantity;
+        return sum + qty * (item.unit_price || 0);
+      }, 0);
 
       await supabaseAdmin
         .from('replenishments')
         .update({
           status: newStatus,
           received_at: new Date().toISOString(),
+          confirmed_total: confirmedTotal,
+          confirm_notes: confirm_notes || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
 
-      // === Update consignment warehouse inventory ===
-      // Fetch replenishment details
+      // === Update consignment warehouse inventory + clear in_transit ===
       const { data: replenishment } = await supabaseAdmin
         .from('replenishments')
-        .select('customer_id, company_id, replenishment_number')
+        .select('customer_id, company_id, replenishment_number, warehouse_id, total_amount')
         .eq('id', id)
         .single();
 
@@ -243,66 +284,99 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           .single();
 
         if (consignWarehouse) {
-          // Add received items to consignment warehouse inventory
           for (const item of (allItems || []) as {
-            variation_id: string | null;
-            confirmed_quantity: number;
-            quantity: number;
-            unit_price: number;
+            id: string; variation_id: string | null;
+            confirmed_quantity: number; quantity: number;
           }[]) {
             if (!item.variation_id) continue;
-            const qty = item.confirmed_quantity > 0 ? item.confirmed_quantity : item.quantity;
-            if (qty <= 0) continue;
+            const confirmed = item.confirmed_quantity > 0 ? item.confirmed_quantity : item.quantity;
+            if (confirmed <= 0) continue;
 
-            // Upsert inventory row
-            const { data: existing } = await supabaseAdmin
-              .from('inventory')
-              .select('id, quantity')
-              .eq('company_id', replenishment.company_id)
-              .eq('warehouse_id', consignWarehouse.id)
-              .eq('variation_id', item.variation_id)
-              .single();
+            // Move confirmed qty from source in_transit → destination stock
+            await receiveFromTransit({
+              supabase: supabaseAdmin,
+              companyId: replenishment.company_id,
+              sourceWarehouseId: replenishment.warehouse_id || '',
+              destWarehouseId: consignWarehouse.id,
+              variationId: item.variation_id,
+              qty: confirmed,
+              referenceType: 'replenishment',
+              referenceId: id,
+              notes: `รับเข้าคลังตัวแทน: ${replenishment.replenishment_number}`,
+              createdBy: auth.userId,
+            });
 
-            if (existing) {
-              await supabaseAdmin
-                .from('inventory')
-                .update({ quantity: existing.quantity + qty, updated_at: new Date().toISOString() })
-                .eq('id', existing.id);
-            } else {
-              await supabaseAdmin
-                .from('inventory')
-                .insert({
-                  company_id: replenishment.company_id,
-                  warehouse_id: consignWarehouse.id,
-                  variation_id: item.variation_id,
-                  quantity: qty,
-                  reserved_quantity: 0,
-                });
-            }
-
-            // Record transaction
-            const { data: updated } = await supabaseAdmin
-              .from('inventory')
-              .select('quantity')
-              .eq('company_id', replenishment.company_id)
-              .eq('warehouse_id', consignWarehouse.id)
-              .eq('variation_id', item.variation_id)
-              .single();
-
-            await supabaseAdmin
-              .from('inventory_transactions')
-              .insert({
-                company_id: replenishment.company_id,
-                warehouse_id: consignWarehouse.id,
-                variation_id: item.variation_id,
-                type: 'in',
-                quantity: qty,
-                balance_after: updated?.quantity ?? qty,
-                reference_type: 'replenishment',
-                reference_id: id,
-                notes: `รับเข้าคลังตัวแทน: ${replenishment.replenishment_number}`,
-                created_by: auth.userId,
+            // Handle stock mismatch
+            const delta = item.quantity - confirmed; // positive = ขาด, negative = เกิน
+            if (delta > 0) {
+              // รับขาด: คืน delta กลับคลังต้นทาง (in_transit -= delta, quantity += delta)
+              await cancelFromShipped({
+                supabase: supabaseAdmin,
+                companyId: replenishment.company_id,
+                warehouseId: replenishment.warehouse_id || '',
+                variationId: item.variation_id,
+                qty: delta,
+                referenceType: 'replenishment',
+                referenceId: id,
+                notes: `คืน stock ขาดส่ง: ${replenishment.replenishment_number} (ส่ง ${item.quantity} รับ ${confirmed})`,
+                createdBy: auth.userId,
               });
+            } else if (delta < 0) {
+              // รับเกิน: หัก stock เพิ่มจากคลังต้นทาง
+              const excess = Math.abs(delta);
+              await deductStock({
+                supabase: supabaseAdmin,
+                companyId: replenishment.company_id,
+                warehouseId: replenishment.warehouse_id || '',
+                variationId: item.variation_id,
+                qty: excess,
+                referenceType: 'replenishment',
+                referenceId: id,
+                notes: `หัก stock เกิน: ${replenishment.replenishment_number} (ส่ง ${item.quantity} รับ ${confirmed})`,
+                createdBy: auth.userId,
+              });
+            }
+          }
+        }
+
+        // === Auto-issue adjustment documents for mismatches ===
+        // CN ออกได้เฉพาะ Invoice mode (มี TAX invoice แล้ว) — DN mode ไม่ต้องออก CN แค่แก้ DN ตามจริง
+        if (!allMatch) {
+          try {
+            // Check if TAX invoice exists for this replenishment (= Invoice mode)
+            const { data: hasTax } = await supabaseAdmin
+              .from('tax_invoices')
+              .select('id')
+              .eq('source_type', 'replenishment')
+              .eq('source_id', id)
+              .eq('company_id', auth.companyId)
+              .maybeSingle();
+
+            if (hasTax) {
+              // Invoice mode: มี TAX แล้ว → ออก CN/excess TAX ได้
+              const { issueReplenishmentCreditNote, issueReplenishmentExcessDocument } = await import('@/lib/invoice-service');
+
+              if (confirmedTotal < (replenishment.total_amount || 0)) {
+                // รับขาด → Credit Note
+                const shortfallItems = (allItems || [])
+                  .filter((i: { confirmed_quantity: number; quantity: number }) => i.confirmed_quantity < i.quantity)
+                  .map((i: { id: string; variation_id: string | null; product_name: string; variation_label: string | null; quantity: number; confirmed_quantity: number; unit_price: number }) => ({
+                    replenishment_item_id: i.id,
+                    variation_id: i.variation_id || '',
+                    product_name: i.product_name || '',
+                    variation_label: i.variation_label || '',
+                    shortfall_qty: i.quantity - i.confirmed_quantity,
+                    unit_price: i.unit_price || 0,
+                  }));
+                await issueReplenishmentCreditNote(id, auth.companyId!, shortfallItems, auth.userId || '');
+              } else if (confirmedTotal > (replenishment.total_amount || 0)) {
+                // รับเกิน → excess TAX
+                await issueReplenishmentExcessDocument(id, auth.companyId!, confirmedTotal - (replenishment.total_amount || 0));
+              }
+            }
+            // DN mode: ไม่ต้องออกเอกสารเพิ่ม — DN PDF จะแสดง confirmed_quantity เอง
+          } catch (err) {
+            console.error('Auto adjustment document on confirm error:', err);
           }
         }
       }
@@ -312,9 +386,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // === ACTION: CANCEL ===
     if (action === 'cancel') {
-      if (existing.status !== 'pending') {
-        return NextResponse.json({ error: 'สามารถยกเลิกได้เฉพาะสถานะ "ที่ต้องจัดส่ง" เท่านั้น' }, { status: 400 });
+      if (existing.status !== 'pending' && existing.status !== 'shipped') {
+        return NextResponse.json({ error: 'สามารถยกเลิกได้เฉพาะสถานะ "ที่ต้องจัดส่ง" หรือ "จัดส่งแล้ว" เท่านั้น' }, { status: 400 });
       }
+
       await supabaseAdmin
         .from('replenishments')
         .update({
@@ -324,6 +399,53 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
+
+      // Reverse stock operations
+      if (existing.warehouse_id) {
+        const { data: cancelItems } = await supabaseAdmin
+          .from('replenishment_items')
+          .select('variation_id, quantity')
+          .eq('replenishment_id', id);
+
+        const { data: rpForNumber } = await supabaseAdmin
+          .from('replenishments')
+          .select('replenishment_number')
+          .eq('id', id)
+          .single();
+
+        for (const item of (cancelItems || []) as { variation_id: string | null; quantity: number }[]) {
+          if (!item.variation_id) continue;
+          const qty = item.quantity || 0;
+          if (qty <= 0) continue;
+
+          if (existing.status === 'pending') {
+            await unreserveStock({
+              supabase: supabaseAdmin,
+              companyId: auth.companyId!,
+              warehouseId: existing.warehouse_id,
+              variationId: item.variation_id,
+              qty,
+              referenceType: 'replenishment',
+              referenceId: id,
+              notes: `ยกเลิกจอง: ${rpForNumber?.replenishment_number || id}`,
+              createdBy: auth.userId,
+            });
+          } else if (existing.status === 'shipped') {
+            await cancelFromShipped({
+              supabase: supabaseAdmin,
+              companyId: auth.companyId!,
+              warehouseId: existing.warehouse_id,
+              variationId: item.variation_id,
+              qty,
+              referenceType: 'replenishment',
+              referenceId: id,
+              notes: `ยกเลิกจัดส่ง (คืนสต๊อก): ${rpForNumber?.replenishment_number || id}`,
+              createdBy: auth.userId,
+            });
+          }
+        }
+      }
+
       return NextResponse.json({ success: true, status: 'cancelled' });
     }
 
@@ -346,6 +468,32 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       // Update items if provided
       if (items && Array.isArray(items)) {
+        // Unreserve old items first
+        if (existing.warehouse_id) {
+          const { data: oldItems } = await supabaseAdmin
+            .from('replenishment_items')
+            .select('variation_id, quantity')
+            .eq('replenishment_id', id);
+
+          for (const oldItem of (oldItems || []) as { variation_id: string | null; quantity: number }[]) {
+            if (!oldItem.variation_id) continue;
+            const qty = oldItem.quantity || 0;
+            if (qty <= 0) continue;
+
+            await unreserveStock({
+              supabase: supabaseAdmin,
+              companyId: auth.companyId!,
+              warehouseId: existing.warehouse_id,
+              variationId: oldItem.variation_id,
+              qty,
+              referenceType: 'replenishment',
+              referenceId: id,
+              notes: 'ปรับปรุงใบเติมสินค้า (ปล่อยจอง)',
+              createdBy: auth.userId,
+            });
+          }
+        }
+
         // Delete existing and re-insert
         await supabaseAdmin
           .from('replenishment_items')
@@ -372,6 +520,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         await supabaseAdmin
           .from('replenishment_items')
           .insert(itemRows);
+
+        // Re-reserve new items
+        if (existing.warehouse_id) {
+          for (const item of items as { variation_id?: string; quantity: number }[]) {
+            if (!item.variation_id) continue;
+            const qty = item.quantity || 0;
+            if (qty <= 0) continue;
+
+            await reserveStock({
+              supabase: supabaseAdmin,
+              companyId: auth.companyId!,
+              warehouseId: existing.warehouse_id,
+              variationId: item.variation_id,
+              qty,
+              referenceType: 'replenishment',
+              referenceId: id,
+              notes: 'ปรับปรุงใบเติมสินค้า (จองใหม่)',
+              createdBy: auth.userId,
+            });
+          }
+        }
       }
 
       return NextResponse.json({ success: true });
