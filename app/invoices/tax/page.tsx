@@ -24,6 +24,7 @@ interface Invoice {
   is_receipt: boolean;
   total_amount: number;
   vat_amount: number;
+  voided_at: string | null;
   customer: { id: string; name: string } | null;
 }
 
@@ -114,19 +115,47 @@ export default function TaxInvoicesPage() {
         });
         showPdfPreview(blob, `ใบกำกับภาษี ${inv.tax_invoice_number}`);
       } else if (inv.source_type === 'statement') {
-        // Statement TAX — fetch statement data and print
+        // Statement TAX — fetch statement + reports, map to invoice format
         const res = await apiFetch(`/api/statements/${inv.source_id}`);
         if (!res.ok) return;
         const stData = await res.json();
+        const st = stData.statement;
+        const reports = stData.reports || [];
+        // Flatten report items into FullInvoiceItem[]
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const items = reports.flatMap((r: any) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (r.items || []).map((item: any) => ({
+            product_name: item.variation?.products?.name || '-',
+            variation_label: item.variation?.variation_label || '',
+            product_code: item.variation?.sku || '',
+            quantity: item.qty_sold || 0,
+            unit_price: item.unit_price || 0,
+            subtotal: (item.qty_sold || 0) * (item.unit_price || 0),
+            total: item.our_amount || 0,
+          }))
+        );
+        const total = st.total_amount || 0;
+        const vatAmount = Math.round((total / 107) * 7 * 100) / 100;
         const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
         const blob = await generateFullInvoicePdf({
-          ...stData,
+          order_number: st.statement_number,
+          created_at: st.statement_date || st.created_at,
+          payment_status: 'paid',
+          subtotal: total - vatAmount,
+          discount_amount: 0,
+          shipping_fee: 0,
+          vat_amount: vatAmount,
+          total_amount: total,
+          customer: st.customer ? { name: st.customer.name } : null,
           tax_invoice_number: inv.tax_invoice_number,
           tax_invoice_date: inv.tax_invoice_date,
           tax_invoice_name: inv.tax_invoice_name,
           tax_invoice_tax_id: inv.tax_invoice_tax_id,
           tax_invoice_branch: inv.tax_invoice_branch,
           tax_invoice_doc_type: 'tax',
+          items,
+          voided_at: inv.voided_at,
         });
         showPdfPreview(blob, `ใบกำกับภาษี ${inv.tax_invoice_number}`);
       }
@@ -208,7 +237,10 @@ export default function TaxInvoicesPage() {
                               แทน {inv.tax_invoice_replaced_abbrev_number}
                             </div>
                           )}
-                          {inv.is_receipt && (
+                          {inv.voided_at && (
+                            <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+                          )}
+                          {inv.is_receipt && !inv.voided_at && (
                             <span className="ml-1 text-xs text-green-600 dark:text-green-400">+ใบเสร็จ</span>
                           )}
                         </td>

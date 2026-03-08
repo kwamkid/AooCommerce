@@ -10,7 +10,7 @@ import {
   ClipboardList, Loader2, RefreshCw, CheckCircle2,
   AlertCircle, Clock, BadgeCheck, Copy, Receipt,
   Plus, Package, XCircle, Eye, FileText, Printer,
-  Banknote,
+  Banknote, Undo2,
 } from 'lucide-react';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { markPrinted as markPrintedDB } from '@/lib/print-tracking';
@@ -260,10 +260,10 @@ function ConsignmentReportsContent() {
     setPrintingId(reportId);
     setPrintingType('invoice');
     try {
-      // Check if this report is paid — if so, render as ใบกำกับภาษี/ใบเสร็จ
+      // Check if statement has tax/receipt documents — always fetch fresh from API
       const report = reports.find(r => r.id === reportId);
       let taxOverride: Parameters<typeof generateInvoiceBlob>[1];
-      if (report?.status === 'paid' && report.statement_id) {
+      if (report?.statement_id) {
         const stRes = await apiFetch(`/api/statements/${report.statement_id}`);
         if (stRes.ok) {
           const stData = await stRes.json();
@@ -387,20 +387,40 @@ function ConsignmentReportsContent() {
     }
   };
 
+  // Reverse payment state
+  const [reverseConfirm, setReverseConfirm] = useState<ConsignmentReport | null>(null);
+  const [reverseLoading, setReverseLoading] = useState(false);
+
+  const handleReversePayment = async (report: ConsignmentReport) => {
+    if (!report.statement_id) return;
+    setReverseLoading(true);
+    try {
+      const res = await apiFetch(`/api/statements/${report.statement_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reverse_payment' }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'reverse failed');
+      }
+      showToast('ยกเลิกการชำระแล้ว เอกสารถูก void เรียบร้อย', 'success');
+      setReverseConfirm(null);
+      fetchReports(true);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setReverseLoading(false);
+    }
+  };
+
   const buildMenuItems = (report: ConsignmentReport): ActionItem[] => {
     const isPrinting = printingId === report.id;
     const dot = (key: string) => isPrintedDoc(report, key)
       ? <span className="ml-auto w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
       : null;
 
-    const items: ActionItem[] = [
-      {
-        key: 'view',
-        label: 'ดูรายละเอียด',
-        icon: <Eye className="w-4 h-4" />,
-        onClick: () => router.push(`/consignment/reports/${report.id}`),
-      },
-    ];
+    const items: ActionItem[] = [];
 
     // Print: ใบแจ้งหนี้ (billed/invoiced) or ใบกำกับภาษี/ใบเสร็จ (paid)
     if (['invoiced', 'billed', 'paid'].includes(report.status)) {
@@ -447,6 +467,18 @@ function ConsignmentReportsContent() {
         icon: <Banknote className="w-4 h-4" />,
         onClick: () => setPaymentConfirm(report),
         dividerBefore: true,
+      });
+    }
+
+    // Reverse payment action (paid with statement)
+    if (report.status === 'paid' && report.statement_id) {
+      items.push({
+        key: 'reverse_payment',
+        label: 'ยกเลิกการชำระ',
+        icon: <Undo2 className="w-4 h-4" />,
+        onClick: () => setReverseConfirm(report),
+        dividerBefore: true,
+        danger: true,
       });
     }
 
@@ -795,6 +827,30 @@ function ConsignmentReportsContent() {
             <p>รายงาน <span className="font-semibold">{paymentConfirm.report_number}</span></p>
             <p>งวด <span className="font-semibold">{formatPeriod(paymentConfirm.period_year, paymentConfirm.period_month)}</span></p>
             <p>จำนวน <span className="font-semibold text-[#F4511E]">฿{formatAmount(paymentConfirm.our_amount)}</span></p>
+            <p className="text-sm text-gray-400 dark:text-slate-500 mt-2">ระบบจะออกใบกำกับภาษี/ใบเสร็จรับเงินอัตโนมัติ</p>
+          </div>
+        )}
+      </ConfirmDialog>
+
+      {/* Reverse Payment Confirm Dialog */}
+      <ConfirmDialog
+        open={!!reverseConfirm}
+        onClose={() => !reverseLoading && setReverseConfirm(null)}
+        onConfirm={() => reverseConfirm && handleReversePayment(reverseConfirm)}
+        icon={<Undo2 className="w-6 h-6 text-red-500" />}
+        title="ยกเลิกการชำระ"
+        confirmLabel={reverseLoading ? 'กำลังดำเนินการ...' : 'ยืนยันยกเลิก'}
+        confirmIcon={reverseLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />}
+        variant="danger"
+        loading={reverseLoading}
+      >
+        {reverseConfirm && (
+          <div className="text-base text-gray-600 dark:text-slate-300 mt-2 space-y-1 text-center">
+            <p>ยกเลิกการชำระเงินของ <span className="font-semibold">{reverseConfirm.customer?.name || '-'}</span></p>
+            <p>รายงาน <span className="font-semibold">{reverseConfirm.report_number}</span></p>
+            <p>งวด <span className="font-semibold">{formatPeriod(reverseConfirm.period_year, reverseConfirm.period_month)}</span></p>
+            <p>จำนวน <span className="font-semibold text-red-500">฿{formatAmount(reverseConfirm.our_amount)}</span></p>
+            <p className="text-sm text-gray-400 dark:text-slate-500 mt-2">ใบกำกับภาษี/ใบเสร็จที่ออกไปจะถูกยกเลิก (void)</p>
           </div>
         )}
       </ConfirmDialog>

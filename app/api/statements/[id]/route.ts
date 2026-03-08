@@ -195,12 +195,22 @@ export async function PUT(
               .rpc('generate_receipt_number', { p_company_id: companyId });
             if (recNumber) {
               const recDate = new Date().toISOString().split('T')[0];
+              // Fetch customer info for receipt
+              const { data: custInfo } = await supabaseAdmin
+                .from('customers')
+                .select('tax_company_name, name, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code')
+                .eq('id', statement.customer_id)
+                .single();
+              const custName = custInfo?.tax_company_name || custInfo?.name || null;
+              const custAddr = custInfo ? [custInfo.billing_address, custInfo.billing_district, custInfo.billing_amphoe, custInfo.billing_province, custInfo.billing_postal_code].filter(Boolean).join(' ') : null;
               // Insert into document table (single source of truth)
               const { insertReceipt } = await import('@/lib/invoice-service');
               await insertReceipt({
                 company_id: companyId, receipt_number: recNumber, receipt_date: recDate,
                 source_type: 'statement', source_id: id, customer_id: statement.customer_id,
                 total_amount: statement.total_amount ?? 0,
+                customer_name: custName,
+                customer_address: custAddr,
               });
               autoInvoiceResult = { recNumber };
             }
@@ -240,6 +250,57 @@ export async function PUT(
         tax_invoice_number: result.taxNumber,
         receipt_number: result.recNumber,
       });
+    }
+
+    if (action === 'reverse_payment') {
+      // Allow reversing paid OR already-sent (fix stale reports)
+      if (!['paid', 'sent'].includes(statement.status)) {
+        return NextResponse.json({ error: 'ไม่สามารถยกเลิกการชำระได้ในสถานะนี้' }, { status: 400 });
+      }
+
+      const now = new Date().toISOString();
+      const voidReason = 'ยกเลิกการชำระ (reverse payment)';
+
+      // 1. Void tax_invoices linked to this statement
+      await supabaseAdmin
+        .from('tax_invoices')
+        .update({ voided_at: now, voided_reason: voidReason })
+        .eq('source_type', 'statement')
+        .eq('source_id', id)
+        .is('voided_at', null);
+
+      // 2. Void receipts linked to this statement
+      await supabaseAdmin
+        .from('receipts')
+        .update({ voided_at: now, voided_reason: voidReason })
+        .eq('source_type', 'statement')
+        .eq('source_id', id)
+        .is('voided_at', null);
+
+      // 3. Delete all payment records for this statement
+      await supabaseAdmin
+        .from('statement_payments')
+        .delete()
+        .eq('statement_id', id);
+
+      // 4. Reset statement to 'sent' with paid_amount = 0
+      await supabaseAdmin
+        .from('statements')
+        .update({
+          status: 'sent',
+          paid_amount: 0,
+          updated_at: now,
+        })
+        .eq('id', id);
+
+      // 5. Revert linked consignment_reports back from 'paid' to 'billed'
+      await supabaseAdmin
+        .from('consignment_reports')
+        .update({ status: 'billed', updated_at: now })
+        .eq('statement_id', id)
+        .eq('status', 'paid');
+
+      return NextResponse.json({ success: true, status: 'sent' });
     }
 
     return NextResponse.json({ error: `Action "${action}" ไม่รองรับ` }, { status: 400 });

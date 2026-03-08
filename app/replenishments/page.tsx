@@ -570,14 +570,7 @@ function ReplenishmentsPageContent() {
       ? <span className="ml-auto w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
       : null;
 
-    const items: ActionItem[] = [
-      {
-        key: 'view',
-        label: 'ดูรายละเอียด',
-        icon: <Eye className="w-4 h-4" />,
-        onClick: () => router.push(`/replenishments/new?id=${r.id}${r.status !== 'pending' ? '&view=1' : ''}`),
-      },
-    ];
+    const items: ActionItem[] = [];
 
     if (r.status === 'pending') {
       // ยังไม่จัดส่ง — ใบจัดของ + ใบปะหน้า (เตรียมของ) แต่ไม่มี DN (ออกตอนกดจัดส่ง)
@@ -589,7 +582,6 @@ function ReplenishmentsPageContent() {
           suffix: dot('packing'),
           onClick: () => handlePrintPacking(r.id),
           disabled: isPrinting,
-          dividerBefore: true,
         },
         {
           key: 'label',
@@ -626,7 +618,6 @@ function ReplenishmentsPageContent() {
           suffix: dot('dn'),
           onClick: () => handlePrintDN(r.id),
           disabled: isPrinting,
-          dividerBefore: true,
         },
         {
           key: 'label',
@@ -637,14 +628,7 @@ function ReplenishmentsPageContent() {
           disabled: isPrinting,
         },
       );
-      if (r.status === 'shipped' && r.receive_token) {
-        items.push({
-          key: 'copy-link',
-          label: 'คัดลอกลิงก์รับสินค้า',
-          icon: <Copy className="w-4 h-4" />,
-          onClick: () => copyReceiveLink(r.receive_token!),
-        });
-      }
+      // คัดลอกลิงก์ is now a primary action button, not in menu
     }
 
     return items;
@@ -842,6 +826,15 @@ function ReplenishmentsPageContent() {
                             >
                               <CheckCircle2 className="w-4 h-4" />
                               <span className="hidden md:inline">ยืนยัน</span>
+                            </button>
+                          )}
+                          {r.status === 'shipped' && r.receive_token && (
+                            <button
+                              onClick={() => copyReceiveLink(r.receive_token!)}
+                              className="flex items-center gap-1.5 px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-600 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50 transition-colors whitespace-nowrap"
+                            >
+                              <Copy className="w-4 h-4" />
+                              <span className="hidden md:inline">ลิงก์รับของ</span>
                             </button>
                           )}
                           <ActionMenu items={getMenuItems(r)} />

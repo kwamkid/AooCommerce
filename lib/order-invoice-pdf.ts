@@ -71,6 +71,7 @@ export interface OrderInvoiceData {
   delivery_province?: string;
   delivery_postal_code?: string;
   delivery_email?: string;
+  voided_at?: string | null;
   items: OrderItemData[];
 }
 
@@ -149,7 +150,6 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
   const infoBoxRows: any[] = [
     [{ text: 'เลขที่', fontSize: 10, color: theme.primary, bold: true }, { text: data.order_number, fontSize: 10, bold: true }],
     [{ text: 'วันที่', fontSize: 10, color: theme.primary, bold: true }, { text: dateStr, fontSize: 10 }],
-    [{ text: 'สถานะ', fontSize: 10, color: theme.primary, bold: true }, { text: getPaymentStatusLabel(data.payment_status), fontSize: 10, bold: true }],
   ];
 
   if (isPaid && data.payment_method) {
@@ -438,7 +438,8 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
   // ส่วนที่ 5 — ลายเซ็น (Footer)
   // ═══════════════════════════════════════════════════
 
-  const docDefinition = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const docDefinition: any = {
     defaultStyle: { font: 'IBMPlexSansThai', fontSize: 16 },
     pageSize: 'A4' as const,
     pageMargins: [40, 40, 40, 110] as [number, number, number, number],
@@ -449,6 +450,10 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
       tableHeader: { bold: true, fontSize: 11, color: '#333333' },
     },
   };
+
+  if (data.voided_at) {
+    docDefinition.watermark = { text: 'VOID', color: '#dc2626', opacity: 0.15, bold: true, fontSize: 120, angle: -45 };
+  }
 
   const pdfDoc = pdfMake.createPdf(docDefinition);
   return pdfDoc.getBlob();

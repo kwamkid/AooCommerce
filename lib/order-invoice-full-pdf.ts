@@ -62,14 +62,15 @@ export interface FullInvoiceData {
   delivery_postal_code?: string;
   delivery_email?: string;
   // Tax invoice snapshot fields (from order)
-  tax_invoice_number?: string;
-  tax_invoice_date?: string;
-  tax_invoice_name?: string;
-  tax_invoice_tax_id?: string;
-  tax_invoice_address?: string;
-  tax_invoice_branch?: string;
+  tax_invoice_number?: string | null;
+  tax_invoice_date?: string | null;
+  tax_invoice_name?: string | null;
+  tax_invoice_tax_id?: string | null;
+  tax_invoice_address?: string | null;
+  tax_invoice_branch?: string | null;
   tax_invoice_doc_type?: string; // 'tax' | 'receipt' | 'abbreviated' | legacy INV
   tax_invoice_replaced_abbrev_number?: string | null; // อ้างอิง ABB ที่ถูก void
+  voided_at?: string | null;
   items: FullInvoiceItem[];
 }
 
@@ -236,7 +237,7 @@ export async function generateFullInvoicePdf(
   // ส่วนที่ 3 — ตารางสินค้า
   // ═══════════════════════════════════════════════════
 
-  const hasDiscount = data.items.some(i => (i.discount_amount || 0) > 0);
+  const hasDiscount = (data.items || []).some(i => (i.discount_amount || 0) > 0);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const headerCols: any[] = [
@@ -381,7 +382,8 @@ export async function generateFullInvoicePdf(
   // Document definition
   // ═══════════════════════════════════════════════════
 
-  const docDefinition = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const docDefinition: any = {
     defaultStyle: { font: 'IBMPlexSansThai', fontSize: 16 },
     pageSize: 'A4' as const,
     pageMargins: [40, 40, 40, 110] as [number, number, number, number],
@@ -392,6 +394,10 @@ export async function generateFullInvoicePdf(
       tableHeader: { bold: true, fontSize: 11, color: '#333333' },
     },
   };
+
+  if (data.voided_at) {
+    docDefinition.watermark = { text: 'VOID', color: '#dc2626', opacity: 0.15, bold: true, fontSize: 120, angle: -45 };
+  }
 
   const pdfDoc = pdfMake.createPdf(docDefinition);
   return pdfDoc.getBlob();

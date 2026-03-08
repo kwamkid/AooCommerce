@@ -147,10 +147,6 @@ function buildCompactInvoiceContent(
       { text: 'วันที่', fontSize: 8, color: theme.primary, bold: true },
       { text: dateStr, fontSize: 8 },
     ],
-    [
-      { text: 'สถานะ', fontSize: 8, color: theme.primary, bold: true },
-      { text: getPaymentStatusLabel(order.payment_status), fontSize: 8, bold: true },
-    ],
   ];
 
   if (order.tax_invoice_number) {
@@ -335,10 +331,10 @@ function buildCompactInvoiceContent(
     ],
   });
 
-  // ── Void watermark ──
+  // ── Void overlay text (per-half since abbreviated uses half-page layout) ──
   if (isVoided) {
     content.push({
-      text: 'ยกเลิก',
+      text: 'VOID',
       fontSize: 48,
       bold: true,
       color: '#dc262650',

@@ -765,8 +765,8 @@ export default function ReadyToShipTab({
       );
     } else {
       // Normal tab: Split + Accept
-      // Primary: Split button (>1 piece, not already split)
-      if (order.can_split_order && !order.is_split) {
+      // Primary: Split button — show for Shopee orders with >1 line items, or when Shopee explicitly says can_split
+      if ((order.can_split_order || (isShopee && order.item_line_count > 1)) && !order.is_split) {
         primaryActions.push(
           <button
             key="split"

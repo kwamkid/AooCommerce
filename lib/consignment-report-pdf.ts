@@ -60,6 +60,8 @@ export interface ConsignmentReportPdfData {
   receipt_date?: string | null;
   /** Company VAT registered at time of issue */
   vat_registered?: boolean;
+  /** Voided document */
+  voided_at?: string | null;
 }
 
 // ─── Theme ──────────────────────────────────────────────
@@ -332,7 +334,8 @@ export async function generateConsignmentReportPdf(data: ConsignmentReportPdfDat
 
   const companyName = company?.tax_company_name || company?.name || '';
 
-  const docDefinition = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const docDefinition: any = {
     pageSize: 'A4' as const,
     pageMargins: [40, 40, 40, 110] as [number, number, number, number],
     defaultStyle: {
@@ -350,6 +353,10 @@ export async function generateConsignmentReportPdf(data: ConsignmentReportPdfDat
     background: buildCornerTriangle(docTheme),
     footer: buildSignatureFooter(companyName, isTaxInvoiceMode ? 'ผู้ออกเอกสาร' : 'ผู้ขาย', 'ตัวแทนจำหน่าย'),
   };
+
+  if (data.voided_at) {
+    docDefinition.watermark = { text: 'VOID', color: '#dc2626', opacity: 0.15, bold: true, fontSize: 120, angle: -45 };
+  }
 
   const pdfDoc = pdfMake.createPdf(docDefinition);
   return pdfDoc.getBlob();

@@ -495,11 +495,20 @@ export async function issueConsignmentInvoices(
 
       // Insert into document table (single source of truth) — TAX+REC combined
       const { data: stInfo } = await supabaseAdmin
-        .from('statements').select('customer_id, total_amount').eq('id', statementId).single();
+        .from('statements')
+        .select('customer_id, total_amount, customer:customers(tax_company_name, name, tax_id, tax_branch, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code)')
+        .eq('id', statementId).single();
+      const cust = stInfo?.customer as unknown as Record<string, string> | null;
+      const custName = cust?.tax_company_name || cust?.name || null;
+      const custAddress = cust ? [cust.billing_address, cust.billing_district, cust.billing_amphoe, cust.billing_province, cust.billing_postal_code].filter(Boolean).join(' ') : null;
       await insertTaxInvoice({
         company_id: companyId, invoice_number: invoiceNumber, invoice_date: now,
         source_type: 'statement', source_id: statementId,
         customer_id: stInfo?.customer_id, total_amount: stInfo?.total_amount ?? 0,
+        customer_name: custName,
+        customer_tax_id: cust?.tax_id || null,
+        customer_branch: cust?.tax_branch || null,
+        customer_address: custAddress,
         is_receipt: true,
       });
 
@@ -515,11 +524,18 @@ export async function issueConsignmentInvoices(
 
       // Insert into document table (single source of truth)
       const { data: stInfo2 } = await supabaseAdmin
-        .from('statements').select('customer_id, total_amount').eq('id', statementId).single();
+        .from('statements')
+        .select('customer_id, total_amount, customer:customers(tax_company_name, name, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code)')
+        .eq('id', statementId).single();
+      const cust2 = stInfo2?.customer as unknown as Record<string, string> | null;
+      const custName2 = cust2?.tax_company_name || cust2?.name || null;
+      const custAddr2 = cust2 ? [cust2.billing_address, cust2.billing_district, cust2.billing_amphoe, cust2.billing_province, cust2.billing_postal_code].filter(Boolean).join(' ') : null;
       await insertReceipt({
         company_id: companyId, receipt_number: invoiceNumber, receipt_date: now,
         source_type: 'statement', source_id: statementId,
         customer_id: stInfo2?.customer_id, total_amount: stInfo2?.total_amount ?? 0,
+        customer_name: custName2,
+        customer_address: custAddr2,
       });
 
       return { success: true, recNumber: invoiceNumber };

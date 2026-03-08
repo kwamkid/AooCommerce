@@ -146,7 +146,7 @@ export function buildCompanyStack(
   const stack: any[] = [];
 
   if (logoDataUrl) {
-    stack.push({ image: logoDataUrl, width: 40, height: 40, fit: [40, 40], margin: [0, 0, 0, 2] });
+    stack.push({ image: logoDataUrl, width: 40, height: 40, fit: [40, 40], margin: [0, 0, 0, 10] });
   }
 
   const companyName = company?.tax_company_name || company?.name || '';
@@ -309,16 +309,27 @@ function deepClone(obj: any): any {
  * Inject ต้นฉบับ/สำเนา label into right column stack, right below the document title.
  * Expects content[0] to be a columns layout with the right column containing title + info box.
  */
+/** Extract theme color from the document title in the header right column */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function detectThemeColor(pageContent: any[]): string {
+  try {
+    const header = pageContent[0];
+    if (header?.columns && Array.isArray(header.columns)) {
+      const rightCol = header.columns[header.columns.length - 1];
+      if (rightCol?.stack?.[0]?.color) return rightCol.stack[0].color;
+    }
+  } catch { /* ignore */ }
+  return '#15803d'; // fallback green
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function injectCopyLabel(pageContent: any[], label: string, color: string): void {
   const header = pageContent[0];
   if (header?.columns && Array.isArray(header.columns)) {
-    // Right column is the last column with a stack
     const rightCol = header.columns[header.columns.length - 1];
     if (rightCol?.stack && Array.isArray(rightCol.stack)) {
-      // Insert label right after the title (position 1)
       rightCol.stack.splice(1, 0, {
-        text: label, fontSize: 9, bold: true, color, alignment: 'right', margin: [0, -4, 0, 4],
+        text: label, fontSize: 9, bold: true, color, alignment: 'right', margin: [0, -6, 0, 4],
       });
     }
   }
@@ -326,13 +337,14 @@ function injectCopyLabel(pageContent: any[], label: string, color: string): void
 
 /**
  * Duplicate a pdfMake content array into 2 sets of pages:
- * first set = ต้นฉบับ (green label), second set = สำเนา (gray label)
+ * first set = ต้นฉบับ (theme color label), second set = สำเนา (gray label)
  *
  * Uses deepClone that preserves layout functions (hLineWidth, etc.)
  */
 export function withOriginalAndCopy(pageContent: any[]): any[] {
+  const themeColor = detectThemeColor(pageContent);
   const clone = deepClone(pageContent);
-  injectCopyLabel(pageContent, '(ต้นฉบับ)', '#15803d');
+  injectCopyLabel(pageContent, '(ต้นฉบับ)', themeColor);
   injectCopyLabel(clone, '(สำเนา)', '#6b7280');
   return [
     ...pageContent,

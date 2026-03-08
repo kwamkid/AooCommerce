@@ -20,6 +20,7 @@ interface InvoiceRow {
   tax_invoice_name: string | null;
   tax_invoice_address: string | null;
   total_amount: number;
+  voided_at: string | null;
   customer: { id: string; name: string } | null;
 }
 
@@ -176,6 +177,9 @@ export default function ReceiptsPage() {
                       <tr key={inv.doc_id} className="data-tr">
                         <td className="px-6 py-4">
                           <span className="font-mono text-sm font-medium text-[#F4511E]">{inv.tax_invoice_number}</span>
+                          {inv.voided_at && (
+                            <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300 whitespace-nowrap">{formatDate(inv.tax_invoice_date)}</td>
                         <td className="px-6 py-4">

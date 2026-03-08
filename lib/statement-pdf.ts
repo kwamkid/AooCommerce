@@ -101,10 +101,6 @@ export async function generateStatementPdf(data: StatementPdfData): Promise<Blob
       { text: 'งวด', fontSize: 10, color: THEME.primary, bold: true },
       { text: periodStr, fontSize: 10 },
     ],
-    [
-      { text: 'สถานะ', fontSize: 10, color: THEME.primary, bold: true },
-      { text: statusLabel, fontSize: 10, bold: true },
-    ],
   ];
 
   if (data.due_date) {

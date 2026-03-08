@@ -9,7 +9,7 @@ import { useToast } from '@/lib/toast-context';
 import {
   FileText, Loader2, RefreshCw, CheckCircle2,
   AlertCircle, Clock, Package, Eye, Receipt,
-  Printer, Banknote,
+  Printer, Banknote, Undo2,
 } from 'lucide-react';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { markPrinted as markPrintedDB } from '@/lib/print-tracking';
@@ -229,6 +229,32 @@ function StatementsContent() {
     }
   };
 
+  // Reverse payment state
+  const [reverseConfirm, setReverseConfirm] = useState<Statement | null>(null);
+  const [reverseLoading, setReverseLoading] = useState(false);
+
+  const handleReversePayment = async (st: Statement) => {
+    setReverseLoading(true);
+    try {
+      const res = await apiFetch(`/api/statements/${st.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reverse_payment' }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'reverse failed');
+      }
+      showToast('ยกเลิกการชำระแล้ว เอกสารถูก void เรียบร้อย', 'success');
+      setReverseConfirm(null);
+      fetchData(true);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setReverseLoading(false);
+    }
+  };
+
   const buildMenuItems = (st: Statement): ActionItem[] => {
     const isPrinting = printingId === st.id;
     const dot = (key: string) => isPrintedDoc(st, key)
@@ -261,6 +287,18 @@ function StatementsContent() {
         icon: <Banknote className="w-4 h-4" />,
         onClick: () => setPaymentConfirm(st),
         dividerBefore: true,
+      });
+    }
+
+    // Reverse payment action (undo)
+    if (st.status === 'paid') {
+      items.push({
+        key: 'reverse_payment',
+        label: 'ยกเลิกการชำระ',
+        icon: <Undo2 className="w-4 h-4" />,
+        onClick: () => setReverseConfirm(st),
+        dividerBefore: true,
+        danger: true,
       });
     }
 
@@ -511,10 +549,24 @@ function StatementsContent() {
         onConfirm={() => paymentConfirm && handleRecordPayment(paymentConfirm)}
         icon={<Banknote className="w-6 h-6 text-[#F4511E]" />}
         title="ลูกค้าชำระแล้ว"
-        description={paymentConfirm ? `ยืนยันการชำระเงินของ ${paymentConfirm.customer?.name || '-'}\nใบวางบิล ${paymentConfirm.statement_number} จำนวน ฿${formatAmount(paymentConfirm.outstanding_amount)}` : ''}
+        description={paymentConfirm ? `ยืนยันการชำระเงินของ ${paymentConfirm.customer?.name || '-'}\nรายงาน ${paymentConfirm.statement_number}\nงวด ${formatPeriod(paymentConfirm.period_year, paymentConfirm.period_month)}\nจำนวน ฿${formatAmount(paymentConfirm.outstanding_amount)}\n\nระบบจะออกใบกำกับภาษี/ใบเสร็จรับเงินอัตโนมัติ` : ''}
         confirmLabel={paymentLoading ? 'กำลังบันทึก...' : 'ยืนยันการชำระ'}
         confirmIcon={paymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
         loading={paymentLoading}
+      />
+
+      {/* Reverse Payment Confirm Dialog */}
+      <ConfirmDialog
+        open={!!reverseConfirm}
+        onClose={() => !reverseLoading && setReverseConfirm(null)}
+        onConfirm={() => reverseConfirm && handleReversePayment(reverseConfirm)}
+        icon={<Undo2 className="w-6 h-6 text-red-500" />}
+        title="ยกเลิกการชำระ"
+        description={reverseConfirm ? `ยกเลิกการชำระเงินของ ${reverseConfirm.customer?.name || '-'}\nรายงาน ${reverseConfirm.statement_number}\nงวด ${formatPeriod(reverseConfirm.period_year, reverseConfirm.period_month)}\nจำนวน ฿${formatAmount(reverseConfirm.paid_amount)}\n\nใบกำกับภาษี/ใบเสร็จที่ออกไปจะถูกยกเลิก (void)` : ''}
+        confirmLabel={reverseLoading ? 'กำลังดำเนินการ...' : 'ยืนยันยกเลิก'}
+        confirmIcon={reverseLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />}
+        variant="danger"
+        loading={reverseLoading}
       />
     </Layout>
   );
