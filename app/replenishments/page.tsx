@@ -27,6 +27,7 @@ interface Replenishment {
   replenishment_number: string;
   status: string;
   total_amount: number;
+  confirmed_total?: number | null;
   shipping_carrier?: string | null;
   tracking_number?: string | null;
   printed_packing_at?: string | null;
@@ -197,10 +198,69 @@ function ReplenishmentsPageContent() {
         const r = await res.json();
         throw new Error(r.error || 'Failed');
       }
-      showToast('จัดส่งเรียบร้อย', 'success');
+      const data = await res.json();
+      if (data.tax_invoice_number) {
+        showToast(`จัดส่งเรียบร้อย + ออกเอกสาร ${data.tax_invoice_number}`, 'success');
+      } else {
+        showToast('จัดส่งเรียบร้อย', 'success');
+      }
+      const shippedId = shipModalId;
       setShipModalId(null);
       resetShipForm();
       fetchData(true);
+      // Auto print DN/TAX after ship
+      if (data.tax_invoice_number) {
+        try {
+          const rp = await fetchReplenishmentForPdf(shippedId);
+          if (data.doc_type === 'tax') {
+            const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+            const blob = await generateFullInvoicePdf({
+              ...rp,
+              tax_invoice_number: data.tax_invoice_number,
+              tax_invoice_date: data.tax_invoice_date,
+              tax_invoice_doc_type: 'tax',
+            });
+            showPdfPreview(blob, `ใบกำกับภาษี ${data.tax_invoice_number}`);
+          } else {
+            const pdfData: ReplenishmentPdfData = {
+              id: rp.id,
+              replenishment_number: rp.replenishment_number,
+              status: rp.status,
+              notes: rp.notes,
+              created_at: rp.created_at,
+              receive_token: rp.receive_token,
+              total_amount: rp.total_amount,
+              shipping_fee: rp.shipping_fee,
+              customer: rp.customer ? {
+                name: rp.customer.name,
+                customer_code: rp.customer.customer_code,
+                phone: rp.customer.phone,
+                billing_address: rp.customer.billing_address,
+                billing_district: rp.customer.billing_district,
+                billing_amphoe: rp.customer.billing_amphoe,
+                billing_province: rp.customer.billing_province,
+                billing_postal_code: rp.customer.billing_postal_code,
+              } : null,
+              created_by_name: rp.created_by_profile?.name,
+              confirm_notes: rp.confirm_notes,
+              items: (rp.items || []).map((i: any) => ({
+                product_name: i.product_name,
+                variation_label: i.variation_label,
+                sku: i.sku,
+                quantity: i.quantity,
+                confirmed_quantity: i.confirmed_quantity,
+                unit_price: i.unit_price || 0,
+                image: i.image,
+              })),
+            };
+            const blob = await generateReplenishmentPdf({ data: pdfData });
+            showPdfPreview(blob, `ใบส่งสินค้า ${data.tax_invoice_number}`);
+          }
+          markPrintedAndUpdate(shippedId, 'dn');
+        } catch (printErr) {
+          console.error('Auto-print after ship failed:', printErr);
+        }
+      }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -715,7 +775,7 @@ function ReplenishmentsPageContent() {
                       {/* มูลค่า / รายการ */}
                       <td className="data-td text-right">
                         <span className="data-number text-gray-900 dark:text-white font-semibold">
-                          ฿{r.total_amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                          ฿{(r.confirmed_total ?? r.total_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                         </span>
                         <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{itemCount} รายการ</p>
                       </td>
@@ -840,7 +900,7 @@ function ReplenishmentsPageContent() {
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{r.customer?.name || '-'}</span>
-                        <span className="data-number text-gray-900 dark:text-white font-semibold">฿{r.total_amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                        <span className="data-number text-gray-900 dark:text-white font-semibold">฿{(r.confirmed_total ?? r.total_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">

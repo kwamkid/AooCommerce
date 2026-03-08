@@ -119,6 +119,8 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
 
   // Confirm mode state (for pending_confirm)
   const [confirmedQuantities, setConfirmedQuantities] = useState<Record<string, number>>({});
+  const confirmedQuantitiesRef = useRef(confirmedQuantities);
+  confirmedQuantitiesRef.current = confirmedQuantities;
   const [confirmSubmitting, setConfirmSubmitting] = useState(false);
 
   // Print state (declared early — used in onLoad useEffect dependency array below)
@@ -141,7 +143,8 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   const isCompleted = ['received', 'partial_received', 'cancelled'].includes(existingStatus);
 
   // Has mismatch: any item where received ≠ quantity
-  const hasMismatch = items.some(i => i.received_quantity !== i.quantity && i.received_quantity > 0);
+  const hasReceiveData = items.some(i => i.received_quantity > 0) || ['pending_confirm', 'received', 'partial_received'].includes(existingStatus);
+  const hasMismatch = hasReceiveData && items.some(i => i.received_quantity !== i.quantity);
 
   // Notify parent whenever relevant state changes (for header action buttons)
   const onLoadRef = useRef(onLoad);
@@ -261,11 +264,14 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         }));
         setItems(mappedItems);
 
-        // Init confirmed quantities (default to received_quantity)
+        // Init confirmed quantities
+        // For completed statuses: use confirmed_quantity as-is (even if 0 — that's the actual confirmed value)
+        // For pending_confirm: default to received_quantity (confirmed_quantity is still 0 = unset)
+        const isAlreadyConfirmed = ['received', 'partial_received'].includes(rp.status);
         const initConfirmed: Record<string, number> = {};
         for (const item of mappedItems) {
           if (item.id) {
-            initConfirmed[item.id] = item.confirmed_quantity > 0 ? item.confirmed_quantity : item.received_quantity;
+            initConfirmed[item.id] = isAlreadyConfirmed ? item.confirmed_quantity : (item.confirmed_quantity > 0 ? item.confirmed_quantity : item.received_quantity);
           }
         }
         setConfirmedQuantities(initConfirmed);
@@ -494,9 +500,10 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
     if (!replenishmentId) return;
     setConfirmSubmitting(true);
     try {
+      const currentConfirmed = confirmedQuantitiesRef.current;
       const confirmed_items = items
         .filter(i => i.id)
-        .map(i => ({ id: i.id!, confirmed_quantity: confirmedQuantities[i.id!] ?? i.received_quantity }));
+        .map(i => ({ id: i.id!, confirmed_quantity: currentConfirmed[i.id!] ?? i.received_quantity }));
 
       const res = await apiFetch(`/api/replenishments/${replenishmentId}`, {
         method: 'PUT',
@@ -631,59 +638,49 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         </div>
       )}
 
-      {/* Receiver Info (pending_confirm / received / partial_received) */}
+      {/* Receiver Info + Mismatch Warning (compact) */}
       {(isPendingConfirm || isCompleted) && existingData?.receiver_name && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-blue-200 dark:border-blue-800 p-5">
-          <div className="flex items-center gap-2 mb-3 text-blue-700 dark:text-blue-400">
-            <CheckCircle className="w-5 h-5" />
-            <span className="font-bold">ข้อมูลการรับสินค้า</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-gray-500 dark:text-slate-400">ผู้รับ: </span>
-              <span className="font-medium text-gray-900 dark:text-white">{existingData.receiver_name}</span>
-            </div>
-            {existingData.receive_notes && (
-              <div>
-                <span className="text-gray-500 dark:text-slate-400">หมายเหตุ: </span>
-                <span className="text-gray-700 dark:text-slate-300">{existingData.receive_notes}</span>
-              </div>
-            )}
-          </div>
+        <div className={`rounded-xl p-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm ${
+          isPendingConfirm && hasMismatch
+            ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'
+            : 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
+        }`}>
+          {isPendingConfirm && hasMismatch ? (
+            <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+          ) : (
+            <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />
+          )}
+          <span className={`font-bold ${isPendingConfirm && hasMismatch ? 'text-amber-700 dark:text-amber-400' : 'text-blue-700 dark:text-blue-400'}`}>
+            {isPendingConfirm && hasMismatch ? 'รับสินค้าไม่ตรง' : 'รับสินค้าแล้ว'}
+          </span>
+          <span className="text-gray-500 dark:text-slate-400">ผู้รับ: <span className="font-medium text-gray-700 dark:text-slate-300">{existingData.receiver_name}</span></span>
+          {existingData.receive_notes && (
+            <span className="text-gray-500 dark:text-slate-400">หมายเหตุ: <span className="text-gray-700 dark:text-slate-300">{existingData.receive_notes}</span></span>
+          )}
+          {isPendingConfirm && hasMismatch && (
+            <span className="text-amber-600 dark:text-amber-400/80">— กรุณาตรวจสอบจำนวน แล้วกดปุ่ม &quot;ยืนยัน&quot;</span>
+          )}
           {existingData.receive_photo_url && (
-            <div className="mt-3">
-              <img
-                src={existingData.receive_photo_url}
-                alt="รูปรับสินค้า"
-                className="max-h-48 object-contain rounded-lg border border-gray-200 dark:border-slate-600 cursor-pointer"
-                onClick={() => setLightboxImage(existingData.receive_photo_url)}
-              />
-            </div>
+            <img
+              src={existingData.receive_photo_url}
+              alt="รูปรับสินค้า"
+              className="h-10 w-10 object-cover rounded-lg border border-gray-200 dark:border-slate-600 cursor-pointer flex-shrink-0"
+              onClick={() => setLightboxImage(existingData.receive_photo_url)}
+            />
           )}
         </div>
       )}
 
-      {/* Mismatch warning (pending_confirm) */}
-      {isPendingConfirm && hasMismatch && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <div className="font-bold text-amber-700 dark:text-amber-400">ตัวแทนรับสินค้าไม่ตรง</div>
-            <p className="text-sm text-amber-600 dark:text-amber-400/80 mt-0.5">
-              กรุณาตรวจสอบจำนวนที่รับ และกรอกจำนวนที่ยืนยัน แล้วกดปุ่ม &quot;ยืนยัน&quot;
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Customer Section */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
-        <label className="label">ตัวแทน <span className="text-red-500">*</span></label>
+      <div className={`bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 ${isDisabled ? 'p-3' : 'p-5'}`}>
         {isDisabled ? (
-          <div className="px-3 py-2 bg-gray-50 dark:bg-slate-700 rounded-lg text-gray-900 dark:text-white font-medium">
-            {selectedCustomer?.name || 'ไม่ระบุ'}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-500 dark:text-slate-400">ตัวแทน</span>
+            <span className="font-bold text-gray-900 dark:text-white">{selectedCustomer?.name || 'ไม่ระบุ'}</span>
           </div>
         ) : (
+          <>
+          <label className="label">ตัวแทน <span className="text-red-500">*</span></label>
           <div className="flex gap-2 items-start">
             <div className="flex-1">
               <EntitySearchInput
@@ -710,6 +707,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
               </button>
             )}
           </div>
+          </>
         )}
 
         {/* Customer Info */}
@@ -717,12 +715,29 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
           const c = selectedCustomer;
           const mode = c.consignment_mode || 'dn';
           const isDN = mode === 'dn';
-          const modeLabel = isDN ? 'ใบส่งสินค้า (DN)' : 'ใบแจ้งหนี้ (Invoice)';
+          const modeLabel = isDN ? 'DN' : 'Invoice';
           const modeColor = isDN ? 'text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800';
           const billingParts = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean);
           const shippingParts = [c.address_line1, c.district, c.amphoe, c.province, c.postal_code].filter(Boolean);
           const addressParts = billingParts.length > 0 ? billingParts : shippingParts;
           const addressLabel = billingParts.length > 0 ? 'ที่อยู่ออกบิล' : shippingParts.length > 0 ? 'ที่อยู่จัดส่ง' : null;
+
+          if (isDisabled) {
+            // Compact inline view for confirm/view modes
+            return (
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500 dark:text-slate-400">
+                <span className={`px-1.5 py-0.5 rounded text-xs font-bold border ${modeColor}`}>{modeLabel}</span>
+                {c.phone && <span>โทร: {c.phone}</span>}
+                {c.tax_id && <span>เลขผู้เสียภาษี: {c.tax_id}{c.tax_branch ? ` (${c.tax_branch})` : ''}</span>}
+                {addressParts.length > 0 && (
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-3 h-3 flex-shrink-0" />
+                    {addressParts.join(', ')}
+                  </span>
+                )}
+              </div>
+            );
+          }
 
           return (
             <div className="mt-3 flex gap-3 items-stretch">
@@ -756,7 +771,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
               </div>
               <div className={`flex-shrink-0 flex flex-col items-center justify-center px-4 py-2.5 rounded-lg border ${modeColor}`}>
                 {isDN ? <FileText className="w-6 h-6 mb-1" /> : <Receipt className="w-6 h-6 mb-1" />}
-                <span className="text-xs font-bold whitespace-nowrap">{modeLabel}</span>
+                <span className="text-xs font-bold whitespace-nowrap">{isDN ? 'ใบส่งสินค้า (DN)' : 'ใบแจ้งหนี้ (Invoice)'}</span>
               </div>
             </div>
           );
@@ -803,8 +818,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <div className="font-medium text-gray-900 dark:text-white truncate">{item.product_name}</div>
-                                {item.variation_label && <div className="text-xs text-gray-400">{item.variation_label}</div>}
+                                <div className="font-medium text-gray-900 dark:text-white line-clamp-2">{item.product_name}{item.variation_label ? ` - ${item.variation_label}` : ''}</div>
                                 <div className="text-xs text-amber-600 dark:text-amber-400">฿{formatNumber(item.unit_price)}</div>
                               </div>
                             </div>
@@ -870,8 +884,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <div className="font-medium text-gray-900 dark:text-white truncate">{item.product_name}</div>
-                                {item.variation_label && <div className="text-xs text-gray-400">{item.variation_label}</div>}
+                                <div className="font-medium text-gray-900 dark:text-white line-clamp-2">{item.product_name}{item.variation_label ? ` - ${item.variation_label}` : ''}</div>
                                 <div className="text-xs text-amber-600 dark:text-amber-400">฿{formatNumber(item.unit_price)}</div>
                               </div>
                             </div>
@@ -1018,63 +1031,80 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         {/* Right Column — Summary */}
         {hasItems && (
           <div className="w-full sm:w-[300px] flex-shrink-0 sm:sticky sm:top-4">
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-              <OrderSummaryBox
-                title="สรุปใบเติมสินค้า"
-                subtotalAmount={subtotalBeforeDiscount}
-                vatRegistered={vatRegistered}
-                shippingFee={shippingFee}
-                onShippingChange={!isDisabled ? setShippingFee : undefined}
-                discountValue={orderDiscount}
-                discountType={orderDiscountType}
-                onDiscountChange={!isDisabled ? setOrderDiscount : undefined}
-                onDiscountTypeToggle={!isDisabled ? () => { setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent'); setOrderDiscount(0); } : undefined}
-                readOnly={isDisabled}
-              >
-                {confirmedTotalWithVAT !== null && confirmedTotalWithVAT !== totalWithVAT && (
-                  <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800">
-                    <div className="flex justify-between text-sm text-gray-500 dark:text-slate-400">
-                      <span>ยอดตามที่รับจริง</span>
-                      <span>฿{formatNumber(confirmedSubtotal!)}</span>
+            {confirmedTotalWithVAT !== null && confirmedTotalWithVAT !== totalWithVAT ? (
+              /* Comparison mode: original vs confirmed side-by-side */
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+                <h3 className="text-base font-semibold text-gray-700 dark:text-slate-300 mb-3">สรุปใบเติมสินค้า</h3>
+                {/* Header row */}
+                <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 text-xs text-gray-400 dark:text-slate-500 mb-1.5">
+                  <span />
+                  <span className="text-right w-20">ยอดส่ง</span>
+                  <span className="text-right w-20 font-bold text-amber-600 dark:text-amber-400">ยอดยืนยัน</span>
+                </div>
+                {/* Subtotal row */}
+                <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-center text-sm py-1">
+                  <span className="text-gray-500 dark:text-slate-400">รวมสินค้า{vatRegistered ? ' (VAT)' : ''}</span>
+                  <span className="text-right w-20 text-gray-400 dark:text-slate-500 line-through">฿{formatNumber(subtotalBeforeDiscount)}</span>
+                  <span className="text-right w-20 font-medium text-gray-900 dark:text-white">฿{formatNumber(confirmedSubtotal!)}</span>
+                </div>
+                {/* VAT breakdown */}
+                {vatRegistered && (
+                  <>
+                    <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-center text-sm py-1 border-t border-gray-100 dark:border-slate-700">
+                      <span className="text-gray-500 dark:text-slate-400">ก่อน VAT</span>
+                      <span className="text-right w-20 text-gray-400 dark:text-slate-500 line-through">฿{formatNumber(subtotalExVAT)}</span>
+                      <span className="text-right w-20 text-gray-600 dark:text-slate-300">฿{formatNumber(Math.round((confirmedTotalWithVAT / 1.07) * 100) / 100)}</span>
                     </div>
-                    {vatRegistered && (
-                      <>
-                        <div className="flex justify-between text-sm text-gray-500 dark:text-slate-400 mt-1">
-                          <span>ยอดก่อน VAT</span>
-                          <span>฿{formatNumber(Math.round((confirmedTotalWithVAT / 1.07) * 100) / 100)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm text-gray-500 dark:text-slate-400 mt-1">
-                          <span>VAT 7%</span>
-                          <span>฿{formatNumber(confirmedTotalWithVAT - Math.round((confirmedTotalWithVAT / 1.07) * 100) / 100)}</span>
-                        </div>
-                      </>
-                    )}
-                    <div className="flex justify-between font-bold text-base mt-1">
-                      <span className="text-amber-700 dark:text-amber-400">ยอดยืนยัน</span>
-                      <span className="text-amber-600 dark:text-amber-400">฿{formatNumber(confirmedTotalWithVAT)}</span>
+                    <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-center text-sm py-1">
+                      <span className="text-gray-500 dark:text-slate-400">VAT 7%</span>
+                      <span className="text-right w-20 text-gray-400 dark:text-slate-500 line-through">฿{formatNumber(vat)}</span>
+                      <span className="text-right w-20 text-gray-600 dark:text-slate-300">฿{formatNumber(confirmedTotalWithVAT - Math.round((confirmedTotalWithVAT / 1.07) * 100) / 100)}</span>
                     </div>
-                    <div className="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1">
-                      <span>ส่วนต่าง</span>
-                      <span className={confirmedTotalWithVAT < totalWithVAT ? 'text-red-500' : 'text-blue-500'}>
-                        {confirmedTotalWithVAT < totalWithVAT ? '-' : '+'}฿{formatNumber(Math.abs(totalWithVAT - confirmedTotalWithVAT))}
-                      </span>
-                    </div>
-                  </div>
+                  </>
                 )}
-              </OrderSummaryBox>
-            </div>
+                {/* Total comparison */}
+                <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-center pt-2 mt-1 border-t border-gray-200 dark:border-slate-600">
+                  <span className="font-bold text-gray-900 dark:text-white">ยอดรวมสุทธิ</span>
+                  <span className="text-right w-20 text-gray-400 dark:text-slate-500 line-through text-sm">฿{formatNumber(totalWithVAT)}</span>
+                  <span className="text-right w-20 font-bold text-lg text-[#F4511E]">฿{formatNumber(confirmedTotalWithVAT)}</span>
+                </div>
+                {/* Difference badge */}
+                <div className={`mt-2 flex items-center justify-end gap-1.5 text-sm font-medium ${confirmedTotalWithVAT < totalWithVAT ? 'text-red-500' : 'text-blue-500'}`}>
+                  <span>{confirmedTotalWithVAT < totalWithVAT ? 'ลดลง' : 'เพิ่มขึ้น'}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                    confirmedTotalWithVAT < totalWithVAT
+                      ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                      : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                  }`}>
+                    {confirmedTotalWithVAT < totalWithVAT ? '-' : '+'}฿{formatNumber(Math.abs(totalWithVAT - confirmedTotalWithVAT))}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              /* Normal mode */
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+                <OrderSummaryBox
+                  title="สรุปใบเติมสินค้า"
+                  subtotalAmount={subtotalBeforeDiscount}
+                  vatRegistered={vatRegistered}
+                  shippingFee={shippingFee}
+                  onShippingChange={!isDisabled ? setShippingFee : undefined}
+                  discountValue={orderDiscount}
+                  discountType={orderDiscountType}
+                  onDiscountChange={!isDisabled ? setOrderDiscount : undefined}
+                  onDiscountTypeToggle={!isDisabled ? () => { setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent'); setOrderDiscount(0); } : undefined}
+                  readOnly={isDisabled}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Actions — create/edit only (print/ship/confirm handled by parent header) */}
-      <div className="flex justify-end gap-3">
-        <button type="button" onClick={() => router.push('/replenishments')} disabled={submitting || confirmSubmitting} className="btn-secondary">
-          {viewMode ? 'กลับ' : 'ยกเลิก'}
-        </button>
-
-        {/* Create new */}
-        {!isEditMode && (
+      {/* Footer actions (create/edit only) */}
+      {!isEditMode && (
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={() => router.push('/replenishments')} disabled={submitting} className="btn-secondary">ยกเลิก</button>
           <button
             type="button"
             onClick={handleSubmit}
@@ -1084,10 +1114,10 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             สร้างใบเติมสินค้า
           </button>
-        )}
-
-        {/* Save edit (pending only) */}
-        {isEditMode && existingStatus === 'pending' && !viewMode && (
+        </div>
+      )}
+      {isEditMode && existingStatus === 'pending' && !viewMode && (
+        <div className="flex justify-end gap-3">
           <button
             type="button"
             onClick={handleSaveEdit}
@@ -1097,8 +1127,8 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             บันทึก
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Image Lightbox */}
       {lightboxImage && (

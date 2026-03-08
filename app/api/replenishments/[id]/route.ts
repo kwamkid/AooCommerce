@@ -26,6 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       `)
       .eq('id', id)
       .eq('company_id', auth.companyId)
+      .order('sort_order', { referencedTable: 'replenishment_items', ascending: true })
       .single();
 
     if (error || !data) {
@@ -251,7 +252,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       // Calculate confirmed_total
       const confirmedTotal = (allItems || []).reduce((sum: number, item: { confirmed_quantity: number; quantity: number; unit_price: number }) => {
-        const qty = item.confirmed_quantity > 0 ? item.confirmed_quantity : item.quantity;
+        const qty = item.confirmed_quantity != null ? item.confirmed_quantity : item.quantity;
         return sum + qty * (item.unit_price || 0);
       }, 0);
 

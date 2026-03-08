@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
         company:companies(id, name, logo_url)
       `)
       .eq('receive_token', token)
+      .order('sort_order', { referencedTable: 'replenishment_items', ascending: true })
       .single();
 
     if (error || !replenishment) {
@@ -117,6 +118,7 @@ export async function POST(request: NextRequest) {
       .from('replenishments')
       .select('*, items:replenishment_items(*)')
       .eq('receive_token', token)
+      .order('sort_order', { referencedTable: 'replenishment_items', ascending: true })
       .single();
 
     if (rpError || !replenishment) {
@@ -177,7 +179,7 @@ export async function POST(request: NextRequest) {
       const repItem = replenishment.items.find((i: any) => i.id === item_id);
       if (!repItem) continue;
 
-      if (received_quantity < 0 || received_quantity > repItem.quantity) continue;
+      if (received_quantity < 0) continue;
 
       await supabaseAdmin
         .from('replenishment_items')

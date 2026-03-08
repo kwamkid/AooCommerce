@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
         status,
         notes,
         total_amount,
+        confirmed_total,
         shipping_carrier,
         tracking_number,
         receive_token,
@@ -192,7 +193,7 @@ export async function POST(request: NextRequest) {
       gp_base_price?: string;
       gp_level?: number;
       sku?: string;
-    }) => ({
+    }, index: number) => ({
       replenishment_id: replenishment.id,
       product_id: item.product_id || null,
       variation_id: item.variation_id || null,
@@ -207,6 +208,7 @@ export async function POST(request: NextRequest) {
       gp_base_price: item.gp_base_price || null,
       gp_level: item.gp_level ?? null,
       sku: item.sku || null,
+      sort_order: index,
     }));
 
     const { error: itemsError } = await supabaseAdmin

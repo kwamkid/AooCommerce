@@ -244,59 +244,48 @@ function NewReplenishmentPageContent() {
             </div>
           </div>
 
-          {/* Action buttons (edit/view mode only) */}
+          {/* Action buttons */}
           {isEdit && formState && (
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Print */}
               <button
                 onClick={formState.handlePrint}
                 disabled={formState.printing}
-                className="flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                className="btn-secondary flex items-center gap-2"
               >
                 {formState.printing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
                 พิมพ์
               </button>
 
-              {/* Ship button (pending only) */}
-              {status === 'pending' && !viewMode && (
-                <button
-                  onClick={() => setShowShipModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] text-white rounded-lg text-sm hover:bg-[#D63B0E] transition-colors"
-                >
-                  <Send className="w-4 h-4" />
-                  จัดส่ง
-                </button>
-              )}
-
-              {/* Copy receive link (shipped only) */}
               {status === 'shipped' && formState.receiveToken && (
                 <button
                   onClick={copyReceiveLink}
-                  className="flex items-center gap-2 px-3 py-2 border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-lg text-sm hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                  className="btn-secondary flex items-center gap-2 !border-amber-300 dark:!border-amber-700 !bg-amber-50 dark:!bg-amber-900/20 !text-amber-700 dark:!text-amber-400 hover:!bg-amber-100 dark:hover:!bg-amber-900/30"
                 >
                   <Copy className="w-4 h-4" />
                   คัดลอกลิงก์รับสินค้า
                 </button>
               )}
 
-              {/* Confirm button (pending_confirm only) */}
-              {status === 'pending_confirm' && !viewMode && (
+              {status === 'pending' && !viewMode && (
+                <button onClick={() => setShowShipModal(true)} className="btn-primary">
+                  <Send className="w-4 h-4" />
+                  จัดส่ง
+                </button>
+              )}
+
+              {status === 'pending_confirm' && (
                 <button
                   onClick={formState.handleConfirm}
                   disabled={formState.confirmSubmitting}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors disabled:opacity-50"
+                  className="btn-success"
                 >
                   {formState.confirmSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                   ยืนยัน
                 </button>
               )}
 
-              {/* Cancel button (pending only) */}
               {status === 'pending' && !viewMode && (
-                <button
-                  onClick={() => setShowCancelConfirm(true)}
-                  className="flex items-center gap-2 px-3 py-2 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                >
+                <button onClick={() => setShowCancelConfirm(true)} className="btn-danger flex items-center gap-2">
                   <XCircle className="w-4 h-4" />
                   ยกเลิก
                 </button>
