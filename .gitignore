@@ -51,3 +51,7 @@ supabase/migrations/
 # project notes (local only)
 todo.md
 knowledge.md
+
+# local API docs
+api_doc_knowledge/
+" api_doc_knowledge/"
