@@ -597,10 +597,12 @@ export async function exportProductToShopee(
     }
 
     // 6. For variation products: call init_tier_variation
+    // Shopee API requires a 5-second wait after add_item before calling init_tier_variation
     // Map: variation index → real Shopee model_id (populated after init_tier_variation + get_model_list)
     const modelIdMap = new Map<number, number>();
 
     if (!simple && product.variations.length > 1) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
       // Build tier variations from variation attributes
       // e.g. variations with attributes { "สี": "แดง", "ขนาด": "S" } → tier_variation: [{ name: "สี", ... }, { name: "ขนาด", ... }]
       const tierNames: string[] = [];
@@ -638,7 +640,7 @@ export async function exportProductToShopee(
           const modelPrice = (v.discount_price && v.discount_price > 0) ? v.discount_price : (v.default_price || 0);
           return {
             tier_index: tierIndex,
-            normal_stock: v.stock || 0,
+            seller_stock: [{ stock: v.stock || 0 }],
             original_price: modelPrice,
             model_sku: v.sku || undefined,
           };

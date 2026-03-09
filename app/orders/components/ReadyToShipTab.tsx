@@ -39,24 +39,11 @@ import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { Order } from './types';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import TimeSlotPickerPanel, { type TimeSlotOrder } from './TimeSlotPickerPanel';
 
 const ON_HOLD_KEY = '__on_hold__';
 const ACTIVE_KEY = '__active__';
 const VERIFYING_KEY = '__verifying__';
-
-interface TimeSlot {
-  pickup_time_id: string;
-  date: number;
-  display: string;
-  recommended: boolean;
-}
-
-interface TimeSlotModal {
-  orderId: string;
-  orderSn: string;
-  orderNumber: string;
-  timeSlots: TimeSlot[];
-}
 
 interface ReadyToShipTabProps {
   /** Normal (non-hold) order count from parent status counts */
@@ -130,9 +117,10 @@ export default function ReadyToShipTab({
   const [holdModal, setHoldModal] = useState<{ orderId: string; orderNumber: string } | null>(null);
   const [holdReason, setHoldReason] = useState('');
   const [toast, setToast] = useState('');
-  const [timeSlotModal, setTimeSlotModal] = useState<TimeSlotModal | null>(null);
-  const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<string | null>(null);
-  const [pendingTimeSlotOrders, setPendingTimeSlotOrders] = useState<TimeSlotModal[]>([]);
+  // Timeslot picker panel — replaces old one-by-one modal queue
+  const [timeSlotOrders, setTimeSlotOrders] = useState<TimeSlotOrder[]>([]);
+  const [timeSlotPanelOpen, setTimeSlotPanelOpen] = useState(false);
+  const [timeSlotLoading, setTimeSlotLoading] = useState(false);
   const [splitModal, setSplitModal] = useState<{
     orderId: string;
     orderNumber: string;
@@ -333,13 +321,6 @@ export default function ReadyToShipTab({
     selectedIds.size >= totalOrders || selectableOrders.every(o => selectedIds.has(o.id))
   );
 
-  // Auto-select recommended timeslot when modal opens
-  useEffect(() => {
-    if (timeSlotModal) {
-      const recommended = timeSlotModal.timeSlots.find(s => s.recommended);
-      setSelectedTimeSlotId(recommended?.pickup_time_id || null);
-    }
-  }, [timeSlotModal]);
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -391,10 +372,10 @@ export default function ReadyToShipTab({
       const shopeeIds = ids.filter(id => orders.find(o => o.id === id)?.source === 'shopee');
       const manualIds = ids.filter(id => !shopeeIds.includes(id));
 
-      let successCount = 0;
+      const successIds: string[] = [];
       let processedCount = 0;
       const total = ids.length;
-      const timeSlotQueue: TimeSlotModal[] = [];
+      const timeSlotQueue: TimeSlotOrder[] = [];
       const errors: string[] = [];
 
       // Process manual orders
@@ -407,8 +388,9 @@ export default function ReadyToShipTab({
         });
         if (res.ok) {
           const result = await res.json();
+          // Track which manual orders succeeded
           const count = result.updated || manualIds.length;
-          successCount += count;
+          successIds.push(...manualIds.slice(0, count));
           processedCount += manualIds.length;
         } else {
           const d = await res.json();
@@ -434,7 +416,7 @@ export default function ReadyToShipTab({
             setOverlayProgress(Math.round((processedCount / total) * 100));
             setOverlayMessage(`${processedCount} / ${total}`);
             if (r.success) {
-              successCount++;
+              successIds.push(r.order_id);
             } else if (r.needs_time_slot && r.time_slots?.length > 0) {
               const order = orders.find(o => o.id === r.order_id);
               timeSlotQueue.push({
@@ -456,20 +438,34 @@ export default function ReadyToShipTab({
       setOverlayMessage('เสร็จสิ้น');
 
       // Show results
+      const successCount = successIds.length;
       if (successCount > 0) {
         showToast(`กดรับสำเร็จ ${successCount} รายการ`, 'success');
-        // Show print dialog after successful accept
+
+        // Build print options based on order types
+        const successManualIds = successIds.filter(id => {
+          const o = orders.find(o => o.id === id);
+          return o && !isMarketplaceSource(o.source);
+        });
+        const successShopeeIds = successIds.filter(id => {
+          const o = orders.find(o => o.id === id);
+          return o && isMarketplaceSource(o.source);
+        });
+
+        const printOptions: Array<{ key: string; label: string; count: number; defaultChecked: boolean }> = [];
+        if (successShopeeIds.length > 0) {
+          printOptions.push({ key: 'shopee_label', label: 'ใบปะหน้า Shopee', count: successShopeeIds.length, defaultChecked: true });
+        }
+        if (successManualIds.length > 0) {
+          printOptions.push({ key: 'label', label: 'ใบปะหน้า', count: successManualIds.length, defaultChecked: true });
+        }
+        printOptions.push({ key: 'packing', label: 'ใบจัดของ', count: successCount, defaultChecked: true });
+        printOptions.push({ key: 'invoice', label: 'ใบกำกับ/ใบเสร็จ', count: successCount, defaultChecked: false });
+
         setPrintModal({
           title: `กดรับสำเร็จ ${successCount} รายการ`,
-          orderIds: ids.filter(id => {
-            const o = orders.find(o => o.id === id);
-            return o && !isMarketplaceSource(o.source);
-          }),
-          options: [
-            { key: 'label', label: 'ใบปะหน้า', count: successCount, defaultChecked: true },
-            { key: 'packing', label: 'ใบจัดของ', count: successCount, defaultChecked: true },
-            { key: 'invoice', label: 'ใบกำกับ/ใบเสร็จ', count: successCount, defaultChecked: false },
-          ],
+          orderIds: successIds,
+          options: printOptions,
         });
       }
       if (errors.length > 0) {
@@ -479,12 +475,13 @@ export default function ReadyToShipTab({
       setSelectedIds(new Set());
       setConfirmModal(null);
 
-      // If any orders need timeslot selection, show modal for first one and queue the rest
+      // Always refresh to remove accepted orders from the list
+      handleRefresh();
+
+      // If any orders need timeslot selection, show the picker panel
       if (timeSlotQueue.length > 0) {
-        setTimeSlotModal(timeSlotQueue[0]);
-        setPendingTimeSlotOrders(timeSlotQueue.slice(1));
-      } else {
-        handleRefresh();
+        setTimeSlotOrders(timeSlotQueue);
+        setTimeSlotPanelOpen(true);
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
@@ -561,22 +558,83 @@ export default function ReadyToShipTab({
     };
   };
 
+  /** Print Shopee labels via bulk-shipping-document SSE endpoint */
+  const handlePrintShopeeLabels = async (orderIds: string[]) => {
+    const response = await apiFetch('/api/shopee/orders/bulk-shipping-document', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_ids: orderIds }),
+    });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'Failed to generate Shopee labels');
+    }
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response stream');
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let pdfBlob: Blob | null = null;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let event;
+        try { event = JSON.parse(line.slice(6)); } catch { continue; }
+        if (event.type === 'progress') {
+          setOverlayMessage(event.detail ? `${event.label}: ${event.detail}` : event.label);
+          setOverlayProgress(event.progress);
+        } else if (event.type === 'done' && event.pdf) {
+          const bytes = Uint8Array.from(atob(event.pdf), c => c.charCodeAt(0));
+          pdfBlob = new Blob([bytes], { type: 'application/pdf' });
+        } else if (event.type === 'error') {
+          throw new Error(event.message || 'Shopee label generation failed');
+        }
+      }
+    }
+    if (pdfBlob) {
+      showPdfPreview(pdfBlob, 'ใบปะหน้า Shopee');
+    } else {
+      throw new Error('ไม่ได้รับ PDF จาก Shopee');
+    }
+  };
+
   /** Handle print modal selections */
   const handlePrintModalPrint = async (selectedKeys: string[]) => {
     if (!printModal) return;
     const ids = printModal.orderIds;
+    const manualIds = ids.filter(id => { const o = orders.find(o => o.id === id); return o && !isMarketplaceSource(o.source); });
+    const shopeeIds = ids.filter(id => { const o = orders.find(o => o.id === id); return o && isMarketplaceSource(o.source); });
+
     for (const key of selectedKeys) {
-      if (key === 'label') {
-        // Generate shipping labels
+      if (key === 'shopee_label' && shopeeIds.length > 0) {
+        setOverlayOpen(true);
+        setOverlayTitle('กำลังสร้างใบปะหน้า Shopee...');
+        setOverlayProgress(0);
+        try {
+          await handlePrintShopeeLabels(shopeeIds);
+          markOrdersPrinted(shopeeIds, 'label');
+          updateLocalPrintStatus(setOrders, shopeeIds, 'label');
+        } finally {
+          setOverlayOpen(false);
+          setOverlayProgress(undefined);
+          setOverlayMessage(undefined);
+        }
+      }
+      if (key === 'label' && manualIds.length > 0) {
+        // Generate shipping labels for manual orders only
         const blobs: Blob[] = [];
-        for (const id of ids) {
+        for (const id of manualIds) {
           const orderData = await fetchOrderForPdf(id);
           blobs.push(await generateShippingLabelPdf({ data: { ...orderData, ...getDropshipSender(orderData) } }));
         }
         const merged = await mergePdfBlobs(blobs);
         showPdfPreview(merged, 'ใบปะหน้า');
-        markOrdersPrinted(ids, 'label');
-        updateLocalPrintStatus(setOrders, ids, 'label');
+        markOrdersPrinted(manualIds, 'label');
+        updateLocalPrintStatus(setOrders, manualIds, 'label');
       }
       if (key === 'packing') {
         const ordersData = [];
@@ -623,23 +681,17 @@ export default function ReadyToShipTab({
 
       if (r?.success) {
         showToast('รับออเดอร์ Shopee สำเร็จ');
-        // Show next pending timeslot order, or refresh
-        if (pendingTimeSlotOrders.length > 0) {
-          setTimeSlotModal(pendingTimeSlotOrders[0]);
-          setPendingTimeSlotOrders(prev => prev.slice(1));
-        } else {
-          setTimeSlotModal(null);
-          handleRefresh();
-        }
+        handleRefresh();
       } else if (r?.needs_time_slot && r.time_slots?.length > 0) {
-        // Find matching order for display
+        // Show timeslot picker panel for this single order
         const order = orders.find(o => o.id === orderId);
-        setTimeSlotModal({
+        setTimeSlotOrders([{
           orderId,
           orderSn: r.order_sn || '',
           orderNumber: order?.order_number || r.order_sn || '',
           timeSlots: r.time_slots,
-        });
+        }]);
+        setTimeSlotPanelOpen(true);
       } else {
         showToast(r?.error || 'รับออเดอร์ไม่สำเร็จ', 'error');
       }
@@ -651,6 +703,75 @@ export default function ReadyToShipTab({
       setOverlayProgress(undefined);
       setOverlayMessage(undefined);
     }
+  };
+
+  /** Bulk confirm timeslot orders — ship each with its selected pickup_time_id */
+  const handleTimeSlotConfirm = async (selections: Map<string, string>) => {
+    setTimeSlotLoading(true);
+    setOverlayOpen(true);
+    setOverlayTitle('กำลังรับออเดอร์...');
+    setOverlayProgress(0);
+
+    const total = selections.size;
+    let processed = 0;
+    const successIds: string[] = [];
+    const errors: string[] = [];
+
+    for (const [orderId, pickupTimeId] of selections) {
+      try {
+        const res = await apiFetch('/api/shopee/orders/bulk-ship', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_ids: [orderId], pickup_time_id: pickupTimeId }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const r = data.results?.[0];
+          if (r?.success) {
+            successIds.push(orderId);
+          } else {
+            const tsOrder = timeSlotOrders.find(o => o.orderId === orderId);
+            errors.push(`${tsOrder?.orderNumber || orderId}: ${r?.error || 'ไม่สำเร็จ'}`);
+          }
+        } else {
+          errors.push(`${orderId}: API error`);
+        }
+      } catch {
+        errors.push(`${orderId}: เกิดข้อผิดพลาด`);
+      }
+      processed++;
+      setOverlayProgress(Math.round((processed / total) * 100));
+      setOverlayMessage(`${processed} / ${total}`);
+    }
+
+    setTimeSlotPanelOpen(false);
+    setTimeSlotOrders([]);
+    setTimeSlotLoading(false);
+    setOverlayOpen(false);
+    setOverlayProgress(undefined);
+    setOverlayMessage(undefined);
+
+    if (successIds.length > 0) {
+      showToast(`รับออเดอร์สำเร็จ ${successIds.length} รายการ`, 'success');
+
+      // Show print dialog for successful orders
+      const successShopeeIds = successIds;
+      const printOptions: Array<{ key: string; label: string; count: number; defaultChecked: boolean }> = [];
+      printOptions.push({ key: 'shopee_label', label: 'ใบปะหน้า Shopee', count: successShopeeIds.length, defaultChecked: true });
+      printOptions.push({ key: 'packing', label: 'ใบจัดของ', count: successIds.length, defaultChecked: true });
+      printOptions.push({ key: 'invoice', label: 'ใบกำกับ/ใบเสร็จ', count: successIds.length, defaultChecked: false });
+
+      setPrintModal({
+        title: `รับออเดอร์สำเร็จ ${successIds.length} รายการ`,
+        orderIds: successIds,
+        options: printOptions,
+      });
+    }
+    if (errors.length > 0) {
+      showToast(errors.join('\n'), 'error');
+    }
+
+    handleRefresh();
   };
 
   const handleHold = async () => {
@@ -1198,95 +1319,22 @@ export default function ReadyToShipTab({
         </div>
       )}
 
-      {/* TimeSlot Modal */}
-      {timeSlotModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => !actionLoading && (() => { setTimeSlotModal(null); setSelectedTimeSlotId(null); handleRefresh(); })()}
-        >
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-1">
-              <Clock className="w-5 h-5 text-[#F4511E]" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                เลือกเวลารับพัสดุ
-              </h3>
-            </div>
-            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
-              ออเดอร์ <span className="font-medium text-gray-700 dark:text-slate-300">{timeSlotModal.orderNumber}</span> ต้องเลือกรอบเวลารับพัสดุ
-              {pendingTimeSlotOrders.length > 0 && (
-                <span className="text-gray-400 dark:text-slate-500"> (เหลืออีก {pendingTimeSlotOrders.length + 1} รายการ)</span>
-              )}
-            </p>
-            <div className="space-y-2 mb-6">
-              {timeSlotModal.timeSlots.map((slot) => (
-                <button
-                  key={slot.pickup_time_id}
-                  onClick={() => setSelectedTimeSlotId(slot.pickup_time_id)}
-                  disabled={actionLoading}
-                  className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors disabled:opacity-50 flex items-center justify-between ${
-                    selectedTimeSlotId === slot.pickup_time_id
-                      ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20'
-                      : slot.recommended
-                        ? 'border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/10 hover:bg-orange-50 dark:hover:bg-orange-900/20'
-                        : 'border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/50'
-                  }`}
-                >
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">
-                    {slot.display}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {slot.recommended && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-[#F4511E] text-white">
-                        แนะนำ
-                      </span>
-                    )}
-                    {selectedTimeSlotId === slot.pickup_time_id && (
-                      <CheckCircle className="w-5 h-5 text-[#F4511E]" />
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => {
-                  setSelectedTimeSlotId(null);
-                  if (pendingTimeSlotOrders.length > 0) {
-                    setTimeSlotModal(pendingTimeSlotOrders[0]);
-                    setPendingTimeSlotOrders(prev => prev.slice(1));
-                  } else {
-                    setTimeSlotModal(null);
-                    handleRefresh();
-                  }
-                }}
-                disabled={actionLoading}
-                className="text-sm text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors disabled:opacity-50"
-              >
-                ยังไม่รับ
-              </button>
-              <button
-                onClick={() => {
-                  if (selectedTimeSlotId) {
-                    handleSingleAcceptShopee(timeSlotModal.orderId, selectedTimeSlotId);
-                    setSelectedTimeSlotId(null);
-                  }
-                }}
-                disabled={actionLoading || !selectedTimeSlotId}
-                className="px-6 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center gap-2 text-sm font-medium"
-              >
-                {actionLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>
-                ) : (
-                  'ตกลง'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* TimeSlot Picker Panel */}
+      {timeSlotPanelOpen && timeSlotOrders.length > 0 && (
+        <TimeSlotPickerPanel
+          orders={timeSlotOrders}
+          loading={timeSlotLoading}
+          onConfirm={handleTimeSlotConfirm}
+          onSkip={() => {
+            setTimeSlotPanelOpen(false);
+            setTimeSlotOrders([]);
+            handleRefresh();
+          }}
+        />
       )}
 
-      {/* PDF loading toast — only show when NOT in timeslot modal */}
-      {actionLoading && !timeSlotModal && (
+      {/* PDF loading toast — only show when NOT in timeslot panel */}
+      {actionLoading && !timeSlotPanelOpen && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm">
           <Loader2 className="w-4 h-4 animate-spin text-[#F4511E]" />
           กำลังดำเนินการ...

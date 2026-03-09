@@ -508,7 +508,7 @@ export async function deleteAddOnDeal(
 
 /**
  * Delete main items from an Add-on Deal.
- * main_item_list is a flat array of item_id integers.
+ * API requires main_item_list as array of { item_id, status } objects.
  */
 export async function deleteAddOnDealMainItems(
   creds: ShopeeCredentials,
@@ -519,7 +519,7 @@ export async function deleteAddOnDealMainItems(
     creds, 'POST', '/api/v2/add_on_deal/delete_add_on_deal_main_item',
     {}, {
       add_on_deal_id: addOnDealId,
-      main_item_list: itemIds,
+      main_item_list: itemIds.map(id => ({ item_id: id, status: 2 })),
     },
   );
 

@@ -1395,13 +1395,13 @@ export async function addItem(
  * Initialize tier variation for a product on Shopee.
  * Must be called after add_item for variation products.
  * tier_variation: [{ name: "สี", option_list: [{ option: "แดง" }, ...] }, ...]
- * model: [{ tier_index: [0, 0], normal_stock: 10, original_price: 100, model_sku: "SKU-001" }, ...]
+ * model: [{ tier_index: [0, 0], seller_stock: [{ stock: 10 }], original_price: 100, model_sku: "SKU-001" }, ...]
  */
 export async function initTierVariation(
   creds: ShopeeCredentials,
   itemId: number,
   tierVariation: Array<{ name: string; option_list: Array<{ option: string; image?: { image_id: string } }> }>,
-  model: Array<{ tier_index: number[]; normal_stock: number; original_price: number; model_sku?: string }>
+  model: Array<{ tier_index: number[]; seller_stock: Array<{ stock: number }>; original_price: number; model_sku?: string }>
 ): Promise<{ data: unknown; error?: string }> {
   return shopeeApiRequest(creds, 'POST', '/api/v2/product/init_tier_variation', {}, {
     item_id: itemId,

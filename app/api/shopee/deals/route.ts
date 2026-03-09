@@ -497,12 +497,24 @@ export async function POST(req: NextRequest) {
 
             const promotionType = promotion.promotion_type === 'buy_get_free' ? 1 : 0;
 
-            const result = await createAddOnDeal(creds, {
+            const addOnParams: Parameters<typeof createAddOnDeal>[1] = {
               add_on_deal_name: promotion.name.trim().slice(0, 25) || 'Add-on Deal',
               start_time: startTs,
               end_time: endTs,
               promotion_type: promotionType as 0 | 1,
-            });
+            };
+
+            // For gift_with_min_spend (type=1): send purchase_min_spend and per_gift_num
+            if (promotionType === 1) {
+              if (promotion.purchase_min_spend != null && promotion.purchase_min_spend > 0) {
+                addOnParams.purchase_min_spend = promotion.purchase_min_spend;
+              }
+              if (promotion.per_gift_num != null && promotion.per_gift_num > 0) {
+                addOnParams.per_gift_num = promotion.per_gift_num;
+              }
+            }
+
+            const result = await createAddOnDeal(creds, addOnParams);
 
             externalDealId = result.add_on_deal_id;
             completedSteps.push({ type: 'deal_created', dealId: externalDealId });
@@ -530,13 +542,35 @@ export async function POST(req: NextRequest) {
 
             send({ step: 'add_main_items', status: 'success', message: `เพิ่มสินค้าหลัก ${mainItems.length} รายการสำเร็จ` });
 
-            // ─── Step 4: Add sub items (gift/discounted) ───
+            // ─── Step 4: Add sub items (gift/discounted) — must include model_id ───
             send({ step: 'add_sub_items', status: 'in_progress', message: 'เพิ่มของแถม/สินค้าราคาพิเศษ...' });
+
+            // Fetch model_ids from marketplace_product_links for sub item variations
+            const subItemVariationIds = items
+              .filter(i => i.role === 'gift' || i.role === 'discounted')
+              .map(i => i.variation_id);
+
+            const modelIdMap = new Map<string, number>(); // variation_id → model_id
+            if (subItemVariationIds.length > 0) {
+              const { data: links } = await supabaseAdmin
+                .from('marketplace_product_links')
+                .select('variation_id, external_model_id')
+                .eq('account_id', account_id)
+                .eq('platform', 'shopee')
+                .in('variation_id', subItemVariationIds);
+
+              for (const link of links || []) {
+                if (link.variation_id && link.external_model_id) {
+                  modelIdMap.set(link.variation_id, parseInt(link.external_model_id) || 0);
+                }
+              }
+            }
 
             const subItems = items
               .filter(i => i.role === 'gift' || i.role === 'discounted')
               .map(i => ({
                 item_id: itemShopeeIds.get(i.variation_id)!,
+                model_id: modelIdMap.get(i.variation_id) || undefined,
                 status: 1 as const,
                 sub_item_input_price: i.role === 'gift' ? 0 : (i.special_price || 0),
                 sub_item_limit: 1,
