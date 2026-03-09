@@ -7,6 +7,7 @@ import {
   getShippingParameter,
   shipOrder,
 } from '@/lib/shopee/api';
+import { logIntegration } from '@/lib/integration-logger';
 
 /**
  * POST - Accept/ship a Shopee order.
@@ -19,6 +20,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const startedAt = Date.now();
     const body = await request.json();
     const { order_id, pickup_time_id } = body;
 
@@ -76,6 +78,18 @@ export async function POST(request: NextRequest) {
 
     if (paramError) {
       console.error('[Shopee Ship] getShippingParameter error:', paramError);
+      logIntegration({
+        company_id: companyId, integration: 'shopee',
+        account_id: account.id, account_name: account.shop_name,
+        direction: 'outgoing', action: 'accept_order',
+        method: 'POST', api_path: '/api/v2/logistics/get_shipping_parameter',
+        request_body: { order_sn: order.external_order_sn },
+        response_body: { error: paramError },
+        status: 'error', error_message: String(paramError),
+        reference_type: 'order', reference_id: order.external_order_sn,
+        reference_label: `Accept ${order.external_order_sn} → get_shipping_parameter failed`,
+        duration_ms: Date.now() - startedAt,
+      });
       return NextResponse.json({ error: `ไม่สามารถดึงข้อมูลขนส่งได้: ${paramError}` }, { status: 500 });
     }
 
@@ -132,6 +146,18 @@ export async function POST(request: NextRequest) {
         }
 
         if (errors.length > 0) {
+          logIntegration({
+            company_id: companyId, integration: 'shopee',
+            account_id: account.id, account_name: account.shop_name,
+            direction: 'outgoing', action: 'accept_order',
+            method: 'POST', api_path: '/api/v2/logistics/ship_order',
+            request_body: { order_sn: order.external_order_sn, is_split: true, package_numbers: packageNumbers },
+            response_body: { errors },
+            status: 'error', error_message: errors.join(', '),
+            reference_type: 'order', reference_id: order.external_order_sn,
+            reference_label: `Accept ${order.external_order_sn} → split ship failed`,
+            duration_ms: Date.now() - startedAt,
+          });
           return NextResponse.json({ error: `บางกล่องรับออเดอร์ไม่สำเร็จ: ${errors.join(', ')}` }, { status: 500 });
         }
 
@@ -146,6 +172,18 @@ export async function POST(request: NextRequest) {
         const { autoIssueDocument } = await import('@/lib/invoice-service');
         autoIssueDocument(order_id, companyId).catch(() => {});
 
+        logIntegration({
+          company_id: companyId, integration: 'shopee',
+          account_id: account.id, account_name: account.shop_name,
+          direction: 'outgoing', action: 'accept_order',
+          method: 'POST', api_path: '/api/v2/logistics/ship_order',
+          request_body: { order_sn: order.external_order_sn, is_split: true, package_numbers: packageNumbers },
+          response_body: { success: true, external_status: 'PROCESSED' },
+          status: 'success',
+          reference_type: 'order', reference_id: order.external_order_sn,
+          reference_label: `Accept ${order.external_order_sn} → PROCESSED (split)`,
+          duration_ms: Date.now() - startedAt,
+        });
         return NextResponse.json({ success: true, external_status: 'PROCESSED', order_status: 'processing' });
       }
     }
@@ -184,6 +222,18 @@ export async function POST(request: NextRequest) {
 
     if (shipResult.error) {
       console.error('[Shopee Ship] ship_order error:', shipResult.error);
+      logIntegration({
+        company_id: companyId, integration: 'shopee',
+        account_id: account.id, account_name: account.shop_name,
+        direction: 'outgoing', action: 'accept_order',
+        method: 'POST', api_path: '/api/v2/logistics/ship_order',
+        request_body: { order_sn: order.external_order_sn },
+        response_body: shipResult,
+        status: 'error', error_message: String(shipResult.error),
+        reference_type: 'order', reference_id: order.external_order_sn,
+        reference_label: `Accept ${order.external_order_sn} → ship_order failed`,
+        duration_ms: Date.now() - startedAt,
+      });
       return NextResponse.json({ error: `รับออเดอร์ไม่สำเร็จ: ${shipResult.error}` }, { status: 500 });
     }
 
@@ -203,6 +253,19 @@ export async function POST(request: NextRequest) {
     // Auto-issue document (ABB/REC)
     const { autoIssueDocument } = await import('@/lib/invoice-service');
     autoIssueDocument(order_id, companyId).catch(() => {});
+
+    logIntegration({
+      company_id: companyId, integration: 'shopee',
+      account_id: account.id, account_name: account.shop_name,
+      direction: 'outgoing', action: 'accept_order',
+      method: 'POST', api_path: '/api/v2/logistics/ship_order',
+      request_body: { order_sn: order.external_order_sn },
+      response_body: { success: true, external_status: 'PROCESSED' },
+      status: 'success',
+      reference_type: 'order', reference_id: order.external_order_sn,
+      reference_label: `Accept ${order.external_order_sn} → PROCESSED`,
+      duration_ms: Date.now() - startedAt,
+    });
 
     return NextResponse.json({
       success: true,

@@ -1,11 +1,24 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
-import { Package, Trash2, AlertTriangle, X } from 'lucide-react';
+import { Fragment, useRef, useState, useEffect } from 'react';
+import { Package, Trash2, AlertTriangle, X, ChevronDown, ChevronRight, Gift } from 'lucide-react';
 import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 
 // ── Types ──────────────────────────────────────────────────────────────────
+
+export interface PromotionComponent {
+  variation_id: string;
+  product_name: string;
+  product_code?: string | null;
+  sku?: string | null;
+  barcode?: string | null;
+  image?: string | null;
+  role: string;
+  quantity: number;
+  default_price?: number;
+  special_price?: number | null;
+}
 
 export interface TableItem {
   variation_id: string;
@@ -27,6 +40,15 @@ export interface TableItem {
   stock_dest?: number | null;
   /** GP breakdown text, e.g. "฿990 - GP30% = ฿693" */
   gpInfo?: string | null;
+  /** Promotion data */
+  promotion_id?: string | null;
+  promotion_name?: string | null;
+  promotion_type?: string | null;
+  promotion_components?: PromotionComponent[];
+  /** Item role for promotion forms */
+  role?: string | null;
+  /** Special price for buy_get_discount items */
+  special_price?: number | null;
 }
 
 export type ColumnKey =
@@ -40,7 +62,9 @@ export type ColumnKey =
   | 'stock_dest'
   | 'qty_received'
   | 'po_quantity'
-  | 'total';
+  | 'total'
+  | 'role'
+  | 'special_price';
 
 interface ItemsTableProps {
   items: TableItem[];
@@ -66,6 +90,9 @@ interface ItemsTableProps {
 
   // reason options
   reasonOptions?: { value: string; label: string }[];
+
+  // role column options (for promotion forms)
+  roleOptions?: { id: string; label: string }[];
 
   // misc
   emptyMessage?: string;
@@ -97,6 +124,17 @@ function StockBadge({ qty, destStyle }: { qty: number | null | undefined; destSt
 
 const INPUT_CLS = 'px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]';
 
+function RoleBadge({ role }: { role: string }) {
+  switch (role) {
+    case 'gift':
+      return <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400"><Gift className="w-2.5 h-2.5" />แถมฟรี</span>;
+    case 'discounted':
+      return <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">ราคาพิเศษ</span>;
+    default:
+      return null;
+  }
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function ItemsTable({
@@ -118,6 +156,7 @@ export default function ItemsTable({
     { value: 'ตัวอย่าง', label: 'ตัวอย่าง' },
     { value: 'อื่นๆ', label: 'อื่นๆ' },
   ],
+  roleOptions = [],
   emptyMessage = 'เพิ่มสินค้าโดยพิมพ์ค้นหาด้านล่าง',
   showSummary = true,
   inputRef: externalInputRef,
@@ -126,6 +165,26 @@ export default function ItemsTable({
   const searchRef = externalInputRef ?? internalInputRef;
 
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [expandedPromotions, setExpandedPromotions] = useState<Set<number>>(new Set());
+
+  const togglePromotion = (idx: number) => {
+    setExpandedPromotions(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  // Auto-expand all promotion items on mount
+  useEffect(() => {
+    const promoIndices = items
+      .map((item, idx) => (item.promotion_components && item.promotion_components.length > 0 ? idx : -1))
+      .filter(idx => idx >= 0);
+    if (promoIndices.length > 0) {
+      setExpandedPromotions(new Set(promoIndices));
+    }
+  }, [items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ESC to close lightbox
   useEffect(() => {
@@ -147,6 +206,8 @@ export default function ItemsTable({
   const hasQtyReceived = columns.includes('qty_received');
   const hasPoQty = columns.includes('po_quantity');
   const hasTotal = columns.includes('total');
+  const hasRole = columns.includes('role');
+  const hasSpecialPrice = columns.includes('special_price');
 
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
   const totalAmount = items.reduce((s, i) => s + i.quantity * (i.unit_price ?? i.unit_cost ?? 0), 0);
@@ -157,11 +218,19 @@ export default function ItemsTable({
 
   // ── Product cell ──────────────────────────────────────────────────────
 
-  function ProductCell({ item }: { item: TableItem }) {
+  function ProductCell({ item, idx }: { item: TableItem; idx?: number }) {
+    const hasPromo = item.promotion_components && item.promotion_components.length > 0;
+    const isExpanded = idx !== undefined && expandedPromotions.has(idx);
     const name = item.product_name + (item.variation_label ? ` - ${item.variation_label}` : '');
     const sub = [item.product_code, item.sku && item.sku !== item.product_code && item.sku !== item.variation_label ? item.sku : null].filter(Boolean).join(' · ');
     return (
       <div className="flex items-center gap-3">
+        {hasPromo && idx !== undefined && (
+          <button type="button" onClick={() => togglePromotion(idx)}
+            className="p-0.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors flex-shrink-0">
+            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
+        )}
         {item.image
           ? <img src={item.image} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => setLightboxSrc(item.image!)} />
@@ -175,6 +244,11 @@ export default function ItemsTable({
             {sub && <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{sub}</p>}
             {hasStock && <StockBadge qty={stockMap[item.variation_id]} />}
           </div>
+          {hasPromo && item.promotion_name && (
+            <p className="text-[11px] text-purple-600 dark:text-purple-400 mt-0.5">
+              โปรโมชั่น: {item.promotion_name} ({item.promotion_components!.length} รายการ)
+            </p>
+          )}
           {item.gpInfo && (
             <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">{item.gpInfo}</p>
           )}
@@ -232,6 +306,7 @@ export default function ItemsTable({
           <thead className="data-thead">
             <tr>
               <th className="data-th">สินค้า</th>
+              {hasRole && <th className="data-th" style={{width:'9rem'}}>บทบาท</th>}
               {hasStockSource && <th className="data-th text-center" style={{width:'8rem'}}>สต๊อกต้นทาง</th>}
               {hasStockDest && <th className="data-th text-center" style={{width:'8rem'}}>สต๊อกที่ร้าน</th>}
               {hasPoQty && <th className="data-th text-center" style={{width:'6rem'}}>จำนวน PO</th>}
@@ -239,6 +314,7 @@ export default function ItemsTable({
               {hasQtyReceived && <th className="data-th text-center" style={{width:'4.5rem'}}>รับแล้ว</th>}
               {hasPrice && <th className="data-th text-right" style={{width:'7.5rem'}}>ราคา/ชิ้น</th>}
               {hasCost && <th className="data-th text-right" style={{width:'7.5rem'}}>ต้นทุน/ชิ้น</th>}
+              {hasSpecialPrice && <th className="data-th text-right" style={{width:'7.5rem'}}>ราคาพิเศษ</th>}
               {hasDiscount && <th className="data-th text-center" style={{width:'8rem'}}>ส่วนลด</th>}
               {hasReason && <th className="data-th" style={{width:'8rem'}}>เหตุผล</th>}
               {hasTotal && <th className="data-th text-right" style={{width:'6rem'}}>รวม</th>}
@@ -250,9 +326,27 @@ export default function ItemsTable({
               const lineTotal = item.quantity * (item.unit_price ?? item.unit_cost ?? 0);
               const stockQty = stockMap[item.variation_id];
               const isOverStock = hasStock && stockQty !== undefined && item.quantity > stockQty;
+              const hasPromoComponents = item.promotion_components && item.promotion_components.length > 0;
+              const isExpanded = expandedPromotions.has(idx);
               return (
-                <tr key={`${item.variation_id}-${idx}`} className="data-tr">
-                  <td className="py-3"><ProductCell item={item} /></td>
+                <Fragment key={`${item.variation_id}-${idx}`}>
+                <tr className="data-tr">
+                  <td className="py-3"><ProductCell item={item} idx={idx} /></td>
+
+                  {hasRole && (
+                    <td className="py-3">
+                      {readOnly
+                        ? <span className="text-sm text-gray-600 dark:text-slate-400">{roleOptions.find(r => r.id === item.role)?.label ?? item.role ?? '-'}</span>
+                        : <FormSelect
+                            value={item.role ?? ''}
+                            onChange={v => onUpdateField!(idx, 'role', v)}
+                            options={roleOptions}
+                            searchThreshold={99}
+                            portal
+                          />
+                      }
+                    </td>
+                  )}
 
                   {hasStockSource && (
                     <td className="py-3 text-center"><StockBadge qty={item.stock_source} /></td>
@@ -315,6 +409,23 @@ export default function ItemsTable({
                       }
                     </td>
                   )}
+                  {hasSpecialPrice && (
+                    <td className="py-3 text-right">
+                      {item.role === 'discounted'
+                        ? (readOnly
+                            ? <span className="text-sm text-gray-900 dark:text-white">฿{fmt(item.special_price ?? 0)}</span>
+                            : <div className="relative inline-block">
+                                <input type="number" min="0" step="0.01" value={item.special_price ?? ''}
+                                  onChange={e => onUpdateField!(idx, 'special_price', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                                  placeholder="0"
+                                  className={`w-24 text-right pr-5 ${INPUT_CLS}`} />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">฿</span>
+                              </div>
+                          )
+                        : <span className="text-sm text-gray-400">-</span>
+                      }
+                    </td>
+                  )}
                   {hasDiscount && (
                     <td className="px-2 py-3">
                       <div className="flex items-stretch justify-center">
@@ -362,6 +473,49 @@ export default function ItemsTable({
                     </td>
                   )}
                 </tr>
+                {/* Promotion component sub-rows */}
+                {hasPromoComponents && isExpanded && item.promotion_components!.map((comp, ci) => (
+                  <tr key={`promo-${idx}-${ci}`} className="bg-purple-50/50 dark:bg-purple-900/10">
+                    <td className="py-2 pl-16">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-8 rounded bg-purple-300 dark:bg-purple-700 flex-shrink-0" />
+                        {comp.image
+                          ? <img src={comp.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                          : <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                              <Package className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
+                            </div>
+                        }
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs text-gray-700 dark:text-slate-300 line-clamp-1">{comp.product_name}</p>
+                            <RoleBadge role={comp.role} />
+                          </div>
+                          {(comp.sku || comp.barcode) && (
+                            <p className="text-[10px] text-gray-400 dark:text-slate-500 truncate">
+                              {[comp.sku, comp.barcode && comp.barcode !== comp.sku ? comp.barcode : null].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    {hasRole && <td />}
+                    {hasStockSource && <td />}
+                    {hasStockDest && <td />}
+                    {hasPoQty && <td />}
+                    <td className="py-2 text-center">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">{comp.quantity}</span>
+                    </td>
+                    {hasQtyReceived && <td />}
+                    {hasPrice && <td />}
+                    {hasCost && <td />}
+                    {hasSpecialPrice && <td />}
+                    {hasDiscount && <td />}
+                    {hasReason && <td />}
+                    {hasTotal && <td />}
+                    {!readOnly && <td />}
+                  </tr>
+                ))}
+                </Fragment>
               );
             })}
           </tbody>
@@ -416,6 +570,21 @@ export default function ItemsTable({
               </div>
 
               <div className="mt-2.5 flex flex-wrap items-end gap-2">
+                {hasRole && (
+                  <div className="min-w-[120px]">
+                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">บทบาท</label>
+                    {readOnly
+                      ? <span className="text-sm text-gray-600 dark:text-slate-400">{roleOptions.find(r => r.id === item.role)?.label ?? item.role ?? '-'}</span>
+                      : <FormSelect
+                          value={item.role ?? ''}
+                          onChange={v => onUpdateField!(idx, 'role', v)}
+                          options={roleOptions}
+                          searchThreshold={99}
+                          portal
+                        />
+                    }
+                  </div>
+                )}
                 {hasPoQty && item.po_quantity != null && (
                   <div>
                     <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">จำนวน PO</label>
@@ -470,6 +639,21 @@ export default function ItemsTable({
                     }
                   </div>
                 )}
+                {hasSpecialPrice && item.role === 'discounted' && (
+                  <div>
+                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">ราคาพิเศษ</label>
+                    {readOnly
+                      ? <span className="text-sm text-gray-900 dark:text-white">฿{fmt(item.special_price ?? 0)}</span>
+                      : <div className="relative">
+                          <input type="number" min="0" step="0.01" value={item.special_price ?? ''}
+                            onChange={e => onUpdateField!(idx, 'special_price', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                            placeholder="0"
+                            className={`w-24 text-right pr-5 ${INPUT_CLS}`} />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">฿</span>
+                        </div>
+                    }
+                  </div>
+                )}
                 {hasDiscount && (
                   <div>
                     <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">ส่วนลด</label>
@@ -518,6 +702,29 @@ export default function ItemsTable({
                   <AlertTriangle className="w-3 h-3 flex-shrink-0" />
                   {isOverStock && 'จำนวนเกินสต๊อกที่มี'}
                   {poMismatch && `ต่างจาก PO ${Math.abs(item.quantity - (item.po_quantity ?? 0))} ชิ้น`}
+                </div>
+              )}
+
+              {/* Promotion components (mobile) */}
+              {item.promotion_components && item.promotion_components.length > 0 && (
+                <div className="mt-2 ml-3 pl-3 border-l-2 border-purple-200 dark:border-purple-800 space-y-1.5">
+                  {item.promotion_components.map((comp, ci) => (
+                    <div key={ci} className="flex items-center gap-2">
+                      {comp.image
+                        ? <img src={comp.image} alt="" className="w-7 h-7 rounded object-cover flex-shrink-0" />
+                        : <div className="w-7 h-7 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                            <Package className="w-3 h-3 text-gray-400" />
+                          </div>
+                      }
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-700 dark:text-slate-300 truncate">{comp.product_name}</span>
+                          <RoleBadge role={comp.role} />
+                        </div>
+                      </div>
+                      <span className="text-xs text-gray-500 dark:text-slate-400 flex-shrink-0">×{comp.quantity}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

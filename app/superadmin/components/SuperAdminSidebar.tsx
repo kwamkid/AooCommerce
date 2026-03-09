@@ -14,7 +14,7 @@ import {
   X,
   LogOut,
   Shield,
-  Radio,
+  Activity,
 } from 'lucide-react';
 
 const menuItems = [
@@ -22,7 +22,7 @@ const menuItems = [
   { label: 'Companies', href: '/superadmin/companies', icon: <Building2 className="w-5 h-5" /> },
   { label: 'Packages', href: '/superadmin/packages', icon: <Package className="w-5 h-5" /> },
   { label: 'Users', href: '/superadmin/users', icon: <Users className="w-5 h-5" /> },
-  { label: 'Webhooks', href: '/superadmin/webhooks', icon: <Radio className="w-5 h-5" /> },
+  { label: 'API Logs', href: '/superadmin/api-logs', icon: <Activity className="w-5 h-5" /> },
 ];
 
 export default function SuperAdminSidebar() {

@@ -117,7 +117,7 @@ export async function shopeeApiRequest(
     options.body = JSON.stringify(body);
   }
 
-  console.log(`[Shopee API] ${method} ${apiPath}`, { params: Object.fromEntries(Object.entries(params).filter(([k]) => k !== 'access_token')) });
+  console.log(`[Shopee API] ${method} ${apiPath}`, { params: Object.fromEntries(Object.entries(params).filter(([k]) => k !== 'access_token')), ...(body ? { body } : {}) });
   const res = await fetch(url, options);
 
   // Try to parse response as JSON regardless of content-type

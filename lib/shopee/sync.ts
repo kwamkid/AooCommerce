@@ -29,6 +29,7 @@ interface ShopeeOrderItem {
   model_original_price: number;
   model_discounted_price: number;
   image_info?: { image_url: string };
+  promotion_list?: { promotion_type: string; promotion_id: number }[];
 }
 
 interface ShopeeRecipientAddress {
@@ -161,7 +162,7 @@ export async function syncOrdersByOrderSn(
     try {
       const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_order_detail', {
         order_sn_list: batch.join(','),
-        response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,item_list,pay_time,shipping_carrier,tracking_number,total_amount,payment_method,estimated_shipping_fee,actual_shipping_fee,actual_shipping_fee_confirmed,note,buyer_cancel_reason,cancel_by,cancel_reason,ship_by_date,days_to_ship,package_list,invoice_data',
+        response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,item_list,pay_time,shipping_carrier,tracking_number,total_amount,payment_method,estimated_shipping_fee,actual_shipping_fee,actual_shipping_fee_confirmed,note,buyer_cancel_reason,cancel_by,cancel_reason,ship_by_date,days_to_ship,package_list,invoice_data,item_list.promotion_list',
       });
 
       if (error) {
@@ -872,6 +873,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
     total: number;
     shopeeItemId: number;
     shopeeModelId: number;
+    shopeePromotionIds: number[];
   }[] = [];
 
   for (const item of shopeeOrder.item_list || []) {
@@ -987,6 +989,11 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
       console.error(`[Shopee Sync] Failed to upsert marketplace link for item ${item.item_id}:`, linkErr);
     }
 
+    // Extract Shopee promotion IDs (bundle_deal, add_on_deal)
+    const shopeePromotionIds = (item.promotion_list || [])
+      .filter(p => ['bundle_deal', 'add_on_deal_main', 'add_on_deal_sub'].includes(p.promotion_type))
+      .map(p => p.promotion_id);
+
     resolvedItems.push({
       variation_id: matched.variation_id,
       product_id: matched.product_id,
@@ -997,6 +1004,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
       total,
       shopeeItemId: item.item_id,
       shopeeModelId: item.model_id,
+      shopeePromotionIds,
     });
   }
 
@@ -1128,6 +1136,64 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
     total: item.total,
   }));
   await supabaseAdmin.from('order_items').insert(orderItemsToInsert);
+
+  // Map Shopee deal IDs → local promotion_id on order_items
+  try {
+    // Collect unique Shopee promotion IDs from all items
+    const allShopeePromotionIds = new Set<number>();
+    for (const item of resolvedItems) {
+      for (const pid of item.shopeePromotionIds) {
+        allShopeePromotionIds.add(pid);
+      }
+    }
+
+    if (allShopeePromotionIds.size > 0) {
+      // Query shopee_deals to map external_deal_id → promotion_id
+      const { data: deals } = await supabaseAdmin
+        .from('shopee_deals')
+        .select('external_deal_id, promotion_id')
+        .eq('account_id', account.id)
+        .in('external_deal_id', Array.from(allShopeePromotionIds));
+
+      if (deals && deals.length > 0) {
+        const dealMap = new Map<number, string>(); // external_deal_id → promotion_id
+        for (const d of deals) {
+          dealMap.set(d.external_deal_id, d.promotion_id);
+        }
+
+        // Fetch inserted order_items to get their IDs (in insertion order)
+        const { data: insertedItems } = await supabaseAdmin
+          .from('order_items')
+          .select('id')
+          .eq('order_id', order.id)
+          .order('created_at', { ascending: true });
+
+        if (insertedItems && insertedItems.length === resolvedItems.length) {
+          // Update each item that has a matching promotion
+          for (let idx = 0; idx < resolvedItems.length; idx++) {
+            const resolved = resolvedItems[idx];
+            // Find the first matching deal from this item's promotion list
+            let promotionId: string | undefined;
+            for (const pid of resolved.shopeePromotionIds) {
+              if (dealMap.has(pid)) {
+                promotionId = dealMap.get(pid);
+                break;
+              }
+            }
+            if (promotionId) {
+              await supabaseAdmin
+                .from('order_items')
+                .update({ promotion_id: promotionId })
+                .eq('id', insertedItems[idx].id);
+            }
+          }
+        }
+      }
+    }
+  } catch (promoMapErr) {
+    // Non-critical — don't block order creation
+    console.error(`[Shopee Sync] Failed to map promotions for order ${shopeeOrder.order_sn}:`, promoMapErr);
+  }
 
   // Reserve stock in parallel
   const stockItems = resolvedItems.filter(item => item.variation_id && warehouseId);

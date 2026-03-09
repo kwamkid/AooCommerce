@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const integration = searchParams.get('integration') || 'shopee';
     const direction = searchParams.get('direction');
     const status = searchParams.get('status');
+    const action = searchParams.get('action');
     const search = searchParams.get('search');
     const dateFrom = searchParams.get('date_from');
     const dateTo = searchParams.get('date_to');
@@ -32,6 +33,15 @@ export async function GET(request: NextRequest) {
     }
     if (status && status !== 'all') {
       query = query.eq('status', status);
+    }
+    if (action && action !== 'all') {
+      // Support comma-separated actions (e.g. "push_stock,auto_push_stock")
+      const actions = action.split(',');
+      if (actions.length === 1) {
+        query = query.eq('action', actions[0]);
+      } else {
+        query = query.in('action', actions);
+      }
     }
     if (search) {
       query = query.or(`reference_id.ilike.%${search}%,reference_label.ilike.%${search}%,error_message.ilike.%${search}%,api_path.ilike.%${search}%,action.ilike.%${search}%`);
@@ -61,6 +71,14 @@ export async function GET(request: NextRequest) {
 
     if (direction && direction !== 'all') {
       countQuery = countQuery.eq('direction', direction);
+    }
+    if (action && action !== 'all') {
+      const actions = action.split(',');
+      if (actions.length === 1) {
+        countQuery = countQuery.eq('action', actions[0]);
+      } else {
+        countQuery = countQuery.in('action', actions);
+      }
     }
     if (search) {
       countQuery = countQuery.or(`reference_id.ilike.%${search}%,reference_label.ilike.%${search}%,error_message.ilike.%${search}%,api_path.ilike.%${search}%,action.ilike.%${search}%`);

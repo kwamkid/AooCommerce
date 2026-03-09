@@ -24683,7 +24683,7 @@
 
 ### v2.bundle_deal.add_bundle_deal
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/bundle_deal/add_bundle_deal`  
 **URL:** https://partner.shopeemobile.com/api/v2/bundle_deal/add_bundle_deal  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/bundle_deal/add_bundle_deal  
@@ -24792,7 +24792,7 @@
 
 ### v2.bundle_deal.add_bundle_deal_item
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/bundle_deal/add_bundle_deal_item`  
 **URL:** https://partner.shopeemobile.com/api/v2/bundle_deal/add_bundle_deal_item  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/bundle_deal/add_bundle_deal_item  
@@ -24887,7 +24887,7 @@
 
 ### v2.bundle_deal.get_bundle_deal_list
 
-**Method:** `POST`  
+**Method:** `GET`
 **Endpoint:** `/api/v2/bundle_deal/get_bundle_deal_list`  
 **URL:** https://partner.shopeemobile.com/api/v2/bundle_deal/get_bundle_deal_list  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/bundle_deal/get_bundle_deal_list  
@@ -24979,7 +24979,7 @@
 
 ### v2.bundle_deal.get_bundle_deal
 
-**Method:** `POST`  
+**Method:** `GET`
 **Endpoint:** `/api/v2/bundle_deal/get_bundle_deal`  
 **URL:** https://partner.shopeemobile.com/api/v2/bundle_deal/get_bundle_deal  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/bundle_deal/get_bundle_deal  
@@ -25068,7 +25068,7 @@
 
 ### v2.bundle_deal.get_bundle_deal_item
 
-**Method:** `POST`  
+**Method:** `GET`
 **Endpoint:** `/api/v2/bundle_deal/get_bundle_deal_item`  
 **URL:** https://partner.shopeemobile.com/api/v2/bundle_deal/get_bundle_deal_item  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/bundle_deal/get_bundle_deal_item  
@@ -25145,7 +25145,7 @@
 
 ### v2.bundle_deal.update_bundle_deal
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/bundle_deal/update_bundle_deal`  
 **URL:** https://partner.shopeemobile.com/api/v2/bundle_deal/update_bundle_deal  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/bundle_deal/update_bundle_deal  
@@ -25268,7 +25268,7 @@
 
 ### v2.bundle_deal.update_bundle_deal_item
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/bundle_deal/update_bundle_deal_item`  
 **URL:** https://partner.shopeemobile.com/api/v2/bundle_deal/update_bundle_deal_item  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/bundle_deal/update_bundle_deal_item  
@@ -25363,7 +25363,7 @@
 
 ### v2.bundle_deal.end_bundle_deal
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/bundle_deal/end_bundle_deal`  
 **URL:** https://partner.shopeemobile.com/api/v2/bundle_deal/end_bundle_deal  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/bundle_deal/end_bundle_deal  
@@ -25438,7 +25438,7 @@
 
 ### v2.bundle_deal.delete_bundle_deal
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/bundle_deal/delete_bundle_deal`  
 **URL:** https://partner.shopeemobile.com/api/v2/bundle_deal/delete_bundle_deal  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/bundle_deal/delete_bundle_deal  
@@ -25513,7 +25513,7 @@
 
 ### v2.bundle_deal.delete_bundle_deal_item
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/bundle_deal/delete_bundle_deal_item`  
 **URL:** https://partner.shopeemobile.com/api/v2/bundle_deal/delete_bundle_deal_item  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/bundle_deal/delete_bundle_deal_item  
@@ -25598,7 +25598,7 @@
 
 ### v2.add_on_deal.add_add_on_deal
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/add_on_deal/add_add_on_deal`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/add_add_on_deal  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/add_add_on_deal  
@@ -25681,7 +25681,7 @@
 
 ### v2.add_on_deal.add_add_on_deal_main_item
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/add_on_deal/add_add_on_deal_main_item`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/add_add_on_deal_main_item  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/add_add_on_deal_main_item  
@@ -25773,7 +25773,7 @@
 
 ### v2.add_on_deal.add_add_on_deal_sub_item
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/add_on_deal/add_add_on_deal_sub_item`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/add_add_on_deal_sub_item  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/add_add_on_deal_sub_item  
@@ -25874,7 +25874,7 @@
 
 ### v2.add_on_deal.delete_add_on_deal
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/add_on_deal/delete_add_on_deal`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/delete_add_on_deal  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/delete_add_on_deal  
@@ -25947,7 +25947,7 @@
 
 ### v2.add_on_deal.delete_add_on_deal_main_item
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/add_on_deal/delete_add_on_deal_main_item`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/delete_add_on_deal_main_item  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/delete_add_on_deal_main_item  
@@ -26024,7 +26024,7 @@
 
 ### v2.add_on_deal.delete_add_on_deal_sub_item
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/add_on_deal/delete_add_on_deal_sub_item`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/delete_add_on_deal_sub_item  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/delete_add_on_deal_sub_item  
@@ -26107,7 +26107,7 @@
 
 ### v2.add_on_deal.get_add_on_deal_list
 
-**Method:** `POST`  
+**Method:** `GET`
 **Endpoint:** `/api/v2/add_on_deal/get_add_on_deal_list`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/get_add_on_deal_list  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/get_add_on_deal_list  
@@ -26192,7 +26192,7 @@
 
 ### v2.add_on_deal.get_add_on_deal
 
-**Method:** `POST`  
+**Method:** `GET`
 **Endpoint:** `/api/v2/add_on_deal/get_add_on_deal`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/get_add_on_deal  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/get_add_on_deal  
@@ -26274,7 +26274,7 @@
 
 ### v2.add_on_deal.get_add_on_deal_main_item
 
-**Method:** `POST`  
+**Method:** `GET`
 **Endpoint:** `/api/v2/add_on_deal/get_add_on_deal_main_item`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/get_add_on_deal_main_item  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/get_add_on_deal_main_item  
@@ -26347,7 +26347,7 @@
 
 ### v2.add_on_deal.get_add_on_deal_sub_item
 
-**Method:** `POST`  
+**Method:** `GET`
 **Endpoint:** `/api/v2/add_on_deal/get_add_on_deal_sub_item`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/get_add_on_deal_sub_item  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/get_add_on_deal_sub_item  
@@ -26425,7 +26425,7 @@
 
 ### v2.add_on_deal.update_add_on_deal
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/add_on_deal/update_add_on_deal`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/update_add_on_deal  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/update_add_on_deal  
@@ -26537,7 +26537,7 @@
 
 ### v2.add_on_deal.update_add_on_deal_main_item
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/add_on_deal/update_add_on_deal_main_item`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/update_add_on_deal_main_item  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/update_add_on_deal_main_item  
@@ -26628,7 +26628,7 @@
 
 ### v2.add_on_deal.update_add_on_deal_sub_item
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/add_on_deal/update_add_on_deal_sub_item`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/update_add_on_deal_sub_item  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/update_add_on_deal_sub_item  
@@ -26728,7 +26728,7 @@
 
 ### v2.add_on_deal.end_add_on_deal
 
-**Method:** `GET`  
+**Method:** `POST`
 **Endpoint:** `/api/v2/add_on_deal/end_add_on_deal`  
 **URL:** https://partner.shopeemobile.com/api/v2/add_on_deal/end_add_on_deal  
 **Test URL:** https://partner.test-stable.shopeemobile.com/api/v2/add_on_deal/end_add_on_deal  

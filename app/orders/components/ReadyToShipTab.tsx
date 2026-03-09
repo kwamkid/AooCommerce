@@ -693,6 +693,15 @@ export default function ReadyToShipTab({
   const handleOpenSplit = async (order: Order) => {
     setActionLoading(true);
     try {
+      // Pre-check can_split_order from Shopee API before opening modal
+      if (order.source === 'shopee' && !order.can_split_order) {
+        const checkRes = await apiFetch(`/api/orders/split/check?order_id=${order.id}`);
+        if (!checkRes.ok) {
+          const checkData = await checkRes.json();
+          showToast(checkData.error || 'ไม่สามารถแบ่งกล่องได้', 'error');
+          return;
+        }
+      }
       const res = await apiFetch(`/api/orders/${order.id}`);
       if (!res.ok) throw new Error('Failed to fetch order');
       const result = await res.json();

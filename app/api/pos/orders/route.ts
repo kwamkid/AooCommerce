@@ -326,6 +326,19 @@ export async function POST(request: NextRequest) {
       paymentMethod = 'multi';
     }
 
+    // Determine flow_type from customer_type
+    let flowType = 'a_cash';
+    if (customer_id) {
+      const { data: cust } = await supabaseAdmin
+        .from('customers')
+        .select('customer_type')
+        .eq('id', customer_id)
+        .single();
+      if (cust?.customer_type === 'credit') flowType = 'b_credit';
+      else if (cust?.customer_type === 'consignment_dealer') flowType = 'c_consign';
+      else if (cust?.customer_type === 'department_store') flowType = 'd_statement';
+    }
+
     // Create order
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
@@ -342,6 +355,7 @@ export async function POST(request: NextRequest) {
         payment_status: 'paid',
         order_status: 'completed',
         source: 'pos',
+        flow_type: flowType,
         pos_session_id,
         ...(warehouseId ? { warehouse_id: warehouseId } : {}),
         notes: notes || null,

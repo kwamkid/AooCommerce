@@ -83,6 +83,7 @@ const menuSections: MenuSection[] = [
     items: [
       { label: 'สินค้า', href: '/products', icon: <Package2 className="w-5 h-5" />, roles: ['admin', 'sales', 'warehouse'] },
       { label: 'สินค้าคงคลัง', href: '/inventory', icon: <Warehouse className="w-5 h-5" />, roles: ['admin', 'warehouse', 'cashier', 'sales'] },
+      { label: 'โปรโมชั่น', href: '/promotions', icon: <Tag className="w-5 h-5" />, roles: ['admin', 'sales'] },
     ]
   },
   {

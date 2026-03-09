@@ -127,10 +127,10 @@ html, body {
 
   /* Table wrappers */
   .data-table-wrap {
-    @apply bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden;
+    @apply bg-white dark:bg-slate-800 rounded-lg shadow-sm;
   }
   .data-table-wrap-shadow {
-    @apply bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden;
+    @apply bg-white dark:bg-slate-800 rounded-lg shadow;
   }
   .data-table {
     @apply w-full;

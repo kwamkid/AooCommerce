@@ -24,6 +24,15 @@ import {
 
 // ─── Interfaces ──────────────────────────────────────────
 
+interface PromotionComponent {
+  product_name: string;
+  product_code?: string | null;
+  variation_label?: string | null;
+  sku?: string | null;
+  role: string;
+  quantity: number;
+}
+
 interface OrderItemData {
   product_name: string;
   product_code?: string;
@@ -34,6 +43,9 @@ interface OrderItemData {
   discount_amount?: number;
   subtotal: number;
   total: number;
+  promotion_name?: string | null;
+  promotion_type?: string | null;
+  promotion_components?: PromotionComponent[];
 }
 
 export interface OrderInvoiceData {
@@ -283,35 +295,84 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
   headerCols.push({ text: 'รวม', style: 'tableHeader', alignment: 'right' });
   widths.push(75);
 
-  // Table rows
-  const tableBody = data.items.map((item, idx) => {
-    const subtitle = [item.product_code, item.variation_label].filter(Boolean).join(' | ');
-    const productStack = buildProductNameStack(item.product_name, subtitle);
+  // Table rows — expand promotion items into header + sub-rows
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tableBody: any[][] = [];
+  let rowNum = 0;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const row: any[] = [
-      { text: `${idx + 1}`, alignment: 'center', fontSize: 11, margin: [0, 2, 0, 0] },
-      { stack: productStack, margin: [0, 1, 0, 1] },
-      { text: `${item.quantity}`, alignment: 'center', fontSize: 11, margin: [0, 2, 0, 0] },
-      { text: formatPdfPrice(item.unit_price), alignment: 'right', fontSize: 11, margin: [0, 2, 0, 0] },
-    ];
+  for (const item of data.items) {
+    rowNum++;
+    const hasComponents = item.promotion_components && item.promotion_components.length > 0;
 
-    if (hasDiscount) {
-      const discountAmt = item.discount_amount || 0;
-      if (discountAmt > 0) {
-        const discountText = item.discount_percent && item.discount_percent > 0
-          ? `${item.discount_percent}%`
-          : formatPdfPrice(discountAmt);
-        row.push({ text: discountText, alignment: 'right', fontSize: 11, color: '#dc2626', margin: [0, 2, 0, 0] });
-      } else {
-        row.push({ text: '-', alignment: 'right', fontSize: 11, color: '#999999', margin: [0, 2, 0, 0] });
+    if (hasComponents) {
+      // Promotion header row: # | name (purple) | (empty) | (empty) | [discount] | total
+      const colCount = hasDiscount ? 6 : 5;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const headerRow: any[] = [
+        { text: `${rowNum}`, alignment: 'center', fontSize: 11, margin: [0, 2, 0, 0] },
+        {
+          text: [
+            { text: item.promotion_name || item.product_name, fontSize: 11, bold: true, color: '#6366f1' },
+            { text: ` (×${item.quantity})`, fontSize: 9, color: '#888888' },
+          ],
+          margin: [0, 1, 0, 1],
+        },
+        { text: '', margin: [0, 2, 0, 0] },
+        { text: '', margin: [0, 2, 0, 0] },
+      ];
+      if (hasDiscount) {
+        headerRow.push({ text: '', margin: [0, 2, 0, 0] });
       }
+      headerRow.push({ text: formatPdfPrice(item.total), alignment: 'right', fontSize: 11, bold: true, margin: [0, 2, 0, 0] });
+      tableBody.push(headerRow);
+
+      // Component sub-rows
+      for (const comp of item.promotion_components!) {
+        const compSubtitle = [comp.sku || comp.product_code, comp.role === 'gift' ? '[แถมฟรี]' : null].filter(Boolean).join(' ');
+        const compProductStack = buildProductNameStack(`  └ ${comp.product_name}`, compSubtitle);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const compRow: any[] = [
+          { text: '', margin: [0, 1, 0, 0] },
+          { stack: compProductStack, margin: [8, 1, 0, 1], color: '#666666' },
+          { text: `${comp.quantity}`, alignment: 'center', fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] },
+          { text: '-', alignment: 'right', fontSize: 10, color: '#999999', margin: [0, 1, 0, 0] },
+        ];
+        if (hasDiscount) {
+          compRow.push({ text: '', margin: [0, 1, 0, 0] });
+        }
+        compRow.push({ text: '', margin: [0, 1, 0, 0] });
+        tableBody.push(compRow);
+      }
+    } else {
+      // Normal item row
+      const subtitle = [item.product_code, item.variation_label].filter(Boolean).join(' | ');
+      const productStack = buildProductNameStack(item.product_name, subtitle);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const row: any[] = [
+        { text: `${rowNum}`, alignment: 'center', fontSize: 11, margin: [0, 2, 0, 0] },
+        { stack: productStack, margin: [0, 1, 0, 1] },
+        { text: `${item.quantity}`, alignment: 'center', fontSize: 11, margin: [0, 2, 0, 0] },
+        { text: formatPdfPrice(item.unit_price), alignment: 'right', fontSize: 11, margin: [0, 2, 0, 0] },
+      ];
+
+      if (hasDiscount) {
+        const discountAmt = item.discount_amount || 0;
+        if (discountAmt > 0) {
+          const discountText = item.discount_percent && item.discount_percent > 0
+            ? `${item.discount_percent}%`
+            : formatPdfPrice(discountAmt);
+          row.push({ text: discountText, alignment: 'right', fontSize: 11, color: '#dc2626', margin: [0, 2, 0, 0] });
+        } else {
+          row.push({ text: '-', alignment: 'right', fontSize: 11, color: '#999999', margin: [0, 2, 0, 0] });
+        }
+      }
+
+      row.push({ text: formatPdfPrice(item.total), alignment: 'right', fontSize: 11, margin: [0, 2, 0, 0] });
+      tableBody.push(row);
     }
-
-    row.push({ text: formatPdfPrice(item.total), alignment: 'right', fontSize: 11, margin: [0, 2, 0, 0] });
-
-    return row;
-  });
+  }
 
   content.push({
     table: {

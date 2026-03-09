@@ -27,6 +27,16 @@ import {
 
 // ─── Interfaces ──────────────────────────────────────────
 
+interface PackingComponentItem {
+  product_name: string;
+  product_code?: string | null;
+  sku?: string | null;
+  barcode?: string | null;
+  image?: string | null;
+  role: string;
+  quantity: number;
+}
+
 interface PackingItem {
   product_name: string;
   product_code?: string;
@@ -35,6 +45,8 @@ interface PackingItem {
   image?: string | null;
   barcode?: string | null;
   sku?: string | null;
+  promotion_name?: string | null;
+  promotion_components?: PackingComponentItem[];
 }
 
 export interface PackingListData {
@@ -137,25 +149,49 @@ function aggregateItems(orders: PackingListData[]): AggregatedItem[] {
 
   for (const order of orders) {
     for (const item of order.items) {
-      // Key by product name + variation to combine duplicates
-      const key = `${item.product_name}||${item.variation_label || ''}||${item.barcode || item.sku || item.product_code || ''}`;
-      const existing = map.get(key);
-      if (existing) {
-        existing.quantity += item.quantity;
-        if (!existing.order_numbers.includes(order.order_number)) {
-          existing.order_numbers.push(order.order_number);
+      // If item has promotion components, expand them for picking
+      if (item.promotion_components && item.promotion_components.length > 0) {
+        for (const comp of item.promotion_components) {
+          const key = `${comp.product_name}||||${comp.barcode || comp.sku || comp.product_code || ''}`;
+          const existing = map.get(key);
+          if (existing) {
+            existing.quantity += comp.quantity * item.quantity;
+            if (!existing.order_numbers.includes(order.order_number)) {
+              existing.order_numbers.push(order.order_number);
+            }
+          } else {
+            map.set(key, {
+              product_name: comp.product_name,
+              product_code: comp.product_code || undefined,
+              quantity: comp.quantity * item.quantity,
+              image: comp.image,
+              barcode: comp.barcode,
+              sku: comp.sku,
+              order_numbers: [order.order_number],
+            });
+          }
         }
       } else {
-        map.set(key, {
-          product_name: item.product_name,
-          product_code: item.product_code,
-          variation_label: item.variation_label,
-          quantity: item.quantity,
-          image: item.image,
-          barcode: item.barcode,
-          sku: item.sku,
-          order_numbers: [order.order_number],
-        });
+        // Normal item
+        const key = `${item.product_name}||${item.variation_label || ''}||${item.barcode || item.sku || item.product_code || ''}`;
+        const existing = map.get(key);
+        if (existing) {
+          existing.quantity += item.quantity;
+          if (!existing.order_numbers.includes(order.order_number)) {
+            existing.order_numbers.push(order.order_number);
+          }
+        } else {
+          map.set(key, {
+            product_name: item.product_name,
+            product_code: item.product_code,
+            variation_label: item.variation_label,
+            quantity: item.quantity,
+            image: item.image,
+            barcode: item.barcode,
+            sku: item.sku,
+            order_numbers: [order.order_number],
+          });
+        }
       }
     }
   }
@@ -626,10 +662,11 @@ function buildCompactPackingContent(
   }
 
   // ── Compact item table ──
+  const allComponents = order.items.flatMap(i => i.promotion_components || []);
   const hasBarcode = order.items.some(
     (item) => item.barcode || item.sku || item.product_code
-  );
-  const hasImage = order.items.some((item) => item.image);
+  ) || allComponents.some(c => c.barcode || c.sku || c.product_code);
+  const hasImage = order.items.some((item) => item.image) || allComponents.some(c => c.image);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const headerCols: any[] = [];
@@ -678,97 +715,184 @@ function buildCompactPackingContent(
   });
   widths.push(22);
 
-  const tableBody = order.items.map((item) => {
-    const barcodeSource = item.barcode || item.sku || item.product_code || '';
-    const showCodeInSubtitle =
-      !hasBarcode || (item.product_code && item.product_code !== barcodeSource);
-    const subtitle = [
-      showCodeInSubtitle ? item.product_code : null,
-      item.variation_label,
-    ].filter(Boolean).join(' | ');
+  // Build table rows — expand promotion items into component rows
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tableBody: any[][] = [];
 
-    const productStack = buildProductNameStack(item.product_name, subtitle);
+  for (const item of order.items) {
+    const hasComponents = item.promotion_components && item.promotion_components.length > 0;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const row: any[] = [];
+    if (hasComponents) {
+      // Promotion header row
+      const colCount = (hasImage ? 1 : 0) + 1 + (hasBarcode ? 1 : 0) + 1 + 1;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const headerRow: any[] = [];
+      if (hasImage) headerRow.push({ text: '', margin: [0, 1, 0, 0] });
+      headerRow.push({
+        text: [
+          { text: '📦 ', fontSize: 9 },
+          { text: item.promotion_name || item.product_name, fontSize: 9, bold: true, color: '#6366f1' },
+          { text: ` (×${item.quantity})`, fontSize: 8, color: '#888888' },
+        ],
+        margin: [0, 1, 0, 0],
+        colSpan: 1 + (hasBarcode ? 1 : 0),
+      });
+      if (hasBarcode) headerRow.push({});
+      headerRow.push({ text: '', margin: [0, 1, 0, 0] });
+      headerRow.push({ text: '', margin: [0, 1, 0, 0] });
+      tableBody.push(headerRow);
 
-    // Image column
-    if (hasImage) {
-      const imgDataUrl = item.image ? imageMap.get(item.image) : null;
-      if (imgDataUrl) {
-        row.push({
-          image: imgDataUrl,
-          width: 25,
-          height: 25,
-          fit: [25, 25],
+      // Component rows
+      for (const comp of item.promotion_components!) {
+        const compBarcodeSource = comp.barcode || comp.sku || comp.product_code || '';
+        const compSubtitle = [comp.sku, comp.role === 'gift' ? '[แถมฟรี]' : null].filter(Boolean).join(' ');
+        const compProductStack = buildProductNameStack(comp.product_name, compSubtitle);
+        // Indent the product name
+        compProductStack[0] = { ...compProductStack[0], text: `  └ ${compProductStack[0].text || comp.product_name}` };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const compRow: any[] = [];
+
+        if (hasImage) {
+          const imgDataUrl = comp.image ? imageMap.get(comp.image) : null;
+          if (imgDataUrl) {
+            compRow.push({
+              image: imgDataUrl,
+              width: 25,
+              height: 25,
+              fit: [25, 25],
+              alignment: 'center' as const,
+              margin: [0, 1, 0, 1],
+            });
+          } else {
+            compRow.push({ text: '', margin: [0, 1, 0, 0] });
+          }
+        }
+
+        compRow.push({ stack: compProductStack, margin: [8, 1, 0, 1] });
+
+        if (hasBarcode) {
+          const barcodeDataUrl = compBarcodeSource ? barcodeMap.get(compBarcodeSource) : null;
+          if (barcodeDataUrl) {
+            compRow.push({
+              stack: [
+                { image: barcodeDataUrl, width: 75, height: 22, alignment: 'center' as const, margin: [0, 1, 0, 0] },
+                { text: compBarcodeSource, fontSize: 6, alignment: 'center' as const, color: '#666666' },
+              ],
+            });
+          } else {
+            compRow.push({ text: '-', alignment: 'center', fontSize: 9, margin: [0, 1, 0, 0] });
+          }
+        }
+
+        compRow.push({
+          text: `${comp.quantity * item.quantity}`,
+          alignment: 'center',
+          fontSize: 10,
+          bold: true,
+          margin: [0, 1, 0, 0],
+        });
+
+        compRow.push({
+          image: checkboxDataUrl,
+          width: 12,
+          height: 12,
           alignment: 'center' as const,
-          margin: [0, 1, 0, 1],
+          margin: [0, 3, 0, 0],
         });
-      } else {
-        row.push({
-          text: '-',
-          alignment: 'center',
-          fontSize: 9,
-          margin: [0, 1, 0, 0],
-        });
+
+        tableBody.push(compRow);
       }
-    }
+    } else {
+      // Normal item row
+      const barcodeSource = item.barcode || item.sku || item.product_code || '';
+      const showCodeInSubtitle =
+        !hasBarcode || (item.product_code && item.product_code !== barcodeSource);
+      const subtitle = [
+        showCodeInSubtitle ? item.product_code : null,
+        item.variation_label,
+      ].filter(Boolean).join(' | ');
 
-    row.push({ stack: productStack, margin: [0, 1, 0, 1] });
+      const productStack = buildProductNameStack(item.product_name, subtitle);
 
-    // Barcode column (smaller for compact)
-    if (hasBarcode) {
-      const barcodeValue = item.barcode || item.sku || item.product_code || '';
-      const barcodeDataUrl = barcodeValue
-        ? barcodeMap.get(barcodeValue)
-        : null;
-      if (barcodeDataUrl) {
-        row.push({
-          stack: [
-            {
-              image: barcodeDataUrl,
-              width: 75,
-              height: 22,
-              alignment: 'center' as const,
-              margin: [0, 1, 0, 0],
-            },
-            {
-              text: barcodeValue,
-              fontSize: 6,
-              alignment: 'center' as const,
-              color: '#666666',
-            },
-          ],
-        });
-      } else {
-        row.push({
-          text: '-',
-          alignment: 'center',
-          fontSize: 9,
-          margin: [0, 1, 0, 0],
-        });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const row: any[] = [];
+
+      if (hasImage) {
+        const imgDataUrl = item.image ? imageMap.get(item.image) : null;
+        if (imgDataUrl) {
+          row.push({
+            image: imgDataUrl,
+            width: 25,
+            height: 25,
+            fit: [25, 25],
+            alignment: 'center' as const,
+            margin: [0, 1, 0, 1],
+          });
+        } else {
+          row.push({
+            text: '-',
+            alignment: 'center',
+            fontSize: 9,
+            margin: [0, 1, 0, 0],
+          });
+        }
       }
+
+      row.push({ stack: productStack, margin: [0, 1, 0, 1] });
+
+      if (hasBarcode) {
+        const barcodeValue = item.barcode || item.sku || item.product_code || '';
+        const barcodeDataUrl = barcodeValue
+          ? barcodeMap.get(barcodeValue)
+          : null;
+        if (barcodeDataUrl) {
+          row.push({
+            stack: [
+              {
+                image: barcodeDataUrl,
+                width: 75,
+                height: 22,
+                alignment: 'center' as const,
+                margin: [0, 1, 0, 0],
+              },
+              {
+                text: barcodeValue,
+                fontSize: 6,
+                alignment: 'center' as const,
+                color: '#666666',
+              },
+            ],
+          });
+        } else {
+          row.push({
+            text: '-',
+            alignment: 'center',
+            fontSize: 9,
+            margin: [0, 1, 0, 0],
+          });
+        }
+      }
+
+      row.push({
+        text: `${item.quantity}`,
+        alignment: 'center',
+        fontSize: 10,
+        bold: true,
+        margin: [0, 1, 0, 0],
+      });
+
+      row.push({
+        image: checkboxDataUrl,
+        width: 12,
+        height: 12,
+        alignment: 'center' as const,
+        margin: [0, 3, 0, 0],
+      });
+
+      tableBody.push(row);
     }
-
-    row.push({
-      text: `${item.quantity}`,
-      alignment: 'center',
-      fontSize: 10,
-      bold: true,
-      margin: [0, 1, 0, 0],
-    });
-
-    // Checkbox
-    row.push({
-      image: checkboxDataUrl,
-      width: 12,
-      height: 12,
-      alignment: 'center' as const,
-      margin: [0, 3, 0, 0],
-    });
-
-    return row;
-  });
+  }
 
   content.push({
     table: {
@@ -825,7 +949,17 @@ export async function generatePackingPdf(
 
   const imagePromises: Promise<void>[] = [];
   for (const order of orders) {
+    // Collect all items including promotion components
+    const allItems: { image?: string | null; barcode?: string | null; sku?: string | null; product_code?: string }[] = [];
     for (const item of order.items) {
+      allItems.push(item);
+      if (item.promotion_components) {
+        for (const comp of item.promotion_components) {
+          allItems.push(comp as any);
+        }
+      }
+    }
+    for (const item of allItems) {
       const barcodeValue = item.barcode || item.sku || item.product_code || '';
       if (barcodeValue && !allBarcodeMap.has(barcodeValue)) {
         const dataUrl = generateBarcodeDataUrl(barcodeValue);

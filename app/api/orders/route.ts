@@ -4,6 +4,7 @@ import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { createCreditNote } from '@/lib/credit-notes/auto-cn';
 import { reserveStock, unreserveStock, returnStock, deductAndUnreserve } from '@/lib/stock-service';
+import { getPromotionComponents } from '@/lib/promotion-service';
 
 // Type definitions
 interface OrderItemInput {
@@ -16,6 +17,7 @@ interface OrderItemInput {
   unit_price: number;
   discount_percent?: number;
   notes?: string;
+  promotion_id?: string; // Link to promotions table
   shipments: {
     shipping_address_id: string;
     quantity: number;
@@ -310,6 +312,7 @@ export async function POST(request: NextRequest) {
           subtotal: item.subtotal,
           total: item.total,
           notes: item.notes || null,
+          promotion_id: item.promotion_id || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -487,17 +490,36 @@ export async function POST(request: NextRequest) {
           for (const item of itemsWithTotals) {
             if (!item.variation_id) continue;
             try {
-              await reserveStock({
-                supabase: supabaseAdmin,
-                companyId: auth.companyId!,
-                warehouseId,
-                variationId: item.variation_id,
-                qty: item.quantity,
-                referenceType: 'order',
-                referenceId: order.id,
-                notes: `Reserve for order ${order.order_number}`,
-                createdBy: auth.userId,
-              });
+              if (item.promotion_id) {
+                // Promotion item: reserve stock for each component
+                const components = await getPromotionComponents(supabaseAdmin, item.promotion_id);
+                for (const comp of components) {
+                  await reserveStock({
+                    supabase: supabaseAdmin,
+                    companyId: auth.companyId!,
+                    warehouseId,
+                    variationId: comp.variation_id,
+                    qty: comp.quantity * item.quantity,
+                    referenceType: 'order',
+                    referenceId: order.id,
+                    notes: `Reserve for order ${order.order_number} (promo component)`,
+                    createdBy: auth.userId,
+                  });
+                }
+              } else {
+                // Normal item: reserve as-is
+                await reserveStock({
+                  supabase: supabaseAdmin,
+                  companyId: auth.companyId!,
+                  warehouseId,
+                  variationId: item.variation_id,
+                  qty: item.quantity,
+                  referenceType: 'order',
+                  referenceId: order.id,
+                  notes: `Reserve for order ${order.order_number}`,
+                  createdBy: auth.userId,
+                });
+              }
             } catch (itemStockErr) {
               console.error(`[STOCK RESERVE] Error reserving stock for variation ${item.variation_id}:`, itemStockErr);
             }
@@ -1100,23 +1122,47 @@ export async function PUT(request: NextRequest) {
               try {
                 const { data: orderItems } = await supabaseAdmin
                   .from('order_items')
-                  .select('variation_id, quantity')
+                  .select('variation_id, quantity, promotion_id')
                   .eq('order_id', order.id)
                   .eq('company_id', auth.companyId);
                 for (const oi of orderItems || []) {
                   if (!oi.variation_id) continue;
                   const stockFn = wasShipped ? returnStock : unreserveStock;
-                  await stockFn({
-                    supabase: supabaseAdmin,
-                    companyId: auth.companyId!,
-                    warehouseId: order.warehouse_id,
-                    variationId: oi.variation_id,
-                    qty: oi.quantity,
-                    referenceType: 'order',
-                    referenceId: order.id,
-                    notes: wasShipped ? 'Return stock for cancelled order' : 'Unreserve for cancelled order',
-                    createdBy: auth.userId,
-                  });
+                  const notes = wasShipped ? 'Return stock for cancelled order' : 'Unreserve for cancelled order';
+
+                  if (oi.promotion_id) {
+                    // Promotion item: reverse stock for each component
+                    try {
+                      const components = await getPromotionComponents(supabaseAdmin, oi.promotion_id);
+                      for (const comp of components) {
+                        await stockFn({
+                          supabase: supabaseAdmin,
+                          companyId: auth.companyId!,
+                          warehouseId: order.warehouse_id,
+                          variationId: comp.variation_id,
+                          qty: comp.quantity * oi.quantity,
+                          referenceType: 'order',
+                          referenceId: order.id,
+                          notes: `${notes} (promo component)`,
+                          createdBy: auth.userId,
+                        });
+                      }
+                    } catch (promoErr) {
+                      console.error('[CANCEL] Error expanding promotion components:', promoErr);
+                    }
+                  } else {
+                    await stockFn({
+                      supabase: supabaseAdmin,
+                      companyId: auth.companyId!,
+                      warehouseId: order.warehouse_id,
+                      variationId: oi.variation_id,
+                      qty: oi.quantity,
+                      referenceType: 'order',
+                      referenceId: order.id,
+                      notes,
+                      createdBy: auth.userId,
+                    });
+                  }
                 }
               } catch (e) {
                 console.error('[BULK CANCEL] Stock error for order', order.id, e);
@@ -1232,24 +1278,42 @@ export async function PUT(request: NextRequest) {
               if (stockConfig.stockEnabled) {
                 const { data: orderItems } = await supabaseAdmin
                   .from('order_items')
-                  .select('variation_id, quantity')
+                  .select('variation_id, quantity, promotion_id')
                   .eq('order_id', order.id)
                   .eq('company_id', auth.companyId);
                 for (const oi of orderItems || []) {
                   if (!oi.variation_id) continue;
                   try {
-                    await deductAndUnreserve({
-                      supabase: supabaseAdmin,
-                      companyId: auth.companyId!,
-                      warehouseId: order.warehouse_id,
-                      variationId: oi.variation_id,
-                      qty: oi.quantity,
-                      referenceType: 'order',
-                      referenceId: order.id,
-                      notes: 'Deduct for bulk shipment',
-                      createdBy: auth.userId,
-                    });
-                    allVarIds.push(oi.variation_id);
+                    if (oi.promotion_id) {
+                      const components = await getPromotionComponents(supabaseAdmin, oi.promotion_id);
+                      for (const comp of components) {
+                        await deductAndUnreserve({
+                          supabase: supabaseAdmin,
+                          companyId: auth.companyId!,
+                          warehouseId: order.warehouse_id,
+                          variationId: comp.variation_id,
+                          qty: comp.quantity * oi.quantity,
+                          referenceType: 'order',
+                          referenceId: order.id,
+                          notes: 'Deduct for bulk shipment (promo component)',
+                          createdBy: auth.userId,
+                        });
+                        allVarIds.push(comp.variation_id);
+                      }
+                    } else {
+                      await deductAndUnreserve({
+                        supabase: supabaseAdmin,
+                        companyId: auth.companyId!,
+                        warehouseId: order.warehouse_id,
+                        variationId: oi.variation_id,
+                        qty: oi.quantity,
+                        referenceType: 'order',
+                        referenceId: order.id,
+                        notes: 'Deduct for bulk shipment',
+                        createdBy: auth.userId,
+                      });
+                      allVarIds.push(oi.variation_id);
+                    }
                   } catch (e) {
                     console.error('[BULK SHIP] Stock error', e);
                   }

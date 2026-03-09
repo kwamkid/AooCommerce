@@ -22,6 +22,7 @@ import {
   ExternalLink,
   ScrollText,
 } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 
 interface IntegrationLog {
   id: string;
@@ -60,7 +61,32 @@ const ACTION_LABELS: Record<string, string> = {
   bulk_shipping_document: 'พิมพ์ใบปะหน้า (Bulk)',
   resync_order: 'Sync ออเดอร์ใหม่',
   accept_order: 'รับออเดอร์',
+  push_deal: 'Push Deal',
+  auto_credit_note: 'Auto ใบลดหนี้',
+  webhook_order_tracking: 'Webhook Tracking',
+  webhook_return_refund: 'Webhook คืนเงิน',
+  auto_push_category: 'Auto Sync หมวดหมู่',
+  auto_export_product: 'Auto Export สินค้า',
 };
+
+const ACTION_FILTER_OPTIONS = [
+  { value: '', label: 'ทุก Action' },
+  { value: 'webhook_order_status,webhook_sync_error', label: 'Webhook อัปเดตสถานะ' },
+  { value: 'webhook_order_tracking', label: 'Webhook Tracking' },
+  { value: 'webhook_return_refund', label: 'Webhook Refund' },
+  { value: 'sync_orders_manual', label: 'Sync ออเดอร์ (Manual)' },
+  { value: 'sync_orders_poll', label: 'Sync ออเดอร์ (Auto)' },
+  { value: 'resync_order', label: 'Resync ออเดอร์' },
+  { value: 'accept_order', label: 'รับออเดอร์' },
+  { value: 'push_deal', label: 'Push Deal' },
+  { value: 'push_stock,auto_push_stock', label: 'Push สต็อก' },
+  { value: 'push_price,auto_push_price', label: 'Push ราคา' },
+  { value: 'auto_push_info', label: 'Push ข้อมูลสินค้า' },
+  { value: 'shipping_document,bulk_shipping_document', label: 'พิมพ์ใบปะหน้า' },
+  { value: 'sync_products', label: 'ดึงสินค้า' },
+  { value: 'auto_export_product', label: 'Auto Export สินค้า' },
+  { value: 'auto_credit_note', label: 'Auto ใบลดหนี้' },
+];
 
 function getActionLabel(action: string): string {
   return ACTION_LABELS[action] || action;
@@ -140,6 +166,7 @@ export default function ShopeeLogsPage() {
   const [searchInput, setSearchInput] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [directionFilter, setDirectionFilter] = useState<string>('all');
+  const [actionFilter, setActionFilter] = useState<string>('');
   const [dateRange, setDateRange] = useState<DateValueType>({ startDate: null, endDate: null });
   const [page, setPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState(20);
@@ -162,6 +189,7 @@ export default function ShopeeLogsPage() {
       });
       if (directionFilter !== 'all') params.set('direction', directionFilter);
       if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (actionFilter) params.set('action', actionFilter);
       if (search) params.set('search', search);
       if (dateRange?.startDate) params.set('date_from', String(dateRange.startDate));
       if (dateRange?.endDate) params.set('date_to', String(dateRange.endDate));
@@ -183,7 +211,7 @@ export default function ShopeeLogsPage() {
       setLoadTime((performance.now() - startTime) / 1000);
       setLoading(false);
     }
-  }, [page, recordsPerPage, directionFilter, statusFilter, search, dateRange]);
+  }, [page, recordsPerPage, directionFilter, statusFilter, actionFilter, search, dateRange]);
 
   useEffect(() => {
     fetchLogs();
@@ -296,6 +324,17 @@ export default function ShopeeLogsPage() {
                   {opt.label}
                 </button>
               ))}
+            </div>
+
+            {/* Action filter */}
+            <div className="w-52">
+              <FormSelect
+                value={actionFilter}
+                onChange={(val) => { setActionFilter(val); setPage(1); }}
+                options={ACTION_FILTER_OPTIONS.filter(o => o.value !== '').map(o => ({ id: o.value, label: o.label }))}
+                clearLabel="ทุก Action"
+                searchThreshold={99}
+              />
             </div>
 
             {/* Date range */}

@@ -25,6 +25,15 @@ export { type OrderInvoiceData } from './order-invoice-pdf';
 
 // ─── Types ──────────────────────────────────────────────
 
+interface PromotionComponent {
+  product_name: string;
+  product_code?: string | null;
+  variation_label?: string | null;
+  sku?: string | null;
+  role: string;
+  quantity: number;
+}
+
 interface AbbreviatedInvoiceItem {
   product_name: string;
   product_code?: string;
@@ -33,6 +42,9 @@ interface AbbreviatedInvoiceItem {
   unit_price: number;
   discount_amount?: number;
   total: number;
+  promotion_name?: string | null;
+  promotion_type?: string | null;
+  promotion_components?: PromotionComponent[];
 }
 
 export interface AbbreviatedInvoiceData {
@@ -230,18 +242,57 @@ function buildCompactInvoiceContent(
   ];
   const widths: (number | string)[] = [20, '*', 35, 55, 60];
 
-  const tableBody = order.items.map((item, idx) => {
-    const subtitle = [item.product_code, item.variation_label].filter(Boolean).join(' | ');
-    const productStack = buildProductNameStack(item.product_name, subtitle);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tableBody: any[][] = [];
+  let rowNum = 0;
 
-    return [
-      { text: `${idx + 1}`, alignment: 'center', fontSize: 9, margin: [0, 1, 0, 0] },
-      { stack: productStack, margin: [0, 1, 0, 1] },
-      { text: `${item.quantity}`, alignment: 'center', fontSize: 9, margin: [0, 1, 0, 0] },
-      { text: formatPdfPrice(item.unit_price), alignment: 'right', fontSize: 9, margin: [0, 1, 0, 0] },
-      { text: formatPdfPrice(item.total), alignment: 'right', fontSize: 9, margin: [0, 1, 0, 0] },
-    ];
-  });
+  for (const item of order.items) {
+    rowNum++;
+    const hasComponents = item.promotion_components && item.promotion_components.length > 0;
+
+    if (hasComponents) {
+      // Promotion header row
+      tableBody.push([
+        { text: `${rowNum}`, alignment: 'center', fontSize: 9, margin: [0, 1, 0, 0] },
+        {
+          text: [
+            { text: item.promotion_name || item.product_name, fontSize: 9, bold: true, color: '#6366f1' },
+            { text: ` (×${item.quantity})`, fontSize: 7, color: '#888888' },
+          ],
+          margin: [0, 1, 0, 1],
+        },
+        { text: '', margin: [0, 1, 0, 0] },
+        { text: '', margin: [0, 1, 0, 0] },
+        { text: formatPdfPrice(item.total), alignment: 'right', fontSize: 9, bold: true, margin: [0, 1, 0, 0] },
+      ]);
+
+      // Component sub-rows
+      for (const comp of item.promotion_components!) {
+        const compSubtitle = [comp.sku || comp.product_code, comp.role === 'gift' ? '[แถมฟรี]' : null].filter(Boolean).join(' ');
+        const compProductStack = buildProductNameStack(`└ ${comp.product_name}`, compSubtitle);
+
+        tableBody.push([
+          { text: '', margin: [0, 1, 0, 0] },
+          { stack: compProductStack, margin: [6, 1, 0, 1], color: '#666666' },
+          { text: `${comp.quantity}`, alignment: 'center', fontSize: 8, color: '#666666', margin: [0, 1, 0, 0] },
+          { text: '-', alignment: 'right', fontSize: 8, color: '#999999', margin: [0, 1, 0, 0] },
+          { text: '', margin: [0, 1, 0, 0] },
+        ]);
+      }
+    } else {
+      // Normal item row
+      const subtitle = [item.product_code, item.variation_label].filter(Boolean).join(' | ');
+      const productStack = buildProductNameStack(item.product_name, subtitle);
+
+      tableBody.push([
+        { text: `${rowNum}`, alignment: 'center', fontSize: 9, margin: [0, 1, 0, 0] },
+        { stack: productStack, margin: [0, 1, 0, 1] },
+        { text: `${item.quantity}`, alignment: 'center', fontSize: 9, margin: [0, 1, 0, 0] },
+        { text: formatPdfPrice(item.unit_price), alignment: 'right', fontSize: 9, margin: [0, 1, 0, 0] },
+        { text: formatPdfPrice(item.total), alignment: 'right', fontSize: 9, margin: [0, 1, 0, 0] },
+      ]);
+    }
+  }
 
   content.push({
     table: {

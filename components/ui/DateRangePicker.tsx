@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { DayPicker, DateRange } from 'react-day-picker';
-import { format, parse, isValid, startOfMonth, endOfMonth, subDays, startOfDay, addMonths, subMonths } from 'date-fns';
+import { format, isValid, startOfMonth, endOfMonth, subDays, startOfDay, addMonths, subMonths } from 'date-fns';
 import { Calendar, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Re-export DateValueType so consumers don't need to change imports
@@ -73,6 +73,113 @@ const SHORTCUTS: Shortcut[] = [
   { label: 'เดือนที่แล้ว', getValue: () => { const pm = subMonths(new Date(), 1); return { from: startOfMonth(pm), to: endOfMonth(pm) }; } },
 ];
 
+// Shared DayPicker classNames
+const DAY_PICKER_SINGLE_CLASSES = {
+  months: '',
+  month: '',
+  month_caption: 'hidden',
+  nav: 'hidden',
+  month_grid: 'w-full border-collapse',
+  weekdays: '',
+  weekday: 'text-xs font-semibold text-gray-400 dark:text-slate-500 pb-2 w-10 text-center',
+  week: '',
+  day: 'text-center p-0',
+  day_button: 'w-10 h-10 text-sm rounded-full hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors text-gray-700 dark:text-slate-300 focus:outline-none',
+  today: 'font-bold underline underline-offset-4 decoration-amber-500 decoration-2',
+  selected: '!bg-amber-500 !text-white !rounded-full hover:!bg-amber-600',
+  outside: 'text-gray-300 dark:text-slate-600',
+  disabled: 'text-gray-300 dark:text-slate-600 cursor-not-allowed',
+};
+
+const DAY_PICKER_RANGE_CLASSES = {
+  months: '',
+  month: '',
+  month_caption: 'hidden',
+  nav: 'hidden',
+  month_grid: 'w-full border-collapse',
+  weekdays: '',
+  weekday: 'text-xs font-semibold text-gray-400 dark:text-slate-500 pb-2 w-10 text-center',
+  week: '',
+  day: 'text-center p-0',
+  day_button: 'w-10 h-10 text-sm rounded-full hover:bg-amber-200 dark:hover:bg-amber-800/40 transition-colors text-gray-700 dark:text-slate-300 focus:outline-none',
+  today: 'font-bold underline underline-offset-4 decoration-amber-500 decoration-2',
+  selected: '!bg-amber-400 dark:!bg-amber-600 !text-white',
+  range_start: '!bg-amber-500 !text-white !rounded-l-full',
+  range_end: '!bg-amber-500 !text-white !rounded-r-full',
+  range_middle: '!bg-amber-400 dark:!bg-amber-600 !rounded-none !text-white',
+  outside: 'text-gray-300 dark:text-slate-600',
+  disabled: 'text-gray-300 dark:text-slate-600 cursor-not-allowed',
+};
+
+// Override for hidden outside days — prevents range background from bleeding
+const RANGE_MODIFIERS_CLASSES = {
+  hidden: '[&]:!bg-transparent [&]:!text-transparent',
+};
+
+// Calendar header component (reusable for left/right panels)
+function CalendarHeader({
+  month,
+  onPrev,
+  onNext,
+  onMonthClick,
+  onYearClick,
+  showPrev = true,
+  showNext = true,
+}: {
+  month: Date;
+  onPrev?: () => void;
+  onNext?: () => void;
+  onMonthClick: () => void;
+  onYearClick: () => void;
+  showPrev?: boolean;
+  showNext?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-2">
+      {showPrev ? (
+        <button
+          type="button"
+          onClick={onPrev}
+          className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+        >
+          <ChevronLeft className="w-5 h-5 text-gray-500" />
+        </button>
+      ) : (
+        <div className="w-7" />
+      )}
+
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={onMonthClick}
+          className="px-2 py-1 text-base font-bold text-gray-800 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+        >
+          {THAI_MONTHS_FULL[month.getMonth()]}
+        </button>
+        <button
+          type="button"
+          onClick={onYearClick}
+          className="px-2 py-1 text-base font-bold text-gray-800 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+        >
+          {month.getFullYear() + 543}
+        </button>
+      </div>
+
+      {showNext ? (
+        <button
+          type="button"
+          onClick={onNext}
+          className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+        >
+          <ChevronRight className="w-5 h-5 text-gray-500" />
+        </button>
+      ) : (
+        <div className="w-7" />
+      )}
+    </div>
+  );
+}
+
 export default function DateRangePicker({
   value,
   onChange,
@@ -92,12 +199,21 @@ export default function DateRangePicker({
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const [displayMonth, setDisplayMonth] = useState<Date>(new Date());
   const [yearPageStart, setYearPageStart] = useState(() => Math.floor(new Date().getFullYear() / 12) * 12);
+  // Which side the month/year picker is for: 'left' or 'right' (desktop dual calendar)
+  const [pickerSide, setPickerSide] = useState<'left' | 'right'>('left');
 
-  // Internal selection state (for range: pending first click)
   const isSingle = asSingle || !useRange;
 
   const startDate = useMemo(() => toDate(value?.startDate), [value?.startDate]);
   const endDate = useMemo(() => toDate(value?.endDate), [value?.endDate]);
+
+  // Range selection phase: 'idle' → 'start_picked' → 'idle'
+  // 'idle' = no selection in progress (either empty or complete range)
+  // 'start_picked' = start date chosen, waiting for end date
+  const [selectionPhase, setSelectionPhase] = useState<'idle' | 'start_picked'>('idle');
+
+  // Right month for dual calendar
+  const rightMonth = useMemo(() => addMonths(displayMonth, 1), [displayMonth]);
 
   // Close on outside click
   useEffect(() => {
@@ -135,25 +251,39 @@ export default function DateRangePicker({
     setViewMode('calendar');
   }, [onChange]);
 
-  const handleRangeSelect = useCallback((range: DateRange | undefined) => {
-    if (!range) return;
-    const from = range.from;
-    const to = range.to;
-    if (from && to) {
-      onChange({ startDate: toISOString(from), endDate: toISOString(to) });
+  // We handle range selection manually via onDayClick for full control.
+  // DayPicker's onSelect is ignored — we compute start/end ourselves.
+  const handleDayClick = useCallback((day: Date) => {
+    if (selectionPhase === 'idle') {
+      // First click: set start, clear end
+      onChange({ startDate: toISOString(day), endDate: null });
+      setSelectionPhase('start_picked');
+    } else {
+      // Second click: set end (ensure start < end)
+      const currentStart = startDate;
+      if (currentStart && day < currentStart) {
+        // Clicked before start — swap: clicked becomes start, old start becomes end
+        onChange({ startDate: toISOString(day), endDate: toISOString(currentStart) });
+      } else {
+        onChange({ startDate: currentStart ? toISOString(currentStart) : toISOString(day), endDate: toISOString(day) });
+      }
+      setSelectionPhase('idle');
       if (!showFooter) {
         setOpen(false);
         setViewMode('calendar');
       }
-    } else if (from) {
-      // First click of range — intermediate state
-      onChange({ startDate: toISOString(from), endDate: null });
     }
-  }, [onChange, showFooter]);
+  }, [selectionPhase, startDate, onChange, showFooter]);
+
+  // no-op — we handle everything in onDayClick
+  const handleRangeSelect = useCallback((_range: DateRange | undefined) => {
+    // intentionally empty
+  }, []);
 
   const handleShortcut = useCallback((shortcut: Shortcut) => {
     const { from, to } = shortcut.getValue();
     onChange({ startDate: toISOString(from), endDate: toISOString(to) });
+    setSelectionPhase('idle');
     setOpen(false);
     setViewMode('calendar');
   }, [onChange]);
@@ -161,13 +291,20 @@ export default function DateRangePicker({
   const handleClear = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     onChange({ startDate: null, endDate: null });
+    setSelectionPhase('idle');
   }, [onChange]);
 
   const handleMonthClick = useCallback((monthIndex: number) => {
-    const newDate = new Date(displayMonth.getFullYear(), monthIndex, 1);
-    setDisplayMonth(newDate);
+    if (pickerSide === 'right') {
+      // Right panel: set so that right month is the selected month
+      const newDate = new Date(displayMonth.getFullYear(), monthIndex - 1, 1);
+      setDisplayMonth(newDate);
+    } else {
+      const newDate = new Date(displayMonth.getFullYear(), monthIndex, 1);
+      setDisplayMonth(newDate);
+    }
     setViewMode('calendar');
-  }, [displayMonth]);
+  }, [displayMonth, pickerSide]);
 
   const handleYearClick = useCallback((year: number) => {
     const newDate = new Date(year, displayMonth.getMonth(), 1);
@@ -193,12 +330,64 @@ export default function DateRangePicker({
     return { from: startDate, to: endDate } as DateRange;
   }, [isSingle, startDate, endDate]);
 
+  // Month/Year Selector panel
+  function MonthYearSelector() {
+    const targetMonth = pickerSide === 'right' ? rightMonth : displayMonth;
+    return (
+      <>
+        {viewMode === 'months' && (
+          <div className="grid grid-cols-3 gap-2 py-2" style={{ width: 280 }}>
+            {THAI_MONTHS_SHORT.map((name, i) => {
+              const isActive = targetMonth.getMonth() === i;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => handleMonthClick(i)}
+                  className={`py-3 text-base font-bold rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-amber-500 text-white'
+                      : 'text-gray-700 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                  }`}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {viewMode === 'years' && (
+          <div className="grid grid-cols-3 gap-2 py-2" style={{ width: 280 }}>
+            {Array.from({ length: 12 }, (_, i) => yearPageStart + i).map((year) => {
+              const isActive = targetMonth.getFullYear() === year;
+              return (
+                <button
+                  key={year}
+                  type="button"
+                  onClick={() => handleYearClick(year)}
+                  className={`py-3 text-base font-bold rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-amber-500 text-white'
+                      : 'text-gray-700 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                  }`}
+                >
+                  {year + 543}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <div ref={containerRef} className="relative">
       {/* Input */}
       <button
         type="button"
-        onClick={() => { if (!disabled && !readOnly) setOpen(!open); }}
+        onClick={() => { if (!disabled && !readOnly) { setOpen(!open); if (!open) setSelectionPhase('idle'); } }}
         className={`w-full h-[42px] px-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm font-normal bg-white dark:bg-slate-700 text-left flex items-center gap-2 transition-colors ${
           open ? 'ring-2 ring-[#F4511E] border-transparent' : 'hover:border-gray-400 dark:hover:border-slate-400'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -241,161 +430,133 @@ export default function DateRangePicker({
 
             {/* Calendar area */}
             <div className="p-3">
-              {/* Custom Header */}
-              <div className="flex items-center justify-between mb-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (viewMode === 'calendar') setDisplayMonth(subMonths(displayMonth, 1));
-                    else if (viewMode === 'years') setYearPageStart(p => p - 12);
-                  }}
-                  className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                >
-                  <ChevronLeft className="w-5 h-5 text-gray-500" />
-                </button>
-
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode(viewMode === 'months' ? 'calendar' : 'months')}
-                    className="px-2 py-1 text-base font-bold text-gray-800 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                  >
-                    {THAI_MONTHS_FULL[displayMonth.getMonth()]}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setViewMode(viewMode === 'years' ? 'calendar' : 'years');
-                      setYearPageStart(Math.floor(displayMonth.getFullYear() / 12) * 12);
+              {/* Single mode OR Mobile range (1 calendar) */}
+              {isSingle ? (
+                <>
+                  <CalendarHeader
+                    month={displayMonth}
+                    onPrev={() => {
+                      if (viewMode === 'calendar') setDisplayMonth(subMonths(displayMonth, 1));
+                      else if (viewMode === 'years') setYearPageStart(p => p - 12);
                     }}
-                    className="px-2 py-1 text-base font-bold text-gray-800 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                  >
-                    {displayMonth.getFullYear() + 543}
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (viewMode === 'calendar') setDisplayMonth(addMonths(displayMonth, 1));
-                    else if (viewMode === 'years') setYearPageStart(p => p + 12);
-                  }}
-                  className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                >
-                  <ChevronRight className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-
-              {/* Calendar View */}
-              {viewMode === 'calendar' && (
-                <div>
-                  {isSingle ? (
+                    onNext={() => {
+                      if (viewMode === 'calendar') setDisplayMonth(addMonths(displayMonth, 1));
+                      else if (viewMode === 'years') setYearPageStart(p => p + 12);
+                    }}
+                    onMonthClick={() => { setPickerSide('left'); setViewMode(viewMode === 'months' ? 'calendar' : 'months'); }}
+                    onYearClick={() => { setPickerSide('left'); setViewMode(viewMode === 'years' ? 'calendar' : 'years'); setYearPageStart(Math.floor(displayMonth.getFullYear() / 12) * 12); }}
+                  />
+                  {viewMode === 'calendar' ? (
                     <DayPicker
                       mode="single"
                       selected={startDate}
                       onSelect={handleSingleSelect}
                       month={displayMonth}
                       onMonthChange={setDisplayMonth}
-                      formatters={{
-                        formatWeekdayName: (date) => format(date, 'EEE').toUpperCase(),
-                      }}
+                      formatters={{ formatWeekdayName: (date) => format(date, 'EEE').toUpperCase() }}
                       hideNavigation
-                      classNames={{
-                        months: '',
-                        month: '',
-                        month_caption: 'hidden',
-                        nav: 'hidden',
-                        month_grid: 'w-full border-collapse',
-                        weekdays: '',
-                        weekday: 'text-xs font-semibold text-gray-400 dark:text-slate-500 pb-2 w-10 text-center',
-                        week: '',
-                        day: 'text-center p-0',
-                        day_button: 'w-10 h-10 text-sm rounded-full hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors text-gray-700 dark:text-slate-300 focus:outline-none',
-                        today: 'font-bold text-amber-600 dark:text-amber-400 ring-2 ring-amber-400 dark:ring-amber-500 rounded-full',
-                        selected: '!bg-amber-500 !text-white !rounded-full hover:!bg-amber-600',
-                        outside: 'text-gray-300 dark:text-slate-600',
-                        disabled: 'text-gray-300 dark:text-slate-600 cursor-not-allowed',
-                      }}
+                      classNames={DAY_PICKER_SINGLE_CLASSES}
                     />
                   ) : (
-                    <DayPicker
-                      mode="range"
-                      selected={selected as DateRange | undefined}
-                      onSelect={handleRangeSelect}
-                      month={displayMonth}
-                      onMonthChange={setDisplayMonth}
-                      formatters={{
-                        formatWeekdayName: (date) => format(date, 'EEE').toUpperCase(),
-                      }}
-                      hideNavigation
-                      classNames={{
-                        months: '',
-                        month: '',
-                        month_caption: 'hidden',
-                        nav: 'hidden',
-                        month_grid: 'w-full border-collapse',
-                        weekdays: '',
-                        weekday: 'text-xs font-semibold text-gray-400 dark:text-slate-500 pb-2 w-10 text-center',
-                        week: '',
-                        day: 'text-center p-0',
-                        day_button: 'w-10 h-10 text-sm rounded-full hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors text-gray-700 dark:text-slate-300 focus:outline-none',
-                        today: 'font-bold text-amber-600 dark:text-amber-400 ring-2 ring-amber-400 dark:ring-amber-500 rounded-full',
-                        selected: '!bg-amber-100 dark:!bg-amber-900/30 !text-amber-800 dark:!text-amber-200',
-                        range_start: '!bg-amber-500 !text-white !rounded-l-full !rounded-r-none',
-                        range_end: '!bg-amber-500 !text-white !rounded-r-full !rounded-l-none',
-                        range_middle: '!bg-amber-100 dark:!bg-amber-900/30 !rounded-none !text-amber-800 dark:!text-amber-200',
-                        outside: 'text-gray-300 dark:text-slate-600',
-                        disabled: 'text-gray-300 dark:text-slate-600 cursor-not-allowed',
-                      }}
-                    />
+                    <MonthYearSelector />
                   )}
-                </div>
-              )}
+                </>
+              ) : (
+                <>
+                  {/* ── Mobile: 1 calendar ── */}
+                  <div className="md:hidden">
+                    <CalendarHeader
+                      month={displayMonth}
+                      onPrev={() => {
+                        if (viewMode === 'calendar') setDisplayMonth(subMonths(displayMonth, 1));
+                        else if (viewMode === 'years') setYearPageStart(p => p - 12);
+                      }}
+                      onNext={() => {
+                        if (viewMode === 'calendar') setDisplayMonth(addMonths(displayMonth, 1));
+                        else if (viewMode === 'years') setYearPageStart(p => p + 12);
+                      }}
+                      onMonthClick={() => { setPickerSide('left'); setViewMode(viewMode === 'months' ? 'calendar' : 'months'); }}
+                      onYearClick={() => { setPickerSide('left'); setViewMode(viewMode === 'years' ? 'calendar' : 'years'); setYearPageStart(Math.floor(displayMonth.getFullYear() / 12) * 12); }}
+                    />
+                    {viewMode === 'calendar' ? (
+                      <DayPicker
+                        mode="range"
+                        selected={selected as DateRange | undefined}
+                        onSelect={handleRangeSelect}
+                        onDayClick={handleDayClick}
+                        month={displayMonth}
+                        onMonthChange={setDisplayMonth}
+                        formatters={{ formatWeekdayName: (date) => format(date, 'EEE').toUpperCase() }}
+                        hideNavigation
+                        showOutsideDays={false}
+                        classNames={DAY_PICKER_RANGE_CLASSES}
+                        modifiersClassNames={RANGE_MODIFIERS_CLASSES}
+                      />
+                    ) : (
+                      <MonthYearSelector />
+                    )}
+                  </div>
 
-              {/* Month Selector */}
-              {viewMode === 'months' && (
-                <div className="grid grid-cols-3 gap-2 py-2" style={{ width: 280 }}>
-                  {THAI_MONTHS_SHORT.map((name, i) => {
-                    const isActive = displayMonth.getMonth() === i;
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => handleMonthClick(i)}
-                        className={`py-3 text-base font-bold rounded-lg transition-colors ${
-                          isActive
-                            ? 'bg-amber-500 text-white'
-                            : 'text-gray-700 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-900/20'
-                        }`}
-                      >
-                        {name}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                  {/* ── Desktop: 2 calendars side by side ── */}
+                  <div className="hidden md:block">
+                    {viewMode === 'calendar' ? (
+                      <div className="flex gap-4">
+                        {/* Left calendar */}
+                        <div>
+                          <CalendarHeader
+                            month={displayMonth}
+                            onPrev={() => setDisplayMonth(subMonths(displayMonth, 1))}
+                            showNext={false}
+                            onMonthClick={() => { setPickerSide('left'); setViewMode('months'); }}
+                            onYearClick={() => { setPickerSide('left'); setViewMode('years'); setYearPageStart(Math.floor(displayMonth.getFullYear() / 12) * 12); }}
+                          />
+                          <DayPicker
+                            mode="range"
+                            selected={selected as DateRange | undefined}
+                            onSelect={handleRangeSelect}
+                        onDayClick={handleDayClick}
+                            month={displayMonth}
+                            onMonthChange={setDisplayMonth}
+                            formatters={{ formatWeekdayName: (date) => format(date, 'EEE').toUpperCase() }}
+                            hideNavigation
+                            showOutsideDays={false}
+                            classNames={DAY_PICKER_RANGE_CLASSES}
+                            modifiersClassNames={RANGE_MODIFIERS_CLASSES}
+                          />
+                        </div>
 
-              {/* Year Selector */}
-              {viewMode === 'years' && (
-                <div className="grid grid-cols-3 gap-2 py-2" style={{ width: 280 }}>
-                  {Array.from({ length: 12 }, (_, i) => yearPageStart + i).map((year) => {
-                    const isActive = displayMonth.getFullYear() === year;
-                    return (
-                      <button
-                        key={year}
-                        type="button"
-                        onClick={() => handleYearClick(year)}
-                        className={`py-3 text-base font-bold rounded-lg transition-colors ${
-                          isActive
-                            ? 'bg-amber-500 text-white'
-                            : 'text-gray-700 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-900/20'
-                        }`}
-                      >
-                        {year + 543}
-                      </button>
-                    );
-                  })}
-                </div>
+                        {/* Divider */}
+                        <div className="w-px bg-gray-100 dark:bg-slate-700" />
+
+                        {/* Right calendar */}
+                        <div>
+                          <CalendarHeader
+                            month={rightMonth}
+                            onNext={() => setDisplayMonth(addMonths(displayMonth, 1))}
+                            showPrev={false}
+                            onMonthClick={() => { setPickerSide('right'); setViewMode('months'); }}
+                            onYearClick={() => { setPickerSide('right'); setViewMode('years'); setYearPageStart(Math.floor(rightMonth.getFullYear() / 12) * 12); }}
+                          />
+                          <DayPicker
+                            mode="range"
+                            selected={selected as DateRange | undefined}
+                            onSelect={handleRangeSelect}
+                        onDayClick={handleDayClick}
+                            month={rightMonth}
+                            onMonthChange={(m) => setDisplayMonth(subMonths(m, 1))}
+                            formatters={{ formatWeekdayName: (date) => format(date, 'EEE').toUpperCase() }}
+                            hideNavigation
+                            showOutsideDays={false}
+                            classNames={DAY_PICKER_RANGE_CLASSES}
+                            modifiersClassNames={RANGE_MODIFIERS_CLASSES}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <MonthYearSelector />
+                    )}
+                  </div>
+                </>
               )}
 
               {/* Footer */}
