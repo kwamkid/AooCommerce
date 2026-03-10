@@ -5,7 +5,8 @@ import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 interface PromotionItemInput {
   id?: string;
-  variation_id: string;
+  variation_id?: string;
+  product_id?: string | null;
   role: 'main' | 'component' | 'gift' | 'discounted';
   quantity?: number;
   special_price?: number | null;
@@ -36,6 +37,8 @@ interface UpdatePromotionBody {
   image?: string | null;
   description?: string | null;
   bundle_price?: number | null;
+  discount_type?: string | null;
+  discount_value?: number | null;
   purchase_min_spend?: number | null;
   per_gift_num?: number | null;
   purchase_limit?: number | null;
@@ -71,20 +74,22 @@ export async function GET(
     }
 
     // Get items with product info
+    // Use left join for product_variations (nullable for bundle_set product-level items)
     const { data: items } = await supabaseAdmin
       .from('promotion_items')
       .select(`
-        id, promotion_id, variation_id, role, quantity, special_price, sort_order,
-        product_variations!inner(
+        id, promotion_id, variation_id, product_id, role, quantity, special_price, sort_order,
+        product_variations(
           id, variation_label, sku, barcode, default_price,
           products!inner(id, name, code, image)
-        )
+        ),
+        products(id, name, code, image)
       `)
       .eq('promotion_id', id)
       .order('sort_order');
 
-    // Fetch variation images from product_images table
-    const variationIds = (items || []).map(i => i.variation_id);
+    // Fetch variation images
+    const variationIds = (items || []).map(i => i.variation_id).filter(Boolean) as string[];
     const variationImageMap = new Map<string, string>();
     if (variationIds.length > 0) {
       const { data: images } = await supabaseAdmin
@@ -99,20 +104,74 @@ export async function GET(
       }
     }
 
+    // Fetch product images for product-level items
+    const productIds = (items || []).filter(i => !i.variation_id && i.product_id).map(i => i.product_id) as string[];
+    const productImageMap = new Map<string, string>();
+    if (productIds.length > 0) {
+      const { data: images } = await supabaseAdmin
+        .from('product_images')
+        .select('product_id, image_url')
+        .in('product_id', productIds)
+        .order('sort_order');
+      for (const img of images || []) {
+        if (img.product_id && !productImageMap.has(img.product_id)) {
+          productImageMap.set(img.product_id, img.image_url);
+        }
+      }
+    }
+
+    // Count variations per product for product-level items
+    const variationCountMap = new Map<string, number>();
+    if (productIds.length > 0) {
+      const { data: varCounts } = await supabaseAdmin
+        .from('product_variations')
+        .select('product_id')
+        .in('product_id', productIds);
+      for (const v of varCounts || []) {
+        variationCountMap.set(v.product_id, (variationCountMap.get(v.product_id) || 0) + 1);
+      }
+    }
+
     const mappedItems = (items || []).map(item => {
       const pv = item.product_variations as unknown as {
         id: string; variation_label: string; sku: string; barcode: string;
         default_price: number;
         products: { id: string; name: string; code: string; image: string };
-      };
+      } | null;
+      const prod = item.products as unknown as {
+        id: string; name: string; code: string; image: string;
+      } | null;
+
+      // Product-level item (bundle_set) — no variation_id
+      if (!item.variation_id && item.product_id && prod) {
+        return {
+          id: item.id,
+          variation_id: item.product_id, // Use product_id as key for form compatibility
+          product_id: item.product_id,
+          role: item.role,
+          quantity: item.quantity,
+          special_price: item.special_price,
+          sort_order: item.sort_order,
+          product_name: prod.name || '',
+          product_code: prod.code || '',
+          variation_label: '',
+          sku: '',
+          barcode: '',
+          default_price: 0,
+          image: productImageMap.get(item.product_id) || prod.image || '',
+          variation_count: variationCountMap.get(item.product_id) || 1,
+        };
+      }
+
+      // Variation-level item (other types)
       return {
         id: item.id,
         variation_id: item.variation_id,
+        product_id: pv?.products?.id || item.product_id || '',
         role: item.role,
         quantity: item.quantity,
         special_price: item.special_price,
         sort_order: item.sort_order,
-        product_id: pv?.products?.id || '',
         product_name: pv?.products?.name || '',
         product_code: pv?.products?.code || '',
         variation_label: pv?.variation_label || '',
@@ -136,18 +195,35 @@ export async function GET(
       .select('*')
       .eq('promotion_id', id);
 
-    // Get shopee deals
+    // Get shopee deals and auto-fix stale statuses based on time
     const { data: shopeDeals } = await supabaseAdmin
       .from('shopee_deals')
       .select('*')
       .eq('promotion_id', id);
+
+    const now = new Date();
+    const fixedDeals = (shopeDeals || []).map(deal => {
+      let correctStatus = deal.status;
+      if (deal.start_time && deal.end_time) {
+        const start = new Date(deal.start_time);
+        const end = new Date(deal.end_time);
+        if (now >= start && now <= end) correctStatus = 'ongoing';
+        else if (now > end) correctStatus = 'expired';
+        else correctStatus = 'upcoming';
+      }
+      // Update DB if status is stale
+      if (correctStatus !== deal.status) {
+        supabaseAdmin.from('shopee_deals').update({ status: correctStatus }).eq('id', deal.id).then(() => {});
+      }
+      return { ...deal, status: correctStatus };
+    });
 
     return NextResponse.json({
       ...promotion,
       items: mappedItems,
       tiers: tiers || [],
       platforms: platforms || [],
-      shopee_deals: shopeDeals || [],
+      shopee_deals: fixedDeals,
     });
   } catch (err) {
     console.error('GET /api/promotions/[id] error:', err);
@@ -224,18 +300,35 @@ export async function PUT(
         }
       }
 
-      // Validate variation_ids
-      const variationIds = body.items.map(i => i.variation_id);
-      const { data: variations } = await supabaseAdmin
-        .from('product_variations')
-        .select('id')
-        .in('id', variationIds)
-        .eq('company_id', companyId);
-
-      const foundIds = new Set((variations || []).map(v => v.id));
-      const missing = variationIds.filter(vid => !foundIds.has(vid));
-      if (missing.length > 0) {
-        return NextResponse.json({ error: 'สินค้าบางรายการไม่พบในระบบ' }, { status: 400 });
+      // Validate items exist — bundle_set uses product_id, others use variation_id
+      if (promotionType === 'bundle_set') {
+        const productIds = body.items.map(i => i.product_id || i.variation_id).filter(Boolean) as string[];
+        if (productIds.length > 0) {
+          const { data: prods } = await supabaseAdmin
+            .from('products')
+            .select('id')
+            .in('id', productIds)
+            .eq('company_id', companyId);
+          const foundIds = new Set((prods || []).map(p => p.id));
+          const missing = productIds.filter(id => !foundIds.has(id));
+          if (missing.length > 0) {
+            return NextResponse.json({ error: 'สินค้าบางรายการไม่พบในระบบ' }, { status: 400 });
+          }
+        }
+      } else {
+        const variationIds = body.items.map(i => i.variation_id).filter(Boolean) as string[];
+        if (variationIds.length > 0) {
+          const { data: variations } = await supabaseAdmin
+            .from('product_variations')
+            .select('id')
+            .in('id', variationIds)
+            .eq('company_id', companyId);
+          const foundIds = new Set((variations || []).map(v => v.id));
+          const missing = variationIds.filter(vid => !foundIds.has(vid));
+          if (missing.length > 0) {
+            return NextResponse.json({ error: 'สินค้าบางรายการไม่พบในระบบ' }, { status: 400 });
+          }
+        }
       }
     }
 
@@ -255,6 +348,8 @@ export async function PUT(
     if (body.image !== undefined) updateData.image = body.image;
     if (body.description !== undefined) updateData.description = body.description;
     if (body.bundle_price !== undefined) updateData.bundle_price = body.bundle_price;
+    if (body.discount_type !== undefined) updateData.discount_type = body.discount_type;
+    if (body.discount_value !== undefined) updateData.discount_value = body.discount_value;
     if (body.purchase_min_spend !== undefined) updateData.purchase_min_spend = body.purchase_min_spend;
     if (body.per_gift_num !== undefined) updateData.per_gift_num = body.per_gift_num;
     if (body.purchase_limit !== undefined) updateData.purchase_limit = body.purchase_limit;
@@ -276,7 +371,8 @@ export async function PUT(
       const itemsToInsert = body.items.map((item, idx) => ({
         company_id: companyId,
         promotion_id: id,
-        variation_id: item.variation_id,
+        variation_id: item.variation_id || null,
+        product_id: item.product_id || null,
         role: item.role || 'component',
         quantity: item.quantity || 1,
         special_price: item.special_price ?? null,

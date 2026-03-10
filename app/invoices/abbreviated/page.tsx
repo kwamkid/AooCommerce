@@ -97,9 +97,10 @@ export default function AbbreviatedInvoicesPage() {
       const res = await apiFetch(`/api/orders/${inv.id}?include_items=true`);
       if (!res.ok) return;
       const orderData = await res.json();
+      const order = orderData.order || orderData;
       const { generateAbbreviatedInvoicePdf } = await import('@/lib/order-invoice-abbreviated-pdf');
       const blob = await generateAbbreviatedInvoicePdf([{
-        ...orderData,
+        ...order,
         tax_invoice_number: inv.tax_invoice_number,
         tax_invoice_date: inv.tax_invoice_date,
         tax_invoice_voided_at: inv.tax_invoice_voided_at,

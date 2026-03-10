@@ -2,7 +2,7 @@
 
 import { Fragment, useRef, useState, useEffect } from 'react';
 import { Package, Trash2, AlertTriangle, X, ChevronDown, ChevronRight, Gift } from 'lucide-react';
-import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
+import ProductSearchInput, { type ProductSearchItem, type SearchMode } from '@/components/ui/ProductSearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -98,6 +98,8 @@ interface ItemsTableProps {
   emptyMessage?: string;
   showSummary?: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
+  /** Search mode: 'variation' (default) or 'product' (grouped by product) */
+  searchMode?: SearchMode;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -160,6 +162,7 @@ export default function ItemsTable({
   emptyMessage = 'เพิ่มสินค้าโดยพิมพ์ค้นหาด้านล่าง',
   showSummary = true,
   inputRef: externalInputRef,
+  searchMode = 'variation',
 }: ItemsTableProps) {
   const internalInputRef = useRef<HTMLInputElement>(null);
   const searchRef = externalInputRef ?? internalInputRef;
@@ -751,7 +754,8 @@ export default function ItemsTable({
                     loading={loadingProducts}
                     placeholder={searchPlaceholder}
                     inputRef={searchRef as React.RefObject<HTMLInputElement>}
-                    isAlreadyAdded={p => items.some(i => i.variation_id === p.id)}
+                    mode={searchMode}
+                    isAlreadyAdded={p => items.some(i => searchMode === 'product' ? i.product_id === p.product_id : i.variation_id === p.id)}
                     isDisabled={disableOutOfStock ? p => (stockMap[p.id] ?? 1) <= 0 : undefined}
                     renderExtra={shouldShowStockInSearch ? (p) => {
                       const qty = stockMap[p.id];
@@ -798,7 +802,8 @@ export default function ItemsTable({
                       loading={loadingProducts}
                       placeholder={searchPlaceholder}
                       inputRef={searchRef as React.RefObject<HTMLInputElement>}
-                      isAlreadyAdded={p => items.some(i => i.variation_id === p.id)}
+                      mode={searchMode}
+                      isAlreadyAdded={p => items.some(i => searchMode === 'product' ? i.product_id === p.product_id : i.variation_id === p.id)}
                       isDisabled={disableOutOfStock ? p => (stockMap[p.id] ?? 1) <= 0 : undefined}
                       renderExtra={shouldShowStockInSearch ? (p) => {
                         const qty = stockMap[p.id];

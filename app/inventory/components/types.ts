@@ -123,7 +123,7 @@ export const TYPE_CONFIG: Record<TransactionType, { label: string; bgClass: stri
   reserve: { label: 'จอง', bgClass: 'bg-yellow-100 dark:bg-yellow-900/30', textClass: 'text-yellow-700 dark:text-yellow-400' },
   unreserve: { label: 'ปล่อยจอง', bgClass: 'bg-gray-100 dark:bg-gray-700/30', textClass: 'text-gray-700 dark:text-gray-400' },
   adjust: { label: 'ปรับปรุง', bgClass: 'bg-purple-100 dark:bg-purple-900/30', textClass: 'text-purple-700 dark:text-purple-400' },
-  return: { label: 'คืน', bgClass: 'bg-teal-100 dark:bg-teal-900/30', textClass: 'text-teal-700 dark:text-teal-400' },
+  return: { label: 'คืน', bgClass: 'bg-cyan-100 dark:bg-cyan-900/30', textClass: 'text-cyan-700 dark:text-cyan-400' },
 };
 
 export const POSITIVE_TYPES: TransactionType[] = ['in', 'transfer_in', 'return', 'unreserve'];

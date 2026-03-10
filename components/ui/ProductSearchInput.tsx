@@ -14,9 +14,15 @@ export interface ProductSearchItem {
   sku?: string;
   barcode?: string;
   default_price?: number;
+  /** Max price across variations (product mode only, for price range display) */
+  max_price?: number;
   discount_price?: number;
   brand_id?: string | null;
+  /** Number of variations for this product (populated in product mode) */
+  variation_count?: number;
 }
+
+export type SearchMode = 'variation' | 'product';
 
 interface ProductSearchInputProps {
   products: ProductSearchItem[];
@@ -38,6 +44,8 @@ interface ProductSearchInputProps {
   autoFocus?: boolean;
   /** External ref for imperative focus */
   inputRef?: React.RefObject<HTMLInputElement | null>;
+  /** Search mode: 'variation' (default) = each variation as row, 'product' = grouped by product */
+  mode?: SearchMode;
 }
 
 export default function ProductSearchInput({
@@ -52,6 +60,7 @@ export default function ProductSearchInput({
   formatSubtitle,
   autoFocus,
   inputRef: externalRef,
+  mode = 'variation',
 }: ProductSearchInputProps) {
   const [search, setSearch] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -62,7 +71,7 @@ export default function ProductSearchInput({
   const searchRef = externalRef || internalRef;
 
   // Filter products client-side
-  const filtered = search
+  const filteredRaw = search
     ? products.filter(p => {
         const q = search.toLowerCase();
         if (p.name.toLowerCase().includes(q)) return true;
@@ -74,6 +83,41 @@ export default function ProductSearchInput({
         return false;
       })
     : [];
+
+  // In product mode: group by product_id, show 1 row per product
+  const filtered = mode === 'product'
+    ? (() => {
+        const seen = new Map<string, ProductSearchItem>();
+        const countMap = new Map<string, number>();
+        const priceRange = new Map<string, { min: number; max: number }>();
+        // Count all variations + compute price range per product
+        for (const p of products) {
+          countMap.set(p.product_id, (countMap.get(p.product_id) || 0) + 1);
+          const price = p.default_price || 0;
+          const range = priceRange.get(p.product_id);
+          if (!range) {
+            priceRange.set(p.product_id, { min: price, max: price });
+          } else {
+            range.min = Math.min(range.min, price);
+            range.max = Math.max(range.max, price);
+          }
+        }
+        for (const p of filteredRaw) {
+          if (!seen.has(p.product_id)) {
+            const range = priceRange.get(p.product_id);
+            seen.set(p.product_id, {
+              ...p,
+              id: p.product_id, // use product_id as id in product mode
+              variation_label: undefined, // don't show single variation label
+              variation_count: countMap.get(p.product_id) || 1,
+              default_price: range?.min || p.default_price || 0,
+              max_price: range?.max || p.default_price || 0,
+            });
+          }
+        }
+        return Array.from(seen.values());
+      })()
+    : filteredRaw;
 
   // Reset highlight when filtered list changes
   useEffect(() => {
@@ -192,7 +236,10 @@ export default function ProductSearchInput({
                     const parts = [product.code];
                     if (product.sku && product.sku !== product.code) parts.push(`SKU: ${product.sku}`);
                     if (product.default_price != null) {
-                      if (product.discount_price != null && product.discount_price > 0 && product.discount_price < product.default_price) {
+                      if (product.max_price && product.max_price > product.default_price) {
+                        // Price range for product-level items
+                        parts.push(`฿${formatNumber(product.default_price)} - ฿${formatNumber(product.max_price)}`);
+                      } else if (product.discount_price != null && product.discount_price > 0 && product.discount_price < product.default_price) {
                         parts.push(`฿${formatNumber(product.discount_price)}`);
                       } else {
                         parts.push(`฿${formatNumber(product.default_price)}`);
@@ -232,8 +279,13 @@ export default function ProductSearchInput({
                       {product.name}
                       {variationLabel && ` - ${variationLabel}`}
                     </div>
-                    <div className="text-xs text-gray-400 dark:text-slate-500 truncate">
-                      {subtitle}
+                    <div className="text-xs text-gray-400 dark:text-slate-500 truncate flex items-center gap-1.5">
+                      <span>{subtitle}</span>
+                      {mode === 'product' && product.variation_count && product.variation_count > 1 && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[10px] font-medium">
+                          {product.variation_count} variation
+                        </span>
+                      )}
                     </div>
                   </div>
                   {/* Extra content (stock badges, etc.) */}

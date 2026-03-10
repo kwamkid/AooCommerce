@@ -31,6 +31,9 @@ interface ReplenishmentData {
   receiver_name: string | null;
   receive_photo_url: string | null;
   receive_notes: string | null;
+  shipping_method: string | null;
+  shipping_carrier: string | null;
+  tracking_number: string | null;
   total_amount: number;
   customer: { id: string; name: string; customer_code: string | null; phone: string | null };
   items: ReplenishmentItem[];
@@ -73,6 +76,8 @@ export default function ReplenishmentReceivePage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Shipping edit state
 
   useEffect(() => {
     if (token) fetchData();
@@ -177,6 +182,13 @@ export default function ReplenishmentReceivePage() {
       minute: '2-digit',
     });
   };
+
+  const SHIPPING_LABELS: Record<string, string> = {
+    own_vehicle: 'รถเราเอง',
+    courier: 'ส่งพัสดุ',
+    lalamove: 'Lalamove',
+  };
+
 
   // Image lightbox
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
@@ -444,6 +456,36 @@ export default function ReplenishmentReceivePage() {
                   <span className={`font-bold text-lg ${dark ? 'text-white' : 'text-gray-900'}`}>฿{formatNumber(totalAmount)}</span>
                 </div>
               </div>
+
+              {/* Shipping info */}
+              {(data.shipping_method || data.shipping_carrier || data.tracking_number) && (
+                <div className={`rounded-lg p-3 mb-4 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className={`text-sm font-medium flex items-center gap-1.5 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                          <Truck className="w-3.5 h-3.5" /> ข้อมูลจัดส่ง
+                        </span>
+                      </div>
+                      <div className={`text-sm space-y-0.5 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>
+                        {data.shipping_method && (
+                          <div>วิธีจัดส่ง: <span className="font-medium">{SHIPPING_LABELS[data.shipping_method] || data.shipping_method}</span></div>
+                        )}
+                        {data.shipping_method === 'courier' && data.shipping_carrier && (
+                          <div>ขนส่ง: <span className="font-medium">{data.shipping_carrier}</span></div>
+                        )}
+                        {data.shipping_method === 'courier' && data.tracking_number && (
+                          <div>เลข Tracking: <span className="font-medium font-mono">{data.tracking_number}</span></div>
+                        )}
+                        {data.shipping_method === 'lalamove' && data.tracking_number && (
+                          <div>เบอร์โทร: <span className="font-medium">{data.tracking_number}</span></div>
+                        )}
+                        {data.shipping_method === 'own_vehicle' && data.tracking_number && (
+                          <div>หมายเหตุ: <span className="font-medium">{data.tracking_number}</span></div>
+                        )}
+                      </div>
+                    </div>
+                </div>
+              )}
 
               {totalReceived < totalSent && (
                 <div className={`rounded-lg p-3 flex items-center gap-2 mb-4 ${dark ? 'bg-amber-900/20 border border-amber-800' : 'bg-amber-50 border border-amber-200'}`}>

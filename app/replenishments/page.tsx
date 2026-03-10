@@ -12,7 +12,7 @@ import {
   ArrowUpFromLine, Plus, Loader2, RefreshCw,
   Package, Truck, CheckCircle2, XCircle, Clock,
   Send, Copy, Eye, X, AlertTriangle, Printer,
-  ClipboardList, FileText, User, Ban,
+  ClipboardList, FileText, User, Ban, Pencil,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import Tooltip from '@/components/ui/Tooltip';
@@ -28,6 +28,7 @@ interface Replenishment {
   status: string;
   total_amount: number;
   confirmed_total?: number | null;
+  shipping_method?: string | null;
   shipping_carrier?: string | null;
   tracking_number?: string | null;
   printed_packing_at?: string | null;
@@ -122,6 +123,14 @@ function ReplenishmentsPageContent() {
   const [shipTracking, setShipTracking] = useState('');
   const [shipNotes, setShipNotes] = useState('');
   const [shipSubmitting, setShipSubmitting] = useState(false);
+
+  // Edit shipping modal
+  const [editShipModalId, setEditShipModalId] = useState<string | null>(null);
+  const [editShipMethod, setEditShipMethod] = useState('courier');
+  const [editShipCarrier, setEditShipCarrier] = useState('');
+  const [editShipTracking, setEditShipTracking] = useState('');
+  const [editShipNotes, setEditShipNotes] = useState('');
+  const [editShipSubmitting, setEditShipSubmitting] = useState(false);
 
   // Cancel confirm
   const [cancelId, setCancelId] = useState<string | null>(null);
@@ -273,6 +282,43 @@ function ReplenishmentsPageContent() {
     setShipCarrier('');
     setShipTracking('');
     setShipNotes('');
+  };
+
+  const openEditShipping = (r: Replenishment) => {
+    setEditShipMethod(r.shipping_method || 'courier');
+    setEditShipCarrier(r.shipping_carrier || '');
+    setEditShipTracking(r.tracking_number || '');
+    setEditShipNotes(r.shipping_method !== 'courier' ? (r.tracking_number || '') : '');
+    setEditShipModalId(r.id);
+  };
+
+  const handleEditShipping = async () => {
+    if (!editShipModalId) return;
+    setEditShipSubmitting(true);
+    try {
+      const res = await apiFetch(`/api/replenishments/${editShipModalId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_shipping',
+          shipping_method: editShipMethod,
+          shipping_carrier: editShipMethod === 'courier' ? editShipCarrier : editShipMethod === 'lalamove' ? 'Lalamove' : 'รถเราเอง',
+          tracking_number: editShipMethod === 'courier' ? editShipTracking : editShipNotes || null,
+        }),
+      });
+      if (res.ok) {
+        showToast('แก้ไขข้อมูลขนส่งเรียบร้อย', 'success');
+        setEditShipModalId(null);
+        fetchData(true);
+      } else {
+        const data = await res.json();
+        showToast(data.error || 'เกิดข้อผิดพลาด', 'error');
+      }
+    } catch {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setEditShipSubmitting(false);
+    }
   };
 
   // Cancel action
@@ -629,6 +675,15 @@ function ReplenishmentsPageContent() {
         },
       );
       // คัดลอกลิงก์ is now a primary action button, not in menu
+      if (r.status === 'shipped') {
+        items.push({
+          key: 'edit_shipping',
+          label: 'แก้ไขขนส่ง',
+          icon: <Pencil className="w-4 h-4" />,
+          onClick: () => openEditShipping(r),
+          dividerBefore: true,
+        });
+      }
     }
 
     return items;
@@ -1039,6 +1094,98 @@ function ReplenishmentsPageContent() {
               >
                 {shipSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 จัดส่ง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Shipping Modal */}
+      {editShipModalId && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !editShipSubmitting && setEditShipModalId(null)}>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-[#F4511E]" /> แก้ไขข้อมูลขนส่ง
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">วิธีส่ง</label>
+                <FormSelect
+                  value={editShipMethod}
+                  onChange={setEditShipMethod}
+                  options={SHIPPING_METHODS}
+                  placeholder="เลือกวิธีส่ง"
+                />
+              </div>
+
+              {editShipMethod === 'courier' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อขนส่ง</label>
+                    <input
+                      type="text"
+                      value={editShipCarrier}
+                      onChange={e => setEditShipCarrier(e.target.value)}
+                      placeholder="เช่น Kerry, Flash, J&T"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เลข Tracking</label>
+                    <input
+                      type="text"
+                      value={editShipTracking}
+                      onChange={e => setEditShipTracking(e.target.value)}
+                      placeholder="เลขพัสดุ"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    />
+                  </div>
+                </>
+              )}
+
+              {editShipMethod === 'lalamove' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทรคนขับ / รายละเอียด</label>
+                  <input
+                    type="text"
+                    value={editShipNotes}
+                    onChange={e => setEditShipNotes(e.target.value)}
+                    placeholder="เบอร์โทรติดต่อ Lalamove"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                  />
+                </div>
+              )}
+
+              {editShipMethod === 'own_vehicle' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุ</label>
+                  <input
+                    type="text"
+                    value={editShipNotes}
+                    onChange={e => setEditShipNotes(e.target.value)}
+                    placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setEditShipModalId(null)}
+                disabled={editShipSubmitting}
+                className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleEditShipping}
+                disabled={editShipSubmitting}
+                className="flex-1 px-4 py-2.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {editShipSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+                บันทึก
               </button>
             </div>
           </div>

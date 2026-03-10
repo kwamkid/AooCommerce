@@ -44,17 +44,24 @@ interface ShopRow {
   progress?: PushProgress;
 }
 
+interface PushResult {
+  account_id: string;
+  success: boolean;
+  error?: string;
+}
+
 interface Props {
   promotionId: string;
   promotionName: string;
   startDate: string | null;
   endDate: string | null;
   onClose: () => void;
+  onResults?: (results: PushResult[]) => void;
 }
 
 // ─── Component ──────────────────────────────────────────
 
-export default function PushDealModal({ promotionId, promotionName, startDate, endDate, onClose }: Props) {
+export default function PushDealModal({ promotionId, promotionName, startDate, endDate, onClose, onResults }: Props) {
   const [shops, setShops] = useState<ShopRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [pushingAll, setPushingAll] = useState(false);
@@ -149,6 +156,18 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
     ));
   }, [promotionId, startDate, endDate]);
 
+  // Report results to parent
+  const reportResults = useCallback(() => {
+    const results = shops
+      .filter(s => s.status === 'success' || s.status === 'error' || s.status === 'partial_success')
+      .map(s => ({
+        account_id: s.account_id,
+        success: s.status === 'success' || s.status === 'partial_success',
+        error: s.error,
+      }));
+    if (results.length > 0) onResults?.(results);
+  }, [shops, onResults]);
+
   // Push all idle shops
   const pushAll = useCallback(async () => {
     const idleShops = shops.filter(s => s.status === 'idle');
@@ -165,10 +184,15 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
   const hasDates = !!(startDate && endDate);
   const startInPast = hasDates && new Date(startDate) < new Date();
 
+  const handleClose = () => {
+    reportResults();
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
 
       {/* Modal */}
       <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg mx-4">
@@ -178,7 +202,7 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">ส่งโปรโมชั่นไป Shopee</h3>
             <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5 truncate max-w-[360px]">{promotionName}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+          <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
@@ -195,7 +219,7 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
           {startInPast && (
             <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-lg text-sm mb-4">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              วันเริ่มต้นผ่านไปแล้ว — ระบบจะปรับเป็นอีก 10 นาทีอัตโนมัติ
+              วันเริ่มต้นผ่านไปแล้ว — ระบบจะปรับเป็นอีก ~1 ชั่วโมงอัตโนมัติ
             </div>
           )}
 
@@ -212,81 +236,92 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
           ) : (
             <div className="space-y-2">
               {shops.map(shop => (
-                <div
-                  key={shop.account_id}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-slate-700/50"
-                >
-                  {/* Shop info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                      {shop.shop_name}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-slate-400">
-                      {shop.bundle_price != null
-                        ? `฿${shop.bundle_price.toLocaleString('th-TH')}`
-                        : 'ใช้ราคาหลัก'}
-                    </div>
-                  </div>
-
-                  {/* Status / Action */}
-                  <div className="flex-shrink-0 ml-3">
-                    {shop.status === 'idle' && (
-                      <button
-                        onClick={() => pushToShop(shop.account_id)}
-                        disabled={!hasDates || pushingAll}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        ส่ง
-                      </button>
-                    )}
-
-                    {shop.status === 'pushing' && (
-                      <div className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="max-w-[140px] truncate">
-                          {shop.progress?.message || 'กำลังส่ง...'}
-                        </span>
+                <div key={shop.account_id}>
+                  <div
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-lg ${
+                      shop.status === 'error'
+                        ? 'bg-red-50 dark:bg-red-900/20'
+                        : 'bg-gray-50 dark:bg-slate-700/50'
+                    }`}
+                  >
+                    {/* Shop info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                        {shop.shop_name}
                       </div>
-                    )}
+                      <div className="text-xs text-gray-500 dark:text-slate-400">
+                        {shop.bundle_price != null
+                          ? `฿${shop.bundle_price.toLocaleString('th-TH')}`
+                          : 'ใช้ราคาหลัก'}
+                      </div>
+                    </div>
 
-                    {shop.status === 'success' && (
-                      <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400 font-medium">
-                        <CheckCircle2 className="w-4 h-4" />
-                        ส่งแล้ว
-                      </span>
-                    )}
-
-                    {shop.status === 'partial_success' && (
-                      <span className="flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400 font-medium" title={shop.warning}>
-                        <AlertCircle className="w-4 h-4" />
-                        ส่งแล้ว (บางรายการล้มเหลว)
-                      </span>
-                    )}
-
-                    {shop.status === 'already_pushed' && (
-                      <span className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
-                        <CheckCircle2 className="w-4 h-4" />
-                        ส่งแล้ว
-                      </span>
-                    )}
-
-                    {shop.status === 'error' && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm text-red-600 dark:text-red-400 max-w-[120px] truncate" title={shop.error}>
-                          ล้มเหลว
-                        </span>
+                    {/* Status / Action */}
+                    <div className="flex-shrink-0 ml-3">
+                      {shop.status === 'idle' && (
                         <button
                           onClick={() => pushToShop(shop.account_id)}
-                          disabled={!hasDates}
-                          className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                          title="ลองอีกครั้ง"
+                          disabled={!hasDates || pushingAll}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                         >
-                          <RefreshCw className="w-3.5 h-3.5 text-red-500" />
+                          <Send className="w-3.5 h-3.5" />
+                          ส่ง
                         </button>
-                      </div>
-                    )}
+                      )}
+
+                      {shop.status === 'pushing' && (
+                        <div className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span className="max-w-[140px] truncate">
+                            {shop.progress?.message || 'กำลังส่ง...'}
+                          </span>
+                        </div>
+                      )}
+
+                      {shop.status === 'success' && (
+                        <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400 font-medium">
+                          <CheckCircle2 className="w-4 h-4" />
+                          ส่งแล้ว
+                        </span>
+                      )}
+
+                      {shop.status === 'partial_success' && (
+                        <span className="flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400 font-medium" title={shop.warning}>
+                          <AlertCircle className="w-4 h-4" />
+                          ส่งแล้ว (บางรายการล้มเหลว)
+                        </span>
+                      )}
+
+                      {shop.status === 'already_pushed' && (
+                        <span className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
+                          <CheckCircle2 className="w-4 h-4" />
+                          ส่งแล้ว
+                        </span>
+                      )}
+
+                      {shop.status === 'error' && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm text-red-600 dark:text-red-400 font-medium">
+                            ล้มเหลว
+                          </span>
+                          <button
+                            onClick={() => pushToShop(shop.account_id)}
+                            disabled={!hasDates}
+                            className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            title="ลองอีกครั้ง"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5 text-red-500" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  {/* Error detail */}
+                  {shop.status === 'error' && shop.error && (
+                    <div className="px-3 py-1.5 text-xs text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/10 rounded-b-lg -mt-1 border-x border-b border-red-200 dark:border-red-800/30">
+                      {shop.error}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -296,7 +331,7 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 dark:border-slate-700">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
             ปิด

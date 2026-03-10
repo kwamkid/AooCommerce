@@ -20,10 +20,26 @@ import {
   FilterX,
   Image as ImageIcon,
   Send,
+  Calendar,
+  X,
+  AlertTriangle,
 } from 'lucide-react';
 import PushDealModal from './components/PushDealModal';
 
 // ─── Types ──────────────────────────────────────────────
+
+interface PromotionItemDetail {
+  product_name: string;
+  variation_label: string;
+  variation_id: string;
+  product_id?: string;
+  role: string;
+  quantity: number;
+  default_price: number;
+  max_price?: number;
+  special_price?: number | null;
+  image?: string | null;
+}
 
 interface PromotionItem {
   id: string;
@@ -35,18 +51,14 @@ interface PromotionItem {
   image: string | null;
   bundle_price: number | null;
   created_at: string;
-  items: {
-    product_name: string;
-    variation_label: string;
-    role: string;
-    quantity: number;
-    default_price: number;
-  }[];
+  items: PromotionItemDetail[];
   tiers: {
     min_qty: number;
     discount_type: string;
     discount_value: number;
   }[];
+  updated_at: string;
+  shopee_deals?: { account_id: string; status: string; shop_name: string; updated_at: string }[];
 }
 
 // ─── Constants ──────────────────────────────────────────
@@ -79,11 +91,27 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   qty_discount: <Percent className="w-4 h-4" />,
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  active: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  inactive: 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-400',
-  scheduled: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  expired: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
+const STATUS_COLORS: Record<string, { bg: string; text: string; headerBg: string }> = {
+  active: {
+    bg: 'bg-green-100 dark:bg-green-900/30',
+    text: 'text-green-700 dark:text-green-400',
+    headerBg: 'bg-green-50 dark:bg-green-900/20',
+  },
+  inactive: {
+    bg: 'bg-gray-100 dark:bg-slate-700',
+    text: 'text-gray-600 dark:text-slate-400',
+    headerBg: 'bg-gray-50 dark:bg-slate-700/50',
+  },
+  scheduled: {
+    bg: 'bg-blue-100 dark:bg-blue-900/30',
+    text: 'text-blue-700 dark:text-blue-400',
+    headerBg: 'bg-blue-50 dark:bg-blue-900/20',
+  },
+  expired: {
+    bg: 'bg-red-100 dark:bg-red-900/30',
+    text: 'text-red-600 dark:text-red-400',
+    headerBg: 'bg-red-50 dark:bg-red-900/20',
+  },
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -105,8 +133,9 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_COLORS[status] || STATUS_COLORS.inactive;
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[status] || STATUS_COLORS.inactive}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text}`}>
       {STATUS_LABELS[status] || status}
     </span>
   );
@@ -131,7 +160,7 @@ function ActionMenu({ onEdit, onDelete, onPush }: { onEdit: () => void; onDelete
         <MoreVertical className="w-4 h-4 text-gray-500" />
       </button>
       {open && (
-        <div className="absolute right-0 z-50 mt-1 w-44 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-600 py-1">
+        <div className="absolute right-0 z-[999] mt-1 w-44 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-600 py-1">
           <button
             onClick={(e) => { e.stopPropagation(); setOpen(false); onEdit(); }}
             className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
@@ -161,6 +190,248 @@ function ActionMenu({ onEdit, onDelete, onPush }: { onEdit: () => void; onDelete
   );
 }
 
+function RoleBadge({ role }: { role: string }) {
+  if (role === 'gift') {
+    return <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400">แถม</span>;
+  }
+  if (role === 'discounted') {
+    return <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">พิเศษ</span>;
+  }
+  if (role === 'main') {
+    return <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">หลัก</span>;
+  }
+  return null;
+}
+
+// Lightbox for single image
+function ImageLightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[999] bg-black/90 flex items-center justify-center"
+      onClick={onClose}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      tabIndex={0}
+      ref={(el) => el?.focus()}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 p-2.5 bg-white/20 hover:bg-white/30 rounded-full transition-colors text-white z-10"
+      >
+        <X className="w-5 h-5" />
+      </button>
+      <div className="max-w-[90vw] max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
+        <img src={url} alt="" className="max-w-full max-h-[85vh] object-contain rounded-lg select-none" draggable={false} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Promotion Card ─────────────────────────────────────
+
+function PromotionCard({
+  promo,
+  onEdit,
+  onDelete,
+  onPush,
+  onImageClick,
+}: {
+  promo: PromotionItem;
+  onEdit: () => void;
+  onDelete: () => void;
+  onPush?: () => void;
+  onImageClick: (url: string) => void;
+}) {
+  const statusCfg = STATUS_COLORS[promo.status] || STATUS_COLORS.inactive;
+  const hasShopeeDeals = (promo.shopee_deals || []).length > 0;
+
+  // Check if local promotion was updated after the last Shopee sync
+  const isOutOfSync = hasShopeeDeals && (() => {
+    const promoTime = new Date(promo.updated_at).getTime();
+    const latestSyncTime = Math.max(
+      ...promo.shopee_deals!.map(d => new Date(d.updated_at).getTime())
+    );
+    return promoTime > latestSyncTime;
+  })();
+
+  const formatDate = (d: string | null) => {
+    if (!d) return '-';
+    return new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+  };
+
+  const formatPrice = (p: number | null) => {
+    if (p == null) return '-';
+    return p.toLocaleString('th-TH', { minimumFractionDigits: 0 });
+  };
+
+  return (
+    <div
+      onClick={onEdit}
+      className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 hover:border-[#F4511E]/40 dark:hover:border-[#F4511E]/40 hover:shadow-md transition-all cursor-pointer"
+    >
+      {/* Header bar */}
+      <div className={`flex items-center gap-2 px-4 py-2.5 ${statusCfg.headerBg}`}>
+        <div className="flex-1 min-w-0 flex items-center gap-2">
+          <span className={`font-semibold text-base truncate ${statusCfg.text}`}>
+            {promo.name}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Shopee sync indicator */}
+          {hasShopeeDeals && (
+            <div className="relative group">
+              <div className="relative">
+                <img
+                  src="/marketplace/shopee.svg"
+                  alt="Shopee"
+                  className="w-5 h-5"
+                />
+                {isOutOfSync && (
+                  <AlertTriangle className="w-2.5 h-2.5 text-amber-500 absolute -top-1 -right-1" />
+                )}
+              </div>
+              <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:block z-[999]">
+                <div className="bg-gray-900 dark:bg-slate-700 text-white text-xs rounded-lg px-3 py-2 shadow-lg min-w-[140px]">
+                  <div className="font-medium mb-1">Sync กับ Shopee</div>
+                  {isOutOfSync && (
+                    <div className="flex items-center gap-1 text-amber-400 mb-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      <span>มีการแก้ไขที่ยังไม่ sync</span>
+                    </div>
+                  )}
+                  {promo.shopee_deals!.map((d, i) => (
+                    <div key={i} className="flex items-center gap-1.5 py-0.5">
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${d.status === 'ongoing' ? 'bg-green-400' : d.status === 'upcoming' ? 'bg-blue-400' : 'bg-gray-400'}`} />
+                      <span className="truncate">{d.shop_name}</span>
+                    </div>
+                  ))}
+                  <div className="absolute top-full right-3 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-slate-700" />
+                </div>
+              </div>
+            </div>
+          )}
+          <TypeBadge type={promo.promotion_type} />
+          <StatusBadge status={promo.status} />
+        </div>
+      </div>
+
+      {/* Body: 2 columns — items left, info+actions right */}
+      <div className="flex">
+        {/* Left: Items list */}
+        <div className="flex-[7] min-w-0 py-3">
+          <div className="px-4 space-y-2">
+            {promo.items.slice(0, 4).map((item, idx) => (
+              <div key={idx} className="flex items-start gap-3">
+                {/* Square image — clickable lightbox */}
+                <div
+                  className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-slate-700 overflow-hidden flex-shrink-0"
+                  onClick={item.image ? (e) => { e.stopPropagation(); onImageClick(item.image!); } : undefined}
+                  style={item.image ? { cursor: 'zoom-in' } : undefined}
+                >
+                  {item.image ? (
+                    <img src={item.image} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Package className="w-5 h-5 text-gray-300 dark:text-slate-500" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start gap-1.5">
+                    <p className="text-base text-gray-900 dark:text-slate-100 line-clamp-1 min-w-0">
+                      {item.product_name}
+                      {item.variation_label && (
+                        <span className="text-gray-400 dark:text-slate-500"> ({item.variation_label})</span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <RoleBadge role={item.role} />
+                    {item.quantity > 1 && (
+                      <span className="text-xs text-gray-500 dark:text-slate-400">x{item.quantity}</span>
+                    )}
+                    <span className="text-sm text-gray-500 dark:text-slate-400">
+                      {item.max_price && item.max_price > item.default_price
+                        ? `฿${formatPrice(item.default_price)} - ฿${formatPrice(item.max_price)}`
+                        : `฿${formatPrice(item.default_price)}`}
+                    </span>
+                    {item.special_price != null && item.special_price > 0 && (
+                      <span className="text-sm font-medium text-[#F4511E]">
+                        ฿{formatPrice(item.special_price)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {promo.items.length > 4 && (
+              <p className="text-sm text-gray-400 dark:text-slate-500 pl-[60px]">
+                + อีก {promo.items.length - 4} รายการ
+              </p>
+            )}
+            {promo.items.length === 0 && (
+              <p className="text-sm text-gray-400 dark:text-slate-500">ยังไม่มีสินค้า</p>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Image, Price, date, actions */}
+        <div className="flex-[3] py-3 px-4 flex flex-col justify-center items-end gap-2">
+          {/* Promotion image */}
+          {promo.image && (
+            <div
+              className="w-20 h-20 rounded-lg bg-gray-100 dark:bg-slate-700 overflow-hidden flex-shrink-0"
+              onClick={(e) => { e.stopPropagation(); onImageClick(promo.image!); }}
+              style={{ cursor: 'zoom-in' }}
+            >
+              <img src={promo.image} alt="" className="w-full h-full object-cover" />
+            </div>
+          )}
+
+          {/* Price */}
+          {promo.promotion_type === 'qty_discount' ? (
+            promo.tiers.length > 0 ? (
+              <div className="text-right">
+                <span className="text-sm text-gray-500 dark:text-slate-400">{promo.tiers.length} ขั้นส่วนลด</span>
+              </div>
+            ) : null
+          ) : promo.promotion_type === 'bundle_set' && promo.discount_value ? (
+            <div className="text-right">
+              <span className="text-lg font-semibold text-[#F4511E]">
+                {promo.discount_type === 'percent' ? `ลด ${promo.discount_value}%` : `ลด ฿${formatPrice(promo.discount_value)}`}
+              </span>
+            </div>
+          ) : promo.bundle_price ? (
+            <div className="text-right">
+              <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                ฿{formatPrice(promo.bundle_price)}
+              </span>
+            </div>
+          ) : null}
+
+          {/* Date range */}
+          {(promo.start_date || promo.end_date) && (
+            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400">
+              <Calendar className="w-3 h-3" />
+              <span>
+                {formatDate(promo.start_date)} - {formatDate(promo.end_date)}
+              </span>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <ActionMenu
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onPush={onPush}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────
 
 function PromotionsPageContent() {
@@ -181,6 +452,9 @@ function PromotionsPageContent() {
   const [loading, setLoading] = useState(true);
   const [loadTime, setLoadTime] = useState<number | null>(null);
   const [pushModalPromo, setPushModalPromo] = useState<PromotionItem | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PromotionItem | null>(null);
+  const [deletingShopee, setDeletingShopee] = useState(false);
 
   const totalPages = Math.ceil(totalRecords / rowsPerPage);
   const startIdx = (currentPage - 1) * rowsPerPage;
@@ -244,38 +518,29 @@ function PromotionsPageContent() {
 
   const hasActiveFilters = !!(typeFilter || statusFilter || searchQuery);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`ลบโปรโมชั่น "${name}" ?`)) return;
+  const handleDeleteClick = (promo: PromotionItem) => {
+    setDeleteTarget(promo);
+  };
+
+  const handleDeleteConfirm = async (alsoDeleteShopee: boolean) => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
     try {
+      // If has shopee deals and user wants to delete them
+      if (alsoDeleteShopee && (deleteTarget.shopee_deals || []).length > 0) {
+        setDeletingShopee(true);
+        await apiFetch(`/api/shopee/deals?promotion_id=${id}`, { method: 'DELETE' });
+        setDeletingShopee(false);
+      }
+      // Soft delete promotion
       await apiFetch(`/api/promotions/${id}`, { method: 'DELETE' });
       setPromotions(prev => prev.filter(p => p.id !== id));
       setTotalRecords(prev => prev - 1);
+      setDeleteTarget(null);
     } catch {
+      setDeletingShopee(false);
       alert('เกิดข้อผิดพลาดในการลบ');
     }
-  };
-
-  const formatDate = (d: string | null) => {
-    if (!d) return '-';
-    return new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
-  };
-
-  const formatPrice = (p: number | null) => {
-    if (p == null) return '-';
-    return p.toLocaleString('th-TH', { minimumFractionDigits: 0 });
-  };
-
-  const getItemsSummary = (promo: PromotionItem) => {
-    if (promo.items.length === 0) return '-';
-    if (promo.items.length <= 2) {
-      return promo.items.map(i => {
-        const label = i.variation_label ? `${i.product_name} (${i.variation_label})` : i.product_name;
-        if (i.role === 'gift') return `${label} [แถม]`;
-        if (i.role === 'discounted') return `${label} [พิเศษ]`;
-        return label;
-      }).join(', ');
-    }
-    return `${promo.items.length} รายการ`;
   };
 
   return (
@@ -297,172 +562,76 @@ function PromotionsPageContent() {
 
       {/* Filters */}
       <div className="data-filter-card">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="w-64">
-            <SearchInput
-              value={searchInput}
-              onChange={setSearchInput}
-              placeholder="ค้นหาชื่อโปรโมชั่น..."
-            />
-          </div>
-          <div className="w-48">
-            <SearchableDropdown
-              value={typeFilter}
-              onChange={(v: string) => setParams({ type: v })}
-              options={[
-                { id: '', label: 'ทั้งหมด' },
-                ...TYPE_OPTIONS,
-              ]}
-              placeholder="ประเภท"
-            />
-          </div>
-          <div className="w-36">
-            <SearchableDropdown
-              value={statusFilter}
-              onChange={(v: string) => setParams({ status: v })}
-              options={[
-                { id: '', label: 'ทั้งหมด' },
-                ...STATUS_OPTIONS,
-              ]}
-              placeholder="สถานะ"
-            />
-          </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <SearchInput
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="ค้นหาชื่อโปรโมชั่น..."
+          />
+          <SearchableDropdown
+            value={typeFilter}
+            onChange={(v: string) => setParams({ type: v })}
+            options={[
+              { id: '', label: 'ทุกประเภท' },
+              ...TYPE_OPTIONS,
+            ]}
+            placeholder="ประเภท"
+          />
+          <SearchableDropdown
+            value={statusFilter}
+            onChange={(v: string) => setParams({ status: v })}
+            options={[
+              { id: '', label: 'ทุกสถานะ' },
+              ...STATUS_OPTIONS,
+            ]}
+            placeholder="สถานะ"
+          />
           {hasActiveFilters && (
             <button
               onClick={() => {
                 setSearchInput('');
                 router.replace('/promotions', { scroll: false });
               }}
-              className="flex items-center gap-1 px-2.5 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+              className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
             >
-              <FilterX className="w-3.5 h-3.5" />
+              <FilterX className="w-4 h-4" />
               ล้างตัวกรอง
             </button>
           )}
         </div>
       </div>
 
-      {/* Table */}
-      <div className="data-table-wrap relative">
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F4511E]" />
-          </div>
-        )}
+      {/* Card list */}
+      {loading && (
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F4511E]" />
+        </div>
+      )}
 
-        {!loading && promotions.length === 0 && (
-          <div className="text-center py-20 text-gray-500 dark:text-slate-400">
-            {hasActiveFilters ? 'ไม่พบโปรโมชั่นที่ตรงกับเงื่อนไข' : 'ยังไม่มีโปรโมชั่น'}
-          </div>
-        )}
+      {!loading && promotions.length === 0 && (
+        <div className="text-center py-20 text-gray-500 dark:text-slate-400">
+          {hasActiveFilters ? 'ไม่พบโปรโมชั่นที่ตรงกับเงื่อนไข' : 'ยังไม่มีโปรโมชั่น'}
+        </div>
+      )}
 
-        {!loading && promotions.length > 0 && (
-          <div>
-            <table className="data-table-fixed">
-              <thead className="data-thead">
-                <tr>
-                  <th className="data-th" style={{ width: '52px' }}>รูป</th>
-                  <th className="data-th" style={{ minWidth: '240px' }}>ชื่อโปรโมชั่น</th>
-                  <th className="data-th" style={{ width: '180px' }}>ประเภท</th>
-                  <th className="data-th" style={{ width: '100px' }}>สถานะ</th>
-                  <th className="data-th text-right" style={{ width: '110px' }}>ราคา</th>
-                  <th className="data-th" style={{ width: '200px' }}>สินค้า</th>
-                  <th className="data-th" style={{ width: '120px' }}>ระยะเวลา</th>
-                  <th className="data-th" style={{ width: '44px' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {promotions.map(promo => (
-                  <tr
-                    key={promo.id}
-                    className="data-tr cursor-pointer"
-                    onClick={() => router.push(`/promotions/${promo.id}/edit`)}
-                  >
-                    {/* Image */}
-                    <td className="data-td">
-                      {promo.image ? (
-                        <img
-                          src={promo.image}
-                          alt=""
-                          className="w-10 h-10 rounded-lg object-cover bg-gray-100 dark:bg-slate-700"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
-                          <ImageIcon className="w-4 h-4 text-gray-400" />
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Name */}
-                    <td className="data-td">
-                      <div className="font-medium text-gray-900 dark:text-white truncate">
-                        {promo.name}
-                      </div>
-                    </td>
-
-                    {/* Type */}
-                    <td className="data-td">
-                      <TypeBadge type={promo.promotion_type} />
-                    </td>
-
-                    {/* Status */}
-                    <td className="data-td">
-                      <StatusBadge status={promo.status} />
-                    </td>
-
-                    {/* Price */}
-                    <td className="data-td text-right">
-                      {promo.promotion_type === 'qty_discount' ? (
-                        <span className="text-sm text-gray-500 dark:text-slate-400">
-                          {promo.tiers.length > 0
-                            ? `${promo.tiers.length} ขั้น`
-                            : '-'}
-                        </span>
-                      ) : (
-                        <span className="font-medium">
-                          {formatPrice(promo.bundle_price)}
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Items */}
-                    <td className="data-td">
-                      <span className="text-sm text-gray-600 dark:text-slate-400 truncate block max-w-[200px]">
-                        {getItemsSummary(promo)}
-                      </span>
-                    </td>
-
-                    {/* Date range */}
-                    <td className="data-td text-sm text-gray-500 dark:text-slate-400">
-                      {promo.start_date || promo.end_date ? (
-                        <>
-                          {formatDate(promo.start_date)}
-                          {promo.end_date ? ` - ${formatDate(promo.end_date)}` : ''}
-                        </>
-                      ) : (
-                        <span className="text-gray-400">ไม่จำกัด</span>
-                      )}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="data-td" onClick={e => e.stopPropagation()}>
-                      <ActionMenu
-                        onEdit={() => router.push(`/promotions/${promo.id}/edit`)}
-                        onDelete={() => handleDelete(promo.id, promo.name)}
-                        onPush={
-                          (promo.status === 'active' || promo.status === 'scheduled') && promo.start_date && promo.end_date
-                            ? () => setPushModalPromo(promo)
-                            : undefined
-                        }
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {!loading && promotions.length > 0 && (
+        <div className="space-y-3">
+          {promotions.map(promo => (
+            <PromotionCard
+              key={promo.id}
+              promo={promo}
+              onEdit={() => router.push(`/promotions/${promo.id}/edit`)}
+              onDelete={() => handleDeleteClick(promo)}
+              onPush={
+                (promo.status === 'active' || promo.status === 'scheduled') && promo.start_date && promo.end_date
+                  ? () => setPushModalPromo(promo)
+                  : undefined
+              }
+              onImageClick={(url) => setLightboxUrl(url)}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Pagination */}
       {!loading && totalRecords > 0 && (
@@ -488,6 +657,83 @@ function PromotionsPageContent() {
           endDate={pushModalPromo.end_date}
           onClose={() => setPushModalPromo(null)}
         />
+      )}
+
+      {/* Image Lightbox */}
+      {lightboxUrl && (
+        <ImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
+      )}
+
+      {/* Delete Confirm Dialog */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4" onClick={() => !deletingShopee && setDeleteTarget(null)}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              ลบโปรโมชั่น
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
+              ต้องการลบ <span className="font-medium text-gray-900 dark:text-white">&quot;{deleteTarget.name}&quot;</span> ?
+            </p>
+
+            {(deleteTarget.shopee_deals || []).length > 0 && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                      โปรโมชั่นนี้ sync กับ Shopee {deleteTarget.shopee_deals!.length} ร้าน
+                    </p>
+                    <div className="mt-1 space-y-0.5">
+                      {deleteTarget.shopee_deals!.map((d, i) => (
+                        <div key={i} className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                          {d.shop_name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              {(deleteTarget.shopee_deals || []).length > 0 && (
+                <button
+                  onClick={() => handleDeleteConfirm(true)}
+                  disabled={deletingShopee}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {deletingShopee ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      กำลังลบจาก Shopee...
+                    </>
+                  ) : (
+                    'ลบทั้งหมด (รวม Shopee)'
+                  )}
+                </button>
+              )}
+              <button
+                onClick={() => handleDeleteConfirm(false)}
+                disabled={deletingShopee}
+                className={`w-full px-4 py-2.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
+                  (deleteTarget.shopee_deals || []).length > 0
+                    ? 'text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600'
+                    : 'text-white bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {(deleteTarget.shopee_deals || []).length > 0 ? 'ลบเฉพาะในระบบ (เก็บ Shopee ไว้)' : 'ยืนยันลบ'}
+              </button>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deletingShopee}
+                className="w-full px-4 py-2 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

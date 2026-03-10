@@ -230,6 +230,27 @@ export async function updateBundleDeal(
 }
 
 /**
+ * Update items in a Bundle Deal (enable/disable).
+ */
+export async function updateBundleDealItems(
+  creds: ShopeeCredentials,
+  bundleDealId: number,
+  items: BundleDealItem[],
+): Promise<void> {
+  const { error, debug_message } = await shopeeApiRequest(
+    creds, 'POST', '/api/v2/bundle_deal/update_bundle_deal_item',
+    {}, {
+      bundle_deal_id: bundleDealId,
+      item_list: items,
+    },
+  );
+
+  if (error) {
+    throw new Error(`Shopee updateBundleDealItems: ${error} — ${debug_message || ''}`);
+  }
+}
+
+/**
  * End an ongoing Bundle Deal (makes it expired).
  */
 export async function endBundleDeal(
@@ -486,6 +507,48 @@ export async function getAddOnDealSubItems(
   return {
     sub_item_list: (resp?.sub_item_list || []) as { item_id: number; model_id: number; status: number; sub_item_input_price: number; sub_item_limit: number }[],
   };
+}
+
+/**
+ * Update main items in an Add-on Deal (enable/disable).
+ */
+export async function updateAddOnDealMainItems(
+  creds: ShopeeCredentials,
+  addOnDealId: number,
+  items: AddOnDealMainItem[],
+): Promise<void> {
+  const { error, debug_message } = await shopeeApiRequest(
+    creds, 'POST', '/api/v2/add_on_deal/update_add_on_deal_main_item',
+    {}, {
+      add_on_deal_id: addOnDealId,
+      main_item_list: items,
+    },
+  );
+
+  if (error) {
+    throw new Error(`Shopee updateAddOnDealMainItems: ${error} — ${debug_message || ''}`);
+  }
+}
+
+/**
+ * Update sub items in an Add-on Deal (price, limit, enable/disable).
+ */
+export async function updateAddOnDealSubItems(
+  creds: ShopeeCredentials,
+  addOnDealId: number,
+  items: AddOnDealSubItem[],
+): Promise<void> {
+  const { error, debug_message } = await shopeeApiRequest(
+    creds, 'POST', '/api/v2/add_on_deal/update_add_on_deal_sub_item',
+    {}, {
+      add_on_deal_id: addOnDealId,
+      sub_item_list: items,
+    },
+  );
+
+  if (error) {
+    throw new Error(`Shopee updateAddOnDealSubItems: ${error} — ${debug_message || ''}`);
+  }
 }
 
 /**

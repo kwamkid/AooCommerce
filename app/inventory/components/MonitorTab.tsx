@@ -50,7 +50,7 @@ const CARD_STYLES: Record<TransactionType, { bgClass: string; textClass: string;
   transfer_in: { bgClass: 'bg-blue-50 dark:bg-blue-900/20', textClass: 'text-blue-700 dark:text-blue-400', borderClass: 'border-blue-200 dark:border-blue-800' },
   transfer_out: { bgClass: 'bg-blue-50 dark:bg-blue-900/20', textClass: 'text-blue-700 dark:text-blue-400', borderClass: 'border-blue-200 dark:border-blue-800' },
   adjust: { bgClass: 'bg-purple-50 dark:bg-purple-900/20', textClass: 'text-purple-700 dark:text-purple-400', borderClass: 'border-purple-200 dark:border-purple-800' },
-  return: { bgClass: 'bg-teal-50 dark:bg-teal-900/20', textClass: 'text-teal-700 dark:text-teal-400', borderClass: 'border-teal-200 dark:border-teal-800' },
+  return: { bgClass: 'bg-cyan-50 dark:bg-cyan-900/20', textClass: 'text-cyan-700 dark:text-cyan-400', borderClass: 'border-cyan-200 dark:border-cyan-800' },
 };
 
 const REFERENCE_TYPE_LABELS: Record<string, string> = {

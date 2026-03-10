@@ -101,8 +101,7 @@ export async function GET(request: NextRequest) {
         customer:customers(id, name, customer_code)
       `, { count: 'exact' })
       .eq('company_id', companyId)
-      .order('period_year', { ascending: false })
-      .order('period_month', { ascending: false })
+      .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (status) {

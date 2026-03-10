@@ -385,6 +385,25 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ success: true, status: newStatus });
     }
 
+    // === ACTION: UPDATE_SHIPPING (edit shipping info for shipped status) ===
+    if (action === 'update_shipping') {
+      if (existing.status !== 'shipped') {
+        return NextResponse.json({ error: 'แก้ไขขนส่งได้เฉพาะสถานะ "จัดส่งแล้ว" เท่านั้น' }, { status: 400 });
+      }
+      const { shipping_method, shipping_carrier, tracking_number } = body;
+      await supabaseAdmin
+        .from('replenishments')
+        .update({
+          shipping_method: shipping_method || null,
+          shipping_carrier: shipping_carrier || null,
+          tracking_number: tracking_number || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      return NextResponse.json({ success: true });
+    }
+
     // === ACTION: CANCEL ===
     if (action === 'cancel') {
       if (existing.status !== 'pending' && existing.status !== 'shipped') {

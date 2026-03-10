@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
         notes,
         total_amount,
         confirmed_total,
+        shipping_method,
         shipping_carrier,
         tracking_number,
         receive_token,
