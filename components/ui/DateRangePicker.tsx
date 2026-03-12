@@ -24,6 +24,8 @@ interface DateRangePickerProps {
   readOnly?: boolean;
   popupDirection?: 'down' | 'up';
   popupAlign?: 'left' | 'right';
+  /** Minimum selectable date — dates before this are disabled */
+  minDate?: Date;
 }
 
 // Helpers
@@ -111,9 +113,9 @@ const DAY_PICKER_RANGE_CLASSES = {
   disabled: 'text-gray-300 dark:text-slate-600 cursor-not-allowed',
 };
 
-// Override for hidden outside days — prevents range background from bleeding
+// Override for hidden outside days — prevents range background from bleeding into adjacent months
 const RANGE_MODIFIERS_CLASSES = {
-  hidden: '[&]:!bg-transparent [&]:!text-transparent',
+  hidden: '[&]:!bg-transparent [&]:dark:!bg-transparent [&]:!text-transparent',
 };
 
 // Calendar header component (reusable for left/right panels)
@@ -193,6 +195,7 @@ export default function DateRangePicker({
   readOnly = false,
   popupDirection = 'down',
   popupAlign = 'left',
+  minDate,
 }: DateRangePickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -203,6 +206,12 @@ export default function DateRangePicker({
   const [pickerSide, setPickerSide] = useState<'left' | 'right'>('left');
 
   const isSingle = asSingle || !useRange;
+
+  // Disable dates before minDate
+  const disabledDays = useMemo(() => {
+    if (!minDate) return undefined;
+    return { before: minDate };
+  }, [minDate]);
 
   const startDate = useMemo(() => toDate(value?.startDate), [value?.startDate]);
   const endDate = useMemo(() => toDate(value?.endDate), [value?.endDate]);
@@ -392,9 +401,9 @@ export default function DateRangePicker({
           open ? 'ring-2 ring-[#F4511E] border-transparent' : 'hover:border-gray-400 dark:hover:border-slate-400'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
-        <Calendar className="w-4 h-4 text-amber-500 flex-shrink-0" />
+        <Calendar className={`w-4 h-4 flex-shrink-0 ${readOnly ? 'text-gray-400 dark:text-slate-500' : 'text-amber-500'}`} />
         {displayText ? (
-          <span className="text-gray-900 dark:text-white truncate flex-1">{displayText}</span>
+          <span className={`truncate flex-1 ${readOnly ? 'text-gray-400 dark:text-slate-500' : 'text-gray-900 dark:text-white'}`}>{displayText}</span>
         ) : (
           <span className="text-gray-400 dark:text-slate-400 truncate flex-1">{placeholder || 'เลือกวันที่'}</span>
         )}
@@ -455,6 +464,7 @@ export default function DateRangePicker({
                       onMonthChange={setDisplayMonth}
                       formatters={{ formatWeekdayName: (date) => format(date, 'EEE').toUpperCase() }}
                       hideNavigation
+                      disabled={disabledDays}
                       classNames={DAY_PICKER_SINGLE_CLASSES}
                     />
                   ) : (
@@ -489,6 +499,7 @@ export default function DateRangePicker({
                         formatters={{ formatWeekdayName: (date) => format(date, 'EEE').toUpperCase() }}
                         hideNavigation
                         showOutsideDays={false}
+                        disabled={disabledDays}
                         classNames={DAY_PICKER_RANGE_CLASSES}
                         modifiersClassNames={RANGE_MODIFIERS_CLASSES}
                       />
@@ -520,6 +531,7 @@ export default function DateRangePicker({
                             formatters={{ formatWeekdayName: (date) => format(date, 'EEE').toUpperCase() }}
                             hideNavigation
                             showOutsideDays={false}
+                            disabled={disabledDays}
                             classNames={DAY_PICKER_RANGE_CLASSES}
                             modifiersClassNames={RANGE_MODIFIERS_CLASSES}
                           />
@@ -547,6 +559,7 @@ export default function DateRangePicker({
                             formatters={{ formatWeekdayName: (date) => format(date, 'EEE').toUpperCase() }}
                             hideNavigation
                             showOutsideDays={false}
+                            disabled={disabledDays}
                             classNames={DAY_PICKER_RANGE_CLASSES}
                             modifiersClassNames={RANGE_MODIFIERS_CLASSES}
                           />

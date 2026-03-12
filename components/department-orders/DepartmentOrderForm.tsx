@@ -10,6 +10,7 @@ import {
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
+import { productDisplayName } from '@/lib/product-display';
 
 interface Customer {
   id: string;
@@ -230,7 +231,7 @@ export default function DepartmentOrderForm({ warehouseId }: Props) {
                               )}
                               <div className="min-w-0">
                                 <p className="data-primary text-gray-900 dark:text-white line-clamp-2">
-                                  {item.product_name}{item.variation_label ? ` - ${item.variation_label}` : ''}
+                                  {productDisplayName(item)}
                                 </p>
                                 {item.sku && <p className="data-secondary text-gray-400 truncate">{item.sku}</p>}
                               </div>
@@ -288,7 +289,7 @@ export default function DepartmentOrderForm({ warehouseId }: Props) {
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="data-primary text-gray-900 dark:text-white">
-                            {item.product_name}{item.variation_label ? ` - ${item.variation_label}` : ''}
+                            {productDisplayName(item)}
                           </p>
                           {item.sku && <p className="data-secondary text-gray-400">{item.sku}</p>}
                           <div className="flex items-center gap-2 mt-2">

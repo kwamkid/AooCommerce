@@ -353,8 +353,8 @@ export async function addAddOnDealMainItems(
   creds: ShopeeCredentials,
   addOnDealId: number,
   items: AddOnDealMainItem[],
-): Promise<void> {
-  const { error, debug_message } = await shopeeApiRequest(
+): Promise<{ main_item_list: Array<{ item_id: number; status: number | null; fail_error: string | null; fail_message: string | null }> }> {
+  const { error, debug_message, data } = await shopeeApiRequest(
     creds, 'POST', '/api/v2/add_on_deal/add_add_on_deal_main_item',
     {}, {
       add_on_deal_id: addOnDealId,
@@ -365,6 +365,9 @@ export async function addAddOnDealMainItems(
   if (error) {
     throw new Error(`Shopee addAddOnDealMainItems: ${error} — ${debug_message || ''}`);
   }
+
+  const resp = data as { main_item_list?: Array<{ item_id: number; status: number | null; fail_error: string | null; fail_message: string | null }> } | null;
+  return { main_item_list: resp?.main_item_list || [] };
 }
 
 /**

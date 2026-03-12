@@ -17,6 +17,7 @@ import {
   buildProductNameStack,
   withOriginalAndCopy,
 } from './pdf-utils';
+import { productDisplayName } from '@/lib/product-display';
 
 export type { CompanyInfo } from './pdf-utils';
 
@@ -177,7 +178,7 @@ export async function generateReplenishmentPdf({ data, company, vatRegistered = 
 
   const tableBody = data.items.map((item, idx) => {
     const displayQty = (isConfirmed && item.confirmed_quantity != null) ? item.confirmed_quantity : item.quantity;
-    const fullName = item.product_name + (item.variation_label ? ` - ${item.variation_label}` : '');
+    const fullName = productDisplayName(item);
     // ถ้าจำนวนไม่ตรง แสดงหมายเหตุ
     const hasMismatch = isConfirmed && item.confirmed_quantity != null && item.confirmed_quantity !== item.quantity;
     const mismatchNote = hasMismatch ? `(ส่ง ${item.quantity} รับ ${item.confirmed_quantity})` : null;

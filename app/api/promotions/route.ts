@@ -9,6 +9,9 @@ interface PromotionItemInput {
   role: 'main' | 'component' | 'gift' | 'discounted';
   quantity?: number;
   special_price?: number | null;
+  sub_item_limit?: number | null;
+  discount_type?: string | null;
+  discount_input?: number | null;
   sort_order?: number;
 }
 
@@ -95,7 +98,7 @@ export async function GET(req: NextRequest) {
       const { data: allItems } = await supabaseAdmin
         .from('promotion_items')
         .select(`
-          id, promotion_id, variation_id, product_id, role, quantity, special_price, sort_order,
+          id, promotion_id, variation_id, product_id, role, quantity, special_price, sub_item_limit, sort_order,
           product_variations(
             id, variation_label, sku, default_price,
             products(id, name, code)
@@ -153,6 +156,7 @@ export async function GET(req: NextRequest) {
           role: item.role,
           quantity: item.quantity,
           special_price: item.special_price,
+          sub_item_limit: item.sub_item_limit,
           sort_order: item.sort_order,
           product_name: pv?.products?.name || productInfo?.name || '',
           product_code: pv?.products?.code || productInfo?.code || '',
@@ -214,9 +218,27 @@ export async function GET(req: NextRequest) {
 
         // Map promotion_id → fallback image
         for (const p of imagelessPromos) {
-          const items = itemsMap[p.id] as { variation_id: string }[];
-          if (items && items.length > 0 && varImageMap[items[0].variation_id]) {
-            fallbackImageMap[p.id] = varImageMap[items[0].variation_id];
+          const items = itemsMap[p.id] as { variation_id: string; product_id?: string }[];
+          if (items && items.length > 0) {
+            if (items[0].variation_id && varImageMap[items[0].variation_id]) {
+              fallbackImageMap[p.id] = varImageMap[items[0].variation_id];
+            } else if (items[0].product_id && productNameMap[items[0].product_id]?.image) {
+              fallbackImageMap[p.id] = productNameMap[items[0].product_id].image!;
+            }
+          }
+        }
+      }
+    }
+
+    // Also fallback for promotions with only product-level items (no variation images found)
+    for (const p of imagelessPromos || []) {
+      if (fallbackImageMap[p.id]) continue;
+      const items = itemsMap[p.id] as { product_id?: string }[];
+      if (items && items.length > 0) {
+        for (const item of items) {
+          if (item.product_id && productNameMap[item.product_id]?.image) {
+            fallbackImageMap[p.id] = productNameMap[item.product_id].image!;
+            break;
           }
         }
       }
@@ -332,11 +354,17 @@ export async function POST(req: NextRequest) {
         if (body.items.length < 2) {
           return NextResponse.json({ error: 'เซ็ตรวมต้องมีสินค้าอย่างน้อย 2 รายการ' }, { status: 400 });
         }
-        if (!body.discount_value || body.discount_value <= 0) {
-          return NextResponse.json({ error: 'กรุณาระบุส่วนลด' }, { status: 400 });
-        }
-        if (body.discount_type === 'percent' && body.discount_value > 100) {
-          return NextResponse.json({ error: 'ส่วนลดไม่เกิน 100%' }, { status: 400 });
+        if (body.discount_type === 'fix_price') {
+          if (!body.bundle_price || body.bundle_price <= 0) {
+            return NextResponse.json({ error: 'กรุณาระบุราคาเซ็ต' }, { status: 400 });
+          }
+        } else {
+          if (!body.discount_value || body.discount_value <= 0) {
+            return NextResponse.json({ error: 'กรุณาระบุส่วนลด' }, { status: 400 });
+          }
+          if (body.discount_type === 'percent' && body.discount_value > 100) {
+            return NextResponse.json({ error: 'ส่วนลดไม่เกิน 100%' }, { status: 400 });
+          }
         }
         break;
 
@@ -449,6 +477,9 @@ export async function POST(req: NextRequest) {
         role: item.role || 'component',
         quantity: item.quantity || 1,
         special_price: item.special_price ?? null,
+        sub_item_limit: item.sub_item_limit ?? null,
+        discount_type: item.discount_type || null,
+        discount_input: item.discount_input ?? null,
         sort_order: item.sort_order ?? idx,
       }));
 

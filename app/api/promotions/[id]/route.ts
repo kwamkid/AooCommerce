@@ -10,6 +10,9 @@ interface PromotionItemInput {
   role: 'main' | 'component' | 'gift' | 'discounted';
   quantity?: number;
   special_price?: number | null;
+  sub_item_limit?: number | null;
+  discount_type?: string | null;
+  discount_input?: number | null;
   sort_order?: number;
 }
 
@@ -78,7 +81,7 @@ export async function GET(
     const { data: items } = await supabaseAdmin
       .from('promotion_items')
       .select(`
-        id, promotion_id, variation_id, product_id, role, quantity, special_price, sort_order,
+        id, promotion_id, variation_id, product_id, role, quantity, special_price, sub_item_limit, discount_type, discount_input, sort_order,
         product_variations(
           id, variation_label, sku, barcode, default_price,
           products!inner(id, name, code, image)
@@ -120,15 +123,25 @@ export async function GET(
       }
     }
 
-    // Count variations per product for product-level items
+    // Count variations + get min/max price per product for product-level items
     const variationCountMap = new Map<string, number>();
+    const productMinPriceMap = new Map<string, number>();
+    const productMaxPriceMap = new Map<string, number>();
     if (productIds.length > 0) {
-      const { data: varCounts } = await supabaseAdmin
+      const { data: varData } = await supabaseAdmin
         .from('product_variations')
-        .select('product_id')
+        .select('product_id, default_price')
         .in('product_id', productIds);
-      for (const v of varCounts || []) {
+      for (const v of varData || []) {
         variationCountMap.set(v.product_id, (variationCountMap.get(v.product_id) || 0) + 1);
+        const currentMin = productMinPriceMap.get(v.product_id);
+        if (currentMin === undefined || v.default_price < currentMin) {
+          productMinPriceMap.set(v.product_id, v.default_price);
+        }
+        const currentMax = productMaxPriceMap.get(v.product_id);
+        if (currentMax === undefined || v.default_price > currentMax) {
+          productMaxPriceMap.set(v.product_id, v.default_price);
+        }
       }
     }
 
@@ -151,13 +164,17 @@ export async function GET(
           role: item.role,
           quantity: item.quantity,
           special_price: item.special_price,
+          sub_item_limit: item.sub_item_limit,
+          discount_type: item.discount_type,
+          discount_input: item.discount_input,
           sort_order: item.sort_order,
           product_name: prod.name || '',
           product_code: prod.code || '',
           variation_label: '',
           sku: '',
           barcode: '',
-          default_price: 0,
+          default_price: productMinPriceMap.get(item.product_id) || 0,
+          max_price: productMaxPriceMap.get(item.product_id) || 0,
           image: productImageMap.get(item.product_id) || prod.image || '',
           variation_count: variationCountMap.get(item.product_id) || 1,
         };
@@ -171,6 +188,9 @@ export async function GET(
         role: item.role,
         quantity: item.quantity,
         special_price: item.special_price,
+        sub_item_limit: item.sub_item_limit,
+        discount_type: item.discount_type,
+        discount_input: item.discount_input,
         sort_order: item.sort_order,
         product_name: pv?.products?.name || '',
         product_code: pv?.products?.code || '',
@@ -361,13 +381,8 @@ export async function PUT(
 
     if (updateError) throw updateError;
 
-    // Replace items if provided (delete all + re-insert)
+    // Replace items if provided — insert first, then delete old (safe: no data loss on insert failure)
     if (body.items) {
-      await supabaseAdmin
-        .from('promotion_items')
-        .delete()
-        .eq('promotion_id', id);
-
       const itemsToInsert = body.items.map((item, idx) => ({
         company_id: companyId,
         promotion_id: id,
@@ -376,22 +391,42 @@ export async function PUT(
         role: item.role || 'component',
         quantity: item.quantity || 1,
         special_price: item.special_price ?? null,
+        sub_item_limit: item.sub_item_limit ?? null,
+        discount_type: item.discount_type || null,
+        discount_input: item.discount_input ?? null,
         sort_order: item.sort_order ?? idx,
       }));
 
+      // Get existing item IDs before inserting new ones
+      const { data: oldItems } = await supabaseAdmin
+        .from('promotion_items')
+        .select('id')
+        .eq('promotion_id', id);
+      const oldItemIds = (oldItems || []).map(i => i.id);
+
+      // Insert new items first
       const { error: itemsError } = await supabaseAdmin
         .from('promotion_items')
         .insert(itemsToInsert);
 
       if (itemsError) throw itemsError;
+
+      // Only delete old items after successful insert
+      if (oldItemIds.length > 0) {
+        await supabaseAdmin
+          .from('promotion_items')
+          .delete()
+          .in('id', oldItemIds);
+      }
     }
 
-    // Replace tiers if provided
+    // Replace tiers if provided — safe: insert first, then delete old
     if (body.tiers !== undefined) {
-      await supabaseAdmin
+      const { data: oldTiers } = await supabaseAdmin
         .from('promotion_tiers')
-        .delete()
+        .select('id')
         .eq('promotion_id', id);
+      const oldTierIds = (oldTiers || []).map(t => t.id);
 
       if (body.tiers && body.tiers.length > 0) {
         const tiersToInsert = body.tiers.map((tier, idx) => ({
@@ -407,6 +442,13 @@ export async function PUT(
           .insert(tiersToInsert);
 
         if (tiersError) throw tiersError;
+      }
+
+      if (oldTierIds.length > 0) {
+        await supabaseAdmin
+          .from('promotion_tiers')
+          .delete()
+          .in('id', oldTierIds);
       }
     }
 

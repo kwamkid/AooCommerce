@@ -11,6 +11,7 @@ import {
   ShopeeCredentials,
 } from '@/lib/shopee/api';
 import { parallelLimit } from '@/lib/parallel';
+import { translateShopeeError } from '@/lib/shopee/errors';
 
 // --- Types ---
 
@@ -481,9 +482,10 @@ export async function exportProductToShopee(
 
     if (existingLinks && existingLinks.length > 0) {
       console.log(`[Shopee Export] Product ${productId} already linked to account ${account.id}:`, existingLinks);
+      // Already linked — return success with existing item_id (no need to re-export)
       return {
-        success: false,
-        error: `สินค้านี้เชื่อมกับ Shopee อยู่แล้ว (Item ID: ${existingLinks[0].external_item_id})`,
+        success: true,
+        item_id: parseInt(existingLinks[0].external_item_id),
         product_name: '',
       };
     }
@@ -581,7 +583,7 @@ export async function exportProductToShopee(
     const { data, error } = addResult;
 
     if (error) {
-      return { success: false, error: `Shopee error: ${error}`, product_name: product.name };
+      return { success: false, error: await translateShopeeError(error), product_name: product.name };
     }
 
     // Cache successful attributes for this category (for subsequent exports)

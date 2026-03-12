@@ -4,6 +4,7 @@ import { Fragment, useRef, useState, useEffect } from 'react';
 import { Package, Trash2, AlertTriangle, X, ChevronDown, ChevronRight, Gift } from 'lucide-react';
 import ProductSearchInput, { type ProductSearchItem, type SearchMode } from '@/components/ui/ProductSearchInput';
 import FormSelect from '@/components/ui/FormSelect';
+import { productDisplayName } from '@/lib/product-display';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,8 @@ export interface TableItem {
   role?: string | null;
   /** Special price for buy_get_discount items */
   special_price?: number | null;
+  /** Max price across variations — for price range display */
+  max_price?: number | null;
 }
 
 export type ColumnKey =
@@ -97,6 +100,8 @@ interface ItemsTableProps {
   // misc
   emptyMessage?: string;
   showSummary?: boolean;
+  /** Make unit_price column display-only (not editable) even when table is editable */
+  priceReadOnly?: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
   /** Search mode: 'variation' (default) or 'product' (grouped by product) */
   searchMode?: SearchMode;
@@ -161,6 +166,7 @@ export default function ItemsTable({
   roleOptions = [],
   emptyMessage = 'เพิ่มสินค้าโดยพิมพ์ค้นหาด้านล่าง',
   showSummary = true,
+  priceReadOnly = false,
   inputRef: externalInputRef,
   searchMode = 'variation',
 }: ItemsTableProps) {
@@ -224,8 +230,20 @@ export default function ItemsTable({
   function ProductCell({ item, idx }: { item: TableItem; idx?: number }) {
     const hasPromo = item.promotion_components && item.promotion_components.length > 0;
     const isExpanded = idx !== undefined && expandedPromotions.has(idx);
-    const name = item.product_name + (item.variation_label ? ` - ${item.variation_label}` : '');
-    const sub = [item.product_code, item.sku && item.sku !== item.product_code && item.sku !== item.variation_label ? item.sku : null].filter(Boolean).join(' · ');
+    const name = productDisplayName(item);
+    // Build subtitle like ProductSearchInput: code | SKU: xxx | ฿price
+    const subParts: string[] = [];
+    if (item.product_code) subParts.push(item.product_code);
+    if (item.sku && item.sku !== item.product_code && item.sku !== item.variation_label) subParts.push(`SKU: ${item.sku}`);
+    if (item.unit_price != null && !hasPrice) {
+      // Show price in subtitle only when unit_price column is NOT shown separately
+      if (item.max_price && item.max_price > item.unit_price) {
+        subParts.push(`฿${fmt(item.unit_price)} - ฿${fmt(item.max_price)}`);
+      } else if (item.unit_price > 0) {
+        subParts.push(`฿${fmt(item.unit_price)}`);
+      }
+    }
+    const sub = subParts.join(' | ');
     return (
       <div className="flex items-center gap-3">
         {hasPromo && idx !== undefined && (
@@ -334,7 +352,7 @@ export default function ItemsTable({
               return (
                 <Fragment key={`${item.variation_id}-${idx}`}>
                 <tr className="data-tr">
-                  <td className="py-3"><ProductCell item={item} idx={idx} /></td>
+                  <td className="py-3">{ProductCell({ item, idx })}</td>
 
                   {hasRole && (
                     <td className="py-3">
@@ -366,7 +384,7 @@ export default function ItemsTable({
                   )}
 
                   <td className="py-3 text-center">
-                    <QtyCell item={item} idx={idx} />
+                    {QtyCell({ item, idx })}
                     {isOverStock && !readOnly && (
                       <div className="flex items-center justify-center gap-1 mt-0.5 text-[10px] text-amber-600 dark:text-amber-400">
                         <AlertTriangle className="w-2.5 h-2.5" />เกินสต๊อก
@@ -388,8 +406,13 @@ export default function ItemsTable({
 
                   {hasPrice && (
                     <td className="py-3 text-right">
-                      {readOnly
-                        ? <span className="text-sm text-gray-900 dark:text-white">฿{fmt(item.unit_price ?? 0)}</span>
+                      {(readOnly || priceReadOnly)
+                        ? <span className="text-sm text-gray-900 dark:text-white">
+                            {item.max_price && item.max_price > (item.unit_price ?? 0)
+                              ? `฿${fmt(item.unit_price ?? 0)} - ฿${fmt(item.max_price)}`
+                              : `฿${fmt(item.unit_price ?? 0)}`
+                            }
+                          </span>
                         : <div className="relative inline-block">
                             <input type="number" min="0" step="0.01" value={item.unit_price ?? 0}
                               onChange={e => onUpdateField!(idx, 'unit_price', parseFloat(e.target.value) || 0)}
@@ -549,14 +572,23 @@ export default function ItemsTable({
                 }
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
-                    {item.product_name}{item.variation_label ? ` - ${item.variation_label}` : ''}
+                    {productDisplayName(item)}
                   </p>
                   <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                    {(item.product_code || item.sku) && (
-                      <p className="text-xs text-gray-400 dark:text-slate-500 truncate">
-                        {[item.product_code, item.sku && item.sku !== item.product_code && item.sku !== item.variation_label ? item.sku : null].filter(Boolean).join(' · ')}
-                      </p>
-                    )}
+                    {(() => {
+                      const parts: string[] = [];
+                      if (item.product_code) parts.push(item.product_code);
+                      if (item.sku && item.sku !== item.product_code && item.sku !== item.variation_label) parts.push(`SKU: ${item.sku}`);
+                      if (item.unit_price != null && !hasPrice) {
+                        if (item.max_price && item.max_price > item.unit_price) {
+                          parts.push(`฿${fmt(item.unit_price)} - ฿${fmt(item.max_price)}`);
+                        } else if (item.unit_price > 0) {
+                          parts.push(`฿${fmt(item.unit_price)}`);
+                        }
+                      }
+                      const mobileSub = parts.join(' | ');
+                      return mobileSub ? <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{mobileSub}</p> : null;
+                    })()}
                     {hasStock && <StockBadge qty={stockQty} />}
                     {hasStockSource && <StockBadge qty={item.stock_source} />}
                   </div>
@@ -598,7 +630,7 @@ export default function ItemsTable({
                 )}
                 <div>
                   <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">จำนวน</label>
-                  <QtyCell item={item} idx={idx} />
+                  {QtyCell({ item, idx })}
                 </div>
                 {hasQtyReceived && item.qty_received != null && (
                   <div>
@@ -617,8 +649,13 @@ export default function ItemsTable({
                 {hasPrice && (
                   <div>
                     <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">ราคา/ชิ้น</label>
-                    {readOnly
-                      ? <span className="text-sm text-gray-900 dark:text-white">฿{fmt(item.unit_price ?? 0)}</span>
+                    {(readOnly || priceReadOnly)
+                      ? <span className="text-sm text-gray-900 dark:text-white">
+                          {item.max_price && item.max_price > (item.unit_price ?? 0)
+                            ? `฿${fmt(item.unit_price ?? 0)} - ฿${fmt(item.max_price)}`
+                            : `฿${fmt(item.unit_price ?? 0)}`
+                          }
+                        </span>
                       : <div className="relative">
                           <input type="number" min="0" step="0.01" value={item.unit_price ?? 0}
                             onChange={e => onUpdateField!(idx, 'unit_price', parseFloat(e.target.value) || 0)}
@@ -743,14 +780,14 @@ export default function ItemsTable({
     <>
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
         {/* Empty state — search on top when no items */}
-        {items.length === 0 && !readOnly && (
+        {items.length === 0 && !readOnly && onAdd && (
           <>
             <div className="px-4 py-3">
               {searchDisabledMessage
                 ? <p className="text-sm text-gray-400 dark:text-slate-500">{searchDisabledMessage}</p>
                 : <ProductSearchInput
                     products={products}
-                    onSelect={onAdd!}
+                    onSelect={onAdd}
                     loading={loadingProducts}
                     placeholder={searchPlaceholder}
                     inputRef={searchRef as React.RefObject<HTMLInputElement>}
@@ -790,15 +827,15 @@ export default function ItemsTable({
         {/* Items — search appended below */}
         {items.length > 0 && (
           <>
-            <DesktopTable />
-            <MobileCards />
-            {!readOnly && (
+            {DesktopTable()}
+            {MobileCards()}
+            {!readOnly && onAdd && (
               <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700">
                 {searchDisabledMessage
                   ? <p className="text-sm text-gray-400 dark:text-slate-500">{searchDisabledMessage}</p>
                   : <ProductSearchInput
                       products={products}
-                      onSelect={onAdd!}
+                      onSelect={onAdd}
                       loading={loadingProducts}
                       placeholder={searchPlaceholder}
                       inputRef={searchRef as React.RefObject<HTMLInputElement>}

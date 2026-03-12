@@ -12,6 +12,8 @@ interface DiscountInputProps {
   placeholder?: string;
   /** Show helper text below input */
   helperText?: string;
+  /** Compact mode for inline/table use — smaller height & font */
+  compact?: boolean;
   className?: string;
 }
 
@@ -36,11 +38,17 @@ export default function DiscountInput({
   disabled,
   placeholder = '0',
   helperText,
+  compact,
   className,
 }: DiscountInputProps) {
   const toggle = () => {
     onTypeChange(discountType === 'percent' ? 'fixed_discount' : 'percent');
   };
+
+  const inputH = compact ? 'h-[30px]' : 'h-[42px]';
+  const inputW = compact ? 'w-16' : 'w-28';
+  const fontSize = compact ? 'text-sm' : 'text-base';
+  const px = compact ? 'px-2' : 'px-3';
 
   return (
     <div className={className}>
@@ -53,13 +61,13 @@ export default function DiscountInput({
           min={0}
           max={discountType === 'percent' ? 100 : undefined}
           disabled={disabled}
-          className="w-28 h-[42px] px-3 text-base text-gray-900 dark:text-white bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#F4511E] border-none disabled:opacity-40 disabled:cursor-not-allowed"
+          className={`${inputW} ${inputH} ${px} ${fontSize} text-right text-gray-900 dark:text-white bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#F4511E] border-none disabled:opacity-40 disabled:cursor-not-allowed`}
         />
         <button
           type="button"
           disabled={disabled}
           onClick={toggle}
-          className="px-3 h-[42px] text-base font-medium border-l border-gray-300 dark:border-slate-500 transition-colors bg-gray-50 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed"
+          className={`${px} ${inputH} ${fontSize} font-medium border-l border-gray-300 dark:border-slate-500 transition-colors bg-gray-50 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed`}
         >
           {discountType === 'percent' ? '%' : '฿'}
         </button>

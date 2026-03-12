@@ -148,45 +148,10 @@ export function formatDateValue(value: Date | string | null | undefined): string
 }
 
 // ===== Generic product display helpers =====
-// These work with any data shape — flat (StockTab, HistoryTab, create pages)
-// or nested (detail pages like issues/[id], receives/[id], transfers/[id])
-
-interface ProductDisplayFields {
-  product_name?: string;
-  product_code?: string;
-  variation_label?: string | null;
-  sku?: string | null;
-  barcode?: string | null;
-  attributes?: Record<string, string> | null;
-}
-
-/** Clean variation label — skip barcode, product code, pure digits */
-export function cleanVariationLabel(f: ProductDisplayFields): string {
-  if (f.attributes && Object.keys(f.attributes).length > 0) {
-    const attrParts: string[] = [];
-    Object.values(f.attributes).forEach(v => { if (v?.trim()) attrParts.push(v.trim()); });
-    if (attrParts.length > 0) return attrParts.join(' / ');
-  }
-  const raw = f.variation_label || '';
-  if (!raw || raw === f.product_code || raw === f.barcode || raw === f.sku || /^\d+$/.test(raw)) return '';
-  return raw;
-}
-
-/** Product name + variation label (if meaningful) */
-export function productDisplayName(f: ProductDisplayFields): string {
-  const varLabel = cleanVariationLabel(f);
-  const name = f.product_name || '-';
-  if (varLabel) return `${name} - ${varLabel}`;
-  return name;
-}
-
-/** Subtitle: product_code | SKU: xxx (de-duped) */
-export function productSubtitle(f: ProductDisplayFields): string {
-  const parts: string[] = [];
-  if (f.product_code) parts.push(f.product_code);
-  if (f.sku && f.sku !== f.product_code && f.sku !== f.barcode) parts.push(`SKU: ${f.sku}`);
-  return parts.join(' | ');
-}
+// Re-exported from shared lib — used across the entire app
+import { cleanVariationLabel as _cleanVarLabel, productDisplayName as _prodDisplayName, productSubtitle as _prodSubtitle } from '@/lib/product-display';
+export { cleanVariationLabel, productDisplayName, productSubtitle } from '@/lib/product-display';
+export type { ProductDisplayFields } from '@/lib/product-display';
 
 /** Flatten nested variation item (detail pages) to ProductDisplayFields */
 export function flattenVariationItem(item: {
@@ -197,7 +162,7 @@ export function flattenVariationItem(item: {
     attributes?: Record<string, string> | null;
     product?: { code?: string; name?: string };
   } | null;
-}): ProductDisplayFields {
+}): { product_name: string; product_code: string; variation_label?: string | null; sku?: string | null; barcode?: string | null; attributes?: Record<string, string> | null } {
   return {
     product_name: item.variation?.product?.name || '-',
     product_code: item.variation?.product?.code || '',
@@ -209,6 +174,6 @@ export function flattenVariationItem(item: {
 }
 
 // Legacy aliases for existing imports
-export const getVariationLabel = (item: InventoryItem) => cleanVariationLabel(item);
-export const getProductDisplayName = (item: InventoryItem) => productDisplayName(item);
-export const getProductSubtitle = (item: { product_code: string; sku?: string | null; barcode?: string | null }) => productSubtitle(item);
+export const getVariationLabel = (item: InventoryItem) => _cleanVarLabel(item);
+export const getProductDisplayName = (item: InventoryItem) => _prodDisplayName(item);
+export const getProductSubtitle = (item: { product_code: string; sku?: string | null; barcode?: string | null }) => _prodSubtitle(item);

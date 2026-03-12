@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
@@ -25,6 +25,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import PushDealModal from './components/PushDealModal';
+import { useToast } from '@/lib/toast-context';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -57,6 +58,8 @@ interface PromotionItem {
     discount_type: string;
     discount_value: number;
   }[];
+  discount_type?: string | null;
+  discount_value?: number | null;
   updated_at: string;
   shopee_deals?: { account_id: string; status: string; shop_name: string; updated_at: string }[];
 }
@@ -89,6 +92,13 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   buy_get_free: <Gift className="w-4 h-4" />,
   buy_get_discount: <Tag className="w-4 h-4" />,
   qty_discount: <Percent className="w-4 h-4" />,
+};
+
+const TYPE_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
+  bundle_set: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-400', icon: 'text-orange-500' },
+  buy_get_free: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', icon: 'text-emerald-500' },
+  buy_get_discount: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400', icon: 'text-blue-500' },
+  qty_discount: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-400', icon: 'text-purple-500' },
 };
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; headerBg: string }> = {
@@ -271,9 +281,23 @@ function PromotionCard({
       {/* Header bar */}
       <div className={`flex items-center gap-2 px-4 py-2.5 ${statusCfg.headerBg}`}>
         <div className="flex-1 min-w-0 flex items-center gap-2">
+          {(() => {
+            const tc = TYPE_COLORS[promo.promotion_type] || TYPE_COLORS.bundle_set;
+            return (
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium flex-shrink-0 ${tc.bg} ${tc.text}`}>
+                {TYPE_ICONS[promo.promotion_type]}
+                {TYPE_LABELS[promo.promotion_type] || promo.promotion_type}
+              </span>
+            );
+          })()}
           <span className={`font-semibold text-base truncate ${statusCfg.text}`}>
             {promo.name}
           </span>
+          {(promo.start_date || promo.end_date) && (
+            <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">
+              {formatDate(promo.start_date)} - {formatDate(promo.end_date)}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {/* Shopee sync indicator */}
@@ -309,8 +333,6 @@ function PromotionCard({
               </div>
             </div>
           )}
-          <TypeBadge type={promo.promotion_type} />
-          <StatusBadge status={promo.status} />
         </div>
       </div>
 
@@ -408,15 +430,6 @@ function PromotionCard({
             </div>
           ) : null}
 
-          {/* Date range */}
-          {(promo.start_date || promo.end_date) && (
-            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400">
-              <Calendar className="w-3 h-3" />
-              <span>
-                {formatDate(promo.start_date)} - {formatDate(promo.end_date)}
-              </span>
-            </div>
-          )}
 
           {/* Actions */}
           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -436,6 +449,7 @@ function PromotionCard({
 
 function PromotionsPageContent() {
   const router = useRouter();
+  const { showToast } = useToast();
   const searchParams = useSearchParams();
 
   // URL-driven state
@@ -539,7 +553,7 @@ function PromotionsPageContent() {
       setDeleteTarget(null);
     } catch {
       setDeletingShopee(false);
-      alert('เกิดข้อผิดพลาดในการลบ');
+      showToast('เกิดข้อผิดพลาดในการลบ', 'error');
     }
   };
 
@@ -675,26 +689,36 @@ function PromotionsPageContent() {
               ต้องการลบ <span className="font-medium text-gray-900 dark:text-white">&quot;{deleteTarget.name}&quot;</span> ?
             </p>
 
-            {(deleteTarget.shopee_deals || []).length > 0 && (
-              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                      โปรโมชั่นนี้ sync กับ Shopee {deleteTarget.shopee_deals!.length} ร้าน
-                    </p>
-                    <div className="mt-1 space-y-0.5">
-                      {deleteTarget.shopee_deals!.map((d, i) => (
-                        <div key={i} className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
-                          {d.shop_name}
-                        </div>
-                      ))}
+            {(() => {
+              const deals = deleteTarget.shopee_deals || [];
+              const ongoingDeals = deals.filter(d => d.status === 'ongoing');
+              const hasOngoing = ongoingDeals.length > 0;
+              if (deals.length === 0) return null;
+              return (
+                <div className={`border rounded-lg p-3 mb-4 ${hasOngoing ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'}`}>
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${hasOngoing ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`} />
+                    <div>
+                      <p className={`text-sm font-medium ${hasOngoing ? 'text-red-800 dark:text-red-300' : 'text-amber-800 dark:text-amber-300'}`}>
+                        {hasOngoing
+                          ? `โปรโมชั่นนี้กำลัง active อยู่บน Shopee ${ongoingDeals.length} ร้าน — ลบแล้ว deal จะถูกปิดทันที`
+                          : `โปรโมชั่นนี้ sync กับ Shopee ${deals.length} ร้าน`
+                        }
+                      </p>
+                      <div className="mt-1 space-y-0.5">
+                        {deals.map((d, i) => (
+                          <div key={i} className={`flex items-center gap-1.5 text-xs ${hasOngoing ? 'text-red-700 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${d.status === 'ongoing' ? 'bg-red-500' : 'bg-amber-500'}`} />
+                            {d.shop_name}
+                            {d.status === 'ongoing' && <span className="text-red-500 font-medium">(กำลัง active)</span>}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             <div className="flex flex-col gap-2">
               {(deleteTarget.shopee_deals || []).length > 0 && (

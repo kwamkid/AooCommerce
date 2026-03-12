@@ -56,12 +56,16 @@ interface Props {
   startDate: string | null;
   endDate: string | null;
   onClose: () => void;
-  onResults?: (results: PushResult[]) => void;
+  onResults?: (results: PushResult[]) => void | Promise<void>;
+  /** If set, only push this single account (skip others) */
+  singleAccountId?: string;
+  /** Discount type for display (percent shows %, otherwise shows ฿) */
+  discountType?: string;
 }
 
 // ─── Component ──────────────────────────────────────────
 
-export default function PushDealModal({ promotionId, promotionName, startDate, endDate, onClose, onResults }: Props) {
+export default function PushDealModal({ promotionId, promotionName, startDate, endDate, onClose, onResults, singleAccountId, discountType }: Props) {
   const [shops, setShops] = useState<ShopRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [pushingAll, setPushingAll] = useState(false);
@@ -92,8 +96,11 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
       for (const d of deals) dealMap.set(d.account_id, d);
 
       // Build shop rows from enabled platforms (Shopee only for now)
+      // Also include accounts that have existing deals (even if platform toggled off)
+      // If singleAccountId is set, only show that one account
       const rows: ShopRow[] = platforms
-        .filter(p => p.is_enabled && p.account_id && p.platform === 'shopee')
+        .filter(p => (p.is_enabled || dealMap.has(p.account_id!)) && p.account_id && p.platform === 'shopee')
+        .filter(p => !singleAccountId || p.account_id === singleAccountId)
         .map(p => {
           const account = accountMap.get(p.account_id!);
           const existingDeal = dealMap.get(p.account_id!);
@@ -120,7 +127,10 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
   // Push to a single shop
   const pushToShop = useCallback(async (accountId: string) => {
     if (!startDate || !endDate) {
-      alert('โปรโมชั่นนี้ยังไม่มีวันเริ่มต้น/สิ้นสุด');
+      // No dates set — mark shop as error
+      setShops(prev => prev.map(s =>
+        s.account_id === accountId ? { ...s, status: 'error' as ShopStatus, error: 'ยังไม่มีวันเริ่มต้น/สิ้นสุด' } : s
+      ));
       return;
     }
 
@@ -140,13 +150,15 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
       },
     );
 
+    const finalStatus = result.success
+      ? (result.warning ? 'partial_success' as ShopStatus : 'success' as ShopStatus)
+      : 'error' as ShopStatus;
+
     setShops(prev => prev.map(s =>
       s.account_id === accountId
         ? {
             ...s,
-            status: result.success
-              ? (result.warning ? 'partial_success' as ShopStatus : 'success' as ShopStatus)
-              : 'error' as ShopStatus,
+            status: finalStatus,
             error: result.error,
             warning: result.warning,
             external_deal_id: result.external_deal_id,
@@ -154,10 +166,31 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
           }
         : s
     ));
+
+    // Immediately disable toggle in DB when push fails
+    if (!result.success) {
+      apiFetch('/api/shopee/deals/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ promotion_id: promotionId, account_id: accountId, action: 'disable' }),
+      }).catch(() => { /* silent */ });
+    }
   }, [promotionId, startDate, endDate]);
 
+  // Auto-push when singleAccountId is set and data is loaded
+  const [autoPushed, setAutoPushed] = useState(false);
+  useEffect(() => {
+    if (singleAccountId && !loading && shops.length > 0 && !autoPushed) {
+      const idleShop = shops.find(s => s.status === 'idle' && s.account_id === singleAccountId);
+      if (idleShop) {
+        setAutoPushed(true);
+        pushToShop(singleAccountId);
+      }
+    }
+  }, [singleAccountId, loading, shops, autoPushed, pushToShop]);
+
   // Report results to parent
-  const reportResults = useCallback(() => {
+  const reportResults = useCallback(async () => {
     const results = shops
       .filter(s => s.status === 'success' || s.status === 'error' || s.status === 'partial_success')
       .map(s => ({
@@ -165,7 +198,7 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
         success: s.status === 'success' || s.status === 'partial_success',
         error: s.error,
       }));
-    if (results.length > 0) onResults?.(results);
+    if (results.length > 0) await onResults?.(results);
   }, [shops, onResults]);
 
   // Push all idle shops
@@ -184,8 +217,8 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
   const hasDates = !!(startDate && endDate);
   const startInPast = hasDates && new Date(startDate) < new Date();
 
-  const handleClose = () => {
-    reportResults();
+  const handleClose = async () => {
+    await reportResults();
     onClose();
   };
 
@@ -229,9 +262,9 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
             </div>
           ) : shops.length === 0 ? (
             <div className="text-center py-10 text-gray-500 dark:text-slate-400">
-              ไม่มีร้านค้า Shopee ที่เปิดราคา platform
+              ไม่มีร้านค้า Shopee ที่เปิดใช้งาน
               <br />
-              <span className="text-sm">ตั้งราคาที่หน้าแก้ไขโปรโมชั่นก่อน</span>
+              <span className="text-sm">เปิด toggle ร้านค้าที่หน้าแก้ไขโปรโมชั่นก่อน</span>
             </div>
           ) : (
             <div className="space-y-2">
@@ -251,8 +284,10 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
                       </div>
                       <div className="text-xs text-gray-500 dark:text-slate-400">
                         {shop.bundle_price != null
-                          ? `฿${shop.bundle_price.toLocaleString('th-TH')}`
-                          : 'ใช้ราคาหลัก'}
+                          ? discountType === 'percent'
+                            ? `ลด ${shop.bundle_price}%`
+                            : `฿${shop.bundle_price.toLocaleString('th-TH')}`
+                          : 'ใช้ค่าหลัก'}
                       </div>
                     </div>
 
@@ -318,7 +353,7 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
                   </div>
                   {/* Error detail */}
                   {shop.status === 'error' && shop.error && (
-                    <div className="px-3 py-1.5 text-xs text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/10 rounded-b-lg -mt-1 border-x border-b border-red-200 dark:border-red-800/30">
+                    <div className="px-3 py-2 text-sm text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/10 rounded-b-lg -mt-1 border-x border-b border-red-200 dark:border-red-800/30 whitespace-pre-line">
                       {shop.error}
                     </div>
                   )}

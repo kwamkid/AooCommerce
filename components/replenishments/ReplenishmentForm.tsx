@@ -13,6 +13,7 @@ import { formatNumber } from '@/lib/utils/format';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
+import { productDisplayName } from '@/lib/product-display';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import { type GpResolverContext, resolveGp, fetchGpContext } from '@/lib/gp-resolver';
 import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/replenishment-pdf';
@@ -818,7 +819,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <div className="font-medium text-gray-900 dark:text-white line-clamp-2">{item.product_name}{item.variation_label ? ` - ${item.variation_label}` : ''}</div>
+                                <div className="font-medium text-gray-900 dark:text-white line-clamp-2">{productDisplayName(item)}</div>
                                 <div className="text-xs text-amber-600 dark:text-amber-400">฿{formatNumber(item.unit_price)}</div>
                               </div>
                             </div>
@@ -884,7 +885,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <div className="font-medium text-gray-900 dark:text-white line-clamp-2">{item.product_name}{item.variation_label ? ` - ${item.variation_label}` : ''}</div>
+                                <div className="font-medium text-gray-900 dark:text-white line-clamp-2">{productDisplayName(item)}</div>
                                 <div className="text-xs text-amber-600 dark:text-amber-400">฿{formatNumber(item.unit_price)}</div>
                               </div>
                             </div>

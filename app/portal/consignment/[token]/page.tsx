@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { Loader2, Package, Sun, Moon, CheckCircle2, ClipboardList, BarChart3, ChevronRight, AlertCircle, KeyRound, LogOut, Store } from 'lucide-react';
+import { productDisplayName } from '@/lib/product-display';
 
 interface StockItem {
   variation_id: string;
@@ -473,7 +474,7 @@ export default function ConsignmentPortalPage() {
                             )}
                             <div className="min-w-0">
                               <p className="text-sm text-gray-900 dark:text-white line-clamp-2 leading-snug">
-                                {item.product_name}{item.variation_label && item.variation_label !== item.product_code && item.variation_label !== item.sku && item.variation_label !== item.barcode ? ` - ${item.variation_label}` : ''}
+                                {productDisplayName(item)}
                               </p>
                               {productSubtitle(item) && (
                                 <p className="text-xs text-gray-500 dark:text-slate-400 font-mono mt-0.5">{productSubtitle(item)}</p>

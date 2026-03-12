@@ -17,6 +17,7 @@ import {
   buildProductNameStack,
   withOriginalAndCopy,
 } from './pdf-utils';
+import { productDisplayName } from '@/lib/product-display';
 
 const THEME_COLOR = '#b45309';
 
@@ -137,7 +138,7 @@ export async function generateOrderDnPdf(
   const widths: (number | string)[] = [25, '*', 60];
 
   const tableBody = data.items.map((item, idx) => {
-    const fullName = item.product_name + (item.variation_label ? ` - ${item.variation_label}` : '');
+    const fullName = productDisplayName(item);
     const subText = item.sku ? `SKU: ${item.sku}` : null;
     const productStack = buildProductNameStack(fullName, subText);
 
