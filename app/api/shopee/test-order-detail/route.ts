@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_order_detail', {
       order_sn_list: orderSnList,
-      response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,item_list,pay_time,shipping_carrier,tracking_number,total_amount,payment_method,estimated_shipping_fee,actual_shipping_fee,actual_shipping_fee_confirmed,note,buyer_cancel_reason,cancel_by,cancel_reason,ship_by_date,days_to_ship,package_list,invoice_data',
+      response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,item_list,pay_time,shipping_carrier,checkout_shipping_carrier,tracking_number,total_amount,payment_method,estimated_shipping_fee,actual_shipping_fee,actual_shipping_fee_confirmed,note,buyer_cancel_reason,cancel_by,cancel_reason,ship_by_date,days_to_ship,package_list,invoice_data',
     });
 
     if (error) {

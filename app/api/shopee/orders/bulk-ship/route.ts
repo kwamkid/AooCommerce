@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     // Fetch all orders (include is_split)
     const { data: orders, error: ordersError } = await supabaseAdmin
       .from('orders')
-      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status, is_split')
+      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status, is_split, shipping_carrier, external_data')
       .eq('company_id', companyId)
       .in('id', order_ids);
 
@@ -400,10 +400,15 @@ export async function POST(request: NextRequest) {
       // Step 6: Update DB for successful orders
       for (const order of accountOrders) {
         if (orderSuccessSet.has(order.id)) {
+          const resolvedCarrier = order.shipping_carrier
+            || (order.external_data as Record<string, unknown>)?.shipping_carrier as string
+            || (order.external_data as Record<string, unknown>)?.checkout_shipping_carrier as string
+            || null;
           await supabaseAdmin.from('orders').update({
             external_status: 'PROCESSED',
             order_status: 'processing',
             updated_at: new Date().toISOString(),
+            ...(resolvedCarrier && !order.shipping_carrier ? { shipping_carrier: resolvedCarrier } : {}),
           }).eq('id', order.id).eq('company_id', companyId);
 
           if (order.is_split) {

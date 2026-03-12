@@ -53,6 +53,7 @@ interface ShopeeOrder {
   total_amount: number;
   item_list: ShopeeOrderItem[];
   shipping_carrier: string;
+  checkout_shipping_carrier?: string;
   tracking_number: string;
   payment_method: string;
   // Optional fields from expanded response
@@ -162,7 +163,7 @@ export async function syncOrdersByOrderSn(
     try {
       const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_order_detail', {
         order_sn_list: batch.join(','),
-        response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,item_list,pay_time,shipping_carrier,tracking_number,total_amount,payment_method,estimated_shipping_fee,actual_shipping_fee,actual_shipping_fee_confirmed,note,buyer_cancel_reason,cancel_by,cancel_reason,ship_by_date,days_to_ship,package_list,invoice_data,item_list.promotion_list',
+        response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,item_list,pay_time,shipping_carrier,checkout_shipping_carrier,tracking_number,total_amount,payment_method,estimated_shipping_fee,actual_shipping_fee,actual_shipping_fee_confirmed,note,buyer_cancel_reason,cancel_by,cancel_reason,ship_by_date,days_to_ship,package_list,invoice_data,item_list.promotion_list',
       });
 
       if (error) {
@@ -385,7 +386,7 @@ async function syncShopeeParcels(orderId: string, companyId: string, shopeeOrder
       order_id: orderId,
       parcel_number: idx + 1,
       package_number: pkg.package_number,
-      shipping_carrier: pkg.shipping_carrier || shopeeOrder.shipping_carrier || null,
+      shipping_carrier: pkg.shipping_carrier || shopeeOrder.shipping_carrier || shopeeOrder.checkout_shipping_carrier || null,
       status: pkg.logistics_status === 'LOGISTICS_PICKUP_DONE' || pkg.logistics_status === 'LOGISTICS_DELIVERY_DONE'
         ? 'shipped' : 'pending',
     }));
@@ -529,7 +530,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
           external_status: shopeeOrder.order_status,
           external_data: shopeeOrder as unknown as Record<string, unknown>,
           shipping_fee: updatedShippingFee,
-          shipping_carrier: shopeeOrder.shipping_carrier || null,
+          shipping_carrier: shopeeOrder.shipping_carrier || shopeeOrder.checkout_shipping_carrier || null,
           tracking_number: shopeeOrder.tracking_number || null,
           is_split: isSplit,
           updated_at: new Date().toISOString(),
@@ -1058,7 +1059,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
       delivery_date: shopeeOrder.ship_by_date
         ? new Date(shopeeOrder.ship_by_date * 1000).toISOString().split('T')[0]
         : null,
-      shipping_carrier: shopeeOrder.shipping_carrier || null,
+      shipping_carrier: shopeeOrder.shipping_carrier || shopeeOrder.checkout_shipping_carrier || null,
       tracking_number: shopeeOrder.tracking_number || null,
       is_split: shopeeOrder.split_up === true && (shopeeOrder.package_list || []).length > 1,
       flow_type: 'a_cash', // Marketplace orders always use cash flow regardless of customer type
@@ -1238,7 +1239,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
         order_id: order.id,
         parcel_number: idx + 1,
         package_number: pkg.package_number,
-        shipping_carrier: pkg.shipping_carrier || shopeeOrder.shipping_carrier || null,
+        shipping_carrier: pkg.shipping_carrier || shopeeOrder.shipping_carrier || shopeeOrder.checkout_shipping_carrier || null,
         status: pkg.logistics_status === 'LOGISTICS_PICKUP_DONE' || pkg.logistics_status === 'LOGISTICS_DELIVERY_DONE'
           ? 'shipped' : 'pending',
       }));

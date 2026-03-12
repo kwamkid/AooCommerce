@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     // 1. Fetch order
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status, is_split')
+      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status, is_split, shipping_carrier, external_data')
       .eq('id', order_id)
       .eq('company_id', companyId)
       .single();
@@ -114,6 +114,12 @@ export async function POST(request: NextRequest) {
       };
     };
 
+    // Resolve carrier name from external_data if not already set
+    const resolvedCarrier = order.shipping_carrier
+      || (order.external_data as Record<string, unknown>)?.shipping_carrier as string
+      || (order.external_data as Record<string, unknown>)?.checkout_shipping_carrier as string
+      || null;
+
     // For split orders: fetch parcel package_numbers and ship each individually
     // (Shopee requires package_number for split orders — calling ship_order without it will fail)
     if (order.is_split) {
@@ -167,7 +173,10 @@ export async function POST(request: NextRequest) {
         // All parcels shipped — update DB and return
         await supabaseAdmin
           .from('orders')
-          .update({ external_status: 'PROCESSED', order_status: 'processing', updated_at: new Date().toISOString() })
+          .update({
+            external_status: 'PROCESSED', order_status: 'processing', updated_at: new Date().toISOString(),
+            ...(resolvedCarrier && !order.shipping_carrier ? { shipping_carrier: resolvedCarrier } : {}),
+          })
           .eq('id', order_id)
           .eq('company_id', companyId);
 
@@ -253,6 +262,7 @@ export async function POST(request: NextRequest) {
         external_status: 'PROCESSED',
         order_status: 'processing',
         updated_at: new Date().toISOString(),
+        ...(resolvedCarrier && !order.shipping_carrier ? { shipping_carrier: resolvedCarrier } : {}),
       })
       .eq('id', order_id)
       .eq('company_id', companyId);
