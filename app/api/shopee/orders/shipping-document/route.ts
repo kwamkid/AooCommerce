@@ -347,7 +347,10 @@ async function autoShipOrder(creds: ShopeeCredentials, orderSn: string, packageN
   for (const pkgNum of parcelsToShip) {
     let shipResult: { data: unknown; error?: string };
 
-    if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
+    if (params.info_needed?.non_integrated) {
+      // Non-integrated channel — send non_integrated: {}
+      shipResult = await shipOrder(creds, orderSn, undefined, undefined, pkgNum, {});
+    } else if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
       const dropoffParams: Record<string, unknown> = {};
       if (params.dropoff?.branch_list?.[0]) {
         dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;

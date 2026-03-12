@@ -602,14 +602,17 @@ export async function shipOrder(
   orderSn: string,
   pickup?: { address_id: number; pickup_time_id: string },
   dropoff?: Record<string, unknown>,
-  packageNumber?: string
+  packageNumber?: string,
+  nonIntegrated?: Record<string, unknown>,
 ): Promise<{ data: unknown; error?: string }> {
   const body: Record<string, unknown> = { order_sn: orderSn };
 
   if (packageNumber) {
     body.package_number = packageNumber;
   }
-  if (pickup) {
+  if (nonIntegrated) {
+    body.non_integrated = nonIntegrated;
+  } else if (pickup) {
     body.pickup = pickup;
   } else if (dropoff) {
     body.dropoff = dropoff;
@@ -636,6 +639,7 @@ export async function massShipOrder(
     productLocationId?: string;
     pickup?: { address_id: number; pickup_time_id: string };
     dropoff?: { branch_id?: number; sender_real_name?: string; tracking_number?: string };
+    nonIntegrated?: Record<string, unknown>;
   },
 ): Promise<{
   successList: { package_number: string }[];
@@ -649,6 +653,7 @@ export async function massShipOrder(
   };
   if (options?.logisticsChannelId) body.logistics_channel_id = options.logisticsChannelId;
   if (options?.productLocationId) body.product_location_id = options.productLocationId;
+  if (options?.nonIntegrated) body.non_integrated = options.nonIntegrated;
   if (options?.pickup) body.pickup = options.pickup;
   if (options?.dropoff) body.dropoff = options.dropoff;
 

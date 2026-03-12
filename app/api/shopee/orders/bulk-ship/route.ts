@@ -168,6 +168,8 @@ export async function POST(request: NextRequest) {
       // Each order may have different logistics (SPX vs Express vs dropoff) with different time slots
       type ShippingParamResult = {
         isDropoff: boolean;
+        isNonIntegrated: boolean;
+        nonIntegratedNeedsTracking: boolean;
         pickupAddress?: { address_id: number; time_slot_list?: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }> };
         dropoffBranchId?: number;
         timeSlots: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }>;
@@ -210,9 +212,13 @@ export async function POST(request: NextRequest) {
           dropoff?: { branch_list?: Array<{ branch_id: number }> };
         };
         const isDropoff = !!(p.info_needed?.dropoff && p.info_needed.dropoff.length > 0);
+        const isNonIntegrated = !!(p.info_needed?.non_integrated);
+        const nonIntegratedNeedsTracking = !!(p.info_needed?.non_integrated?.includes('tracking_no'));
         const pickupAddr = p.pickup?.address_list?.[0];
         channelShippingParams.set(chId, {
           isDropoff,
+          isNonIntegrated,
+          nonIntegratedNeedsTracking,
           pickupAddress: pickupAddr ? { address_id: pickupAddr.address_id, time_slot_list: pickupAddr.time_slot_list } : undefined,
           dropoffBranchId: p.dropoff?.branch_list?.[0]?.branch_id,
           timeSlots: pickupAddr?.time_slot_list || [],
@@ -235,7 +241,7 @@ export async function POST(request: NextRequest) {
         const sp = orderShippingParams.get(sn);
         if (!sp) continue; // already handled as error above
 
-        if (!sp.isDropoff && !pickup_time_id && sp.timeSlots.length > 1) {
+        if (!sp.isDropoff && !sp.isNonIntegrated && !pickup_time_id && sp.timeSlots.length > 1) {
           ordersNeedingTimeSlot.push(order);
         } else {
           ordersReadyToShip.push(order);
@@ -300,7 +306,11 @@ export async function POST(request: NextRequest) {
         let chPickupInfo: { address_id: number; pickup_time_id: string } | undefined;
         let chDropoffInfo: { branch_id?: number } | undefined;
 
-        if (sp.isDropoff) {
+        let chNonIntegrated: Record<string, unknown> | undefined;
+        if (sp.isNonIntegrated) {
+          // non_integrated: send empty object (or with tracking_number if needed)
+          chNonIntegrated = {};
+        } else if (sp.isDropoff) {
           if (sp.dropoffBranchId) chDropoffInfo = { branch_id: sp.dropoffBranchId };
         } else if (sp.pickupAddress) {
           const ts = sp.timeSlots;
@@ -317,6 +327,7 @@ export async function POST(request: NextRequest) {
             logisticsChannelId: channelId || undefined,
             pickup: chPickupInfo,
             dropoff: chDropoffInfo,
+            nonIntegrated: chNonIntegrated,
           },
         );
 
@@ -362,20 +373,23 @@ export async function POST(request: NextRequest) {
       // Step 5: Fallback — individual ship_order for orders without package_number
       for (const order of fallbackOrders) {
         const sp = orderShippingParams.get(order.external_order_sn!);
-        if (!sp || (!sp.pickupAddress && !sp.isDropoff)) {
+        if (!sp || (!sp.pickupAddress && !sp.isDropoff && !sp.isNonIntegrated)) {
           orderErrorMap.set(order.id, 'ไม่พบที่อยู่รับพัสดุ');
           continue;
         }
         let fbPickup: { address_id: number; pickup_time_id: string } | undefined;
         let fbDropoff: { branch_id?: number } | undefined;
-        if (sp.isDropoff) {
+        let fbNonIntegrated: Record<string, unknown> | undefined;
+        if (sp.isNonIntegrated) {
+          fbNonIntegrated = {};
+        } else if (sp.isDropoff) {
           if (sp.dropoffBranchId) fbDropoff = { branch_id: sp.dropoffBranchId };
         } else if (sp.pickupAddress) {
           const ts = sp.timeSlots;
           const slotId = pickup_time_id || ts.find(s => s.flags?.includes('recommended'))?.pickup_time_id || ts[0]?.pickup_time_id || '';
           fbPickup = { address_id: sp.pickupAddress.address_id, pickup_time_id: slotId };
         }
-        const result = await individualShipOrder(creds, order, fbPickup, fbDropoff);
+        const result = await individualShipOrder(creds, order, fbPickup, fbDropoff, undefined, fbNonIntegrated);
         if (result.success) {
           orderSuccessSet.add(order.id);
         } else {
@@ -465,6 +479,7 @@ async function individualShipOrder(
   pickupInfo?: { address_id: number; pickup_time_id: string },
   dropoffInfo?: { branch_id?: number },
   packageNumber?: string,
+  nonIntegrated?: Record<string, unknown>,
 ): Promise<{ success: boolean; error?: string }> {
   const sn = order.external_order_sn || '';
   try {
@@ -473,6 +488,7 @@ async function individualShipOrder(
       pickupInfo,
       dropoffInfo ? { branch_id: dropoffInfo.branch_id } : undefined,
       packageNumber,
+      nonIntegrated,
     );
 
     if (result.error) {

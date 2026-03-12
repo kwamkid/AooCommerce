@@ -127,10 +127,13 @@ export async function POST(request: NextRequest) {
       if (packageNumbers.length > 0) {
         const errors: string[] = [];
         const isDropoff = !!(params.info_needed?.dropoff && params.info_needed.dropoff.length > 0);
+        const isSplitNonIntegrated = !!(params.info_needed?.non_integrated);
 
         for (const pn of packageNumbers) {
           let parcelResult;
-          if (isDropoff) {
+          if (isSplitNonIntegrated) {
+            parcelResult = await shipOrder(creds, order.external_order_sn, undefined, undefined, pn, {});
+          } else if (isDropoff) {
             const dropoffParams: Record<string, unknown> = {};
             if (params.dropoff?.branch_list?.[0]) dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
             parcelResult = await shipOrder(creds, order.external_order_sn, undefined, dropoffParams, pn);
@@ -190,8 +193,12 @@ export async function POST(request: NextRequest) {
 
     // Non-split order: ship normally (no package_number)
     let shipResult;
+    const isNonIntegrated = !!(params.info_needed?.non_integrated);
 
-    if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
+    if (isNonIntegrated) {
+      // Non-integrated channel (e.g. seller's own courier) — send non_integrated: {}
+      shipResult = await shipOrder(creds, order.external_order_sn, undefined, undefined, undefined, {});
+    } else if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
       // Dropoff mode
       const dropoffParams: Record<string, unknown> = {};
       if (params.dropoff?.branch_list?.[0]) {
