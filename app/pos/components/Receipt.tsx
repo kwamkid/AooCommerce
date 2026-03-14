@@ -29,6 +29,7 @@ interface ReceiptData {
     tax_id: string;
     tax_company_name: string;
     logo_url?: string;
+    vat_registered?: boolean;
   };
   order: {
     receipt_number: string;
@@ -39,6 +40,7 @@ interface ReceiptData {
     total_amount: number;
     created_at: string;
     customer_name: string;
+    tax_invoice_number?: string | null;
   };
   cashier_name: string;
   branch_name: string;
@@ -66,6 +68,10 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
     minute: '2-digit',
   });
 
+  const vatRegistered = data.company.vat_registered || false;
+  const docTitle = vatRegistered ? 'ใบกำกับอย่างย่อ/ใบเสร็จรับเงิน' : 'ใบเสร็จรับเงิน';
+  const docNumber = data.order.tax_invoice_number || data.order.receipt_number;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 print:bg-white print:static print:block" onClick={onClose}>
       <div
@@ -74,7 +80,7 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
       >
         {/* Screen-only controls */}
         <div className="flex items-center justify-between p-4 border-b print:hidden">
-          <h3 className="text-lg font-bold text-gray-900">ใบเสร็จ</h3>
+          <h3 className="text-lg font-bold text-gray-900">{docTitle}</h3>
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
@@ -106,11 +112,14 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
             <p className="text-xs text-gray-600">เลขผู้เสียภาษี: {data.company.tax_id}</p>
           )}
 
+          {/* Document title */}
+          <p className="font-bold text-base mt-2 text-green-700">{docTitle}</p>
+
           <div className="border-t border-dashed border-gray-300 my-3" />
 
           {/* Receipt info */}
           <div className="text-left space-y-0.5">
-            <p>เลขที่: <span className="code-text">{data.order.receipt_number}</span></p>
+            <p>เลขที่: <span className="code-text font-bold">{docNumber}</span></p>
             <p>วันที่: {dateStr}</p>
             <p>แคชเชียร์: {data.cashier_name}</p>
             <p>สาขา: {data.branch_name}</p>

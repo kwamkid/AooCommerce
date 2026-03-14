@@ -51,9 +51,36 @@ export async function GET(request: NextRequest) {
     // Get company info for receipt header
     const { data: company } = await supabaseAdmin
       .from('companies')
-      .select('name, address, phone, tax_id, tax_company_name, tax_branch, logo_url')
+      .select('name, address, phone, tax_id, tax_company_name, tax_branch, logo_url, vat_registered')
       .eq('id', auth.companyId)
       .single();
+
+    // Get ABB/REC document number if auto-issued
+    let taxInvoiceNumber: string | null = null;
+    const vatRegistered = company?.vat_registered || false;
+    if (vatRegistered) {
+      const { data: abb } = await supabaseAdmin
+        .from('abbreviated_invoices')
+        .select('invoice_number')
+        .eq('order_id', orderId)
+        .eq('company_id', auth.companyId)
+        .is('voided_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      taxInvoiceNumber = abb?.invoice_number || null;
+    } else {
+      const { data: rec } = await supabaseAdmin
+        .from('receipts')
+        .select('receipt_number')
+        .eq('source_type', 'order')
+        .eq('source_id', orderId)
+        .eq('company_id', auth.companyId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      taxInvoiceNumber = rec?.receipt_number || null;
+    }
 
     return NextResponse.json({
       receipt: {
@@ -65,6 +92,7 @@ export async function GET(request: NextRequest) {
           tax_company_name: company?.tax_company_name || '',
           tax_branch: company?.tax_branch || '',
           logo_url: company?.logo_url || '',
+          vat_registered: vatRegistered,
         },
         order: {
           receipt_number: order.receipt_number,
@@ -77,6 +105,7 @@ export async function GET(request: NextRequest) {
           order_status: order.order_status,
           created_at: order.created_at,
           customer_name: (order.customer as any)?.name || 'ลูกค้าทั่วไป',
+          tax_invoice_number: taxInvoiceNumber,
         },
         cashier_name: (order.session as any)?.cashier_name || '',
         branch_name: (order.session as any)?.terminal?.name || (order.session as any)?.warehouse?.name || '',

@@ -145,28 +145,37 @@ function buildCompactInvoiceContent(
   if (companyName) {
     leftStack.push({ text: companyName, bold: true, fontSize: 10, color: '#333333' });
   }
+  if (company?.address) {
+    leftStack.push({ text: company.address, fontSize: 7, color: '#555555', margin: [0, 1, 0, 0] });
+  }
   if (company?.tax_id) {
     leftStack.push({ text: `เลขผู้เสียภาษี ${company.tax_id}`, fontSize: 8, color: '#666666', margin: [0, 1, 0, 0] });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const infoRows: any[][] = [
-    [
-      { text: 'เลขที่', fontSize: 8, color: theme.primary, bold: true },
-      { text: order.order_number, fontSize: 8, bold: true },
-    ],
-    [
-      { text: 'วันที่', fontSize: 8, color: theme.primary, bold: true },
-      { text: dateStr, fontSize: 8 },
-    ],
-  ];
+  const infoRows: any[][] = [];
 
+  // เลขที่ = ABB number (ถ้ามี) หรือ ORD number
   if (order.tax_invoice_number) {
     infoRows.push([
-      { text: 'เลขใบกำกับ', fontSize: 8, color: theme.primary, bold: true },
+      { text: 'เลขที่', fontSize: 8, color: theme.primary, bold: true },
       { text: order.tax_invoice_number, fontSize: 8, bold: true },
     ]);
+    infoRows.push([
+      { text: 'ออเดอร์อ้างอิง', fontSize: 8, color: theme.primary, bold: true },
+      { text: order.order_number, fontSize: 8 },
+    ]);
+  } else {
+    infoRows.push([
+      { text: 'เลขที่', fontSize: 8, color: theme.primary, bold: true },
+      { text: order.order_number, fontSize: 8, bold: true },
+    ]);
   }
+
+  infoRows.push([
+    { text: 'วันที่', fontSize: 8, color: theme.primary, bold: true },
+    { text: dateStr, fontSize: 8 },
+  ]);
 
   if (isPaid && order.payment_method) {
     infoRows.push([
@@ -251,32 +260,32 @@ function buildCompactInvoiceContent(
     const hasComponents = item.promotion_components && item.promotion_components.length > 0;
 
     if (hasComponents) {
-      // Promotion header row
+      // Promotion header row — show qty + unit_price in columns
+      const promoUnitPrice = item.quantity > 0 ? item.total / item.quantity : item.total;
       tableBody.push([
         { text: `${rowNum}`, alignment: 'center', fontSize: 9, margin: [0, 1, 0, 0] },
         {
           text: [
             { text: item.promotion_name || item.product_name, fontSize: 9, bold: true, color: '#6366f1' },
-            { text: ` (×${item.quantity})`, fontSize: 7, color: '#888888' },
           ],
-          margin: [0, 1, 0, 1],
+          margin: [0, 1, 0, 0],
         },
-        { text: '', margin: [0, 1, 0, 0] },
-        { text: '', margin: [0, 1, 0, 0] },
+        { text: `${item.quantity}`, alignment: 'center', fontSize: 9, margin: [0, 1, 0, 0] },
+        { text: formatPdfPrice(promoUnitPrice), alignment: 'right', fontSize: 9, margin: [0, 1, 0, 0] },
         { text: formatPdfPrice(item.total), alignment: 'right', fontSize: 9, bold: true, margin: [0, 1, 0, 0] },
       ]);
 
-      // Component sub-rows
+      // Component sub-rows (tighter padding)
       for (const comp of item.promotion_components!) {
         const compSubtitle = [comp.sku || comp.product_code, comp.role === 'gift' ? '[แถมฟรี]' : null].filter(Boolean).join(' ');
         const compProductStack = buildProductNameStack(`- ${comp.product_name}`, compSubtitle);
 
         tableBody.push([
-          { text: '', margin: [0, 1, 0, 0] },
-          { stack: compProductStack, margin: [6, 1, 0, 1], color: '#666666' },
-          { text: `${comp.quantity}`, alignment: 'center', fontSize: 8, color: '#666666', margin: [0, 1, 0, 0] },
-          { text: '-', alignment: 'right', fontSize: 8, color: '#999999', margin: [0, 1, 0, 0] },
-          { text: '', margin: [0, 1, 0, 0] },
+          { text: '', margin: [0, 0, 0, 0] },
+          { stack: compProductStack, margin: [6, 0, 0, 0], color: '#666666' },
+          { text: `${comp.quantity}`, alignment: 'center', fontSize: 8, color: '#666666', margin: [0, 0, 0, 0] },
+          { text: '-', alignment: 'right', fontSize: 8, color: '#999999', margin: [0, 0, 0, 0] },
+          { text: '', margin: [0, 0, 0, 0] },
         ]);
       }
     } else {
@@ -330,6 +339,13 @@ function buildCompactInvoiceContent(
       { text: formatPdfPrice(order.shipping_fee), fontSize: 9, alignment: 'right' },
     ]);
   }
+
+  // ยอดรวมสินค้า (before discount/shipping/VAT)
+  const itemsTotal = order.items.reduce((sum, i) => sum + i.total, 0);
+  summaryRows.push([
+    { text: 'ยอดรวมสินค้า', fontSize: 9, alignment: 'right', color: '#555555' },
+    { text: formatPdfPrice(itemsTotal), fontSize: 9, alignment: 'right' },
+  ]);
 
   if (vatRegistered && order.vat_amount > 0) {
     const beforeVat = order.total_amount - order.vat_amount;

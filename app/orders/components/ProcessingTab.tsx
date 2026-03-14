@@ -27,6 +27,7 @@ import { markOrdersPrinted, updateLocalPrintStatus } from '@/lib/print-tracking'
 import { useCompany } from '@/lib/company-context';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import { getAvailablePrintActions, type PrintAction } from '@/lib/print-actions';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import OrderCard from './OrderCard';
 import ActionMenu, { ActionItem } from './ActionMenu';
 import TaxInvoiceModal from './TaxInvoiceModal';
@@ -106,6 +107,7 @@ export default function ProcessingTab({
   const [holdReason, setHoldReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState<{ ids: string[] } | null>(null);
+  const { confirmDialog, confirm } = useConfirmDialog();
   const [toast, setToast] = useState('');
 
   // Loading overlay state
@@ -736,8 +738,10 @@ export default function ProcessingTab({
   };
 
   /** void ABB แล้วออก TAX ใหม่ (เปิด TaxInvoiceModal) หรือออก TAX ตรงๆ ถ้าไม่มี ABB */
-  const handleRequestFullInvoice = (order: Order) => {
+  const handleRequestFullInvoice = async (order: Order) => {
     const hasAbbrev = order.tax_invoice_doc_type === 'abbreviated' && !order.tax_invoice_voided_at;
+    const ok = await confirm({ title: 'ออกใบกำกับภาษีแบบเต็ม', description: 'หากออกใบกำกับแบบเต็มแล้ว ระบบจะยกเลิก (void) ใบกำกับภาษีอย่างย่อให้อัตโนมัติ', confirmLabel: 'ออกใบกำกับแบบเต็ม' });
+    if (!ok) return;
     setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id, hasAbbrev });
   };
 
@@ -1404,6 +1408,8 @@ export default function ProcessingTab({
           {toast}
         </div>
       )}
+
+      {confirmDialog}
     </>
   );
 }
