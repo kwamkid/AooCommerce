@@ -329,7 +329,7 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
       // Component sub-rows
       for (const comp of item.promotion_components!) {
         const compSubtitle = [comp.sku || comp.product_code, comp.role === 'gift' ? '[แถมฟรี]' : null].filter(Boolean).join(' ');
-        const compProductStack = buildProductNameStack(`  └ ${comp.product_name}`, compSubtitle);
+        const compProductStack = buildProductNameStack(`- ${comp.product_name}`, compSubtitle);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const compRow: any[] = [

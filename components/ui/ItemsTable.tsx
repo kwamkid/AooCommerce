@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useRef, useState, useEffect } from 'react';
-import { Package, Trash2, AlertTriangle, X, ChevronDown, ChevronRight, Gift } from 'lucide-react';
+import { Package, Trash2, AlertTriangle, X, Gift } from 'lucide-react';
 import ProductSearchInput, { type ProductSearchItem, type SearchMode } from '@/components/ui/ProductSearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 import { productDisplayName } from '@/lib/product-display';
@@ -105,6 +105,8 @@ interface ItemsTableProps {
   inputRef?: React.RefObject<HTMLInputElement | null>;
   /** Search mode: 'variation' (default) or 'product' (grouped by product) */
   searchMode?: SearchMode;
+  /** Force mobile/compact card layout regardless of viewport width */
+  forceCompact?: boolean;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -129,7 +131,7 @@ function StockBadge({ qty, destStyle }: { qty: number | null | undefined; destSt
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{qty.toLocaleString()}</span>;
 }
 
-const INPUT_CLS = 'px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]';
+const INPUT_CLS = 'px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-400 dark:disabled:text-slate-500 disabled:cursor-not-allowed';
 
 function RoleBadge({ role }: { role: string }) {
   switch (role) {
@@ -169,32 +171,12 @@ export default function ItemsTable({
   priceReadOnly = false,
   inputRef: externalInputRef,
   searchMode = 'variation',
+  forceCompact = false,
 }: ItemsTableProps) {
   const internalInputRef = useRef<HTMLInputElement>(null);
   const searchRef = externalInputRef ?? internalInputRef;
 
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
-  const [expandedPromotions, setExpandedPromotions] = useState<Set<number>>(new Set());
-
-  const togglePromotion = (idx: number) => {
-    setExpandedPromotions(prev => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
-  };
-
-  // Auto-expand all promotion items on mount
-  useEffect(() => {
-    const promoIndices = items
-      .map((item, idx) => (item.promotion_components && item.promotion_components.length > 0 ? idx : -1))
-      .filter(idx => idx >= 0);
-    if (promoIndices.length > 0) {
-      setExpandedPromotions(new Set(promoIndices));
-    }
-  }, [items.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ESC to close lightbox
   useEffect(() => {
     if (!lightboxSrc) return;
@@ -219,7 +201,13 @@ export default function ItemsTable({
   const hasSpecialPrice = columns.includes('special_price');
 
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
-  const totalAmount = items.reduce((s, i) => s + i.quantity * (i.unit_price ?? i.unit_cost ?? 0), 0);
+  const totalAmount = items.reduce((s, i) => {
+    const sub = i.quantity * (i.unit_price ?? i.unit_cost ?? 0);
+    const disc = i.discount_type === 'percent'
+      ? sub * ((i.discount_value || 0) / 100)
+      : (i.discount_value || 0);
+    return s + sub - disc;
+  }, 0);
 
   // Auto-detect whether to show stock in search dropdown
   const hasStockData = Object.keys(stockMap).length > 0;
@@ -229,7 +217,6 @@ export default function ItemsTable({
 
   function ProductCell({ item, idx }: { item: TableItem; idx?: number }) {
     const hasPromo = item.promotion_components && item.promotion_components.length > 0;
-    const isExpanded = idx !== undefined && expandedPromotions.has(idx);
     const name = productDisplayName(item);
     // Build subtitle like ProductSearchInput: code | SKU: xxx | ฿price
     const subParts: string[] = [];
@@ -246,12 +233,6 @@ export default function ItemsTable({
     const sub = subParts.join(' | ');
     return (
       <div className="flex items-center gap-3">
-        {hasPromo && idx !== undefined && (
-          <button type="button" onClick={() => togglePromotion(idx)}
-            className="p-0.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors flex-shrink-0">
-            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          </button>
-        )}
         {item.image
           ? <img src={item.image} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => setLightboxSrc(item.image!)} />
@@ -262,14 +243,14 @@ export default function ItemsTable({
         <div className="min-w-0">
           <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">{name}</p>
           <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-            {sub && <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{sub}</p>}
+            {hasPromo && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                โปรโมชั่น ({item.promotion_components!.length} รายการ)
+              </span>
+            )}
+            {!hasPromo && sub && <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{sub}</p>}
             {hasStock && <StockBadge qty={stockMap[item.variation_id]} />}
           </div>
-          {hasPromo && item.promotion_name && (
-            <p className="text-[11px] text-purple-600 dark:text-purple-400 mt-0.5">
-              โปรโมชั่น: {item.promotion_name} ({item.promotion_components!.length} รายการ)
-            </p>
-          )}
           {item.gpInfo && (
             <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">{item.gpInfo}</p>
           )}
@@ -322,7 +303,7 @@ export default function ItemsTable({
 
   function DesktopTable() {
     return (
-      <div className="hidden xl:block">
+      <div className={forceCompact ? 'hidden' : 'hidden xl:block'}>
         <table className="data-table items-table w-full table-fixed">
           <thead className="data-thead">
             <tr>
@@ -344,11 +325,14 @@ export default function ItemsTable({
           </thead>
           <tbody className="data-tbody">
             {items.map((item, idx) => {
-              const lineTotal = item.quantity * (item.unit_price ?? item.unit_cost ?? 0);
+              const subtotal = item.quantity * (item.unit_price ?? item.unit_cost ?? 0);
+              const discAmt = item.discount_type === 'percent'
+                ? subtotal * ((item.discount_value || 0) / 100)
+                : (item.discount_value || 0);
+              const lineTotal = subtotal - discAmt;
               const stockQty = stockMap[item.variation_id];
               const isOverStock = hasStock && stockQty !== undefined && item.quantity > stockQty;
               const hasPromoComponents = item.promotion_components && item.promotion_components.length > 0;
-              const isExpanded = expandedPromotions.has(idx);
               return (
                 <Fragment key={`${item.variation_id}-${idx}`}>
                 <tr className="data-tr">
@@ -406,7 +390,7 @@ export default function ItemsTable({
 
                   {hasPrice && (
                     <td className="py-3 text-right">
-                      {(readOnly || priceReadOnly)
+                      {(readOnly || priceReadOnly || !!item.promotion_id)
                         ? <span className="text-sm text-gray-900 dark:text-white">
                             {item.max_price && item.max_price > (item.unit_price ?? 0)
                               ? `฿${fmt(item.unit_price ?? 0)} - ฿${fmt(item.max_price)}`
@@ -459,11 +443,11 @@ export default function ItemsTable({
                           max={item.discount_type === 'percent' ? 100 : undefined}
                           value={item.discount_value ?? 0}
                           onChange={e => onUpdateField!(idx, 'discount_value', parseFloat(e.target.value) || 0)}
-                          disabled={readOnly}
+                          disabled={readOnly || !!item.promotion_id}
                           className={`w-16 text-center rounded-l-lg rounded-r-none border-r-0 ${INPUT_CLS}`} />
                         <button type="button"
                           onClick={() => onUpdateField!(idx, 'discount_type', item.discount_type === 'percent' ? 'amount' : 'percent')}
-                          disabled={readOnly}
+                          disabled={readOnly || !!item.promotion_id}
                           className="px-2 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[26px] flex items-center justify-center disabled:opacity-50">
                           {item.discount_type === 'percent' ? '%' : '฿'}
                         </button>
@@ -500,7 +484,7 @@ export default function ItemsTable({
                   )}
                 </tr>
                 {/* Promotion component sub-rows */}
-                {hasPromoComponents && isExpanded && item.promotion_components!.map((comp, ci) => (
+                {hasPromoComponents && item.promotion_components!.map((comp, ci) => (
                   <tr key={`promo-${idx}-${ci}`} className="bg-purple-50/50 dark:bg-purple-900/10">
                     <td className="py-2 pl-16">
                       <div className="flex items-center gap-2">
@@ -512,15 +496,13 @@ export default function ItemsTable({
                             </div>
                         }
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-xs text-gray-700 dark:text-slate-300 line-clamp-1">{comp.product_name}</p>
+                          <p className="text-sm text-gray-900 dark:text-slate-200 line-clamp-2">{comp.product_name}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {comp.product_code && (
+                              <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{comp.product_code}</p>
+                            )}
                             <RoleBadge role={comp.role} />
                           </div>
-                          {(comp.sku || comp.barcode) && (
-                            <p className="text-[10px] text-gray-400 dark:text-slate-500 truncate">
-                              {[comp.sku, comp.barcode && comp.barcode !== comp.sku ? comp.barcode : null].filter(Boolean).join(' · ')}
-                            </p>
-                          )}
                         </div>
                       </div>
                     </td>
@@ -529,10 +511,21 @@ export default function ItemsTable({
                     {hasStockDest && <td />}
                     {hasPoQty && <td />}
                     <td className="py-2 text-center">
-                      <span className="text-xs text-gray-500 dark:text-slate-400">{comp.quantity}</span>
+                      <span className="text-sm text-gray-600 dark:text-slate-300">{comp.quantity}</span>
                     </td>
                     {hasQtyReceived && <td />}
-                    {hasPrice && <td />}
+                    {hasPrice && (
+                      <td className="py-2 text-right">
+                        {comp.special_price != null && comp.special_price !== comp.default_price ? (
+                          <div>
+                            <span className="text-xs text-gray-400 dark:text-slate-500 line-through">฿{fmt(comp.default_price ?? 0)}</span>
+                            <span className="text-sm text-[#F4511E] font-medium ml-1">฿{fmt(comp.special_price)}</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-600 dark:text-slate-300">฿{fmt(comp.default_price ?? 0)}</span>
+                        )}
+                      </td>
+                    )}
                     {hasCost && <td />}
                     {hasSpecialPrice && <td />}
                     {hasDiscount && <td />}
@@ -554,14 +547,18 @@ export default function ItemsTable({
 
   function MobileCards() {
     return (
-      <div className="xl:hidden divide-y divide-gray-100 dark:divide-slate-700">
+      <div className={`${forceCompact ? 'divide-y divide-gray-100 dark:divide-slate-700' : 'xl:hidden divide-y divide-gray-100 dark:divide-slate-700'} min-w-0`}>
         {items.map((item, idx) => {
-          const lineTotal = item.quantity * (item.unit_price ?? item.unit_cost ?? 0);
+          const mSubtotal = item.quantity * (item.unit_price ?? item.unit_cost ?? 0);
+          const mDiscAmt = item.discount_type === 'percent'
+            ? mSubtotal * ((item.discount_value || 0) / 100)
+            : (item.discount_value || 0);
+          const lineTotal = mSubtotal - mDiscAmt;
           const stockQty = stockMap[item.variation_id];
           const isOverStock = hasStock && stockQty !== undefined && item.quantity > stockQty;
           const poMismatch = hasPoQty && item.po_quantity != null && item.quantity !== item.po_quantity;
           return (
-            <div key={`${item.variation_id}-${idx}`} className="p-3">
+            <div key={`${item.variation_id}-${idx}`} className="p-3 overflow-hidden">
               <div className="flex items-start gap-3">
                 {item.image
                   ? <img src={item.image} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
@@ -575,7 +572,11 @@ export default function ItemsTable({
                     {productDisplayName(item)}
                   </p>
                   <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                    {(() => {
+                    {item.promotion_components && item.promotion_components.length > 0 ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                        โปรโมชั่น ({item.promotion_components.length} รายการ)
+                      </span>
+                    ) : (() => {
                       const parts: string[] = [];
                       if (item.product_code) parts.push(item.product_code);
                       if (item.sku && item.sku !== item.product_code && item.sku !== item.variation_label) parts.push(`SKU: ${item.sku}`);
@@ -747,22 +748,35 @@ export default function ItemsTable({
 
               {/* Promotion components (mobile) */}
               {item.promotion_components && item.promotion_components.length > 0 && (
-                <div className="mt-2 ml-3 pl-3 border-l-2 border-purple-200 dark:border-purple-800 space-y-1.5">
+                <div className="mt-2 ml-3 pl-3 border-l-2 border-purple-200 dark:border-purple-800 space-y-2">
                   {item.promotion_components.map((comp, ci) => (
                     <div key={ci} className="flex items-center gap-2">
                       {comp.image
-                        ? <img src={comp.image} alt="" className="w-7 h-7 rounded object-cover flex-shrink-0" />
-                        : <div className="w-7 h-7 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                            <Package className="w-3 h-3 text-gray-400" />
+                        ? <img src={comp.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                        : <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                            <Package className="w-3.5 h-3.5 text-gray-400" />
                           </div>
                       }
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-gray-700 dark:text-slate-300 truncate">{comp.product_name}</span>
+                        <p className="text-sm text-gray-900 dark:text-slate-200 line-clamp-2">{comp.product_name}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {comp.product_code && (
+                            <span className="text-xs text-gray-400 dark:text-slate-500 truncate">{comp.product_code}</span>
+                          )}
                           <RoleBadge role={comp.role} />
                         </div>
                       </div>
-                      <span className="text-xs text-gray-500 dark:text-slate-400 flex-shrink-0">×{comp.quantity}</span>
+                      <div className="flex-shrink-0 text-right">
+                        <span className="text-sm text-gray-600 dark:text-slate-300">×{comp.quantity}</span>
+                        {comp.special_price != null && comp.special_price !== comp.default_price ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-gray-400 line-through">฿{fmt(comp.default_price ?? 0)}</span>
+                            <span className="text-xs text-[#F4511E] font-medium">฿{fmt(comp.special_price)}</span>
+                          </div>
+                        ) : comp.default_price ? (
+                          <div className="text-xs text-gray-500 dark:text-slate-400">฿{fmt(comp.default_price)}</div>
+                        ) : null}
+                      </div>
                     </div>
                   ))}
                 </div>

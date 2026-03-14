@@ -18,6 +18,7 @@ interface OrderItemInput {
   discount_percent?: number;
   notes?: string;
   promotion_id?: string; // Link to promotions table
+  promotion_components?: any[]; // Selected promotion sub-items (stored as JSONB)
   shipments: {
     shipping_address_id: string;
     quantity: number;
@@ -293,15 +294,49 @@ export async function POST(request: NextRequest) {
 
     // Create order items and shipments
     for (const item of itemsWithTotals) {
+      // For promotion items: resolve real variation_id from promotion_items if needed
+      let resolvedVariationId = item.variation_id;
+      const promoId = item.promotion_id && item.promotion_id.length > 0 ? item.promotion_id : null;
+      if (promoId) {
+        // Check if variation_id is actually valid (not same as promotion_id = fake)
+        if (!resolvedVariationId || resolvedVariationId === promoId) {
+          const { data: promoItems } = await supabaseAdmin
+            .from('promotion_items')
+            .select('variation_id, product_id')
+            .eq('promotion_id', promoId)
+            .not('variation_id', 'is', null)
+            .limit(1);
+          if (promoItems?.[0]?.variation_id) {
+            resolvedVariationId = promoItems[0].variation_id;
+          } else {
+            // Fallback: get first variation from product_id
+            const { data: pi } = await supabaseAdmin
+              .from('promotion_items')
+              .select('product_id')
+              .eq('promotion_id', promoId)
+              .not('product_id', 'is', null)
+              .limit(1);
+            if (pi?.[0]?.product_id) {
+              const { data: pv } = await supabaseAdmin
+                .from('product_variations')
+                .select('id')
+                .eq('product_id', pi[0].product_id)
+                .limit(1);
+              if (pv?.[0]?.id) resolvedVariationId = pv[0].id;
+            }
+          }
+        }
+      }
+
       // Create order item
       const { data: orderItem, error: itemError } = await supabaseAdmin
         .from('order_items')
         .insert({
           company_id: auth.companyId,
           order_id: order.id,
-          variation_id: item.variation_id,
-          product_id: item.product_id,
-          product_code: item.product_code,
+          variation_id: resolvedVariationId,
+          product_id: item.product_id || null,
+          product_code: item.product_code || null,
           product_name: item.product_name,
           variation_label: item.variation_label || null,
           quantity: item.quantity,
@@ -312,7 +347,8 @@ export async function POST(request: NextRequest) {
           subtotal: item.subtotal,
           total: item.total,
           notes: item.notes || null,
-          promotion_id: item.promotion_id || null,
+          promotion_id: item.promotion_id && item.promotion_id.length > 0 ? item.promotion_id : null,
+          promotion_components: item.promotion_components && item.promotion_components.length > 0 ? item.promotion_components : null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -490,15 +526,22 @@ export async function POST(request: NextRequest) {
           for (const item of itemsWithTotals) {
             if (!item.variation_id) continue;
             try {
-              if (item.promotion_id) {
-                // Promotion item: reserve stock for each component
-                const components = await getPromotionComponents(supabaseAdmin, item.promotion_id);
-                for (const comp of components) {
+              if (item.promotion_id && item.promotion_components?.length) {
+                // Promotion item: reserve stock for each selected component
+                for (const comp of item.promotion_components) {
+                  if (!comp.variation_id) continue;
+                  // Resolve: variation_id might be a product_id for product-level items
+                  let varId = comp.variation_id;
+                  const { data: checkVar } = await supabaseAdmin.from('product_variations').select('id').eq('id', varId).maybeSingle();
+                  if (!checkVar) {
+                    const { data: firstVar } = await supabaseAdmin.from('product_variations').select('id').eq('product_id', varId).limit(1).maybeSingle();
+                    if (firstVar) varId = firstVar.id; else continue;
+                  }
                   await reserveStock({
                     supabase: supabaseAdmin,
                     companyId: auth.companyId!,
                     warehouseId,
-                    variationId: comp.variation_id,
+                    variationId: varId,
                     qty: comp.quantity * item.quantity,
                     referenceType: 'order',
                     referenceId: order.id,
@@ -796,8 +839,31 @@ export async function GET(request: NextRequest) {
           sku: variation.sku || null,
           barcode: variation.barcode || null,
           shipments: shipmentsByItem.get(item.id) || [],
+          promotion_components: item.promotion_components || [],
         };
       });
+
+      // Enrich promotion items: use stored promotion_components from JSONB column,
+      // only fetch promotion name/type from headers table
+      const promoItems = itemsWithShipments.filter(i => i.promotion_id);
+      if (promoItems.length > 0) {
+        const uniquePromoIds = [...new Set(promoItems.map(i => i.promotion_id as string))];
+        const { data: promoHeaders } = await supabaseAdmin
+          .from('promotions').select('id, name, promotion_type, image').in('id', uniquePromoIds);
+        const pMap: Record<string, { name: string; type: string; image: string | null }> = {};
+        for (const h of promoHeaders || []) {
+          pMap[h.id] = { name: h.name, type: h.promotion_type, image: h.image || null };
+        }
+        for (const item of itemsWithShipments) {
+          if (item.promotion_id && pMap[item.promotion_id]) {
+            const promo = pMap[item.promotion_id];
+            (item as any).promotion_name = promo.name;
+            (item as any).promotion_type = promo.type;
+            // promotion_components already comes from select('*') on order_items
+            if (!item.image) item.image = promo.image || (item.promotion_components as any)?.[0]?.image || null;
+          }
+        }
+      }
 
       return NextResponse.json({
         order: {
@@ -1122,7 +1188,7 @@ export async function PUT(request: NextRequest) {
               try {
                 const { data: orderItems } = await supabaseAdmin
                   .from('order_items')
-                  .select('variation_id, quantity, promotion_id')
+                  .select('variation_id, quantity, promotion_id, promotion_components')
                   .eq('order_id', order.id)
                   .eq('company_id', auth.companyId);
                 for (const oi of orderItems || []) {
@@ -1130,25 +1196,32 @@ export async function PUT(request: NextRequest) {
                   const stockFn = wasShipped ? returnStock : unreserveStock;
                   const notes = wasShipped ? 'Return stock for cancelled order' : 'Unreserve for cancelled order';
 
-                  if (oi.promotion_id) {
-                    // Promotion item: reverse stock for each component
-                    try {
-                      const components = await getPromotionComponents(supabaseAdmin, oi.promotion_id);
-                      for (const comp of components) {
+                  if (oi.promotion_id && oi.promotion_components?.length) {
+                    // Promotion item: reverse stock for each stored component
+                    for (const comp of oi.promotion_components as any[]) {
+                      if (!comp.variation_id) continue;
+                      try {
+                        // Resolve product-level items
+                        let varId = comp.variation_id;
+                        const { data: checkVar } = await supabaseAdmin.from('product_variations').select('id').eq('id', varId).maybeSingle();
+                        if (!checkVar) {
+                          const { data: firstVar } = await supabaseAdmin.from('product_variations').select('id').eq('product_id', varId).limit(1).maybeSingle();
+                          if (firstVar) varId = firstVar.id; else continue;
+                        }
                         await stockFn({
                           supabase: supabaseAdmin,
                           companyId: auth.companyId!,
                           warehouseId: order.warehouse_id,
-                          variationId: comp.variation_id,
+                          variationId: varId,
                           qty: comp.quantity * oi.quantity,
                           referenceType: 'order',
                           referenceId: order.id,
                           notes: `${notes} (promo component)`,
                           createdBy: auth.userId,
                         });
+                      } catch (promoErr) {
+                        console.error('[CANCEL] Error reversing promo component stock:', promoErr);
                       }
-                    } catch (promoErr) {
-                      console.error('[CANCEL] Error expanding promotion components:', promoErr);
                     }
                   } else {
                     await stockFn({
@@ -1278,27 +1351,33 @@ export async function PUT(request: NextRequest) {
               if (stockConfig.stockEnabled) {
                 const { data: orderItems } = await supabaseAdmin
                   .from('order_items')
-                  .select('variation_id, quantity, promotion_id')
+                  .select('variation_id, quantity, promotion_id, promotion_components')
                   .eq('order_id', order.id)
                   .eq('company_id', auth.companyId);
                 for (const oi of orderItems || []) {
                   if (!oi.variation_id) continue;
                   try {
-                    if (oi.promotion_id) {
-                      const components = await getPromotionComponents(supabaseAdmin, oi.promotion_id);
-                      for (const comp of components) {
+                    if (oi.promotion_id && oi.promotion_components?.length) {
+                      for (const comp of oi.promotion_components as any[]) {
+                        if (!comp.variation_id) continue;
+                        let varId = comp.variation_id;
+                        const { data: checkVar } = await supabaseAdmin.from('product_variations').select('id').eq('id', varId).maybeSingle();
+                        if (!checkVar) {
+                          const { data: firstVar } = await supabaseAdmin.from('product_variations').select('id').eq('product_id', varId).limit(1).maybeSingle();
+                          if (firstVar) varId = firstVar.id; else continue;
+                        }
                         await deductAndUnreserve({
                           supabase: supabaseAdmin,
                           companyId: auth.companyId!,
                           warehouseId: order.warehouse_id,
-                          variationId: comp.variation_id,
+                          variationId: varId,
                           qty: comp.quantity * oi.quantity,
                           referenceType: 'order',
                           referenceId: order.id,
                           notes: 'Deduct for bulk shipment (promo component)',
                           createdBy: auth.userId,
                         });
-                        allVarIds.push(comp.variation_id);
+                        allVarIds.push(varId);
                       }
                     } else {
                       await deductAndUnreserve({
@@ -1938,157 +2017,81 @@ export async function PUT(request: NextRequest) {
 
             const warehouseId = orderForStock?.warehouse_id;
             if (warehouseId) {
-              // Fetch order items
+              // Fetch order items (include promotion fields)
               const { data: orderItems } = await supabaseAdmin
                 .from('order_items')
-                .select('variation_id, quantity')
+                .select('variation_id, quantity, promotion_id, promotion_components')
                 .eq('order_id', id)
                 .eq('company_id', auth.companyId);
 
               const oldStatus = existingOrder.order_status;
               const newStatus = body.order_status;
 
-              if (oldStatus === 'new' && newStatus === 'shipping') {
-                // Deduct stock: quantity -= qty, reserved_quantity -= qty, create 'out' tx
-                for (const oi of orderItems || []) {
+              // Helper: resolve variation_id for promo components (product-level → first variation)
+              const resolveVarId = async (varId: string): Promise<string | null> => {
+                if (!varId) return null;
+                const { data: checkVar } = await supabaseAdmin.from('product_variations').select('id').eq('id', varId).maybeSingle();
+                if (checkVar) return varId;
+                const { data: firstVar } = await supabaseAdmin.from('product_variations').select('id').eq('product_id', varId).limit(1).maybeSingle();
+                return firstVar?.id || null;
+              };
+
+              // Helper: get all variation_ids + quantities to process (expands promo components)
+              const getStockItems = async (items: any[]): Promise<{ variationId: string; qty: number }[]> => {
+                const result: { variationId: string; qty: number }[] = [];
+                for (const oi of items) {
                   if (!oi.variation_id) continue;
-                  try {
-                    const { data: inv } = await supabaseAdmin
-                      .from('inventory')
-                      .select('id, quantity, reserved_quantity')
-                      .eq('warehouse_id', warehouseId)
-                      .eq('variation_id', oi.variation_id)
-                      .eq('company_id', auth.companyId)
-                      .single();
-
-                    if (inv) {
-                      const newQty = (inv.quantity || 0) - oi.quantity;
-                      const newReserved = Math.max(0, (inv.reserved_quantity || 0) - oi.quantity);
-                      await supabaseAdmin
-                        .from('inventory')
-                        .update({
-                          quantity: newQty,
-                          reserved_quantity: newReserved,
-                          updated_at: new Date().toISOString(),
-                        })
-                        .eq('id', inv.id);
-
-                      await supabaseAdmin
-                        .from('inventory_transactions')
-                        .insert({
-                          company_id: auth.companyId,
-                          warehouse_id: warehouseId,
-                          variation_id: oi.variation_id,
-                          type: 'out',
-                          quantity: oi.quantity,
-                          balance_after: newQty,
-                          reference_type: 'order',
-                          reference_id: id,
-                          notes: `Deduct for order shipment`,
-                          created_by: auth.userId,
-                          created_at: new Date().toISOString(),
-                        });
+                  if (oi.promotion_id && oi.promotion_components?.length) {
+                    for (const comp of oi.promotion_components as any[]) {
+                      if (!comp.variation_id) continue;
+                      const varId = await resolveVarId(comp.variation_id);
+                      if (varId) result.push({ variationId: varId, qty: comp.quantity * oi.quantity });
                     }
-                  } catch (itemErr) {
-                    console.error(`[STOCK OUT] Error deducting stock for variation ${oi.variation_id}:`, itemErr);
+                  } else {
+                    result.push({ variationId: oi.variation_id, qty: oi.quantity });
                   }
                 }
+                return result;
+              };
 
-                // Auto-sync stock to Shopee after shipping deduction
-                const shippingVarIds = (orderItems || []).map((oi: { variation_id?: string }) => oi.variation_id).filter(Boolean) as string[];
+              const stockItems = await getStockItems(orderItems || []);
+
+              if (oldStatus === 'new' && newStatus === 'shipping') {
+                // Deduct + unreserve stock
+                for (const si of stockItems) {
+                  try {
+                    await deductAndUnreserve({
+                      supabase: supabaseAdmin, companyId: auth.companyId!, warehouseId,
+                      variationId: si.variationId, qty: si.qty,
+                      referenceType: 'order', referenceId: id,
+                      notes: 'Deduct for order shipment', createdBy: auth.userId,
+                    });
+                  } catch (itemErr) {
+                    console.error(`[STOCK OUT] Error deducting stock for ${si.variationId}:`, itemErr);
+                  }
+                }
+                // Auto-sync stock to Shopee
+                const shippingVarIds = stockItems.map(s => s.variationId);
                 if (shippingVarIds.length > 0) {
                   import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(shippingVarIds)).catch(() => {});
                 }
               } else if (newStatus === 'cancelled') {
-                if (oldStatus === 'new') {
-                  // Unreserve: reserved_quantity -= qty, create 'unreserve' tx
-                  for (const oi of orderItems || []) {
-                    if (!oi.variation_id) continue;
-                    try {
-                      const { data: inv } = await supabaseAdmin
-                        .from('inventory')
-                        .select('id, quantity, reserved_quantity')
-                        .eq('warehouse_id', warehouseId)
-                        .eq('variation_id', oi.variation_id)
-                        .eq('company_id', auth.companyId)
-                        .single();
-
-                      if (inv) {
-                        const newReserved = Math.max(0, (inv.reserved_quantity || 0) - oi.quantity);
-                        await supabaseAdmin
-                          .from('inventory')
-                          .update({
-                            reserved_quantity: newReserved,
-                            updated_at: new Date().toISOString(),
-                          })
-                          .eq('id', inv.id);
-
-                        await supabaseAdmin
-                          .from('inventory_transactions')
-                          .insert({
-                            company_id: auth.companyId,
-                            warehouse_id: warehouseId,
-                            variation_id: oi.variation_id,
-                            type: 'unreserve',
-                            quantity: oi.quantity,
-                            balance_after: inv.quantity,
-                            reference_type: 'order',
-                            reference_id: id,
-                            notes: `Unreserve for cancelled order`,
-                            created_by: auth.userId,
-                            created_at: new Date().toISOString(),
-                          });
-                      }
-                    } catch (itemErr) {
-                      console.error(`[STOCK UNRESERVE] Error unreserving stock for variation ${oi.variation_id}:`, itemErr);
-                    }
+                const stockFn = oldStatus === 'shipping' ? returnStock : unreserveStock;
+                const notes = oldStatus === 'shipping' ? 'Return stock for cancelled shipment' : 'Unreserve for cancelled order';
+                for (const si of stockItems) {
+                  try {
+                    await stockFn({
+                      supabase: supabaseAdmin, companyId: auth.companyId!, warehouseId,
+                      variationId: si.variationId, qty: si.qty,
+                      referenceType: 'order', referenceId: id,
+                      notes, createdBy: auth.userId,
+                    });
+                  } catch (itemErr) {
+                    console.error(`[STOCK CANCEL] Error for ${si.variationId}:`, itemErr);
                   }
-                } else if (oldStatus === 'shipping') {
-                  // Return stock: quantity += qty, create 'return' tx
-                  for (const oi of orderItems || []) {
-                    if (!oi.variation_id) continue;
-                    try {
-                      const { data: inv } = await supabaseAdmin
-                        .from('inventory')
-                        .select('id, quantity, reserved_quantity')
-                        .eq('warehouse_id', warehouseId)
-                        .eq('variation_id', oi.variation_id)
-                        .eq('company_id', auth.companyId)
-                        .single();
-
-                      if (inv) {
-                        const newQty = (inv.quantity || 0) + oi.quantity;
-                        await supabaseAdmin
-                          .from('inventory')
-                          .update({
-                            quantity: newQty,
-                            updated_at: new Date().toISOString(),
-                          })
-                          .eq('id', inv.id);
-
-                        await supabaseAdmin
-                          .from('inventory_transactions')
-                          .insert({
-                            company_id: auth.companyId,
-                            warehouse_id: warehouseId,
-                            variation_id: oi.variation_id,
-                            type: 'return',
-                            quantity: oi.quantity,
-                            balance_after: newQty,
-                            reference_type: 'order',
-                            reference_id: id,
-                            notes: `Return stock for cancelled shipment`,
-                            created_by: auth.userId,
-                            created_at: new Date().toISOString(),
-                          });
-                      }
-                    } catch (itemErr) {
-                      console.error(`[STOCK RETURN] Error returning stock for variation ${oi.variation_id}:`, itemErr);
-                    }
-                  }
-
-                  // Auto-sync stock to Shopee after cancel return
-                  const cancelVarIds = (orderItems || []).map((oi: { variation_id?: string }) => oi.variation_id).filter(Boolean) as string[];
+                }
+                if (oldStatus === 'shipping') {
+                  const cancelVarIds = stockItems.map(s => s.variationId);
                   if (cancelVarIds.length > 0) {
                     import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(cancelVarIds)).catch(() => {});
                   }
@@ -2178,102 +2181,59 @@ export async function DELETE(request: NextRequest) {
           const warehouseId = orderBeforeCancel.warehouse_id;
           const oldStatus = orderBeforeCancel.order_status;
 
-          // Fetch order items
+          // Fetch order items (include promotion fields)
           const { data: orderItems } = await supabaseAdmin
             .from('order_items')
-            .select('variation_id, quantity')
+            .select('variation_id, quantity, promotion_id, promotion_components')
             .eq('order_id', orderId)
             .eq('company_id', auth.companyId);
 
-          if (oldStatus === 'new') {
-            // Unreserve: reserved_quantity -= qty, create 'unreserve' tx
-            for (const oi of orderItems || []) {
+          // Helper: resolve variation_id for promo components (product-level → first variation)
+          const resolveVarId = async (varId: string): Promise<string | null> => {
+            if (!varId) return null;
+            const { data: checkVar } = await supabaseAdmin.from('product_variations').select('id').eq('id', varId).maybeSingle();
+            if (checkVar) return varId;
+            const { data: firstVar } = await supabaseAdmin.from('product_variations').select('id').eq('product_id', varId).limit(1).maybeSingle();
+            return firstVar?.id || null;
+          };
+
+          // Helper: expand promotion components into individual variation_ids
+          const getStockItems = async (items: any[]): Promise<{ variationId: string; qty: number }[]> => {
+            const result: { variationId: string; qty: number }[] = [];
+            for (const oi of items) {
               if (!oi.variation_id) continue;
-              try {
-                const { data: inv } = await supabaseAdmin
-                  .from('inventory')
-                  .select('id, quantity, reserved_quantity')
-                  .eq('warehouse_id', warehouseId)
-                  .eq('variation_id', oi.variation_id)
-                  .eq('company_id', auth.companyId)
-                  .single();
-
-                if (inv) {
-                  const newReserved = Math.max(0, (inv.reserved_quantity || 0) - oi.quantity);
-                  await supabaseAdmin
-                    .from('inventory')
-                    .update({
-                      reserved_quantity: newReserved,
-                      updated_at: new Date().toISOString(),
-                    })
-                    .eq('id', inv.id);
-
-                  await supabaseAdmin
-                    .from('inventory_transactions')
-                    .insert({
-                      company_id: auth.companyId,
-                      warehouse_id: warehouseId,
-                      variation_id: oi.variation_id,
-                      type: 'unreserve',
-                      quantity: oi.quantity,
-                      balance_after: inv.quantity,
-                      reference_type: 'order',
-                      reference_id: orderId,
-                      notes: `Unreserve for cancelled order`,
-                      created_by: auth.userId,
-                      created_at: new Date().toISOString(),
-                    });
+              if (oi.promotion_id && oi.promotion_components?.length) {
+                for (const comp of oi.promotion_components as any[]) {
+                  if (!comp.variation_id) continue;
+                  const varId = await resolveVarId(comp.variation_id);
+                  if (varId) result.push({ variationId: varId, qty: comp.quantity * oi.quantity });
                 }
-              } catch (itemErr) {
-                console.error(`[STOCK UNRESERVE DELETE] Error unreserving stock for variation ${oi.variation_id}:`, itemErr);
+              } else {
+                result.push({ variationId: oi.variation_id, qty: oi.quantity });
               }
             }
-          } else if (oldStatus === 'shipping') {
-            // Return stock: quantity += qty, create 'return' tx
-            for (const oi of orderItems || []) {
-              if (!oi.variation_id) continue;
-              try {
-                const { data: inv } = await supabaseAdmin
-                  .from('inventory')
-                  .select('id, quantity, reserved_quantity')
-                  .eq('warehouse_id', warehouseId)
-                  .eq('variation_id', oi.variation_id)
-                  .eq('company_id', auth.companyId)
-                  .single();
+            return result;
+          };
 
-                if (inv) {
-                  const newQty = (inv.quantity || 0) + oi.quantity;
-                  await supabaseAdmin
-                    .from('inventory')
-                    .update({
-                      quantity: newQty,
-                      updated_at: new Date().toISOString(),
-                    })
-                    .eq('id', inv.id);
+          const stockItems = await getStockItems(orderItems || []);
+          const stockFn = oldStatus === 'shipping' ? returnStock : unreserveStock;
+          const notes = oldStatus === 'shipping' ? 'Return stock for cancelled shipment' : 'Unreserve for cancelled order';
 
-                  await supabaseAdmin
-                    .from('inventory_transactions')
-                    .insert({
-                      company_id: auth.companyId,
-                      warehouse_id: warehouseId,
-                      variation_id: oi.variation_id,
-                      type: 'return',
-                      quantity: oi.quantity,
-                      balance_after: newQty,
-                      reference_type: 'order',
-                      reference_id: orderId,
-                      notes: `Return stock for cancelled shipment`,
-                      created_by: auth.userId,
-                      created_at: new Date().toISOString(),
-                    });
-                }
-              } catch (itemErr) {
-                console.error(`[STOCK RETURN DELETE] Error returning stock for variation ${oi.variation_id}:`, itemErr);
-              }
+          for (const si of stockItems) {
+            try {
+              await stockFn({
+                supabase: supabaseAdmin, companyId: auth.companyId!, warehouseId,
+                variationId: si.variationId, qty: si.qty,
+                referenceType: 'order', referenceId: orderId,
+                notes, createdBy: auth.userId,
+              });
+            } catch (itemErr) {
+              console.error(`[STOCK DELETE CANCEL] Error for ${si.variationId}:`, itemErr);
             }
+          }
 
-            // Auto-sync stock to Shopee after delete cancel return
-            const deleteVarIds = (orderItems || []).map((oi: { variation_id?: string }) => oi.variation_id).filter(Boolean) as string[];
+          if (oldStatus === 'shipping') {
+            const deleteVarIds = stockItems.map(s => s.variationId);
             if (deleteVarIds.length > 0) {
               import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(deleteVarIds)).catch(() => {});
             }

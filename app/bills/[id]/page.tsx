@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import imageCompression from 'browser-image-compression';
@@ -19,6 +19,17 @@ import { saveQrImage } from '@/lib/utils/save-qr-image';
 import generatePayload from 'promptpay-qr';
 import { QRCodeSVG } from 'qrcode.react';
 
+interface PromotionComponent {
+  variation_id: string;
+  product_name: string;
+  product_code?: string | null;
+  image?: string | null;
+  role: string;
+  quantity: number;
+  default_price?: number;
+  special_price?: number | null;
+}
+
 interface BillItem {
   product_code?: string;
   product_name: string;
@@ -30,6 +41,10 @@ interface BillItem {
   subtotal: number;
   total: number;
   image?: string | null;
+  promotion_id?: string;
+  promotion_name?: string;
+  promotion_type?: string;
+  promotion_components?: PromotionComponent[];
 }
 
 interface BillBranch {
@@ -460,58 +475,132 @@ export default function BillOnlinePage() {
           </tr>
         </thead>
         <tbody>
-          {items.map((item, idx) => (
-            <tr key={idx} className={`border-b ${dark ? 'border-slate-700' : 'border-gray-100'}`}>
-              <td className={`py-3 align-top ${dark ? 'text-slate-500' : 'text-gray-400'}`}>{startIndex + idx + 1}</td>
-              <td className={`py-3 pl-3 ${dark ? 'text-white' : 'text-gray-900'}`}>
-                <div className="flex items-center gap-3">
-                  {item.image ? (
-                    <img src={item.image} alt={item.product_name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-                  ) : (
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                      <Package className={`w-5 h-5 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
+          {items.map((item, idx) => {
+            const hasPromo = item.promotion_components && item.promotion_components.length > 0;
+            return (
+              <Fragment key={idx}>
+                <tr className={`border-b ${dark ? 'border-slate-700' : 'border-gray-100'}`}>
+                  <td className={`py-3 align-top ${dark ? 'text-slate-500' : 'text-gray-400'}`}>{startIndex + idx + 1}</td>
+                  <td className={`py-3 pl-3 ${dark ? 'text-white' : 'text-gray-900'}`}>
+                    <div className="flex items-center gap-3">
+                      {item.image ? (
+                        <img src={item.image} alt={item.product_name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                      ) : (
+                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                          <Package className={`w-5 h-5 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-medium text-base">{item.product_name}</div>
+                        {hasPromo ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 mt-0.5">
+                            โปรโมชั่น ({item.promotion_components!.length} รายการ)
+                          </span>
+                        ) : item.product_code ? (
+                          <div className={`text-sm font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>
+                        ) : null}
+                      </div>
                     </div>
-                  )}
-                  <div>
-                    <div className="font-medium text-base">{item.product_name}</div>
-                    {item.product_code && <div className={`text-sm font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>}
-                  </div>
-                </div>
-              </td>
-              <td className={`py-3 text-right align-top text-base whitespace-nowrap pr-4 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>
-                {item.quantity} <span className={`${dark ? 'text-slate-500' : 'text-gray-400'}`}>x</span> {formatNumber(item.unit_price)}
-              </td>
-              <td className={`py-3 text-right align-top text-base pr-4 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
-                {item.discount_amount > 0 ? `-${formatPrice(item.discount_amount)}` : ''}
-              </td>
-              <td className={`py-3 text-right font-semibold align-top text-base ${dark ? 'text-white' : 'text-gray-900'}`}>{formatPrice(item.total)}</td>
-            </tr>
-          ))}
+                  </td>
+                  <td className={`py-3 text-right align-top text-base whitespace-nowrap pr-4 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>
+                    {item.quantity} <span className={`${dark ? 'text-slate-500' : 'text-gray-400'}`}>x</span> {formatNumber(item.unit_price)}
+                  </td>
+                  <td className={`py-3 text-right align-top text-base pr-4 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
+                    {item.discount_amount > 0 ? `-${formatPrice(item.discount_amount)}` : ''}
+                  </td>
+                  <td className={`py-3 text-right font-semibold align-top text-base ${dark ? 'text-white' : 'text-gray-900'}`}>{formatPrice(item.total)}</td>
+                </tr>
+                {hasPromo && item.promotion_components!.map((comp, ci) => (
+                  <tr key={`${idx}-c${ci}`} className={dark ? 'bg-slate-800/50' : 'bg-gray-50/50'}>
+                    <td></td>
+                    <td className="py-1.5 pl-6">
+                      <div className="flex items-center gap-2">
+                        {comp.image ? (
+                          <img src={comp.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                        ) : (
+                          <div className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                            <Package className={`w-3.5 h-3.5 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className={`text-sm line-clamp-2 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>{comp.product_name}</div>
+                          <div className="flex items-center gap-1.5">
+                            {comp.product_code && <span className={`text-xs font-mono ${dark ? 'text-slate-600' : 'text-gray-400'}`}>{comp.product_code}</span>}
+                            {comp.role === 'gift' && <span className="text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">แถมฟรี</span>}
+                            {comp.role === 'discounted' && <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">ราคาพิเศษ</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className={`py-1.5 text-right text-sm pr-4 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>×{comp.quantity}</td>
+                    <td></td>
+                    <td className={`py-1.5 text-right text-sm ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
+                      {comp.default_price ? `฿${formatNumber(comp.default_price)}` : ''}
+                    </td>
+                  </tr>
+                ))}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
 
       {/* Mobile card layout */}
       <div className="md:hidden print:hidden space-y-1">
-        {items.map((item, idx) => (
-          <div key={idx} className={`flex items-center gap-3 py-3 border-b last:border-0 ${dark ? 'border-slate-700' : 'border-gray-100'}`}>
-            {item.image ? (
-              <img src={item.image} alt={item.product_name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
-            ) : (
-              <div className={`w-16 h-16 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                <Package className={`w-6 h-6 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
+        {items.map((item, idx) => {
+          const hasPromo = item.promotion_components && item.promotion_components.length > 0;
+          return (
+            <div key={idx}>
+              <div className={`flex items-center gap-3 py-3 border-b last:border-0 ${dark ? 'border-slate-700' : 'border-gray-100'}`}>
+                {item.image ? (
+                  <img src={item.image} alt={item.product_name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                ) : (
+                  <div className={`w-16 h-16 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                    <Package className={`w-6 h-6 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className={`font-medium text-base truncate ${dark ? 'text-white' : 'text-gray-900'}`}>{item.product_name}</div>
+                  {hasPromo ? (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                      โปรโมชั่น ({item.promotion_components!.length} รายการ)
+                    </span>
+                  ) : item.product_code ? (
+                    <div className={`text-sm font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>
+                  ) : null}
+                  <div className={`text-sm mt-0.5 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                    {item.quantity} x ฿{formatNumber(item.unit_price)}
+                    {item.discount_amount > 0 && <span className="text-red-400 ml-1">-฿{formatPrice(item.discount_amount)}</span>}
+                  </div>
+                </div>
+                <div className={`text-base font-bold flex-shrink-0 ${dark ? 'text-white' : 'text-gray-900'}`}>฿{formatPrice(item.total)}</div>
               </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className={`font-medium text-base truncate ${dark ? 'text-white' : 'text-gray-900'}`}>{item.product_name}</div>
-              {item.product_code && <div className={`text-sm font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>}
-              <div className={`text-sm mt-0.5 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
-                {item.quantity} x ฿{formatNumber(item.unit_price)}
-                {item.discount_amount > 0 && <span className="text-red-400 ml-1">-฿{formatPrice(item.discount_amount)}</span>}
-              </div>
+              {hasPromo && (
+                <div className={`ml-6 pl-3 border-l-2 ${dark ? 'border-purple-800' : 'border-purple-200'} py-1 space-y-1`}>
+                  {item.promotion_components!.map((comp, ci) => (
+                    <div key={ci} className="flex items-center gap-2">
+                      {comp.image ? (
+                        <img src={comp.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                      ) : (
+                        <div className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                          <Package className={`w-3.5 h-3.5 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm line-clamp-2 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>{comp.product_name}</div>
+                        <div className="flex items-center gap-1">
+                          {comp.role === 'gift' && <span className="text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">แถมฟรี</span>}
+                          {comp.role === 'discounted' && <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">ราคาพิเศษ</span>}
+                        </div>
+                      </div>
+                      <span className={`text-sm flex-shrink-0 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>×{comp.quantity}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className={`text-base font-bold flex-shrink-0 ${dark ? 'text-white' : 'text-gray-900'}`}>฿{formatPrice(item.total)}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );

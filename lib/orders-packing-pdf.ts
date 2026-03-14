@@ -730,7 +730,7 @@ function buildCompactPackingContent(
       if (hasImage) headerRow.push({ text: '', margin: [0, 1, 0, 0] });
       headerRow.push({
         text: [
-          { text: '📦 ', fontSize: 9 },
+          { text: '', fontSize: 9 },
           { text: item.promotion_name || item.product_name, fontSize: 9, bold: true, color: '#6366f1' },
           { text: ` (×${item.quantity})`, fontSize: 8, color: '#888888' },
         ],
@@ -748,7 +748,7 @@ function buildCompactPackingContent(
         const compSubtitle = [comp.sku, comp.role === 'gift' ? '[แถมฟรี]' : null].filter(Boolean).join(' ');
         const compProductStack = buildProductNameStack(comp.product_name, compSubtitle);
         // Indent the product name
-        compProductStack[0] = { ...compProductStack[0], text: `  └ ${compProductStack[0].text || comp.product_name}` };
+        compProductStack[0] = { ...compProductStack[0], text: `- ${compProductStack[0].text || comp.product_name}` };
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const compRow: any[] = [];

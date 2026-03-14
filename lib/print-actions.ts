@@ -11,7 +11,7 @@ export type PrintActionType =
   | 'print_abbreviated' // พิมพ์ ABB/REC ที่ออกแล้ว
   | 'receipt'           // ออกใบเสร็จรับเงิน (issue new, no-VAT)
   | 'print_receipt'     // พิมพ์ใบเสร็จรับเงิน (existing)
-  | 'request_full'      // ขอใบกำกับภาษี (opens TaxInvoiceModal)
+  | 'request_full'      // ออกใบกำกับแบบเต็ม (opens TaxInvoiceModal)
   | 'print_full_tax'    // พิมพ์ใบกำกับภาษี (existing)
   | 'dn'                // พิมพ์ใบส่งสินค้า (DN)
 
@@ -62,14 +62,14 @@ export function getAvailablePrintActions(input: PrintActionInput): PrintAction[]
       // ยังไม่มีเอกสาร → ออกใหม่
       if (input.vatRegistered) {
         actions.push({ type: 'abbreviated', label: 'ใบกำกับอย่างย่อ', category: 'financial' });
-        actions.push({ type: 'request_full', label: 'ขอใบกำกับภาษี', category: 'financial' });
+        actions.push({ type: 'request_full', label: 'ออกใบกำกับแบบเต็ม', category: 'financial' });
       } else {
         actions.push({ type: 'receipt', label: 'ใบเสร็จรับเงิน', category: 'financial' });
       }
     } else if (docType === 'abbreviated' && !isVoided) {
       // มี ABB ที่ยังไม่ void
       actions.push({ type: 'print_abbreviated', label: 'พิมพ์ใบกำกับอย่างย่อ', category: 'financial' });
-      actions.push({ type: 'request_full', label: 'ขอใบกำกับภาษี', category: 'financial' });
+      actions.push({ type: 'request_full', label: 'ออกใบกำกับแบบเต็ม', category: 'financial' });
     } else if (docType === 'tax') {
       // มี TAX แล้ว
       actions.push({ type: 'print_full_tax', label: 'พิมพ์ใบกำกับภาษี', category: 'financial' });

@@ -139,109 +139,33 @@ export async function GET(
         image: imageMap[item.id] || null,
         sku: (variation as any).sku || null,
         barcode: (variation as any).barcode || null,
-        promotion_components: [] as any[],
+        // Use stored promotion_components from JSONB column (selected items only)
+        promotion_components: item.promotion_components || [],
       };
     });
 
-    // Fetch promotion components for items with promotion_id
-    const promotionItemIds = itemsEnriched
-      .filter(i => i.promotion_id)
-      .map(i => ({ itemId: i.id, promotionId: i.promotion_id as string }));
+    // Enrich promotion items: only fetch promotion name/type from headers table
+    // Components already come from the JSONB column (stored at order creation)
+    const promoItems = itemsEnriched.filter(i => i.promotion_id);
+    if (promoItems.length > 0) {
+      const uniquePromoIds = [...new Set(promoItems.map(i => i.promotion_id as string))];
+      const { data: promoHeaders } = await supabaseAdmin
+        .from('promotions')
+        .select('id, name, promotion_type, image')
+        .in('id', uniquePromoIds);
 
-    if (promotionItemIds.length > 0) {
-      const uniquePromotionIds = [...new Set(promotionItemIds.map(p => p.promotionId))];
-
-      // Fetch promotion headers + items with product info
-      const [promoHeaders, promoItems] = await Promise.all([
-        supabaseAdmin
-          .from('promotions')
-          .select('id, name, promotion_type, bundle_price, image')
-          .in('id', uniquePromotionIds),
-        supabaseAdmin
-          .from('promotion_items')
-          .select(`
-            id, promotion_id, variation_id, role, quantity, special_price, sort_order,
-            product_variations!inner(
-              id, sku, barcode, default_price,
-              products!inner(id, name, product_code)
-            )
-          `)
-          .in('promotion_id', uniquePromotionIds)
-          .order('sort_order'),
-      ]);
-
-      // Fetch images for promotion component variations
-      const promoVariationIds = (promoItems.data || []).map(pi => (pi.product_variations as any)?.id).filter(Boolean);
-      const promoProductIds = (promoItems.data || []).map(pi => (pi.product_variations as any)?.products?.id).filter(Boolean);
-
-      let promoImageMap: Record<string, string> = {};
-      if (promoVariationIds.length > 0 || promoProductIds.length > 0) {
-        const { data: promoImages } = await supabaseAdmin
-          .from('product_images')
-          .select('product_id, variation_id, image_url')
-          .eq('company_id', auth.companyId)
-          .or(
-            [
-              promoVariationIds.length > 0 ? `variation_id.in.(${promoVariationIds.join(',')})` : '',
-              promoProductIds.length > 0 ? `product_id.in.(${promoProductIds.join(',')})` : ''
-            ].filter(Boolean).join(',')
-          )
-          .order('sort_order', { ascending: true });
-
-        const pvImgMap: Record<string, string> = {};
-        const ppImgMap: Record<string, string> = {};
-        for (const img of promoImages || []) {
-          if (img.variation_id && !pvImgMap[img.variation_id]) pvImgMap[img.variation_id] = img.image_url;
-          if (img.product_id && !ppImgMap[img.product_id]) ppImgMap[img.product_id] = img.image_url;
-        }
-        // Map by variation_id
-        for (const pi of promoItems.data || []) {
-          const pv = pi.product_variations as any;
-          if (pv?.id) {
-            promoImageMap[pv.id] = pvImgMap[pv.id] || ppImgMap[pv.products?.id] || '';
-          }
-        }
+      const pMap: Record<string, { name: string; type: string; image: string | null }> = {};
+      for (const h of promoHeaders || []) {
+        pMap[h.id] = { name: h.name, type: h.promotion_type, image: h.image || null };
       }
 
-      // Build promotion lookup: promotionId → { header, components[] }
-      const promoMap: Record<string, { name: string; type: string; image: string | null; components: any[] }> = {};
-      for (const h of promoHeaders.data || []) {
-        promoMap[h.id] = { name: h.name, type: h.promotion_type, image: (h as any).image || null, components: [] };
-      }
-      for (const pi of promoItems.data || []) {
-        const pv = pi.product_variations as any;
-        const promo = promoMap[pi.promotion_id];
-        if (promo) {
-          promo.components.push({
-            variation_id: pi.variation_id,
-            product_name: pv?.products?.name || '',
-            product_code: pv?.products?.product_code || null,
-            sku: pv?.sku || null,
-            barcode: pv?.barcode || null,
-            image: promoImageMap[pv?.id] || null,
-            role: pi.role,
-            quantity: pi.quantity,
-            default_price: pv?.default_price || 0,
-            special_price: pi.special_price,
-          });
-        }
-      }
-
-      // Attach components to enriched items
       for (const item of itemsEnriched) {
-        if (item.promotion_id && promoMap[item.promotion_id]) {
-          const promo = promoMap[item.promotion_id];
-          item.promotion_components = promo.components.map(c => ({
-            ...c,
-            // Multiply component quantity by order item quantity
-            quantity: c.quantity * item.quantity,
-          }));
-          // Also attach promotion name/type for display
+        if (item.promotion_id && pMap[item.promotion_id]) {
+          const promo = pMap[item.promotion_id];
           (item as any).promotion_name = promo.name;
           (item as any).promotion_type = promo.type;
-          // Image fallback: promotion image → first component image
           if (!item.image) {
-            item.image = promo.image || promo.components[0]?.image || null;
+            item.image = promo.image || (item.promotion_components as any)?.[0]?.image || null;
           }
         }
       }

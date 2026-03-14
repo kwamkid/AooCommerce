@@ -26,6 +26,8 @@ export interface OrderDnItem {
   variation_label?: string | null;
   sku?: string | null;
   quantity: number;
+  promotion_name?: string | null;
+  promotion_components?: { product_name: string; sku?: string | null; product_code?: string | null; role: string; quantity: number }[];
 }
 
 export interface OrderDnData {
@@ -137,17 +139,51 @@ export async function generateOrderDnPdf(
   ];
   const widths: (number | string)[] = [25, '*', 60];
 
-  const tableBody = data.items.map((item, idx) => {
-    const fullName = productDisplayName(item);
-    const subText = item.sku ? `SKU: ${item.sku}` : null;
-    const productStack = buildProductNameStack(fullName, subText);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tableBody: any[][] = [];
+  let rowNum = 0;
 
-    return [
-      { text: `${idx + 1}`, alignment: 'center', fontSize: 10 },
-      { stack: productStack },
-      { text: `${item.quantity}`, alignment: 'center', fontSize: 10 },
-    ];
-  });
+  for (const item of data.items) {
+    rowNum++;
+    const hasComponents = item.promotion_components && item.promotion_components.length > 0;
+
+    if (hasComponents) {
+      // Promotion header row
+      tableBody.push([
+        { text: `${rowNum}`, alignment: 'center', fontSize: 10, margin: [0, 1, 0, 0] },
+        {
+          text: [
+            { text: item.promotion_name || item.product_name, fontSize: 10, bold: true, color: '#6366f1' },
+            { text: ` (x${item.quantity})`, fontSize: 8, color: '#888888' },
+          ],
+          margin: [0, 1, 0, 1],
+        },
+        { text: '', margin: [0, 1, 0, 0] },
+      ]);
+
+      // Component sub-rows
+      for (const comp of item.promotion_components!) {
+        const compSubtitle = [comp.sku || comp.product_code, comp.role === 'gift' ? '[free]' : null].filter(Boolean).join(' ');
+        const compProductStack = buildProductNameStack(`- ${comp.product_name}`, compSubtitle);
+
+        tableBody.push([
+          { text: '', margin: [0, 1, 0, 0] },
+          { stack: compProductStack, margin: [8, 1, 0, 1], color: '#666666' },
+          { text: `${comp.quantity * item.quantity}`, alignment: 'center', fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] },
+        ]);
+      }
+    } else {
+      const fullName = productDisplayName(item);
+      const subText = item.sku ? `SKU: ${item.sku}` : null;
+      const productStack = buildProductNameStack(fullName, subText);
+
+      tableBody.push([
+        { text: `${rowNum}`, alignment: 'center', fontSize: 10 },
+        { stack: productStack },
+        { text: `${item.quantity}`, alignment: 'center', fontSize: 10 },
+      ]);
+    }
+  }
 
   content.push({
     table: {

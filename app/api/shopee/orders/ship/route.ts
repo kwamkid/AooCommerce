@@ -8,6 +8,7 @@ import {
   shipOrder,
 } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
+import { resolveCarrierFromOrder } from '@/lib/shopee/sync';
 
 /**
  * POST - Accept/ship a Shopee order.
@@ -115,10 +116,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Resolve carrier name from external_data if not already set
-    const resolvedCarrier = order.shipping_carrier
-      || (order.external_data as Record<string, unknown>)?.shipping_carrier as string
-      || (order.external_data as Record<string, unknown>)?.checkout_shipping_carrier as string
-      || null;
+    const resolvedCarrier = resolveCarrierFromOrder(order);
 
     // For split orders: fetch parcel package_numbers and ship each individually
     // (Shopee requires package_number for split orders — calling ship_order without it will fail)
@@ -175,7 +173,7 @@ export async function POST(request: NextRequest) {
           .from('orders')
           .update({
             external_status: 'PROCESSED', order_status: 'processing', updated_at: new Date().toISOString(),
-            ...(resolvedCarrier && !order.shipping_carrier ? { shipping_carrier: resolvedCarrier } : {}),
+            ...(resolvedCarrier && !order.shipping_carrier ? { shipping_carrier: resolvedCarrier } : {}), // only set if resolved from external_data
           })
           .eq('id', order_id)
           .eq('company_id', companyId);
@@ -262,7 +260,7 @@ export async function POST(request: NextRequest) {
         external_status: 'PROCESSED',
         order_status: 'processing',
         updated_at: new Date().toISOString(),
-        ...(resolvedCarrier && !order.shipping_carrier ? { shipping_carrier: resolvedCarrier } : {}),
+        ...(resolvedCarrier && !order.shipping_carrier ? { shipping_carrier: resolvedCarrier } : {}), // only set if resolved from external_data
       })
       .eq('id', order_id)
       .eq('company_id', companyId);

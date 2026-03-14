@@ -14,6 +14,8 @@ interface PosItemInput {
   unit_price: number;
   discount_type?: 'percent' | 'amount';
   discount_value?: number;
+  promotion_id?: string | null;
+  promotion_components?: any[] | null;
 }
 
 interface PosTender {
@@ -390,6 +392,8 @@ export async function POST(request: NextRequest) {
           discount_type: item.discount_type || 'percent',
           subtotal: item.subtotal,
           total: item.total,
+          promotion_id: item.promotion_id || null,
+          promotion_components: item.promotion_components && item.promotion_components.length > 0 ? item.promotion_components : null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
@@ -404,8 +408,42 @@ export async function POST(request: NextRequest) {
     // Immediately deduct stock (not reserve — POS is instant)
     // Only when warehouse is assigned to this session
     if (warehouseId && stockConfig.stockEnabled) {
+      const allVariationIds: string[] = [];
+
       for (const item of itemsWithTotals) {
         if (!item.variation_id) continue;
+
+        // If promotion item, use stored components for stock deduction
+        if (item.promotion_id && item.promotion_components?.length) {
+          for (const comp of item.promotion_components) {
+            if (!comp.variation_id) continue;
+            try {
+              let varId = comp.variation_id;
+              const { data: checkVar } = await supabaseAdmin.from('product_variations').select('id').eq('id', varId).maybeSingle();
+              if (!checkVar) {
+                const { data: firstVar } = await supabaseAdmin.from('product_variations').select('id').eq('product_id', varId).limit(1).maybeSingle();
+                if (firstVar) varId = firstVar.id; else continue;
+              }
+              allVariationIds.push(varId);
+              await deductStock({
+                supabase: supabaseAdmin,
+                companyId: auth.companyId,
+                warehouseId,
+                variationId: varId,
+                qty: comp.quantity * item.quantity,
+                referenceType: 'pos_order',
+                referenceId: order.id,
+                notes: `POS ขาย ${receiptNumResult.data} (โปรโมชั่น)`,
+                createdBy: auth.userId,
+              });
+            } catch (promoErr) {
+              console.error('[POS] Promotion stock deduction error:', promoErr);
+            }
+          }
+          continue;
+        }
+
+        allVariationIds.push(item.variation_id);
         try {
           await deductStock({
             supabase: supabaseAdmin,
@@ -424,11 +462,8 @@ export async function POST(request: NextRequest) {
       }
 
       // Auto-sync stock to Shopee if linked
-      const posVariationIds = itemsWithTotals
-        .map((i: { variation_id?: string }) => i.variation_id)
-        .filter(Boolean) as string[];
-      if (posVariationIds.length > 0) {
-        import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(posVariationIds)).catch(() => {});
+      if (allVariationIds.length > 0) {
+        import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(allVariationIds)).catch(() => {});
       }
     }
 

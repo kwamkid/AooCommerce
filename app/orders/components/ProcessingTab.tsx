@@ -787,6 +787,8 @@ export default function ProcessingTab({
           variation_label: item.variation_label,
           sku: item.sku,
           quantity: item.quantity,
+          promotion_name: item.promotion_name || null,
+          promotion_components: item.promotion_components || [],
         })),
       });
       showPdfPreview(blob, `ใบส่งสินค้า ${orderData.dn_number || ''}`);
@@ -945,9 +947,13 @@ export default function ProcessingTab({
         ? (action.type === 'packing' ? <ClipboardList className="w-4 h-4" /> : <Printer className="w-4 h-4" />)
         : <Banknote className="w-4 h-4" />;
 
+      const displayLabel = action.type === 'request_full'
+        ? <><span className="text-orange-500 font-semibold">ออก</span>ใบกำกับแบบเต็ม</>
+        : labelOverride;
+
       const item: ActionItem = {
         key: action.type,
-        label: labelOverride,
+        label: displayLabel,
         icon,
         onClick: getPrintActionHandler(action, order),
         className: action.category === 'shipping'

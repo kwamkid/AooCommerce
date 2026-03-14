@@ -11,6 +11,7 @@ import {
   getAllPackageNumbersBatch,
 } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
+import { resolveCarrierFromOrder } from '@/lib/shopee/sync';
 
 interface TimeSlot {
   pickup_time_id: string;
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
     // Fetch all orders (include is_split)
     const { data: orders, error: ordersError } = await supabaseAdmin
       .from('orders')
-      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status, is_split, shipping_carrier, external_data')
+      .select('id, source, external_order_sn, external_status, marketplace_account_id, order_status, is_split, shipping_carrier')
       .eq('company_id', companyId)
       .in('id', order_ids);
 
@@ -398,17 +399,27 @@ export async function POST(request: NextRequest) {
       }
 
       // Step 6: Update DB for successful orders
+      // Fetch external_data only for successful orders missing shipping_carrier
+      const needsCarrier = accountOrders.filter(o => orderSuccessSet.has(o.id) && !o.shipping_carrier);
+      const carrierMap = new Map<string, string>();
+      if (needsCarrier.length > 0) {
+        const { data: extRows } = await supabaseAdmin.from('orders')
+          .select('id, shipping_carrier, external_data')
+          .in('id', needsCarrier.map(o => o.id));
+        for (const row of extRows || []) {
+          const carrier = resolveCarrierFromOrder(row);
+          if (carrier) carrierMap.set(row.id, carrier);
+        }
+      }
+
       for (const order of accountOrders) {
         if (orderSuccessSet.has(order.id)) {
-          const resolvedCarrier = order.shipping_carrier
-            || (order.external_data as Record<string, unknown>)?.shipping_carrier as string
-            || (order.external_data as Record<string, unknown>)?.checkout_shipping_carrier as string
-            || null;
+          const resolvedCarrier = carrierMap.get(order.id);
           await supabaseAdmin.from('orders').update({
             external_status: 'PROCESSED',
             order_status: 'processing',
             updated_at: new Date().toISOString(),
-            ...(resolvedCarrier && !order.shipping_carrier ? { shipping_carrier: resolvedCarrier } : {}),
+            ...(resolvedCarrier ? { shipping_carrier: resolvedCarrier } : {}),
           }).eq('id', order.id).eq('company_id', companyId);
 
           if (order.is_split) {

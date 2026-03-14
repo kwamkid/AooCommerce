@@ -93,6 +93,7 @@ export async function GET(req: NextRequest) {
     const promotionIds = (promotions || []).map(p => p.id);
     let itemsMap: Record<string, unknown[]> = {};
     let productNameMap: Record<string, { name: string; code: string; image: string | null; default_price: number; max_price: number }> = {};
+    let productVariationMap: Record<string, string> = {};
 
     if (promotionIds.length > 0) {
       const { data: allItems } = await supabaseAdmin
@@ -118,7 +119,7 @@ export async function GET(req: NextRequest) {
         // Also fetch min default_price from variations for each product
         const { data: priceData } = await supabaseAdmin
           .from('product_variations')
-          .select('product_id, default_price')
+          .select('id, product_id, default_price, sku')
           .in('product_id', productIds)
           .order('default_price', { ascending: true });
         const priceRangeMap: Record<string, { min: number; max: number }> = {};
@@ -130,6 +131,12 @@ export async function GET(req: NextRequest) {
           } else {
             priceRangeMap[v.product_id].min = Math.min(priceRangeMap[v.product_id].min, price);
             priceRangeMap[v.product_id].max = Math.max(priceRangeMap[v.product_id].max, price);
+          }
+        }
+        // Map product_id → first (cheapest) variation_id
+        for (const v of priceData || []) {
+          if (v.product_id && !productVariationMap[v.product_id]) {
+            productVariationMap[v.product_id] = v.id;
           }
         }
         for (const p of products || []) {
@@ -149,9 +156,13 @@ export async function GET(req: NextRequest) {
           products: { id: string; name: string; code: string };
         } | null;
         const productInfo = item.product_id ? productNameMap[item.product_id] : null;
+        // Resolve variation_id: use item's own, or fallback to first variation of product
+        const resolvedVariationId = item.variation_id
+          || (item.product_id ? productVariationMap[item.product_id] : null)
+          || null;
         itemsMap[item.promotion_id].push({
           id: item.id,
-          variation_id: item.variation_id,
+          variation_id: resolvedVariationId,
           product_id: item.product_id,
           role: item.role,
           quantity: item.quantity,

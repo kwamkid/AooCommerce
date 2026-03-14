@@ -269,7 +269,7 @@ function buildCompactInvoiceContent(
       // Component sub-rows
       for (const comp of item.promotion_components!) {
         const compSubtitle = [comp.sku || comp.product_code, comp.role === 'gift' ? '[แถมฟรี]' : null].filter(Boolean).join(' ');
-        const compProductStack = buildProductNameStack(`└ ${comp.product_name}`, compSubtitle);
+        const compProductStack = buildProductNameStack(`- ${comp.product_name}`, compSubtitle);
 
         tableBody.push([
           { text: '', margin: [0, 1, 0, 0] },

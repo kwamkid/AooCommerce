@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
         .from('order_items')
         .select(`
           id, variation_id, product_id, product_code, product_name, variation_label,
-          quantity, unit_price, discount_percent, discount_amount, subtotal, total
+          quantity, unit_price, discount_percent, discount_amount, subtotal, total, promotion_id, promotion_components
         `)
         .eq('order_id', order.id),
       supabaseAdmin
@@ -104,6 +104,18 @@ export async function GET(request: NextRequest) {
     const items = itemsResult.data;
     const paymentRecords = paymentRecordsResult.data;
     const paymentChannels = paymentChannelsResult.data;
+
+    // Fetch promotion headers (name/type) for items with promotion_id
+    // promotion_components are stored as JSONB in order_items column
+    const promoIds = [...new Set((items || []).map(i => (i as any).promotion_id).filter(Boolean))];
+    let promoMap: Record<string, { name: string; type: string }> = {};
+    if (promoIds.length > 0) {
+      const { data: promoHeaders } = await supabaseAdmin
+        .from('promotions').select('id, name, promotion_type').in('id', promoIds);
+      for (const h of promoHeaders || []) {
+        promoMap[h.id] = { name: h.name, type: h.promotion_type };
+      }
+    }
 
     // Wave 3: Fetch images + shipments in parallel (depend on items)
     const variationIds = (items || []).map(i => i.variation_id).filter(Boolean);
@@ -198,9 +210,11 @@ export async function GET(request: NextRequest) {
         const branch = branchMap.get(addrId)!;
         // Check if already added (avoid duplicates)
         if (!branch.items.find((i: any) => i.id === item.id)) {
+          const pid = (item as any).promotion_id;
+          const pm = pid ? promoMap[pid] : null;
           branch.items.push({
             product_code: item.product_code,
-            product_name: item.product_name,
+            product_name: pm ? pm.name : item.product_name,
             variation_label: item.variation_label,
             quantity: shipment.quantity || item.quantity,
             unit_price: item.unit_price,
@@ -208,7 +222,11 @@ export async function GET(request: NextRequest) {
             discount_amount: item.discount_amount,
             subtotal: item.subtotal,
             total: item.total,
-            image: imageMap[item.id] || null
+            image: imageMap[item.id] || null,
+            promotion_id: pid || null,
+            promotion_name: pm?.name || null,
+            promotion_type: pm?.type || null,
+            promotion_components: (item as any).promotion_components || null,
           });
         }
       }
@@ -217,9 +235,12 @@ export async function GET(request: NextRequest) {
     const branches = Array.from(branchMap.values());
 
     // Flat items list (for backward compat / single-branch orders)
-    const flatItems = (items || []).map(item => ({
+    const flatItems = (items || []).map(item => {
+      const pid = (item as any).promotion_id;
+      const pm = pid ? promoMap[pid] : null;
+      return {
       product_code: item.product_code,
-      product_name: item.product_name,
+      product_name: pm ? pm.name : item.product_name,
       variation_label: item.variation_label,
       quantity: item.quantity,
       unit_price: item.unit_price,
@@ -227,8 +248,13 @@ export async function GET(request: NextRequest) {
       discount_amount: item.discount_amount,
       subtotal: item.subtotal,
       total: item.total,
-      image: imageMap[item.id] || null
-    }));
+      image: imageMap[item.id] || null,
+      promotion_id: pid || null,
+      promotion_name: pm?.name || null,
+      promotion_type: pm?.type || null,
+      promotion_components: (item as any).promotion_components || null,
+    };
+    });
 
     const paymentRecord = paymentRecords && paymentRecords.length > 0 ? paymentRecords[0] : null;
 

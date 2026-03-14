@@ -6,7 +6,7 @@ import { MoreVertical } from 'lucide-react';
 
 export interface ActionItem {
   key: string;
-  label: string;
+  label: React.ReactNode;
   description?: string;
   icon: React.ReactNode;
   /** Optional node rendered at the far right of the menu item (e.g. a print status dot) */

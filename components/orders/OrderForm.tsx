@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, RefObject } from 'react';
+import { useState, useEffect, useRef, useMemo, RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useRouter } from 'next/navigation';
@@ -12,7 +12,9 @@ import { apiFetch } from '@/lib/api-client';
 import { parseThaiAddress } from '@/lib/address-parser';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
-import ItemsTable, { type TableItem as OrderTableItem } from '@/components/ui/ItemsTable';
+import ItemsTable, { type TableItem as OrderTableItem, type PromotionComponent } from '@/components/ui/ItemsTable';
+import PromotionSelectModal, { type PromoData, type PromoItemData, type PromotionSelectResult } from '@/components/ui/PromotionSelectModal';
+import { calculateQtyDiscount, type PromotionTier } from '@/lib/promotions';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
@@ -71,6 +73,8 @@ interface Product {
   stock: number;
 }
 
+interface PromotionTierData { min_qty: number; discount_type: string; discount_value: number }
+
 interface BranchProduct {
   variation_id: string;
   product_id: string;
@@ -84,6 +88,12 @@ interface BranchProduct {
   unit_price: number;
   discount_value: number;
   discount_type: 'percent' | 'amount';
+  // Promotion fields
+  promotion_id?: string;
+  promotion_name?: string;
+  promotion_type?: string;
+  promotion_components?: PromotionComponent[];
+  promotion_tiers?: PromotionTierData[];
 }
 
 interface BranchOrder {
@@ -195,6 +205,10 @@ export default function OrderForm({
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
 
+  // Promotions (merged into product search)
+  const [promotions, setPromotions] = useState<any[]>([]);
+  const [promoModal, setPromoModal] = useState<{ promo: PromoData; triggerProduct?: { variation_id: string; product_name: string } } | null>(null);
+
   // Customer pricing
   const [customerPrices, setCustomerPrices] = useState<Record<string, { unit_price: number; discount_percent: number }>>({});
 
@@ -252,23 +266,12 @@ export default function OrderForm({
   const productsSectionRef = useRef<HTMLDivElement>(null);
   const deliverySectionRef = useRef<HTMLDivElement>(null);
   const summarySectionRef = useRef<HTMLDivElement>(null);
-  const [wideEnough, setWideEnough] = useState(false);
   const [summaryWide, setSummaryWide] = useState(false);
-
-  // Watch container width for responsive 2-column layout
-  useEffect(() => {
-    const el = deliverySectionRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      setWideEnough(entry.contentRect.width >= 480);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [loading]);
 
   // Watch summary section width for side-by-side vs stacked layout
   const hasProducts = branchOrders.length > 0 && branchOrders[0]?.products.length > 0;
   useEffect(() => {
+    if (embedded) { setSummaryWide(false); return; }
     const el = summarySectionRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
@@ -276,7 +279,7 @@ export default function OrderForm({
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [hasProducts]);
+  }, [hasProducts, embedded]);
 
   // Initialize default branch (product-first flow for all modes)
   // This allows product section to show immediately without selecting a customer
@@ -300,6 +303,7 @@ export default function OrderForm({
     if (!isMarketplace) {
       fetchCustomers();
       fetchProducts();
+      fetchPromotions();
     } else {
       setLoadingProducts(false);
     }
@@ -526,17 +530,23 @@ export default function OrderForm({
             loadedShippingFee = shipments[0].shipping_fee || 0;
           }
           if (!loadedProducts.find(p => p.variation_id === item.variation_id)) {
+            const isPromo = !!item.promotion_id;
             loadedProducts.push({
               variation_id: item.variation_id,
               product_id: item.product_id,
-              product_code: item.product_code,
-              product_name: item.product_name,
-              variation_label: item.variation_label,
+              product_code: isPromo ? 'โปรโมชั่น' : item.product_code,
+              product_name: isPromo ? (item.promotion_name || item.product_name) : item.product_name,
+              variation_label: isPromo ? undefined : item.variation_label,
               image: item.image,
               quantity: qty,
               unit_price: item.unit_price,
               discount_value: item.discount_type === 'amount' ? (item.discount_amount || 0) : (item.discount_percent || 0),
-              discount_type: item.discount_type || 'percent'
+              discount_type: item.discount_type || 'percent',
+              // Promotion fields
+              promotion_id: item.promotion_id || undefined,
+              promotion_name: item.promotion_name || undefined,
+              promotion_type: item.promotion_type || undefined,
+              promotion_components: item.promotion_components || undefined,
             });
           }
         }
@@ -625,6 +635,16 @@ export default function OrderForm({
     } finally {
       setLoadingProducts(false);
     }
+  };
+
+  const fetchPromotions = async () => {
+    try {
+      const res = await apiFetch('/api/promotions?status=active&limit=200');
+      if (res.ok) {
+        const result = await res.json();
+        setPromotions(result.promotions || []);
+      }
+    } catch (e) { /* silent */ }
   };
 
   const fetchWarehouses = async () => {
@@ -839,8 +859,175 @@ export default function OrderForm({
     }
   };
 
+  // Merge promotions into product search list
+  const allSearchItems: Product[] = useMemo(() => {
+    const promoAsProducts: Product[] = promotions.map(p => {
+      // Calculate display price based on type
+      let displayPrice = 0;
+      const items = p.items || [];
+      if (p.promotion_type === 'bundle_set' && p.bundle_price) {
+        displayPrice = p.bundle_price;
+      } else if (p.promotion_type === 'bundle_set' && p.discount_type === 'percent') {
+        displayPrice = items.reduce((s: number, i: any) => s + (i.default_price || 0) * (i.quantity || 1), 0) * (1 - (p.discount_value || 0) / 100);
+      } else if (p.promotion_type === 'bundle_set' && p.discount_type === 'fixed_discount') {
+        displayPrice = items.reduce((s: number, i: any) => s + Math.max(0, (i.default_price || 0) - (p.discount_value || 0)) * (i.quantity || 1), 0);
+      } else {
+        displayPrice = items.reduce((s: number, i: any) => {
+          if (i.role === 'gift') return s;
+          const price = i.special_price ?? i.default_price ?? 0;
+          return s + price * (i.quantity || 1);
+        }, 0);
+      }
+      return {
+        id: `promo_${p.id}`,
+        product_id: `promo_${p.id}`,
+        code: 'โปรโมชั่น',
+        name: `🎁 ${p.name}`,
+        image: p.image || items[0]?.image,
+        product_type: 'simple' as const,
+        default_price: Math.round(displayPrice * 100) / 100,
+        stock: 999,
+      };
+    });
+    return [...promoAsProducts, ...products];
+  }, [products, promotions]);
+
+  // Promotion modal confirm handler
+  const handlePromoConfirm = (result: PromotionSelectResult) => {
+    const promo = result.promotion;
+    const promoId = promo.id;
+
+    // Prevent duplicate
+    if (branchOrders[0]?.products.some(p => p.promotion_id === promoId)) {
+      showToast('โปรโมชั่นนี้ถูกเพิ่มแล้ว', 'error');
+      setPromoModal(null);
+      return;
+    }
+
+    const items = promo.items || [];
+    const mainItem = items.find((i: any) => i.role === 'main' || i.role === 'component') || items[0];
+
+    // Build components — for buy_get_discount, only include selected discounted items
+    let displayItems = items;
+    if (promo.promotion_type === 'buy_get_discount') {
+      const mainAndComp = items.filter((i: any) => i.role !== 'discounted');
+      const selectedDisc = result.selectedDiscounted.map(sel => {
+        const orig = items.find((i: any) => i.variation_id === sel.variation_id);
+        return orig ? { ...orig, quantity: sel.quantity } : null;
+      }).filter((x): x is PromoItemData => x !== null);
+      displayItems = [...mainAndComp, ...selectedDisc];
+    }
+
+    const components: PromotionComponent[] = displayItems.map((item: any) => ({
+      variation_id: item.variation_id || item.product_id || '',
+      product_name: item.product_name || '',
+      product_code: item.product_code || null,
+      sku: item.sku || null,
+      barcode: item.barcode || null,
+      image: item.image || null,
+      role: item.role || 'main',
+      quantity: item.quantity || 1,
+      default_price: item.default_price || 0,
+      special_price: item.special_price || null,
+    }));
+
+    // Calculate unit_price (original full price) and discount_value (savings)
+    // All promo types: unit_price = full price, discount_value = how much saved
+    let unitPrice = 0;
+    let discountValue = 0;
+    const discountType: 'percent' | 'amount' = 'amount';
+    const qty = result.quantity;
+
+    // Full price = sum of all default_price
+    const fullPrice = displayItems.reduce((s: number, i: any) => s + (i.default_price || 0) * (i.quantity || 1), 0);
+
+    if (promo.promotion_type === 'bundle_set') {
+      unitPrice = fullPrice;
+      let promoPrice = fullPrice;
+      if (promo.bundle_price) {
+        promoPrice = promo.bundle_price;
+      } else {
+        if (promo.discount_type === 'percent') promoPrice = fullPrice * (1 - (promo.discount_value || 0) / 100);
+        else if (promo.discount_type === 'fixed_discount') promoPrice = items.reduce((s: number, i: any) => s + Math.max(0, (i.default_price || 0) - (promo.discount_value || 0)) * (i.quantity || 1), 0);
+      }
+      discountValue = Math.round((fullPrice - promoPrice) * 100) / 100;
+    } else if (promo.promotion_type === 'buy_get_free') {
+      unitPrice = fullPrice;
+      // Gift items are free — discount = gift value
+      const giftValue = items.filter((i: any) => i.role === 'gift').reduce((s: number, i: any) => s + (i.default_price || 0) * (i.quantity || 1), 0);
+      discountValue = Math.round(giftValue * 100) / 100;
+    } else if (promo.promotion_type === 'buy_get_discount') {
+      unitPrice = fullPrice;
+      // Discount = difference between default_price and special_price for discounted items
+      const discSavings = result.selectedDiscounted.reduce((s, sel) => {
+        const orig = items.find((i: any) => i.variation_id === sel.variation_id);
+        if (!orig) return s;
+        return s + ((orig.default_price || 0) - (orig.special_price ?? orig.default_price ?? 0)) * sel.quantity;
+      }, 0);
+      discountValue = Math.round(discSavings * 100) / 100;
+    } else if (promo.promotion_type === 'qty_discount') {
+      const basePrice = items[0]?.default_price || 0;
+      unitPrice = basePrice;
+      const tiers = promo.tiers || [];
+      if (tiers.length > 0) {
+        const discountedPerUnit = calculateQtyDiscount(tiers as PromotionTier[], qty, basePrice);
+        discountValue = Math.round((basePrice - discountedPerUnit) * qty * 100) / 100;
+      }
+    }
+
+    const newProduct: BranchProduct = {
+      variation_id: mainItem?.variation_id || promoId,
+      product_id: mainItem?.product_id || promoId,
+      product_code: 'โปรโมชั่น',
+      product_name: promo.name,
+      image: promo.image || mainItem?.image || undefined,
+      quantity: promo.promotion_type === 'qty_discount' ? qty : 1,
+      unit_price: unitPrice,
+      discount_value: discountValue,
+      discount_type: discountType,
+      promotion_id: promoId,
+      promotion_name: promo.name,
+      promotion_type: promo.promotion_type,
+      promotion_components: components,
+      promotion_tiers: promo.tiers || [],
+    };
+
+    const newBranchOrders = [...branchOrders];
+    newBranchOrders[0].products.push(newProduct);
+    setBranchOrders(newBranchOrders);
+    setPromoModal(null);
+  };
+
   // Product management
   const handleAddProductToBranch = (product: Product) => {
+    // Promotion handling — open modal
+    if (product.id.startsWith('promo_')) {
+      const promoId = product.id.replace('promo_', '');
+      const promo = promotions.find((p: any) => p.id === promoId);
+      if (!promo) return;
+
+      if (branchOrders[0]?.products.some(p => p.promotion_id === promoId)) {
+        showToast('โปรโมชั่นนี้ถูกเพิ่มแล้ว', 'error');
+        return;
+      }
+
+      setPromoModal({ promo: promo as PromoData });
+      return;
+    }
+
+    // Check if this product is in a buy_get_discount promotion (auto-detect)
+    const matchingPromo = promotions.find((p: any) =>
+      p.promotion_type === 'buy_get_discount' &&
+      (p.items || []).some((i: any) => i.variation_id === product.id && (i.role === 'main' || i.role === 'component'))
+    );
+    if (matchingPromo && !branchOrders[0]?.products.some(p => p.promotion_id === matchingPromo.id)) {
+      setPromoModal({
+        promo: matchingPromo as PromoData,
+        triggerProduct: { variation_id: product.id, product_name: product.name },
+      });
+      return;
+    }
+
     // Stock validation when oversell is not allowed
     if (!allowOversell && stockEnabled && selectedWarehouseId) {
       const inv = inventoryMap[product.id];
@@ -928,12 +1115,23 @@ export default function OrderForm({
     }
 
     const newBranchOrders = [...branchOrders];
-    newBranchOrders[0].products[productIndex].quantity = finalQty;
+    const product = newBranchOrders[0].products[productIndex];
+    product.quantity = finalQty;
+
+    // Qty discount: recalculate discount_value based on new quantity (keep unit_price as original price)
+    if (product.promotion_type === 'qty_discount' && product.promotion_tiers && product.promotion_tiers.length > 0) {
+      const originalPrice = product.promotion_components?.[0]?.default_price || product.unit_price;
+      const discountedPerUnit = calculateQtyDiscount(product.promotion_tiers as PromotionTier[], finalQty, originalPrice);
+      product.discount_value = Math.round((originalPrice - discountedPerUnit) * finalQty * 100) / 100;
+      product.discount_type = 'amount';
+    }
+
     setBranchOrders(newBranchOrders);
   };
 
   const handleUpdateProductPrice = (productIndex: number, price: number) => {
     const newBranchOrders = [...branchOrders];
+    if (newBranchOrders[0].products[productIndex].promotion_id) return; // Promotion rows: price controlled by promotion
     newBranchOrders[0].products[productIndex].unit_price = Math.max(0, price);
     setBranchOrders(newBranchOrders);
   };
@@ -941,6 +1139,7 @@ export default function OrderForm({
   const handleUpdateProductDiscount = (productIndex: number, value: number) => {
     const newBranchOrders = [...branchOrders];
     const product = newBranchOrders[0].products[productIndex];
+    if (product.promotion_id) return; // Promotion rows: discount controlled by promotion
     if (product.discount_type === 'percent') {
       product.discount_value = Math.max(0, Math.min(100, value));
     } else {
@@ -1050,23 +1249,46 @@ export default function OrderForm({
       const branch = branchOrders[0];
       const addrId = selectedAddressId && selectedAddressId !== 'new' ? selectedAddressId : branch?.shipping_address_id;
 
-      const items = (branch?.products || []).map(product => ({
-        variation_id: product.variation_id,
-        product_id: product.product_id,
-        product_code: product.product_code,
-        product_name: product.product_name,
-        variation_label: product.variation_label,
-        quantity: product.quantity,
-        unit_price: product.unit_price,
-        discount_value: product.discount_value,
-        discount_type: product.discount_type,
-        // Only include shipments when customer is selected AND has a valid shipping address
-        shipments: selectedCustomer && addrId ? [{
-          shipping_address_id: addrId,
+      const items = (branch?.products || []).map(product => {
+        // For promotion rows: use first component's real variation_id
+        let variationId = product.variation_id;
+        if (product.promotion_id && product.promotion_components?.length) {
+          const realComp = product.promotion_components.find(c => c.variation_id);
+          if (realComp) variationId = realComp.variation_id;
+        }
+
+        return {
+          variation_id: variationId,
+          product_id: product.product_id || undefined,
+          product_code: product.product_code || undefined,
+          product_name: product.product_name,
+          variation_label: product.variation_label || undefined,
           quantity: product.quantity,
-          shipping_fee: branch.shipping_fee || 0
-        }] : []
-      }));
+          unit_price: product.unit_price,
+          discount_value: product.discount_value,
+          discount_type: product.discount_type,
+          promotion_id: product.promotion_id || undefined,
+          promotion_components: product.promotion_id && product.promotion_components?.length
+            ? product.promotion_components.map(c => ({
+                variation_id: c.variation_id,
+                product_name: c.product_name,
+                product_code: c.product_code,
+                sku: c.sku,
+                barcode: c.barcode,
+                image: c.image,
+                role: c.role,
+                quantity: c.quantity,
+                default_price: c.default_price,
+                special_price: c.special_price,
+              }))
+            : undefined,
+          shipments: selectedCustomer && addrId ? [{
+            shipping_address_id: addrId,
+            quantity: product.quantity,
+            shipping_fee: branch.shipping_fee || 0
+          }] : []
+        };
+      });
 
       // Determine primary shipping_address_id
       const primaryAddressId = selectedCustomer ? (addrId || undefined) : undefined;
@@ -1428,7 +1650,7 @@ export default function OrderForm({
       {/* Customer + Delivery section — hidden in edit mode (shown in top card instead) */}
       {!isEditMode && (
       <div ref={deliverySectionRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-        <div className={`grid grid-cols-1 ${wideEnough ? 'grid-cols-2' : ''} gap-x-4 gap-y-3`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
           {/* Row 1 Left: ลูกค้า */}
           <div ref={customerSectionRef} className="relative flex flex-col">
             <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -1518,7 +1740,7 @@ export default function OrderForm({
           </div>
 
           {/* Row 1 Right: ที่อยู่จัดส่ง */}
-          <div className={`flex flex-col ${wideEnough ? 'border-l border-gray-200 dark:border-slate-700 pl-4' : ''}`}>
+          <div className="flex flex-col sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
             <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่จัดส่ง</label>
             <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} onPaste={(e) => { const pasted = e.clipboardData.getData('text'); if (pasted.length > 10) { const parsed = parseThaiAddress(pasted); if (parsed) { e.preventDefault(); setDeliveryAddress(parsed.address); setDeliveryDistrict(parsed.district); setDeliveryAmphoe(parsed.amphoe); setDeliveryProvince(parsed.province); setDeliveryPostalCode(parsed.postal_code); } } }} placeholder="วางที่อยู่ยาวๆ ได้เลย — ระบบจะแยก ตำบล อำเภอ จังหวัด ให้อัตโนมัติ" disabled={isReadOnly} className="w-full flex-1 px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none" />
           </div>
@@ -1544,13 +1766,13 @@ export default function OrderForm({
           </div>
 
           {/* Row 2-3 Right: ตำบล อำเภอ จังหวัด รหัสไปรษณีย์ (with autocomplete) */}
-          <div className={`${wideEnough ? 'border-l border-gray-200 dark:border-slate-700 pl-4' : ''}`}>
+          <div className="sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
             <ThaiAddressInput district={deliveryDistrict} amphoe={deliveryAmphoe} province={deliveryProvince} postalCode={deliveryPostalCode} onAddressChange={(addr) => { if (addr.district !== undefined) setDeliveryDistrict(addr.district); if (addr.amphoe !== undefined) setDeliveryAmphoe(addr.amphoe); if (addr.province !== undefined) setDeliveryProvince(addr.province); if (addr.postalCode !== undefined) setDeliveryPostalCode(addr.postalCode); }} disabled={isReadOnly} />
           </div>
 
           {/* Tax Invoice Request — full width */}
           {vatRegistered && (
-          <div className={wideEnough ? 'col-span-2' : ''}>
+          <div className={'sm:col-span-2'}>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -1591,7 +1813,7 @@ export default function OrderForm({
 
           {/* Delivery Date — full width */}
           {features.delivery_date.enabled && (
-          <div ref={deliveryDateRef} className={wideEnough ? 'col-span-2' : ''}>
+          <div ref={deliveryDateRef} className={'sm:col-span-2'}>
             <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
               วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
             </label>
@@ -1624,16 +1846,21 @@ export default function OrderForm({
               unit_price: p.unit_price,
               discount_value: p.discount_value,
               discount_type: p.discount_type,
+              promotion_id: p.promotion_id,
+              promotion_name: p.promotion_name,
+              promotion_type: p.promotion_type,
+              promotion_components: p.promotion_components,
             }))}
             columns={['qty', 'unit_price', 'discount', 'total']}
+            forceCompact={embedded}
             stockMap={stockEnabled && selectedWarehouseId
               ? Object.fromEntries(Object.entries(inventoryMap).map(([k, v]) => [k, v.available]))
               : {}}
             showStockInSearch={stockEnabled && !!selectedWarehouseId}
             disableOutOfStock={!allowOversell && stockEnabled && !!selectedWarehouseId}
-            products={isReadOnly ? [] : products}
+            products={isReadOnly ? [] : allSearchItems}
             loadingProducts={loadingProducts}
-            searchPlaceholder="เพิ่มสินค้า — พิมพ์ชื่อหรือรหัส..."
+            searchPlaceholder="เพิ่มสินค้าหรือโปรโมชั่น — พิมพ์ชื่อหรือรหัส..."
             onAdd={isReadOnly ? undefined : (p) => handleAddProductToBranch(p as Product)}
             onUpdateField={isReadOnly ? undefined : (idx, field, value) => {
               if (field === 'quantity') handleUpdateProductQuantity(idx, value as number);
@@ -1874,15 +2101,15 @@ export default function OrderForm({
       {showSuccessModal && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          onClick={() => setShowSuccessModal(false)}
-          onKeyDown={(e) => { if (e.key === 'Escape') setShowSuccessModal(false); }}
+          onClick={() => { setShowSuccessModal(false); if (!onSuccess) router.push('/orders?status=new'); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') { setShowSuccessModal(false); if (!onSuccess) router.push('/orders?status=new'); } }}
           tabIndex={-1}
           ref={(el) => el?.focus()}
         >
           <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md mx-4 w-full relative" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
-              onClick={() => setShowSuccessModal(false)}
+              onClick={() => { setShowSuccessModal(false); if (!onSuccess) router.push('/orders?status=new'); }}
               className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
@@ -1947,20 +2174,29 @@ export default function OrderForm({
                     ส่งบิลให้ลูกค้า
                   </button>
                 )}
-                <a
-                  href={`/orders/${savedOrderId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full px-4 py-2.5 rounded-lg transition-colors font-medium border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 text-center block"
+                <button
+                  type="button"
+                  onClick={() => { setShowSuccessModal(false); router.push(`/orders/${savedOrderId}`); }}
+                  className="w-full px-4 py-2.5 rounded-lg transition-colors font-medium border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 text-center"
                 >
                   ดูคำสั่งซื้อ
-                </a>
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
     </form>
+
+    {/* Promotion Select Modal */}
+    {promoModal && (
+      <PromotionSelectModal
+        promotion={promoModal.promo}
+        triggerProduct={promoModal.triggerProduct}
+        onConfirm={handlePromoConfirm}
+        onClose={() => setPromoModal(null)}
+      />
+    )}
     </>
   );
 }

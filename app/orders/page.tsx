@@ -430,6 +430,43 @@ function OrdersPageContent() {
     }
   };
 
+  const handlePrintAbbreviatedInvoice = async (orderId: string) => {
+    setPdfLoading(true);
+    const label = vatRegistered ? 'ใบกำกับอย่างย่อ' : 'ใบเสร็จรับเงิน';
+    setPdfMessage(`กำลังสร้าง${label}...`);
+    try {
+      const { generateAbbreviatedInvoicePdf } = await import('@/lib/order-invoice-abbreviated-pdf');
+      const orderData = await fetchOrderForPdf(orderId);
+      const blob = await generateAbbreviatedInvoicePdf([orderData]);
+      showPdfPreview(blob, `${label} ${orderData.tax_invoice_number || ''}`);
+      markOrdersPrinted([orderId], 'invoice');
+      updateLocalPrintStatus(setOrders, [orderId], 'invoice');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setPdfLoading(false);
+      setPdfMessage(undefined);
+    }
+  };
+
+  const handlePrintFullTaxInvoice = async (orderId: string) => {
+    setPdfLoading(true);
+    setPdfMessage('กำลังสร้างใบกำกับแบบเต็ม...');
+    try {
+      const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+      const orderData = await fetchOrderForPdf(orderId);
+      const blob = await generateFullInvoicePdf(orderData);
+      showPdfPreview(blob, 'ใบกำกับแบบเต็ม');
+      markOrdersPrinted([orderId], 'invoice');
+      updateLocalPrintStatus(setOrders, [orderId], 'invoice');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setPdfLoading(false);
+      setPdfMessage(undefined);
+    }
+  };
+
   const handlePrintPackingList = async (orderId: string) => {
     setPdfLoading(true);
     setPdfMessage('กำลังสร้างใบจัดของ...');
@@ -595,30 +632,43 @@ function OrdersPageContent() {
 
     // === Section 2: เอกสารการเงิน ===
     const section2Start = menuItems.length;
+    const docType = order.tax_invoice_doc_type;
+    const hasFullTax = docType === 'tax';
+
     if (order.payment_status !== 'paid') {
       menuItems.push({
         key: 'invoice', label: 'ใบแจ้งหนี้', icon: <Banknote className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
         className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
       });
-    }
-    if (order.payment_status === 'paid') {
+    } else if (vatRegistered) {
+      // จด VAT + paid
+      if (!hasFullTax) {
+        // ยังไม่ออกแบบเต็ม → แสดง ABB + ออกใบกำกับแบบเต็ม
+        menuItems.push({
+          key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); handlePrintAbbreviatedInvoice(order.id); },
+          className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
+        });
+        menuItems.push({
+          key: 'full-invoice', label: <><span className="text-orange-500 font-semibold">ออก</span>ใบกำกับแบบเต็ม</>, icon: <Banknote className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id }); },
+          className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
+        });
+      } else {
+        // ออกแบบเต็มแล้ว → แสดงแค่ใบกำกับแบบเต็ม (ซ่อน ABB)
+        menuItems.push({
+          key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); handlePrintFullTaxInvoice(order.id); },
+          className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
+        });
+      }
+    } else {
+      // ไม่จด VAT + paid: ใบเสร็จรับเงินอย่างเดียว
       menuItems.push({
         key: 'receipt', label: 'ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
         className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
-      });
-    }
-    if (vatRegistered && order.payment_status === 'paid' && order.tax_invoice_requested !== true) {
-      menuItems.push({
-        key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
-        className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
-      });
-      menuItems.push({
-        key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id }); },
-        className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
       });
     }
     if (menuItems.length > section2Start && section2Start > 0) {
@@ -647,7 +697,7 @@ function OrdersPageContent() {
     }
 
     // === Section 3: อื่นๆ ===
-    if (!order.source || order.source === 'manual') {
+    if (!isMarketplace) {
       const section3Start = menuItems.length;
       if (order.order_status !== 'cancelled') {
         menuItems.push({
@@ -667,14 +717,28 @@ function OrdersPageContent() {
     }
 
     // === Section 4: สถานะ ===
-    if (!order.source || order.source === 'manual') {
+    if (!isMarketplace) {
       const section4Start = menuItems.length;
       if (!['cancelled', 'completed'].includes(order.order_status)) {
         menuItems.push({
           key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
-          onClick: (e) => {
+          onClick: async (e) => {
             e.stopPropagation();
-            setStatusUpdateModal({ show: true, order, nextStatus: 'cancelled', statusType: 'order' });
+            const ok = await confirm({ title: `ยกเลิกคำสั่งซื้อ "${order.order_number}"?`, description: 'ต้องการยกเลิกคำสั่งซื้อนี้หรือไม่', variant: 'danger' });
+            if (!ok) return;
+            try {
+              const response = await apiFetch('/api/orders', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: order.id, order_status: 'cancelled' })
+              });
+              if (!response.ok) throw new Error('Failed to cancel');
+              await fetchOrders();
+              window.dispatchEvent(new Event('orders-count-changed'));
+              showToast('ยกเลิกคำสั่งซื้อสำเร็จ');
+            } catch (error) {
+              showToast(error instanceof Error ? error.message : 'ไม่สามารถยกเลิกได้', 'error');
+            }
           },
           className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
           danger: true,

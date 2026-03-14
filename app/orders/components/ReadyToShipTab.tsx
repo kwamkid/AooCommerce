@@ -542,6 +542,43 @@ export default function ReadyToShipTab({
     }
   };
 
+  const handlePrintAbbreviatedInvoice = async (orderId: string) => {
+    setActionLoading(true);
+    try {
+      const { generateAbbreviatedInvoicePdf } = await import('@/lib/order-invoice-abbreviated-pdf');
+      const res = await apiFetch(`/api/orders/${orderId}`);
+      if (!res.ok) throw new Error('Failed to fetch order');
+      const result = await res.json();
+      const label = vatRegistered ? 'ใบกำกับอย่างย่อ' : 'ใบเสร็จรับเงิน';
+      const blob = await generateAbbreviatedInvoicePdf([result.order]);
+      showPdfPreview(blob, `${label} ${result.order.tax_invoice_number || ''}`);
+      markOrdersPrinted([orderId], 'invoice');
+      updateLocalPrintStatus(setOrders, [orderId], 'invoice');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handlePrintFullTaxInvoice = async (orderId: string) => {
+    setActionLoading(true);
+    try {
+      const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+      const res = await apiFetch(`/api/orders/${orderId}`);
+      if (!res.ok) throw new Error('Failed to fetch order');
+      const result = await res.json();
+      const blob = await generateFullInvoicePdf(result.order);
+      showPdfPreview(blob, 'ใบกำกับแบบเต็ม');
+      markOrdersPrinted([orderId], 'invoice');
+      updateLocalPrintStatus(setOrders, [orderId], 'invoice');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const fetchOrderForPdf = async (orderId: string) => {
     const res = await apiFetch(`/api/orders/${orderId}`);
     if (!res.ok) throw new Error('Failed to fetch order');
@@ -970,30 +1007,42 @@ export default function ReadyToShipTab({
 
     // === Section 2: เอกสารการเงิน ===
     const section2Start = menuItems.length;
+    const docType = order.tax_invoice_doc_type;
+    const hasFullTax = docType === 'tax';
+
     if (order.payment_status !== 'paid') {
       menuItems.push({
         key: 'invoice', label: 'ใบแจ้งหนี้', icon: <Banknote className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
         className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
       });
-    }
-    if (order.payment_status === 'paid') {
+    } else if (vatRegistered) {
+      if (!hasFullTax) {
+        // ยังไม่ออกแบบเต็ม → ABB + ออกใบกำกับแบบเต็ม
+        menuItems.push({
+          key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); handlePrintAbbreviatedInvoice(order.id); },
+          className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
+        });
+        menuItems.push({
+          key: 'full-invoice', label: <><span className="text-orange-500 font-semibold">ออก</span>ใบกำกับแบบเต็ม</>, icon: <Banknote className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id }); },
+          className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
+        });
+      } else {
+        // ออกแบบเต็มแล้ว → แสดงแค่ใบกำกับแบบเต็ม (ซ่อน ABB)
+        menuItems.push({
+          key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />,
+          onClick: (e) => { e.stopPropagation(); handlePrintFullTaxInvoice(order.id); },
+          className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
+        });
+      }
+    } else {
+      // ไม่จด VAT + paid
       menuItems.push({
         key: 'receipt', label: 'ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
         className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
-      });
-    }
-    if (vatRegistered && order.payment_status === 'paid' && order.tax_invoice_requested !== true) {
-      menuItems.push({
-        key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
-        className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
-      });
-      menuItems.push({
-        key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id }); },
-        className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
       });
     }
     if (menuItems.length > section2Start && section2Start > 0) {

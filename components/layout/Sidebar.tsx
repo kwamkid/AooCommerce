@@ -98,6 +98,7 @@ const menuSections: MenuSection[] = [
     items: [
       { label: 'เอกสารบัญชี', href: '/invoices/tax', icon: <FileText className="w-5 h-5" />, roles: ['admin', 'account'] },
       { label: 'รายงานยอดขาย', href: '/reports/sales', icon: <BarChart3 className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
+      { label: 'รายงานโปรโมชั่น', href: '/promotions/report', icon: <Tag className="w-5 h-5" />, roles: ['admin', 'sales'] },
       { label: 'รายงานซัพพลายเออร์', href: '/reports/supplier', icon: <Factory className="w-5 h-5" />, roles: ['admin', 'account'] }
     ]
   }

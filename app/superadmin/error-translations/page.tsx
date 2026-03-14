@@ -158,7 +158,7 @@ export default function SuperAdminErrorTranslations() {
 
   const handleDelete = async (t: ErrorTranslation) => {
     if (!t.id) return;
-    const ok = await confirm(`ลบ "${t.error_key}" ?`);
+    const ok = await confirm({ title: `ลบ "${t.error_key}" ?`, confirmLabel: 'ลบ' });
     if (!ok) return;
     try {
       const res = await apiFetch(`/api/superadmin/error-translations?id=${t.id}`, { method: 'DELETE' });
@@ -202,7 +202,7 @@ export default function SuperAdminErrorTranslations() {
   const hasDbData = translations.some(t => t.id);
 
   return (
-    <SuperAdminLayout>
+    <SuperAdminLayout title="จัดการคำแปลข้อผิดพลาด">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

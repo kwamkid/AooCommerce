@@ -1,7 +1,7 @@
 // Path: app/pos/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
@@ -13,7 +13,9 @@ import SessionModal from './components/SessionModal';
 import ProductGrid, { PosProduct } from './components/ProductGrid';
 import CategoryTabs from './components/CategoryTabs';
 import BarcodeInput from './components/BarcodeInput';
-import CartPanel, { CartItem } from './components/CartPanel';
+import CartPanel, { CartItem, CartItemComponent } from './components/CartPanel';
+import { calculateQtyDiscount, type PromotionTier } from '@/lib/promotions';
+import PromotionSelectModal, { type PromoData, type PromoItemData, type PromotionSelectResult } from '@/components/ui/PromotionSelectModal';
 import PaymentModal from './components/PaymentModal';
 import Receipt from './components/Receipt';
 import CustomerSearch from './components/CustomerSearch';
@@ -56,8 +58,9 @@ export default function PosPage() {
   const [sessionModalMode, setSessionModalMode] = useState<'open' | 'close'>('open');
   const [sessionLoading, setSessionLoading] = useState(false);
 
-  // Products
+  // Products & Promotions
   const [products, setProducts] = useState<PosProduct[]>([]);
+  const [promotions, setPromotions] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -67,6 +70,7 @@ export default function PosPage() {
 
   // Cart
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [promoModal, setPromoModal] = useState<{ promo: PromoData } | null>(null);
   const [orderDiscount, setOrderDiscount] = useState(0);
   const [orderDiscountType, setOrderDiscountType] = useState<'percent' | 'amount'>('amount');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -200,6 +204,57 @@ export default function PosPage() {
     }
   }, [session, searchQuery, selectedCategory, selectedBrand]);
 
+  // Fetch promotions once on session load
+  useEffect(() => {
+    if (!session) return;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/promotions?status=active&limit=200');
+        if (res.ok) {
+          const data = await res.json();
+          setPromotions(data.promotions || []);
+        }
+      } catch { /* silent */ }
+    })();
+  }, [session]);
+
+  // Merge promotions into product grid
+  const allGridProducts: PosProduct[] = useMemo(() => {
+    // Only show promotions when no category/brand filter active
+    if (selectedCategory || selectedBrand) return products;
+    const promoProducts: PosProduct[] = promotions.map(p => {
+      const items = p.items || [];
+      let displayPrice = 0;
+      if (p.promotion_type === 'bundle_set' && p.bundle_price) {
+        displayPrice = p.bundle_price;
+      } else if (p.promotion_type === 'bundle_set' && p.discount_type === 'percent') {
+        displayPrice = items.reduce((s: number, i: any) => s + (i.default_price || 0) * (i.quantity || 1), 0) * (1 - (p.discount_value || 0) / 100);
+      } else if (p.promotion_type === 'bundle_set' && p.discount_type === 'fixed_discount') {
+        displayPrice = items.reduce((s: number, i: any) => s + Math.max(0, (i.default_price || 0) - (p.discount_value || 0)) * (i.quantity || 1), 0);
+      } else {
+        displayPrice = items.reduce((s: number, i: any) => {
+          if (i.role === 'gift') return s;
+          return s + (i.special_price ?? i.default_price ?? 0) * (i.quantity || 1);
+        }, 0);
+      }
+      const mainItem = items.find((i: any) => i.role === 'main' || i.role === 'component') || items[0];
+      return {
+        variation_id: `promo_${p.id}`,
+        product_id: `promo_${p.id}`,
+        product_code: 'โปรโมชั่น',
+        product_name: `🎁 ${p.name}`,
+        variation_label: '',
+        barcode: null,
+        price: Math.round(displayPrice * 100) / 100,
+        original_price: displayPrice,
+        stock: 999,
+        category_id: null,
+        image_url: p.image || mainItem?.image || null,
+      };
+    });
+    return [...promoProducts, ...products];
+  }, [products, promotions, selectedCategory, selectedBrand]);
+
   // Fetch on session/category/brand change (immediate)
   useEffect(() => {
     if (session) fetchProducts();
@@ -254,13 +309,26 @@ export default function PosPage() {
 
   // Cart management
   const addToCart = (product: PosProduct) => {
+    // Promotion handling — open modal
+    if (product.variation_id.startsWith('promo_')) {
+      const promoId = product.variation_id.replace('promo_', '');
+      const promo = promotions.find((p: any) => p.id === promoId);
+      if (!promo) return;
+
+      if (cartItems.some(i => i.promotion_id === promoId)) return;
+
+      setPromoModal({ promo: promo as PromoData });
+      return;
+    }
+
+    // Normal product
     setCartItems(prev => {
-      const existing = prev.find(i => i.variation_id === product.variation_id);
+      const existing = prev.find(i => i.variation_id === product.variation_id && !i.promotion_id);
       const hasStockLimit = product.stock >= 0; // -1 = unlimited (no warehouse)
       if (existing) {
         if (!allowOversell && hasStockLimit && existing.quantity >= product.stock) return prev;
         return prev.map(i =>
-          i.variation_id === product.variation_id
+          i.variation_id === product.variation_id && !i.promotion_id
             ? { ...i, quantity: i.quantity + 1 }
             : i
         );
@@ -281,10 +349,114 @@ export default function PosPage() {
     });
   };
 
+  const handlePosPromoConfirm = (result: PromotionSelectResult) => {
+    const promo = result.promotion;
+    const promoId = promo.id;
+
+    if (cartItems.some(i => i.promotion_id === promoId)) {
+      setPromoModal(null);
+      return;
+    }
+
+    const items = promo.items || [];
+    const mainItem = items.find((i: any) => i.role === 'main' || i.role === 'component') || items[0];
+
+    // Build components — for buy_get_discount, only include selected discounted items
+    let displayItems = items;
+    if (promo.promotion_type === 'buy_get_discount') {
+      const mainAndComp = items.filter((i: any) => i.role !== 'discounted');
+      const selectedDisc = result.selectedDiscounted.map(sel => {
+        const orig = items.find((i: any) => i.variation_id === sel.variation_id);
+        return orig ? { ...orig, quantity: sel.quantity } : null;
+      }).filter((x): x is PromoItemData => x !== null);
+      displayItems = [...mainAndComp, ...selectedDisc];
+    }
+
+    const components: CartItemComponent[] = displayItems.map((item: any) => ({
+      variation_id: item.variation_id || '',
+      product_name: item.product_name || '',
+      product_code: item.product_code || '',
+      role: item.role || 'main',
+      quantity: item.quantity || 1,
+      default_price: item.default_price || 0,
+      special_price: item.special_price || null,
+    }));
+
+    // Calculate price based on type
+    let unitPrice = 0;
+    let discountValue = 0;
+    const qty = result.quantity;
+    const fullPrice = displayItems.reduce((s: number, i: any) => s + (i.default_price || 0) * (i.quantity || 1), 0);
+
+    if (promo.promotion_type === 'bundle_set') {
+      unitPrice = fullPrice;
+      let promoPrice = fullPrice;
+      if (promo.bundle_price) {
+        promoPrice = promo.bundle_price;
+      } else {
+        if (promo.discount_type === 'percent') promoPrice = fullPrice * (1 - (promo.discount_value || 0) / 100);
+        else if (promo.discount_type === 'fixed_discount') promoPrice = items.reduce((s: number, i: any) => s + Math.max(0, (i.default_price || 0) - (promo.discount_value || 0)) * (i.quantity || 1), 0);
+      }
+      discountValue = Math.round((fullPrice - promoPrice) * 100) / 100;
+    } else if (promo.promotion_type === 'buy_get_free') {
+      unitPrice = fullPrice;
+      const giftValue = items.filter((i: any) => i.role === 'gift').reduce((s: number, i: any) => s + (i.default_price || 0) * (i.quantity || 1), 0);
+      discountValue = Math.round(giftValue * 100) / 100;
+    } else if (promo.promotion_type === 'buy_get_discount') {
+      unitPrice = fullPrice;
+      const discSavings = result.selectedDiscounted.reduce((s, sel) => {
+        const orig = items.find((i: any) => i.variation_id === sel.variation_id);
+        if (!orig) return s;
+        return s + ((orig.default_price || 0) - (orig.special_price ?? orig.default_price ?? 0)) * sel.quantity;
+      }, 0);
+      discountValue = Math.round(discSavings * 100) / 100;
+    } else if (promo.promotion_type === 'qty_discount') {
+      const basePrice = items[0]?.default_price || 0;
+      unitPrice = basePrice;
+      const tiers = promo.tiers || [];
+      if (tiers.length > 0) {
+        const discountedPerUnit = calculateQtyDiscount(tiers as PromotionTier[], qty, basePrice);
+        discountValue = Math.round((basePrice - discountedPerUnit) * 100) / 100;
+      }
+    }
+
+    setCartItems(prev => [...prev, {
+      variation_id: mainItem?.variation_id || promoId,
+      product_id: mainItem?.product_id || promoId,
+      product_code: 'โปรโมชั่น',
+      product_name: promo.name,
+      variation_label: undefined,
+      quantity: promo.promotion_type === 'qty_discount' ? qty : 1,
+      unit_price: unitPrice,
+      discount_type: 'amount' as const,
+      discount_value: discountValue,
+      max_stock: 999,
+      image_url: promo.image || mainItem?.image || null,
+      promotion_id: promoId,
+      promotion_name: promo.name,
+      promotion_type: promo.promotion_type,
+      promotion_components: components,
+      promotion_tiers: promo.tiers || [],
+    }]);
+    setPromoModal(null);
+  };
+
   const updateQuantity = (variationId: string, delta: number) => {
     setCartItems(prev =>
       prev
-        .map(i => i.variation_id === variationId ? { ...i, quantity: i.quantity + delta } : i)
+        .map(i => {
+          if (i.variation_id !== variationId) return i;
+          const newQty = i.quantity + delta;
+          if (newQty <= 0) return { ...i, quantity: 0 };
+          // Recalculate qty_discount: keep unit_price, update discount_value
+          if (i.promotion_type === 'qty_discount' && i.promotion_tiers && i.promotion_tiers.length > 0) {
+            const originalPrice = i.promotion_components?.[0]?.default_price || i.unit_price;
+            const discountedPerUnit = calculateQtyDiscount(i.promotion_tiers as PromotionTier[], newQty, originalPrice);
+            const discVal = Math.round((originalPrice - discountedPerUnit) * newQty * 100) / 100;
+            return { ...i, quantity: newQty, discount_type: 'amount' as const, discount_value: discVal };
+          }
+          return { ...i, quantity: newQty };
+        })
         .filter(i => i.quantity > 0)
     );
   };
@@ -295,7 +467,10 @@ export default function PosPage() {
 
   const updateItemDiscount = (variationId: string, type: 'percent' | 'amount', value: number) => {
     setCartItems(prev =>
-      prev.map(i => i.variation_id === variationId ? { ...i, discount_type: type, discount_value: value } : i)
+      prev.map(i => {
+        if (i.variation_id !== variationId || i.promotion_id) return i;
+        return { ...i, discount_type: type, discount_value: value };
+      })
     );
   };
 
@@ -368,6 +543,7 @@ export default function PosPage() {
             unit_price: i.unit_price,
             discount_type: i.discount_type,
             discount_value: i.discount_value,
+            promotion_id: i.promotion_id || null,
           })),
           payments: tenders,
           discount_amount: orderDiscountAmount,
@@ -542,7 +718,7 @@ export default function PosPage() {
 
           <div className="flex-1 overflow-y-auto mt-3 -mr-2 pr-2">
             <ProductGrid
-              products={products}
+              products={allGridProducts}
               onAddToCart={addToCart}
               loading={loadingProducts}
               allowOversell={allowOversell}
@@ -654,6 +830,14 @@ export default function PosPage() {
           </div>
         </div>
       )}
+    {/* Promotion Select Modal */}
+    {promoModal && (
+      <PromotionSelectModal
+        promotion={promoModal.promo}
+        onConfirm={handlePosPromoConfirm}
+        onClose={() => setPromoModal(null)}
+      />
+    )}
     </div>
   );
 }

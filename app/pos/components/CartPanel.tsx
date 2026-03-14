@@ -5,6 +5,16 @@ import { useState, useRef, useEffect } from 'react';
 import { Minus, Plus, Trash2, User, Tag } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
 
+export interface CartItemComponent {
+  variation_id: string;
+  product_name: string;
+  product_code: string;
+  role: string;
+  quantity: number;
+  default_price: number;
+  special_price: number | null;
+}
+
 export interface CartItem {
   variation_id: string;
   product_id: string;
@@ -17,6 +27,12 @@ export interface CartItem {
   discount_value: number;
   max_stock: number;
   image_url?: string | null;
+  // Promotion fields
+  promotion_id?: string;
+  promotion_name?: string;
+  promotion_type?: string;
+  promotion_components?: CartItemComponent[];
+  promotion_tiers?: { min_qty: number; discount_type: string; discount_value: number }[];
 }
 
 interface CartPanelProps {
@@ -234,13 +250,32 @@ export default function CartPanel({
 
                   {/* Line total + discount icon */}
                   <div className="flex items-center gap-1.5">
-                    <DiscountPopover
+                    {!item.promotion_id && <DiscountPopover
                       item={item}
                       onUpdate={(type, value) => onUpdateItemDiscount(item.variation_id, type, value)}
-                    />
+                    />}
                     <p className="text-gray-900 dark:text-white font-semibold text-sm">฿{formatPrice(lineTotal)}</p>
                   </div>
                 </div>
+
+                {/* Promotion components sub-rows */}
+                {item.promotion_components && item.promotion_components.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/50 space-y-1">
+                    {item.promotion_components.map((comp, ci) => (
+                      <div key={ci} className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          comp.role === 'gift' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                          : comp.role === 'discounted' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                          : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400'
+                        }`}>
+                          {comp.role === 'gift' ? 'แถม' : comp.role === 'discounted' ? 'ลด' : comp.role === 'main' ? 'หลัก' : 'รวม'}
+                        </span>
+                        <span className="truncate flex-1">{comp.product_name}</span>
+                        <span>x{comp.quantity}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })
