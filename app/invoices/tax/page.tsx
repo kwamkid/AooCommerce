@@ -102,9 +102,10 @@ export default function TaxInvoicesPage() {
         const res = await apiFetch(`/api/orders/${inv.source_id}?include_items=true`);
         if (!res.ok) return;
         const orderData = await res.json();
+        const order = orderData.order || orderData;
         const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
         const blob = await generateFullInvoicePdf({
-          ...orderData,
+          ...order,
           tax_invoice_number: inv.tax_invoice_number,
           tax_invoice_date: inv.tax_invoice_date,
           tax_invoice_name: inv.tax_invoice_name,

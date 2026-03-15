@@ -964,6 +964,46 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Enrich orders with tax_invoice_doc_type from document tables
+    const orderIds = (result?.orders || []).map((o: any) => o.id).filter(Boolean);
+    if (orderIds.length > 0) {
+      const [abbRows, taxRows, recRows] = await Promise.all([
+        supabaseAdmin.from('abbreviated_invoices')
+          .select('order_id, voided_at')
+          .in('order_id', orderIds)
+          .eq('company_id', auth.companyId),
+        supabaseAdmin.from('tax_invoices')
+          .select('source_id')
+          .eq('source_type', 'order')
+          .in('source_id', orderIds)
+          .eq('company_id', auth.companyId),
+        supabaseAdmin.from('receipts')
+          .select('source_id')
+          .eq('source_type', 'order')
+          .in('source_id', orderIds)
+          .eq('company_id', auth.companyId),
+      ]);
+
+      const taxSet = new Set((taxRows.data || []).map((r: any) => r.source_id));
+      const recSet = new Set((recRows.data || []).map((r: any) => r.source_id));
+      const abbMap = new Map<string, { hasActive: boolean; hasVoided: boolean }>();
+      for (const r of abbRows.data || []) {
+        const cur = abbMap.get(r.order_id) || { hasActive: false, hasVoided: false };
+        if (r.voided_at) cur.hasVoided = true; else cur.hasActive = true;
+        abbMap.set(r.order_id, cur);
+      }
+
+      for (const order of result.orders) {
+        if (taxSet.has(order.id)) {
+          order.tax_invoice_doc_type = 'tax';
+        } else if (abbMap.has(order.id) && abbMap.get(order.id)!.hasActive) {
+          order.tax_invoice_doc_type = 'abbreviated';
+        } else if (recSet.has(order.id)) {
+          order.tax_invoice_doc_type = 'receipt';
+        }
+      }
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(

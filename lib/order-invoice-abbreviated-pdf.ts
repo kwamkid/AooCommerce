@@ -138,18 +138,22 @@ function buildCompactInvoiceContent(
       width: 30,
       height: 30,
       fit: [30, 30],
-      margin: [0, 0, 6, 0],
+      margin: [0, 0, 0, 6],
     });
   }
   const companyName = company?.tax_company_name || company?.name || '';
+  const branchText = company?.tax_branch ? ` (${company.tax_branch})` : '';
   if (companyName) {
-    leftStack.push({ text: companyName, bold: true, fontSize: 10, color: '#333333' });
+    leftStack.push({ text: companyName + branchText, bold: true, fontSize: 10, color: '#333333' });
   }
   if (company?.address) {
-    leftStack.push({ text: company.address, fontSize: 7, color: '#555555', margin: [0, 1, 0, 0] });
+    leftStack.push({ text: company.address, fontSize: 8, color: '#666666', margin: [0, 1, 0, 0] });
   }
   if (company?.tax_id) {
     leftStack.push({ text: `เลขผู้เสียภาษี ${company.tax_id}`, fontSize: 8, color: '#666666', margin: [0, 1, 0, 0] });
+  }
+  if (company?.phone) {
+    leftStack.push({ text: `โทร ${company.phone}`, fontSize: 8, color: '#666666', margin: [0, 1, 0, 0] });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -162,7 +166,7 @@ function buildCompactInvoiceContent(
       { text: order.tax_invoice_number, fontSize: 8, bold: true },
     ]);
     infoRows.push([
-      { text: 'ออเดอร์อ้างอิง', fontSize: 8, color: theme.primary, bold: true },
+      { text: 'อ้างอิง', fontSize: 8, color: theme.primary, bold: true },
       { text: order.order_number, fontSize: 8 },
     ]);
   } else {

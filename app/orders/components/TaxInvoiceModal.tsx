@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Building2, User } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
+
+type BuyerType = 'company' | 'individual';
 
 interface TaxInvoiceModalProps {
   orderId: string;
@@ -27,6 +29,7 @@ export default function TaxInvoiceModal({
   const [loading, setLoading] = useState(false);
   const [prefilling, setPrefilling] = useState(true);
 
+  const [buyerType, setBuyerType] = useState<BuyerType>('company');
   const [name, setName] = useState('');
   const [taxId, setTaxId] = useState('');
   const [branch, setBranch] = useState('สำนักงานใหญ่');
@@ -44,7 +47,16 @@ export default function TaxInvoiceModal({
         if (res.ok) {
           const data = await res.json();
           const c = data.customer || data;
-          if (c.tax_company_name) setName(c.tax_company_name);
+
+          // Auto-detect buyer type from customer data
+          if (c.customer_type === 'individual' || (!c.tax_company_name && c.name)) {
+            setBuyerType('individual');
+            setName(c.name || '');
+          } else {
+            setBuyerType('company');
+            if (c.tax_company_name) setName(c.tax_company_name);
+          }
+
           if (c.tax_id) setTaxId(c.tax_id);
           if (c.tax_branch) setBranch(c.tax_branch);
           const addrParts = [
@@ -63,11 +75,11 @@ export default function TaxInvoiceModal({
 
   const handleSave = async () => {
     if (!name.trim()) {
-      showToast('กรุณากรอกชื่อกิจการ/ชื่อผู้ซื้อ', 'error');
+      showToast(buyerType === 'company' ? 'กรุณากรอกชื่อกิจการ' : 'กรุณากรอกชื่อผู้ซื้อ', 'error');
       return;
     }
     if (!taxId.trim()) {
-      showToast('กรุณากรอกเลขผู้เสียภาษี', 'error');
+      showToast('กรุณากรอกเลขประจำตัวผู้เสียภาษี', 'error');
       return;
     }
 
@@ -82,7 +94,7 @@ export default function TaxInvoiceModal({
           id: orderId,
           tax_invoice_name: name.trim(),
           tax_invoice_tax_id: taxId.trim(),
-          tax_invoice_branch: branch.trim(),
+          tax_invoice_branch: buyerType === 'company' ? branch.trim() : '',
           tax_invoice_address: address.trim(),
         }),
       });
@@ -102,6 +114,8 @@ export default function TaxInvoiceModal({
     }
   };
 
+  const inputClass = 'w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-green-500 focus:border-green-500';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
@@ -111,7 +125,7 @@ export default function TaxInvoiceModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-slate-700">
           <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">
-            ขอใบกำกับภาษี — {orderNumber}
+            ออกใบกำกับภาษี — {orderNumber}
           </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">
             <X className="w-5 h-5" />
@@ -132,26 +146,88 @@ export default function TaxInvoiceModal({
                   ระบบจะยกเลิกใบกำกับอย่างย่อที่ออกไปแล้ว และออกใบกำกับภาษีแทน
                 </p>
               )}
-              {/* Row 1: ชื่อบริษัท */}
+
+              {/* Buyer type toggle */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBuyerType('company')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    buyerType === 'company'
+                      ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 ring-1 ring-green-500'
+                      : 'bg-gray-50 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-600'
+                  }`}
+                >
+                  <Building2 className="w-4 h-4" />
+                  นิติบุคคล
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBuyerType('individual')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    buyerType === 'individual'
+                      ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 ring-1 ring-green-500'
+                      : 'bg-gray-50 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-600'
+                  }`}
+                >
+                  <User className="w-4 h-4" />
+                  บุคคลธรรมดา
+                </button>
+              </div>
+
+              {/* ชื่อ */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="บริษัท XXX จำกัด" />
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  {buyerType === 'company' ? 'ชื่อบริษัท/กิจการ' : 'ชื่อ-นามสกุล'}
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className={inputClass}
+                  placeholder={buyerType === 'company' ? 'บริษัท XXX จำกัด' : 'ชื่อ นามสกุล'}
+                />
               </div>
-              {/* Row 2: เลขผู้เสียภาษี + สาขา */}
-              <div className="grid grid-cols-2 gap-3">
+
+              {/* เลขผู้เสียภาษี + สาขา (สาขาเฉพาะนิติบุคคล) */}
+              <div className={buyerType === 'company' ? 'grid grid-cols-2 gap-3' : ''}>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เลขประจำตัวผู้เสียภาษี</label>
-                  <input type="text" value={taxId} onChange={(e) => setTaxId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    {buyerType === 'company' ? 'เลขประจำตัวผู้เสียภาษี' : 'เลขประจำตัวผู้เสียภาษี/บัตรประชาชน'}
+                  </label>
+                  <input
+                    type="text"
+                    value={taxId}
+                    onChange={(e) => setTaxId(e.target.value)}
+                    className={inputClass}
+                    placeholder={buyerType === 'company' ? 'X-XXXX-XXXXX-XX-X' : 'X-XXXX-XXXXX-XX-X'}
+                    maxLength={17}
+                  />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">สาขา</label>
-                  <input type="text" value={branch} onChange={(e) => setBranch(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="สำนักงานใหญ่" />
-                </div>
+                {buyerType === 'company' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">สาขา</label>
+                    <input
+                      type="text"
+                      value={branch}
+                      onChange={(e) => setBranch(e.target.value)}
+                      className={inputClass}
+                      placeholder="สำนักงานใหญ่"
+                    />
+                  </div>
+                )}
               </div>
-              {/* Row 3: ที่อยู่ออกบิล */}
+
+              {/* ที่อยู่ออกบิล */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่ออกบิล</label>
-                <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={2} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none" placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์" />
+                <textarea
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  rows={2}
+                  className={`${inputClass} resize-none`}
+                  placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์"
+                />
               </div>
             </>
           )}

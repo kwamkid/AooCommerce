@@ -1,9 +1,11 @@
 /**
- * Full Tax Invoice PDF generation (เต็ม A4, 1 order per page).
+ * Full Tax Invoice PDF generation (เต็ม A4).
  *
- * Title: ใบกำกับแบบเต็ม/ใบเสร็จรับเงิน
- * Adds buyer tax info section + invoice number + issue date.
- * Based on order-invoice-pdf.ts template.
+ * 4 sections:
+ * 1. Header (company + buyer + doc info) — repeats every page via pdfMake header
+ * 2. Items table — flows across pages
+ * 3. Summary (totals) — after items
+ * 4. Footer (signatures + page number) — repeats every page via pdfMake footer
  */
 
 import {
@@ -15,9 +17,7 @@ import {
   formatPdfPrice,
   buildCompanyStack,
   buildCornerTriangle,
-  buildSignatureFooter,
   buildProductNameStack,
-  withOriginalAndCopy,
 } from './pdf-utils';
 
 // ─── Interfaces ──────────────────────────────────────────
@@ -125,30 +125,39 @@ export async function generateFullInvoicePdf(
   const invoiceDateStr = data.tax_invoice_date
     ? formatPdfDate(data.tax_invoice_date)
     : formatPdfDate(new Date().toISOString());
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const content: any[] = [];
+  const docNumber = data.tax_invoice_number || data.order_number;
 
   // ═══════════════════════════════════════════════════
-  // ส่วนที่ 1 — Header
+  // Build Header content (used in pdfMake header function)
   // ═══════════════════════════════════════════════════
 
-  const companyStack = buildCompanyStack(company, logoDataUrl);
+  const buyerName = data.tax_invoice_name || data.delivery_name || data.customer?.name || '';
+  const buyerPhone = data.delivery_phone || data.customer?.phone || '';
 
   // Info box rows
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const infoBoxRows: any[] = [
-    [{ text: 'เลขที่', fontSize: 10, color: THEME.primary, bold: true }, { text: data.order_number, fontSize: 10, bold: true }],
-    [{ text: 'วันที่', fontSize: 10, color: THEME.primary, bold: true }, { text: dateStr, fontSize: 10 }],
-  ];
+  const infoBoxRows: any[] = [];
 
   if (data.tax_invoice_number) {
     infoBoxRows.push([
-      { text: 'เลขที่เอกสาร', fontSize: 10, color: THEME.primary, bold: true },
+      { text: 'เลขที่', fontSize: 10, color: THEME.primary, bold: true },
       { text: data.tax_invoice_number, fontSize: 10, bold: true },
+    ]);
+    infoBoxRows.push([
+      { text: 'อ้างอิง', fontSize: 10, color: THEME.primary, bold: true },
+      { text: data.order_number, fontSize: 10 },
+    ]);
+  } else {
+    infoBoxRows.push([
+      { text: 'เลขที่', fontSize: 10, color: THEME.primary, bold: true },
+      { text: data.order_number, fontSize: 10, bold: true },
     ]);
   }
 
+  infoBoxRows.push([
+    { text: 'วันที่', fontSize: 10, color: THEME.primary, bold: true },
+    { text: dateStr, fontSize: 10 },
+  ]);
   infoBoxRows.push([
     { text: 'วันที่ออก', fontSize: 10, color: THEME.primary, bold: true },
     { text: invoiceDateStr, fontSize: 10 },
@@ -168,91 +177,69 @@ export async function generateFullInvoicePdf(
     ]);
   }
 
-  content.push({
-    columnGap: 16,
-    columns: [
+  // Calculate header height — approximate based on content
+  // Company: logo(~40) + name + address + taxId + phone = ~80px
+  // Buyer: divider + label + name + taxId + address + phone = ~60px
+  // Total ~180-220px depending on buyer info
+  const headerHeight = buyerName ? 220 : 140;
+
+  // ═══════════════════════════════════════════════════
+  // Build Footer (signatures + page number)
+  // ═══════════════════════════════════════════════════
+
+  const companyName = company?.name || '';
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const buildSide = (topLabel: string, signLabel: string): any => ({
+    width: '*',
+    stack: [
+      { text: topLabel || ' ', fontSize: 10, color: '#666666' },
+      { text: ' ', margin: [0, 18, 0, 0] },
       {
-        width: '*',
-        stack: companyStack.length > 0 ? companyStack : [{ text: '' }],
-      },
-      {
-        width: 230,
-        stack: [
-          { text: docTitle, fontSize: 16, bold: true, color: THEME.primary, alignment: 'right', margin: [0, 0, 0, 6] },
+        columns: [
           {
-            table: {
-              widths: [55, '*'],
-              body: infoBoxRows,
-            },
-            layout: {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              hLineWidth: (i: number, node: any) => (i === 0 || i === node.table.body.length) ? 0.5 : 0,
-              vLineWidth: () => 0,
-              hLineColor: () => '#cccccc',
-              paddingTop: (i: number) => i === 0 ? 6 : 2,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              paddingBottom: (i: number, node: any) => i === node.table.body.length - 1 ? 6 : 2,
-              paddingLeft: () => 4,
-              paddingRight: () => 4,
-            },
+            width: '*',
+            stack: [
+              { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 140, y2: 0, lineWidth: 0.5, lineColor: '#cccccc' }] },
+              { text: signLabel, fontSize: 10, margin: [0, 3, 0, 0] },
+            ],
+          },
+          {
+            width: 'auto',
+            stack: [
+              { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 80, y2: 0, lineWidth: 0.5, lineColor: '#cccccc' }] },
+              { text: 'วันที่', fontSize: 10, margin: [0, 3, 0, 0] },
+            ],
           },
         ],
+        columnGap: 10,
       },
     ],
-    margin: [0, 0, 0, 12],
   });
 
   // ═══════════════════════════════════════════════════
-  // ส่วนที่ 2 — ข้อมูลผู้ซื้อ (Tax Buyer Info)
+  // Content — Items table + Notes + Summary
   // ═══════════════════════════════════════════════════
 
-  const buyerName = data.tax_invoice_name || data.delivery_name || data.customer?.name || '';
-  const buyerPhone = data.delivery_phone || data.customer?.phone || '';
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const buyerStack: any[] = [
-    { text: 'ข้อมูลผู้ซื้อ', fontSize: 10, bold: true, color: THEME.primary, margin: [0, 0, 0, 4] },
-  ];
+  const content: any[] = [];
 
-  if (buyerName) {
-    buyerStack.push({ text: buyerName, fontSize: 12, bold: true, color: '#333333' });
-  }
-  if (data.tax_invoice_tax_id) {
-    let taxLine = `เลขผู้เสียภาษี: ${data.tax_invoice_tax_id}`;
-    if (data.tax_invoice_branch) taxLine += `  สาขา: ${data.tax_invoice_branch}`;
-    buyerStack.push({ text: taxLine, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
-  }
-  if (data.tax_invoice_address) {
-    buyerStack.push({ text: `ที่อยู่: ${data.tax_invoice_address}`, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
-  }
-  if (buyerPhone) {
-    buyerStack.push({ text: `โทร: ${buyerPhone}`, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
-  }
-
-  // Notes on right
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const notesStack: any[] = [];
+  // Notes (if any, show above items table)
   if (data.notes) {
-    notesStack.push({ text: 'หมายเหตุ', fontSize: 10, bold: true, color: THEME.primary, margin: [0, 0, 0, 4] });
-    notesStack.push({ text: data.notes, fontSize: 10, color: '#555555' });
+    content.push({
+      text: [
+        { text: 'หมายเหตุ: ', fontSize: 10, bold: true, color: THEME.primary },
+        { text: data.notes, fontSize: 10, color: '#555555' },
+      ],
+      margin: [0, 0, 0, 8],
+    });
   }
 
-  content.push({
-    columns: [
-      { width: '*', stack: buyerStack },
-      ...(notesStack.length > 0 ? [{ width: 200, stack: notesStack }] : []),
-    ],
-    margin: [0, 0, 0, 12],
-  });
-
-  // ═══════════════════════════════════════════════════
-  // ส่วนที่ 3 — ตารางสินค้า
-  // ═══════════════════════════════════════════════════
-
+  // Items table
   const hasDiscount = (data.items || []).some(i => (i.discount_amount || 0) > 0);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const headerCols: any[] = [
+  const tableHeaderCols: any[] = [
     { text: '#', style: 'tableHeader', alignment: 'center' },
     { text: 'รายละเอียด', style: 'tableHeader' },
     { text: 'จำนวน', style: 'tableHeader', alignment: 'center' },
@@ -261,15 +248,16 @@ export async function generateFullInvoicePdf(
   const widths: (number | string)[] = [25, '*', 45, 70];
 
   if (hasDiscount) {
-    headerCols.push({ text: 'ส่วนลด', style: 'tableHeader', alignment: 'right' });
+    tableHeaderCols.push({ text: 'ส่วนลด', style: 'tableHeader', alignment: 'right' });
     widths.push(60);
   }
 
-  headerCols.push({ text: 'รวม', style: 'tableHeader', alignment: 'right' });
+  tableHeaderCols.push({ text: 'รวม', style: 'tableHeader', alignment: 'right' });
   widths.push(75);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tableBody: any[][] = [];
+  const subRowIndices = new Set<number>();
   let rowNum = 0;
 
   for (const item of data.items) {
@@ -277,46 +265,44 @@ export async function generateFullInvoicePdf(
     const hasComponents = item.promotion_components && item.promotion_components.length > 0;
 
     if (hasComponents) {
-      // Promotion header row
+      const promoUnitPrice = item.quantity > 0 ? item.total / item.quantity : item.total;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const headerRow: any[] = [
         { text: `${rowNum}`, alignment: 'center', fontSize: 11, margin: [0, 2, 0, 0] },
         {
           text: [
             { text: item.promotion_name || item.product_name, fontSize: 11, bold: true, color: '#6366f1' },
-            { text: ` (×${item.quantity})`, fontSize: 9, color: '#888888' },
           ],
-          margin: [0, 1, 0, 1],
+          margin: [0, 2, 0, 0],
         },
-        { text: '', margin: [0, 2, 0, 0] },
-        { text: '', margin: [0, 2, 0, 0] },
+        { text: `${item.quantity}`, alignment: 'center', fontSize: 11, margin: [0, 2, 0, 0] },
+        { text: formatPdfPrice(promoUnitPrice), alignment: 'right', fontSize: 11, margin: [0, 2, 0, 0] },
       ];
       if (hasDiscount) {
-        headerRow.push({ text: '', margin: [0, 2, 0, 0] });
+        headerRow.push({ text: '-', alignment: 'right', fontSize: 11, color: '#999999', margin: [0, 2, 0, 0] });
       }
       headerRow.push({ text: formatPdfPrice(item.total), alignment: 'right', fontSize: 11, bold: true, margin: [0, 2, 0, 0] });
       tableBody.push(headerRow);
 
-      // Component sub-rows
       for (const comp of item.promotion_components!) {
         const compSubtitle = [comp.sku || comp.product_code, comp.role === 'gift' ? '[แถมฟรี]' : null].filter(Boolean).join(' ');
         const compProductStack = buildProductNameStack(`- ${comp.product_name}`, compSubtitle);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const compRow: any[] = [
-          { text: '', margin: [0, 1, 0, 0] },
-          { stack: compProductStack, margin: [8, 1, 0, 1], color: '#666666' },
-          { text: `${comp.quantity}`, alignment: 'center', fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] },
-          { text: '-', alignment: 'right', fontSize: 10, color: '#999999', margin: [0, 1, 0, 0] },
+          { text: '', margin: [0, 0, 0, 0] },
+          { stack: compProductStack, margin: [0, 0, 0, 0], color: '#666666' },
+          { text: '', margin: [0, 0, 0, 0] },
+          { text: '', margin: [0, 0, 0, 0] },
         ];
         if (hasDiscount) {
-          compRow.push({ text: '', margin: [0, 1, 0, 0] });
+          compRow.push({ text: '', margin: [0, 0, 0, 0] });
         }
-        compRow.push({ text: '', margin: [0, 1, 0, 0] });
+        compRow.push({ text: '', margin: [0, 0, 0, 0] });
+        subRowIndices.add(tableBody.length);
         tableBody.push(compRow);
       }
     } else {
-      // Normal item row
       const subtitle = [item.product_code, item.variation_label].filter(Boolean).join(' | ');
       const productStack = buildProductNameStack(item.product_name, subtitle);
 
@@ -349,33 +335,32 @@ export async function generateFullInvoicePdf(
     table: {
       headerRows: 1,
       widths,
-      body: [headerCols, ...tableBody],
+      body: [tableHeaderCols, ...tableBody],
     },
     layout: {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      hLineWidth: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
+      hLineWidth: (i: number, node: any) => {
+        if (i === 0 || i === 1 || i === node.table.body.length) return 1;
+        if (subRowIndices.has(i - 1)) return 0;
+        return 0.5;
+      },
       vLineWidth: () => 0,
       hLineColor: (i: number) => i <= 1 ? '#333333' : '#e5e7eb',
-      paddingTop: () => 5,
-      paddingBottom: () => 5,
+      paddingTop: (i: number) => subRowIndices.has(i - 1) ? 1 : 5,
+      paddingBottom: (i: number) => subRowIndices.has(i) ? 1 : 5,
       paddingLeft: () => 6,
       paddingRight: () => 6,
     },
   });
 
   // ═══════════════════════════════════════════════════
-  // ส่วนที่ 4 — สรุปยอด
+  // Summary
   // ═══════════════════════════════════════════════════
 
   const itemsTotal = data.items.reduce((s, i) => s + i.total, 0);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const summaryRows: any[][] = [];
-
-  summaryRows.push([
-    { text: 'จำนวนรายการ', fontSize: 11, alignment: 'right', color: '#555555' },
-    { text: `${data.items.length}`, fontSize: 11, alignment: 'right' },
-  ]);
 
   summaryRows.push([
     { text: 'ยอดรวมสินค้า', fontSize: 11, alignment: 'right', color: '#555555' },
@@ -396,7 +381,6 @@ export async function generateFullInvoicePdf(
     ]);
   }
 
-  // VAT breakdown (always show for full tax invoice)
   if (data.vat_amount > 0) {
     const beforeVat = data.total_amount - data.vat_amount;
     summaryRows.push([
@@ -415,6 +399,7 @@ export async function generateFullInvoicePdf(
   ]);
 
   content.push({
+    unbreakable: true,
     columns: [
       { width: '*', text: '' },
       {
@@ -442,14 +427,140 @@ export async function generateFullInvoicePdf(
   // Document definition
   // ═══════════════════════════════════════════════════
 
+  // Deep clone utility for duplicating content (ต้นฉบับ/สำเนา)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function deepClone(obj: any): any {
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(deepClone);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const copy: any = {};
+    for (const key of Object.keys(obj)) {
+      copy[key] = typeof obj[key] === 'function' ? obj[key] : deepClone(obj[key]);
+    }
+    return copy;
+  }
+
+  // Duplicate content: ต้นฉบับ + สำเนา
+  const contentCopy = deepClone(content);
+  const fullContent = [
+    ...content,
+    { text: '', pageBreak: 'after' },
+    ...contentCopy,
+  ];
+
+  // Track which pages belong to ต้นฉบับ vs สำเนา
+  // We'll detect based on page count: first half = ต้นฉบับ, second half = สำเนา
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const docDefinition: any = {
     defaultStyle: { font: 'IBMPlexSansThai', fontSize: 16 },
     pageSize: 'A4' as const,
-    pageMargins: [40, 40, 40, 110] as [number, number, number, number],
+    pageMargins: [40, headerHeight + 40, 40, 120] as [number, number, number, number],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    header: function(currentPage: number, pageCount: number): any {
+      const halfPages = Math.ceil(pageCount / 2);
+      const isOriginal = currentPage <= halfPages;
+      const logicalPage = isOriginal ? currentPage : currentPage - halfPages;
+      const logicalTotal = halfPages;
+      const copyLabel = isOriginal ? '(ต้นฉบับ)' : '(สำเนา)';
+      const copyColor = isOriginal ? THEME.primary : '#6b7280';
+
+      // Rebuild header fresh each time (avoids deepClone issues with layout functions)
+      const hdrCompanyStack = buildCompanyStack(company, logoDataUrl);
+
+      // Append buyer info
+      if (buyerName) {
+        hdrCompanyStack.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, lineWidth: 0.5, lineColor: '#dddddd' }], margin: [0, 6, 0, 4] } as any);
+        hdrCompanyStack.push({ text: 'ลูกค้า', fontSize: 10, bold: true, color: THEME.primary, margin: [0, 0, 0, 2] } as any);
+        hdrCompanyStack.push({ text: buyerName, fontSize: 11, bold: true, color: '#333333' } as any);
+        if (data.tax_invoice_tax_id) {
+          let taxLine = `เลขประจำตัวผู้เสียภาษี: ${data.tax_invoice_tax_id}`;
+          if (data.tax_invoice_branch) taxLine += `  สาขา: ${data.tax_invoice_branch}`;
+          hdrCompanyStack.push({ text: taxLine, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] } as any);
+        }
+        if (data.tax_invoice_address) {
+          hdrCompanyStack.push({ text: data.tax_invoice_address, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] } as any);
+        }
+        if (buyerPhone) {
+          hdrCompanyStack.push({ text: `โทร: ${buyerPhone}`, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] } as any);
+        }
+      }
+
+      const pageText = logicalTotal > 1
+        ? `${copyLabel}  หน้า ${logicalPage}/${logicalTotal}`
+        : copyLabel;
+
+      return {
+        margin: [40, 30, 40, 0],
+        stack: [
+          // Copy label (ต้นฉบับ/สำเนา) — absolute positioned top-right
+          {
+            text: pageText,
+            fontSize: 9,
+            bold: true,
+            color: copyColor,
+            alignment: 'right',
+            margin: [0, -16, 4, 0],
+          },
+          {
+            columnGap: 16,
+            columns: [
+              { width: '*', stack: hdrCompanyStack },
+              {
+                width: 230,
+                stack: [
+                  { text: docTitle, fontSize: 16, bold: true, color: THEME.primary, alignment: 'right', margin: [0, 0, 0, 6] },
+                  {
+                    table: {
+                      widths: [55, '*'],
+                      body: infoBoxRows.map(row => row.map((cell: any) => ({ ...cell }))),
+                    },
+                    layout: {
+                      hLineWidth: (i: number, node: any) => (i === 0 || i === node.table.body.length) ? 0.5 : 0,
+                      vLineWidth: () => 0,
+                      hLineColor: () => '#cccccc',
+                      paddingTop: (i: number) => i === 0 ? 6 : 2,
+                      paddingBottom: (i: number, node: any) => i === node.table.body.length - 1 ? 6 : 2,
+                      paddingLeft: () => 4,
+                      paddingRight: () => 4,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+    },
     background: () => buildCornerTriangle(THEME.primary),
-    footer: buildSignatureFooter(company?.name || '', 'ผู้ออกเอกสาร', 'ผู้รับสินค้า'),
-    content: withOriginalAndCopy(content),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    footer: function(currentPage: number, pageCount: number): any {
+      const halfPages = Math.ceil(pageCount / 2);
+      const isOriginal = currentPage <= halfPages;
+      const logicalPage = isOriginal ? currentPage : currentPage - halfPages;
+      const logicalTotal = halfPages;
+
+      return {
+        stack: [
+          {
+            columns: [
+              buildSide(companyName ? `ในนาม ${companyName}` : ' ', 'ผู้ออกเอกสาร'),
+              { width: 30, text: '' },
+              buildSide(' ', 'ผู้รับสินค้า'),
+            ],
+            margin: [40, 0, 40, 0],
+          },
+          logicalTotal > 1 ? {
+            text: `หน้า ${logicalPage}/${logicalTotal}`,
+            fontSize: 8,
+            color: '#999999',
+            alignment: 'center',
+            margin: [0, 4, 0, 0],
+          } : { text: '' },
+        ],
+      };
+    },
+    content: fullContent,
     styles: {
       tableHeader: { bold: true, fontSize: 11, color: '#333333' },
     },

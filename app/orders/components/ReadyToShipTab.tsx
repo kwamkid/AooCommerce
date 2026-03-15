@@ -516,7 +516,7 @@ export default function ReadyToShipTab({
   };
 
   const [actionLoading, setActionLoading] = useState(false);
-  const [taxInvoiceModal, setTaxInvoiceModal] = useState<{ orderId: string; orderNumber: string; customerId?: string } | null>(null);
+  const [taxInvoiceModal, setTaxInvoiceModal] = useState<{ orderId: string; orderNumber: string; customerId?: string; hasAbbrev?: boolean } | null>(null);
 
   // Print after action modal
   const [printModal, setPrintModal] = useState<{
@@ -1026,7 +1026,7 @@ export default function ReadyToShipTab({
         });
         menuItems.push({
           key: 'full-invoice', label: <><span className="text-orange-500 font-semibold">ออก</span>ใบกำกับแบบเต็ม</>, icon: <Banknote className="w-4 h-4" />,
-          onClick: async (e) => { e.stopPropagation(); const ok = await confirm({ title: 'ออกใบกำกับภาษีแบบเต็ม', description: 'หากออกใบกำกับแบบเต็มแล้ว ระบบจะยกเลิก (void) ใบกำกับภาษีอย่างย่อให้อัตโนมัติ', confirmLabel: 'ออกใบกำกับแบบเต็ม' }); if (!ok) return; setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id }); },
+          onClick: async (e) => { e.stopPropagation(); const ok = await confirm({ title: 'ออกใบกำกับภาษีแบบเต็ม', description: 'หากออกใบกำกับแบบเต็มแล้ว ระบบจะยกเลิก (void) ใบกำกับภาษีอย่างย่อให้อัตโนมัติ', confirmLabel: 'ออกใบกำกับแบบเต็ม' }); if (!ok) return; setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id, hasAbbrev: order.tax_invoice_doc_type === 'abbreviated' && !order.tax_invoice_voided_at }); },
           className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
         });
       } else {
@@ -1280,6 +1280,7 @@ export default function ReadyToShipTab({
           orderId={taxInvoiceModal.orderId}
           orderNumber={taxInvoiceModal.orderNumber}
           customerId={taxInvoiceModal.customerId}
+          hasAbbrev={taxInvoiceModal.hasAbbrev}
           onClose={() => setTaxInvoiceModal(null)}
           onSaved={async (updatedOrder) => {
             setTaxInvoiceModal(null);
