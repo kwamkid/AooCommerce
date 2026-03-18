@@ -80,6 +80,7 @@ export interface CustomerFormData {
   phone: string;
   email: string;
   customer_type: string;
+  sale_type: string; // consignment | wholesale_cash | wholesale_credit | '' (retail/dropship/affiliate)
   credit_limit: number;
   credit_days: number;
   is_active: boolean;
@@ -185,15 +186,53 @@ const emptyAddress: ShippingAddressData = {
   delivery_notes: '',
 };
 
-// 6 types based on distinct business flows
+// Customer types — some have sale_type sub-options
 const ALL_CUSTOMER_TYPE_OPTIONS = [
   { id: 'retail',             label: 'ลูกค้าปลีก/ส่ง',     requiredFeature: null },
-  { id: 'credit',             label: 'ลูกค้าเครดิต',        requiredFeature: null },
-  { id: 'consignment_dealer', label: 'ตัวแทนฯ ฝากขาย',    requiredFeature: 'consignment' as const },
+  { id: 'dealer',             label: 'ตัวแทน',             requiredFeature: 'consignment' as const },
   { id: 'department_store',   label: 'ห้าง/Modern Trade',  requiredFeature: 'department_store' as const },
+  { id: 'corporate',          label: 'Corporate/B2B',       requiredFeature: null },
   { id: 'dropship',           label: 'Dropship',            requiredFeature: null },
   { id: 'affiliate',          label: 'Affiliate/KOL',       requiredFeature: null },
 ];
+
+// Sub-type options per customer_type
+const SALE_TYPE_OPTIONS: Record<string, { id: string; label: string; desc: string }[]> = {
+  dealer: [
+    { id: 'consignment',      label: 'ฝากขาย',           desc: 'สัญญา ม.78(3) — เก็บเงินเมื่อขายได้' },
+    { id: 'wholesale_cash',   label: 'ขายขาดเงินสด',     desc: 'ส่งของแล้วเก็บเงินทันที' },
+    { id: 'wholesale_credit', label: 'ขายขาดเครดิต',     desc: 'ส่งของก่อน เก็บเงินทีหลัง' },
+  ],
+  department_store: [
+    { id: 'consignment',      label: 'ฝากขาย',           desc: 'ส่งของ + TAX ทันที — เก็บเงินเมื่อขายได้' },
+    { id: 'wholesale_cash',   label: 'ขายขาดเงินสด',     desc: 'ส่งของแล้วเก็บเงินทันที' },
+    { id: 'wholesale_credit', label: 'ขายขาดเครดิต',     desc: 'ส่งของก่อน เก็บเงินทีหลัง' },
+  ],
+  corporate: [
+    { id: 'wholesale_cash',   label: 'เงินสด',            desc: 'ชำระเงินทันที' },
+    { id: 'wholesale_credit', label: 'เครดิต',            desc: 'ส่งของก่อน เก็บเงินทีหลัง' },
+  ],
+};
+
+/** Map customer_type + sale_type → internal DB customer_type (backward compat) */
+function resolveDbCustomerType(type: string, saleType: string): string {
+  if (type === 'dealer' && saleType === 'consignment') return 'consignment_dealer';
+  if (type === 'dealer') return 'wholesale_dealer';
+  if (type === 'department_store' && saleType === 'consignment') return 'department_store';
+  if (type === 'department_store') return 'wholesale_department';
+  return type; // retail, corporate, dropship, affiliate as-is
+}
+
+/** Map DB customer_type → form customer_type + sale_type */
+function resolveFormType(dbType: string, dbSaleType: string | null): { customer_type: string; sale_type: string } {
+  if (dbType === 'consignment_dealer') return { customer_type: 'dealer', sale_type: 'consignment' };
+  if (dbType === 'wholesale_dealer') return { customer_type: 'dealer', sale_type: dbSaleType || 'wholesale_cash' };
+  if (dbType === 'department_store') return { customer_type: 'department_store', sale_type: dbSaleType || 'consignment' };
+  if (dbType === 'wholesale_department') return { customer_type: 'department_store', sale_type: dbSaleType || 'wholesale_cash' };
+  if (dbType === 'credit') return { customer_type: 'corporate', sale_type: 'wholesale_credit' };
+  if (dbType === 'corporate') return { customer_type: 'corporate', sale_type: dbSaleType || 'wholesale_credit' };
+  return { customer_type: dbType || 'retail', sale_type: dbSaleType || '' };
+}
 
 const defaultFormData: CustomerFormData = {
   name: '',
@@ -201,6 +240,7 @@ const defaultFormData: CustomerFormData = {
   phone: '',
   email: '',
   customer_type: 'retail',
+  sale_type: '',
   credit_limit: 0,
   credit_days: 0,
   is_active: true,
@@ -315,9 +355,16 @@ export default function CustomerForm({
     return features[opt.requiredFeature];
   });
 
+  // Resolve DB customer_type → form customer_type + sale_type
+  const resolvedTypes = initialData?.customer_type
+    ? resolveFormType(initialData.customer_type, (initialData as Record<string, unknown>).sale_type as string | null)
+    : { customer_type: 'retail', sale_type: '' };
+
   const [formData, setFormData] = useState<CustomerFormData>({
     ...defaultFormData,
     ...initialData,
+    customer_type: resolvedTypes.customer_type,
+    sale_type: initialData?.sale_type || resolvedTypes.sale_type,
     name: initialData?.name || lineDisplayName || '',
     contact_person: initialData?.contact_person || lineDisplayName || ''
   });
@@ -474,8 +521,10 @@ export default function CustomerForm({
     }
 
     try {
+      const dbCustomerType = resolveDbCustomerType(formData.customer_type, formData.sale_type);
       const submissionData = {
         ...formData,
+        customer_type: dbCustomerType,
         shipping_address_name: formData.shipping_address_name || 'ที่อยู่หลัก',
         has_multiple_branches: false,
         additional_addresses: additionalAddresses.filter(a => a.address_line1 || a.province),
@@ -972,17 +1021,46 @@ export default function CustomerForm({
             <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">ประเภทลูกค้า</h3>
             <FormSelect
               value={formData.customer_type}
-              onChange={(val) => setFormData(prev => ({ ...prev, customer_type: val }))}
+              onChange={(val) => {
+                const subOptions = SALE_TYPE_OPTIONS[val];
+                setFormData(prev => ({
+                  ...prev,
+                  customer_type: val,
+                  sale_type: subOptions ? subOptions[0].id : '',
+                }));
+              }}
               options={CUSTOMER_TYPE_OPTIONS}
               placeholder="-- เลือกประเภท --"
             />
 
-            {/* Consignment Settings */}
-            {features.consignment && formData.customer_type === 'consignment_dealer' && (
+            {/* Sale type sub-options */}
+            {SALE_TYPE_OPTIONS[formData.customer_type] && (
+              <div className="mt-3 grid grid-cols-1 gap-2">
+                {SALE_TYPE_OPTIONS[formData.customer_type].map(opt => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, sale_type: opt.id }))}
+                    className={`p-3 rounded-lg border-2 text-left transition-all ${
+                      formData.sale_type === opt.id
+                        ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20'
+                        : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                    }`}
+                  >
+                    <p className={`text-base font-medium ${formData.sale_type === opt.id ? 'text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>
+                      {opt.label}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-slate-500 mt-0.5">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Consignment Settings — show for dealer+consignment or department_store+consignment */}
+            {formData.sale_type === 'consignment' && (formData.customer_type === 'dealer' || formData.customer_type === 'department_store') && (
               <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
                 <ConsignmentSettings
                   data={{
-                    consignment_mode: formData.consignment_mode,
                     consignment_gp_rate: formData.consignment_gp_rate,
                     consignment_gp_base_price: formData.consignment_gp_base_price,
                     consignment_report_due_days: formData.consignment_report_due_days,
@@ -1000,8 +1078,8 @@ export default function CustomerForm({
               </div>
             )}
 
-            {/* Department Store Settings */}
-            {features.department_store && formData.customer_type === 'department_store' && (
+            {/* Department Store Settings — show for department_store type */}
+            {formData.customer_type === 'department_store' && (
               <div className="mt-4">
                 <DepartmentStoreSettings />
               </div>

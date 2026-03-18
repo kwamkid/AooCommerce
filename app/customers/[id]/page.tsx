@@ -170,6 +170,7 @@ export default function CustomerEditPage() {
         phone: customerData.phone || '',
         email: customerData.email || '',
         customer_type: customerData.customer_type,
+        sale_type: (customerData as Record<string, unknown>).sale_type as string || '',
         credit_limit: customerData.credit_limit || 0,
         credit_days: customerData.credit_days || 0,
         is_active: customerData.is_active,
@@ -275,7 +276,7 @@ export default function CustomerEditPage() {
       });
 
       // Save brand GP commissions (replace all)
-      if (brandGpRows && data.customer_type === 'consignment_dealer') {
+      if (brandGpRows && (data.customer_type === 'consignment_dealer' || data.customer_type === 'dealer' || data.sale_type === 'consignment')) {
         await apiFetch(`/api/customer-brand-commissions/sync`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
         tax_company_name: customerData.tax_company_name || null,
         tax_branch: customerData.tax_branch || null,
         customer_type: customerData.customer_type || 'retail',
+        sale_type: customerData.sale_type || null,
         credit_limit: customerData.credit_limit || 0,
         credit_days: customerData.credit_days || 0,
         assigned_salesperson: customerData.assigned_salesperson || null,
