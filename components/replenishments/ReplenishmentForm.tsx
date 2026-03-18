@@ -32,7 +32,6 @@ interface Customer {
   province: string | null;
   postal_code: string | null;
   customer_type: string | null;
-  consignment_mode: string | null;
   tax_id: string | null;
   tax_branch: string | null;
   billing_address: string | null;
@@ -714,20 +713,15 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         {/* Customer Info */}
         {selectedCustomer && (() => {
           const c = selectedCustomer;
-          const mode = c.consignment_mode || 'dn';
-          const isDN = mode === 'dn';
-          const modeLabel = isDN ? 'DN' : 'Invoice';
-          const modeColor = isDN ? 'text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800';
           const billingParts = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean);
           const shippingParts = [c.address_line1, c.district, c.amphoe, c.province, c.postal_code].filter(Boolean);
           const addressParts = billingParts.length > 0 ? billingParts : shippingParts;
           const addressLabel = billingParts.length > 0 ? 'ที่อยู่ออกบิล' : shippingParts.length > 0 ? 'ที่อยู่จัดส่ง' : null;
 
           if (isDisabled) {
-            // Compact inline view for confirm/view modes
             return (
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500 dark:text-slate-400">
-                <span className={`px-1.5 py-0.5 rounded text-xs font-bold border ${modeColor}`}>{modeLabel}</span>
+                {c.contact_person && <span>ติดต่อ: {c.contact_person}</span>}
                 {c.phone && <span>โทร: {c.phone}</span>}
                 {c.tax_id && <span>เลขผู้เสียภาษี: {c.tax_id}{c.tax_branch ? ` (${c.tax_branch})` : ''}</span>}
                 {addressParts.length > 0 && (
@@ -741,38 +735,27 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
           }
 
           return (
-            <div className="mt-3 flex gap-3 items-stretch">
-              <div className="flex-1 min-w-0 flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg">
+            <div className="mt-3 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg">
+              <div className="flex items-start gap-2">
                 {loadingGpData
                   ? <Loader2 className="w-4 h-4 text-[#F4511E] flex-shrink-0 mt-0.5 animate-spin" />
                   : <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0 mt-0.5" />
                 }
-                <div className="flex-1 min-w-0 space-y-0.5 text-sm">
-                  {c.contact_person && <div className="text-gray-600 dark:text-slate-300">ติดต่อ: <span className="font-medium">{c.contact_person}</span></div>}
-                  {c.phone && <div className="text-gray-500 dark:text-slate-400">โทร: {c.phone}</div>}
-                  {c.email && <div className="text-gray-500 dark:text-slate-400">อีเมล: {c.email}</div>}
-                  {c.tax_id && (
-                    <div className="text-gray-500 dark:text-slate-400">
-                      เลขผู้เสียภาษี: {c.tax_id}{c.tax_branch ? ` (${c.tax_branch})` : ''}
-                    </div>
-                  )}
+                <div className="flex-1 min-w-0 flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
+                  {c.contact_person && <span className="text-gray-600 dark:text-slate-300">ติดต่อ: <span className="font-medium">{c.contact_person}</span></span>}
+                  {c.phone && <span className="text-gray-500 dark:text-slate-400">โทร: {c.phone}</span>}
+                  {c.email && <span className="text-gray-500 dark:text-slate-400">อีเมล: {c.email}</span>}
+                  {c.tax_id && <span className="text-gray-500 dark:text-slate-400">เลขผู้เสียภาษี: {c.tax_id}{c.tax_branch ? ` (${c.tax_branch})` : ''}</span>}
                   {addressParts.length > 0 && (
-                    <div className="text-gray-500 dark:text-slate-400 flex items-start gap-1 pt-0.5">
-                      <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                      <span>
-                        <span className="text-gray-600 dark:text-slate-300 font-medium">{addressLabel}: </span>
-                        {addressParts.join(', ')}
-                      </span>
-                    </div>
+                    <span className="text-gray-500 dark:text-slate-400 flex items-center gap-1">
+                      <MapPin className="w-3 h-3 flex-shrink-0" />
+                      <span><span className="text-gray-600 dark:text-slate-300 font-medium">{addressLabel}: </span>{addressParts.join(', ')}</span>
+                    </span>
                   )}
                   {!c.contact_person && !c.phone && !c.email && addressParts.length === 0 && (
-                    <div className="text-gray-400 dark:text-slate-500 italic">ยังไม่มีข้อมูลเพิ่มเติม</div>
+                    <span className="text-gray-400 dark:text-slate-500 italic">ยังไม่มีข้อมูลเพิ่มเติม</span>
                   )}
                 </div>
-              </div>
-              <div className={`flex-shrink-0 flex flex-col items-center justify-center px-4 py-2.5 rounded-lg border ${modeColor}`}>
-                {isDN ? <FileText className="w-6 h-6 mb-1" /> : <Receipt className="w-6 h-6 mb-1" />}
-                <span className="text-xs font-bold whitespace-nowrap">{isDN ? 'ใบส่งสินค้า (DN)' : 'ใบแจ้งหนี้ (Invoice)'}</span>
               </div>
             </div>
           );

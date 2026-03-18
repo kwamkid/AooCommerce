@@ -28,7 +28,6 @@ interface ReportCustomer {
   phone: string | null;
   email: string | null;
   contact_person: string | null;
-  consignment_mode: string | null;
   portal_token: string | null;
   tax_company_name: string | null;
   tax_id: string | null;
@@ -686,18 +685,10 @@ function EditReportContent() {
                   })()}
                 </div>
               </div>
-              {(() => {
-                const mode = customer.consignment_mode || 'dn';
-                const modeIsDN = mode === 'dn';
-                const modeLabel = modeIsDN ? 'ใบส่งสินค้า (DN)' : 'ใบแจ้งหนี้ (Invoice)';
-                const modeColor = modeIsDN ? 'text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800';
-                return (
-                  <div className={`flex-shrink-0 flex flex-col items-center justify-center px-4 py-2.5 rounded-lg border ${modeColor}`}>
-                    {modeIsDN ? <FileText className="w-6 h-6 mb-1" /> : <Receipt className="w-6 h-6 mb-1" />}
-                    <span className="text-xs font-bold whitespace-nowrap">{modeLabel}</span>
-                  </div>
-                );
-              })()}
+              <div className="flex-shrink-0 flex flex-col items-center justify-center px-4 py-2.5 rounded-lg border text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                <FileText className="w-6 h-6 mb-1" />
+                <span className="text-xs font-bold whitespace-nowrap">ใบส่งสินค้า (DN)</span>
+              </div>
             </div>
           </div>
         )}

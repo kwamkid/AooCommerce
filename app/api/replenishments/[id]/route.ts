@@ -176,37 +176,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }
       }
 
-      // Auto issue document on ship for ALL consignment/credit replenishments
-      // - จด VAT: Invoice mode → TAX, DN mode → no doc (DN mode issues TAX at statement payment)
-      // - ไม่จด VAT: ALL modes → DN (ใบส่งสินค้า)
+      // Auto issue DN (ใบส่งสินค้า) on ship — consignment = DN mode only
       let docResult = null;
       try {
-        const { data: customer } = await supabaseAdmin
-          .from('customers')
-          .select('consignment_mode')
-          .eq('id', existing.customer_id)
-          .single();
-
-        const { issueReplenishmentInvoice, issueReplenishmentDN } = await import('@/lib/invoice-service');
-        const { data: company } = await supabaseAdmin
-          .from('companies')
-          .select('vat_registered')
-          .eq('id', auth.companyId)
-          .single();
-        const vatRegistered = company?.vat_registered ?? false;
-
-        if (vatRegistered) {
-          if (customer?.consignment_mode === 'invoice') {
-            // จด VAT + Invoice mode → TAX
-            docResult = await issueReplenishmentInvoice(id, auth.companyId);
-          } else {
-            // จด VAT + DN mode → DN (ใบส่งสินค้า)
-            docResult = await issueReplenishmentDN(id, auth.companyId);
-          }
-        } else {
-          // ไม่จด VAT: ALL modes → DN (ใบส่งสินค้า)
-          docResult = await issueReplenishmentDN(id, auth.companyId);
-        }
+        const { issueReplenishmentDN } = await import('@/lib/invoice-service');
+        docResult = await issueReplenishmentDN(id, auth.companyId);
       } catch (err) {
         console.error('Auto document on ship error:', err);
       }
@@ -340,46 +314,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           }
         }
 
-        // === Auto-issue adjustment documents for mismatches ===
-        // CN ออกได้เฉพาะ Invoice mode (มี TAX invoice แล้ว) — DN mode ไม่ต้องออก CN แค่แก้ DN ตามจริง
-        if (!allMatch) {
-          try {
-            // Check if TAX invoice exists for this replenishment (= Invoice mode)
-            const { data: hasTax } = await supabaseAdmin
-              .from('tax_invoices')
-              .select('id')
-              .eq('source_type', 'replenishment')
-              .eq('source_id', id)
-              .eq('company_id', auth.companyId)
-              .maybeSingle();
-
-            if (hasTax) {
-              // Invoice mode: มี TAX แล้ว → ออก CN/excess TAX ได้
-              const { issueReplenishmentCreditNote, issueReplenishmentExcessDocument } = await import('@/lib/invoice-service');
-
-              if (confirmedTotal < (replenishment.total_amount || 0)) {
-                // รับขาด → Credit Note
-                const shortfallItems = (allItems || [])
-                  .filter((i: { confirmed_quantity: number; quantity: number }) => i.confirmed_quantity < i.quantity)
-                  .map((i: { id: string; variation_id: string | null; product_name: string; variation_label: string | null; quantity: number; confirmed_quantity: number; unit_price: number }) => ({
-                    replenishment_item_id: i.id,
-                    variation_id: i.variation_id || '',
-                    product_name: i.product_name || '',
-                    variation_label: i.variation_label || '',
-                    shortfall_qty: i.quantity - i.confirmed_quantity,
-                    unit_price: i.unit_price || 0,
-                  }));
-                await issueReplenishmentCreditNote(id, auth.companyId!, shortfallItems, auth.userId || '');
-              } else if (confirmedTotal > (replenishment.total_amount || 0)) {
-                // รับเกิน → excess TAX
-                await issueReplenishmentExcessDocument(id, auth.companyId!, confirmedTotal - (replenishment.total_amount || 0));
-              }
-            }
-            // DN mode: ไม่ต้องออกเอกสารเพิ่ม — DN PDF จะแสดง confirmed_quantity เอง
-          } catch (err) {
-            console.error('Auto adjustment document on confirm error:', err);
-          }
-        }
+        // DN mode: ไม่ต้องออกเอกสารเพิ่มเมื่อรับไม่ครบ — DN PDF แสดง confirmed_quantity เอง
       }
 
       return NextResponse.json({ success: true, status: newStatus });

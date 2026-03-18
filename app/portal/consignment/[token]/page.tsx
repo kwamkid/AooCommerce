@@ -44,7 +44,6 @@ interface CustomerInfo {
   name: string;
   customer_code: string | null;
   phone: string | null;
-  consignment_mode: string | null;
 }
 
 interface CompanyInfo {
@@ -90,12 +89,6 @@ function getStatusLabel(status: string): { label: string; color: string } {
     case 'cancelled': return { label: 'ยกเลิก', color: 'bg-slate-500/20 text-slate-400 border border-slate-500/30' };
     default: return { label: status, color: 'bg-slate-500/20 text-slate-400 border border-slate-500/30' };
   }
-}
-
-function getModeLabel(mode: string | null): string {
-  if (mode === 'dn') return 'DN';
-  if (mode === 'invoice') return 'Invoice';
-  return mode ?? '';
 }
 
 export default function ConsignmentPortalPage() {
@@ -287,8 +280,6 @@ export default function ConsignmentPortalPage() {
   };
 
   const selectedReport = data?.reports.find(r => r.id === selectedReportId) ?? null;
-  const isInvoiceMode = data?.customer.consignment_mode === 'invoice';
-
   // Auth checking — spinner
   if (authChecking || !mounted) {
     return (
@@ -644,7 +635,7 @@ export default function ConsignmentPortalPage() {
                             )}
                           </div>
 
-                          <div className={`grid ${isInvoiceMode ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
+                          <div className="grid grid-cols-1 gap-3">
                             <div>
                               <label className={`block text-xs font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
                                 จำนวนขาย (ชิ้น)
@@ -683,45 +674,6 @@ export default function ConsignmentPortalPage() {
                               </div>
                             </div>
 
-                            {isInvoiceMode && (
-                              <div>
-                                <label className={`block text-xs font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
-                                  จำนวนคืน (ชิ้น)
-                                </label>
-                                <div className="flex items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => setReportItems(prev => prev.map((ri, i) =>
-                                      i === idx ? { ...ri, qty_returned: Math.max(0, ri.qty_returned - 1) } : ri
-                                    ))}
-                                    className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-base transition-colors ${dark ? 'bg-slate-600 text-white hover:bg-slate-500' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-                                  >
-                                    -
-                                  </button>
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    value={item.qty_returned}
-                                    onChange={e => {
-                                      const v = Math.max(0, parseInt(e.target.value) || 0);
-                                      setReportItems(prev => prev.map((ri, i) =>
-                                        i === idx ? { ...ri, qty_returned: v } : ri
-                                      ));
-                                    }}
-                                    className={`w-16 h-8 text-center rounded-lg text-sm font-bold border focus:outline-none focus:ring-2 focus:ring-amber-400 ${dark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setReportItems(prev => prev.map((ri, i) =>
-                                      i === idx ? { ...ri, qty_returned: ri.qty_returned + 1 } : ri
-                                    ))}
-                                    className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-base transition-colors ${dark ? 'bg-slate-600 text-white hover:bg-slate-500' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              </div>
-                            )}
                           </div>
                         </div>
                       ))}

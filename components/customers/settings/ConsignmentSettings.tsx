@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, ExternalLink } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import GpOverridePanel, { type BrandGpRow } from '@/components/customers/GpOverridePanel';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { apiFetch } from '@/lib/api-client';
@@ -9,7 +9,6 @@ import { apiFetch } from '@/lib/api-client';
 export { type BrandGpRow };
 
 interface ConsignmentSettingsData {
-  consignment_mode?: string;
   consignment_gp_rate?: number | '';
   consignment_gp_base_price?: 'retail' | 'discounted' | null;
   consignment_report_due_days?: number | '';
@@ -20,7 +19,6 @@ interface ConsignmentSettingsData {
 }
 
 interface CompanyDefaults {
-  default_mode: 'dn' | 'invoice';
   default_gp_rate: number;
   default_gp_base_price: 'retail' | 'discounted';
   default_report_due_days: number;
@@ -90,7 +88,6 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
       const cs = d.consignment_settings;
       if (cs) {
         setDefaults({
-          default_mode: cs.default_mode || 'dn',
           default_gp_rate: cs.default_gp_rate ?? 30,
           default_gp_base_price: cs.default_gp_base_price || 'retail',
           default_report_due_days: cs.default_report_due_days ?? 15,
@@ -101,68 +98,16 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
   }, []);
 
   // Custom = has value in DB, Default = null/empty → resolve from global at runtime
-  const isCustomMode = !!data.consignment_mode;
   const isCustomGp = data.consignment_gp_rate !== '' && data.consignment_gp_rate != null;
   const isCustomTerms = (data.consignment_report_due_days !== '' && data.consignment_report_due_days != null)
     || (data.consignment_payment_terms !== '' && data.consignment_payment_terms != null);
 
   const gpRate = isCustomGp ? Number(data.consignment_gp_rate) : null;
-  const effectiveMode = data.consignment_mode || defaults?.default_mode || 'dn';
 
   return (
     <div className="space-y-4">
 
-      {/* ─── 1. โหมดฝากขาย ─── */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-base font-medium text-gray-600 dark:text-slate-400">โหมดฝากขาย</p>
-          <a
-            href="/settings/features"
-            target="_blank"
-            className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-slate-500 hover:text-[#F4511E] dark:hover:text-[#F4511E] transition-colors"
-          >
-            ตั้งค่าฝากขาย (Global)
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-        <DefaultOrCustomTab
-          isCustom={isCustomMode}
-          onToggle={(custom) => {
-            if (!custom) {
-              onChange({ consignment_mode: '' });
-            } else {
-              onChange({ consignment_mode: defaults?.default_mode || 'dn' });
-            }
-          }}
-          defaultDesc={defaults ? (defaults.default_mode === 'dn' ? 'DN — ฝากขาย' : 'Invoice — เครดิต') : undefined}
-        />
-        {isCustomMode && (
-          <div className="grid grid-cols-2 gap-2 mt-1">
-            {([
-              { key: 'dn',      label: 'ฝากขาย (DN)',   desc: 'ม.78(3) — VAT เมื่อขายได้' },
-              { key: 'invoice', label: 'เครดิตตัวแทน', desc: 'Invoice ทันที VAT upfront' },
-            ] as const).map(({ key, label, desc }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onChange({ consignment_mode: key })}
-                className={`p-3 rounded-lg border-2 text-left transition-all ${
-                  data.consignment_mode === key
-                    ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
-                    : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
-                }`}
-              >
-                <p className={`text-base font-medium ${data.consignment_mode === key ? 'text-amber-700 dark:text-amber-400' : 'text-gray-700 dark:text-slate-300'}`}>
-                  {label}
-                </p>
-                <p className="text-sm text-gray-500 dark:text-slate-500 mt-0.5">{desc}</p>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ─── 2. GP% + Brand GP ─── */}
+      {/* ─── 1. GP% + Brand GP ─── */}
       <div>
         <p className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2">GP% ตัวแทน</p>
         <DefaultOrCustomTab
@@ -254,8 +199,8 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
         )}
       </div>
 
-      {/* ─── 4. สัญญาฝากขาย — DN mode only ─── */}
-      {effectiveMode === 'dn' && (
+      {/* ─── 4. สัญญาฝากขาย (DN — ม.78(3)) ─── */}
+      {(
         <div className="rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50/50 dark:bg-amber-900/10 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>

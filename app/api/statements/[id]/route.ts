@@ -174,50 +174,15 @@ export async function PUT(
           .update({ status: 'paid', updated_at: new Date().toISOString() })
           .eq('statement_id', id);
 
-        // Auto issue invoices
+        // Auto issue invoices (DN mode: จด VAT → TAX+REC, ไม่จด → REC)
         try {
-          const { data: cust } = await supabaseAdmin
-            .from('customers')
-            .select('consignment_mode')
-            .eq('id', statement.customer_id)
-            .single();
-
-          if (cust?.consignment_mode === 'dn') {
-            // DN mode: จด VAT → ใบกำกับภาษี/ใบเสร็จ (TAX เลขเดียว), ไม่จด → ใบเสร็จ (REC เลขเดียว)
-            const { issueConsignmentInvoices } = await import('@/lib/invoice-service');
-            const result = await issueConsignmentInvoices(id, companyId);
-            if (result.success) {
-              autoInvoiceResult = { taxNumber: result.taxNumber, recNumber: result.recNumber };
-            }
-          } else {
-            // Invoice mode: TAX ออกตอน ship แล้ว → ออกแค่ REC
-            const { data: recNumber } = await supabaseAdmin
-              .rpc('generate_receipt_number', { p_company_id: companyId });
-            if (recNumber) {
-              const recDate = new Date().toISOString().split('T')[0];
-              // Fetch customer info for receipt
-              const { data: custInfo } = await supabaseAdmin
-                .from('customers')
-                .select('tax_company_name, name, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code')
-                .eq('id', statement.customer_id)
-                .single();
-              const custName = custInfo?.tax_company_name || custInfo?.name || null;
-              const custAddr = custInfo ? [custInfo.billing_address, custInfo.billing_district, custInfo.billing_amphoe, custInfo.billing_province, custInfo.billing_postal_code].filter(Boolean).join(' ') : null;
-              // Insert into document table (single source of truth)
-              const { insertReceipt } = await import('@/lib/invoice-service');
-              await insertReceipt({
-                company_id: companyId, receipt_number: recNumber, receipt_date: recDate,
-                source_type: 'statement', source_id: id, customer_id: statement.customer_id,
-                total_amount: statement.total_amount ?? 0,
-                customer_name: custName,
-                customer_address: custAddr,
-              });
-              autoInvoiceResult = { recNumber };
-            }
+          const { issueConsignmentInvoices } = await import('@/lib/invoice-service');
+          const result = await issueConsignmentInvoices(id, companyId);
+          if (result.success) {
+            autoInvoiceResult = { taxNumber: result.taxNumber, recNumber: result.recNumber };
           }
         } catch (err) {
           console.error('Auto issue invoices on payment error:', err);
-          // ไม่ให้ payment fail — ปุ่ม manual ยังเป็น fallback
         }
       }
 

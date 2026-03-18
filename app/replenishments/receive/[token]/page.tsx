@@ -217,6 +217,11 @@ export default function ReplenishmentReceivePage() {
   const totalReceived = data.items.reduce((sum, i) => sum + (quantities[i.id] ?? i.quantity), 0);
   const totalAmount = data.items.reduce((sum, i) => sum + (quantities[i.id] ?? i.quantity) * i.unit_price, 0);
 
+  // Override global .dark CSS on inputs/labels when page is in light mode
+  const lightInputStyle = !dark ? { backgroundColor: '#ffffff', borderColor: '#d1d5db', color: '#111827', colorScheme: 'light' } as React.CSSProperties : undefined;
+  const lightTextareaStyle = lightInputStyle;
+  const lightLabelStyle = !dark ? { color: '#374151' } as React.CSSProperties : undefined;
+
   return (
     <div className={`min-h-screen transition-colors ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-100'}`}>
       {/* Top bar */}
@@ -427,6 +432,11 @@ export default function ReplenishmentReceivePage() {
                               const v = Math.max(0, parseInt(e.target.value) || 0);
                               setQuantities(prev => ({ ...prev, [item.id]: v }));
                             }}
+                            style={!dark ? (
+                              qty < item.quantity ? { backgroundColor: '#fffbeb', borderColor: '#fcd34d', color: '#b45309', colorScheme: 'light' }
+                              : qty > item.quantity ? { backgroundColor: '#eff6ff', borderColor: '#93c5fd', color: '#1d4ed8', colorScheme: 'light' }
+                              : { backgroundColor: '#ffffff', borderColor: '#d1d5db', color: '#111827', colorScheme: 'light' }
+                            ) : undefined}
                             className={`w-16 h-9 text-center rounded-lg text-lg font-bold border focus:outline-none focus:ring-2 focus:ring-amber-400 ${
                               qty < item.quantity
                                 ? dark ? 'bg-amber-900/30 border-amber-700 text-amber-400' : 'bg-amber-50 border-amber-300 text-amber-700'
@@ -527,7 +537,7 @@ export default function ReplenishmentReceivePage() {
             )}
 
             <div className="mb-4">
-              <label className={`block text-sm font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>
+              <label style={lightLabelStyle} className={`block text-sm font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-700'}`}>
                 ชื่อผู้รับสินค้า <span className="text-red-400">*</span>
               </label>
               <input
@@ -535,12 +545,13 @@ export default function ReplenishmentReceivePage() {
                 value={receiverName}
                 onChange={(e) => setReceiverName(e.target.value)}
                 placeholder="ระบุชื่อผู้รับ"
+                style={lightInputStyle}
                 className={`w-full px-3 py-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent ${dark ? 'bg-[#1A1A2E] border-slate-600 text-white placeholder-slate-600' : 'bg-white border-gray-300 text-gray-900'}`}
               />
             </div>
 
             <div className="mb-4">
-              <label className={`block text-sm font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>รูปถ่ายการรับสินค้า</label>
+              <label style={lightLabelStyle} className={`block text-sm font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-700'}`}>รูปถ่ายการรับสินค้า</label>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -578,12 +589,13 @@ export default function ReplenishmentReceivePage() {
             </div>
 
             <div className="mb-5">
-              <label className={`block text-sm font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>หมายเหตุ</label>
+              <label style={lightLabelStyle} className={`block text-sm font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-700'}`}>หมายเหตุ</label>
               <textarea
                 value={receiveNotes}
                 onChange={(e) => setReceiveNotes(e.target.value)}
                 placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
                 rows={2}
+                style={lightTextareaStyle}
                 className={`w-full px-3 py-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent ${dark ? 'bg-[#1A1A2E] border-slate-600 text-white placeholder-slate-600' : 'bg-white border-gray-300 text-gray-900'}`}
               />
             </div>

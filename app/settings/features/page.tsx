@@ -74,7 +74,6 @@ export default function FeaturesPage() {
 
   // Consignment settings
   const [consignmentSettings, setConsignmentSettings] = useState({
-    default_mode: 'dn' as 'dn' | 'invoice',
     default_gp_rate: 30,
     default_gp_base_price: 'retail' as 'retail' | 'discounted',
     default_report_due_days: 15,
@@ -103,8 +102,8 @@ export default function FeaturesPage() {
         if (data.consignment_settings) setConsignmentSettings(prev => ({ ...prev, ...cs }));
         setBrandGpRows(bgr);
         const snapshotCs = data.consignment_settings
-          ? { ...{ default_mode: 'dn', default_gp_rate: 30, default_gp_base_price: 'retail', default_report_due_days: 15, default_payment_terms: 30, vat_included: true }, ...cs }
-          : { default_mode: 'dn', default_gp_rate: 30, default_gp_base_price: 'retail', default_report_due_days: 15, default_payment_terms: 30, vat_included: true };
+          ? { ...{ default_gp_rate: 30, default_gp_base_price: 'retail', default_report_due_days: 15, default_payment_terms: 30, vat_included: true }, ...cs }
+          : { default_gp_rate: 30, default_gp_base_price: 'retail', default_report_due_days: 15, default_payment_terms: 30, vat_included: true };
         savedRef.current = { featureFlags: loadedFlags, consignmentSettings: snapshotCs, brandGpRows: JSON.stringify(bgr) };
       }).catch(() => {});
     }
@@ -218,7 +217,7 @@ export default function FeaturesPage() {
     {
       key: 'consignment',
       label: 'ฝากขาย (Consignment)',
-      description: 'บริหารตัวแทนจำหน่ายแบบฝากขาย — DN / Invoice',
+      description: 'บริหารตัวแทนจำหน่ายแบบฝากขาย — DN (ม.78(3))',
       icon: <Handshake className="w-5 h-5" />,
       color: 'text-amber-600',
     },
@@ -451,7 +450,6 @@ export default function FeaturesPage() {
 // ── Consignment settings sub-panel ────────────────────────────────────────
 
 type ConsignmentSettingsData = {
-  default_mode: 'dn' | 'invoice';
   default_gp_rate: number;
   default_gp_base_price: 'retail' | 'discounted';
   default_report_due_days: number;
@@ -474,33 +472,6 @@ function ConsignmentSettingsPanel({
 }) {
   return (
     <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 space-y-4">
-
-      {/* Mode */}
-      <div>
-        <p className="text-sm font-medium text-gray-600 dark:text-slate-400 mb-2">โหมดฝากขาย Default</p>
-        <div className="grid grid-cols-2 gap-2">
-          {([
-            { key: 'dn', label: 'ฝากขาย (DN)', desc: 'ม.78(3) — VAT เมื่อขายได้' },
-            { key: 'invoice', label: 'เครดิตตัวแทน', desc: 'Invoice ทันที VAT upfront' },
-          ] as const).map(({ key, label, desc }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => onChange({ default_mode: key })}
-              className={`p-3 rounded-lg border-2 text-left transition-all ${
-                settings.default_mode === key
-                  ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
-                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
-              }`}
-            >
-              <p className={`text-base font-medium ${settings.default_mode === key ? 'text-amber-700 dark:text-amber-400' : 'text-gray-700 dark:text-slate-300'}`}>
-                {label}
-              </p>
-              <p className="text-sm text-gray-500 dark:text-slate-500 mt-0.5">{desc}</p>
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* GP% section — default + brand breakdown together */}
       <GpOverridePanel
