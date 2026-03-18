@@ -1150,6 +1150,16 @@ export default function CustomerForm({
                 </div>
               </div>
 
+              {/* Warning if agent data incomplete */}
+              {(!formData.name || !formData.tax_id) && (
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-sm text-amber-700 dark:text-amber-400">
+                  กรุณากรอกข้อมูลตัวแทนให้ครบก่อนสร้างสัญญา:
+                  {!formData.name && <span className="block ml-2">- ชื่อร้าน/ชื่อลูกค้า</span>}
+                  {!formData.tax_id && <span className="block ml-2">- เลขผู้เสียภาษี</span>}
+                  {!formData.billing_address && <span className="block ml-2">- ที่อยู่ออกบิล</span>}
+                </div>
+              )}
+
               {!formData.contract_number ? (
                 <button
                   type="button"
