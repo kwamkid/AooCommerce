@@ -303,7 +303,8 @@ export async function generateConsignmentReportPdf(data: ConsignmentReportPdfDat
     ],
   ];
 
-  if (isTaxInvoiceMode && vatRegistered) {
+  const vatRegistered = data.vat_registered ?? false;
+  if (docNumber && vatRegistered) {
     const totalWithVAT = data.our_amount;
     const subtotalExVAT = Math.round((totalWithVAT / 1.07) * 100) / 100;
     const vatAmt = totalWithVAT - subtotalExVAT;
@@ -379,7 +380,7 @@ export async function generateConsignmentReportPdf(data: ConsignmentReportPdfDat
     },
     content: withOriginalAndCopy(content),
     background: buildCornerTriangle(docTheme),
-    footer: buildSignatureFooter(companyName, isTaxInvoiceMode ? 'ผู้ออกเอกสาร' : 'ผู้ขาย', 'ตัวแทนจำหน่าย'),
+    footer: buildSignatureFooter(companyName, docNumber ? 'ผู้ออกเอกสาร' : 'ผู้ขาย', 'ตัวแทนจำหน่าย'),
   };
 
   if (data.voided_at) {
