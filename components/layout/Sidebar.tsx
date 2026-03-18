@@ -45,6 +45,7 @@ import {
   Handshake,
   FileText,
   Store,
+  RotateCcw,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -631,7 +632,7 @@ export default function Sidebar() {
 
                   // เอกสารบัญชี: render as collapsible with submenu
                   if (item.href === '/invoices/tax') {
-                    const isAccountingPage = pathname?.startsWith('/invoices') || pathname?.startsWith('/credit-notes') || pathname?.startsWith('/statements');
+                    const isAccountingPage = pathname?.startsWith('/invoices') || pathname?.startsWith('/credit-notes') || pathname?.startsWith('/statements') || pathname?.startsWith('/return-notes');
                     return (
                       <div key={item.href}>
                         <button
@@ -667,6 +668,10 @@ export default function Sidebar() {
                             <Link href="/invoices/delivery-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/delivery-notes' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                               <Truck className="w-4 h-4" />
                               <span className="text-[16px] font-medium">ใบส่งสินค้า</span>
+                            </Link>
+                            <Link href="/return-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/return-notes' || pathname?.startsWith('/return-notes/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <RotateCcw className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">ใบรับคืน</span>
                             </Link>
                             <Link href="/credit-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/credit-notes' || pathname?.startsWith('/credit-notes/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                               <ReceiptText className="w-4 h-4" />
