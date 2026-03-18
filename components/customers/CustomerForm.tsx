@@ -1074,6 +1074,7 @@ export default function CustomerForm({
                   labelClassName={labelFull}
                   brandGpRows={brandGpRows}
                   onBrandGpRowsChange={setBrandGpRows}
+                  hideContract={formData.customer_type === 'department_store'}
                 />
               </div>
             )}

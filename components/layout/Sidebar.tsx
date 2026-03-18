@@ -535,7 +535,7 @@ export default function Sidebar() {
                       }`}
                     >
                       <Store className="w-5 h-5" />
-                      <span className="text-[16px] font-medium ml-3">ระบบฝากขาย</span>
+                      <span className="text-[16px] font-medium ml-3">ตัวแทนฝากขาย</span>
                       <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${consignmentOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {consignmentOpen && (
@@ -567,7 +567,7 @@ export default function Sidebar() {
                       }`}
                     >
                       <Building2 className="w-5 h-5" />
-                      <span className="text-[16px] font-medium ml-3">ระบบห้าง</span>
+                      <span className="text-[16px] font-medium ml-3">ห้างฝากขาย</span>
                       <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${deptStoreOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {deptStoreOpen && (

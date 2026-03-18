@@ -32,6 +32,8 @@ interface Props {
   labelClassName: string;
   brandGpRows: BrandGpRow[];
   onBrandGpRowsChange: (rows: BrandGpRow[]) => void;
+  /** ซ่อนส่วนสัญญาฝากขาย — ใช้สำหรับห้าง (ไม่มีสัญญา ม.78(3)) */
+  hideContract?: boolean;
 }
 
 function generateContractNumber() {
@@ -80,7 +82,7 @@ function DefaultOrCustomTab({
 
 const GP_BASE_LABELS: Record<string, string> = { retail: 'ราคาปลีก', discounted: 'ราคาลด' };
 
-export default function ConsignmentSettings({ data, onChange, inputClassName, labelClassName, brandGpRows, onBrandGpRowsChange }: Props) {
+export default function ConsignmentSettings({ data, onChange, inputClassName, labelClassName, brandGpRows, onBrandGpRowsChange, hideContract }: Props) {
   const [defaults, setDefaults] = useState<CompanyDefaults | null>(null);
 
   useEffect(() => {
@@ -199,7 +201,8 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
         )}
       </div>
 
-      {/* ─── 4. สัญญาฝากขาย (DN — ม.78(3)) ─── */}
+      {/* ─── 4. สัญญาฝากขาย (DN — ม.78(3)) — ซ่อนสำหรับห้าง ─── */}
+      {!hideContract && (
       {(
         <div className="rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50/50 dark:bg-amber-900/10 p-4 space-y-3">
           <div className="flex items-center justify-between">
@@ -265,6 +268,7 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
             )}
           </div>
         </div>
+      )}
       )}
 
     </div>
