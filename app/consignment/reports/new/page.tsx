@@ -340,6 +340,12 @@ function NewReportPageContent() {
               total_sales: r.our_amount,
               total_gp_share: 0,
               our_amount: r.our_amount,
+              tax_invoice_number: r.tax_invoice_number,
+              tax_invoice_date: r.tax_invoice_date,
+              document_subtype: r.document_subtype,
+              invoice_number: r.invoice_number,
+              invoice_date: r.invoice_date,
+              vat_registered: r.vat_registered,
             });
 
             const THAI_MONTHS_FULL = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',

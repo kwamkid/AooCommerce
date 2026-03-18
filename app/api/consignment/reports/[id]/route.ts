@@ -44,7 +44,35 @@ export async function GET(
       return NextResponse.json({ error: 'ไม่พบรายงาน' }, { status: 404 });
     }
 
-    return NextResponse.json({ report });
+    // Fetch linked documents (TAX/INV)
+    const [taxRes, invRes] = await Promise.all([
+      supabaseAdmin.from('tax_invoices')
+        .select('invoice_number, invoice_date, document_subtype')
+        .eq('source_type', 'consignment_report').eq('source_id', reportId)
+        .eq('company_id', companyId).is('voided_at', null)
+        .maybeSingle(),
+      supabaseAdmin.from('invoices')
+        .select('invoice_number, invoice_date')
+        .eq('source_type', 'consignment_report').eq('source_id', reportId)
+        .eq('company_id', companyId).is('voided_at', null)
+        .maybeSingle(),
+    ]);
+
+    // Get company VAT status
+    const { data: companyData } = await supabaseAdmin
+      .from('companies').select('vat_registered').eq('id', companyId).single();
+
+    const enriched = {
+      ...report,
+      tax_invoice_number: taxRes.data?.invoice_number || null,
+      tax_invoice_date: taxRes.data?.invoice_date || null,
+      document_subtype: taxRes.data?.document_subtype || null,
+      invoice_number: invRes.data?.invoice_number || null,
+      invoice_date: invRes.data?.invoice_date || null,
+      vat_registered: companyData?.vat_registered ?? false,
+    };
+
+    return NextResponse.json({ report: enriched });
   } catch (error) {
     console.error('GET consignment report detail error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

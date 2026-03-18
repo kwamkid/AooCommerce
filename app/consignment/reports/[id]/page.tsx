@@ -471,8 +471,18 @@ function EditReportContent() {
         total_sales: totalOurAmount,
         total_gp_share: 0,
         our_amount: totalOurAmount,
+        tax_invoice_number: report.tax_invoice_number,
+        tax_invoice_date: report.tax_invoice_date,
+        document_subtype: report.document_subtype,
+        invoice_number: report.invoice_number,
+        invoice_date: report.invoice_date,
+        vat_registered: report.vat_registered,
       });
-      showPdfPreview(blob, `ใบแจ้งหนี้ ${report.report_number}`);
+      const docNum = report.tax_invoice_number || report.invoice_number || report.report_number;
+      const docTitle = report.document_subtype === 'tax_invoice'
+        ? 'ใบกำกับภาษี/ใบแจ้งหนี้'
+        : report.invoice_number ? 'ใบแจ้งหนี้' : 'ใบแจ้งหนี้';
+      showPdfPreview(blob, `${docTitle} ${docNum}`);
     } catch {
       showToast('ไม่สามารถสร้าง PDF ได้', 'error');
     }
