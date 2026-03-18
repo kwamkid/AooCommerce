@@ -539,14 +539,8 @@ function CustomersPageContent() {
             {/* Row 1: Search */}
             <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร..." className="py-2" />
 
-            {/* Row 2: Channel chips */}
-            <PlatformChipFilter
-              value={filterChannel || 'all'}
-              onChange={(val) => { const ch = val === 'all' ? '' : val; setFilterChannel(ch); setCurrentPage(1); syncUrl({ channel: ch, page: 1 }); }}
-            />
-
-            {/* Row 3: Type tabs + Filters */}
-            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+            {/* Row 2: Type tabs (ก่อน platform — เพราะ ตัวแทน/ห้าง ไม่มี platform) */}
+            <div className="flex items-center gap-1.5 flex-wrap">
               {visibleTabs.map(tab => {
                 const isActive = filterType === (tab.id === 'all' ? '' : tab.types.join(','));
                 return (
@@ -555,7 +549,10 @@ function CustomersPageContent() {
                     type="button"
                     onClick={() => {
                       const val = tab.id === 'all' ? '' : tab.types.join(',');
-                      setFilterType(val); setCurrentPage(1); syncUrl({ type: val, page: 1 });
+                      setFilterType(val); setCurrentPage(1);
+                      // Clear platform filter for non-retail tabs
+                      if (tab.id !== 'all' && tab.id !== 'retail') { setFilterChannel(''); syncUrl({ type: val, channel: '', page: 1 }); }
+                      else syncUrl({ type: val, page: 1 });
                     }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                       isActive
@@ -568,6 +565,16 @@ function CustomersPageContent() {
                 );
               })}
             </div>
+
+            {/* Row 3: Platform chips — only for ทั้งหมด / ลูกค้าปลีก */}
+            {(!filterType || filterType === 'retail,dropship,affiliate') && (
+              <PlatformChipFilter
+                value={filterChannel || 'all'}
+                onChange={(val) => { const ch = val === 'all' ? '' : val; setFilterChannel(ch); setCurrentPage(1); syncUrl({ channel: ch, page: 1 }); }}
+              />
+            )}
+
+            {/* Row 4: Amount + other filters */}
             <div className="flex gap-2">
 
               {/* Order Amount Filter */}
