@@ -105,25 +105,33 @@ interface Customer {
   portal_access_code?: string | null;
 }
 
-// Customer type config
-const CUSTOMER_TYPES: Record<string, { label: string; color: string }> = {
-  retail: { label: 'ลูกค้าปลีก', color: 'bg-blue-100 text-blue-800' },
-  wholesale: { label: 'ลูกค้าส่ง', color: 'bg-purple-100 text-purple-800' },
-  cash_dealer: { label: 'ตัวแทนฯ เงินสด', color: 'bg-green-100 text-green-800' },
-  consignment_dealer: { label: 'ตัวแทนฯ ฝากขาย', color: 'bg-amber-100 text-amber-800' },
-  department_store: { label: 'ห้าง/Modern Trade', color: 'bg-pink-100 text-pink-800' },
-  distributor: { label: 'ตัวกระจายสินค้า', color: 'bg-teal-100 text-teal-800' },
-  credit_dealer: { label: 'ตัวแทนฯ เครดิต', color: 'bg-orange-100 text-orange-800' },
-  sub_dealer: { label: 'ตัวแทนย่อย', color: 'bg-indigo-100 text-indigo-800' },
-  corporate: { label: 'องค์กร/B2B', color: 'bg-slate-100 text-slate-800' },
-  project: { label: 'ลูกค้าโครงการ', color: 'bg-cyan-100 text-cyan-800' },
-  marketplace_dealer: { label: 'ตัวแทน Marketplace', color: 'bg-violet-100 text-violet-800' },
-  dropship: { label: 'Dropship', color: 'bg-sky-100 text-sky-800' },
-  affiliate: { label: 'Affiliate/KOL', color: 'bg-fuchsia-100 text-fuchsia-800' },
-  oem_odm: { label: 'OEM/ODM', color: 'bg-rose-100 text-rose-800' },
-  regional_agent: { label: 'ตัวแทนภูมิภาค', color: 'bg-emerald-100 text-emerald-800' },
-  government: { label: 'ราชการ/หน่วยงานรัฐ', color: 'bg-yellow-100 text-yellow-800' },
+// Customer type config — label + badge color for display
+const CUSTOMER_TYPES: Record<string, { label: string; color: string; group?: string }> = {
+  // ปลีก
+  retail: { label: 'ลูกค้าปลีก', color: 'bg-blue-100 text-blue-800', group: 'retail' },
+  dropship: { label: 'Dropship', color: 'bg-sky-100 text-sky-800', group: 'retail' },
+  affiliate: { label: 'Affiliate', color: 'bg-fuchsia-100 text-fuchsia-800', group: 'retail' },
+  // ตัวแทน (consignment feature)
+  consignment_dealer: { label: 'ตัวแทนฝากขาย', color: 'bg-amber-100 text-amber-800', group: 'dealer' },
+  wholesale_dealer: { label: 'ตัวแทนขายขาด', color: 'bg-orange-100 text-orange-800', group: 'dealer' },
+  dealer: { label: 'ตัวแทน', color: 'bg-amber-100 text-amber-800', group: 'dealer' },
+  // ห้าง (department_store feature)
+  department_store: { label: 'ห้างฝากขาย', color: 'bg-pink-100 text-pink-800', group: 'dept' },
+  wholesale_department: { label: 'ห้างขายขาด', color: 'bg-rose-100 text-rose-800', group: 'dept' },
+  // องค์กร
+  corporate: { label: 'องค์กร/B2B', color: 'bg-slate-100 text-slate-800', group: 'corporate' },
+  credit: { label: 'เครดิต (legacy)', color: 'bg-gray-100 text-gray-800', group: 'corporate' },
 };
+
+// Filter tabs for customer list — gated by features
+interface TypeTab { id: string; label: string; types: string[]; requiredFeature?: 'consignment' | 'department_store' }
+const TYPE_TABS: TypeTab[] = [
+  { id: 'all', label: 'ทั้งหมด', types: [] },
+  { id: 'retail', label: 'ลูกค้าปลีก', types: ['retail', 'dropship', 'affiliate'] },
+  { id: 'dealer', label: 'ตัวแทน', types: ['consignment_dealer', 'wholesale_dealer', 'dealer'], requiredFeature: 'consignment' },
+  { id: 'dept', label: 'ห้าง', types: ['department_store', 'wholesale_department'], requiredFeature: 'department_store' },
+  { id: 'corporate', label: 'องค์กร/B2B', types: ['corporate', 'credit'] },
+];
 
 function CustomerTypeBadge({ type }: { type: string }) {
   const config = CUSTOMER_TYPES[type] || { label: type, color: 'bg-gray-100 text-gray-800' };
@@ -387,7 +395,10 @@ function CustomersPageContent() {
   });
 
   // Types that exist in customer data (for filter dropdown)
-  const activeTypes = useMemo(() => Object.entries(CUSTOMER_TYPES), []);
+  const visibleTabs = useMemo(() => TYPE_TABS.filter(tab => {
+    if (!tab.requiredFeature) return true;
+    return features[tab.requiredFeature];
+  }), [features]);
 
   // Pagination — server handles page/limit, client just uses totalCustomers for display
   const totalPages = Math.ceil(totalCustomers / rowsPerPage);
@@ -534,18 +545,30 @@ function CustomersPageContent() {
               onChange={(val) => { const ch = val === 'all' ? '' : val; setFilterChannel(ch); setCurrentPage(1); syncUrl({ channel: ch, page: 1 }); }}
             />
 
-            {/* Row 3: Filters */}
+            {/* Row 3: Type tabs + Filters */}
+            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+              {visibleTabs.map(tab => {
+                const isActive = filterType === (tab.id === 'all' ? '' : tab.types.join(','));
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      const val = tab.id === 'all' ? '' : tab.types.join(',');
+                      setFilterType(val); setCurrentPage(1); syncUrl({ type: val, page: 1 });
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      isActive
+                        ? 'bg-[#F4511E] text-white shadow-sm'
+                        : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
             <div className="flex gap-2">
-              {/* Type Filter */}
-              <div className="flex-1 min-w-0">
-                <FormSelect
-                  value={filterType}
-                  onChange={(val) => { setFilterType(val); setCurrentPage(1); syncUrl({ type: val, page: 1 }); }}
-                  options={activeTypes.map(([key, { label }]) => ({ id: key, label }))}
-                  clearLabel="ประเภท"
-                  searchThreshold={99}
-                />
-              </div>
 
               {/* Order Amount Filter */}
               <div className="flex-1 min-w-0">
