@@ -205,7 +205,6 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
 
       {/* ─── 4. สัญญาฝากขาย (DN — ม.78(3)) — ซ่อนสำหรับห้าง + ขายขาด ─── */}
       {!hideContract && !wholesale && (
-      {(
         <div className="rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50/50 dark:bg-amber-900/10 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>
@@ -270,7 +269,6 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
             )}
           </div>
         </div>
-      )}
       )}
 
     </div>
