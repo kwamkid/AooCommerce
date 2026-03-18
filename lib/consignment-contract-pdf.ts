@@ -3,7 +3,7 @@
  * ใช้ pdfMake + IBMPlexSansThai
  */
 
-import { setupPdfMake, fetchCompanyInfo, loadLogoDataUrl, formatPdfDate, type CompanyInfo } from './pdf-utils';
+import { setupPdfMake, fetchCompanyInfo, loadLogoDataUrl, formatPdfDate, withOriginalAndCopy, type CompanyInfo } from './pdf-utils';
 
 export interface ContractParty {
   name: string;
@@ -279,10 +279,11 @@ export async function generateConsignmentContractPdf(
   const docDefinition: any = {
     pageSize: 'A4',
     pageMargins: [40, 30, 40, 30],
-    defaultStyle: { font: 'IBMPlexSansThai', fontSize: 11, lineHeight: 1.4 },
+    defaultStyle: { font: 'IBMPlexSansThai', fontSize: 11, lineHeight: 1.15 },
     content,
   };
 
-  const pdfDoc = pdfMake.createPdf(docDefinition);
+  const finalDef = withOriginalAndCopy(docDefinition);
+  const pdfDoc = pdfMake.createPdf(finalDef);
   return pdfDoc.getBlob();
 }
