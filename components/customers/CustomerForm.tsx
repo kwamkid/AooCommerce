@@ -726,6 +726,76 @@ export default function CustomerForm({
   // =====================
   return (
     <form onSubmit={handleSubmit}>
+
+      {/* ===== ประเภทลูกค้า (full-width, เลือกก่อน) ===== */}
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6 mb-6">
+        <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">ประเภทลูกค้า</h3>
+
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {CUSTOMER_TYPE_OPTIONS.map(opt => {
+            const isSelected = formData.customer_type === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => {
+                  const subOptions = SALE_TYPE_OPTIONS[opt.id];
+                  setFormData(prev => ({
+                    ...prev,
+                    customer_type: opt.id,
+                    sale_type: subOptions ? subOptions[0].id : '',
+                  }));
+                }}
+                className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
+                  isSelected
+                    ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 shadow-sm'
+                    : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'
+                }`}
+              >
+                <div className={`${isSelected ? 'text-[#F4511E]' : 'text-gray-400 dark:text-slate-500'}`}>
+                  {TYPE_ICONS[opt.icon]}
+                </div>
+                <span className={`text-sm font-medium ${isSelected ? 'text-[#F4511E]' : 'text-gray-600 dark:text-slate-300'}`}>
+                  {opt.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Sale type sub-options */}
+        {SALE_TYPE_OPTIONS[formData.customer_type] && (
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {SALE_TYPE_OPTIONS[formData.customer_type].map(opt => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, sale_type: opt.id }))}
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all ${
+                  formData.sale_type === opt.id
+                    ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20'
+                    : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                }`}
+              >
+                <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                  formData.sale_type === opt.id
+                    ? 'border-[#F4511E] bg-[#F4511E]'
+                    : 'border-gray-300 dark:border-slate-500'
+                }`}>
+                  {formData.sale_type === opt.id && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-base font-medium ${formData.sale_type === opt.id ? 'text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>
+                    {opt.label}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-slate-500 mt-0.5">{opt.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* ===== LEFT COLUMN ===== */}
@@ -1031,106 +1101,36 @@ export default function CustomerForm({
         {/* ===== RIGHT COLUMN ===== */}
         <div className="space-y-6">
 
-          {/* Section: ประเภทลูกค้า */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
-            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">ประเภทลูกค้า</h3>
-
-            {/* Type icon buttons */}
-            <div className="grid grid-cols-3 gap-2">
-              {CUSTOMER_TYPE_OPTIONS.map(opt => {
-                const isSelected = formData.customer_type === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => {
-                      const subOptions = SALE_TYPE_OPTIONS[opt.id];
-                      setFormData(prev => ({
-                        ...prev,
-                        customer_type: opt.id,
-                        sale_type: subOptions ? subOptions[0].id : '',
-                      }));
-                    }}
-                    className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
-                      isSelected
-                        ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 shadow-sm'
-                        : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'
-                    }`}
-                  >
-                    <div className={`${isSelected ? 'text-[#F4511E]' : 'text-gray-400 dark:text-slate-500'}`}>
-                      {TYPE_ICONS[opt.icon]}
-                    </div>
-                    <span className={`text-sm font-medium ${isSelected ? 'text-[#F4511E]' : 'text-gray-600 dark:text-slate-300'}`}>
-                      {opt.label}
-                    </span>
-                  </button>
-                );
-              })}
+          {/* GP/ส่วนลด Settings — show for dealer/dept_store/corporate with any sale_type */}
+          {formData.sale_type && (formData.customer_type === 'dealer' || formData.customer_type === 'department_store' || formData.customer_type === 'corporate') && (
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
+              <ConsignmentSettings
+                data={{
+                  consignment_gp_rate: formData.consignment_gp_rate,
+                  consignment_gp_base_price: formData.consignment_gp_base_price,
+                  consignment_report_due_days: formData.consignment_report_due_days,
+                  consignment_payment_terms: formData.consignment_payment_terms,
+                  contract_number: formData.contract_number,
+                  contract_date: formData.contract_date,
+                  rd_submitted_at: formData.rd_submitted_at,
+                }}
+                onChange={(patch) => setFormData(prev => ({ ...prev, ...patch }))}
+                inputClassName={inputFull}
+                labelClassName={labelFull}
+                brandGpRows={brandGpRows}
+                onBrandGpRowsChange={setBrandGpRows}
+                hideContract={formData.customer_type === 'department_store'}
+                wholesale={formData.sale_type !== 'consignment'}
+              />
             </div>
+          )}
 
-            {/* Sale type sub-options */}
-            {SALE_TYPE_OPTIONS[formData.customer_type] && (
-              <div className="mt-4 grid grid-cols-1 gap-2">
-                {SALE_TYPE_OPTIONS[formData.customer_type].map(opt => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, sale_type: opt.id }))}
-                    className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all ${
-                      formData.sale_type === opt.id
-                        ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20'
-                        : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                    }`}
-                  >
-                    <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-                      formData.sale_type === opt.id
-                        ? 'border-[#F4511E] bg-[#F4511E]'
-                        : 'border-gray-300 dark:border-slate-500'
-                    }`}>
-                      {formData.sale_type === opt.id && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-base font-medium ${formData.sale_type === opt.id ? 'text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>
-                        {opt.label}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-slate-500 mt-0.5">{opt.desc}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* GP/ส่วนลด Settings — show for dealer/dept_store/corporate with any sale_type */}
-            {formData.sale_type && (formData.customer_type === 'dealer' || formData.customer_type === 'department_store' || formData.customer_type === 'corporate') && (
-              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
-                <ConsignmentSettings
-                  data={{
-                    consignment_gp_rate: formData.consignment_gp_rate,
-                    consignment_gp_base_price: formData.consignment_gp_base_price,
-                    consignment_report_due_days: formData.consignment_report_due_days,
-                    consignment_payment_terms: formData.consignment_payment_terms,
-                    contract_number: formData.contract_number,
-                    contract_date: formData.contract_date,
-                    rd_submitted_at: formData.rd_submitted_at,
-                  }}
-                  onChange={(patch) => setFormData(prev => ({ ...prev, ...patch }))}
-                  inputClassName={inputFull}
-                  labelClassName={labelFull}
-                  brandGpRows={brandGpRows}
-                  onBrandGpRowsChange={setBrandGpRows}
-                  hideContract={formData.customer_type === 'department_store'}
-                  wholesale={formData.sale_type !== 'consignment'}
-                />
-              </div>
-            )}
-
-            {/* Department Store Settings — show for department_store type */}
-            {formData.customer_type === 'department_store' && (
-              <div className="mt-4">
-                <DepartmentStoreSettings />
-              </div>
-            )}
-          </div>
+          {/* Department Store Settings */}
+          {formData.customer_type === 'department_store' && (
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
+              <DepartmentStoreSettings />
+            </div>
+          )}
 
           {/* Section: ใบกำกับภาษี */}
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
