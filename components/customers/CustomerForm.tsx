@@ -826,17 +826,19 @@ export default function CustomerForm({
                   )}
                 </div>
               </div>
-              <div>
-                <label className={labelFull}>อีเมล</label>
-                <input type="email" value={formData.email} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                  className={inputFull} />
-              </div>
-              {allTags && onTagsChange && (
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className={labelFull}>แท็ก</label>
-                  <TagInput value={selectedTags || []} onChange={onTagsChange} allTags={allTags} onTagCreated={onTagCreated} />
+                  <label className={labelFull}>อีเมล</label>
+                  <input type="email" value={formData.email} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    className={inputFull} />
                 </div>
-              )}
+                {allTags && onTagsChange && (
+                  <div>
+                    <label className={labelFull}>แท็ก</label>
+                    <TagInput value={selectedTags || []} onChange={onTagsChange} allTags={allTags} onTagCreated={onTagCreated} />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
