@@ -169,19 +169,22 @@ export async function POST(request: NextRequest) {
     const totalAmount = totalWithVAT;
     console.log('[CREATE ORDER] itemsSubtotal:', subtotal, 'discount:', discountAmount, 'shipping:', totalShippingFee, 'subtotalBeforeVAT:', subtotalBeforeVAT, 'vat:', vatAmount, 'TOTAL:', totalAmount);
 
-    // Determine flow_type from customer_type
-    let flowType = 'a_cash'; // default
+    // Determine flow_type from customer_type + sale_type
+    let flowType = 'r_retail'; // default
     if (orderData.customer_id) {
       const { data: cust } = await supabaseAdmin
         .from('customers')
-        .select('customer_type')
+        .select('customer_type, sale_type')
         .eq('id', orderData.customer_id)
         .single();
       if (cust?.customer_type) {
-        if (cust.customer_type === 'credit') flowType = 'b_credit';
-        else if (cust.customer_type === 'consignment_dealer') flowType = 'c_consign';
-        else if (cust.customer_type === 'department_store') flowType = 'd_statement';
-        // retail, dropship, affiliate → a_cash (default)
+        const ct = cust.customer_type;
+        const st = cust.sale_type || '';
+        if (ct === 'consignment_dealer' || (ct === 'dealer' && st === 'consignment')) flowType = 'c_consign';
+        else if (ct === 'department_store' && st === 'consignment') flowType = 'd_department';
+        else if (st === 'wholesale_cash') flowType = 'w_cash';
+        else if (st === 'wholesale_credit' || ct === 'credit') flowType = 'w_credit';
+        // retail, dropship, affiliate → r_retail (default)
       }
     }
 
@@ -1045,8 +1048,8 @@ export async function PUT(request: NextRequest) {
           .eq('company_id', auth.companyId)
           .in('order_status', ['ready_to_ship', 'new']);
 
-        // Credit flow orders (b_credit/c_consign/d_statement) in 'new' can skip to processing
-        const creditFlowTypes = ['b_credit', 'c_consign', 'd_statement'];
+        // Credit flow orders can skip to processing from 'new'
+        const creditFlowTypes = ['w_credit', 'b_credit', 'c_consign', 'd_department', 'd_statement'];
         const manualOrders = (ordersToAccept || []).filter(o => o.source !== 'shopee' && (
           o.order_status === 'ready_to_ship' ||
           (o.order_status === 'new' && creditFlowTypes.includes(o.flow_type || ''))
@@ -1932,9 +1935,9 @@ export async function PUT(request: NextRequest) {
       }
       if (body.payment_status !== undefined) {
         updateData.payment_status = body.payment_status;
-        // Flow A (retail/dropship/affiliate): paid → ready_to_ship → wait for manual accept
-        // Flow B/C/D (credit/consignment/dept_store): paid → processing directly (no ready_to_ship)
-        const isCreditFlow = ['b_credit', 'c_consign', 'd_statement'].includes(existingOrder.flow_type || '');
+        // Flow R/W-Cash: paid → ready_to_ship → wait for manual accept
+        // Flow W-Credit/C/D: paid → processing directly (no ready_to_ship)
+        const isCreditFlow = ['w_credit', 'b_credit', 'c_consign', 'd_department', 'd_statement'].includes(existingOrder.flow_type || '');
         if ((body.payment_status === 'paid' || body.payment_status === 'verifying')
             && existingOrder.order_status === 'new' && !body.order_status) {
           updateData.order_status = isCreditFlow ? 'processing' : 'ready_to_ship';

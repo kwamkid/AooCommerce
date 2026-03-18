@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       .from('orders')
       .select('id, order_number, flow_type, order_status, tax_invoice_number')
       .eq('company_id', auth.companyId)
-      .eq('flow_type', 'a_cash')
+      .in('flow_type', ['r_retail', 'a_cash', 'w_cash'])
       .is('tax_invoice_number', null)
       .in('order_status', ['processing', 'shipping', 'completed']);
 

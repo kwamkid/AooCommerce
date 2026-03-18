@@ -1029,8 +1029,8 @@ export async function autoIssueDocument(
       return (count && count > 0);
     };
 
-    // ─── Flow A (a_cash): ABB/REC when accepted (processing+) AND paid ───
-    if (order.flow_type === 'a_cash'
+    // ─── Flow R/W-Cash: ABB/REC when accepted (processing+) AND paid ───
+    if ((order.flow_type === 'r_retail' || order.flow_type === 'a_cash' || order.flow_type === 'w_cash')
         && ['processing', 'shipping', 'completed'].includes(order.order_status)
         && order.payment_status === 'paid') {
       if (!(await hasAbbOrRec())) {
@@ -1039,8 +1039,8 @@ export async function autoIssueDocument(
       return;
     }
 
-    // ─── Flow B (b_credit): ส่งของ → TAX (VAT) or DN (no VAT) ───
-    if (order.flow_type === 'b_credit'
+    // ─── Flow W-Credit: ส่งของ → TAX tax_invoice (VAT) or INV (no VAT) ───
+    if ((order.flow_type === 'w_credit' || order.flow_type === 'b_credit')
         && ['shipping', 'completed'].includes(order.order_status)) {
       const vatRegistered = await getCompanyVat(companyId);
       if (vatRegistered) {
@@ -1060,6 +1060,7 @@ export async function autoIssueDocument(
               source_type: 'order', source_id: orderId, customer_id: oi?.customer_id,
               total_amount: oi?.total_amount ?? 0, vat_amount: oi?.vat_amount ?? 0,
               is_receipt: false,
+              document_subtype: 'tax_invoice', // ใบกำกับภาษี/ใบแจ้งหนี้ (ขายขาดเครดิต)
             });
           }
         }
@@ -1071,8 +1072,8 @@ export async function autoIssueDocument(
       }
     }
 
-    // ─── Flow B (b_credit): จ่ายเงินครบ → REC ───
-    if (order.flow_type === 'b_credit'
+    // ─── Flow W-Credit: จ่ายเงินครบ → REC ───
+    if ((order.flow_type === 'w_credit' || order.flow_type === 'b_credit')
         && order.payment_status === 'paid'
         && ['shipping', 'completed'].includes(order.order_status)) {
       // Check if REC already exists for this order

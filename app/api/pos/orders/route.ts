@@ -328,17 +328,22 @@ export async function POST(request: NextRequest) {
       paymentMethod = 'multi';
     }
 
-    // Determine flow_type from customer_type
-    let flowType = 'a_cash';
+    // Determine flow_type from customer_type + sale_type
+    let flowType = 'r_retail';
     if (customer_id) {
       const { data: cust } = await supabaseAdmin
         .from('customers')
-        .select('customer_type')
+        .select('customer_type, sale_type')
         .eq('id', customer_id)
         .single();
-      if (cust?.customer_type === 'credit') flowType = 'b_credit';
-      else if (cust?.customer_type === 'consignment_dealer') flowType = 'c_consign';
-      else if (cust?.customer_type === 'department_store') flowType = 'd_statement';
+      if (cust?.customer_type) {
+        const ct = cust.customer_type;
+        const st = cust.sale_type || '';
+        if (ct === 'consignment_dealer' || (ct === 'dealer' && st === 'consignment')) flowType = 'c_consign';
+        else if (ct === 'department_store' && st === 'consignment') flowType = 'd_department';
+        else if (st === 'wholesale_cash') flowType = 'w_cash';
+        else if (st === 'wholesale_credit' || ct === 'credit') flowType = 'w_credit';
+      }
     }
 
     // Create order

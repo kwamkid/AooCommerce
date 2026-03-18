@@ -307,7 +307,7 @@ function OrdersPageContent() {
 
   // Status flow helpers — credit/consignment/dept_store skip ready_to_ship
   const getNextOrderStatus = (currentStatus: string, flowType?: string | null): string | null => {
-    const isCreditFlow = ['b_credit', 'c_consign', 'd_statement'].includes(flowType || '');
+    const isCreditFlow = ['w_credit', 'b_credit', 'c_consign', 'd_department', 'd_statement'].includes(flowType || '');
     if (isCreditFlow) {
       const flow: Record<string, string> = { new: 'processing', processing: 'shipping', shipping: 'completed' };
       return flow[currentStatus] || null;
@@ -560,8 +560,8 @@ function OrdersPageContent() {
     const menuItems: ActionItem[] = [];
 
     // Primary: Payment action (manual, new tab, pending payment, flow A only)
-    const isCreditFlow = ['b_credit', 'c_consign', 'd_statement'].includes(order.flow_type || '');
-    if (statusFilter === 'new' && !isMarketplace && order.payment_status === 'pending' && !isCreditFlow) {
+    const isCreditFlowOrder = ['w_credit', 'b_credit', 'c_consign', 'd_department', 'd_statement'].includes(order.flow_type || '');
+    if (statusFilter === 'new' && !isMarketplace && order.payment_status === 'pending' && !isCreditFlowOrder) {
       primaryActions.push(
         <button
           key="pay"
