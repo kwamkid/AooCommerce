@@ -1,9 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText } from 'lucide-react';
 import GpOverridePanel, { type BrandGpRow } from '@/components/customers/GpOverridePanel';
-import DateRangePicker from '@/components/ui/DateRangePicker';
 import { apiFetch } from '@/lib/api-client';
 
 export { type BrandGpRow };
@@ -38,16 +36,6 @@ interface Props {
   wholesale?: boolean;
 }
 
-function generateContractNumber() {
-  const now = new Date();
-  const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const rand = String(Math.floor(Math.random() * 9000) + 1000);
-  return `CSN-${ym}-${rand}`;
-}
-
-function toISODate(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
 
 // ── Tab-style toggle: "ตามระบบ" vs "กำหนดเอง" ───────────────────────────
 function DefaultOrCustomTab({
@@ -203,73 +191,6 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
         )}
       </div>)}
 
-      {/* ─── 4. สัญญาฝากขาย (DN — ม.78(3)) — ซ่อนสำหรับห้าง + ขายขาด ─── */}
-      {!hideContract && !wholesale && (
-        <div className="rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50/50 dark:bg-amber-900/10 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-base font-semibold text-amber-800 dark:text-amber-300">สัญญาฝากขาย (ม.78(3))</p>
-              <p className="text-sm text-amber-600/70 dark:text-amber-400/70">ต้องยื่นต่อสรรพากรภายใน 15 วันนับจากวันทำสัญญา</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const patch: Partial<ConsignmentSettingsData> = {};
-                if (!data.contract_number) patch.contract_number = generateContractNumber();
-                if (!data.contract_date) patch.contract_date = toISODate(new Date());
-                if (Object.keys(patch).length > 0) onChange(patch);
-              }}
-              className="flex items-center gap-1.5 text-base font-medium text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 transition-colors"
-            >
-              <FileText className="w-4 h-4" />
-              พิมพ์สัญญา
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClassName}>เลขที่สัญญา</label>
-              <input
-                type="text"
-                value={data.contract_number || ''}
-                onChange={(e) => onChange({ contract_number: e.target.value })}
-                className={inputClassName}
-                placeholder="เช่น CSN-2026-001"
-              />
-            </div>
-            <div>
-              <label className={labelClassName}>วันที่ทำสัญญา</label>
-              <DateRangePicker
-                asSingle
-                useRange={false}
-                showShortcuts={false}
-                showFooter={false}
-                placeholder="เลือกวันที่"
-                value={data.contract_date ? { startDate: data.contract_date, endDate: data.contract_date } : null}
-                onChange={(v) => onChange({ contract_date: v?.startDate ? String(v.startDate) : '' })}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className={labelClassName}>วันที่ยื่นสรรพากร</label>
-            <DateRangePicker
-              asSingle
-              useRange={false}
-              showShortcuts={false}
-              showFooter={false}
-              placeholder="เลือกวันที่"
-              value={data.rd_submitted_at ? { startDate: data.rd_submitted_at, endDate: data.rd_submitted_at } : null}
-              onChange={(v) => onChange({ rd_submitted_at: v?.startDate ? String(v.startDate) : '' })}
-            />
-            {data.contract_date && !data.rd_submitted_at && (
-              <p className="text-sm text-amber-600 dark:text-amber-400 mt-1 font-medium">
-                ควรยื่นภายใน {new Date(new Date(data.contract_date).getTime() + 15 * 86400000).toLocaleDateString('th-TH')}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
 
     </div>
   );

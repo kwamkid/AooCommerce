@@ -23,12 +23,16 @@ import {
   Briefcase,
   Share2,
   Heart,
+  FileText,
+  Printer,
 } from 'lucide-react';
 
 // Lazy-loaded type-specific settings panels
 const ConsignmentSettings = dynamic(() => import('./settings/ConsignmentSettings'), { ssr: false });
 const DepartmentStoreSettings = dynamic(() => import('./settings/DepartmentStoreSettings'), { ssr: false });
 import Checkbox from '@/components/ui/Checkbox';
+import DateRangePicker from '@/components/ui/DateRangePicker';
+import { showPdfPreview } from '@/lib/print-pdf';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import FormSelect from '@/components/ui/FormSelect';
 import TagInput from '@/components/ui/TagInput';
@@ -1131,6 +1135,117 @@ export default function CustomerForm({
           {formData.customer_type === 'department_store' && (
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
               <DepartmentStoreSettings />
+            </div>
+          )}
+
+          {/* Section: สัญญาฝากขาย — เฉพาะ dealer + consignment */}
+          {formData.customer_type === 'dealer' && formData.sale_type === 'consignment' && (
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-amber-300 dark:border-amber-700/50 p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                    <FileText className="w-5 h-5" /> สัญญาฝากขาย (ม.78(3))
+                  </h3>
+                  <p className="text-sm text-amber-600/70 dark:text-amber-400/70 mt-0.5">ต้องยื่นต่อสรรพากรภายใน 15 วันนับจากวันทำสัญญา</p>
+                </div>
+              </div>
+
+              {!formData.contract_number ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date();
+                    const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+                    const rand = String(Math.floor(Math.random() * 9000) + 1000);
+                    setFormData(prev => ({ ...prev, contract_number: `CSN-${ym}-${rand}` }));
+                  }}
+                  className="w-full py-3 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center justify-center gap-2 font-medium"
+                >
+                  <Plus className="w-4 h-4" /> สร้างสัญญา
+                </button>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelFull}>เลขที่สัญญา</label>
+                      <input
+                        type="text"
+                        value={formData.contract_number || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, contract_number: e.target.value }))}
+                        className={inputFull}
+                        readOnly
+                      />
+                    </div>
+                    <div>
+                      <label className={labelFull}>วันที่ทำสัญญา <span className="text-red-500">*</span></label>
+                      <DateRangePicker
+                        asSingle
+                        useRange={false}
+                        showShortcuts={false}
+                        showFooter={false}
+                        placeholder="เลือกวันที่"
+                        value={formData.contract_date ? { startDate: formData.contract_date, endDate: formData.contract_date } : null}
+                        onChange={(v) => setFormData(prev => ({ ...prev, contract_date: v?.startDate ? String(v.startDate) : '' }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className={labelFull}>วันที่ยื่นสรรพากร</label>
+                    <DateRangePicker
+                      asSingle
+                      useRange={false}
+                      showShortcuts={false}
+                      showFooter={false}
+                      placeholder="เลือกวันที่"
+                      value={formData.rd_submitted_at ? { startDate: formData.rd_submitted_at, endDate: formData.rd_submitted_at } : null}
+                      onChange={(v) => setFormData(prev => ({ ...prev, rd_submitted_at: v?.startDate ? String(v.startDate) : '' }))}
+                    />
+                    {formData.contract_date && !formData.rd_submitted_at && (
+                      <p className="text-sm text-amber-600 dark:text-amber-400 mt-1 font-medium">
+                        ควรยื่นภายใน {new Date(new Date(formData.contract_date).getTime() + 15 * 86400000).toLocaleDateString('th-TH')}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!formData.contract_date) {
+                        showToast('กรุณาระบุวันที่ทำสัญญาก่อนพิมพ์', 'error');
+                        return;
+                      }
+                      try {
+                        const { generateConsignmentContractPdf } = await import('@/lib/consignment-contract-pdf');
+                        const blob = await generateConsignmentContractPdf(
+                          {
+                            name: formData.name,
+                            tax_company_name: formData.tax_company_name || null,
+                            tax_id: formData.tax_id || null,
+                            billing_address: [formData.billing_address, formData.billing_district, formData.billing_amphoe, formData.billing_province, formData.billing_postal_code].filter(Boolean).join(' ') || null,
+                            phone: formData.phone || null,
+                          },
+                          {
+                            contract_number: formData.contract_number || '',
+                            contract_date: formData.contract_date || '',
+                            gp_rate: Number(formData.consignment_gp_rate) || 30,
+                            gp_base_price: formData.consignment_gp_base_price || 'retail',
+                            report_due_days: Number(formData.consignment_report_due_days) || 15,
+                            payment_terms: Number(formData.consignment_payment_terms) || 30,
+                          },
+                        );
+                        showPdfPreview(blob, `สัญญาฝากขาย ${formData.contract_number}`);
+                      } catch (err) {
+                        console.error('Print contract error:', err);
+                        showToast('ไม่สามารถพิมพ์สัญญาได้', 'error');
+                      }
+                    }}
+                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
+                  >
+                    <Printer className="w-4 h-4" /> พิมพ์สัญญา
+                  </button>
+                </>
+              )}
             </div>
           )}
 
