@@ -1056,8 +1056,8 @@ export default function CustomerForm({
               </div>
             )}
 
-            {/* Consignment Settings — show for dealer+consignment or department_store+consignment */}
-            {formData.sale_type === 'consignment' && (formData.customer_type === 'dealer' || formData.customer_type === 'department_store') && (
+            {/* GP/ส่วนลด Settings — show for dealer/dept_store/corporate with any sale_type */}
+            {formData.sale_type && (formData.customer_type === 'dealer' || formData.customer_type === 'department_store' || formData.customer_type === 'corporate') && (
               <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
                 <ConsignmentSettings
                   data={{
@@ -1075,6 +1075,7 @@ export default function CustomerForm({
                   brandGpRows={brandGpRows}
                   onBrandGpRowsChange={setBrandGpRows}
                   hideContract={formData.customer_type === 'department_store'}
+                  wholesale={formData.sale_type !== 'consignment'}
                 />
               </div>
             )}

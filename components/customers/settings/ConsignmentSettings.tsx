@@ -34,6 +34,8 @@ interface Props {
   onBrandGpRowsChange: (rows: BrandGpRow[]) => void;
   /** ซ่อนส่วนสัญญาฝากขาย — ใช้สำหรับห้าง (ไม่มีสัญญา ม.78(3)) */
   hideContract?: boolean;
+  /** ขายขาด mode: เปลี่ยน label GP → ส่วนลด, ซ่อนเงื่อนไขชำระ + สัญญา */
+  wholesale?: boolean;
 }
 
 function generateContractNumber() {
@@ -82,7 +84,7 @@ function DefaultOrCustomTab({
 
 const GP_BASE_LABELS: Record<string, string> = { retail: 'ราคาปลีก', discounted: 'ราคาลด' };
 
-export default function ConsignmentSettings({ data, onChange, inputClassName, labelClassName, brandGpRows, onBrandGpRowsChange, hideContract }: Props) {
+export default function ConsignmentSettings({ data, onChange, inputClassName, labelClassName, brandGpRows, onBrandGpRowsChange, hideContract, wholesale }: Props) {
   const [defaults, setDefaults] = useState<CompanyDefaults | null>(null);
 
   useEffect(() => {
@@ -109,9 +111,9 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
   return (
     <div className="space-y-4">
 
-      {/* ─── 1. GP% + Brand GP ─── */}
+      {/* ─── 1. GP% / ส่วนลด + Brand GP ─── */}
       <div>
-        <p className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2">GP% ตัวแทน</p>
+        <p className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2">{wholesale ? 'ส่วนลดตัวแทน' : 'GP% ตัวแทน'}</p>
         <DefaultOrCustomTab
           isCustom={isCustomGp}
           onToggle={(custom) => {
@@ -147,8 +149,8 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
         )}
       </div>
 
-      {/* ─── 3. เงื่อนไขการชำระ ─── */}
-      <div>
+      {/* ─── 3. เงื่อนไขการชำระ (ฝากขายเท่านั้น) ─── */}
+      {!wholesale && (<div>
         <p className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2">เงื่อนไขการชำระ</p>
         <DefaultOrCustomTab
           isCustom={isCustomTerms}
@@ -199,10 +201,10 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
             </div>
           </div>
         )}
-      </div>
+      </div>)}
 
-      {/* ─── 4. สัญญาฝากขาย (DN — ม.78(3)) — ซ่อนสำหรับห้าง ─── */}
-      {!hideContract && (
+      {/* ─── 4. สัญญาฝากขาย (DN — ม.78(3)) — ซ่อนสำหรับห้าง + ขายขาด ─── */}
+      {!hideContract && !wholesale && (
       {(
         <div className="rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50/50 dark:bg-amber-900/10 p-4 space-y-3">
           <div className="flex items-center justify-between">
