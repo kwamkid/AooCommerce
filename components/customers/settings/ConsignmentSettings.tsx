@@ -59,11 +59,11 @@ function DefaultOrCustomTab({
   onToggle: (custom: boolean) => void;
   defaultDesc?: string;
 }) {
-  const base = 'px-3 py-1.5 text-base font-medium transition-all cursor-pointer';
+  const base = 'px-4 py-1.5 text-sm font-medium transition-all cursor-pointer whitespace-nowrap';
   const active = 'bg-white dark:bg-slate-700 text-amber-700 dark:text-amber-400 shadow-sm';
   const inactive = 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300';
   return (
-    <div className="flex items-center gap-3 mb-2">
+    <div className="mb-2">
       <div className="inline-flex rounded-lg bg-gray-100 dark:bg-slate-800 p-0.5">
         <button type="button" onClick={() => onToggle(false)} className={`${base} rounded-md ${!isCustom ? active : inactive}`}>
           ตามระบบ
@@ -73,10 +73,10 @@ function DefaultOrCustomTab({
         </button>
       </div>
       {!isCustom && defaultDesc && (
-        <span className="text-base text-gray-400 dark:text-slate-500">{defaultDesc}</span>
+        <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">{defaultDesc}</p>
       )}
       {isCustom && (
-        <span className="text-sm text-amber-600/70 dark:text-amber-400/60">จะไม่เปลี่ยนตาม ตั้งค่า &gt; ฝากขาย</span>
+        <p className="text-sm text-amber-600/70 dark:text-amber-400/60 mt-1">จะไม่เปลี่ยนตาม ตั้งค่า &gt; ฝากขาย</p>
       )}
     </div>
   );
