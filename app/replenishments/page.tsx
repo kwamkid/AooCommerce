@@ -208,8 +208,11 @@ function ReplenishmentsPageContent() {
         throw new Error(r.error || 'Failed');
       }
       const data = await res.json();
-      if (data.tax_invoice_number) {
-        showToast(`จัดส่งเรียบร้อย + ออกเอกสาร ${data.tax_invoice_number}`, 'success');
+      const dnNum = data.dn_number || data.tax_invoice_number;
+      const taxNum = data.tax_invoice_number;
+      const docNums = [dnNum, taxNum].filter(Boolean);
+      if (docNums.length > 0) {
+        showToast(`จัดส่งเรียบร้อย + ออกเอกสาร ${docNums.join(' + ')}`, 'success');
       } else {
         showToast('จัดส่งเรียบร้อย', 'success');
       }
@@ -217,19 +220,20 @@ function ReplenishmentsPageContent() {
       setShipModalId(null);
       resetShipForm();
       fetchData(true);
-      // Auto print DN/TAX after ship
-      if (data.tax_invoice_number) {
+      // Auto print DN after ship
+      if (dnNum) {
         try {
           const rp = await fetchReplenishmentForPdf(shippedId);
-          if (data.doc_type === 'tax') {
+          if (!dnNum && taxNum) {
+            // TAX only (Flow D dept store) — shouldn't happen normally since DN always issued
             const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
             const blob = await generateFullInvoicePdf({
               ...rp,
-              tax_invoice_number: data.tax_invoice_number,
-              tax_invoice_date: data.tax_invoice_date,
+              tax_invoice_number: taxNum,
+              tax_invoice_date: new Date().toISOString().split('T')[0],
               tax_invoice_doc_type: 'tax',
             });
-            showPdfPreview(blob, `ใบกำกับภาษี ${data.tax_invoice_number}`);
+            showPdfPreview(blob, `ใบกำกับภาษี ${taxNum}`);
           } else {
             const pdfData: ReplenishmentPdfData = {
               id: rp.id,
@@ -263,7 +267,7 @@ function ReplenishmentsPageContent() {
               })),
             };
             const blob = await generateReplenishmentPdf({ data: pdfData });
-            showPdfPreview(blob, `ใบส่งสินค้า ${data.tax_invoice_number}`);
+            showPdfPreview(blob, `ใบส่งสินค้า ${dnNum}`);
           }
           markPrintedAndUpdate(shippedId, 'dn');
         } catch (printErr) {

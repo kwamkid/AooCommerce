@@ -100,20 +100,22 @@ function NewReplenishmentPageContent() {
         throw new Error(r.error || 'Failed');
       }
       const data = await res.json();
-      if (data.tax_invoice_number) {
-        showToast(`จัดส่งเรียบร้อย + ออกเอกสาร ${data.tax_invoice_number}`, 'success');
+      const dnNum = data.dn_number || data.tax_invoice_number; // dn_number (new) or tax_invoice_number (legacy)
+      const taxNum = data.tax_invoice_number;
+      const docNums = [dnNum, taxNum].filter(Boolean);
+      if (docNums.length > 0) {
+        showToast(`จัดส่งเรียบร้อย + ออกเอกสาร ${docNums.join(' + ')}`, 'success');
       } else {
         showToast('จัดส่งเรียบร้อย', 'success');
       }
       setShowShipModal(false);
       resetShipForm();
 
-      // Auto-print the issued document (DN or TAX invoice)
-      // Generate PDF before reload so the user sees it
+      // Auto-print DN after ship
       let pdfBlob: Blob | null = null;
       let pdfTitle = '';
       try {
-        if (data.doc_type === 'dn' && data.tax_invoice_number) {
+        if (dnNum) {
           const { generateReplenishmentPdf } = await import('@/lib/replenishment-pdf');
           const rpRes = await apiFetch(`/api/replenishments/${replenishmentId}`);
           if (rpRes.ok) {
@@ -149,9 +151,11 @@ function NewReplenishmentPageContent() {
                 })),
               },
             });
-            pdfTitle = `ใบส่งสินค้า ${data.tax_invoice_number}`;
+            pdfTitle = `ใบส่งสินค้า ${dnNum}`;
           }
-        } else if (data.doc_type === 'tax' && data.tax_invoice_number) {
+        }
+        // Also print TAX if issued (Flow D: dept store)
+        if (!pdfBlob && taxNum) {
           const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
           const rpRes = await apiFetch(`/api/replenishments/${replenishmentId}`);
           if (rpRes.ok) {
@@ -159,11 +163,11 @@ function NewReplenishmentPageContent() {
             const rp = rpData.replenishment;
             pdfBlob = await generateFullInvoicePdf({
               ...rp,
-              tax_invoice_number: data.tax_invoice_number,
-              tax_invoice_date: data.tax_invoice_date,
+              tax_invoice_number: taxNum,
+              tax_invoice_date: new Date().toISOString().split('T')[0],
               tax_invoice_doc_type: 'tax',
             });
-            pdfTitle = `ใบกำกับภาษี ${data.tax_invoice_number}`;
+            pdfTitle = `ใบกำกับภาษี ${taxNum}`;
           }
         }
       } catch (printErr) {
