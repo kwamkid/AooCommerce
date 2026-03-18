@@ -132,6 +132,7 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
               canEdit={true}
               defaultGpRate={defaults?.default_gp_rate}
               defaultGpBasePrice={defaults?.default_gp_base_price}
+              wholesale={wholesale}
             />
           </div>
         )}

@@ -17,6 +17,7 @@ interface GlobalProps {
   brandGpRows: BrandGpRow[];
   onBrandGpRowsChange: (rows: BrandGpRow[]) => void;
   canEdit?: boolean;
+  wholesale?: boolean;
 }
 
 // ── Customer mode (Customer detail page) ─────────────────────────────────────
@@ -29,6 +30,7 @@ interface CustomerProps {
   brandGpRows: BrandGpRow[];
   onBrandGpRowsChange: (rows: BrandGpRow[]) => void;
   canEdit?: boolean;
+  wholesale?: boolean;
   // Company defaults — for placeholder display
   defaultGpRate?: number;
   defaultGpBasePrice?: 'retail' | 'discounted';
@@ -37,7 +39,7 @@ interface CustomerProps {
 type Props = GlobalProps | CustomerProps;
 
 export default function GpOverridePanel(props: Props) {
-  const { mode, gpRate, gpBasePrice, onGpRateChange, onGpBasePriceChange, canEdit = false } = props;
+  const { mode, gpRate, gpBasePrice, onGpRateChange, onGpBasePriceChange, canEdit = false, wholesale = false } = props;
   const defaultGpRate = mode === 'customer' ? (props as CustomerProps).defaultGpRate : undefined;
   const defaultGpBasePrice = mode === 'customer' ? (props as CustomerProps).defaultGpBasePrice : undefined;
   const [gpExpanded, setGpExpanded] = useState(false);
@@ -46,7 +48,8 @@ export default function GpOverridePanel(props: Props) {
   const brandCount = brandGpRows.filter(r => r.brand_id && r.gp_rate !== '').length;
 
   const isGlobal = mode === 'global';
-  const defaultLabel = isGlobal ? 'GP% Default' : 'GP% Default (ลูกค้านี้)';
+  const termLabel = wholesale ? 'ส่วนลด' : 'GP%';
+  const defaultLabel = isGlobal ? `${termLabel} Default` : `${termLabel} Default (ลูกค้านี้)`;
   const defaultDesc  = isGlobal ? 'ใช้เมื่อไม่มีค่าเฉพาะแบรนด์หรือลูกค้า' : 'ถ้าว่าง = ใช้ค่า default บริษัท';
 
   return (
@@ -92,7 +95,7 @@ export default function GpOverridePanel(props: Props) {
       >
         <span className="text-sm font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
           <Award className="w-4 h-4" />
-          GP% เฉพาะแบรนด์
+          {termLabel} เฉพาะแบรนด์
           {brandCount > 0 && (
             <span className="text-xs font-normal text-gray-400 dark:text-slate-500">
               ({brandCount} แบรนด์)
