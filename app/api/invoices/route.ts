@@ -358,12 +358,12 @@ async function queryInvoices(companyId: string, f: FilterParams) {
     .from('invoices')
     .select(`
       id, invoice_number, invoice_date,
-      order_id, customer_id, customer_name,
-      total_amount, vat_amount,
+      source_type, source_id,
+      customer_id, customer_name, customer_address,
+      total_amount,
       voided_at, voided_reason,
       created_at,
-      customer:customers(id, name),
-      order:orders(id, order_number)
+      customer:customers(id, name)
     `, { count: 'exact' })
     .eq('company_id', companyId);
 
@@ -383,17 +383,17 @@ async function queryInvoices(companyId: string, f: FilterParams) {
   const { data, error, count } = await query;
   if (error) throw error;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const invoices = (data || []).map((r: any) => ({
-    id: r.order_id,
+  const enriched = await enrichSourceNumbers((data || []) as Record<string, unknown>[]);
+
+  const invoices = enriched.map((r: Record<string, unknown>) => ({
+    id: r.source_id,
     doc_id: r.id,
-    source_type: 'order',
-    source_id: r.order_id,
-    order_number: r.order?.order_number || null,
+    source_type: r.source_type,
+    source_id: r.source_id,
+    source_number: r.source_number,
     invoice_number: r.invoice_number,
     invoice_date: r.invoice_date,
     total_amount: r.total_amount,
-    vat_amount: r.vat_amount,
     customer_id: r.customer_id,
     customer_name: r.customer_name,
     customer: r.customer,

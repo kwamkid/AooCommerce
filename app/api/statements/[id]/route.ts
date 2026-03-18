@@ -120,11 +120,12 @@ export async function PUT(
     }
 
     if (action === 'record_payment') {
-      const { amount, payment_method, reference, notes } = body as {
+      const { amount, payment_method, reference, notes, receipt_date } = body as {
         amount: number;
         payment_method?: string;
         reference?: string;
         notes?: string;
+        receipt_date?: string;
       };
 
       if (!amount || amount <= 0) {
@@ -166,23 +167,75 @@ export async function PUT(
         })
         .eq('id', id);
 
-      // If fully paid, update linked reports to 'paid' + auto issue invoices
-      let autoInvoiceResult: { taxNumber?: string; recNumber?: string } | null = null;
+      // If fully paid, update linked reports to 'paid' + issue receipt
+      let receiptResult: { receiptNumber?: string } | null = null;
       if (newStatus === 'paid') {
+        // Update consignment reports status
         await supabaseAdmin
           .from('consignment_reports')
           .update({ status: 'paid', updated_at: new Date().toISOString() })
           .eq('statement_id', id);
 
-        // Auto issue invoices (DN mode: จด VAT → TAX+REC, ไม่จด → REC)
-        try {
-          const { issueConsignmentInvoices } = await import('@/lib/invoice-service');
-          const result = await issueConsignmentInvoices(id, companyId);
-          if (result.success) {
-            autoInvoiceResult = { taxNumber: result.taxNumber, recNumber: result.recNumber };
+        // Update department store reports status
+        await supabaseAdmin
+          .from('department_store_reports')
+          .update({ status: 'paid', updated_at: new Date().toISOString() })
+          .eq('statement_id', id);
+
+        // Find reference document number (TAX or INV issued at report creation)
+        let refNumber: string | null = null;
+        // Check TAX first (Flow C จด VAT)
+        const { data: linkedReports } = await supabaseAdmin
+          .from('consignment_reports')
+          .select('id')
+          .eq('statement_id', id)
+          .limit(1);
+        const { data: linkedDeptReports } = await supabaseAdmin
+          .from('department_store_reports')
+          .select('id')
+          .eq('statement_id', id)
+          .limit(1);
+
+        const reportIds = [
+          ...(linkedReports || []).map(r => r.id),
+          ...(linkedDeptReports || []).map(r => r.id),
+        ];
+
+        if (reportIds.length > 0) {
+          // Check tax_invoices for TAX ref
+          const { data: taxDoc } = await supabaseAdmin
+            .from('tax_invoices')
+            .select('invoice_number')
+            .in('source_id', reportIds)
+            .is('voided_at', null)
+            .limit(1)
+            .maybeSingle();
+          if (taxDoc) refNumber = taxDoc.invoice_number;
+
+          // If no TAX, check invoices for INV ref
+          if (!refNumber) {
+            const { data: invDoc } = await supabaseAdmin
+              .from('invoices')
+              .select('invoice_number')
+              .in('source_id', reportIds)
+              .is('voided_at', null)
+              .limit(1)
+              .maybeSingle();
+            if (invDoc) refNumber = invDoc.invoice_number;
           }
+        }
+
+        // Issue REC with custom date + reference
+        try {
+          const { issuePaymentReceipt } = await import('@/lib/invoice-service');
+          const result = await issuePaymentReceipt(
+            id, companyId, statement.customer_id, statement.total_amount,
+            receipt_date || undefined,
+            refNumber || undefined,
+          );
+          if (result.success) receiptResult = { receiptNumber: result.receiptNumber };
         } catch (err) {
-          console.error('Auto issue invoices on payment error:', err);
+          console.error('Auto issue receipt on payment error:', err);
         }
       }
 
@@ -190,8 +243,7 @@ export async function PUT(
         success: true,
         paid_amount: newPaid,
         status: newStatus,
-        tax_invoice_number: autoInvoiceResult?.taxNumber || null,
-        receipt_number: autoInvoiceResult?.recNumber || null,
+        receipt_number: receiptResult?.receiptNumber || null,
       });
     }
 

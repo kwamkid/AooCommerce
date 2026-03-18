@@ -657,11 +657,11 @@ export async function POST(request: NextRequest) {
           company_id: auth.companyId!,
           invoice_number: invNumber,
           invoice_date: new Date().toISOString().split('T')[0],
-          order_id: order.id,
+          source_type: 'order',
+          source_id: order.id,
           customer_id: orderData.customer_id || null,
           customer_name: custName,
           total_amount: totalAmount,
-          vat_amount: vatAmount,
         });
       }
     } catch (e) { console.error('[POST /orders] INV insert:', e); }

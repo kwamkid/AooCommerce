@@ -53,11 +53,15 @@ export interface ConsignmentReportPdfData {
   total_sales: number;
   total_gp_share: number;
   our_amount: number;
-  /** When set, renders as ใบกำกับภาษี/ใบเสร็จ instead of ใบแจ้งหนี้ */
+  /** Document numbers (TAX/INV/REC) */
   tax_invoice_number?: string | null;
+  invoice_number?: string | null;
   receipt_number?: string | null;
   tax_invoice_date?: string | null;
+  invoice_date?: string | null;
   receipt_date?: string | null;
+  /** TAX document subtype: tax_only, tax_receipt, tax_invoice */
+  document_subtype?: 'tax_only' | 'tax_receipt' | 'tax_invoice' | null;
   /** Company VAT registered at time of issue */
   vat_registered?: boolean;
   /** Voided document */
@@ -92,18 +96,44 @@ export async function generateConsignmentReportPdf(data: ConsignmentReportPdfDat
   const periodStr = `${THAI_MONTHS[data.period_month]} ${data.period_year + 543}`;
   const statusLabel = STATUS_LABELS[data.status] || data.status;
 
-  // Determine document mode: tax invoice/receipt vs regular invoice
-  const isTaxInvoiceMode = !!(data.tax_invoice_number || data.receipt_number);
-  const vatRegistered = data.vat_registered ?? false;
+  // Determine document mode from document_subtype or legacy fallback
+  const hasDoc = !!(data.tax_invoice_number || data.invoice_number || data.receipt_number);
+  const subtype = data.document_subtype;
 
   let docTitle: string;
   let docTheme: string;
-  if (isTaxInvoiceMode) {
-    docTitle = vatRegistered ? 'ใบกำกับภาษี/ใบเสร็จรับเงิน' : 'ใบเสร็จรับเงิน';
+  let docNumber: string | null = null;
+  let docDate: string | null = null;
+
+  if (subtype === 'tax_invoice') {
+    // Flow C จด VAT → ใบกำกับภาษี/ใบแจ้งหนี้
+    docTitle = 'ใบกำกับภาษี/ใบแจ้งหนี้';
+    docTheme = '#1e40af'; // blue for tax_invoice
+    docNumber = data.tax_invoice_number || null;
+    docDate = data.tax_invoice_date || null;
+  } else if (subtype === 'tax_receipt') {
+    // Legacy: ใบกำกับภาษี/ใบเสร็จรับเงิน
+    docTitle = 'ใบกำกับภาษี/ใบเสร็จรับเงิน';
     docTheme = '#15803d'; // green for paid
-  } else {
+    docNumber = data.tax_invoice_number || null;
+    docDate = data.tax_invoice_date || null;
+  } else if (data.invoice_number) {
+    // INV- ใบแจ้งหนี้ (ไม่จด VAT หรือ Flow D)
     docTitle = 'ใบแจ้งหนี้';
     docTheme = THEME.primary; // orange
+    docNumber = data.invoice_number;
+    docDate = data.invoice_date || null;
+  } else if (hasDoc && !subtype) {
+    // Legacy fallback
+    const vatRegistered = data.vat_registered ?? false;
+    docTitle = vatRegistered ? 'ใบกำกับภาษี/ใบเสร็จรับเงิน' : 'ใบเสร็จรับเงิน';
+    docTheme = '#15803d';
+    docNumber = data.tax_invoice_number || data.receipt_number || null;
+    docDate = data.tax_invoice_date || data.receipt_date || null;
+  } else {
+    // No document issued yet — show as report
+    docTitle = 'ใบแจ้งหนี้';
+    docTheme = THEME.primary;
   }
   const titleFontSize = docTitle.length > 14 ? 18 : 24;
 
@@ -119,21 +149,19 @@ export async function generateConsignmentReportPdf(data: ConsignmentReportPdfDat
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const infoBoxRows: any[] = [];
 
-  if (isTaxInvoiceMode) {
-    // Tax invoice / receipt mode — show document numbers
-    if (data.tax_invoice_number) {
+  if (docNumber) {
+    // Has document number (TAX/INV) — show as formal document
+    infoBoxRows.push([
+      { text: 'เลขที่', fontSize: 10, color: docTheme, bold: true },
+      { text: docNumber, fontSize: 10, bold: true },
+    ]);
+    if (docDate) {
       infoBoxRows.push([
-        { text: 'เลขที่', fontSize: 10, color: docTheme, bold: true },
-        { text: data.tax_invoice_number, fontSize: 10, bold: true },
+        { text: 'วันที่ออก', fontSize: 10, color: docTheme, bold: true },
+        { text: formatPdfDate(docDate), fontSize: 10 },
       ]);
-      if (data.tax_invoice_date) {
-        infoBoxRows.push([
-          { text: 'วันที่ออก', fontSize: 10, color: docTheme, bold: true },
-          { text: formatPdfDate(data.tax_invoice_date), fontSize: 10 },
-        ]);
-      }
     }
-    if (data.receipt_number && data.receipt_number !== data.tax_invoice_number) {
+    if (data.receipt_number && data.receipt_number !== docNumber) {
       infoBoxRows.push([
         { text: 'เลขใบเสร็จ', fontSize: 10, color: docTheme, bold: true },
         { text: data.receipt_number, fontSize: 10, bold: true },
@@ -148,7 +176,7 @@ export async function generateConsignmentReportPdf(data: ConsignmentReportPdfDat
       { text: periodStr, fontSize: 10 },
     ]);
   } else {
-    // Regular invoice mode
+    // No document — show as report
     infoBoxRows.push(
       [
         { text: 'เลขที่', fontSize: 10, color: docTheme, bold: true },

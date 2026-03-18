@@ -2,17 +2,16 @@
  * Invoice issuance service — shared building blocks ที่ทุก flow เรียกใช้ร่วมกัน
  *
  * Building blocks (doc type):
- * - issueAbbreviatedInvoice()    → ABB-YYYYMM-NNNN หรือ REC-YYYYMM-NNNN
- * - issueFullTaxInvoice()        → TAX-YYYYMM-NNNN (จด VAT) หรือ REC-YYYYMM-NNNN (ไม่จด)
- * - issueReceipt()               → REC-YYYYMM-NNNN
- * - issueConsignmentInvoices()   → TAX เลขเดียว (จด VAT) หรือ REC เลขเดียว (ไม่จด) — สำหรับ statement
+ * - issueAbbreviatedInvoice()    → ABB-xxx หรือ REC-xxx (Flow R: POS/ขายปลีก)
+ * - issueFullTaxInvoice()        → TAX-xxx tax_receipt (Flow R: ขอใบเต็ม)
+ * - issueReportDocument()        → TAX-xxx tax_invoice (Flow C จด VAT) หรือ INV-xxx (Flow C/D ไม่จด / Flow D)
+ * - issuePaymentReceipt()        → REC-xxx (Flow C/D: ชำระเงิน, เลือกวันที่ + ref TAX/INV)
+ * - issueConsignmentInvoices()   → [legacy] TAX or REC เลขเดียว — ใช้ issueReportDocument + issuePaymentReceipt แทน
  *
- * Flow ที่ใช้:
- * - Flow A (a_cash): กดรับออเดอร์ → issueAbbreviatedInvoice()
- * - Flow A: ลูกค้าขอใบเต็ม → issueFullTaxInvoice() (void ABB + issue TAX)
- * - Flow C (c_consign DN): ชำระเงินครบ → issueConsignmentInvoices() (TAX or REC เลขเดียว on statement)
- * - Flow D (d_statement): ส่งของ → issueFullTaxInvoice()
- * - Flow B (b_credit): ชำระเงิน → issueReceipt() (TODO)
+ * TAX document_subtype:
+ * - tax_only    → "ใบกำกับภาษี" (Flow D: ส่งของห้าง)
+ * - tax_receipt → "ใบกำกับภาษี/ใบเสร็จรับเงิน" (Flow R: ขายปลีก จ่ายสด)
+ * - tax_invoice → "ใบกำกับภาษี/ใบแจ้งหนี้" (Flow C: แจ้งยอดฝากขาย)
  */
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
@@ -25,7 +24,7 @@ export async function insertTaxInvoice(params: {
   company_id: string;
   invoice_number: string;
   invoice_date: string;
-  source_type: 'order' | 'statement' | 'replenishment';
+  source_type: 'order' | 'statement' | 'replenishment' | 'consignment_report' | 'department_store_report';
   source_id: string;
   customer_id?: string | null;
   customer_name?: string | null;
@@ -35,6 +34,7 @@ export async function insertTaxInvoice(params: {
   total_amount: number;
   vat_amount?: number;
   is_receipt?: boolean;
+  document_subtype?: 'tax_only' | 'tax_receipt' | 'tax_invoice';
   replaces_abbreviated_id?: string | null;
 }) {
   try {
@@ -52,6 +52,7 @@ export async function insertTaxInvoice(params: {
       total_amount: params.total_amount,
       vat_amount: params.vat_amount ?? 0,
       is_receipt: params.is_receipt ?? false,
+      document_subtype: params.document_subtype ?? 'tax_receipt',
       replaces_abbreviated_id: params.replaces_abbreviated_id || null,
     }, { onConflict: 'company_id,invoice_number', ignoreDuplicates: true });
   } catch (e) {
@@ -69,6 +70,7 @@ export async function insertReceipt(params: {
   customer_name?: string | null;
   customer_address?: string | null;
   total_amount: number;
+  reference_number?: string | null;
 }) {
   try {
     await supabaseAdmin.from('receipts').upsert({
@@ -81,6 +83,7 @@ export async function insertReceipt(params: {
       customer_name: params.customer_name || null,
       customer_address: params.customer_address || null,
       total_amount: params.total_amount,
+      reference_number: params.reference_number || null,
     }, { onConflict: 'company_id,receipt_number', ignoreDuplicates: true });
   } catch (e) {
     console.error('[insertReceipt]', e);
@@ -139,22 +142,24 @@ export async function insertInvoice(params: {
   company_id: string;
   invoice_number: string;
   invoice_date: string;
-  order_id: string;
+  source_type: 'consignment_report' | 'department_store_report' | 'order';
+  source_id: string;
   customer_id?: string | null;
   customer_name?: string | null;
+  customer_address?: string | null;
   total_amount: number;
-  vat_amount?: number;
 }) {
   try {
     await supabaseAdmin.from('invoices').upsert({
       company_id: params.company_id,
       invoice_number: params.invoice_number,
       invoice_date: params.invoice_date,
-      order_id: params.order_id,
+      source_type: params.source_type,
+      source_id: params.source_id,
       customer_id: params.customer_id || null,
       customer_name: params.customer_name || null,
+      customer_address: params.customer_address || null,
       total_amount: params.total_amount,
-      vat_amount: params.vat_amount ?? 0,
     }, { onConflict: 'company_id,invoice_number', ignoreDuplicates: true });
   } catch (e) {
     console.error('[insertInvoice]', e);
@@ -542,6 +547,166 @@ export async function issueConsignmentInvoices(
     }
   } catch (err) {
     console.error('[issueConsignmentInvoices] Error:', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+// ─── Report Document Issuance (Phase A — Flow C/D) ────────
+
+/** Helper: fetch customer info for document issuance */
+async function fetchCustomerForDoc(customerId: string) {
+  const { data } = await supabaseAdmin
+    .from('customers')
+    .select('id, name, tax_company_name, tax_id, tax_branch, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code')
+    .eq('id', customerId)
+    .single();
+  if (!data) return null;
+  const custName = data.tax_company_name || data.name || null;
+  const custAddress = [data.billing_address, data.billing_district, data.billing_amphoe, data.billing_province, data.billing_postal_code].filter(Boolean).join(' ') || null;
+  return { ...data, custName, custAddress };
+}
+
+interface IssueReportDocResult {
+  success: boolean;
+  documentNumber?: string;
+  documentType?: 'tax_invoice' | 'invoice';
+  error?: string;
+}
+
+/**
+ * ออกเอกสารตอนแจ้งยอด (Flow C / D)
+ * - จด VAT + Flow C → TAX `tax_invoice` "ใบกำกับภาษี/ใบแจ้งหนี้"
+ * - จด VAT + Flow D → INV "ใบแจ้งหนี้" (TAX ออกตอนส่งของแล้ว)
+ * - ไม่จด VAT → INV "ใบแจ้งหนี้"
+ *
+ * @param reportId - consignment_report.id หรือ department_store_report.id
+ * @param reportType - 'consignment_report' | 'department_store_report'
+ */
+export async function issueReportDocument(
+  reportId: string,
+  companyId: string,
+  customerId: string,
+  totalAmount: number,
+  reportType: 'consignment_report' | 'department_store_report',
+): Promise<IssueReportDocResult> {
+  try {
+    const vatRegistered = await getCompanyVat(companyId);
+    const now = new Date().toISOString().split('T')[0];
+    const cust = await fetchCustomerForDoc(customerId);
+
+    // Flow C (consignment) + จด VAT → TAX tax_invoice
+    if (vatRegistered && reportType === 'consignment_report') {
+      // Check if already issued
+      const { data: existing } = await supabaseAdmin
+        .from('tax_invoices')
+        .select('invoice_number')
+        .eq('source_type', 'consignment_report').eq('source_id', reportId)
+        .eq('company_id', companyId).is('voided_at', null)
+        .maybeSingle();
+      if (existing) return { success: true, documentNumber: existing.invoice_number, documentType: 'tax_invoice' };
+
+      const { data: taxNum } = await supabaseAdmin.rpc('generate_tax_invoice_number', { p_company_id: companyId });
+      if (!taxNum) return { success: false, error: 'ไม่สามารถสร้างเลขที่ใบกำกับภาษีได้' };
+
+      await insertTaxInvoice({
+        company_id: companyId,
+        invoice_number: taxNum,
+        invoice_date: now,
+        source_type: 'consignment_report',
+        source_id: reportId,
+        customer_id: customerId,
+        customer_name: cust?.custName || null,
+        customer_tax_id: cust?.tax_id || null,
+        customer_branch: cust?.tax_branch || null,
+        customer_address: cust?.custAddress || null,
+        total_amount: totalAmount,
+        is_receipt: false,
+        document_subtype: 'tax_invoice',
+      });
+
+      return { success: true, documentNumber: taxNum, documentType: 'tax_invoice' };
+    }
+
+    // Flow D (department) OR ไม่จด VAT → INV "ใบแจ้งหนี้"
+    const { data: existingInv } = await supabaseAdmin
+      .from('invoices')
+      .select('invoice_number')
+      .eq('source_type', reportType).eq('source_id', reportId)
+      .eq('company_id', companyId).is('voided_at', null)
+      .maybeSingle();
+    if (existingInv) return { success: true, documentNumber: existingInv.invoice_number, documentType: 'invoice' };
+
+    const { data: invNum } = await supabaseAdmin.rpc('generate_invoice_number', { p_company_id: companyId });
+    if (!invNum) return { success: false, error: 'ไม่สามารถสร้างเลขที่ใบแจ้งหนี้ได้' };
+
+    await insertInvoice({
+      company_id: companyId,
+      invoice_number: invNum,
+      invoice_date: now,
+      source_type: reportType,
+      source_id: reportId,
+      customer_id: customerId,
+      customer_name: cust?.custName || null,
+      customer_address: cust?.custAddress || null,
+      total_amount: totalAmount,
+    });
+
+    return { success: true, documentNumber: invNum, documentType: 'invoice' };
+  } catch (err) {
+    console.error('[issueReportDocument] Error:', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+/**
+ * ออกใบเสร็จรับเงิน (REC) ตอนชำระเงิน
+ * - เลือกวันที่ได้ (receipt_date)
+ * - อ้างอิงเลข TAX/INV (reference_number)
+ *
+ * @param statementId - statement.id
+ * @param receiptDate - วันที่ออกใบเสร็จ (YYYY-MM-DD) — อาจไม่ใช่วันปัจจุบัน
+ * @param referenceNumber - เลขที่อ้างอิง เช่น TAX-202603-0001 หรือ INV-202603-0001
+ */
+export async function issuePaymentReceipt(
+  statementId: string,
+  companyId: string,
+  customerId: string,
+  totalAmount: number,
+  receiptDate?: string,
+  referenceNumber?: string,
+): Promise<{ success: boolean; receiptNumber?: string; error?: string }> {
+  try {
+    // Check if already issued
+    const { data: existing } = await supabaseAdmin
+      .from('receipts')
+      .select('receipt_number')
+      .eq('source_type', 'statement').eq('source_id', statementId)
+      .eq('company_id', companyId).is('voided_at', null)
+      .maybeSingle();
+    if (existing) return { success: true, receiptNumber: existing.receipt_number };
+
+    const { data: recNum } = await supabaseAdmin.rpc('generate_receipt_number', { p_company_id: companyId });
+    if (!recNum) return { success: false, error: 'ไม่สามารถสร้างเลขที่ใบเสร็จได้' };
+
+    const date = receiptDate || new Date().toISOString().split('T')[0];
+    const cust = await fetchCustomerForDoc(customerId);
+
+    await insertReceipt({
+      company_id: companyId,
+      receipt_number: recNum,
+      receipt_date: date,
+      source_type: 'statement',
+      source_id: statementId,
+      customer_id: customerId,
+      customer_name: cust?.custName || null,
+      customer_address: cust?.custAddress || null,
+      total_amount: totalAmount,
+      reference_number: referenceNumber || null,
+    });
+
+    return { success: true, receiptNumber: recNum };
+  } catch (err) {
+    console.error('[issuePaymentReceipt] Error:', err);
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }

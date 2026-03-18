@@ -75,7 +75,6 @@ const menuSections: MenuSection[] = [
       { label: 'Chat', href: '/chat', icon: <MessageCircle className="w-5 h-5" />, roles: ['admin', 'sales'] },
       { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-5 h-5" />, roles: ['admin', 'sales', 'account', 'warehouse'] },
       { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-5 h-5" />, roles: ['admin', 'sales', 'warehouse'] },
-      { label: 'ส่งห้าง', href: '/department-orders', icon: <Building2 className="w-5 h-5" />, roles: ['admin', 'sales'] },
     ]
   },
   {
@@ -126,6 +125,7 @@ export default function Sidebar() {
   const [productsOpen, setProductsOpen] = useState(false);
   const [accountingOpen, setAccountingOpen] = useState(false);
   const [consignmentOpen, setConsignmentOpen] = useState(false);
+  const [deptStoreOpen, setDeptStoreOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [orderReadyCount, setOrderReadyCount] = useState(0);
@@ -161,6 +161,7 @@ export default function Sidebar() {
     if (pathname?.startsWith('/products') || pathname === '/settings/categories' || pathname === '/settings/brands') setProductsOpen(true);
     if (pathname?.startsWith('/invoices') || pathname?.startsWith('/credit-notes') || pathname?.startsWith('/statements')) setAccountingOpen(true);
     if (pathname?.startsWith('/replenishments') || pathname?.startsWith('/consignment')) setConsignmentOpen(true);
+    if (pathname?.startsWith('/department-store/reports')) setDeptStoreOpen(true);
   }, [pathname]);
 
   useEffect(() => {
@@ -317,7 +318,6 @@ export default function Sidebar() {
         if (item.href === '/reports/delivery-summary' && !features.delivery_date.enabled) return false;
         if (item.href === '/reports/supplier' && !features.supplier) return false;
         if (item.href === '/settings/suppliers' && !features.supplier) return false;
-        if (item.href === '/department-orders' && !features.department_store) return false;
         // Hide inventory when stock is disabled
         if (item.href === '/inventory' && !stockEnabled) return false;
         return true;
@@ -552,6 +552,38 @@ export default function Sidebar() {
                     )}
                   </>
                 )}
+                {/* Department Store Section */}
+                {section.title === 'สินค้า' && features.department_store && (effectiveRoles.has('admin') || effectiveRoles.has('sales') || effectiveRoles.has('account')) && (
+                  <>
+                    <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
+                      ห้างสรรพสินค้า
+                    </h3>
+                    <button
+                      onClick={() => setDeptStoreOpen(!deptStoreOpen)}
+                      className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
+                        pathname?.startsWith('/department-store/reports') || pathname?.startsWith('/department-orders')
+                          ? 'text-[#F4511E]'
+                          : 'text-gray-300 hover:text-[#F4511E]'
+                      }`}
+                    >
+                      <Building2 className="w-5 h-5" />
+                      <span className="text-[16px] font-medium ml-3">ระบบห้าง</span>
+                      <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${deptStoreOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {deptStoreOpen && (
+                      <div className="ml-3 border-l border-white/10">
+                        <Link href="/department-orders" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/department-orders' || pathname?.startsWith('/department-orders/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                          <Truck className="w-4 h-4" />
+                          <span className="text-[16px] font-medium">ส่งห้าง</span>
+                        </Link>
+                        <Link href="/department-store/reports" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/department-store/reports' || pathname?.startsWith('/department-store/reports/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                          <ClipboardList className="w-4 h-4" />
+                          <span className="text-[16px] font-medium">ยอดขายห้าง</span>
+                        </Link>
+                      </div>
+                    )}
+                  </>
+                )}
                 <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
                   {section.title}
                 </h3>
@@ -627,6 +659,14 @@ export default function Sidebar() {
                             <Link href="/invoices/abbreviated" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/abbreviated' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                               <ReceiptText className="w-4 h-4" />
                               <span className="text-[16px] font-medium">ใบกำกับอย่างย่อ</span>
+                            </Link>
+                            <Link href="/invoices/billing" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/billing' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <FileText className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">ใบแจ้งหนี้</span>
+                            </Link>
+                            <Link href="/invoices/delivery-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/delivery-notes' ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
+                              <Truck className="w-4 h-4" />
+                              <span className="text-[16px] font-medium">ใบส่งสินค้า</span>
                             </Link>
                             <Link href="/credit-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/credit-notes' || pathname?.startsWith('/credit-notes/') ? 'text-[#F4511E]' : 'text-gray-400 hover:text-[#F4511E]'}`}>
                               <ReceiptText className="w-4 h-4" />

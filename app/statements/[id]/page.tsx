@@ -104,6 +104,7 @@ export default function StatementDetailPage() {
   const [payMethod, setPayMethod] = useState('');
   const [payRef, setPayRef] = useState('');
   const [payNotes, setPayNotes] = useState('');
+  const [payReceiptDate, setPayReceiptDate] = useState(new Date().toISOString().split('T')[0]);
   const [paySubmitting, setPaySubmitting] = useState(false);
 
   // Issue invoices
@@ -144,6 +145,7 @@ export default function StatementDetailPage() {
           payment_method: payMethod || null,
           reference: payRef || null,
           notes: payNotes || null,
+          receipt_date: payReceiptDate || null,
         }),
       });
       if (!res.ok) {
@@ -152,10 +154,9 @@ export default function StatementDetailPage() {
         return;
       }
       const data = await res.json();
-      // Show auto-issued invoice numbers in toast
-      if (data.status === 'paid' && (data.tax_invoice_number || data.receipt_number)) {
-        const docs = [data.tax_invoice_number, data.receipt_number].filter(Boolean).join(' + ');
-        showToast(`ชำระเงินครบ + ออกเอกสาร ${docs}`, 'success');
+      // Show auto-issued receipt number in toast
+      if (data.status === 'paid' && data.receipt_number) {
+        showToast(`ชำระเงินครบ + ออกใบเสร็จ ${data.receipt_number}`, 'success');
       } else {
         showToast('บันทึกการชำระเงินแล้ว', 'success');
       }
@@ -164,6 +165,7 @@ export default function StatementDetailPage() {
       setPayMethod('');
       setPayRef('');
       setPayNotes('');
+      setPayReceiptDate(new Date().toISOString().split('T')[0]);
       fetchDetail();
     } catch {
       showToast('เกิดข้อผิดพลาด', 'error');
@@ -480,16 +482,27 @@ export default function StatementDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4 space-y-4">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white">บันทึกการชำระเงิน</h3>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">จำนวนเงิน (บาท) *</label>
-              <input
-                type="number"
-                value={payAmount}
-                onChange={e => setPayAmount(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500/50"
-                placeholder="0.00"
-                step="0.01"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">จำนวนเงิน (บาท) *</label>
+                <input
+                  type="number"
+                  value={payAmount}
+                  onChange={e => setPayAmount(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500/50"
+                  placeholder="0.00"
+                  step="0.01"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">วันที่รับเงิน *</label>
+                <input
+                  type="date"
+                  value={payReceiptDate}
+                  onChange={e => setPayReceiptDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500/50"
+                />
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ช่องทาง</label>
