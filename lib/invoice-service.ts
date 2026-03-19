@@ -1029,8 +1029,8 @@ export async function autoIssueDocument(
       return (count && count > 0);
     };
 
-    // ─── Flow R/W-Cash: ABB/REC when accepted (processing+) AND paid ───
-    if ((order.flow_type === 'r_retail' || order.flow_type === 'a_cash' || order.flow_type === 'w_cash')
+    // ─── Flow R (Retail): ABB/REC when accepted (processing+) AND paid ───
+    if ((order.flow_type === 'r_retail' || order.flow_type === 'a_cash')
         && ['processing', 'shipping', 'completed'].includes(order.order_status)
         && order.payment_status === 'paid') {
       if (!(await hasAbbOrRec())) {
@@ -1039,9 +1039,55 @@ export async function autoIssueDocument(
       return;
     }
 
-    // ─── Flow W-Credit: ส่งของ → TAX tax_invoice (VAT) or INV (no VAT) ───
+    // ─── Flow W-Cash: DN (มีราคา) on shipping ───
+    if (order.flow_type === 'w_cash'
+        && ['shipping', 'completed'].includes(order.order_status)) {
+      if (!(await hasDN())) {
+        await issueOrderDN(orderId, companyId);
+      }
+    }
+
+    // ─── Flow W-Cash: TAX tax_receipt (VAT) or REC (no VAT) when paid ───
+    if (order.flow_type === 'w_cash'
+        && ['processing', 'shipping', 'completed'].includes(order.order_status)
+        && order.payment_status === 'paid') {
+      const vatRegistered = await getCompanyVat(companyId);
+      if (vatRegistered) {
+        // Check if TAX already exists
+        const { count: taxCount } = await supabaseAdmin
+          .from('tax_invoices').select('id', { count: 'exact', head: true })
+          .eq('source_type', 'order').eq('source_id', orderId).eq('company_id', companyId);
+        if (!taxCount || taxCount === 0) {
+          const { data: invoiceNumber } = await supabaseAdmin.rpc('generate_tax_invoice_number', { p_company_id: companyId });
+          if (invoiceNumber) {
+            const dateStr = new Date().toISOString().split('T')[0];
+            const { data: oi } = await supabaseAdmin
+              .from('orders').select('customer_id, total_amount, vat_amount').eq('id', orderId).single();
+            await insertTaxInvoice({
+              company_id: companyId, invoice_number: invoiceNumber, invoice_date: dateStr,
+              source_type: 'order', source_id: orderId, customer_id: oi?.customer_id,
+              total_amount: oi?.total_amount ?? 0, vat_amount: oi?.vat_amount ?? 0,
+              is_receipt: true,
+              document_subtype: 'tax_receipt', // ใบกำกับภาษี/ใบเสร็จรับเงิน (ขายส่งเงินสด)
+            });
+          }
+        }
+      } else {
+        // ไม่จด VAT → REC
+        if (!(await hasAbbOrRec())) {
+          await issueAbbreviatedInvoice(orderId, companyId);
+        }
+      }
+      return;
+    }
+
+    // ─── Flow W-Credit: ส่งของ → DN (มีราคา) + TAX tax_invoice (VAT) or INV (no VAT) ───
     if ((order.flow_type === 'w_credit' || order.flow_type === 'b_credit')
         && ['shipping', 'completed'].includes(order.order_status)) {
+      // DN (มีราคา)
+      if (!(await hasDN())) {
+        await issueOrderDN(orderId, companyId);
+      }
       const vatRegistered = await getCompanyVat(companyId);
       if (vatRegistered) {
         // จด VAT → ออก TAX (ถ้ายังไม่มี)
@@ -1065,14 +1111,32 @@ export async function autoIssueDocument(
           }
         }
       } else {
-        // ไม่จด VAT → ออก DN
-        if (!(await hasDN())) {
-          await issueOrderDN(orderId, companyId);
+        // ไม่จด VAT → ออก INV (ใบแจ้งหนี้)
+        const { count: invCount } = await supabaseAdmin
+          .from('invoices').select('id', { count: 'exact', head: true })
+          .eq('source_type', 'order').eq('source_id', orderId).eq('company_id', companyId);
+        if (!invCount || invCount === 0) {
+          const { data: invNumber } = await supabaseAdmin.rpc('generate_invoice_number', { p_company_id: companyId });
+          if (invNumber) {
+            const dateStr = new Date().toISOString().split('T')[0];
+            const { data: oi } = await supabaseAdmin
+              .from('orders').select('customer_id, total_amount').eq('id', orderId).single();
+            const { data: custData } = oi?.customer_id ? await supabaseAdmin
+              .from('customers').select('name, tax_company_name, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code')
+              .eq('id', oi.customer_id).single() : { data: null };
+            await insertInvoice({
+              company_id: companyId, invoice_number: invNumber, invoice_date: dateStr,
+              source_type: 'order', source_id: orderId, customer_id: oi?.customer_id,
+              customer_name: custData?.tax_company_name || custData?.name || null,
+              customer_address: custData ? [custData.billing_address, custData.billing_district, custData.billing_amphoe, custData.billing_province, custData.billing_postal_code].filter(Boolean).join(' ') : null,
+              total_amount: oi?.total_amount ?? 0,
+            });
+          }
         }
       }
     }
 
-    // ─── Flow W-Credit: จ่ายเงินครบ → REC ───
+    // ─── Flow W-Credit: จ่ายเงินครบ → REC (ref TAX/INV) ───
     if ((order.flow_type === 'w_credit' || order.flow_type === 'b_credit')
         && order.payment_status === 'paid'
         && ['shipping', 'completed'].includes(order.order_status)) {
@@ -1087,10 +1151,27 @@ export async function autoIssueDocument(
           const recDate = new Date().toISOString().split('T')[0];
           const { data: oi } = await supabaseAdmin
             .from('orders').select('customer_id, total_amount').eq('id', orderId).single();
+
+          // Find reference document (TAX or INV)
+          let refNumber: string | null = null;
+          const { data: taxDoc } = await supabaseAdmin
+            .from('tax_invoices').select('invoice_number')
+            .eq('source_type', 'order').eq('source_id', orderId).eq('company_id', companyId)
+            .is('voided_at', null).maybeSingle();
+          if (taxDoc) refNumber = taxDoc.invoice_number;
+          if (!refNumber) {
+            const { data: invDoc } = await supabaseAdmin
+              .from('invoices').select('invoice_number')
+              .eq('source_type', 'order').eq('source_id', orderId).eq('company_id', companyId)
+              .is('voided_at', null).maybeSingle();
+            if (invDoc) refNumber = invDoc.invoice_number;
+          }
+
           await insertReceipt({
             company_id: companyId, receipt_number: recNumber, receipt_date: recDate,
             source_type: 'order', source_id: orderId, customer_id: oi?.customer_id,
             total_amount: oi?.total_amount ?? 0,
+            reference_number: refNumber,
           });
         }
       }
