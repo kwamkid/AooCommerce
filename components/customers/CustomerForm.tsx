@@ -826,34 +826,19 @@ export default function CustomerForm({
                 <input type="text" value={formData.name} onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                   className={inputFull} required />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelFull}>ผู้ติดต่อ</label>
-                  <input type="text" value={formData.contact_person} onChange={(e) => setFormData(prev => ({ ...prev, contact_person: e.target.value }))}
-                    className={inputFull} />
-                </div>
-                <div>
-                  <label className={labelFull}>เบอร์โทร</label>
-                  <input type="tel" value={phoneDisplay} onChange={(e) => handlePhoneChange(e.target.value)}
-                    onBlur={() => setShowPhoneError(true)} onFocus={() => setShowPhoneError(false)}
-                    className={inputFull} placeholder="0xx-xxx-xxxx" />
-                  {showPhoneError && formData.phone && !validatePhone(formData.phone) && (
-                    <p className="text-xs text-red-500 mt-1">รูปแบบเบอร์โทรไม่ถูกต้อง (ต้องเป็นเบอร์ไทย 9-10 หลัก)</p>
-                  )}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelFull}>อีเมล</label>
-                  <input type="email" value={formData.email} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                    className={inputFull} />
-                </div>
-                {allTags && onTagsChange && (
-                  <div>
-                    <label className={labelFull}>แท็ก</label>
-                    <TagInput value={selectedTags || []} onChange={onTagsChange} allTags={allTags} onTagCreated={onTagCreated} />
-                  </div>
+              <div>
+                <label className={labelFull}>เบอร์โทร</label>
+                <input type="tel" value={phoneDisplay} onChange={(e) => handlePhoneChange(e.target.value)}
+                  onBlur={() => setShowPhoneError(true)} onFocus={() => setShowPhoneError(false)}
+                  className={inputFull} placeholder="0xx-xxx-xxxx" />
+                {showPhoneError && formData.phone && !validatePhone(formData.phone) && (
+                  <p className="text-xs text-red-500 mt-1">รูปแบบเบอร์โทรไม่ถูกต้อง (ต้องเป็นเบอร์ไทย 9-10 หลัก)</p>
                 )}
+              </div>
+              <div>
+                <label className={labelFull}>อีเมล</label>
+                <input type="email" value={formData.email} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                  className={inputFull} />
               </div>
             </div>
           </div>
@@ -1112,6 +1097,31 @@ export default function CustomerForm({
             >
               <Plus className="w-4 h-4" /> เพิ่มที่อยู่
             </button>
+          </div>
+
+          {/* Section: ผู้ติดต่อ + แท็ก */}
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
+              <User className="w-5 h-5" /> ข้อมูลเพิ่มเติม
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className={labelFull}>ผู้ติดต่อ</label>
+                <input type="text" value={formData.contact_person} onChange={(e) => setFormData(prev => ({ ...prev, contact_person: e.target.value }))}
+                  className={inputFull} placeholder="ชื่อผู้ติดต่อ" />
+              </div>
+              {allTags && onTagsChange && (
+                <div>
+                  <label className={labelFull}>แท็ก</label>
+                  <TagInput value={selectedTags || []} onChange={onTagsChange} allTags={allTags} onTagCreated={onTagCreated} />
+                </div>
+              )}
+              <div>
+                <label className={labelFull}>หมายเหตุ</label>
+                <textarea value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  className={inputFull} rows={2} placeholder="หมายเหตุเกี่ยวกับลูกค้า..." />
+              </div>
+            </div>
           </div>
 
         </div>
