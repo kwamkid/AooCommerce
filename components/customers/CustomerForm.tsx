@@ -826,19 +826,21 @@ export default function CustomerForm({
                 <input type="text" value={formData.name} onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                   className={inputFull} required />
               </div>
-              <div>
-                <label className={labelFull}>เบอร์โทร</label>
-                <input type="tel" value={phoneDisplay} onChange={(e) => handlePhoneChange(e.target.value)}
-                  onBlur={() => setShowPhoneError(true)} onFocus={() => setShowPhoneError(false)}
-                  className={inputFull} placeholder="0xx-xxx-xxxx" />
-                {showPhoneError && formData.phone && !validatePhone(formData.phone) && (
-                  <p className="text-xs text-red-500 mt-1">รูปแบบเบอร์โทรไม่ถูกต้อง (ต้องเป็นเบอร์ไทย 9-10 หลัก)</p>
-                )}
-              </div>
-              <div>
-                <label className={labelFull}>อีเมล</label>
-                <input type="email" value={formData.email} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                  className={inputFull} />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelFull}>เบอร์โทร</label>
+                  <input type="tel" value={phoneDisplay} onChange={(e) => handlePhoneChange(e.target.value)}
+                    onBlur={() => setShowPhoneError(true)} onFocus={() => setShowPhoneError(false)}
+                    className={inputFull} placeholder="0xx-xxx-xxxx" />
+                  {showPhoneError && formData.phone && !validatePhone(formData.phone) && (
+                    <p className="text-xs text-red-500 mt-1">เบอร์ไทย 9-10 หลัก</p>
+                  )}
+                </div>
+                <div>
+                  <label className={labelFull}>อีเมล</label>
+                  <input type="email" value={formData.email} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    className={inputFull} />
+                </div>
               </div>
             </div>
           </div>
