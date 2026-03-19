@@ -957,6 +957,7 @@ export async function GET(request: NextRequest) {
     };
     if (orderType) rpcParams.p_order_type = orderType;
     if (platform) rpcParams.p_platform = platform;
+    if (flowType) rpcParams.p_flow_type = flowType;
 
     const { data: result, error: rpcError } = await supabaseAdmin.rpc('get_orders_list', rpcParams);
 
@@ -966,15 +967,6 @@ export async function GET(request: NextRequest) {
         { error: rpcError.message },
         { status: 500 }
       );
-    }
-
-    // Post-filter by flow_type (RPC doesn't support it yet)
-    if (flowType && result?.orders) {
-      const allowedFlows = flowType.split(',').map((f: string) => f.trim());
-      result.orders = result.orders.filter((o: { flow_type?: string }) =>
-        o.flow_type && allowedFlows.includes(o.flow_type)
-      );
-      result.total = result.orders.length;
     }
 
     // Enrich orders with tax_invoice_doc_type from document tables
