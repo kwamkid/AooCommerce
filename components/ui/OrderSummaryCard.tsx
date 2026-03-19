@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import PostfixInput from '@/components/ui/PostfixInput';
+import DiscountInput, { type DiscountType } from '@/components/ui/DiscountInput';
 
 interface Props {
   /** ยอดรวมราคาเต็ม (ก่อนส่วนลดรายการ) */
@@ -86,48 +88,39 @@ export default function OrderSummaryCard({
 
         {/* ค่าจัดส่ง */}
         {onShippingFeeChange !== undefined && (
-          <div className="flex justify-between items-center">
-            <span className="text-gray-500 dark:text-slate-400">ค่าจัดส่ง</span>
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
+          <div className="flex justify-between items-center gap-3">
+            <span className="text-gray-500 dark:text-slate-400 flex-shrink-0">ค่าจัดส่ง</span>
+            <div className="w-[140px]">
+              <PostfixInput
                 value={shippingFee || ''}
-                onChange={e => onShippingFeeChange(parseFloat(e.target.value) || 0)}
-                className="w-20 text-right px-2 py-1 border border-gray-200 dark:border-slate-600 rounded text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                onChange={v => onShippingFeeChange(parseFloat(v) || 0)}
+                postfix="฿"
+                type="number"
                 placeholder="0"
                 min={0}
-                step="0.01"
+                step={0.01}
               />
-              <span className="text-xs text-gray-400">฿</span>
             </div>
           </div>
         )}
 
         {/* ส่วนลดทั้งบิล */}
         {onBillDiscountChange !== undefined && (
-          <div className="flex justify-between items-center">
-            <span className="text-gray-500 dark:text-slate-400">ส่วนลดรวม</span>
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                value={billDiscount || ''}
-                onChange={e => onBillDiscountChange(parseFloat(e.target.value) || 0, discType)}
-                className="w-20 text-right px-2 py-1 border border-gray-200 dark:border-slate-600 rounded text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                placeholder="0"
-                min={0}
-                step={discType === 'percent' ? '0.1' : '0.01'}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const newType = discType === 'percent' ? 'amount' : 'percent';
+          <div className="flex justify-between items-center gap-3">
+            <span className="text-gray-500 dark:text-slate-400 flex-shrink-0">ส่วนลดรวม</span>
+            <div className="w-[140px]">
+              <DiscountInput
+                value={String(billDiscount || '')}
+                discountType={discType === 'percent' ? 'percent' : 'fixed_discount'}
+                onValueChange={v => onBillDiscountChange(parseFloat(v) || 0, discType)}
+                onTypeChange={t => {
+                  const newType = t === 'percent' ? 'percent' : 'amount';
                   setDiscType(newType);
                   onBillDiscountChange(0, newType);
                 }}
-                className="px-2 py-1 text-xs font-medium rounded border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors"
-              >
-                {discType === 'percent' ? '%' : '฿'}
-              </button>
+                compact
+                placeholder="0"
+              />
             </div>
           </div>
         )}
