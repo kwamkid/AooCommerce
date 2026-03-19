@@ -527,7 +527,7 @@ export default function Sidebar() {
                 {section.title === 'สินค้า' && features.consignment && (effectiveRoles.has('admin') || effectiveRoles.has('sales') || effectiveRoles.has('account')) && (
                   <>
                     <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
-                      ฝากขาย
+                      ตัวแทนจำหน่าย
                     </h3>
                     <button
                       onClick={() => setConsignmentOpen(!consignmentOpen)}
