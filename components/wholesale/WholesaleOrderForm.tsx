@@ -85,6 +85,7 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
         const flat: ProductSearchItem[] = [];
         for (const p of result.products || []) {
           for (const v of p.variations || []) {
+            if (!v.id) continue;
             flat.push({
               id: v.id,
               product_id: p.id,
@@ -128,8 +129,9 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
 
   // Add product
   const handleAddProduct = (p: ProductSearchItem) => {
+    if (!p.id) return;
     const existingIdx = items.findIndex(i => i.variation_id === p.id);
-    if (existingIdx >= 0) {
+    if (existingIdx >= 0 && p.id) {
       setItems(prev => prev.map((i, idx) =>
         idx === existingIdx ? { ...i, quantity: i.quantity + 1 } : i
       ));
