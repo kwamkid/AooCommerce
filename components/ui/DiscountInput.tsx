@@ -10,24 +10,18 @@ interface DiscountInputProps {
   error?: string;
   disabled?: boolean;
   placeholder?: string;
-  /** Show helper text below input */
   helperText?: string;
   /** Compact mode for inline/table use — smaller height & font */
   compact?: boolean;
   className?: string;
+  /** Width of the entire input group */
+  width?: string;
 }
 
 /**
  * Input with toggle button suffix — click to switch between % and ฿.
+ * Style matches ItemsTable inline discount column.
  * Layout: [ input | % ] or [ input | ฿ ]
- *
- * Usage:
- *   <DiscountInput
- *     value={form.discount_value}
- *     discountType={form.discount_type}
- *     onValueChange={v => setForm(prev => ({ ...prev, discount_value: v }))}
- *     onTypeChange={t => setForm(prev => ({ ...prev, discount_type: t }))}
- *   />
  */
 export default function DiscountInput({
   value,
@@ -40,19 +34,18 @@ export default function DiscountInput({
   helperText,
   compact,
   className,
+  width,
 }: DiscountInputProps) {
   const toggle = () => {
     onTypeChange(discountType === 'percent' ? 'fixed_discount' : 'percent');
   };
 
-  const inputH = compact ? 'h-[30px]' : 'h-[42px]';
-  const inputW = compact ? 'w-16' : 'w-28';
-  const fontSize = compact ? 'text-sm' : 'text-base';
-  const px = compact ? 'px-2' : 'px-3';
+  const h = compact ? 'h-[30px]' : 'h-[38px]';
+  const fontSize = compact ? 'text-sm' : 'text-sm';
 
   return (
     <div className={className}>
-      <div className="flex rounded-lg border border-gray-300 dark:border-slate-500 overflow-hidden w-fit">
+      <div className={`flex items-stretch ${width || ''}`}>
         <input
           type="number"
           value={value}
@@ -60,20 +53,21 @@ export default function DiscountInput({
           placeholder={placeholder}
           min={0}
           max={discountType === 'percent' ? 100 : undefined}
+          step={discountType === 'percent' ? '0.1' : '0.01'}
           disabled={disabled}
-          className={`${inputW} ${inputH} ${px} ${fontSize} text-right text-gray-900 dark:text-white bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#F4511E] border-none disabled:opacity-40 disabled:cursor-not-allowed`}
+          className={`${width ? 'w-full' : compact ? 'w-16' : 'w-24'} ${h} ${fontSize} text-center px-2 border border-gray-300 dark:border-slate-600 rounded-l-lg rounded-r-none border-r-0 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]/50 disabled:opacity-40 disabled:cursor-not-allowed`}
         />
         <button
           type="button"
           disabled={disabled}
           onClick={toggle}
-          className={`${px} ${inputH} ${fontSize} font-medium border-l border-gray-300 dark:border-slate-500 transition-colors bg-gray-50 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed`}
+          className={`px-2 ${h} text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[26px] flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed`}
         >
           {discountType === 'percent' ? '%' : '฿'}
         </button>
       </div>
-      {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
-      {helperText && <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">{helperText}</p>}
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+      {helperText && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{helperText}</p>}
     </div>
   );
 }

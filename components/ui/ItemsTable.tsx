@@ -4,6 +4,7 @@ import { Fragment, useRef, useState, useEffect } from 'react';
 import { Package, Trash2, AlertTriangle, X, Gift } from 'lucide-react';
 import ProductSearchInput, { type ProductSearchItem, type SearchMode } from '@/components/ui/ProductSearchInput';
 import FormSelect from '@/components/ui/FormSelect';
+import DiscountInput from '@/components/ui/DiscountInput';
 import { productDisplayName } from '@/lib/product-display';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -438,20 +439,14 @@ export default function ItemsTable({
                   )}
                   {hasDiscount && (
                     <td className="px-2 py-3">
-                      <div className="flex items-stretch justify-center">
-                        <input type="number" min="0" step="0.01"
-                          max={item.discount_type === 'percent' ? 100 : undefined}
-                          value={item.discount_value ?? 0}
-                          onChange={e => onUpdateField!(idx, 'discount_value', parseFloat(e.target.value) || 0)}
-                          disabled={readOnly || !!item.promotion_id}
-                          className={`w-16 text-center rounded-l-lg rounded-r-none border-r-0 ${INPUT_CLS}`} />
-                        <button type="button"
-                          onClick={() => onUpdateField!(idx, 'discount_type', item.discount_type === 'percent' ? 'amount' : 'percent')}
-                          disabled={readOnly || !!item.promotion_id}
-                          className="px-2 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[26px] flex items-center justify-center disabled:opacity-50">
-                          {item.discount_type === 'percent' ? '%' : '฿'}
-                        </button>
-                      </div>
+                      <DiscountInput
+                        value={String(item.discount_value ?? 0)}
+                        discountType={item.discount_type === 'percent' ? 'percent' : 'fixed_discount'}
+                        onValueChange={v => onUpdateField!(idx, 'discount_value', parseFloat(v) || 0)}
+                        onTypeChange={t => onUpdateField!(idx, 'discount_type', t === 'percent' ? 'percent' : 'amount')}
+                        disabled={readOnly || !!item.promotion_id}
+                        compact
+                      />
                     </td>
                   )}
                   {hasReason && (

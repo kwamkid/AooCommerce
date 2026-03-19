@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import DiscountInput from '@/components/ui/DiscountInput';
+import PostfixInput from '@/components/ui/PostfixInput';
 
 interface Props {
   /** ยอดรวมราคาเต็ม (ก่อนส่วนลดรายการ) */
@@ -88,14 +90,16 @@ export default function OrderSummaryCard({
         {onShippingFeeChange !== undefined && (
           <div className="flex justify-between items-center gap-3">
             <span className="text-gray-500 dark:text-slate-400 flex-shrink-0">ค่าจัดส่ง</span>
-            <div className="flex items-stretch w-[120px]">
-              <input type="number" min="0" step="0.01"
-                value={shippingFee || ''}
-                onChange={e => onShippingFeeChange(parseFloat(e.target.value) || 0)}
-                placeholder="0"
-                className="w-full text-right px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-l-lg rounded-r-none border-r-0 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]/50" />
-              <span className="px-2 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-500 dark:text-slate-300 flex items-center justify-center min-w-[26px]">฿</span>
-            </div>
+            <PostfixInput
+              value={shippingFee || ''}
+              onChange={v => onShippingFeeChange(parseFloat(v) || 0)}
+              postfix="฿"
+              type="number"
+              placeholder="0"
+              min={0}
+              step={0.01}
+              width="w-[120px]"
+            />
           </div>
         )}
 
@@ -103,24 +107,19 @@ export default function OrderSummaryCard({
         {onBillDiscountChange !== undefined && (
           <div className="flex justify-between items-center gap-3">
             <span className="text-gray-500 dark:text-slate-400 flex-shrink-0">ส่วนลดรวม</span>
-            <div className="flex items-stretch w-[120px]">
-              <input type="number" min="0"
-                step={discType === 'percent' ? '0.1' : '0.01'}
-                max={discType === 'percent' ? 100 : undefined}
-                value={billDiscount || ''}
-                onChange={e => onBillDiscountChange(parseFloat(e.target.value) || 0, discType)}
-                placeholder="0"
-                className="w-full text-center px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-l-lg rounded-r-none border-r-0 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]/50" />
-              <button type="button"
-                onClick={() => {
-                  const newType = discType === 'percent' ? 'amount' : 'percent';
-                  setDiscType(newType);
-                  onBillDiscountChange(0, newType);
-                }}
-                className="px-2 text-xs font-medium border border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-500 transition-colors min-w-[26px] flex items-center justify-center">
-                {discType === 'percent' ? '%' : '฿'}
-              </button>
-            </div>
+            <DiscountInput
+              value={String(billDiscount || '')}
+              discountType={discType === 'percent' ? 'percent' : 'fixed_discount'}
+              onValueChange={v => onBillDiscountChange(parseFloat(v) || 0, discType)}
+              onTypeChange={t => {
+                const newType = t === 'percent' ? 'percent' : 'amount';
+                setDiscType(newType);
+                onBillDiscountChange(0, newType);
+              }}
+              placeholder="0"
+              compact
+              width="w-[120px]"
+            />
           </div>
         )}
 
