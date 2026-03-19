@@ -250,7 +250,7 @@ export default function ProductSearchInput({
 
               return (
                 <button
-                  key={product.id}
+                  key={`${product.id}-${index}`}
                   type="button"
                   data-product-item
                   onClick={() => !disabled && handleSelect(product)}
