@@ -1107,17 +1107,19 @@ export default function CustomerForm({
               <User className="w-5 h-5" /> ข้อมูลเพิ่มเติม
             </h3>
             <div className="space-y-4">
-              <div>
-                <label className={labelFull}>ผู้ติดต่อ</label>
-                <input type="text" value={formData.contact_person} onChange={(e) => setFormData(prev => ({ ...prev, contact_person: e.target.value }))}
-                  className={inputFull} placeholder="ชื่อผู้ติดต่อ" />
-              </div>
-              {allTags && onTagsChange && (
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className={labelFull}>แท็ก</label>
-                  <TagInput value={selectedTags || []} onChange={onTagsChange} allTags={allTags} onTagCreated={onTagCreated} />
+                  <label className={labelFull}>ผู้ติดต่อ</label>
+                  <input type="text" value={formData.contact_person} onChange={(e) => setFormData(prev => ({ ...prev, contact_person: e.target.value }))}
+                    className={inputFull} placeholder="ชื่อผู้ติดต่อ" />
                 </div>
-              )}
+                {allTags && onTagsChange && (
+                  <div>
+                    <label className={labelFull}>แท็ก</label>
+                    <TagInput value={selectedTags || []} onChange={onTagsChange} allTags={allTags} onTagCreated={onTagCreated} />
+                  </div>
+                )}
+              </div>
               <div>
                 <label className={labelFull}>หมายเหตุ</label>
                 <textarea value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
