@@ -45,8 +45,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   received: { label: 'รับแล้ว',    color: 'text-blue-700 dark:text-blue-300',     bg: 'bg-blue-100 dark:bg-blue-900/40' },
   invoiced: { label: 'ออก invoice', color: 'text-purple-700 dark:text-purple-300', bg: 'bg-purple-100 dark:bg-purple-900/40' },
   billed:   { label: 'วางบิลแล้ว', color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40' },
-  paid:     { label: 'ชำระแล้ว',   color: 'text-green-700 dark:text-green-300',   bg: 'bg-green-100 dark:bg-green-900/40' },
-  overdue:  { label: 'เกินกำหนด',  color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100 dark:bg-red-900/40' },
+  paid:      { label: 'ชำระแล้ว',   color: 'text-green-700 dark:text-green-300',   bg: 'bg-green-100 dark:bg-green-900/40' },
+  overdue:   { label: 'เกินกำหนด',  color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100 dark:bg-red-900/40' },
+  cancelled: { label: 'ยกเลิก',     color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100/50 dark:bg-red-900/20' },
 };
 
 const STATUS_TABS = [
@@ -472,6 +473,37 @@ function ConsignmentReportsContent() {
       });
     }
 
+    // Print receipt (paid only)
+    if (report.status === 'paid' && report.statement_id) {
+      items.push({
+        key: 'print_receipt',
+        label: 'ใบเสร็จรับเงิน',
+        icon: <Receipt className="w-4 h-4" />,
+        onClick: async () => {
+          try {
+            const stRes = await apiFetch(`/api/statements/${report.statement_id}`);
+            if (!stRes.ok) throw new Error('fetch failed');
+            const stData = await stRes.json();
+            const st = stData.statement;
+            const { generatePaymentReceiptPdf } = await import('@/lib/payment-receipt-pdf');
+            const blob = await generatePaymentReceiptPdf({
+              receipt_number: st.receipt_number || 'REC-PENDING',
+              receipt_date: st.receipt_date || st.statement_date || new Date().toISOString().split('T')[0],
+              reference_number: report.doc_number || null,
+              statement_number: st.statement_number || null,
+              customer: report.customer ? {
+                name: report.customer.name,
+                phone: report.customer.phone || null,
+              } : null,
+              total_amount: report.our_amount,
+            });
+            showPdfPreview(blob, `ใบเสร็จรับเงิน`);
+          } catch { showToast('ไม่สามารถพิมพ์ใบเสร็จได้', 'error'); }
+        },
+        dividerBefore: true,
+      });
+    }
+
     // Reverse payment action (paid with statement)
     if (report.status === 'paid' && report.statement_id) {
       items.push({
@@ -479,7 +511,6 @@ function ConsignmentReportsContent() {
         label: 'ยกเลิกการชำระ',
         icon: <Undo2 className="w-4 h-4" />,
         onClick: () => setReverseConfirm(report),
-        dividerBefore: true,
         danger: true,
       });
     }
@@ -492,6 +523,26 @@ function ConsignmentReportsContent() {
         icon: <Copy className="w-4 h-4" />,
         onClick: () => copyPortalReportLink(report),
         dividerBefore: true,
+      });
+    }
+
+    // Void (billed/invoiced — cancel doc + report)
+    if (['billed', 'invoiced'].includes(report.status)) {
+      items.push({
+        key: 'void',
+        label: 'ยกเลิก (Void)',
+        icon: <XCircle className="w-4 h-4" />,
+        danger: true,
+        dividerBefore: true,
+        onClick: async () => {
+          if (!confirm('ยกเลิกรายงานนี้? เอกสารที่ออกไปแล้ว (TAX/INV/ST) จะถูก void')) return;
+          const res = await apiFetch(`/api/consignment/reports/${report.id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'void' }),
+          });
+          if (res.ok) { showToast('ยกเลิกรายงานและเอกสารแล้ว', 'success'); fetchReports(true); }
+          else { const r = await res.json(); showToast(r.error || 'เกิดข้อผิดพลาด', 'error'); }
+        },
       });
     }
 
@@ -582,13 +633,13 @@ function ConsignmentReportsContent() {
             <table className="w-full">
               <thead className="data-thead">
                 <tr>
-                  <th className="data-th">เลขที่เอกสาร</th>
+                  <th className="data-th min-w-[160px]">เลขที่เอกสาร</th>
                   <th className="data-th">ตัวแทน</th>
-                  <th className="data-th">งวด</th>
-                  <th className="data-th text-right">ยอดสุทธิ (บาท)</th>
+                  <th className="data-th whitespace-nowrap">งวด</th>
+                  <th className="data-th text-right whitespace-nowrap">ยอดสุทธิ</th>
                   <th className="data-th">สถานะ</th>
                   <th className="data-th text-center">พิมพ์</th>
-                  <th className="data-th">ครบกำหนด</th>
+                  <th className="data-th whitespace-nowrap">ครบกำหนด</th>
                   <th className="data-th text-right">จัดการ</th>
                 </tr>
               </thead>
@@ -606,18 +657,23 @@ function ConsignmentReportsContent() {
                   const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.draft;
                   const isOverdue = report.due_date && new Date(report.due_date) < new Date() && report.status !== 'paid';
                   return (
-                    <tr key={report.id} className="data-tr cursor-pointer" onClick={() => router.push(`/consignment/reports/${report.id}`)}>
+                    <tr key={report.id} className={`data-tr cursor-pointer ${report.status === 'cancelled' ? 'opacity-50' : ''}`} onClick={() => router.push(`/consignment/reports/${report.id}`)}>
                       {/* เลขที่เอกสาร */}
-                      <td className="data-td">
+                      <td className="data-td whitespace-nowrap">
                         {report.doc_number ? (
                           <>
-                            <p className="id-text-clickable text-[#F4511E] font-mono">{report.doc_number}</p>
-                            <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{report.report_number}</p>
+                            <p className={`font-mono text-sm font-bold ${report.status === 'cancelled' ? 'text-red-500 line-through' : 'text-[#F4511E]'}`}>
+                              {report.doc_number}
+                              {report.status === 'cancelled' && <span className="ml-1.5 no-underline inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">VOID</span>}
+                            </p>
+                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{report.report_number} · {formatDate(report.created_at)}</p>
                           </>
                         ) : (
-                          <p className="id-text-clickable text-gray-900 dark:text-white">{report.report_number}</p>
+                          <>
+                            <p className="font-mono text-sm font-bold text-gray-900 dark:text-white">{report.report_number}</p>
+                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(report.created_at)}</p>
+                          </>
                         )}
-                        <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(report.created_at)}</p>
                       </td>
                       {/* ตัวแทน */}
                       <td className="data-td">
@@ -698,7 +754,7 @@ function ConsignmentReportsContent() {
                               className="flex items-center gap-1.5 px-2.5 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors whitespace-nowrap"
                             >
                               <Banknote className="w-4 h-4" />
-                              <span className="hidden lg:inline">ลูกค้าชำระแล้ว</span>
+                              <span className="hidden xl:inline">ลูกค้าชำระแล้ว</span>
                             </button>
                           )}
                           {report.status === 'paid' && (

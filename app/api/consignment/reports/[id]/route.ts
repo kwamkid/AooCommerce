@@ -193,6 +193,42 @@ export async function PUT(
       });
     }
 
+    if (action === 'void') {
+      // Void: billed/invoiced → cancelled + void linked documents
+      if (!['billed', 'invoiced'].includes(report.status)) {
+        return NextResponse.json({ error: `สถานะ "${report.status}" ไม่สามารถ void ได้` }, { status: 400 });
+      }
+
+      const now = new Date().toISOString();
+      const voidReason = 'ยกเลิกรายงานยอดขาย';
+
+      // Void TAX invoices linked to this report
+      await supabaseAdmin.from('tax_invoices')
+        .update({ voided_at: now, voided_reason: voidReason })
+        .eq('source_type', 'consignment_report').eq('source_id', reportId)
+        .is('voided_at', null);
+
+      // Void INV invoices linked to this report
+      await supabaseAdmin.from('invoices')
+        .update({ voided_at: now, voided_reason: voidReason })
+        .eq('source_type', 'consignment_report').eq('source_id', reportId)
+        .is('voided_at', null);
+
+      // Void linked statement
+      if (report.statement_id) {
+        await supabaseAdmin.from('statements')
+          .update({ status: 'cancelled', updated_at: now })
+          .eq('id', report.statement_id);
+      }
+
+      // Cancel report
+      await supabaseAdmin.from('consignment_reports')
+        .update({ status: 'cancelled', updated_at: now })
+        .eq('id', reportId);
+
+      return NextResponse.json({ success: true, status: 'cancelled' });
+    }
+
     if (action === 'cancel') {
       // Cancel: draft → cancelled
       if (report.status !== 'draft') {
