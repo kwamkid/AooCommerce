@@ -109,6 +109,7 @@ export interface CustomerFormData {
   shipping_delivery_notes: string;
   // Tax invoice info (optional)
   needs_tax_invoice: boolean;
+  tax_type: 'personal' | 'corporate'; // บุคคล / นิติบุคคล
   tax_company_name: string;
   tax_id: string;
   tax_branch: string;
@@ -276,6 +277,7 @@ const defaultFormData: CustomerFormData = {
   shipping_google_maps_link: '',
   shipping_delivery_notes: '',
   needs_tax_invoice: false,
+  tax_type: 'corporate',
   tax_company_name: '',
   tax_id: '',
   tax_branch: 'สำนักงานใหญ่',
@@ -1298,26 +1300,51 @@ export default function CustomerForm({
 
             {formData.needs_tax_invoice && (
               <div className="space-y-4">
+                {/* บุคคล / นิติบุคคล toggle */}
+                <div className="inline-flex rounded-lg bg-gray-100 dark:bg-slate-700 p-0.5">
+                  <button type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, tax_type: 'personal', tax_branch: '' }))}
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${formData.tax_type === 'personal' ? 'bg-white dark:bg-slate-600 text-[#F4511E] shadow-sm' : 'text-gray-500 dark:text-slate-400'}`}>
+                    บุคคลธรรมดา
+                  </button>
+                  <button type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, tax_type: 'corporate' }))}
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${formData.tax_type === 'corporate' ? 'bg-white dark:bg-slate-600 text-[#F4511E] shadow-sm' : 'text-gray-500 dark:text-slate-400'}`}>
+                    นิติบุคคล
+                  </button>
+                </div>
+
                 <div>
-                  <label className={labelFull}>ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
+                  <label className={labelFull}>{formData.tax_type === 'personal' ? 'ชื่อ-นามสกุล' : 'ชื่อบริษัท'}</label>
                   <input type="text" value={formData.tax_company_name}
                     onChange={(e) => setFormData(prev => ({ ...prev, tax_company_name: e.target.value }))}
-                    className={inputFull} placeholder="บริษัท XXX จำกัด" />
+                    className={inputFull} placeholder={formData.tax_type === 'personal' ? 'ชื่อ นามสกุล' : 'บริษัท XXX จำกัด'} />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+
+                {formData.tax_type === 'corporate' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelFull}>เลขประจำตัวผู้เสียภาษี</label>
+                      <input type="text" value={formData.tax_id}
+                        onChange={(e) => setFormData(prev => ({ ...prev, tax_id: e.target.value }))}
+                        className={inputFull} placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
+                    </div>
+                    <div>
+                      <label className={labelFull}>สาขา</label>
+                      <input type="text" value={formData.tax_branch}
+                        onChange={(e) => setFormData(prev => ({ ...prev, tax_branch: e.target.value }))}
+                        className={inputFull} placeholder="สำนักงานใหญ่" />
+                    </div>
+                  </div>
+                ) : (
                   <div>
-                    <label className={labelFull}>เลขประจำตัวผู้เสียภาษี</label>
+                    <label className={labelFull}>เลขประจำตัวประชาชน</label>
                     <input type="text" value={formData.tax_id}
                       onChange={(e) => setFormData(prev => ({ ...prev, tax_id: e.target.value }))}
-                      className={inputFull} placeholder="X-XXXX-XXXXX-XX-X" />
+                      className={inputFull} placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
                   </div>
-                  <div>
-                    <label className={labelFull}>สาขา</label>
-                    <input type="text" value={formData.tax_branch}
-                      onChange={(e) => setFormData(prev => ({ ...prev, tax_branch: e.target.value }))}
-                      className={inputFull} placeholder="สำนักงานใหญ่" />
-                  </div>
-                </div>
+                )}
+
                 <p className="text-xs text-gray-400 dark:text-slate-500">ที่อยู่ออกบิลใช้จาก "ที่อยู่" ด้านซ้าย</p>
               </div>
             )}
