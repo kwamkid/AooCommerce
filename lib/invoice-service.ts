@@ -1136,6 +1136,21 @@ export async function autoIssueDocument(
       }
     }
 
+    // ─── Flow W-Credit: Auto create statement (ใบวางบิล) on shipping ───
+    if ((order.flow_type === 'w_credit' || order.flow_type === 'b_credit')
+        && ['shipping', 'completed'].includes(order.order_status)) {
+      try {
+        const { createStatementForOrder } = await import('@/lib/statement-service');
+        const { data: oi } = await supabaseAdmin
+          .from('orders').select('customer_id, total_amount').eq('id', orderId).single();
+        if (oi?.customer_id) {
+          await createStatementForOrder(orderId, oi.customer_id, companyId, null, oi.total_amount ?? 0);
+        }
+      } catch (err) {
+        console.error('[autoIssueDocs] Auto create statement for W-Credit error:', err);
+      }
+    }
+
     // ─── Flow W-Credit: จ่ายเงินครบ → REC (ref TAX/INV) ───
     if ((order.flow_type === 'w_credit' || order.flow_type === 'b_credit')
         && order.payment_status === 'paid'
