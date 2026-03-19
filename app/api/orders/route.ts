@@ -895,6 +895,7 @@ export async function GET(request: NextRequest) {
     const excludePaymentStatus = searchParams.get('exclude_payment_status') || null;
     const orderType = searchParams.get('order_type') || null;
     const platform = searchParams.get('platform') || null;
+    const flowType = searchParams.get('flow_type') || null;
 
     // Lightweight: return only IDs matching the current filters (for "select all")
     if (searchParams.get('ids_only') === 'true') {
@@ -965,6 +966,15 @@ export async function GET(request: NextRequest) {
         { error: rpcError.message },
         { status: 500 }
       );
+    }
+
+    // Post-filter by flow_type (RPC doesn't support it yet)
+    if (flowType && result?.orders) {
+      const allowedFlows = flowType.split(',').map((f: string) => f.trim());
+      result.orders = result.orders.filter((o: { flow_type?: string }) =>
+        o.flow_type && allowedFlows.includes(o.flow_type)
+      );
+      result.total = result.orders.length;
     }
 
     // Enrich orders with tax_invoice_doc_type from document tables
