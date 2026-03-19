@@ -34,7 +34,9 @@ interface ConsignmentReport {
   printed_invoice_at?: string | null;
   printed_statement_at?: string | null;
   created_at: string;
-  customer: { id: string; name: string; customer_code: string | null } | null;
+  customer: { id: string; name: string; customer_code: string | null; phone?: string | null; contact_person?: string | null } | null;
+  doc_number?: string | null;
+  doc_type?: string | null;
 }
 
 
@@ -422,11 +424,11 @@ function ConsignmentReportsContent() {
 
     const items: ActionItem[] = [];
 
-    // Print: ใบแจ้งหนี้ (billed/invoiced) or ใบกำกับภาษี/ใบเสร็จ (paid)
+    // Print: ใบกำกับภาษี/ใบแจ้งหนี้ or ใบแจ้งหนี้
     if (['invoiced', 'billed', 'paid'].includes(report.status)) {
       items.push({
         key: 'invoice',
-        label: report.status === 'paid' ? 'ใบกำกับภาษี/ใบเสร็จ' : 'ใบแจ้งหนี้',
+        label: report.doc_type === 'tax_invoice' ? 'ใบกำกับภาษี/ใบแจ้งหนี้' : 'ใบแจ้งหนี้',
         icon: isPrinting && printingType === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />,
         suffix: dot('invoice'),
         onClick: () => handlePrintInvoice(report.id),
@@ -580,10 +582,9 @@ function ConsignmentReportsContent() {
             <table className="w-full">
               <thead className="data-thead">
                 <tr>
-                  <th className="data-th">เลขที่</th>
+                  <th className="data-th">เลขที่เอกสาร</th>
                   <th className="data-th">ตัวแทน</th>
                   <th className="data-th">งวด</th>
-                  <th className="data-th text-right">จำนวน</th>
                   <th className="data-th text-right">ยอดสุทธิ (บาท)</th>
                   <th className="data-th">สถานะ</th>
                   <th className="data-th text-center">พิมพ์</th>
@@ -593,10 +594,10 @@ function ConsignmentReportsContent() {
               </thead>
               <tbody className="data-tbody">
                 {isLoading ? (
-                  <tr><td colSpan={9} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin mx-auto" /></td></tr>
+                  <tr><td colSpan={8} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin mx-auto" /></td></tr>
                 ) : reports.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-12 text-center">
+                    <td colSpan={8} className="px-6 py-12 text-center">
                       <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
                       <p className="text-gray-500 dark:text-slate-400 data-text">ไม่พบรายงาน</p>
                     </td>
@@ -606,27 +607,28 @@ function ConsignmentReportsContent() {
                   const isOverdue = report.due_date && new Date(report.due_date) < new Date() && report.status !== 'paid';
                   return (
                     <tr key={report.id} className="data-tr cursor-pointer" onClick={() => router.push(`/consignment/reports/${report.id}`)}>
-                      {/* เลขที่ */}
+                      {/* เลขที่เอกสาร */}
                       <td className="data-td">
-                        <p className="id-text-clickable text-gray-900 dark:text-white">
-                          {report.report_number}
-                        </p>
+                        {report.doc_number ? (
+                          <>
+                            <p className="id-text-clickable text-[#F4511E] font-mono">{report.doc_number}</p>
+                            <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{report.report_number}</p>
+                          </>
+                        ) : (
+                          <p className="id-text-clickable text-gray-900 dark:text-white">{report.report_number}</p>
+                        )}
                         <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(report.created_at)}</p>
                       </td>
                       {/* ตัวแทน */}
                       <td className="data-td">
                         <p className="data-text text-gray-900 dark:text-white font-medium">{report.customer?.name || '-'}</p>
-                        {report.customer?.customer_code && (
-                          <p className="data-timestamp text-gray-400 dark:text-slate-500">{report.customer.customer_code}</p>
+                        {report.customer?.phone && (
+                          <p className="data-timestamp text-gray-400 dark:text-slate-500">{report.customer.phone}</p>
                         )}
                       </td>
                       {/* งวด */}
-                      <td className="data-td">
+                      <td className="data-td whitespace-nowrap">
                         <span className="data-text text-gray-700 dark:text-slate-300">{formatPeriod(report.period_year, report.period_month)}</span>
-                      </td>
-                      {/* จำนวน */}
-                      <td className="data-td text-right">
-                        <span className="data-text text-gray-700 dark:text-slate-300">{report.total_qty_sold} ชิ้น</span>
                       </td>
                       {/* ยอดสุทธิ */}
                       <td className="data-td text-right">
@@ -648,7 +650,7 @@ function ConsignmentReportsContent() {
                           const hasDocs = ['invoiced', 'billed', 'paid'].includes(report.status);
                           if (!hasDocs) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
                           return (
-                            <Tooltip text={`${report.status === 'paid' ? 'ใบกำกับภาษี/ใบเสร็จ' : 'ใบแจ้งหนี้'}: ${isPrintedDoc(report, 'invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${report.statement_id ? (isPrintedDoc(report, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
+                            <Tooltip text={`${report.doc_type === 'tax_invoice' ? 'ใบกำกับภาษี/ใบแจ้งหนี้' : 'ใบแจ้งหนี้'}: ${isPrintedDoc(report, 'invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${report.statement_id ? (isPrintedDoc(report, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
                               <div className="relative flex items-center justify-center gap-1">
                                 {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
                                 <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />

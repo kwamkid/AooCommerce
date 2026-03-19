@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
         total_qty_sold, our_amount, due_date, report_token, statement_id,
         printed_invoice_at, printed_statement_at,
         created_at, confirmed_at, received_at, notes,
-        customer:customers(id, name, customer_code)
+        customer:customers(id, name, customer_code, phone, contact_person)
       `, { count: 'exact' })
       .eq('company_id', companyId)
       .order('created_at', { ascending: false })
@@ -140,8 +140,38 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Enrich with document numbers (TAX/INV)
+    const reportIds = (reports || []).map((r: { id: string }) => r.id);
+    let docMap: Record<string, { doc_number: string; doc_type: string }> = {};
+    if (reportIds.length > 0) {
+      const [taxRes, invRes] = await Promise.all([
+        supabaseAdmin.from('tax_invoices')
+          .select('source_id, invoice_number, document_subtype')
+          .eq('source_type', 'consignment_report').in('source_id', reportIds)
+          .eq('company_id', companyId).is('voided_at', null),
+        supabaseAdmin.from('invoices')
+          .select('source_id, invoice_number')
+          .eq('source_type', 'consignment_report').in('source_id', reportIds)
+          .eq('company_id', companyId).is('voided_at', null),
+      ]);
+      for (const t of taxRes.data || []) {
+        docMap[t.source_id as string] = { doc_number: t.invoice_number, doc_type: t.document_subtype || 'tax_invoice' };
+      }
+      for (const inv of invRes.data || []) {
+        if (!docMap[inv.source_id as string]) {
+          docMap[inv.source_id as string] = { doc_number: inv.invoice_number, doc_type: 'invoice' };
+        }
+      }
+    }
+
+    const enrichedReports = (reports || []).map((r: Record<string, unknown>) => ({
+      ...r,
+      doc_number: docMap[r.id as string]?.doc_number || null,
+      doc_type: docMap[r.id as string]?.doc_type || null,
+    }));
+
     return NextResponse.json({
-      reports: reports ?? [],
+      reports: enrichedReports,
       total: count ?? 0,
       page,
       limit,
