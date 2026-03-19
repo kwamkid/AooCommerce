@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useRouter } from 'next/navigation';
 import {
-  Loader2, Save, Users, UserPlus, Plus, Trash2,
-  Search, Package, CheckCircle, MapPin,
+  Loader2, Save, Users, CheckCircle,
 } from 'lucide-react';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
-import { resolveGp, fetchGpContext, type GpResolverContext, type GpResolution } from '@/lib/gp-resolver';
+import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
+import { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
+import { resolveGp, fetchGpContext, type GpResolverContext } from '@/lib/gp-resolver';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -21,23 +22,6 @@ interface Customer {
   contact_person: string | null;
   customer_type: string;
   sale_type: string | null;
-  billing_address: string | null;
-  billing_district: string | null;
-  billing_amphoe: string | null;
-  billing_province: string | null;
-  billing_postal_code: string | null;
-}
-
-interface ProductSearchItem {
-  variation_id: string;
-  product_id: string;
-  product_name: string;
-  variation_label: string | null;
-  sku: string | null;
-  default_price: number;
-  discount_price: number;
-  brand_id: string | null;
-  image: string | null;
 }
 
 interface OrderItem {
@@ -47,22 +31,18 @@ interface OrderItem {
   variation_label: string | null;
   sku: string | null;
   quantity: number;
-  original_price: number;  // ราคาปลีก
-  discount_rate: number;   // % ส่วนลด
-  unit_price: number;      // ราคาหลังลด
-  gp_level: number;        // 1-4
+  original_price: number;
+  discount_rate: number;
+  unit_price: number;
+  gp_level: number;
   brand_id: string | null;
   image: string | null;
 }
 
 interface Props {
-  /** customer_type filter: 'wholesale_dealer' | 'wholesale_department' | 'corporate' */
   customerTypeFilter: string;
-  /** Flow type: 'w_cash' | 'w_credit' — auto or let user choose */
   defaultFlowType?: 'w_cash' | 'w_credit';
-  /** Page title */
   title: string;
-  /** Back URL */
   backUrl: string;
 }
 
@@ -71,23 +51,21 @@ interface Props {
 export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType, title, backUrl }: Props) {
   const router = useRouter();
   const { showToast } = useToast();
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Customer selection
+  // Customer
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [gpContext, setGpContext] = useState<GpResolverContext | null>(null);
   const [loadingGp, setLoadingGp] = useState(false);
-
-  // Flow type (auto from customer sale_type or override)
   const [flowType, setFlowType] = useState<'w_cash' | 'w_credit'>(defaultFlowType || 'w_cash');
 
   // Products
   const [products, setProducts] = useState<ProductSearchItem[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
   const [items, setItems] = useState<OrderItem[]>([]);
   const [notes, setNotes] = useState('');
-
-  // Submit
   const [submitting, setSubmitting] = useState(false);
 
   // Fetch customers
@@ -100,6 +78,7 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
 
   // Fetch products
   useEffect(() => {
+    setLoadingProducts(true);
     apiFetch('/api/products?limit=999&active=true')
       .then(r => r.json())
       .then(result => {
@@ -121,79 +100,80 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
         }
         setProducts(flat);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingProducts(false));
   }, []);
 
-  // Fetch GP context when customer changes
+  // GP context when customer changes
   const handleCustomerChange = useCallback(async (custId: string) => {
     setSelectedCustomerId(custId);
     const cust = customers.find(c => c.id === custId) || null;
     setSelectedCustomer(cust);
-    setItems([]); // Reset items
+    setItems([]);
 
-    // Set flow type from sale_type
     if (cust?.sale_type === 'wholesale_credit') setFlowType('w_credit');
     else if (cust?.sale_type === 'wholesale_cash') setFlowType('w_cash');
     else if (defaultFlowType) setFlowType(defaultFlowType);
 
     if (custId) {
       setLoadingGp(true);
-      try {
-        const ctx = await fetchGpContext(custId);
-        setGpContext(ctx);
-      } catch { setGpContext(null); }
+      try { setGpContext(await fetchGpContext(custId)); }
+      catch { setGpContext(null); }
       finally { setLoadingGp(false); }
     } else {
       setGpContext(null);
     }
   }, [customers, defaultFlowType]);
 
-  // Add product to order
-  const addProduct = (product: ProductSearchItem) => {
-    if (items.find(i => i.variation_id === product.variation_id)) {
-      // Increment qty
-      setItems(prev => prev.map(i =>
-        i.variation_id === product.variation_id ? { ...i, quantity: i.quantity + 1 } : i
+  // Add product
+  const handleAddProduct = (p: ProductSearchItem) => {
+    const existingIdx = items.findIndex(i => i.variation_id === p.variation_id);
+    if (existingIdx >= 0) {
+      setItems(prev => prev.map((i, idx) =>
+        idx === existingIdx ? { ...i, quantity: i.quantity + 1 } : i
       ));
       return;
     }
 
-    // Calculate discount
-    let resolution: GpResolution | null = null;
-    if (gpContext) {
-      resolution = resolveGp(gpContext, {
-        brand_id: product.brand_id,
-        default_price: product.default_price,
-        discount_price: product.discount_price,
-      });
-    }
+    const resolution = gpContext ? resolveGp(gpContext, {
+      brand_id: p.brand_id,
+      default_price: p.default_price,
+      discount_price: p.discount_price,
+    }) : null;
 
     setItems(prev => [...prev, {
-      variation_id: product.variation_id,
-      product_id: product.product_id,
-      product_name: product.product_name,
-      variation_label: product.variation_label,
-      sku: product.sku,
+      variation_id: p.variation_id,
+      product_id: p.product_id,
+      product_name: p.product_name,
+      variation_label: p.variation_label,
+      sku: p.sku,
       quantity: 1,
-      original_price: resolution?.base_price || product.default_price,
+      original_price: resolution?.base_price || p.default_price,
       discount_rate: resolution?.gp_rate || 0,
-      unit_price: resolution?.unit_price || product.default_price,
+      unit_price: resolution?.unit_price || p.default_price,
       gp_level: resolution?.gp_level || 4,
-      brand_id: product.brand_id,
-      image: product.image,
+      brand_id: p.brand_id,
+      image: p.image,
     }]);
   };
 
-  const removeItem = (variationId: string) => {
-    setItems(prev => prev.filter(i => i.variation_id !== variationId));
+  const updateItem = (idx: number, field: string, value: number) => {
+    setItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
   };
 
-  const updateItem = (variationId: string, patch: Partial<OrderItem>) => {
-    setItems(prev => prev.map(i => i.variation_id === variationId ? { ...i, ...patch } : i));
+  const removeItem = (idx: number) => {
+    setItems(prev => prev.filter((_, i) => i !== idx));
   };
 
-  // Totals
+  // GP info text for each item
+  const gpInfoText = (item: OrderItem) => {
+    if (!item.discount_rate) return null;
+    const baseLabel = gpContext?.customerGpBasePrice === 'discounted' ? 'ลด' : 'ปลีก';
+    return `฿${item.original_price.toLocaleString()}(${baseLabel}) - ${item.discount_rate}% = ฿${item.unit_price.toLocaleString()}`;
+  };
+
   const subtotal = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+  const formatMoney = (n: number) => n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // Submit
   const handleSubmit = async () => {
@@ -217,17 +197,10 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
             sku: i.sku,
             quantity: i.quantity,
             unit_price: i.unit_price,
-            original_price: i.original_price,
-            discount_rate: i.discount_rate,
           })),
         }),
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed');
-      }
-
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
       const data = await res.json();
       showToast(`สร้างคำสั่งซื้อ ${data.order_number} สำเร็จ`, 'success');
       router.push(backUrl);
@@ -238,44 +211,27 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
     }
   };
 
-  // Product search
-  const [productSearch, setProductSearch] = useState('');
-  const filteredProducts = products.filter(p => {
-    if (!productSearch) return false;
-    const q = productSearch.toLowerCase();
-    return p.product_name.toLowerCase().includes(q) ||
-      (p.sku && p.sku.toLowerCase().includes(q)) ||
-      (p.variation_label && p.variation_label.toLowerCase().includes(q));
-  }).slice(0, 10);
-
-  const formatMoney = (n: number) => n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
   return (
     <div className="space-y-6">
       {/* Customer selection */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg border border-[#F4511E]/30 p-6">
-        <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-[#F4511E]/30 p-5">
+        <label className="block text-base font-medium text-[#F4511E] mb-2">
           ลูกค้า <span className="text-red-500">*</span>
         </label>
-        <div className="flex gap-2 items-start">
-          <div className="flex-1">
-            <EntitySearchInput
-              value={selectedCustomerId}
-              onChange={handleCustomerChange}
-              onClear={() => { setSelectedCustomerId(''); setSelectedCustomer(null); setGpContext(null); setItems([]); }}
-              options={customers.map(c => ({
-                id: c.id,
-                label: c.name,
-                subtitle: c.phone || undefined,
-                icon: <Users className="w-4 h-4 text-gray-400" />,
-              }))}
-              placeholder="ค้นหาชื่อลูกค้า..."
-              emptyMessage="ไม่พบลูกค้า"
-            />
-          </div>
-        </div>
+        <EntitySearchInput
+          value={selectedCustomerId}
+          onChange={handleCustomerChange}
+          onClear={() => { setSelectedCustomerId(''); setSelectedCustomer(null); setGpContext(null); setItems([]); }}
+          options={customers.map(c => ({
+            id: c.id,
+            label: c.name,
+            subtitle: c.phone || undefined,
+            icon: <Users className="w-4 h-4 text-gray-400" />,
+          }))}
+          placeholder="ค้นหาชื่อลูกค้า..."
+          emptyMessage="ไม่พบลูกค้า"
+        />
 
-        {/* Customer info */}
         {selectedCustomer && (
           <div className="mt-3 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg">
             <div className="flex items-start gap-2">
@@ -295,116 +251,41 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
         )}
       </div>
 
-      {/* 2-Column Layout: items left + summary right */}
+      {/* 2-Column: Items + Summary */}
       {selectedCustomerId && gpContext && (
         <div className="flex flex-wrap gap-4 items-start">
-          {/* Left: Items */}
+          {/* Left: ItemsTable */}
           <div className="flex-1 basis-[400px] min-w-0 space-y-4">
-            {/* Items table */}
-            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-slate-700">
-                    <th className="text-left py-2 px-2 font-medium text-gray-500 dark:text-slate-400">สินค้า</th>
-                    <th className="text-right py-2 px-2 font-medium text-gray-500 dark:text-slate-400">จำนวน</th>
-                    <th className="text-right py-2 px-2 font-medium text-gray-500 dark:text-slate-400 whitespace-nowrap">ราคา/ชิ้น</th>
-                    <th className="text-right py-2 px-2 font-medium text-gray-500 dark:text-slate-400">รวม</th>
-                    <th className="w-8"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item, idx) => (
-                    <tr key={`${item.variation_id}-${idx}`} className="border-b border-gray-100 dark:border-slate-700/50">
-                      <td className="py-2 px-2">
-                        <p className="font-medium text-gray-900 dark:text-white">{item.product_name}</p>
-                        {item.variation_label && <p className="text-xs text-gray-400">{item.variation_label}</p>}
-                        {item.sku && <p className="text-xs text-gray-400 font-mono">{item.sku}</p>}
-                        <p className="text-xs text-[#F4511E] mt-0.5">
-                          ฿{formatMoney(item.original_price)}({item.discount_rate > 0 ? (gpContext.customerGpBasePrice === 'discounted' ? 'ลด' : 'ปลีก') : ''}) - {item.discount_rate}% = ฿{formatMoney(item.unit_price)}
-                        </p>
-                      </td>
-                      <td className="py-2 px-2 text-right text-gray-400 whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button type="button" onClick={() => updateItem(item.variation_id, { quantity: Math.max(1, item.quantity - 1) })}
-                            className="w-7 h-7 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700">-</button>
-                          <input type="number" value={item.quantity} min={1}
-                            onChange={e => updateItem(item.variation_id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                            className="w-12 h-7 text-center border border-gray-200 dark:border-slate-600 rounded text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white" />
-                          <button type="button" onClick={() => updateItem(item.variation_id, { quantity: item.quantity + 1 })}
-                            className="w-7 h-7 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700">+</button>
-                        </div>
-                      </td>
-                      <td className="py-2 px-2 text-right whitespace-nowrap">
-                        <input type="number" value={item.unit_price} step="0.01"
-                          onChange={e => updateItem(item.variation_id, { unit_price: parseFloat(e.target.value) || 0 })}
-                          className="w-20 h-7 text-right px-1 border border-gray-200 dark:border-slate-600 rounded text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white" />
-                        <span className="text-xs text-gray-400 ml-1">฿</span>
-                      </td>
-                      <td className="py-2 px-2 text-right font-medium text-gray-900 dark:text-white whitespace-nowrap">
-                        ฿{formatMoney(item.unit_price * item.quantity)}
-                      </td>
-                      <td className="py-2 px-2">
-                        <button type="button" onClick={() => removeItem(item.variation_id)} className="text-gray-400 hover:text-red-500">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {items.length === 0 && (
-                <div className="text-center py-12">
-                  <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                  <p className="text-gray-500 dark:text-slate-400">เพิ่มสินค้าโดยพิมพ์ค้นหาด้านล่าง</p>
-                </div>
-              )}
-            </div>
-
-            {/* Search bar */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={productSearch}
-                onChange={e => setProductSearch(e.target.value)}
-                placeholder="+ เพิ่มสินค้า — พิมพ์ชื่อหรือรหัส..."
-                className="w-full h-[42px] pl-9 pr-3 border border-green-300 dark:border-green-700 rounded-lg text-sm bg-green-50/50 dark:bg-green-900/10 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/50"
-              />
-            </div>
-
-            {/* Search results dropdown */}
-            {filteredProducts.length > 0 && (
-              <div className="border border-gray-200 dark:border-slate-600 rounded-lg max-h-60 overflow-y-auto bg-white dark:bg-slate-800">
-                {filteredProducts.map((p, idx) => (
-                  <button
-                    key={`${p.variation_id}-${idx}`}
-                    type="button"
-                    onClick={() => { addProduct(p); setProductSearch(''); }}
-                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left border-b last:border-0 border-gray-100 dark:border-slate-700"
-                  >
-                    {p.image ? (
-                      <img src={p.image} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
-                    ) : (
-                      <div className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                        <Package className="w-5 h-5 text-gray-300" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{p.product_name}</p>
-                      <p className="text-xs text-gray-400">{p.variation_label || ''} {p.sku ? `· ${p.sku}` : ''}</p>
-                    </div>
-                    <span className="text-sm font-medium text-gray-500 dark:text-slate-400 whitespace-nowrap">฿{formatMoney(p.default_price)}</span>
-                    <Plus className="w-4 h-4 text-green-500 flex-shrink-0" />
-                  </button>
-                ))}
-              </div>
-            )}
+            <ItemsTable
+              items={items.map((i): TableItem => ({
+                variation_id: i.variation_id,
+                product_id: i.product_id,
+                product_name: i.product_name,
+                variation_label: i.variation_label,
+                sku: i.sku,
+                image: i.image,
+                quantity: i.quantity,
+                unit_price: i.unit_price,
+                gpInfo: gpInfoText(i),
+              }))}
+              columns={['qty', 'unit_price', 'total']}
+              products={products}
+              loadingProducts={loadingProducts}
+              inputRef={searchInputRef}
+              onAdd={handleAddProduct}
+              searchDisabledMessage={loadingGp ? 'กำลังโหลดข้อมูลราคา...' : undefined}
+              onUpdateField={(idx, field, value) => {
+                if (field === 'quantity') updateItem(idx, 'quantity', value as number);
+                if (field === 'unit_price') updateItem(idx, 'unit_price', value as number);
+              }}
+              onRemove={removeItem}
+              showSummary={false}
+            />
           </div>
 
-          {/* Right: Summary card (sticky) */}
+          {/* Right: Summary */}
           <div className="w-full lg:w-[280px] flex-shrink-0">
-            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 lg:sticky lg:top-4 space-y-3">
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 lg:sticky lg:top-4 space-y-3">
               <h3 className="font-semibold text-gray-900 dark:text-white">สรุปคำสั่งซื้อ</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -423,14 +304,16 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
 
       {/* Notes */}
       {selectedCustomerId && (
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุ</label>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+            หมายเหตุ <span className="text-gray-400 dark:text-slate-500 font-normal">(แสดงในบิล / การจัดส่ง)</span>
+          </label>
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value)}
             rows={2}
             className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-            placeholder="หมายเหตุเพิ่มเติม..."
+            placeholder="หมายเหตุสำหรับลูกค้า, การจัดส่ง..."
           />
         </div>
       )}
