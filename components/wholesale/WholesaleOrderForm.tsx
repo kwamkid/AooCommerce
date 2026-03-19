@@ -169,9 +169,9 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
       if (field === 'discount_rate') {
         updated.unit_price = Math.round(updated.original_price * (1 - value / 100) * 100) / 100;
       }
-      // Recalculate discount_rate when unit_price changes
-      if (field === 'unit_price' && updated.original_price > 0) {
-        updated.discount_rate = Math.round((1 - value / updated.original_price) * 10000) / 100;
+      // Recalculate unit_price when original_price changes
+      if (field === 'original_price') {
+        updated.unit_price = Math.round(value * (1 - updated.discount_rate / 100) * 100) / 100;
       }
       return updated;
     }));
@@ -284,12 +284,12 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
                 sku: i.sku,
                 image: i.image,
                 quantity: i.quantity,
-                unit_price: i.unit_price,
+                unit_price: i.original_price,
                 discount_value: i.discount_rate,
                 discount_type: 'percent' as const,
                 gpInfo: gpInfoText(i),
               }))}
-              columns={['qty', 'discount', 'unit_price', 'total']}
+              columns={['qty', 'unit_price', 'discount', 'total']}
               products={products}
               loadingProducts={loadingProducts}
               inputRef={searchInputRef}
@@ -297,7 +297,7 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
               searchDisabledMessage={loadingGp ? 'กำลังโหลดข้อมูลราคา...' : undefined}
               onUpdateField={(idx, field, value) => {
                 if (field === 'quantity') updateItem(idx, 'quantity', value as number);
-                if (field === 'unit_price') updateItem(idx, 'unit_price', value as number);
+                if (field === 'unit_price') updateItem(idx, 'original_price', value as number);
                 if (field === 'discount_value') updateItem(idx, 'discount_rate', value as number);
               }}
               onRemove={removeItem}
