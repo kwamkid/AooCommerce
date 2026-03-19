@@ -99,6 +99,7 @@ export default function OrderSummaryCard({
               min={0}
               step={0.01}
               width="w-[120px]"
+              compact
             />
           </div>
         )}

@@ -40,7 +40,7 @@ export default function DiscountInput({
     onTypeChange(discountType === 'percent' ? 'fixed_discount' : 'percent');
   };
 
-  const h = compact ? 'h-[30px]' : 'h-[38px]';
+  const h = compact ? 'py-1.5' : 'py-2';
   const fontSize = compact ? 'text-sm' : 'text-sm';
 
   return (
