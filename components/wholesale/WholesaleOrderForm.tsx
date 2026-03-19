@@ -11,6 +11,8 @@ import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import { resolveGp, fetchGpContext, type GpResolverContext } from '@/lib/gp-resolver';
+import OrderSummaryCard from '@/components/ui/OrderSummaryCard';
+import { useFeatures } from '@/lib/features-context';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -67,6 +69,24 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
   const [items, setItems] = useState<OrderItem[]>([]);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Summary
+  const [billDiscount, setBillDiscount] = useState(0);
+  const [billDiscountType, setBillDiscountType] = useState<'amount' | 'percent'>('amount');
+  const [shippingFee, setShippingFee] = useState(0);
+
+  // VAT status
+  const { features } = useFeatures();
+  const [vatRegistered, setVatRegistered] = useState(false);
+  useEffect(() => {
+    apiFetch('/api/settings/features').then(r => r.json()).then(d => {
+      // Check company VAT from settings
+      apiFetch('/api/companies').then(r2 => r2.json()).then(d2 => {
+        const company = d2.companies?.[0] || d2;
+        setVatRegistered(company.vat_registered ?? false);
+      }).catch(() => {});
+    }).catch(() => {});
+  }, []);
 
   // Fetch customers
   useEffect(() => {
@@ -306,44 +326,17 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
           </div>
 
           {/* Right: Summary */}
-          <div className="w-full lg:w-[280px] flex-shrink-0">
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 lg:sticky lg:top-4 space-y-3">
-              <h3 className="font-semibold text-gray-900 dark:text-white">สรุปคำสั่งซื้อ</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-slate-400">ยอดรวมสินค้า (ราคาเต็ม)</span>
-                  <span className="text-gray-900 dark:text-white">฿{formatMoney(totalOriginal)}</span>
-                </div>
-                {totalDiscount > 0 && (
-                  <div className="flex justify-between text-green-600 dark:text-green-400">
-                    <span>ส่วนลดทั้งหมด</span>
-                    <span>-฿{formatMoney(totalDiscount)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-slate-400">ยอดหลังลด</span>
-                  <span className="text-gray-900 dark:text-white">฿{formatMoney(subtotal)}</span>
-                </div>
-              </div>
-
-              {/* Per-item discount breakdown */}
-              {items.length > 0 && totalDiscount > 0 && (
-                <div className="border-t border-gray-100 dark:border-slate-700 pt-2 space-y-1">
-                  <p className="text-xs text-gray-400 dark:text-slate-500 font-medium">รายการส่วนลด</p>
-                  {items.filter(i => i.discount_rate > 0).map((i, idx) => (
-                    <div key={idx} className="flex justify-between text-xs">
-                      <span className="text-gray-500 dark:text-slate-400 truncate mr-2">{i.product_name}{i.variation_label ? ` - ${i.variation_label}` : ''}</span>
-                      <span className="text-green-600 dark:text-green-400 whitespace-nowrap flex-shrink-0">-{i.discount_rate}%</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="border-t border-gray-200 dark:border-slate-700 pt-3 flex justify-between items-center">
-                <span className="font-semibold text-gray-900 dark:text-white">ยอดรวมสุทธิ</span>
-                <span className="text-xl font-bold text-[#F4511E]">฿{formatMoney(subtotal)}</span>
-              </div>
-            </div>
+          <div className="w-full lg:w-[300px] flex-shrink-0">
+            <OrderSummaryCard
+              totalOriginal={totalOriginal}
+              subtotal={subtotal}
+              billDiscount={billDiscount}
+              billDiscountType={billDiscountType}
+              onBillDiscountChange={(v, t) => { setBillDiscount(v); setBillDiscountType(t); }}
+              shippingFee={shippingFee}
+              onShippingFeeChange={setShippingFee}
+              vatRegistered={vatRegistered}
+            />
           </div>
         </div>
       )}
