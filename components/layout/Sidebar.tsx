@@ -126,7 +126,9 @@ export default function Sidebar() {
   const [productsOpen, setProductsOpen] = useState(false);
   const [accountingOpen, setAccountingOpen] = useState(false);
   const [consignmentOpen, setConsignmentOpen] = useState(false);
+  const [dealerWholesaleOpen, setDealerWholesaleOpen] = useState(false);
   const [deptStoreOpen, setDeptStoreOpen] = useState(false);
+  const [deptWholesaleOpen, setDeptWholesaleOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [orderReadyCount, setOrderReadyCount] = useState(0);
@@ -551,6 +553,18 @@ export default function Sidebar() {
                         </Link>
                       </div>
                     )}
+                    {/* ตัวแทนขายขาด */}
+                    <Link
+                      href="/dealer-orders"
+                      className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
+                        pathname?.startsWith('/dealer-orders')
+                          ? 'text-[#F4511E]'
+                          : 'text-gray-300 hover:text-[#F4511E]'
+                      }`}
+                    >
+                      <ShoppingBag className="w-5 h-5" />
+                      <span className="text-[16px] font-medium ml-3">ตัวแทนขายขาด</span>
+                    </Link>
                   </>
                 )}
                 {/* Department Store Section */}
@@ -583,6 +597,18 @@ export default function Sidebar() {
                         </Link>
                       </div>
                     )}
+                    {/* ห้างขายขาด */}
+                    <Link
+                      href="/dept-wholesale-orders"
+                      className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
+                        pathname?.startsWith('/dept-wholesale-orders')
+                          ? 'text-[#F4511E]'
+                          : 'text-gray-300 hover:text-[#F4511E]'
+                      }`}
+                    >
+                      <ShoppingBag className="w-5 h-5" />
+                      <span className="text-[16px] font-medium ml-3">ห้างขายขาด</span>
+                    </Link>
                   </>
                 )}
                 <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
