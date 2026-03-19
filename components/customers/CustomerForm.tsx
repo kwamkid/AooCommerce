@@ -32,6 +32,7 @@ const ConsignmentSettings = dynamic(() => import('./settings/ConsignmentSettings
 const DepartmentStoreSettings = dynamic(() => import('./settings/DepartmentStoreSettings'), { ssr: false });
 import Checkbox from '@/components/ui/Checkbox';
 import DateRangePicker from '@/components/ui/DateRangePicker';
+import TaxInfoForm from '@/components/ui/TaxInfoForm';
 import { showPdfPreview } from '@/lib/print-pdf';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import FormSelect from '@/components/ui/FormSelect';
@@ -1299,54 +1300,20 @@ export default function CustomerForm({
             </div>
 
             {formData.needs_tax_invoice && (
-              <div className="space-y-4">
-                {/* บุคคล / นิติบุคคล toggle */}
-                <div className="inline-flex rounded-lg bg-gray-100 dark:bg-slate-700 p-0.5">
-                  <button type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, tax_type: 'personal', tax_branch: '' }))}
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${formData.tax_type === 'personal' ? 'bg-white dark:bg-slate-600 text-[#F4511E] shadow-sm' : 'text-gray-500 dark:text-slate-400'}`}>
-                    บุคคลธรรมดา
-                  </button>
-                  <button type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, tax_type: 'corporate' }))}
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${formData.tax_type === 'corporate' ? 'bg-white dark:bg-slate-600 text-[#F4511E] shadow-sm' : 'text-gray-500 dark:text-slate-400'}`}>
-                    นิติบุคคล
-                  </button>
-                </div>
-
-                <div>
-                  <label className={labelFull}>{formData.tax_type === 'personal' ? 'ชื่อ-นามสกุล' : 'ชื่อบริษัท'}</label>
-                  <input type="text" value={formData.tax_company_name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, tax_company_name: e.target.value }))}
-                    className={inputFull} placeholder={formData.tax_type === 'personal' ? 'ชื่อ นามสกุล' : 'บริษัท XXX จำกัด'} />
-                </div>
-
-                {formData.tax_type === 'corporate' ? (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={labelFull}>เลขประจำตัวผู้เสียภาษี</label>
-                      <input type="text" value={formData.tax_id}
-                        onChange={(e) => setFormData(prev => ({ ...prev, tax_id: e.target.value }))}
-                        className={inputFull} placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
-                    </div>
-                    <div>
-                      <label className={labelFull}>สาขา</label>
-                      <input type="text" value={formData.tax_branch}
-                        onChange={(e) => setFormData(prev => ({ ...prev, tax_branch: e.target.value }))}
-                        className={inputFull} placeholder="สำนักงานใหญ่" />
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className={labelFull}>เลขประจำตัวประชาชน</label>
-                    <input type="text" value={formData.tax_id}
-                      onChange={(e) => setFormData(prev => ({ ...prev, tax_id: e.target.value }))}
-                      className={inputFull} placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
-                  </div>
-                )}
-
-                <p className="text-xs text-gray-400 dark:text-slate-500">ที่อยู่ออกบิลใช้จาก "ที่อยู่" ด้านซ้าย</p>
-              </div>
+              <>
+                <TaxInfoForm
+                  data={{
+                    tax_type: formData.tax_type,
+                    tax_company_name: formData.tax_company_name,
+                    tax_id: formData.tax_id,
+                    tax_branch: formData.tax_branch,
+                  }}
+                  onChange={(patch) => setFormData(prev => ({ ...prev, ...patch }))}
+                  inputClassName={inputFull}
+                  labelClassName={labelFull}
+                />
+                <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">ที่อยู่ออกบิลใช้จาก "ที่อยู่" ด้านซ้าย</p>
+              </>
             )}
           </div>
 
