@@ -541,9 +541,21 @@ export default function CustomerForm({
 
     try {
       const dbCustomerType = resolveDbCustomerType(formData.customer_type, formData.sale_type);
+      // Auto-copy primary address to billing address (ที่อยู่หลัก = ที่อยู่ออกบิล)
+      const billingAddress = formData.billing_address || formData.shipping_address;
+      const billingDistrict = formData.billing_district || formData.shipping_district;
+      const billingAmphoe = formData.billing_amphoe || formData.shipping_amphoe;
+      const billingProvince = formData.billing_province || formData.shipping_province;
+      const billingPostalCode = formData.billing_postal_code || formData.shipping_postal_code;
+
       const submissionData = {
         ...formData,
         customer_type: dbCustomerType,
+        billing_address: billingAddress,
+        billing_district: billingDistrict,
+        billing_amphoe: billingAmphoe,
+        billing_province: billingProvince,
+        billing_postal_code: billingPostalCode,
         shipping_address_name: formData.shipping_address_name || 'ที่อยู่หลัก',
         has_multiple_branches: false,
         additional_addresses: additionalAddresses.filter(a => a.address_line1 || a.province),
@@ -890,10 +902,10 @@ export default function CustomerForm({
             </div>
           )}
 
-          {/* Section: ที่อยู่จัดส่ง */}
+          {/* Section: ที่อยู่ (ที่อยู่หลัก = ออกบิล = default จัดส่ง) */}
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
             <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-              <Truck className="w-5 h-5" /> ที่อยู่จัดส่ง
+              <MapPin className="w-5 h-5" /> ที่อยู่ <span className="text-sm font-normal text-gray-400 dark:text-slate-500">(ที่อยู่ออกบิล + จัดส่ง default)</span>
             </h3>
 
             <div className="space-y-3">
@@ -1259,14 +1271,15 @@ export default function CustomerForm({
             </div>
           )}
 
-          {/* Section: ใบกำกับภาษี */}
+          {/* Section: ข้อมูลภาษี */}
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
             <div className="flex items-center gap-2 mb-4 cursor-pointer"
               onClick={() => setFormData(prev => ({ ...prev, needs_tax_invoice: !prev.needs_tax_invoice }))}>
               <Checkbox checked={formData.needs_tax_invoice} onChange={(v) => setFormData(prev => ({ ...prev, needs_tax_invoice: v }))} />
               <span className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <Building2 className="w-5 h-5" /> ใบกำกับภาษี
+                <Building2 className="w-5 h-5" /> ข้อมูลภาษี
               </span>
+              <span className="text-sm font-normal text-gray-400 dark:text-slate-500">(สำหรับออกใบกำกับภาษี)</span>
             </div>
 
             {formData.needs_tax_invoice && (
@@ -1291,21 +1304,7 @@ export default function CustomerForm({
                       className={inputFull} placeholder="สำนักงานใหญ่" />
                   </div>
                 </div>
-                <div>
-                  <div className="mb-3">
-                    <Checkbox checked={formData.billing_same_as_shipping}
-                      onChange={(v) => setFormData(prev => ({ ...prev, billing_same_as_shipping: v }))}
-                      label="ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง" />
-                  </div>
-                  {!formData.billing_same_as_shipping && (
-                    <div>
-                      <label className={labelFull}>ที่อยู่ออกบิล</label>
-                      <textarea value={formData.billing_address}
-                        onChange={(e) => setFormData(prev => ({ ...prev, billing_address: e.target.value }))}
-                        className={inputFull} rows={3} placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์" />
-                    </div>
-                  )}
-                </div>
+                <p className="text-xs text-gray-400 dark:text-slate-500">ที่อยู่ออกบิลใช้จาก "ที่อยู่" ด้านซ้าย</p>
               </div>
             )}
           </div>
