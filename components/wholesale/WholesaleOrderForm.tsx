@@ -162,7 +162,19 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
   };
 
   const updateItem = (idx: number, field: string, value: number) => {
-    setItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
+    setItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      const updated = { ...item, [field]: value };
+      // Recalculate unit_price when discount_rate changes
+      if (field === 'discount_rate') {
+        updated.unit_price = Math.round(updated.original_price * (1 - value / 100) * 100) / 100;
+      }
+      // Recalculate discount_rate when unit_price changes
+      if (field === 'unit_price' && updated.original_price > 0) {
+        updated.discount_rate = Math.round((1 - value / updated.original_price) * 10000) / 100;
+      }
+      return updated;
+    }));
   };
 
   const removeItem = (idx: number) => {
@@ -176,7 +188,10 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
     return `฿${item.original_price.toLocaleString()}(${baseLabel}) - ${item.discount_rate}% = ฿${item.unit_price.toLocaleString()}`;
   };
 
+  // Totals
+  const totalOriginal = items.reduce((sum, i) => sum + i.original_price * i.quantity, 0);
   const subtotal = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+  const totalDiscount = totalOriginal - subtotal;
   const formatMoney = (n: number) => n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // Submit
@@ -270,9 +285,11 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
                 image: i.image,
                 quantity: i.quantity,
                 unit_price: i.unit_price,
+                discount_value: i.discount_rate,
+                discount_type: 'percent' as const,
                 gpInfo: gpInfoText(i),
               }))}
-              columns={['qty', 'unit_price', 'total']}
+              columns={['qty', 'discount', 'unit_price', 'total']}
               products={products}
               loadingProducts={loadingProducts}
               inputRef={searchInputRef}
@@ -281,6 +298,7 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
               onUpdateField={(idx, field, value) => {
                 if (field === 'quantity') updateItem(idx, 'quantity', value as number);
                 if (field === 'unit_price') updateItem(idx, 'unit_price', value as number);
+                if (field === 'discount_value') updateItem(idx, 'discount_rate', value as number);
               }}
               onRemove={removeItem}
               showSummary={false}
@@ -293,10 +311,34 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
               <h3 className="font-semibold text-gray-900 dark:text-white">สรุปคำสั่งซื้อ</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-slate-400">ยอดรวมสินค้า (รวม VAT)</span>
+                  <span className="text-gray-500 dark:text-slate-400">ยอดรวมสินค้า (ราคาเต็ม)</span>
+                  <span className="text-gray-900 dark:text-white">฿{formatMoney(totalOriginal)}</span>
+                </div>
+                {totalDiscount > 0 && (
+                  <div className="flex justify-between text-green-600 dark:text-green-400">
+                    <span>ส่วนลดทั้งหมด</span>
+                    <span>-฿{formatMoney(totalDiscount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-slate-400">ยอดหลังลด</span>
                   <span className="text-gray-900 dark:text-white">฿{formatMoney(subtotal)}</span>
                 </div>
               </div>
+
+              {/* Per-item discount breakdown */}
+              {items.length > 0 && totalDiscount > 0 && (
+                <div className="border-t border-gray-100 dark:border-slate-700 pt-2 space-y-1">
+                  <p className="text-xs text-gray-400 dark:text-slate-500 font-medium">รายการส่วนลด</p>
+                  {items.filter(i => i.discount_rate > 0).map((i, idx) => (
+                    <div key={idx} className="flex justify-between text-xs">
+                      <span className="text-gray-500 dark:text-slate-400 truncate mr-2">{i.product_name}{i.variation_label ? ` - ${i.variation_label}` : ''}</span>
+                      <span className="text-green-600 dark:text-green-400 whitespace-nowrap flex-shrink-0">-{i.discount_rate}%</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="border-t border-gray-200 dark:border-slate-700 pt-3 flex justify-between items-center">
                 <span className="font-semibold text-gray-900 dark:text-white">ยอดรวมสุทธิ</span>
                 <span className="text-xl font-bold text-[#F4511E]">฿{formatMoney(subtotal)}</span>
