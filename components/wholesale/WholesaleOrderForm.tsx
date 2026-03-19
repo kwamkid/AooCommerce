@@ -86,9 +86,10 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
         for (const p of result.products || []) {
           for (const v of p.variations || []) {
             flat.push({
-              variation_id: v.id,
+              id: v.id,
               product_id: p.id,
-              product_name: p.name,
+              code: p.code || v.sku || '',
+              name: p.name,
               variation_label: v.variation_label,
               sku: v.sku,
               default_price: v.default_price || 0,
@@ -127,7 +128,7 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
 
   // Add product
   const handleAddProduct = (p: ProductSearchItem) => {
-    const existingIdx = items.findIndex(i => i.variation_id === p.variation_id);
+    const existingIdx = items.findIndex(i => i.variation_id === p.id);
     if (existingIdx >= 0) {
       setItems(prev => prev.map((i, idx) =>
         idx === existingIdx ? { ...i, quantity: i.quantity + 1 } : i
@@ -136,24 +137,24 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
     }
 
     const resolution = gpContext ? resolveGp(gpContext, {
-      brand_id: p.brand_id,
-      default_price: p.default_price,
-      discount_price: p.discount_price,
+      brand_id: p.brand_id || null,
+      default_price: p.default_price || 0,
+      discount_price: p.discount_price || 0,
     }) : null;
 
     setItems(prev => [...prev, {
-      variation_id: p.variation_id,
+      variation_id: p.id,
       product_id: p.product_id,
-      product_name: p.product_name,
-      variation_label: p.variation_label,
-      sku: p.sku,
+      product_name: p.name,
+      variation_label: p.variation_label || null,
+      sku: p.sku || null,
       quantity: 1,
-      original_price: resolution?.base_price || p.default_price,
+      original_price: resolution?.base_price || p.default_price || 0,
       discount_rate: resolution?.gp_rate || 0,
-      unit_price: resolution?.unit_price || p.default_price,
+      unit_price: resolution?.unit_price || p.default_price || 0,
       gp_level: resolution?.gp_level || 4,
-      brand_id: p.brand_id,
-      image: p.image,
+      brand_id: p.brand_id || null,
+      image: p.image || null,
     }]);
   };
 
