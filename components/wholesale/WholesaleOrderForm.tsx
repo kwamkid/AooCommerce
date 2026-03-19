@@ -221,6 +221,16 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
 
     setSubmitting(true);
     try {
+      // Get default shipping address for this customer
+      const addrRes = await apiFetch(`/api/shipping-addresses?customer_id=${selectedCustomerId}`);
+      const addrData = await addrRes.json();
+      const defaultAddr = (addrData.addresses || addrData.data || [])[0];
+      if (!defaultAddr) {
+        showToast('ลูกค้านี้ยังไม่มีที่อยู่จัดส่ง กรุณาเพิ่มที่อยู่ก่อน', 'error');
+        setSubmitting(false);
+        return;
+      }
+
       const res = await apiFetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -228,6 +238,7 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
           customer_id: selectedCustomerId,
           source: 'manual',
           notes,
+          shipping_address_id: defaultAddr.id,
           items: items.map(i => ({
             variation_id: i.variation_id,
             product_id: i.product_id,
@@ -236,6 +247,7 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
             sku: i.sku,
             quantity: i.quantity,
             unit_price: i.unit_price,
+            shipments: [{ shipping_address_id: defaultAddr.id, quantity: i.quantity }],
           })),
         }),
       });
