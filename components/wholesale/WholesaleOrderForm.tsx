@@ -85,10 +85,11 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
         const flat: ProductSearchItem[] = [];
         for (const p of result.products || []) {
           for (const v of p.variations || []) {
-            if (!v.id) continue;
+            const vid = v.variation_id || v.id;
+            if (!vid) continue;
             flat.push({
-              id: v.id,
-              product_id: p.id,
+              id: vid,
+              product_id: p.product_id || p.id,
               code: p.code || v.sku || '',
               name: p.name,
               variation_label: v.variation_label,
@@ -96,7 +97,7 @@ export default function WholesaleOrderForm({ customerTypeFilter, defaultFlowType
               default_price: v.default_price || 0,
               discount_price: v.discount_price || 0,
               brand_id: p.brand_id || null,
-              image: v.image || p.image || null,
+              image: v.image_url || v.image || p.image || null,
             });
           }
         }
