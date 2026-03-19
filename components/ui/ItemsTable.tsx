@@ -5,6 +5,7 @@ import { Package, Trash2, AlertTriangle, X, Gift } from 'lucide-react';
 import ProductSearchInput, { type ProductSearchItem, type SearchMode } from '@/components/ui/ProductSearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 import DiscountInput from '@/components/ui/DiscountInput';
+import PostfixInput from '@/components/ui/PostfixInput';
 import { productDisplayName } from '@/lib/product-display';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -398,12 +399,16 @@ export default function ItemsTable({
                               : `฿${fmt(item.unit_price ?? 0)}`
                             }
                           </span>
-                        : <div className="relative inline-block">
-                            <input type="number" min="0" step="0.01" value={item.unit_price ?? 0}
-                              onChange={e => onUpdateField!(idx, 'unit_price', parseFloat(e.target.value) || 0)}
-                              className={`w-24 text-right pr-5 ${INPUT_CLS}`} />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">฿</span>
-                          </div>
+                        : <PostfixInput
+                            value={item.unit_price ?? 0}
+                            onChange={v => onUpdateField!(idx, 'unit_price', parseFloat(v) || 0)}
+                            postfix="฿"
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            compact
+                            inputClassName="w-20"
+                          />
                       }
                     </td>
                   )}
@@ -411,12 +416,16 @@ export default function ItemsTable({
                     <td className="py-3 text-right">
                       {readOnly
                         ? <span className="text-sm text-gray-900 dark:text-white">฿{fmt(item.unit_cost ?? 0)}</span>
-                        : <div className="relative inline-block">
-                            <input type="number" min="0" step="0.01" value={item.unit_cost ?? 0}
-                              onChange={e => onUpdateField!(idx, 'unit_cost', parseFloat(e.target.value) || 0)}
-                              className={`w-24 text-right pr-5 ${INPUT_CLS}`} />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">฿</span>
-                          </div>
+                        : <PostfixInput
+                            value={item.unit_cost ?? 0}
+                            onChange={v => onUpdateField!(idx, 'unit_cost', parseFloat(v) || 0)}
+                            postfix="฿"
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            compact
+                            inputClassName="w-20"
+                          />
                       }
                     </td>
                   )}
@@ -425,13 +434,17 @@ export default function ItemsTable({
                       {item.role === 'discounted'
                         ? (readOnly
                             ? <span className="text-sm text-gray-900 dark:text-white">฿{fmt(item.special_price ?? 0)}</span>
-                            : <div className="relative inline-block">
-                                <input type="number" min="0" step="0.01" value={item.special_price ?? ''}
-                                  onChange={e => onUpdateField!(idx, 'special_price', e.target.value === '' ? 0 : parseFloat(e.target.value))}
-                                  placeholder="0"
-                                  className={`w-24 text-right pr-5 ${INPUT_CLS}`} />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">฿</span>
-                              </div>
+                            : <PostfixInput
+                                value={item.special_price ?? ''}
+                                onChange={v => onUpdateField!(idx, 'special_price', v === '' ? 0 : parseFloat(v))}
+                                postfix="฿"
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                placeholder="0"
+                                compact
+                                inputClassName="w-20"
+                              />
                           )
                         : <span className="text-sm text-gray-400">-</span>
                       }

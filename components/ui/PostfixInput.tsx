@@ -14,15 +14,13 @@ interface PostfixInputProps {
   helperText?: string;
   className?: string;
   inputClassName?: string;
-  /** Width of the group — default w-fit */
   width?: string;
-  /** Compact mode — smaller for summary cards / tables */
   compact?: boolean;
 }
 
 /**
- * Input with a static postfix label (e.g. ฿, %, ชิ้น, กก.)
- * Style matches DiscountInput (rounded-l input + rounded-r label)
+ * Input with a postfix label inside the border (no bg on postfix).
+ * Style: [ 269 ฿ ] — postfix is just text inside the input area.
  */
 export default function PostfixInput({
   value,
@@ -46,7 +44,7 @@ export default function PostfixInput({
 
   return (
     <div className={className} data-error={error ? 'true' : undefined}>
-      <div className={`flex items-stretch ${width || 'w-fit'}`}>
+      <div className={`relative ${width || 'w-fit'}`}>
         <input
           type={type}
           value={value}
@@ -56,9 +54,9 @@ export default function PostfixInput({
           max={max}
           step={step}
           disabled={disabled}
-          className={`${h} px-2 ${fontSize} text-right border border-gray-300 dark:border-slate-600 rounded-l-lg rounded-r-none border-r-0 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]/50 disabled:opacity-40 disabled:cursor-not-allowed ${inputClassName || (compact ? 'w-16' : 'w-24')}`}
+          className={`${h} px-2 pr-6 ${fontSize} text-right border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]/50 disabled:opacity-40 disabled:cursor-not-allowed ${inputClassName || (compact ? 'w-full' : 'w-24')}`}
         />
-        <span className={`px-2 ${h} ${fontSize} font-medium border border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-500 dark:text-slate-300 flex items-center justify-center min-w-[26px] flex-shrink-0`}>
+        <span className={`absolute right-2 top-1/2 -translate-y-1/2 ${fontSize} text-gray-400 dark:text-slate-500 pointer-events-none`}>
           {postfix}
         </span>
       </div>
