@@ -1004,52 +1004,7 @@ function LineChatPageContent() {
       const customerName = newCustomer.customer?.name || newCustomer.name;
       const customerCode = newCustomer.customer?.customer_code || newCustomer.customer_code;
 
-      // 2. Create primary shipping address if provided
-      if (formData.shipping_address || formData.shipping_province) {
-        await apiFetch('/api/shipping-addresses', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            customer_id: customerId,
-            address_name: formData.shipping_address_name || 'ที่อยู่หลัก',
-            contact_person: formData.shipping_contact_person || formData.contact_person,
-            phone: formData.shipping_phone || formData.phone,
-            address_line1: formData.shipping_address,
-            district: formData.shipping_district,
-            amphoe: formData.shipping_amphoe,
-            province: formData.shipping_province,
-            postal_code: formData.shipping_postal_code,
-            google_maps_link: formData.shipping_google_maps_link,
-            delivery_notes: formData.shipping_delivery_notes,
-            is_default: true
-          })
-        });
-      }
-
-      // 2b. Create additional shipping addresses
-      if (formData.additional_addresses?.length) {
-        for (const addr of formData.additional_addresses) {
-          if (!addr.address_line1 && !addr.province) continue;
-          await apiFetch('/api/shipping-addresses', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              customer_id: customerId,
-              address_name: addr.address_name || 'ที่อยู่เพิ่มเติม',
-              contact_person: addr.contact_person || formData.contact_person,
-              phone: addr.phone || formData.phone,
-              address_line1: addr.address_line1,
-              district: addr.district, amphoe: addr.amphoe,
-              province: addr.province, postal_code: addr.postal_code,
-              google_maps_link: addr.google_maps_link,
-              delivery_notes: addr.delivery_notes,
-              is_default: false,
-            })
-          });
-        }
-      }
-
-      // 3. Link to LINE contact
+      // 2. Link to LINE contact
       const linkResponse = await apiFetch('/api/line/contacts', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1198,10 +1153,10 @@ function LineChatPageContent() {
         email: builtPayload.email,
         customer_type: builtPayload.customer_type as 'retail' | 'wholesale' | 'distributor',
         billing_address: builtPayload.billing_address,
-        billing_district: builtPayload.billing_district,
-        billing_amphoe: builtPayload.billing_amphoe,
-        billing_province: builtPayload.billing_province,
-        billing_postal_code: builtPayload.billing_postal_code,
+        billing_district: '',
+        billing_amphoe: '',
+        billing_province: '',
+        billing_postal_code: '',
         tax_id: builtPayload.tax_id,
         tax_company_name: builtPayload.tax_company_name,
         tax_branch: builtPayload.tax_branch,
@@ -2430,12 +2385,10 @@ function LineChatPageContent() {
                   tax_id: selectedContact.customer.tax_id || '',
                   tax_company_name: selectedContact.customer.tax_company_name || '',
                   tax_branch: selectedContact.customer.tax_branch || 'สำนักงานใหญ่',
-                  billing_address: selectedContact.customer.billing_address || '',
-                  billing_district: selectedContact.customer.billing_district || '',
-                  billing_amphoe: selectedContact.customer.billing_amphoe || '',
-                  billing_province: selectedContact.customer.billing_province || '',
-                  billing_postal_code: selectedContact.customer.billing_postal_code || '',
-                  billing_same_as_shipping: false
+                  billing_address: [selectedContact.customer.billing_address, selectedContact.customer.billing_district, selectedContact.customer.billing_amphoe, selectedContact.customer.billing_province, selectedContact.customer.billing_postal_code].filter(Boolean).join(' '),
+                  shipping_address: '', shipping_district: '', shipping_amphoe: '',
+                  shipping_province: '', shipping_postal_code: '',
+                  shipping_google_maps_link: '', shipping_delivery_notes: ''
                 }}
                 onSubmit={handleUpdateCustomerInChat}
                 onCancel={() => setMobileView('profile')}
@@ -2880,12 +2833,10 @@ function LineChatPageContent() {
                   tax_id: selectedContact.customer.tax_id || '',
                   tax_company_name: selectedContact.customer.tax_company_name || '',
                   tax_branch: selectedContact.customer.tax_branch || 'สำนักงานใหญ่',
-                  billing_address: selectedContact.customer.billing_address || '',
-                  billing_district: selectedContact.customer.billing_district || '',
-                  billing_amphoe: selectedContact.customer.billing_amphoe || '',
-                  billing_province: selectedContact.customer.billing_province || '',
-                  billing_postal_code: selectedContact.customer.billing_postal_code || '',
-                  billing_same_as_shipping: false
+                  billing_address: [selectedContact.customer.billing_address, selectedContact.customer.billing_district, selectedContact.customer.billing_amphoe, selectedContact.customer.billing_province, selectedContact.customer.billing_postal_code].filter(Boolean).join(' '),
+                  shipping_address: '', shipping_district: '', shipping_amphoe: '',
+                  shipping_province: '', shipping_postal_code: '',
+                  shipping_google_maps_link: '', shipping_delivery_notes: ''
                 }}
                 onSubmit={handleUpdateCustomerInChat}
                 onCancel={() => setRightPanel('profile')}

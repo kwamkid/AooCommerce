@@ -6,6 +6,8 @@ import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { ActionItem } from '@/app/orders/components/ActionMenu';
+import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
+import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
@@ -46,22 +48,22 @@ interface Replenishment {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: 'ที่ต้องจัดส่ง', color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
-  shipped: { label: 'กำลังส่ง', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/40' },
-  pending_confirm: { label: 'รอยืนยัน', color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/40' },
-  received: { label: 'รับครบแล้ว', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40' },
-  partial_received: { label: 'รับไม่ครบ', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40' },
-  cancelled: { label: 'ยกเลิก', color: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
+  pending: { label: 'ที่ต้องจัดส่ง', ...getBadgeColor('pending') },
+  shipped: { label: 'กำลังส่ง', ...getBadgeColor('shipped') },
+  pending_confirm: { label: 'รอยืนยัน', ...getBadgeColor('pending_confirm') },
+  received: { label: 'รับครบแล้ว', ...getBadgeColor('completed') },
+  partial_received: { label: 'รับไม่ครบ', ...getBadgeColor('partial_received') },
+  cancelled: { label: 'ยกเลิก', ...getBadgeColor('cancelled') },
 };
 
 const STATUS_TABS = [
-  { key: 'all',            label: 'ทั้งหมด',       active: 'bg-[#F4511E]',           inactive: 'bg-orange-50 dark:bg-orange-950/30',   labelColor: 'text-[#F4511E] dark:text-orange-400',       countColor: 'text-[#F4511E] dark:text-orange-300' },
-  { key: 'pending',        label: 'ที่ต้องจัดส่ง', active: 'bg-orange-500',           inactive: 'bg-orange-50 dark:bg-orange-950/50',   labelColor: 'text-orange-600 dark:text-orange-400',      countColor: 'text-orange-700 dark:text-orange-300' },
-  { key: 'shipped',        label: 'กำลังส่ง',       active: 'bg-amber-500',            inactive: 'bg-amber-50 dark:bg-amber-950/50',     labelColor: 'text-amber-600 dark:text-amber-400',        countColor: 'text-amber-700 dark:text-amber-300' },
-  { key: 'pending_confirm',label: 'รอยืนยัน',       active: 'bg-blue-600',             inactive: 'bg-blue-50 dark:bg-blue-950/50',       labelColor: 'text-blue-600 dark:text-blue-400',          countColor: 'text-blue-700 dark:text-blue-300',
+  { key: 'all',            label: 'ทั้งหมด',       ...getTabColor('all') },
+  { key: 'pending',        label: 'ที่ต้องจัดส่ง', ...getTabColor('pending') },
+  { key: 'shipped',        label: 'กำลังส่ง',       ...getTabColor('shipped') },
+  { key: 'pending_confirm',label: 'รอยืนยัน',       ...getTabColor('pending_confirm'),
     tooltip: 'ตัวแทนแจ้งรับของแล้ว แต่จำนวนไม่ตรง รอ Admin ตรวจสอบและยืนยัน' },
-  { key: 'received',       label: 'รับแล้ว',         active: 'bg-emerald-600',          inactive: 'bg-emerald-50 dark:bg-emerald-950/50', labelColor: 'text-emerald-600 dark:text-emerald-400',    countColor: 'text-emerald-700 dark:text-emerald-300' },
-  { key: 'cancelled',      label: 'ยกเลิก',          active: 'bg-gray-500',             inactive: 'bg-gray-100 dark:bg-gray-800',         labelColor: 'text-gray-500 dark:text-gray-400',          countColor: 'text-gray-600 dark:text-gray-300' },
+  { key: 'received',       label: 'รับแล้ว',         ...getTabColor('completed') },
+  { key: 'cancelled',      label: 'ยกเลิก',          ...getTabColor('cancelled') },
 ];
 
 const SHIPPING_METHODS = [
@@ -872,7 +874,7 @@ function ReplenishmentsPageContent() {
                           {r.status === 'pending' && (
                             <button
                               onClick={() => setShipModalId(r.id)}
-                              className="flex items-center gap-1.5 px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-[#F4511E] text-white hover:bg-[#D63B0E] transition-colors whitespace-nowrap"
+                              className="btn-focus-action amber"
                             >
                               <Send className="w-4 h-4" />
                               <span className="hidden md:inline">จัดส่ง</span>
@@ -982,7 +984,7 @@ function ReplenishmentsPageContent() {
                     {(r.status === 'pending' || r.status === 'pending_confirm' || (r.status === 'shipped' && r.receive_token)) && (
                       <div className="mt-3 flex gap-2" onClick={e => e.stopPropagation()}>
                         {r.status === 'pending' && (
-                          <button onClick={() => setShipModalId(r.id)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-[#F4511E] text-white hover:bg-[#D63B0E] transition-colors">
+                          <button onClick={() => setShipModalId(r.id)} className="btn-focus-action amber flex-1 justify-center">
                             <Send className="w-4 h-4" /> จัดส่ง
                           </button>
                         )}
@@ -1013,96 +1015,57 @@ function ReplenishmentsPageContent() {
       </div>
 
       {/* Ship Modal */}
-      {shipModalId && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !shipSubmitting && setShipModalId(null)}>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <Send className="w-5 h-5 text-[#F4511E]" /> จัดส่งสินค้า
-            </h3>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">วิธีส่ง</label>
-                <FormSelect
-                  value={shipMethod}
-                  onChange={setShipMethod}
-                  options={SHIPPING_METHODS}
-                  placeholder="เลือกวิธีส่ง"
-                />
-              </div>
-
-              {shipMethod === 'courier' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อขนส่ง</label>
-                    <input
-                      type="text"
-                      value={shipCarrier}
-                      onChange={e => setShipCarrier(e.target.value)}
-                      placeholder="เช่น Kerry, Flash, J&T"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เลข Tracking</label>
-                    <input
-                      type="text"
-                      value={shipTracking}
-                      onChange={e => setShipTracking(e.target.value)}
-                      placeholder="เลขพัสดุ"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                    />
-                  </div>
-                </>
-              )}
-
-              {shipMethod === 'lalamove' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทรคนขับ / รายละเอียด</label>
-                  <input
-                    type="text"
-                    value={shipNotes}
-                    onChange={e => setShipNotes(e.target.value)}
-                    placeholder="เบอร์โทรติดต่อ Lalamove"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                  />
-                </div>
-              )}
-
-              {shipMethod === 'own_vehicle' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุ</label>
-                  <input
-                    type="text"
-                    value={shipNotes}
-                    onChange={e => setShipNotes(e.target.value)}
-                    placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => { setShipModalId(null); resetShipForm(); }}
-                disabled={shipSubmitting}
-                className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleShip}
-                disabled={shipSubmitting}
-                className="flex-1 px-4 py-2.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {shipSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                จัดส่ง
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {shipModalId && (() => {
+        const shipRep = replenishments.find(r => r.id === shipModalId);
+        return (
+          <ShipModal
+            orderNumber={shipRep?.replenishment_number || ''}
+            customerName={shipRep?.customer?.name || '-'}
+            onSubmit={async (result: ShipResult) => {
+              setShipSubmitting(true);
+              try {
+                const res = await apiFetch(`/api/replenishments/${shipModalId}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    action: 'ship',
+                    shipping_method: result.method,
+                    shipping_carrier: result.method === 'courier' ? result.carrier : result.method === 'lalamove' ? 'Lalamove' : 'รถเราเอง',
+                    tracking_number: result.method === 'courier' ? result.tracking : null,
+                    notes: result.notes || null,
+                  }),
+                });
+                if (!res.ok) { const r = await res.json(); throw new Error(r.error || 'Failed'); }
+                const data = await res.json();
+                const dnNum = data.dn_number || data.tax_invoice_number;
+                const taxNum = data.tax_invoice_number;
+                const docNums = [dnNum, taxNum].filter(Boolean);
+                showToast(docNums.length > 0 ? `จัดส่งเรียบร้อย + ออกเอกสาร ${docNums.join(' + ')}` : 'จัดส่งเรียบร้อย', 'success');
+                const shippedId = shipModalId;
+                setShipModalId(null);
+                resetShipForm();
+                fetchData(true);
+                // Auto print DN after ship
+                if (dnNum) {
+                  try {
+                    const rp = await fetchReplenishmentForPdf(shippedId);
+                    if (rp) {
+                      const { generateReplenishmentPdf } = await import('@/lib/replenishment-pdf');
+                      const blob = await generateReplenishmentPdf(rp);
+                      showPdfPreview(blob, `ใบส่งสินค้า ${dnNum}`);
+                    }
+                  } catch (err) { console.error('Auto print DN error:', err); }
+                }
+              } catch (err) {
+                showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+              } finally {
+                setShipSubmitting(false);
+              }
+            }}
+            onClose={() => { setShipModalId(null); resetShipForm(); }}
+          />
+        );
+      })()}
 
       {/* Edit Shipping Modal */}
       {editShipModalId && (

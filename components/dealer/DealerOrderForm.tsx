@@ -1,0 +1,1159 @@
+'use client';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { apiFetch } from '@/lib/api-client';
+import { useToast } from '@/lib/toast-context';
+import { useRouter } from 'next/navigation';
+import { useCompany } from '@/lib/company-context';
+import { parseThaiAddress } from '@/lib/address-parser';
+import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
+import {
+  Loader2, Save, Users, CheckCircle, MapPin, X, ChevronDown, Plus, Warehouse,
+} from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
+import EntitySearchInput from '@/components/ui/EntitySearchInput';
+import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
+import { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
+import { resolveGp, fetchGpContext, type GpResolverContext } from '@/lib/gp-resolver';
+import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
+import MonthYearPicker from '@/components/ui/MonthYearPicker';
+import OrderStatusBar from '@/components/dealer/OrderStatusBar';
+import CustomerInfoCard from '@/components/ui/CustomerInfoCard';
+import TaxInvoiceInfo from '@/components/ui/TaxInvoiceInfo';
+import { formatNumber } from '@/lib/utils/format';
+
+// ── Types ──────────────────────────────────────────────────
+
+interface Customer {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  contact_person: string | null;
+  customer_type: string;
+  sale_type: string | null;
+  customer_code?: string;
+  // Billing (populated after fetch /api/customers/:id)
+  billing_address?: string | null;
+  billing_district?: string | null;
+  billing_amphoe?: string | null;
+  billing_province?: string | null;
+  billing_postal_code?: string | null;
+  tax_company_name?: string | null;
+  tax_id?: string | null;
+  tax_branch?: string | null;
+}
+
+interface ShippingAddress {
+  id: string;
+  address_name: string;
+  address_line1: string;
+  district: string;
+  amphoe: string;
+  province: string;
+  postal_code: string;
+  phone: string;
+  contact_person: string;
+  is_default?: boolean;
+}
+
+interface OrderItem {
+  variation_id: string;
+  product_id: string;
+  product_name: string;
+  variation_label: string | null;
+  sku: string | null;
+  quantity: number;
+  original_price: number;
+  discount_rate: number;
+  unit_price: number;
+  gp_level: number;
+  brand_id: string | null;
+  image: string | null;
+  // For consignment: store base prices for GP recalc
+  default_price: number;
+  discount_price: number;
+  gp_base_price: 'retail' | 'discounted';
+}
+
+export type OrderMode =
+  | 'wholesale'          // ขายขาด (ตัวแทน + ห้าง) → POST /api/orders
+  | 'consignment'        // ฝากขาย ตัวแทน → POST /api/consignment/reports
+  | 'dept_consignment'   // ฝากขาย ห้าง (คีย์ยอด) → POST /api/department-store/reports
+  | 'department';        // ใบส่งห้าง → POST /api/department-orders
+
+interface Props {
+  mode: OrderMode;
+  customerTypeFilter: string;
+  defaultFlowType?: 'w_cash' | 'w_credit';
+  backUrl: string;
+  /** Label for customer field */
+  customerLabel?: string;
+  /** Label for submit button */
+  submitLabel?: string;
+  /** Summary box title */
+  summaryTitle?: string;
+  /** Show warehouse picker */
+  showWarehousePicker?: boolean;
+  /** Callback after successful submit — receives API response data */
+  onSubmitSuccess?: (data: any) => void | Promise<void>;
+  /** Edit mode: existing order ID to load */
+  orderId?: string;
+}
+
+// ── Component ──────────────────────────────────────────────
+
+export default function DealerOrderForm({
+  mode,
+  customerTypeFilter,
+  defaultFlowType,
+  backUrl,
+  customerLabel = 'ลูกค้า',
+  submitLabel,
+  summaryTitle,
+  showWarehousePicker = false,
+  onSubmitSuccess,
+  orderId,
+}: Props) {
+  const router = useRouter();
+  const { showToast } = useToast();
+  const { currentCompany } = useCompany();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const latestCustomerIdRef = useRef('');
+
+  const isConsignment = mode === 'consignment' || mode === 'dept_consignment';
+  const isDepartment = mode === 'department';
+  const isWholesale = mode === 'wholesale';
+  const isEditMode = !!orderId;
+
+  // Edit mode state
+  const [orderNumber, setOrderNumber] = useState('');
+  const [orderStatus, setOrderStatus] = useState('new');
+  const [paymentStatus, setPaymentStatus] = useState('pending');
+  const [loadingOrder, setLoadingOrder] = useState(!!orderId);
+
+  // Customer
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [gpContext, setGpContext] = useState<GpResolverContext | null>(null);
+  const [loadingGp, setLoadingGp] = useState(false);
+  const [flowType, setFlowType] = useState<'w_cash' | 'w_credit'>(defaultFlowType || 'w_cash');
+
+  // Shipping address
+  const [shippingAddresses, setShippingAddresses] = useState<ShippingAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [showAddressDropdown, setShowAddressDropdown] = useState(false);
+
+  // Delivery fields
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryName, setDeliveryName] = useState('');
+  const [deliveryPhone, setDeliveryPhone] = useState('');
+  const [deliveryEmail, setDeliveryEmail] = useState('');
+  const [deliveryDistrict, setDeliveryDistrict] = useState('');
+  const [deliveryAmphoe, setDeliveryAmphoe] = useState('');
+  const [deliveryProvince, setDeliveryProvince] = useState('');
+  const [deliveryPostalCode, setDeliveryPostalCode] = useState('');
+
+  // Tax invoice
+  const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
+  const [taxName, setTaxName] = useState('');
+  const [taxTaxId, setTaxTaxId] = useState('');
+  const [taxBranch, setTaxBranch] = useState('สำนักงานใหญ่');
+  const [taxAddress, setTaxAddress] = useState('');
+
+  // Products
+  const [products, setProducts] = useState<ProductSearchItem[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [items, setItems] = useState<OrderItem[]>([]);
+  const [notes, setNotes] = useState('');
+  const [internalNotes, setInternalNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Summary
+  const [orderDiscount, setOrderDiscount] = useState(0);
+  const [orderDiscountType, setOrderDiscountType] = useState<'percent' | 'amount'>('amount');
+  const [shippingFee, setShippingFee] = useState(0);
+
+  // Warehouse picker
+  const [warehouses, setWarehouses] = useState<{ id: string; name: string; is_default: boolean }[]>([]);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+
+  // Consignment-specific: period picker + dealer stock
+  const now = new Date();
+  const [periodMonth, setPeriodMonth] = useState(now.getMonth() + 1);
+  const [periodYear, setPeriodYear] = useState(now.getFullYear());
+  const [dealerStockMap, setDealerStockMap] = useState<Record<string, number>>({});
+
+  // VAT status
+  const vatRegistered = isDepartment ? true : (currentCompany?.vat_registered ?? false);
+
+  // Fetch warehouses
+  useEffect(() => {
+    if (!showWarehousePicker) return;
+    apiFetch('/api/warehouses')
+      .then(r => r.json())
+      .then(d => {
+        const whs = d.warehouses || [];
+        setWarehouses(whs);
+        if (!isEditMode) {
+          const def = whs.find((w: any) => w.is_default) || whs[0];
+          if (def) setSelectedWarehouseId(def.id);
+        }
+      })
+      .catch(() => {});
+  }, [showWarehousePicker]);
+
+  // Fetch customers (skip in edit mode — customer already loaded from order)
+  useEffect(() => {
+    if (isEditMode) return;
+    apiFetch(`/api/customers?active=true&type=${customerTypeFilter}`)
+      .then(r => r.json())
+      .then(d => setCustomers(d.data || d.customers || []))
+      .catch(() => {});
+  }, [customerTypeFilter, isEditMode]);
+
+  // Fetch products (skip in read-only edit mode)
+  useEffect(() => {
+    if (isEditMode && isReadOnly) { setLoadingProducts(false); return; }
+    setLoadingProducts(true);
+    apiFetch('/api/products?limit=999&active=true')
+      .then(r => r.json())
+      .then(result => {
+        const flat: ProductSearchItem[] = [];
+        for (const p of result.products || []) {
+          for (const v of p.variations || []) {
+            const vid = v.variation_id || v.id;
+            if (!vid) continue;
+            flat.push({
+              id: vid,
+              product_id: p.product_id || p.id,
+              code: p.code || v.sku || '',
+              name: p.name,
+              variation_label: v.variation_label,
+              sku: v.sku,
+              default_price: v.default_price || 0,
+              discount_price: v.discount_price || 0,
+              brand_id: p.brand_id || null,
+              image: v.image_url || v.image || p.image || null,
+            });
+          }
+        }
+        setProducts(flat);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingProducts(false));
+  }, []);
+
+  // Consignment: load dealer inventory when customer changes
+  useEffect(() => {
+    if (!isConsignment || !selectedCustomerId) { setDealerStockMap({}); return; }
+    apiFetch(`/api/inventory?dealer_id=${selectedCustomerId}&limit=9999`)
+      .then(r => r.json())
+      .then(d => {
+        const map: Record<string, number> = {};
+        for (const i of d.items || []) {
+          const b = i.consign_breakdown?.find((x: { customer_id: string }) => x.customer_id === selectedCustomerId);
+          if (b && b.qty > 0) map[i.variation_id] = b.qty;
+        }
+        setDealerStockMap(map);
+      })
+      .catch(() => setDealerStockMap({}));
+  }, [isConsignment, selectedCustomerId]);
+
+  // Helper: fill delivery fields from address
+  const fillDeliveryFromAddress = useCallback((addr: ShippingAddress, cust: Customer | null) => {
+    setDeliveryName(addr.contact_person || cust?.name || '');
+    setDeliveryPhone(addr.phone || cust?.phone || '');
+    setDeliveryEmail(cust?.email || '');
+    setDeliveryAddress(addr.address_line1 || '');
+    setDeliveryDistrict(addr.district || '');
+    setDeliveryAmphoe(addr.amphoe || '');
+    setDeliveryProvince(addr.province || '');
+    setDeliveryPostalCode(addr.postal_code || '');
+  }, []);
+
+  const resetForm = useCallback(() => {
+    setShippingAddresses([]); setSelectedAddressId(''); setShowAddressDropdown(false);
+    setDeliveryAddress(''); setDeliveryName(''); setDeliveryPhone('');
+    setDeliveryEmail(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
+    setDeliveryProvince(''); setDeliveryPostalCode('');
+    setTaxInvoiceRequested(false); setTaxName(''); setTaxTaxId('');
+    setTaxBranch('สำนักงานใหญ่'); setTaxAddress('');
+  }, []);
+
+  // Load existing order for edit mode
+  const orderLoaded = useRef(false);
+  useEffect(() => {
+    if (!orderId || orderLoaded.current) return;
+    orderLoaded.current = true;
+    setLoadingOrder(true);
+
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/orders/${orderId}`);
+        if (!res.ok) throw new Error('Order not found');
+        const data = await res.json();
+        const order = data.order;
+        const orderItems = order.items || [];
+
+        let gpCtx: GpResolverContext | null = null;
+        let productMap: Record<string, { default_price: number; discount_price: number; brand_id: string | null }> = {};
+
+        setOrderNumber(order.order_number);
+        setOrderStatus(order.order_status);
+        setPaymentStatus(order.payment_status);
+        setNotes(order.notes || '');
+        setInternalNotes(order.internal_notes || '');
+        setShippingFee(parseFloat(order.shipping_fee) || 0);
+        const discType = order.order_discount_type || 'amount';
+        setOrderDiscountType(discType);
+        setOrderDiscount(parseFloat(order.discount_amount) || 0);
+        if (order.warehouse_id) setSelectedWarehouseId(order.warehouse_id);
+
+        // Set customer
+        if (order.customer) {
+          const cust: Customer = {
+            id: order.customer.id,
+            name: order.customer.name,
+            phone: order.customer.phone,
+            email: order.customer.email || null,
+            contact_person: order.customer.contact_person || null,
+            customer_type: order.customer.customer_type,
+            sale_type: null,
+            customer_code: order.customer.customer_code,
+          };
+          setSelectedCustomerId(cust.id);
+          setSelectedCustomer(cust);
+          latestCustomerIdRef.current = cust.id;
+
+          if (order.flow_type === 'w_credit') setFlowType('w_credit');
+          else if (order.flow_type === 'w_cash') setFlowType('w_cash');
+
+          // Fetch GP context + products for GP recalculation
+          try { gpCtx = await fetchGpContext(cust.id); setGpContext(gpCtx); } catch { /* ignore */ }
+
+          // Fetch product default prices for GP recalc
+          if (gpCtx && orderItems.length > 0) {
+            try {
+              const prodRes = await apiFetch('/api/products?limit=999&active=true');
+              if (prodRes.ok) {
+                const prodData = await prodRes.json();
+                for (const p of prodData.products || []) {
+                  for (const v of p.variations || []) {
+                    const vid = v.variation_id || v.id;
+                    if (vid) productMap[vid] = { default_price: v.default_price || 0, discount_price: v.discount_price || 0, brand_id: p.brand_id || null };
+                  }
+                }
+              }
+            } catch { /* ignore */ }
+          }
+
+          try {
+            const addrRes = await apiFetch(`/api/shipping-addresses?customer_id=${cust.id}`);
+            if (addrRes.ok) {
+              const addrData = await addrRes.json();
+              const addrs: ShippingAddress[] = addrData.addresses || addrData.data || [];
+              setShippingAddresses(addrs);
+              if (order.shipping_address_id) {
+                setSelectedAddressId(order.shipping_address_id);
+                const addr = addrs.find(a => a.id === order.shipping_address_id);
+                if (addr) fillDeliveryFromAddress(addr, cust);
+              } else if (addrs.length > 0) {
+                const defaultAddr = addrs.find(a => a.is_default) || addrs[0];
+                setSelectedAddressId(defaultAddr.id);
+                fillDeliveryFromAddress(defaultAddr, cust);
+              }
+            }
+          } catch { /* ignore */ }
+
+          try {
+            const taxRes = await apiFetch(`/api/customers/${cust.id}`);
+            if (taxRes.ok) {
+              const td = await taxRes.json();
+              const c = td.customer || td;
+              if (c.tax_company_name) setTaxName(c.tax_company_name);
+              if (c.tax_id) setTaxTaxId(c.tax_id);
+              if (c.tax_branch) setTaxBranch(c.tax_branch);
+              const ap = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
+              if (ap) setTaxAddress(ap);
+              setSelectedCustomer(prev => prev ? {
+                ...prev,
+                billing_address: c.billing_address || null,
+                billing_district: c.billing_district || null,
+                billing_amphoe: c.billing_amphoe || null,
+                billing_province: c.billing_province || null,
+                billing_postal_code: c.billing_postal_code || null,
+                tax_company_name: c.tax_company_name || null,
+                tax_id: c.tax_id || null,
+                tax_branch: c.tax_branch || null,
+              } : prev);
+            }
+          } catch { /* ignore */ }
+        }
+
+        // Set items — recalculate GP from gpContext + product prices
+        if (orderItems.length > 0) {
+          setItems(orderItems.map((i: any) => {
+            const unitPrice = parseFloat(i.unit_price) || 0;
+            const prod = productMap[i.variation_id];
+
+            // If we have GP context + product data → resolve GP properly
+            if (gpCtx && prod) {
+              const resolution = resolveGp(gpCtx, {
+                brand_id: prod.brand_id,
+                default_price: prod.default_price,
+                discount_price: prod.discount_price,
+              });
+              return {
+                variation_id: i.variation_id,
+                product_id: i.product_id,
+                product_name: i.product_name,
+                variation_label: i.variation_label || null,
+                sku: i.sku || null,
+                quantity: i.quantity,
+                original_price: resolution.base_price,
+                discount_rate: resolution.gp_rate,
+                unit_price: resolution.unit_price,
+                gp_level: resolution.gp_level,
+                brand_id: prod.brand_id,
+                image: i.image || null,
+                default_price: prod.default_price,
+                discount_price: prod.discount_price,
+                gp_base_price: resolution.gp_base_price,
+              };
+            }
+
+            // Fallback: use saved unit_price as-is
+            return {
+              variation_id: i.variation_id,
+              product_id: i.product_id,
+              product_name: i.product_name,
+              variation_label: i.variation_label || null,
+              sku: i.sku || null,
+              quantity: i.quantity,
+              original_price: unitPrice,
+              discount_rate: 0,
+              unit_price: unitPrice,
+              gp_level: 4,
+              brand_id: null,
+              image: i.image || null,
+              default_price: unitPrice,
+              discount_price: 0,
+              gp_base_price: 'retail' as const,
+            };
+          }));
+        }
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : 'ไม่สามารถโหลดข้อมูลได้', 'error');
+      } finally {
+        setLoadingOrder(false);
+      }
+    })();
+  }, [orderId, fillDeliveryFromAddress, showToast]);
+
+  // GP context + address when customer changes
+  const handleCustomerChange = useCallback(async (custId: string) => {
+    setSelectedCustomerId(custId);
+    latestCustomerIdRef.current = custId;
+    const cust = customers.find(c => c.id === custId) || null;
+    setSelectedCustomer(cust);
+    setItems([]);
+
+    if (isWholesale) {
+      if (cust?.sale_type === 'wholesale_credit') setFlowType('w_credit');
+      else if (cust?.sale_type === 'wholesale_cash') setFlowType('w_cash');
+      else if (defaultFlowType) setFlowType(defaultFlowType);
+    }
+
+    resetForm();
+
+    if (custId) {
+      // Fetch GP context (all modes use GP)
+      setLoadingGp(true);
+      try {
+        const ctx = await fetchGpContext(custId);
+        if (latestCustomerIdRef.current !== custId) return;
+        setGpContext(ctx);
+      } catch { setGpContext(null); }
+      finally { if (latestCustomerIdRef.current === custId) setLoadingGp(false); }
+
+      // Fetch shipping addresses
+      try {
+        const addrRes = await apiFetch(`/api/shipping-addresses?customer_id=${custId}`);
+        if (addrRes.ok) {
+          const addrData = await addrRes.json();
+          const addrs: ShippingAddress[] = addrData.addresses || addrData.data || [];
+          setShippingAddresses(addrs);
+          if (addrs.length > 0) {
+            const defaultAddr = addrs.find(a => a.is_default) || addrs[0];
+            setSelectedAddressId(defaultAddr.id);
+            fillDeliveryFromAddress(defaultAddr, cust);
+          }
+        }
+      } catch { /* ignore */ }
+
+      // Pre-fill tax invoice fields + billing address
+      try {
+        const res = await apiFetch(`/api/customers/${custId}`);
+        if (res.ok) {
+          const data = await res.json();
+          const c = data.customer || data;
+          if (c.tax_company_name) setTaxName(c.tax_company_name);
+          if (c.tax_id) setTaxTaxId(c.tax_id);
+          if (c.tax_branch) setTaxBranch(c.tax_branch);
+          const addrParts = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
+          if (addrParts) setTaxAddress(addrParts);
+          // Store billing fields on selectedCustomer for display
+          setSelectedCustomer(prev => prev ? {
+            ...prev,
+            billing_address: c.billing_address || null,
+            billing_district: c.billing_district || null,
+            billing_amphoe: c.billing_amphoe || null,
+            billing_province: c.billing_province || null,
+            billing_postal_code: c.billing_postal_code || null,
+            tax_company_name: c.tax_company_name || null,
+            tax_id: c.tax_id || null,
+            tax_branch: c.tax_branch || null,
+          } : prev);
+        }
+      } catch { /* ignore */ }
+    } else {
+      setGpContext(null);
+    }
+  }, [customers, defaultFlowType, fillDeliveryFromAddress, isWholesale, resetForm]);
+
+  // Add product
+  const handleAddProduct = (p: ProductSearchItem) => {
+    if (!p.id) return;
+    const existingIdx = items.findIndex(i => i.variation_id === p.id);
+    if (existingIdx >= 0) {
+      setItems(prev => prev.map((i, idx) =>
+        idx === existingIdx ? { ...i, quantity: i.quantity + 1 } : i
+      ));
+      return;
+    }
+
+    const resolution = gpContext ? resolveGp(gpContext, {
+      brand_id: p.brand_id || null,
+      default_price: p.default_price || 0,
+      discount_price: p.discount_price || 0,
+    }) : null;
+
+    setItems(prev => [...prev, {
+      variation_id: p.id,
+      product_id: p.product_id,
+      product_name: p.name,
+      variation_label: p.variation_label || null,
+      sku: p.sku || null,
+      quantity: 1,
+      original_price: resolution?.base_price || p.default_price || 0,
+      discount_rate: resolution?.gp_rate || 0,
+      unit_price: resolution?.unit_price || p.default_price || 0,
+      gp_level: resolution?.gp_level || 4,
+      brand_id: p.brand_id || null,
+      image: p.image || null,
+      default_price: p.default_price || 0,
+      discount_price: p.discount_price || 0,
+      gp_base_price: resolution?.gp_base_price || 'retail',
+    }]);
+  };
+
+  const updateItem = (idx: number, field: string, value: number) => {
+    setItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      const updated = { ...item, [field]: value };
+      if (field === 'discount_rate') {
+        updated.unit_price = Math.round(updated.original_price * (1 - value / 100) * 100) / 100;
+      }
+      if (field === 'original_price') {
+        updated.unit_price = Math.round(value * (1 - updated.discount_rate / 100) * 100) / 100;
+      }
+      return updated;
+    }));
+  };
+
+  const removeItem = (idx: number) => {
+    setItems(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  // GP info text for each item
+  const gpInfoText = (item: OrderItem) => {
+    if (!item.discount_rate) return null;
+    const baseLabel = item.gp_base_price === 'discounted' ? 'ลด' : 'ปลีก';
+    const basePrice = item.gp_base_price === 'discounted' && item.discount_price > 0 ? item.discount_price : item.default_price;
+    return `฿${formatNumber(basePrice)}(${baseLabel}) - ${isConsignment ? 'GP' : ''}${formatNumber(item.discount_rate)}% = ฿${formatNumber(item.unit_price)}`;
+  };
+
+  // Available products (consignment: filter by dealer stock)
+  const availableProducts = isConsignment && selectedCustomerId
+    ? products.filter(p => (dealerStockMap[p.id] ?? 0) > 0)
+    : products;
+
+  // Totals
+  const subtotal = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+  const hasProducts = items.length > 0;
+
+  // Columns for ItemsTable
+  const tableColumns: ('stock_dest' | 'qty' | 'unit_price' | 'discount' | 'total')[] = isConsignment
+    ? ['stock_dest', 'qty', 'unit_price', 'total']
+    : isDepartment
+      ? ['qty', 'unit_price', 'total']
+      : ['qty', 'unit_price', 'discount', 'total'];
+
+  // ── Submit ──────────────────────────────────────────────────
+
+  const handleSubmit = async () => {
+    if (!selectedCustomerId) { showToast(`กรุณาเลือก${customerLabel}`, 'error'); return; }
+    if (items.length === 0) { showToast('กรุณาเพิ่มสินค้า', 'error'); return; }
+
+    setSubmitting(true);
+    try {
+      let responseData: any;
+
+      if (isConsignment) {
+        // ── Consignment / Dept-consignment report ──
+        const apiUrl = mode === 'dept_consignment' ? '/api/department-store/reports' : '/api/consignment/reports';
+        const res = await apiFetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer_id: selectedCustomerId,
+            period_year: periodYear,
+            period_month: periodMonth,
+            ...(mode === 'consignment' ? { source: 'admin' } : {}),
+            notes,
+            items: items.map(i => ({
+              variation_id: i.variation_id,
+              qty_sold: i.quantity,
+              qty_returned: 0,
+              unit_price: i.unit_price,
+              gp_rate: i.discount_rate,
+            })),
+          }),
+        });
+        responseData = await res.json();
+        if (!res.ok) throw new Error(responseData.error || 'Failed');
+
+        if (responseData.statement_number) {
+          showToast(`สร้างรายงาน ${responseData.report_number} + ใบวางบิล ${responseData.statement_number} สำเร็จ`, 'success');
+        } else {
+          showToast(`สร้างรายงาน ${responseData.report_number} สำเร็จ`, 'success');
+        }
+
+      } else if (isDepartment) {
+        // ── Department order ──
+        const res = await apiFetch('/api/department-orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer_id: selectedCustomerId,
+            warehouse_id: selectedWarehouseId || null,
+            notes,
+            internal_notes: internalNotes,
+            items: items.map(i => ({
+              product_id: i.product_id,
+              variation_id: i.variation_id || null,
+              product_name: i.product_name,
+              variation_label: i.variation_label,
+              sku: i.sku,
+              image: i.image,
+              quantity: i.quantity,
+              unit_price: i.unit_price,
+            })),
+            discount_amount: orderDiscountType === 'percent'
+              ? subtotal * orderDiscount / 100
+              : orderDiscount,
+            discount_type: orderDiscountType,
+            discount_value: orderDiscount,
+          }),
+        });
+        responseData = await res.json();
+        if (!res.ok) throw new Error(responseData.error || 'Failed');
+        showToast(`สร้างใบส่งห้าง ${responseData.department_order_number} สำเร็จ`, 'success');
+
+      } else {
+        // ── Wholesale order ──
+        // Save or update shipping address
+        let addrId = selectedAddressId;
+
+        if (selectedAddressId === 'new' || !selectedAddressId) {
+          const createRes = await apiFetch('/api/shipping-addresses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              customer_id: selectedCustomerId,
+              address_name: deliveryName || 'ที่อยู่หลัก',
+              contact_person: deliveryName,
+              phone: deliveryPhone,
+              address_line1: deliveryAddress,
+              district: deliveryDistrict,
+              amphoe: deliveryAmphoe,
+              province: deliveryProvince,
+              postal_code: deliveryPostalCode,
+              is_default: shippingAddresses.length === 0,
+            }),
+          });
+          if (createRes.ok) {
+            const created = await createRes.json();
+            addrId = (created.address || created).id;
+          } else {
+            throw new Error('ไม่สามารถสร้างที่อยู่จัดส่งได้');
+          }
+        } else {
+          await apiFetch(`/api/shipping-addresses/${addrId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contact_person: deliveryName,
+              phone: deliveryPhone,
+              address_line1: deliveryAddress,
+              district: deliveryDistrict,
+              amphoe: deliveryAmphoe,
+              province: deliveryProvince,
+              postal_code: deliveryPostalCode,
+            }),
+          });
+        }
+
+        const res = await apiFetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer_id: selectedCustomerId,
+            source: 'manual',
+            warehouse_id: selectedWarehouseId || undefined,
+            notes,
+            internal_notes: internalNotes || undefined,
+            discount_amount: orderDiscountType === 'amount' ? orderDiscount : undefined,
+            discount_percent: orderDiscountType === 'percent' ? orderDiscount : undefined,
+            tax_invoice_requested: (vatRegistered || taxInvoiceRequested) || undefined,
+            tax_company_name: (vatRegistered || taxInvoiceRequested) ? taxName : undefined,
+            tax_id: (vatRegistered || taxInvoiceRequested) ? taxTaxId : undefined,
+            tax_branch: (vatRegistered || taxInvoiceRequested) ? taxBranch : undefined,
+            tax_address: (vatRegistered || taxInvoiceRequested) ? taxAddress : undefined,
+            shipping_address_id: addrId,
+            items: items.map(i => ({
+              variation_id: i.variation_id,
+              product_id: i.product_id,
+              product_name: i.product_name,
+              variation_label: i.variation_label,
+              sku: i.sku,
+              quantity: i.quantity,
+              unit_price: i.unit_price,
+              shipments: [{ shipping_address_id: addrId, quantity: i.quantity }],
+            })),
+          }),
+        });
+        responseData = await res.json();
+        if (!res.ok) throw new Error(responseData.error || 'Failed');
+        showToast(`สร้างคำสั่งซื้อ ${responseData.order_number} สำเร็จ`, 'success');
+      }
+
+      // Callback for post-submit actions (e.g. auto-print PDF)
+      if (onSubmitSuccess) {
+        await onSubmitSuccess(responseData);
+      }
+
+      router.push(backUrl);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Derived labels ──────────────────────────────────────────
+
+  const resolvedSubmitLabel = submitLabel || (
+    isConsignment ? 'บันทึกรายงาน' : isDepartment ? 'สร้างใบส่งห้าง' : 'สร้างคำสั่งซื้อ'
+  );
+  const resolvedSummaryTitle = summaryTitle || (
+    isConsignment ? 'สรุปยอดขาย' : isDepartment ? 'สรุปใบส่งห้าง' : 'สรุปคำสั่งซื้อ'
+  );
+
+  // ── Edit mode: status actions ──────────────────────────────
+
+  const isReadOnly = isEditMode && ['completed', 'cancelled'].includes(orderStatus);
+
+  // ── Render ──────────────────────────────────────────────────
+
+  if (loadingOrder) {
+    return <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-[#F4511E]" /></div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Edit mode: Status header + Actions */}
+      {isEditMode && orderId && (
+        <OrderStatusBar
+          orderId={orderId}
+          orderNumber={orderNumber}
+          orderStatus={orderStatus}
+          paymentStatus={paymentStatus}
+          backUrl={backUrl}
+          onStatusChange={setOrderStatus}
+        />
+      )}
+
+      {/* Consignment: Period Picker */}
+      {isConsignment && (
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-gray-500 dark:text-slate-400">งวด:</span>
+          <div className="w-56">
+            <MonthYearPicker
+              month={periodMonth}
+              year={periodYear}
+              onChange={(m, y) => { setPeriodMonth(m); setPeriodYear(y); }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Warehouse Picker */}
+      {showWarehousePicker && warehouses.length > 0 && (
+        <div className="inline-block min-w-[160px]">
+          <FormSelect
+            value={selectedWarehouseId}
+            onChange={setSelectedWarehouseId}
+            options={warehouses.map(w => ({
+              id: w.id,
+              label: `${w.is_default ? '⭐ ' : ''}${w.name}`,
+            }))}
+            icon={<Warehouse className="w-4 h-4" />}
+            placeholder="-- เลือกคลัง --"
+            searchThreshold={99}
+          />
+        </div>
+      )}
+
+      {/* Customer + Delivery section — 2-column grid */}
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+          {/* Row 1 Left: ลูกค้า */}
+          <div className="relative flex flex-col">
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+              {customerLabel} <span className="text-red-500">*</span>
+            </label>
+            {selectedCustomer ? (
+              <div className="relative flex-1">
+                <div
+                  className={`flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg h-full ${shippingAddresses.length > 1 ? 'cursor-pointer' : ''}`}
+                  onClick={() => { if (shippingAddresses.length > 1) setShowAddressDropdown(!showAddressDropdown); }}
+                >
+                  <CustomerInfoCard
+                    customer={selectedCustomer}
+                    loading={loadingGp}
+                    badge={isWholesale ? (
+                      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${flowType === 'w_credit' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>
+                        {flowType === 'w_credit' ? 'เครดิต' : 'เงินสด'}
+                      </span>
+                    ) : undefined}
+                  >
+                    {shippingAddresses.length > 1 && (
+                      <div className="text-sm text-gray-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 flex-shrink-0" />
+                        <span>{selectedAddressId === 'new' ? 'ที่อยู่ใหม่' : (shippingAddresses.find(a => a.id === selectedAddressId)?.address_name || shippingAddresses[0]?.address_name)}</span>
+                        <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                      </div>
+                    )}
+                  </CustomerInfoCard>
+                  <button type="button" onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCustomerId(''); setSelectedCustomer(null); setGpContext(null); setItems([]);
+                    latestCustomerIdRef.current = '';
+                    resetForm();
+                  }} className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors">
+                    <X className="w-3.5 h-3.5 text-gray-400" />
+                  </button>
+                </div>
+                {/* Address dropdown */}
+                {showAddressDropdown && shippingAddresses.length > 1 && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowAddressDropdown(false)} />
+                    <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
+                      {shippingAddresses.map(addr => (
+                        <button key={addr.id} type="button" onClick={() => {
+                          setSelectedAddressId(addr.id);
+                          fillDeliveryFromAddress(addr, selectedCustomer);
+                          setShowAddressDropdown(false);
+                        }} className={`w-full px-3 py-2.5 text-left flex items-center gap-2 transition-colors ${selectedAddressId === addr.id ? 'bg-orange-50 dark:bg-orange-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}>
+                          <MapPin className={`w-3.5 h-3.5 flex-shrink-0 ${selectedAddressId === addr.id ? 'text-[#F4511E]' : 'text-gray-400'}`} />
+                          <div className="flex-1 min-w-0">
+                            <div className={`text-sm ${selectedAddressId === addr.id ? 'font-medium text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>{addr.address_name}</div>
+                            <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{[addr.address_line1, addr.district, addr.amphoe, addr.province].filter(Boolean).join(', ')}</div>
+                          </div>
+                          {selectedAddressId === addr.id && <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />}
+                        </button>
+                      ))}
+                      <button type="button" onClick={() => {
+                        setSelectedAddressId('new');
+                        setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
+                        setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
+                        setDeliveryProvince(''); setDeliveryPostalCode('');
+                        setShowAddressDropdown(false);
+                      }} className="w-full px-3 py-2.5 text-left flex items-center gap-2 border-t border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                        <Plus className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="text-sm text-gray-500 dark:text-slate-400">ที่อยู่ใหม่</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <EntitySearchInput
+                value=""
+                onChange={handleCustomerChange}
+                options={customers.map(c => {
+                  const st = c.sale_type || (c.customer_type === 'consignment_dealer' ? 'consignment' : 'wholesale_cash');
+                  const badgeLabel = st === 'wholesale_credit' ? 'เครดิต' : st === 'wholesale_cash' ? 'เงินสด' : st === 'consignment' ? 'ฝากขาย' : '';
+                  const badgeCls = st === 'wholesale_credit' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : st === 'consignment' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+                  return {
+                    id: c.id,
+                    label: c.name,
+                    subtitle: c.phone || undefined,
+                    icon: <Users className="w-4 h-4 text-gray-400" />,
+                    badge: badgeLabel ? <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${badgeCls}`}>{badgeLabel}</span> : undefined,
+                  };
+                })}
+                placeholder="ค้นหาชื่อ, รหัส, หรือเบอร์โทร..."
+                emptyMessage="ไม่พบลูกค้า"
+              />
+            )}
+          </div>
+
+          {/* Row 1 Right: ที่อยู่ */}
+          <div className="flex flex-col sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่</label>
+            <textarea
+              value={deliveryAddress}
+              onChange={(e) => setDeliveryAddress(e.target.value)}
+              onPaste={(e) => {
+                const pasted = e.clipboardData.getData('text');
+                if (pasted.length > 10) {
+                  const parsed = parseThaiAddress(pasted);
+                  if (parsed) {
+                    e.preventDefault();
+                    setDeliveryAddress(parsed.address);
+                    setDeliveryDistrict(parsed.district);
+                    setDeliveryAmphoe(parsed.amphoe);
+                    setDeliveryProvince(parsed.province);
+                    setDeliveryPostalCode(parsed.postal_code);
+                  }
+                }
+              }}
+              rows={2}
+              placeholder="วางที่อยู่ยาวๆ ได้เลย — ระบบจะแยก ตำบล อำเภอ จังหวัด ให้อัตโนมัติ"
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] resize-none"
+            />
+          </div>
+
+          {/* Row 2 Left: เบอร์โทร + อีเมล + ข้อมูลออกใบกำกับ */}
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
+                <input type="text" inputMode="tel" value={deliveryPhone} onChange={(e) => setDeliveryPhone(e.target.value)} placeholder="0xx-xxx-xxxx" className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
+              </div>
+              <div>
+                <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
+                <input type="text" inputMode="email" value={deliveryEmail} onChange={(e) => setDeliveryEmail(e.target.value)} placeholder="email@example.com" className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
+              </div>
+            </div>
+            {/* ข้อมูลออกใบกำกับภาษี */}
+            {vatRegistered && selectedCustomerId && (
+              <TaxInvoiceInfo
+                customerName={selectedCustomer?.name || ''}
+                taxCompanyName={taxName} taxId={taxTaxId} taxBranch={taxBranch} billingAddress={taxAddress}
+                onEdit={!isReadOnly ? (data) => {
+                  setTaxName(data.tax_company_name); setTaxTaxId(data.tax_id);
+                  setTaxBranch(data.tax_branch); setTaxAddress(data.billing_address);
+                } : undefined}
+              />
+            )}
+          </div>
+
+          {/* Row 2 Right: ตำบล อำเภอ จังหวัด รหัสไปรษณีย์ */}
+          <div className="sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
+            <ThaiAddressInput
+              district={deliveryDistrict}
+              amphoe={deliveryAmphoe}
+              province={deliveryProvince}
+              postalCode={deliveryPostalCode}
+              onAddressChange={(addr) => {
+                if (addr.district !== undefined) setDeliveryDistrict(addr.district);
+                if (addr.amphoe !== undefined) setDeliveryAmphoe(addr.amphoe);
+                if (addr.province !== undefined) setDeliveryProvince(addr.province);
+                if (addr.postalCode !== undefined) setDeliveryPostalCode(addr.postalCode);
+              }}
+            />
+          </div>
+
+          {/* Tax Invoice — checkbox (no VAT company only) */}
+          {!vatRegistered && (
+            <div className="sm:col-span-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={taxInvoiceRequested}
+                  onChange={(e) => setTaxInvoiceRequested(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E] accent-[#F4511E]"
+                />
+                <span className="text-base font-medium text-[#F4511E] dark:text-orange-400">ขอใบกำกับภาษี</span>
+              </label>
+              {taxInvoiceRequested && (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
+                    <input type="text" value={taxName} onChange={(e) => setTaxName(e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="บริษัท XXX จำกัด" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">เลขประจำตัวผู้เสียภาษี</label>
+                      <input type="text" value={taxTaxId} onChange={(e) => setTaxTaxId(e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
+                    </div>
+                    <div>
+                      <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">สาขา</label>
+                      <input type="text" value={taxBranch} onChange={(e) => setTaxBranch(e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="สำนักงานใหญ่" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">ที่อยู่ออกบิล</label>
+                    <textarea value={taxAddress} onChange={(e) => setTaxAddress(e.target.value)} rows={2} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E] resize-none" placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์" />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 2-column: Products+Notes (left) + Summary (right) */}
+      <div className="flex flex-wrap gap-4 items-start">
+        <div className="flex-1 basis-[400px] min-w-0 space-y-4">
+
+          {/* Products Section */}
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-visible">
+            <ItemsTable
+              items={items.map((i): TableItem => ({
+                variation_id: i.variation_id,
+                product_id: i.product_id,
+                product_name: i.product_name,
+                variation_label: i.variation_label,
+                sku: i.sku,
+                image: i.image,
+                quantity: i.quantity,
+                unit_price: i.original_price,
+                discount_value: i.discount_rate,
+                discount_type: 'percent' as const,
+                gpInfo: gpInfoText(i),
+                stock_dest: isConsignment ? (dealerStockMap[i.variation_id] ?? 0) : undefined,
+              }))}
+              columns={tableColumns}
+              products={availableProducts}
+              loadingProducts={loadingProducts}
+              inputRef={searchInputRef}
+              searchPlaceholder="+ เพิ่มสินค้า — พิมพ์ชื่อหรือรหัส..."
+              stockMap={isConsignment ? dealerStockMap : undefined}
+              showStockInSearch={isConsignment}
+              disableOutOfStock={isConsignment}
+              onAdd={isReadOnly ? undefined : handleAddProduct}
+              searchDisabledMessage={isReadOnly ? undefined : (loadingGp ? 'กำลังโหลดข้อมูลราคา...' : (!selectedCustomerId ? `กรุณาเลือก${customerLabel}ก่อน` : undefined))}
+              onUpdateField={isReadOnly ? undefined : (idx, field, value) => {
+                if (field === 'quantity') updateItem(idx, 'quantity', value as number);
+                if (field === 'unit_price') updateItem(idx, 'original_price', value as number);
+                if (field === 'discount_value') updateItem(idx, 'discount_rate', value as number);
+              }}
+              onRemove={isReadOnly ? undefined : removeItem}
+              emptyMessage="เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน"
+              showSummary={false}
+            />
+          </div>
+
+          {/* Notes */}
+          {hasProducts && (
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  หมายเหตุ <span className="text-gray-400 dark:text-slate-500 font-normal">(แสดงในบิล / การจัดส่ง)</span>
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-base"
+                  placeholder="หมายเหตุสำหรับลูกค้า, การจัดส่ง..."
+                />
+              </div>
+              <div>
+                <label className="block text-base font-medium text-orange-700 dark:text-orange-400 mb-1">
+                  หมายเหตุภายใน <span className="text-orange-400 dark:text-orange-500 font-normal">(ไม่แสดงในบิล)</span>
+                </label>
+                <textarea
+                  value={internalNotes}
+                  onChange={e => setInternalNotes(e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2.5 border border-orange-300 dark:border-orange-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-base bg-orange-50 dark:bg-orange-900/20 text-gray-900 dark:text-slate-200"
+                  placeholder="หมายเหตุภายใน..."
+                />
+              </div>
+            </div>
+          </div>
+          )}
+
+        </div>{/* End left column */}
+
+        {/* Order Summary — right column */}
+        {hasProducts && (
+          <div className="w-full lg:w-[340px] flex-shrink-0 lg:sticky lg:top-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+              <OrderSummaryBox
+                title={resolvedSummaryTitle}
+                subtotalAmount={subtotal}
+                vatRegistered={vatRegistered}
+                shippingFee={!isConsignment ? shippingFee : undefined}
+                onShippingChange={!isConsignment ? setShippingFee : undefined}
+                discountValue={!isConsignment ? orderDiscount : undefined}
+                discountType={!isConsignment ? orderDiscountType : undefined}
+                onDiscountChange={!isConsignment ? setOrderDiscount : undefined}
+                onDiscountTypeToggle={!isConsignment ? () => { setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent'); setOrderDiscount(0); } : undefined}
+              />
+            </div>
+          </div>
+        )}
+      </div>{/* End 2-column wrapper */}
+
+      {/* Action Buttons — only show for create mode or editable orders */}
+      {hasProducts && !isReadOnly && !isEditMode && (
+        <div className="flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => router.push(backUrl)}
+            className="px-5 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting || !selectedCustomerId || items.length === 0}
+            className="bg-[#F4511E] text-white px-5 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50 text-sm font-medium"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                กำลังบันทึก...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                {resolvedSubmitLabel}
+              </>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -160,6 +160,20 @@ html, body {
     @apply px-4 py-3 border-t border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3;
   }
 
+  /* ─── Focus Action Button (inline in table/card rows) ─── */
+  .btn-focus-action {
+    @apply inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap bg-[#F4511E] hover:bg-[#E64A19];
+  }
+  .btn-focus-action.green {
+    @apply bg-green-600 hover:bg-green-700;
+  }
+  .btn-focus-action.indigo {
+    @apply bg-indigo-600 hover:bg-indigo-700;
+  }
+  .btn-focus-action.amber {
+    @apply bg-amber-500 hover:bg-amber-600;
+  }
+
   /* ─── ID / Code text classes ─── */
   /* Primary ID (order#, receipt#, PO#, doc#) — used in list/card headers */
   .id-text {

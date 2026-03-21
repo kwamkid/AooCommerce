@@ -339,10 +339,10 @@ export async function POST(request: NextRequest) {
       if (cust?.customer_type) {
         const ct = cust.customer_type;
         const st = cust.sale_type || '';
-        if (ct === 'consignment_dealer' || (ct === 'dealer' && st === 'consignment')) flowType = 'c_consign';
-        else if (ct === 'department_store' && st === 'consignment') flowType = 'd_department';
-        else if (st === 'wholesale_cash') flowType = 'w_cash';
-        else if (st === 'wholesale_credit' || ct === 'credit') flowType = 'w_credit';
+        if (ct === 'consignment_dealer') flowType = 'c_consign';
+        else if (ct === 'department_store' || ct === 'wholesale_department') flowType = 'd_statement';
+        else if (st === 'wholesale_cash' || ct === 'wholesale_dealer') flowType = 'w_cash';
+        else if (st === 'wholesale_credit' || ct === 'credit' || ct === 'corporate') flowType = 'w_credit';
       }
     }
 

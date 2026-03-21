@@ -6,22 +6,22 @@ import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
+import { getTabColor } from '@/lib/status-tab-colors';
 import {
-  ClipboardList, Loader2, RefreshCw, CheckCircle2,
-  AlertCircle, Clock, BadgeCheck, Copy, Receipt,
-  Plus, Package, XCircle, Eye, FileText, Printer,
+  Building2, Loader2, RefreshCw, CheckCircle2,
+  AlertCircle, Clock, Receipt,
+  Plus, Package, FileText, Printer,
   Banknote, Undo2,
 } from 'lucide-react';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
-import { markPrinted as markPrintedDB } from '@/lib/print-tracking';
+import { markPrinted as markPrintedDB, updateLocalPrintState } from '@/lib/print-tracking';
 import Pagination from '@/app/components/Pagination';
 import Tooltip from '@/components/ui/Tooltip';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Link from 'next/link';
 import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
-import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
 
-interface ConsignmentReport {
+interface DeptStoreReport {
   id: string;
   report_number: string;
   period_year: number;
@@ -30,31 +30,23 @@ interface ConsignmentReport {
   total_qty_sold: number;
   our_amount: number;
   due_date: string | null;
-  report_token: string | null;
   statement_id: string | null;
   printed_invoice_at?: string | null;
   printed_statement_at?: string | null;
   created_at: string;
-  customer: { id: string; name: string; customer_code: string | null; phone?: string | null; contact_person?: string | null } | null;
-  doc_number?: string | null;
-  doc_type?: string | null;
+  customer: { id: string; name: string; customer_code: string | null } | null;
 }
 
-
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft:    { label: 'รอรายงาน',   color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
-  received: { label: 'รับแล้ว',    color: 'text-blue-700 dark:text-blue-300',     bg: 'bg-blue-100 dark:bg-blue-900/40' },
   invoiced: { label: 'ออก invoice', color: 'text-purple-700 dark:text-purple-300', bg: 'bg-purple-100 dark:bg-purple-900/40' },
   billed:   { label: 'วางบิลแล้ว', color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40' },
-  paid:      { label: 'ชำระแล้ว',   color: 'text-green-700 dark:text-green-300',   bg: 'bg-green-100 dark:bg-green-900/40' },
-  overdue:   { label: 'เกินกำหนด',  color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100 dark:bg-red-900/40' },
-  cancelled: { label: 'ยกเลิก',     color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100/50 dark:bg-red-900/20' },
+  paid:     { label: 'ชำระแล้ว',   color: 'text-green-700 dark:text-green-300',   bg: 'bg-green-100 dark:bg-green-900/40' },
+  overdue:  { label: 'เกินกำหนด',  color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100 dark:bg-red-900/40' },
+  cancelled: { label: 'ยกเลิก',    color: 'text-gray-500 dark:text-gray-400',     bg: 'bg-gray-100 dark:bg-gray-800' },
 };
 
 const STATUS_TABS = [
   { key: 'all',      label: 'ทั้งหมด',       ...getTabColor('all') },
-  { key: 'received', label: 'รอยืนยัน',     ...getTabColor('received'),
-    tooltip: 'ตัวแทนรายงานยอดขายแล้ว รอ Admin ตรวจสอบและยืนยัน', hideIfZero: true },
   { key: 'billed',   label: 'วางบิลแล้ว',   ...getTabColor('billed') },
   { key: 'paid',     label: 'ชำระแล้ว',      ...getTabColor('paid') },
   { key: 'overdue',  label: 'เกินกำหนด',    ...getTabColor('overdue') },
@@ -74,12 +66,11 @@ const formatDate = (d: string | null | undefined) => {
   return new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
 };
 
-function ConsignmentReportsContent() {
+function DeptStoreReportsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
 
-  // Derive filter state from URL params
   const activeStatus = searchParams.get('status') || 'all';
   const search = searchParams.get('q') || '';
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
@@ -98,16 +89,15 @@ function ConsignmentReportsContent() {
     }
     if (pageReset) params.delete('page');
     const qs = params.toString();
-    router.replace(qs ? `?${qs}` : '/consignment/reports', { scroll: false });
+    router.replace(qs ? `?${qs}` : '/department-store/reports', { scroll: false });
   }, [searchParams, router]);
 
-  const [reports, setReports] = useState<ConsignmentReport[]>([]);
+  const [reports, setReports] = useState<DeptStoreReport[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-
 
   const fetchReports = useCallback(async (showRefresh = false) => {
     if (showRefresh) setIsRefreshing(true); else setIsLoading(true);
@@ -119,7 +109,7 @@ function ConsignmentReportsContent() {
       if (activeStatus !== 'all') params.set('status', activeStatus);
       if (search.trim()) params.set('search', search.trim());
 
-      const res = await apiFetch(`/api/consignment/reports?${params}`);
+      const res = await apiFetch(`/api/department-store/reports?${params}`);
       if (!res.ok) throw new Error('fetch failed');
       const data = await res.json();
       setReports(data.reports || []);
@@ -154,30 +144,20 @@ function ConsignmentReportsContent() {
   const startIdx = (currentPage - 1) * recordsPerPage;
   const endIdx = Math.min(startIdx + reports.length, totalRecords);
 
-  const copyPortalReportLink = (report: ConsignmentReport) => {
-    if (!report.report_token) return;
-    const url = `${window.location.origin}/portal/consignment/${report.customer?.id}?report=${report.report_token}`;
-    navigator.clipboard.writeText(url).then(() => showToast('คัดลอกลิงก์แล้ว', 'success'));
-  };
-
-  // Print state (DB-backed via printed_*_at columns)
+  // Print state
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [printingType, setPrintingType] = useState<string | null>(null);
 
-  const isPrintedDoc = (r: ConsignmentReport, docType: string) => {
-    const col = `printed_${docType}_at` as keyof ConsignmentReport;
+  const isPrintedDoc = (r: DeptStoreReport, docType: string) => {
+    const col = `printed_${docType}_at` as keyof DeptStoreReport;
     return !!r[col];
   };
   const markPrinted = (id: string, type: string) => {
-    markPrintedDB('consignment_report', [id], type);
-    const col = `printed_${type}_at` as keyof ConsignmentReport;
-    setReports(prev => prev.map(r =>
-      r.id === id ? { ...r, [col]: new Date().toISOString() } : r
-    ));
+    markPrintedDB('department_store_report', [id], type);
+    updateLocalPrintState(setReports, [id], type);
   };
 
-  // Generate invoice blob (reusable for single print + merge)
-  // taxInvoiceOverride: pass statement's tax_invoice_number/receipt_number to render as ใบกำกับภาษี/ใบเสร็จ
+  // Generate invoice blob
   const generateInvoiceBlob = async (reportId: string, taxInvoiceOverride?: {
     tax_invoice_number?: string | null;
     receipt_number?: string | null;
@@ -185,12 +165,12 @@ function ConsignmentReportsContent() {
     receipt_date?: string | null;
     vat_registered?: boolean;
   }): Promise<Blob> => {
-    const res = await apiFetch(`/api/consignment/reports/${reportId}`);
+    const res = await apiFetch(`/api/department-store/reports/${reportId}`);
     if (!res.ok) throw new Error('fetch failed');
     const data = await res.json();
     const r = data.report;
-    const { generateConsignmentReportPdf } = await import('@/lib/consignment-report-pdf');
-    return generateConsignmentReportPdf({
+    const { generateDepartmentStoreReportPdf } = await import('@/lib/department-store-report-pdf');
+    return generateDepartmentStoreReportPdf({
       report_number: r.report_number,
       period_year: r.period_year,
       period_month: r.period_month,
@@ -224,7 +204,7 @@ function ConsignmentReportsContent() {
     });
   };
 
-  // Generate statement blob (reusable for single print + merge)
+  // Generate statement blob
   const generateStatementBlob = async (statementId: string): Promise<Blob> => {
     const res = await apiFetch(`/api/statements/${statementId}`);
     if (!res.ok) throw new Error('fetch failed');
@@ -264,7 +244,6 @@ function ConsignmentReportsContent() {
     setPrintingId(reportId);
     setPrintingType('invoice');
     try {
-      // Check if statement has tax/receipt documents — always fetch fresh from API
       const report = reports.find(r => r.id === reportId);
       let taxOverride: Parameters<typeof generateInvoiceBlob>[1];
       if (report?.statement_id) {
@@ -310,12 +289,11 @@ function ConsignmentReportsContent() {
     }
   };
 
-  const handlePrintAll = async (report: ConsignmentReport) => {
+  const handlePrintAll = async (report: DeptStoreReport) => {
     if (!report.statement_id) return;
     setPrintingId(report.id);
     setPrintingType('all');
     try {
-      // Fetch statement to check if paid (has tax_invoice_number/receipt_number)
       const stRes = await apiFetch(`/api/statements/${report.statement_id}`);
       const stData = stRes.ok ? await stRes.json() : null;
       const st = stData?.statement;
@@ -349,14 +327,13 @@ function ConsignmentReportsContent() {
   };
 
   // Payment confirm state
-  const [paymentConfirm, setPaymentConfirm] = useState<ConsignmentReport | null>(null);
+  const [paymentConfirm, setPaymentConfirm] = useState<DeptStoreReport | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
 
-  const handleRecordPayment = async (report: ConsignmentReport) => {
+  const handleRecordPayment = async (report: DeptStoreReport) => {
     if (!report.statement_id) return;
     setPaymentLoading(true);
     try {
-      // Fetch statement to get outstanding_amount
       const stRes = await apiFetch(`/api/statements/${report.statement_id}`);
       if (!stRes.ok) throw new Error('fetch statement failed');
       const stData = await stRes.json();
@@ -368,7 +345,6 @@ function ConsignmentReportsContent() {
         return;
       }
 
-      // Record payment
       const payRes = await apiFetch(`/api/statements/${report.statement_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -380,10 +356,9 @@ function ConsignmentReportsContent() {
       const docNums = [payData.tax_invoice_number, payData.receipt_number].filter(Boolean).join(', ');
       showToast(`บันทึกการชำระแล้ว${docNums ? ` ออกเลข ${docNums}` : ''}`, 'success');
       setPaymentConfirm(null);
-      fetchReports(true);
+      await fetchReports(true);
 
-      // Auto print invoice only (ไม่ต้องรวมใบวางบิล — พิมพ์ไปแล้วตอน billed)
-      setTimeout(() => handlePrintInvoice(report.id), 300);
+      handlePrintInvoice(report.id);
     } catch {
       showToast('เกิดข้อผิดพลาดในการบันทึกการชำระ', 'error');
     } finally {
@@ -392,10 +367,10 @@ function ConsignmentReportsContent() {
   };
 
   // Reverse payment state
-  const [reverseConfirm, setReverseConfirm] = useState<ConsignmentReport | null>(null);
+  const [reverseConfirm, setReverseConfirm] = useState<DeptStoreReport | null>(null);
   const [reverseLoading, setReverseLoading] = useState(false);
 
-  const handleReversePayment = async (report: ConsignmentReport) => {
+  const handleReversePayment = async (report: DeptStoreReport) => {
     if (!report.statement_id) return;
     setReverseLoading(true);
     try {
@@ -418,7 +393,7 @@ function ConsignmentReportsContent() {
     }
   };
 
-  const buildMenuItems = (report: ConsignmentReport): ActionItem[] => {
+  const buildMenuItems = (report: DeptStoreReport): ActionItem[] => {
     const isPrinting = printingId === report.id;
     const dot = (key: string) => isPrintedDoc(report, key)
       ? <span className="ml-auto w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
@@ -426,11 +401,11 @@ function ConsignmentReportsContent() {
 
     const items: ActionItem[] = [];
 
-    // Print: ใบกำกับภาษี/ใบแจ้งหนี้ or ใบแจ้งหนี้
+    // Print: ใบแจ้งหนี้ (billed/invoiced) or ใบกำกับภาษี/ใบเสร็จ (paid)
     if (['invoiced', 'billed', 'paid'].includes(report.status)) {
       items.push({
         key: 'invoice',
-        label: report.doc_type === 'tax_invoice' ? 'ใบกำกับภาษี/ใบแจ้งหนี้' : 'ใบแจ้งหนี้',
+        label: report.status === 'paid' ? 'ใบกำกับภาษี/ใบเสร็จ' : 'ใบแจ้งหนี้',
         icon: isPrinting && printingType === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />,
         suffix: dot('invoice'),
         onClick: () => handlePrintInvoice(report.id),
@@ -439,7 +414,7 @@ function ConsignmentReportsContent() {
       });
     }
 
-    // Print: ใบวางบิล (available when has statement_id)
+    // Print: ใบวางบิล
     if (report.statement_id && ['billed', 'paid'].includes(report.status)) {
       items.push({
         key: 'statement',
@@ -451,7 +426,7 @@ function ConsignmentReportsContent() {
       });
     }
 
-    // Print all (when both available) — merge into 1 PDF
+    // Print all
     if (report.statement_id && ['billed', 'paid'].includes(report.status)) {
       items.push({
         key: 'print_all',
@@ -463,7 +438,7 @@ function ConsignmentReportsContent() {
       });
     }
 
-    // Payment action (billed/overdue with statement)
+    // Payment action
     if (['billed', 'overdue'].includes(report.status) && report.statement_id) {
       items.push({
         key: 'payment',
@@ -474,94 +449,15 @@ function ConsignmentReportsContent() {
       });
     }
 
-    // Print receipt (paid only)
-    if (report.status === 'paid' && report.statement_id) {
-      items.push({
-        key: 'print_receipt',
-        label: 'ใบเสร็จรับเงิน',
-        icon: <Receipt className="w-4 h-4" />,
-        onClick: async () => {
-          try {
-            const stRes = await apiFetch(`/api/statements/${report.statement_id}`);
-            if (!stRes.ok) throw new Error('fetch failed');
-            const stData = await stRes.json();
-            const st = stData.statement;
-            const { generatePaymentReceiptPdf } = await import('@/lib/payment-receipt-pdf');
-            const blob = await generatePaymentReceiptPdf({
-              receipt_number: st.receipt_number || 'REC-PENDING',
-              receipt_date: st.receipt_date || st.statement_date || new Date().toISOString().split('T')[0],
-              reference_number: report.doc_number || null,
-              statement_number: st.statement_number || null,
-              customer: report.customer ? {
-                name: report.customer.name,
-                phone: report.customer.phone || null,
-              } : null,
-              total_amount: report.our_amount,
-            });
-            showPdfPreview(blob, `ใบเสร็จรับเงิน`);
-          } catch { showToast('ไม่สามารถพิมพ์ใบเสร็จได้', 'error'); }
-        },
-        dividerBefore: true,
-      });
-    }
-
-    // Reverse payment action (paid with statement)
+    // Reverse payment
     if (report.status === 'paid' && report.statement_id) {
       items.push({
         key: 'reverse_payment',
         label: 'ยกเลิกการชำระ',
         icon: <Undo2 className="w-4 h-4" />,
         onClick: () => setReverseConfirm(report),
-        danger: true,
-      });
-    }
-
-    // Draft actions
-    if (report.status === 'draft' && report.report_token) {
-      items.push({
-        key: 'copy_link',
-        label: 'คัดลอกลิงก์ตัวแทน',
-        icon: <Copy className="w-4 h-4" />,
-        onClick: () => copyPortalReportLink(report),
         dividerBefore: true,
-      });
-    }
-
-    // Void (billed/invoiced — cancel doc + report)
-    if (['billed', 'invoiced'].includes(report.status)) {
-      items.push({
-        key: 'void',
-        label: 'ยกเลิก (Void)',
-        icon: <XCircle className="w-4 h-4" />,
         danger: true,
-        dividerBefore: true,
-        onClick: async () => {
-          if (!confirm('ยกเลิกรายงานนี้? เอกสารที่ออกไปแล้ว (TAX/INV/ST) จะถูก void')) return;
-          const res = await apiFetch(`/api/consignment/reports/${report.id}`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'void' }),
-          });
-          if (res.ok) { showToast('ยกเลิกรายงานและเอกสารแล้ว', 'success'); fetchReports(true); }
-          else { const r = await res.json(); showToast(r.error || 'เกิดข้อผิดพลาด', 'error'); }
-        },
-      });
-    }
-
-    if (report.status === 'draft') {
-      items.push({
-        key: 'cancel',
-        label: 'ยกเลิกรายงาน',
-        icon: <XCircle className="w-4 h-4" />,
-        danger: true,
-        dividerBefore: report.status === 'draft' && !report.report_token,
-        onClick: async () => {
-          const res = await apiFetch(`/api/consignment/reports/${report.id}`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'cancel' }),
-          });
-          if (res.ok) { showToast('ยกเลิกรายงานแล้ว', 'success'); fetchReports(true); }
-          else showToast('เกิดข้อผิดพลาด', 'error');
-        },
       });
     }
 
@@ -574,8 +470,8 @@ function ConsignmentReportsContent() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <ClipboardList className="w-8 h-8 text-[#F4511E]" />
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">ยอดขายตัวแทน</h1>
+            <Building2 className="w-8 h-8 text-[#F4511E]" />
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">ยอดขายห้าง</h1>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -587,11 +483,11 @@ function ConsignmentReportsContent() {
               <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
             <Link
-              href="/consignment/reports/new"
+              href="/department-store/reports/new"
               className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />
-              คีย์ยอดตัวแทน
+              คีย์ยอดห้าง
             </Link>
           </div>
         </div>
@@ -601,21 +497,17 @@ function ConsignmentReportsContent() {
           {STATUS_TABS.map(tab => {
             const count = getTabCount(tab.key);
             const isActive = activeStatus === tab.key;
-            if (tab.hideIfZero && count === 0 && !isActive) return null;
-            const btn = (
-              <button
-                onClick={() => setParams({ status: tab.key })}
-                className={`rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
-                  isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
-                }`}
-              >
-                <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
-                <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
-              </button>
-            );
             return (
               <div key={tab.key} className="flex-shrink-0">
-                {tab.tooltip ? <Tooltip text={tab.tooltip}>{btn}</Tooltip> : btn}
+                <button
+                  onClick={() => setParams({ status: tab.key })}
+                  className={`rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
+                    isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
+                  }`}
+                >
+                  <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
+                  <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
+                </button>
               </div>
             );
           })}
@@ -624,7 +516,7 @@ function ConsignmentReportsContent() {
         {/* Search */}
         <div className="flex items-center gap-2">
           <div className="flex-1 min-w-0">
-            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาเลขรายงาน, ชื่อตัวแทน..." />
+            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาเลขรายงาน, ชื่อห้าง..." />
           </div>
         </div>
 
@@ -634,80 +526,64 @@ function ConsignmentReportsContent() {
             <table className="w-full">
               <thead className="data-thead">
                 <tr>
-                  <th className="data-th min-w-[160px]">เลขที่เอกสาร</th>
-                  <th className="data-th">ตัวแทน</th>
-                  <th className="data-th whitespace-nowrap">งวด</th>
-                  <th className="data-th text-right whitespace-nowrap">ยอดสุทธิ</th>
+                  <th className="data-th">เลขที่</th>
+                  <th className="data-th">ห้าง</th>
+                  <th className="data-th">งวด</th>
+                  <th className="data-th text-right">จำนวน</th>
+                  <th className="data-th text-right">ยอดสุทธิ (บาท)</th>
                   <th className="data-th">สถานะ</th>
                   <th className="data-th text-center">พิมพ์</th>
-                  <th className="data-th whitespace-nowrap">ครบกำหนด</th>
+                  <th className="data-th">ครบกำหนด</th>
                   <th className="data-th text-right">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="data-tbody">
                 {isLoading ? (
-                  <tr><td colSpan={8} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin mx-auto" /></td></tr>
+                  <tr><td colSpan={10} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin mx-auto" /></td></tr>
                 ) : reports.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
+                    <td colSpan={10} className="px-6 py-12 text-center">
                       <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
                       <p className="text-gray-500 dark:text-slate-400 data-text">ไม่พบรายงาน</p>
                     </td>
                   </tr>
                 ) : reports.map(report => {
-                  const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.draft;
+                  const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.invoiced;
                   const isOverdue = report.due_date && new Date(report.due_date) < new Date() && report.status !== 'paid';
                   return (
-                    <tr key={report.id} className={`data-tr cursor-pointer ${report.status === 'cancelled' ? 'opacity-50' : ''}`} onClick={() => router.push(`/consignment/reports/${report.id}`)}>
-                      {/* เลขที่เอกสาร */}
-                      <td className="data-td whitespace-nowrap">
-                        {report.doc_number ? (
-                          <>
-                            <p className={`font-mono text-sm font-bold ${report.status === 'cancelled' ? 'text-red-500 line-through' : 'text-[#F4511E]'}`}>
-                              {report.doc_number}
-                              {report.status === 'cancelled' && <span className="ml-1.5 no-underline inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">VOID</span>}
-                            </p>
-                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{report.report_number} · {formatDate(report.created_at)}</p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="font-mono text-sm font-bold text-gray-900 dark:text-white">{report.report_number}</p>
-                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(report.created_at)}</p>
-                          </>
-                        )}
+                    <tr key={report.id} className="data-tr cursor-pointer" onClick={() => router.push(`/department-store/reports/${report.id}`)}>
+                      <td className="data-td">
+                        <p className="id-text-clickable text-gray-900 dark:text-white">{report.report_number}</p>
+                        <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(report.created_at)}</p>
                       </td>
-                      {/* ตัวแทน */}
                       <td className="data-td">
                         <p className="data-text text-gray-900 dark:text-white font-medium">{report.customer?.name || '-'}</p>
-                        {report.customer?.phone && (
-                          <p className="data-timestamp text-gray-400 dark:text-slate-500">{report.customer.phone}</p>
+                        {report.customer?.customer_code && (
+                          <p className="data-timestamp text-gray-400 dark:text-slate-500">{report.customer.customer_code}</p>
                         )}
                       </td>
-                      {/* งวด */}
-                      <td className="data-td whitespace-nowrap">
+                      <td className="data-td">
                         <span className="data-text text-gray-700 dark:text-slate-300">{formatPeriod(report.period_year, report.period_month)}</span>
                       </td>
-                      {/* ยอดสุทธิ */}
                       <td className="data-td text-right">
-                        <span className="data-number text-gray-900 dark:text-white">
-                          ฿{formatAmount(report.our_amount)}
-                        </span>
+                        <span className="data-text text-gray-700 dark:text-slate-300">{report.total_qty_sold} ชิ้น</span>
                       </td>
-                      {/* สถานะ */}
+                      <td className="data-td text-right">
+                        <span className="data-number text-gray-900 dark:text-white">฿{formatAmount(report.our_amount)}</span>
+                      </td>
                       <td className="data-td">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
                           {report.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
                           {cfg.label}
                         </span>
                       </td>
-                      {/* พิมพ์ */}
                       <td className="data-td text-center" onClick={e => e.stopPropagation()}>
                         {(() => {
                           const isPrinting = printingId === report.id;
                           const hasDocs = ['invoiced', 'billed', 'paid'].includes(report.status);
                           if (!hasDocs) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
                           return (
-                            <Tooltip text={`${report.doc_type === 'tax_invoice' ? 'ใบกำกับภาษี/ใบแจ้งหนี้' : 'ใบแจ้งหนี้'}: ${isPrintedDoc(report, 'invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${report.statement_id ? (isPrintedDoc(report, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
+                            <Tooltip text={`${report.status === 'paid' ? 'ใบกำกับภาษี/ใบเสร็จ' : 'ใบแจ้งหนี้'}: ${isPrintedDoc(report, 'invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${report.statement_id ? (isPrintedDoc(report, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
                               <div className="relative flex items-center justify-center gap-1">
                                 {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
                                 <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
@@ -717,7 +593,6 @@ function ConsignmentReportsContent() {
                           );
                         })()}
                       </td>
-                      {/* ครบกำหนด */}
                       <td className="data-td">
                         {report.due_date ? (
                           <span className={`data-text flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
@@ -726,36 +601,15 @@ function ConsignmentReportsContent() {
                           </span>
                         ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
                       </td>
-                      {/* จัดการ */}
                       <td className="data-td" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
-                          {report.status === 'received' && (
-                            <button
-                              onClick={async () => {
-                                const res = await apiFetch(`/api/consignment/reports/${report.id}`, {
-                                  method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ action: 'confirm' }),
-                                });
-                                if (res.ok) {
-                                  const data = await res.json();
-                                  const stMsg = data.statement_number ? ` สร้างใบวางบิล ${data.statement_number}` : '';
-                                  showToast(`ยืนยันรายงานแล้ว${stMsg}`, 'success');
-                                  fetchReports(true);
-                                } else showToast('เกิดข้อผิดพลาด', 'error');
-                              }}
-                              className="btn-focus-action green"
-                            >
-                              <BadgeCheck className="w-4 h-4" />
-                              <span className="hidden lg:inline">ยืนยัน</span>
-                            </button>
-                          )}
                           {['billed', 'overdue'].includes(report.status) && report.statement_id && (
                             <button
                               onClick={() => setPaymentConfirm(report)}
                               className="btn-focus-action indigo"
                             >
                               <Banknote className="w-4 h-4" />
-                              <span className="hidden xl:inline">ลูกค้าชำระแล้ว</span>
+                              <span className="hidden lg:inline">ลูกค้าชำระแล้ว</span>
                             </button>
                           )}
                           {report.status === 'paid' && (
@@ -790,14 +644,12 @@ function ConsignmentReportsContent() {
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-slate-700">
               {reports.map(report => {
-                const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.draft;
+                const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.invoiced;
                 return (
-                  <div key={report.id} className="p-4 cursor-pointer" onClick={() => router.push(`/consignment/reports/${report.id}`)}>
+                  <div key={report.id} className="p-4 cursor-pointer" onClick={() => router.push(`/department-store/reports/${report.id}`)}>
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex-1 min-w-0">
-                        <p className="id-text-clickable text-gray-900 dark:text-white">
-                          {report.report_number}
-                        </p>
+                        <p className="id-text-clickable text-gray-900 dark:text-white">{report.report_number}</p>
                         <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(report.created_at)}</p>
                       </div>
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
@@ -812,27 +664,7 @@ function ConsignmentReportsContent() {
                       <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatPeriod(report.period_year, report.period_month)}</span>
                       <span>{report.total_qty_sold} ชิ้น</span>
                     </div>
-                    {/* Action buttons */}
                     <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                      {report.status === 'received' && (
-                        <button
-                          onClick={async () => {
-                            const res = await apiFetch(`/api/consignment/reports/${report.id}`, {
-                              method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ action: 'confirm' }),
-                            });
-                            if (res.ok) {
-                              const data = await res.json();
-                              const stMsg = data.statement_number ? ` สร้างใบวางบิล ${data.statement_number}` : '';
-                              showToast(`ยืนยันรายงานแล้ว${stMsg}`, 'success');
-                              fetchReports(true);
-                            } else showToast('เกิดข้อผิดพลาด', 'error');
-                          }}
-                          className="btn-focus-action green flex-1 justify-center"
-                        >
-                          <BadgeCheck className="w-4 h-4" /> ยืนยัน
-                        </button>
-                      )}
                       {['billed', 'overdue'].includes(report.status) && report.statement_id && (
                         <button
                           onClick={() => setPaymentConfirm(report)}
@@ -846,7 +678,6 @@ function ConsignmentReportsContent() {
                           <CheckCircle2 className="w-4 h-4" /> ชำระแล้ว
                         </span>
                       )}
-                      {/* Print indicators (mobile) */}
                       {['invoiced', 'billed', 'paid'].includes(report.status) && (
                         <div className="flex items-center gap-1">
                           <span className={`w-2 h-2 rounded-full ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
@@ -917,7 +748,7 @@ function ConsignmentReportsContent() {
   );
 }
 
-export default function ConsignmentReportsPage() {
+export default function DeptStoreReportsPage() {
   return (
     <Suspense fallback={
       <Layout>
@@ -926,7 +757,7 @@ export default function ConsignmentReportsPage() {
         </div>
       </Layout>
     }>
-      <ConsignmentReportsContent />
+      <DeptStoreReportsContent />
     </Suspense>
   );
 }

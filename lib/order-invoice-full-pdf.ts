@@ -181,7 +181,7 @@ export async function generateFullInvoicePdf(
   // Company: logo(~40) + name + address + taxId + phone = ~80px
   // Buyer: divider + label + name + taxId + address + phone = ~60px
   // Total ~180-220px depending on buyer info
-  const headerHeight = buyerName ? 220 : 140;
+  const headerHeight = buyerName ? 230 : 150;
 
   // ═══════════════════════════════════════════════════
   // Build Footer (signatures + page number)
@@ -486,22 +486,9 @@ export async function generateFullInvoicePdf(
         }
       }
 
-      const pageText = logicalTotal > 1
-        ? `${copyLabel}  หน้า ${logicalPage}/${logicalTotal}`
-        : copyLabel;
-
       return {
         margin: [40, 30, 40, 0],
         stack: [
-          // Copy label (ต้นฉบับ/สำเนา) — absolute positioned top-right
-          {
-            text: pageText,
-            fontSize: 9,
-            bold: true,
-            color: copyColor,
-            alignment: 'right',
-            margin: [0, -16, 4, 0],
-          },
           {
             columnGap: 16,
             columns: [
@@ -509,7 +496,8 @@ export async function generateFullInvoicePdf(
               {
                 width: 230,
                 stack: [
-                  { text: docTitle, fontSize: 16, bold: true, color: THEME.primary, alignment: 'right', margin: [0, 0, 0, 6] },
+                  { text: docTitle, fontSize: 16, bold: true, color: THEME.primary, alignment: 'right', margin: [0, 0, 0, 0] },
+                  { text: copyLabel, fontSize: 9, bold: true, color: copyColor, alignment: 'right', margin: [0, 0, 0, 6] },
                   {
                     table: {
                       widths: [55, '*'],

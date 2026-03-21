@@ -2,20 +2,20 @@
 
 import { Suspense, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
-import { ArrowLeft, ClipboardList, Loader2 } from 'lucide-react';
+import { ArrowLeft, Building2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
 import { apiFetch } from '@/lib/api-client';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 
-function NewReportPageContent() {
+function NewDeptStoreReportContent() {
   // Auto print ใบแจ้งหนี้ + ใบวางบิล after successful submit
   const handleSubmitSuccess = useCallback(async (data: any) => {
     if (!data.report_id || !data.statement_id) return;
 
     try {
       const [reportRes, stRes] = await Promise.all([
-        apiFetch(`/api/consignment/reports/${data.report_id}`),
+        apiFetch(`/api/department-store/reports/${data.report_id}`),
         apiFetch(`/api/statements/${data.statement_id}`),
       ]);
       if (!reportRes.ok || !stRes.ok) return;
@@ -26,8 +26,8 @@ function NewReportPageContent() {
       const st = stData.statement;
       const stReports = stData.reports || [];
 
-      const { generateConsignmentReportPdf } = await import('@/lib/consignment-report-pdf');
-      const invoiceBlob = await generateConsignmentReportPdf({
+      const { generateDepartmentStoreReportPdf } = await import('@/lib/department-store-report-pdf');
+      const invoiceBlob = await generateDepartmentStoreReportPdf({
         report_number: r.report_number,
         period_year: r.period_year,
         period_month: r.period_month,
@@ -57,12 +57,6 @@ function NewReportPageContent() {
         total_sales: r.our_amount,
         total_gp_share: 0,
         our_amount: r.our_amount,
-        tax_invoice_number: r.tax_invoice_number,
-        tax_invoice_date: r.tax_invoice_date,
-        document_subtype: r.document_subtype,
-        invoice_number: r.invoice_number,
-        invoice_date: r.invoice_date,
-        vat_registered: r.vat_registered,
       });
 
       const THAI_MONTHS_FULL = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
@@ -97,7 +91,6 @@ function NewReportPageContent() {
       showPdfPreview(merged, `ใบแจ้งหนี้ + ใบวางบิล ${data.report_number}`);
     } catch (printErr) {
       console.error('Auto print error:', printErr);
-      // ไม่ block — บันทึกสำเร็จแล้ว แค่พิมพ์ไม่ได้
     }
   }, []);
 
@@ -106,22 +99,23 @@ function NewReportPageContent() {
       <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <Link href="/consignment/reports" className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+          <Link href="/department-store/reports" className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5 text-gray-500" />
           </Link>
           <div className="flex items-center gap-2">
-            <ClipboardList className="w-6 h-6 text-[#F4511E]" />
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">คีย์ยอดตัวแทน</h1>
+            <Building2 className="w-6 h-6 text-[#F4511E]" />
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">คีย์ยอดห้าง</h1>
           </div>
         </div>
 
         <DealerOrderForm
-          mode="consignment"
-          customerTypeFilter="consignment_dealer"
-          customerLabel="ตัวแทน"
+          mode="dept_consignment"
+          customerTypeFilter="department_store"
+          customerLabel="ห้าง"
           submitLabel="บันทึกรายงาน"
           summaryTitle="สรุปยอดขาย"
-          backUrl="/consignment/reports"
+          showWarehousePicker
+          backUrl="/department-store/reports"
           onSubmitSuccess={handleSubmitSuccess}
         />
       </div>
@@ -129,7 +123,7 @@ function NewReportPageContent() {
   );
 }
 
-export default function NewConsignmentReportPage() {
+export default function NewDeptStoreReportPage() {
   return (
     <Suspense fallback={
       <Layout>
@@ -138,7 +132,7 @@ export default function NewConsignmentReportPage() {
         </div>
       </Layout>
     }>
-      <NewReportPageContent />
+      <NewDeptStoreReportContent />
     </Suspense>
   );
 }

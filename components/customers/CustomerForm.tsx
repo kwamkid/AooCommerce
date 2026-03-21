@@ -8,15 +8,11 @@ import {
   MapPin,
   ExternalLink,
   Building2,
-  Truck,
-  Plus,
-  Trash2,
   ChevronDown,
   ChevronUp,
   MessageCircle,
   Facebook,
   User,
-  UserCircle,
   ShoppingBag,
   Handshake,
   Store,
@@ -44,36 +40,6 @@ import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 
-// Additional shipping address interface
-export interface ShippingAddressData {
-  address_name: string;
-  contact_person: string;
-  phone: string;
-  address_line1: string;
-  district: string;
-  amphoe: string;
-  province: string;
-  postal_code: string;
-  google_maps_link: string;
-  delivery_notes: string;
-}
-
-// Existing DB address (edit mode)
-export interface ExistingAddress {
-  id: string;
-  address_name: string;
-  contact_person?: string;
-  phone?: string;
-  address_line1: string;
-  district?: string;
-  amphoe?: string;
-  province: string;
-  postal_code?: string;
-  google_maps_link?: string;
-  delivery_notes?: string;
-  is_default: boolean;
-}
-
 // Linked chat contact (edit mode)
 export interface LinkedContact {
   id: string;
@@ -85,22 +51,20 @@ export interface LinkedContact {
 }
 
 // Form data interface
+// ที่อยู่จัดส่ง = shipping_* (ThaiAddressInput, แยก field)
+// ที่อยู่ออกบิล = billing_address (textarea เดียว, อยู่ในส่วนข้อมูลภาษี — ถ้าว่าง = ใช้ที่อยู่จัดส่ง)
 export interface CustomerFormData {
   name: string;
   contact_person: string;
   phone: string;
   email: string;
   customer_type: string;
-  sale_type: string; // consignment | wholesale_cash | wholesale_credit | '' (retail/dropship/affiliate)
+  sale_type: string;
   credit_limit: number;
   credit_days: number;
   is_active: boolean;
   notes: string;
-  // Shipping address (primary)
-  has_multiple_branches: boolean;
-  shipping_address_name: string;
-  shipping_contact_person: string;
-  shipping_phone: string;
+  // Shipping address (ที่อยู่จัดส่ง)
   shipping_address: string;
   shipping_district: string;
   shipping_amphoe: string;
@@ -108,22 +72,14 @@ export interface CustomerFormData {
   shipping_postal_code: string;
   shipping_google_maps_link: string;
   shipping_delivery_notes: string;
-  // Tax invoice info (optional)
+  // Tax invoice info
   needs_tax_invoice: boolean;
-  tax_type: 'personal' | 'corporate'; // บุคคล / นิติบุคคล
+  tax_type: 'personal' | 'corporate';
   tax_company_name: string;
   tax_id: string;
   tax_branch: string;
-  // Billing address
-  billing_address: string;
-  billing_district: string;
-  billing_amphoe: string;
-  billing_province: string;
-  billing_postal_code: string;
-  billing_same_as_shipping: boolean;
-  // Additional shipping addresses (new, not yet in DB)
-  additional_addresses?: ShippingAddressData[];
-  // Consignment fields (only for consignment_dealer)
+  billing_address: string; // ที่อยู่ออกบิล (ถ้าว่าง = ใช้ shipping join)
+  // Consignment fields
   consignment_mode?: string;
   consignment_gp_rate?: number | '';
   consignment_gp_base_price?: 'retail' | 'discounted' | null;
@@ -142,63 +98,36 @@ interface CustomerFormProps {
   isLoading?: boolean;
   compact?: boolean;
   lineDisplayName?: string;
-  customerId?: string; // pass existing ID when editing
-  // Tags
+  customerId?: string;
+  /** Lock customer type + sale_type (มีออเดอร์แล้ว ห้ามเปลี่ยน) */
+  lockCustomerType?: boolean;
   allTags?: Tag[];
   selectedTags?: Tag[];
   onTagsChange?: (tags: Tag[]) => void;
   onTagCreated?: (tag: Tag) => void;
-  // Edit mode extras
   linkedContacts?: LinkedContact[];
-  existingAddresses?: ExistingAddress[]; // non-default addresses already in DB
-  onEditAddress?: (address: ExistingAddress) => void;
-  onDeleteAddress?: (addressId: string) => void;
-  onAddAddress?: () => void;
   onNavigateToChat?: (contactId: string, platform: string) => void;
 }
 
 // Phone number formatting utilities
 const formatPhoneDisplay = (phone: string): string => {
   const cleaned = phone.replace(/\D/g, '');
-  if (cleaned.length === 10 && cleaned.startsWith('0')) {
-    return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-  }
-  if (cleaned.length === 9 && cleaned.startsWith('0')) {
-    return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 5)}-${cleaned.slice(5)}`;
-  }
+  if (cleaned.length === 10 && cleaned.startsWith('0')) return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+  if (cleaned.length === 9 && cleaned.startsWith('0')) return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 5)}-${cleaned.slice(5)}`;
   return phone;
 };
-
 const normalizePhone = (phone: string): string => {
   let cleaned = phone.replace(/\D/g, '');
-  if (cleaned.startsWith('66')) {
-    cleaned = '0' + cleaned.slice(2);
-  }
-  if (cleaned.length === 9 && !cleaned.startsWith('0')) {
-    cleaned = '0' + cleaned;
-  }
+  if (cleaned.startsWith('66')) cleaned = '0' + cleaned.slice(2);
+  if (cleaned.length === 9 && !cleaned.startsWith('0')) cleaned = '0' + cleaned;
   return cleaned;
 };
-
 const validatePhone = (phone: string): boolean => {
   const cleaned = phone.replace(/\D/g, '');
   return (cleaned.length === 10 || cleaned.length === 9) && cleaned.startsWith('0');
 };
 
-const emptyAddress: ShippingAddressData = {
-  address_name: '',
-  contact_person: '',
-  phone: '',
-  address_line1: '',
-  district: '',
-  amphoe: '',
-  province: '',
-  postal_code: '',
-  google_maps_link: '',
-  delivery_notes: '',
-};
-
-// Customer types — some have sale_type sub-options
+// Customer types
 const ALL_CUSTOMER_TYPE_OPTIONS = [
   { id: 'retail',             label: 'ลูกค้าปลีก',         icon: 'ShoppingBag',  requiredFeature: null },
   { id: 'dealer',             label: 'ตัวแทน',             icon: 'Handshake',    requiredFeature: 'consignment' as const },
@@ -207,17 +136,11 @@ const ALL_CUSTOMER_TYPE_OPTIONS = [
   { id: 'dropship',           label: 'Dropship',            icon: 'Share2',       requiredFeature: null },
   { id: 'affiliate',          label: 'Affiliate',           icon: 'Heart',        requiredFeature: null },
 ];
-
 const TYPE_ICONS: Record<string, React.ReactNode> = {
-  ShoppingBag: <ShoppingBag className="w-5 h-5" />,
-  Handshake: <Handshake className="w-5 h-5" />,
-  Store: <Store className="w-5 h-5" />,
-  Briefcase: <Briefcase className="w-5 h-5" />,
-  Share2: <Share2 className="w-5 h-5" />,
-  Heart: <Heart className="w-5 h-5" />,
+  ShoppingBag: <ShoppingBag className="w-5 h-5" />, Handshake: <Handshake className="w-5 h-5" />,
+  Store: <Store className="w-5 h-5" />, Briefcase: <Briefcase className="w-5 h-5" />,
+  Share2: <Share2 className="w-5 h-5" />, Heart: <Heart className="w-5 h-5" />,
 };
-
-// Sub-type options per customer_type
 const SALE_TYPE_OPTIONS: Record<string, { id: string; label: string; desc: string }[]> = {
   dealer: [
     { id: 'consignment',      label: 'ฝากขาย',           desc: 'สัญญา ม.78(3) — เก็บเงินเมื่อขายได้' },
@@ -235,16 +158,13 @@ const SALE_TYPE_OPTIONS: Record<string, { id: string; label: string; desc: strin
   ],
 };
 
-/** Map customer_type + sale_type → internal DB customer_type (backward compat) */
 function resolveDbCustomerType(type: string, saleType: string): string {
   if (type === 'dealer' && saleType === 'consignment') return 'consignment_dealer';
   if (type === 'dealer') return 'wholesale_dealer';
   if (type === 'department_store' && saleType === 'consignment') return 'department_store';
   if (type === 'department_store') return 'wholesale_department';
-  return type; // retail, corporate, dropship, affiliate as-is
+  return type;
 }
-
-/** Map DB customer_type → form customer_type + sale_type */
 function resolveFormType(dbType: string, dbSaleType: string | null): { customer_type: string; sale_type: string } {
   if (dbType === 'consignment_dealer') return { customer_type: 'dealer', sale_type: 'consignment' };
   if (dbType === 'wholesale_dealer') return { customer_type: 'dealer', sale_type: dbSaleType || 'wholesale_cash' };
@@ -256,232 +176,108 @@ function resolveFormType(dbType: string, dbSaleType: string | null): { customer_
 }
 
 const defaultFormData: CustomerFormData = {
-  name: '',
-  contact_person: '',
-  phone: '',
-  email: '',
-  customer_type: 'retail',
-  sale_type: '',
-  credit_limit: 0,
-  credit_days: 0,
-  is_active: true,
-  notes: '',
-  has_multiple_branches: false,
-  shipping_address_name: 'ที่อยู่หลัก',
-  shipping_contact_person: '',
-  shipping_phone: '',
-  shipping_address: '',
-  shipping_district: '',
-  shipping_amphoe: '',
-  shipping_province: '',
-  shipping_postal_code: '',
-  shipping_google_maps_link: '',
-  shipping_delivery_notes: '',
-  needs_tax_invoice: false,
-  tax_type: 'corporate',
-  tax_company_name: '',
-  tax_id: '',
-  tax_branch: 'สำนักงานใหญ่',
+  name: '', contact_person: '', phone: '', email: '',
+  customer_type: 'retail', sale_type: '',
+  credit_limit: 0, credit_days: 0, is_active: true, notes: '',
+  shipping_address: '', shipping_district: '', shipping_amphoe: '',
+  shipping_province: '', shipping_postal_code: '',
+  shipping_google_maps_link: '', shipping_delivery_notes: '',
+  needs_tax_invoice: false, tax_type: 'corporate',
+  tax_company_name: '', tax_id: '', tax_branch: 'สำนักงานใหญ่',
   billing_address: '',
-  billing_district: '',
-  billing_amphoe: '',
-  billing_province: '',
-  billing_postal_code: '',
-  billing_same_as_shipping: true,
-  consignment_mode: '',
-  consignment_gp_rate: '',
-  consignment_gp_base_price: null,
-  consignment_report_due_days: '',
-  consignment_payment_terms: '',
-  contract_number: '',
-  contract_date: '',
-  rd_submitted_at: '',
+  consignment_mode: '', consignment_gp_rate: '', consignment_gp_base_price: null,
+  consignment_report_due_days: '', consignment_payment_terms: '',
+  contract_number: '', contract_date: '', rd_submitted_at: '',
 };
 
-/** Build API payload from form data — shared by all pages that create/update customers */
+/** Build API payload — billing_address = ถ้าว่างใช้ shipping join */
 export function buildCustomerPayload(data: CustomerFormData, customerId?: string) {
-  const billingAddress = data.billing_same_as_shipping
-    ? [data.shipping_address, data.shipping_district, data.shipping_amphoe, data.shipping_province, data.shipping_postal_code].filter(Boolean).join(' ')
-    : data.billing_address;
-
   const isConsignment = data.customer_type === 'consignment_dealer';
+  const shippingJoined = [data.shipping_address, data.shipping_district, data.shipping_amphoe, data.shipping_province, data.shipping_postal_code].filter(Boolean).join(' ');
+  const hasTax = data.needs_tax_invoice || ['dealer', 'wholesale_dealer', 'consignment_dealer', 'department_store', 'wholesale_department', 'corporate'].includes(data.customer_type);
 
   return {
     ...(customerId ? { id: customerId } : {}),
-    name: data.name,
-    contact_person: data.contact_person,
-    phone: data.phone,
-    email: data.email,
-    customer_type: data.customer_type,
-    credit_limit: data.credit_limit,
-    credit_days: data.credit_days,
-    is_active: data.is_active,
-    notes: data.notes,
-    tax_id: data.needs_tax_invoice ? data.tax_id : '',
-    tax_company_name: data.needs_tax_invoice ? data.tax_company_name : '',
-    tax_branch: data.needs_tax_invoice ? data.tax_branch : '',
-    billing_address: billingAddress,
-    billing_district: '',
-    billing_amphoe: '',
-    billing_province: '',
-    billing_postal_code: '',
-    // Consignment fields — only sent when relevant
+    name: data.name, contact_person: data.contact_person, phone: data.phone, email: data.email,
+    customer_type: data.customer_type, sale_type: data.sale_type || null,
+    credit_limit: data.credit_limit, credit_days: data.credit_days,
+    is_active: data.is_active, notes: data.notes,
+    tax_id: hasTax ? data.tax_id : '',
+    tax_company_name: hasTax ? data.tax_company_name : '',
+    tax_branch: hasTax ? data.tax_branch : '',
+    billing_address: data.billing_address || shippingJoined,
     ...(isConsignment ? {
       consignment_mode: data.consignment_mode || null,
       consignment_gp_rate: data.consignment_gp_rate !== '' ? data.consignment_gp_rate : null,
       consignment_report_due_days: data.consignment_report_due_days !== '' ? data.consignment_report_due_days : null,
       consignment_payment_terms: data.consignment_payment_terms !== '' ? data.consignment_payment_terms : null,
-      contract_number: data.contract_number || null,
-      contract_date: data.contract_date || null,
+      contract_number: data.contract_number || null, contract_date: data.contract_date || null,
       rd_submitted_at: data.rd_submitted_at || null,
     } : {}),
   };
 }
 
-// Input class helpers
 const inputFull = "w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] bg-white dark:bg-slate-800 text-gray-900 dark:text-white";
 const inputCompact = "w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white";
 const labelFull = "label";
 const labelCompact = "block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1";
 
 export default function CustomerForm({
-  initialData,
-  onSubmit,
-  onCancel,
-  isEditing = false,
-  isLoading = false,
-  compact = false,
-  lineDisplayName,
-  customerId,
-  allTags,
-  selectedTags,
-  onTagsChange,
-  onTagCreated,
-  linkedContacts = [],
-  existingAddresses = [],
-  onEditAddress,
-  onDeleteAddress,
-  onAddAddress,
-  onNavigateToChat,
+  initialData, onSubmit, onCancel,
+  isEditing = false, isLoading = false, compact = false,
+  lineDisplayName, customerId, lockCustomerType,
+  allTags, selectedTags, onTagsChange, onTagCreated,
+  linkedContacts = [], onNavigateToChat,
 }: CustomerFormProps) {
   const { showToast } = useToast();
   const { features } = useFeatures();
-
-  // Stable customer ID
   const resolvedCustomerIdRef = useRef<string>(customerId || crypto.randomUUID());
   const resolvedCustomerId = resolvedCustomerIdRef.current;
 
-  // Filter customer types based on enabled features
-  const CUSTOMER_TYPE_OPTIONS = ALL_CUSTOMER_TYPE_OPTIONS.filter(opt => {
-    if (!opt.requiredFeature) return true;
-    return features[opt.requiredFeature];
-  });
-
-  // Resolve DB customer_type → form customer_type + sale_type
+  const CUSTOMER_TYPE_OPTIONS = ALL_CUSTOMER_TYPE_OPTIONS.filter(opt => !opt.requiredFeature || features[opt.requiredFeature]);
   const resolvedTypes = initialData?.customer_type
     ? resolveFormType(initialData.customer_type, (initialData as Record<string, unknown>).sale_type as string | null)
     : { customer_type: 'retail', sale_type: '' };
 
   const [formData, setFormData] = useState<CustomerFormData>({
-    ...defaultFormData,
-    ...initialData,
+    ...defaultFormData, ...initialData,
     customer_type: resolvedTypes.customer_type,
     sale_type: initialData?.sale_type || resolvedTypes.sale_type,
     name: initialData?.name || lineDisplayName || '',
-    contact_person: initialData?.contact_person || lineDisplayName || ''
+    contact_person: initialData?.contact_person || lineDisplayName || '',
   });
   const [phoneDisplay, setPhoneDisplay] = useState('');
   const [showPhoneError, setShowPhoneError] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showMapSection, setShowMapSection] = useState(false);
-
-  // Brand GP rows (virtual — saved on form submit)
+  const [showExtraSection, setShowExtraSection] = useState(false);
   const [brandGpRows, setBrandGpRows] = useState<BrandGpRow[]>([]);
 
-  // Load existing brand GP commissions for edit mode
   useEffect(() => {
     if (!isEditing || !customerId) return;
     apiFetch(`/api/customer-brand-commissions?customer_id=${customerId}`)
       .then(r => r.ok ? r.json() : { data: [] })
       .then(d => {
-        const rows: BrandGpRow[] = (d.data || []).map((c: { brand_id: string; gp_rate: number; gp_base_price?: string; brand?: { name: string } }) => ({
-          brand_id: c.brand_id,
-          brand_name: c.brand?.name,
-          gp_rate: String(c.gp_rate ?? ''),
-          gp_base_price: (c.gp_base_price as 'retail' | 'discounted') || 'retail',
-        }));
-        setBrandGpRows(rows);
-      })
-      .catch(() => {});
+        setBrandGpRows((d.data || []).map((c: { brand_id: string; gp_rate: number; gp_base_price?: string; brand?: { name: string } }) => ({
+          brand_id: c.brand_id, brand_name: c.brand?.name,
+          gp_rate: String(c.gp_rate ?? ''), gp_base_price: (c.gp_base_price as 'retail' | 'discounted') || 'retail',
+        })));
+      }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing, customerId]);
 
-  // New addresses (not yet in DB — for new customer creation)
-  const [additionalAddresses, setAdditionalAddresses] = useState<ShippingAddressData[]>(
-    initialData?.additional_addresses || []
-  );
-  const [additionalPhoneDisplays, setAdditionalPhoneDisplays] = useState<string[]>([]);
-  const [expandedAddresses, setExpandedAddresses] = useState<Set<number>>(new Set());
-
-  // Initialize phone displays
   useEffect(() => {
     if (formData.phone) setPhoneDisplay(formatPhoneDisplay(formData.phone));
-    setAdditionalPhoneDisplays(additionalAddresses.map(a => a.phone ? formatPhoneDisplay(a.phone) : ''));
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handlePhoneChange = (value: string) => {
     const normalized = normalizePhone(value);
-    const formatted = formatPhoneDisplay(normalized);
-    setPhoneDisplay(formatted);
+    setPhoneDisplay(formatPhoneDisplay(normalized));
     setFormData(prev => ({ ...prev, phone: normalized }));
   };
 
-  const handleAdditionalPhoneChange = (index: number, value: string) => {
-    const normalized = normalizePhone(value);
-    const formatted = formatPhoneDisplay(normalized);
-    setAdditionalPhoneDisplays(prev => { const next = [...prev]; next[index] = formatted; return next; });
-    setAdditionalAddresses(prev => prev.map((a, i) => i === index ? { ...a, phone: normalized } : a));
-  };
-
-  // Copy shipping to billing when checkbox changes
-  useEffect(() => {
-    if (formData.billing_same_as_shipping) {
-      const combined = [formData.shipping_address, formData.shipping_district, formData.shipping_amphoe, formData.shipping_province, formData.shipping_postal_code].filter(Boolean).join(' ');
-      setFormData(prev => ({ ...prev, billing_address: combined }));
-    }
-  }, [formData.billing_same_as_shipping, formData.shipping_address, formData.shipping_district,
-      formData.shipping_amphoe, formData.shipping_province, formData.shipping_postal_code]);
-
-  // Additional addresses helpers
-  const addAddress = () => {
-    setAdditionalAddresses(prev => [...prev, { ...emptyAddress }]);
-    setAdditionalPhoneDisplays(prev => [...prev, '']);
-    setExpandedAddresses(prev => new Set([...prev, additionalAddresses.length]));
-  };
-
-  const removeAddress = (index: number) => {
-    setAdditionalAddresses(prev => prev.filter((_, i) => i !== index));
-    setAdditionalPhoneDisplays(prev => prev.filter((_, i) => i !== index));
-    setExpandedAddresses(prev => {
-      const next = new Set<number>();
-      prev.forEach(i => { if (i < index) next.add(i); else if (i > index) next.add(i - 1); });
-      return next;
-    });
-  };
-
-  const updateAddress = (index: number, field: keyof ShippingAddressData, value: string) => {
-    setAdditionalAddresses(prev => prev.map((a, i) => i === index ? { ...a, [field]: value } : a));
-  };
-
-  const toggleExpanded = (index: number) => {
-    setExpandedAddresses(prev => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index); else next.add(index);
-      return next;
-    });
-  };
-
-  const handlePrimaryAddressPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handleAddressPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const pasted = e.clipboardData.getData('text');
     if (pasted.length > 20) {
       const parsed = parseThaiAddress(pasted);
@@ -499,82 +295,138 @@ export default function CustomerForm({
     }
   };
 
-  const handleAdditionalAddressPaste = (index: number, e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const pasted = e.clipboardData.getData('text');
-    if (pasted.length > 20) {
-      const parsed = parseThaiAddress(pasted);
-      if (parsed) {
-        e.preventDefault();
-        setAdditionalAddresses(prev => prev.map((a, i) => i === index ? {
-          ...a,
-          address_line1: parsed.address || pasted,
-          district: parsed.district || a.district,
-          amphoe: parsed.amphoe || a.amphoe,
-          province: parsed.province || a.province,
-          postal_code: parsed.postal_code || a.postal_code,
-        } : a));
-      }
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!formData.name.trim()) {
-      showToast('กรุณากรอกชื่อร้าน/ชื่อลูกค้า', 'error');
+    const errors: Record<string, string> = {};
+    if (!formData.name.trim()) errors.name = 'กรุณากรอกชื่อร้าน/ชื่อลูกค้า';
+    if (!formData.shipping_province?.trim()) errors.shipping_province = 'กรุณากรอกจังหวัด';
+    const requireTaxId = formData.customer_type === 'dealer' || formData.customer_type === 'department_store' || formData.customer_type === 'corporate';
+    if (requireTaxId && !formData.tax_id?.trim()) errors.tax_id = 'กรุณากรอกเลขประจำตัวผู้เสียภาษี';
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      // Focus first error field
+      const firstKey = Object.keys(errors)[0];
+      setTimeout(() => {
+        const el = document.querySelector(`[data-field="${firstKey}"]`) as HTMLElement;
+        if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus(); }
+      }, 50);
       return;
     }
-
-    if (formData.phone && !validatePhone(formData.phone)) {
-      showToast('รูปแบบเบอร์โทรไม่ถูกต้อง (ต้องเป็นเบอร์ไทย 9-10 หลัก)', 'error');
-      return;
-    }
-
-    if (formData.shipping_phone && !validatePhone(formData.shipping_phone)) {
-      showToast('รูปแบบเบอร์โทรที่อยู่จัดส่งไม่ถูกต้อง', 'error');
-      return;
-    }
-
-    for (let i = 0; i < additionalAddresses.length; i++) {
-      if (additionalAddresses[i].phone && !validatePhone(additionalAddresses[i].phone)) {
-        showToast(`เบอร์โทรที่อยู่ "${additionalAddresses[i].address_name || `ที่ ${i + 2}`}" ไม่ถูกต้อง`, 'error');
-        return;
-      }
-    }
-
+    setFieldErrors({});
+    if (formData.phone && !validatePhone(formData.phone)) { showToast('รูปแบบเบอร์โทรไม่ถูกต้อง (ต้องเป็นเบอร์ไทย 9-10 หลัก)', 'error'); return; }
     try {
       const dbCustomerType = resolveDbCustomerType(formData.customer_type, formData.sale_type);
-      // Auto-copy primary address to billing address (ที่อยู่หลัก = ที่อยู่ออกบิล)
-      const billingAddress = formData.billing_address || formData.shipping_address;
-      const billingDistrict = formData.billing_district || formData.shipping_district;
-      const billingAmphoe = formData.billing_amphoe || formData.shipping_amphoe;
-      const billingProvince = formData.billing_province || formData.shipping_province;
-      const billingPostalCode = formData.billing_postal_code || formData.shipping_postal_code;
-
-      const submissionData = {
-        ...formData,
-        customer_type: dbCustomerType,
-        billing_address: billingAddress,
-        billing_district: billingDistrict,
-        billing_amphoe: billingAmphoe,
-        billing_province: billingProvince,
-        billing_postal_code: billingPostalCode,
-        shipping_address_name: formData.shipping_address_name || 'ที่อยู่หลัก',
-        has_multiple_branches: false,
-        additional_addresses: additionalAddresses.filter(a => a.address_line1 || a.province),
-      };
-      await onSubmit(submissionData, resolvedCustomerId, brandGpRows);
+      await onSubmit({ ...formData, customer_type: dbCustomerType }, resolvedCustomerId, brandGpRows);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     }
   };
 
-  const getAddressSummary = (addr: ShippingAddressData) => {
-    const parts = [addr.amphoe, addr.province, addr.postal_code].filter(Boolean);
-    return parts.length > 0 ? parts.join(', ') : 'ยังไม่ได้กรอกที่อยู่';
-  };
+  // ========== Shared sections ==========
 
-  const isConsignmentOrDept = formData.customer_type === 'consignment_dealer' || formData.customer_type === 'department_store';
+  const renderShippingSection = (inputClass: string, labelClass: string) => (
+    <div className="space-y-3">
+      <div>
+        <label className={labelClass}>ที่อยู่</label>
+        <textarea value={formData.shipping_address} onChange={(e) => setFormData(prev => ({ ...prev, shipping_address: e.target.value }))}
+          onPaste={handleAddressPaste} className={inputClass} rows={2}
+          placeholder="วางที่อยู่เต็มได้เลย — ระบบจะแยกจังหวัด/อำเภอ/ตำบลให้อัตโนมัติ" />
+      </div>
+      <ThaiAddressInput
+        district={formData.shipping_district} amphoe={formData.shipping_amphoe}
+        province={formData.shipping_province} postalCode={formData.shipping_postal_code}
+        onAddressChange={(addr) => {
+          setFormData(prev => ({
+            ...prev,
+            ...(addr.district !== undefined && { shipping_district: addr.district }),
+            ...(addr.amphoe !== undefined && { shipping_amphoe: addr.amphoe }),
+            ...(addr.province !== undefined && { shipping_province: addr.province }),
+            ...(addr.postalCode !== undefined && { shipping_postal_code: addr.postalCode }),
+          }));
+          if (addr.province !== undefined && fieldErrors.shipping_province) setFieldErrors(prev => { const { shipping_province: _, ...rest } = prev; return rest; });
+        }}
+        provinceError={fieldErrors.shipping_province}
+        inputClassName={inputClass} labelClassName={labelClass}
+      />
+      {/* Collapsible: Google Maps & หมายเหตุ */}
+      <div>
+        <button type="button" onClick={() => setShowMapSection(prev => !prev)}
+          className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors">
+          {showMapSection ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          Google Maps & หมายเหตุจัดส่ง
+          {(formData.shipping_google_maps_link || formData.shipping_delivery_notes) && <span className="w-1.5 h-1.5 rounded-full bg-[#F4511E] ml-0.5" />}
+        </button>
+        {showMapSection && (
+          <div className="mt-3 space-y-3 pl-1">
+            <div>
+              <label className={`${labelClass} flex items-center gap-1`}><MapPin className="w-4 h-4" />Google Maps Link</label>
+              <div className="flex gap-2">
+                <input type="url" value={formData.shipping_google_maps_link || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, shipping_google_maps_link: e.target.value }))}
+                  className={`flex-1 ${inputClass}`} placeholder="วาง link Google Maps" />
+                {formData.shipping_google_maps_link && (
+                  <a href={formData.shipping_google_maps_link} target="_blank" rel="noopener noreferrer"
+                    className="px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center gap-1 text-sm whitespace-nowrap">
+                    <ExternalLink className="w-4 h-4" />เปิดแผนที่
+                  </a>
+                )}
+              </div>
+            </div>
+            <div>
+              <label className={labelClass}>หมายเหตุสำหรับการจัดส่ง</label>
+              <textarea value={formData.shipping_delivery_notes || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, shipping_delivery_notes: e.target.value }))}
+                className={inputClass} rows={2} placeholder="เช่น ส่งช่วงเช้า, โทรก่อนส่ง" />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderTaxSection = (inputClass: string, labelClass: string) => {
+    const requireTax = formData.customer_type === 'dealer' || formData.customer_type === 'department_store' || formData.customer_type === 'corporate';
+    const showTaxFields = requireTax || formData.needs_tax_invoice;
+    return (
+      <>
+        {requireTax ? (
+          <div className="flex items-center gap-2">
+            <span className={`${compact ? 'text-sm font-medium' : 'text-lg font-semibold'} text-gray-900 dark:text-white flex items-center gap-2`}>
+              <Building2 className={compact ? "w-4 h-4" : "w-5 h-5"} /> ข้อมูลภาษี
+            </span>
+            {!compact && <span className="text-sm font-normal text-gray-400 dark:text-slate-500">(บังคับสำหรับตัวแทน/ห้าง)</span>}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setFormData(prev => ({ ...prev, needs_tax_invoice: !prev.needs_tax_invoice }))}>
+            <Checkbox checked={formData.needs_tax_invoice} onChange={(v) => setFormData(prev => ({ ...prev, needs_tax_invoice: v }))} />
+            <span className={`${compact ? 'text-sm font-medium' : 'text-lg font-semibold'} text-gray-900 dark:text-white flex items-center gap-2`}>
+              <Building2 className={compact ? "w-4 h-4" : "w-5 h-5"} /> ใบกำกับภาษี
+            </span>
+            {!compact && <span className="text-sm font-normal text-gray-400 dark:text-slate-500">(สำหรับออกใบกำกับภาษี)</span>}
+          </div>
+        )}
+        {showTaxFields && (
+          <div className="mt-3 space-y-3">
+            <TaxInfoForm
+              data={{ tax_type: formData.tax_type, tax_company_name: formData.tax_company_name, tax_id: formData.tax_id, tax_branch: formData.tax_branch }}
+              onChange={(patch) => { setFormData(prev => ({ ...prev, ...patch })); if (patch.tax_id !== undefined && fieldErrors.tax_id) setFieldErrors(prev => { const { tax_id: _, ...rest } = prev; return rest; }); }}
+              inputClassName={inputClass} labelClassName={labelClass}
+              required={requireTax} taxIdError={fieldErrors.tax_id}
+            />
+            <div>
+              <label className={labelClass}>ที่อยู่ออกบิล</label>
+              <textarea value={formData.billing_address}
+                onChange={(e) => setFormData(prev => ({ ...prev, billing_address: e.target.value }))}
+                className={inputClass} rows={2}
+                placeholder="ถ้าไม่กรอก จะใช้ที่อยู่จัดส่งด้านบน" />
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">ว่างไว้ = ใช้ที่อยู่จัดส่ง</p>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
 
   // =====================
   // COMPACT MODE (chat embed)
@@ -603,129 +455,25 @@ export default function CustomerForm({
         </div>
         <div>
           <label className={labelCompact}>ประเภทลูกค้า</label>
-          <FormSelect
-            value={formData.customer_type}
+          <FormSelect value={formData.customer_type}
             onChange={(val) => setFormData(prev => ({ ...prev, customer_type: val }))}
-            options={CUSTOMER_TYPE_OPTIONS}
-            placeholder="-- เลือกประเภท --"
-          />
+            options={CUSTOMER_TYPE_OPTIONS} placeholder="-- เลือกประเภท --" />
         </div>
-
         {allTags && onTagsChange && (
           <div>
             <label className={labelCompact}>แท็ก</label>
             <TagInput value={selectedTags || []} onChange={onTagsChange} allTags={allTags} onTagCreated={onTagCreated} size="sm" />
           </div>
         )}
-
         <div className="border-t pt-4">
           <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3 flex items-center gap-2">
-            <Truck className="w-4 h-4" /> ที่อยู่จัดส่ง
+            <MapPin className="w-4 h-4" /> ที่อยู่จัดส่ง
           </h4>
-          <div className="space-y-3">
-            <div>
-              <label className={labelCompact}>ที่อยู่</label>
-              <textarea value={formData.shipping_address} onChange={(e) => setFormData(prev => ({ ...prev, shipping_address: e.target.value }))}
-                onPaste={handlePrimaryAddressPaste} rows={2} className={inputCompact}
-                placeholder="วางที่อยู่เต็มได้เลย — ระบบจะแยกจังหวัด/อำเภอ/ตำบลให้อัตโนมัติ" />
-            </div>
-            <ThaiAddressInput
-              district={formData.shipping_district} amphoe={formData.shipping_amphoe}
-              province={formData.shipping_province} postalCode={formData.shipping_postal_code}
-              onAddressChange={(addr) => setFormData(prev => ({
-                ...prev,
-                ...(addr.district !== undefined && { shipping_district: addr.district }),
-                ...(addr.amphoe !== undefined && { shipping_amphoe: addr.amphoe }),
-                ...(addr.province !== undefined && { shipping_province: addr.province }),
-                ...(addr.postalCode !== undefined && { shipping_postal_code: addr.postalCode }),
-              }))}
-              inputClassName={inputCompact} labelClassName={labelCompact}
-            />
-            <div>
-              <label className={`${labelCompact} flex items-center gap-1`}><MapPin className="w-3 h-3" />Google Maps Link</label>
-              <div className="flex gap-2">
-                <input type="url" value={formData.shipping_google_maps_link}
-                  onChange={(e) => setFormData(prev => ({ ...prev, shipping_google_maps_link: e.target.value }))}
-                  className={`flex-1 ${inputCompact}`} placeholder="วาง link Google Maps" />
-                {formData.shipping_google_maps_link && (
-                  <a href={formData.shipping_google_maps_link} target="_blank" rel="noopener noreferrer"
-                    className="px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors">
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                )}
-              </div>
-            </div>
-
-            {additionalAddresses.map((addr, i) => (
-              <div key={i} className="border border-gray-200 dark:border-slate-600 rounded-lg overflow-hidden">
-                <button type="button" onClick={() => toggleExpanded(i)}
-                  className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-slate-700/50 text-sm">
-                  <span className="font-medium text-gray-700 dark:text-slate-300">
-                    {addr.address_name || `ที่อยู่ที่ ${i + 2}`}
-                    {!expandedAddresses.has(i) && <span className="text-xs text-gray-400 ml-2">{getAddressSummary(addr)}</span>}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button type="button" onClick={(e) => { e.stopPropagation(); removeAddress(i); }}
-                      className="p-1 text-red-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
-                    {expandedAddresses.has(i) ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                  </div>
-                </button>
-                {expandedAddresses.has(i) && (
-                  <div className="p-3 space-y-3">
-                    <input type="text" value={addr.address_name} onChange={(e) => updateAddress(i, 'address_name', e.target.value)}
-                      className={inputCompact} placeholder="ชื่อที่อยู่" />
-                    <textarea value={addr.address_line1} onChange={(e) => updateAddress(i, 'address_line1', e.target.value)}
-                      onPaste={(e) => handleAdditionalAddressPaste(i, e)} rows={2} className={inputCompact}
-                      placeholder="วางที่อยู่เต็มได้เลย" />
-                    <ThaiAddressInput
-                      district={addr.district} amphoe={addr.amphoe} province={addr.province} postalCode={addr.postal_code}
-                      onAddressChange={(a) => {
-                        if (a.district !== undefined) updateAddress(i, 'district', a.district);
-                        if (a.amphoe !== undefined) updateAddress(i, 'amphoe', a.amphoe);
-                        if (a.province !== undefined) updateAddress(i, 'province', a.province);
-                        if (a.postalCode !== undefined) updateAddress(i, 'postal_code', a.postalCode);
-                      }}
-                      inputClassName={inputCompact} labelClassName={labelCompact}
-                    />
-                  </div>
-                )}
-              </div>
-            ))}
-
-            <button type="button" onClick={addAddress}
-              className="w-full py-2 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-1">
-              <Plus className="w-4 h-4" /> เพิ่มที่อยู่จัดส่ง
-            </button>
-          </div>
+          {renderShippingSection(inputCompact, labelCompact)}
         </div>
-
         <div className="border-t pt-4">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setFormData(prev => ({ ...prev, needs_tax_invoice: !prev.needs_tax_invoice }))}>
-            <Checkbox checked={formData.needs_tax_invoice} onChange={(v) => setFormData(prev => ({ ...prev, needs_tax_invoice: v }))} />
-            <span className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
-              <Building2 className="w-4 h-4" /> ใบกำกับภาษี
-            </span>
-          </div>
-          {formData.needs_tax_invoice && (
-            <div className="mt-3 space-y-3">
-              <input type="text" value={formData.tax_company_name} onChange={(e) => setFormData(prev => ({ ...prev, tax_company_name: e.target.value }))}
-                className={inputCompact} placeholder="บริษัท XXX จำกัด" />
-              <div className="grid grid-cols-2 gap-2">
-                <input type="text" value={formData.tax_id} onChange={(e) => setFormData(prev => ({ ...prev, tax_id: e.target.value }))}
-                  className={inputCompact} placeholder="เลขผู้เสียภาษี" />
-                <input type="text" value={formData.tax_branch} onChange={(e) => setFormData(prev => ({ ...prev, tax_branch: e.target.value }))}
-                  className={inputCompact} placeholder="สาขา" />
-              </div>
-              <Checkbox checked={formData.billing_same_as_shipping} onChange={(v) => setFormData(prev => ({ ...prev, billing_same_as_shipping: v }))}
-                label="ใช้ที่อยู่เดียวกับที่อยู่จัดส่ง" />
-              {!formData.billing_same_as_shipping && (
-                <textarea value={formData.billing_address} onChange={(e) => setFormData(prev => ({ ...prev, billing_address: e.target.value }))}
-                  rows={3} className={inputCompact} placeholder="ที่อยู่ออกบิล" />
-              )}
-            </div>
-          )}
+          {renderTaxSection(inputCompact, labelCompact)}
         </div>
-
         <div className="flex gap-3 pt-4">
           <button type="button" onClick={onCancel}
             className="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
@@ -745,68 +493,37 @@ export default function CustomerForm({
   // =====================
   return (
     <form onSubmit={handleSubmit}>
-
-      {/* ===== ประเภทลูกค้า (full-width, เลือกก่อน) ===== */}
+      {/* ===== ประเภทลูกค้า ===== */}
       <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6 mb-6">
         <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">ประเภทลูกค้า</h3>
-
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+        {lockCustomerType && (
+          <p className="text-sm text-amber-600 dark:text-amber-400 mb-3">ไม่สามารถเปลี่ยนประเภทได้ เพราะมีออเดอร์แล้ว</p>
+        )}
+        <div className={`grid grid-cols-3 sm:grid-cols-6 gap-2 ${lockCustomerType ? 'opacity-60 pointer-events-none' : ''}`}>
           {CUSTOMER_TYPE_OPTIONS.map(opt => {
             const isSelected = formData.customer_type === opt.id;
             return (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => {
-                  const subOptions = SALE_TYPE_OPTIONS[opt.id];
-                  setFormData(prev => ({
-                    ...prev,
-                    customer_type: opt.id,
-                    sale_type: subOptions ? subOptions[0].id : '',
-                  }));
-                }}
-                className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
-                  isSelected
-                    ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 shadow-sm'
-                    : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'
-                }`}
-              >
-                <div className={`${isSelected ? 'text-[#F4511E]' : 'text-gray-400 dark:text-slate-500'}`}>
-                  {TYPE_ICONS[opt.icon]}
-                </div>
-                <span className={`text-sm font-medium ${isSelected ? 'text-[#F4511E]' : 'text-gray-600 dark:text-slate-300'}`}>
-                  {opt.label}
-                </span>
+              <button key={opt.id} type="button"
+                disabled={lockCustomerType}
+                onClick={() => { const sub = SALE_TYPE_OPTIONS[opt.id]; setFormData(prev => ({ ...prev, customer_type: opt.id, sale_type: sub ? sub[0].id : '' })); }}
+                className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border-2 transition-all ${isSelected ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 shadow-sm' : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}>
+                <div className={isSelected ? 'text-[#F4511E]' : 'text-gray-400 dark:text-slate-500'}>{TYPE_ICONS[opt.icon]}</div>
+                <span className={`text-sm font-medium ${isSelected ? 'text-[#F4511E]' : 'text-gray-600 dark:text-slate-300'}`}>{opt.label}</span>
               </button>
             );
           })}
         </div>
-
-        {/* Sale type sub-options */}
         {SALE_TYPE_OPTIONS[formData.customer_type] && (
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className={`mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2 ${lockCustomerType ? 'opacity-60 pointer-events-none' : ''}`}>
             {SALE_TYPE_OPTIONS[formData.customer_type].map(opt => (
-              <button
-                key={opt.id}
-                type="button"
+              <button key={opt.id} type="button" disabled={lockCustomerType}
                 onClick={() => setFormData(prev => ({ ...prev, sale_type: opt.id }))}
-                className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all ${
-                  formData.sale_type === opt.id
-                    ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20'
-                    : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                }`}
-              >
-                <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-                  formData.sale_type === opt.id
-                    ? 'border-[#F4511E] bg-[#F4511E]'
-                    : 'border-gray-300 dark:border-slate-500'
-                }`}>
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all ${formData.sale_type === opt.id ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20' : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'}`}>
+                <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${formData.sale_type === opt.id ? 'border-[#F4511E] bg-[#F4511E]' : 'border-gray-300 dark:border-slate-500'}`}>
                   {formData.sale_type === opt.id && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-base font-medium ${formData.sale_type === opt.id ? 'text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>
-                    {opt.label}
-                  </p>
+                  <p className={`text-base font-medium ${formData.sale_type === opt.id ? 'text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>{opt.label}</p>
                   <p className="text-sm text-gray-500 dark:text-slate-500 mt-0.5">{opt.desc}</p>
                 </div>
               </button>
@@ -816,18 +533,17 @@ export default function CustomerForm({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
         {/* ===== LEFT COLUMN ===== */}
         <div className="space-y-6">
-
-          {/* Section: ข้อมูลพื้นฐาน */}
+          {/* ข้อมูลพื้นฐาน */}
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
             <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">ข้อมูลพื้นฐาน</h3>
             <div className="space-y-4">
               <div>
                 <label className={labelFull}>ชื่อร้าน/ชื่อลูกค้า <span className="text-red-500">*</span></label>
-                <input type="text" value={formData.name} onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className={inputFull} required />
+                <input type="text" data-field="name" value={formData.name} onChange={(e) => { setFormData(prev => ({ ...prev, name: e.target.value })); if (fieldErrors.name) setFieldErrors(prev => { const { name: _, ...rest } = prev; return rest; }); }}
+                  className={`${inputFull} ${fieldErrors.name ? 'border-red-400 ring-1 ring-red-400' : ''}`} required />
+                {fieldErrors.name && <p className="text-red-500 text-xs mt-1">{fieldErrors.name}</p>}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -835,43 +551,29 @@ export default function CustomerForm({
                   <input type="tel" value={phoneDisplay} onChange={(e) => handlePhoneChange(e.target.value)}
                     onBlur={() => setShowPhoneError(true)} onFocus={() => setShowPhoneError(false)}
                     className={inputFull} placeholder="0xx-xxx-xxxx" />
-                  {showPhoneError && formData.phone && !validatePhone(formData.phone) && (
-                    <p className="text-xs text-red-500 mt-1">เบอร์ไทย 9-10 หลัก</p>
-                  )}
+                  {showPhoneError && formData.phone && !validatePhone(formData.phone) && <p className="text-xs text-red-500 mt-1">เบอร์ไทย 9-10 หลัก</p>}
                 </div>
                 <div>
                   <label className={labelFull}>อีเมล</label>
-                  <input type="email" value={formData.email} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                    className={inputFull} />
+                  <input type="email" value={formData.email} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))} className={inputFull} />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Section: ช่องทางแชท (edit mode only, when contacts exist) */}
+          {/* ช่องทางแชท */}
           {linkedContacts.length > 0 && onNavigateToChat && (
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
               <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-                <MessageCircle className="w-5 h-5" />
-                ช่องทางแชท
-                <span className="text-sm font-normal text-gray-500 dark:text-slate-400">({linkedContacts.length})</span>
+                <MessageCircle className="w-5 h-5" /> ช่องทางแชท <span className="text-sm font-normal text-gray-500 dark:text-slate-400">({linkedContacts.length})</span>
               </h3>
               <div className="grid grid-cols-1 gap-3">
                 {linkedContacts.map(lc => (
-                  <button
-                    key={`${lc.platform}-${lc.id}`}
-                    type="button"
-                    onClick={() => onNavigateToChat(lc.id, lc.platform)}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-left"
-                  >
+                  <button key={`${lc.platform}-${lc.id}`} type="button" onClick={() => onNavigateToChat(lc.id, lc.platform)}
+                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-left">
                     <div className="relative flex-shrink-0">
-                      {lc.picture_url ? (
-                        <img src={lc.picture_url} alt="" className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center">
-                          <User className="w-5 h-5 text-gray-500 dark:text-slate-400" />
-                        </div>
-                      )}
+                      {lc.picture_url ? <img src={lc.picture_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        : <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center"><User className="w-5 h-5 text-gray-500 dark:text-slate-400" /></div>}
                       <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
                         {lc.platform === 'line' ? <MessageCircle className="w-2.5 h-2.5 text-white" /> : <Facebook className="w-2.5 h-2.5 text-white" />}
                       </div>
@@ -880,9 +582,7 @@ export default function CustomerForm({
                       <p className="data-primary text-gray-900 dark:text-white truncate">{lc.display_name}</p>
                       <p className="data-secondary text-gray-500 dark:text-slate-400 truncate">
                         {lc.account_name || (lc.platform === 'line' ? 'LINE' : 'Facebook')}
-                        {lc.last_message_at && (
-                          <> · {new Date(lc.last_message_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</>
-                        )}
+                        {lc.last_message_at && <> · {new Date(lc.last_message_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</>}
                       </p>
                     </div>
                     <ExternalLink className="w-4 h-4 text-gray-400 dark:text-slate-500 flex-shrink-0" />
@@ -892,395 +592,90 @@ export default function CustomerForm({
             </div>
           )}
 
-          {/* Section: ที่อยู่ (ที่อยู่หลัก = ออกบิล = default จัดส่ง) */}
+          {/* ที่อยู่จัดส่ง */}
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
             <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-              <MapPin className="w-5 h-5" /> ที่อยู่ <span className="text-sm font-normal text-gray-400 dark:text-slate-500">(ที่อยู่ออกบิล + จัดส่ง default)</span>
+              <MapPin className="w-5 h-5" /> ที่อยู่จัดส่ง
             </h3>
-
-            <div className="space-y-3">
-              {isEditing && (
-                <div>
-                  <label className={labelFull}>ชื่อที่อยู่</label>
-                  <input type="text" value={formData.shipping_address_name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, shipping_address_name: e.target.value }))}
-                    className={inputFull} placeholder="เช่น บ้าน, ออฟฟิศ, สำนักงานใหญ่" />
-                </div>
-              )}
-
-              <div>
-                <label className={labelFull}>ที่อยู่</label>
-                <textarea value={formData.shipping_address} onChange={(e) => setFormData(prev => ({ ...prev, shipping_address: e.target.value }))}
-                  onPaste={handlePrimaryAddressPaste} className={inputFull} rows={2}
-                  placeholder="วางที่อยู่เต็มได้เลย — ระบบจะแยกจังหวัด/อำเภอ/ตำบลให้อัตโนมัติ" />
-              </div>
-
-              <ThaiAddressInput
-                district={formData.shipping_district} amphoe={formData.shipping_amphoe}
-                province={formData.shipping_province} postalCode={formData.shipping_postal_code}
-                onAddressChange={(addr) => setFormData(prev => ({
-                  ...prev,
-                  ...(addr.district !== undefined && { shipping_district: addr.district }),
-                  ...(addr.amphoe !== undefined && { shipping_amphoe: addr.amphoe }),
-                  ...(addr.province !== undefined && { shipping_province: addr.province }),
-                  ...(addr.postalCode !== undefined && { shipping_postal_code: addr.postalCode }),
-                }))}
-                inputClassName={inputFull} labelClassName={labelFull}
-              />
-
-              {/* Collapsible: ผู้รับสินค้า, Google Maps & หมายเหตุ */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowMapSection(prev => !prev)}
-                  className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors"
-                >
-                  {showMapSection ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  ผู้รับ, Google Maps & หมายเหตุ
-                  {(formData.shipping_contact_person || formData.shipping_phone || formData.shipping_google_maps_link || formData.shipping_delivery_notes) && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#F4511E] ml-0.5" />
-                  )}
-                </button>
-
-                {showMapSection && (
-                  <div className="mt-3 space-y-3 pl-1">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className={labelFull}>ผู้รับสินค้า</label>
-                        <input type="text" value={formData.shipping_contact_person}
-                          onChange={(e) => setFormData(prev => ({ ...prev, shipping_contact_person: e.target.value }))}
-                          className={inputFull} placeholder="ชื่อผู้รับ (ถ้าต่างจากผู้ติดต่อ)" />
-                      </div>
-                      <div>
-                        <label className={labelFull}>เบอร์โทรผู้รับ</label>
-                        <input type="tel" value={formData.shipping_phone}
-                          onChange={(e) => setFormData(prev => ({ ...prev, shipping_phone: normalizePhone(e.target.value) }))}
-                          className={inputFull} placeholder="0xx-xxx-xxxx" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className={`${labelFull} flex items-center gap-1`}><MapPin className="w-4 h-4" />Google Maps Link</label>
-                      <div className="flex gap-2">
-                        <input type="url" value={formData.shipping_google_maps_link}
-                          onChange={(e) => setFormData(prev => ({ ...prev, shipping_google_maps_link: e.target.value }))}
-                          className={`flex-1 ${inputFull}`} placeholder="วาง link Google Maps" />
-                        {formData.shipping_google_maps_link && (
-                          <a href={formData.shipping_google_maps_link} target="_blank" rel="noopener noreferrer"
-                            className="px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center gap-1 text-sm whitespace-nowrap">
-                            <ExternalLink className="w-4 h-4" />เปิดแผนที่
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <label className={labelFull}>หมายเหตุสำหรับการจัดส่ง</label>
-                      <textarea value={formData.shipping_delivery_notes}
-                        onChange={(e) => setFormData(prev => ({ ...prev, shipping_delivery_notes: e.target.value }))}
-                        className={inputFull} rows={2} placeholder="เช่น ส่งช่วงเช้า, โทรก่อนส่ง" />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Existing DB addresses (edit mode) */}
-            {existingAddresses.length > 0 && (
-              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-slate-700">
-                <div className="flex items-center gap-2 mb-3">
-                  <MapPin className="w-4 h-4 text-gray-500" />
-                  <h4 className="font-medium text-gray-800 dark:text-slate-200">ที่อยู่เพิ่มเติม</h4>
-                  <span className="text-xs bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 px-2 py-0.5 rounded-full">
-                    {existingAddresses.length}
-                  </span>
-                </div>
-                <div className="space-y-3">
-                  {existingAddresses.map((address) => (
-                    <div key={address.id} className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 hover:border-[#F4511E] transition-colors">
-                      <div className="flex justify-between items-start mb-1">
-                        <h5 className="font-semibold text-base text-gray-900 dark:text-white">{address.address_name}</h5>
-                        {(onEditAddress || onDeleteAddress) && (
-                          <div className="flex gap-1.5">
-                            {onEditAddress && (
-                              <button type="button" onClick={() => onEditAddress(address)} className="text-gray-400 hover:text-[#F4511E]">
-                                <ChevronDown className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {onDeleteAddress && (
-                              <button type="button" onClick={() => onDeleteAddress(address.id)} className="text-gray-400 hover:text-red-600">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="data-text text-gray-600 dark:text-slate-400 space-y-0.5">
-                        <p>{[address.address_line1, address.district, address.amphoe, address.province, address.postal_code].filter(Boolean).join(' ')}</p>
-                        {address.contact_person && (
-                          <p className="flex items-center gap-1"><UserCircle className="w-3 h-3" />{address.contact_person} {address.phone && `(${address.phone})`}</p>
-                        )}
-                        {address.google_maps_link && (
-                          <a href={address.google_maps_link} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-[#F4511E] hover:underline">
-                            <ExternalLink className="w-3 h-3" />Google Maps
-                          </a>
-                        )}
-                        {address.delivery_notes && (
-                          <p className="text-gray-500 dark:text-slate-500 bg-gray-50 dark:bg-slate-700/50 rounded px-2 py-1 mt-1">
-                            {address.delivery_notes}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* New addresses (not yet in DB) */}
-            {additionalAddresses.length > 0 && (
-              <div className="mt-4 space-y-3">
-                {additionalAddresses.map((addr, i) => (
-                  <div key={i} className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                    <button type="button" onClick={() => toggleExpanded(i)}
-                      className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700/70 transition-colors">
-                      <div className="flex items-center gap-2 text-left">
-                        <Truck className="w-4 h-4 text-gray-400" />
-                        <span className="font-medium text-gray-700 dark:text-slate-300">
-                          {addr.address_name || `ที่อยู่ที่ ${existingAddresses.length + i + 2}`}
-                        </span>
-                        {!expandedAddresses.has(i) && (
-                          <span className="text-sm text-gray-400 dark:text-slate-500">{getAddressSummary(addr)}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button type="button" onClick={(e) => { e.stopPropagation(); removeAddress(i); }}
-                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        {expandedAddresses.has(i) ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                      </div>
-                    </button>
-                    {expandedAddresses.has(i) && (
-                      <div className="p-4 space-y-3">
-                        <input type="text" value={addr.address_name} onChange={(e) => updateAddress(i, 'address_name', e.target.value)}
-                          className={inputFull} placeholder="ชื่อที่อยู่ เช่น สาขาลาดพร้าว" />
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className={labelFull}>ผู้รับสินค้า</label>
-                            <input type="text" value={addr.contact_person} onChange={(e) => updateAddress(i, 'contact_person', e.target.value)} className={inputFull} />
-                          </div>
-                          <div>
-                            <label className={labelFull}>เบอร์โทรผู้รับ</label>
-                            <input type="tel" value={additionalPhoneDisplays[i] || ''} onChange={(e) => handleAdditionalPhoneChange(i, e.target.value)} className={inputFull} placeholder="0xx-xxx-xxxx" />
-                          </div>
-                        </div>
-                        <textarea value={addr.address_line1} onChange={(e) => updateAddress(i, 'address_line1', e.target.value)}
-                          onPaste={(e) => handleAdditionalAddressPaste(i, e)} rows={2} className={inputFull}
-                          placeholder="วางที่อยู่เต็มได้เลย" />
-                        <ThaiAddressInput
-                          district={addr.district} amphoe={addr.amphoe} province={addr.province} postalCode={addr.postal_code}
-                          onAddressChange={(a) => {
-                            if (a.district !== undefined) updateAddress(i, 'district', a.district);
-                            if (a.amphoe !== undefined) updateAddress(i, 'amphoe', a.amphoe);
-                            if (a.province !== undefined) updateAddress(i, 'province', a.province);
-                            if (a.postalCode !== undefined) updateAddress(i, 'postal_code', a.postalCode);
-                          }}
-                          inputClassName={inputFull} labelClassName={labelFull}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Add address button */}
-            <button
-              type="button"
-              onClick={isEditing && onAddAddress ? onAddAddress : addAddress}
-              className="mt-4 w-full py-2 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-1"
-            >
-              <Plus className="w-4 h-4" /> เพิ่มที่อยู่
-            </button>
-          </div>
-
-          {/* Section: ผู้ติดต่อ + แท็ก */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
-            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-              <User className="w-5 h-5" /> ข้อมูลเพิ่มเติม
-            </h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelFull}>ผู้ติดต่อ</label>
-                  <input type="text" value={formData.contact_person} onChange={(e) => setFormData(prev => ({ ...prev, contact_person: e.target.value }))}
-                    className={inputFull} placeholder="ชื่อผู้ติดต่อ" />
-                </div>
-                {allTags && onTagsChange && (
-                  <div>
-                    <label className={labelFull}>แท็ก</label>
-                    <TagInput value={selectedTags || []} onChange={onTagsChange} allTags={allTags} onTagCreated={onTagCreated} />
-                  </div>
-                )}
-              </div>
-              <div>
-                <label className={labelFull}>หมายเหตุ</label>
-                <textarea value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  className={inputFull} rows={2} placeholder="หมายเหตุเกี่ยวกับลูกค้า..." />
-              </div>
-            </div>
+            {renderShippingSection(inputFull, labelFull)}
           </div>
 
         </div>
 
         {/* ===== RIGHT COLUMN ===== */}
         <div className="space-y-6">
-
-          {/* GP/ส่วนลด Settings — show for dealer/dept_store/corporate with any sale_type */}
+          {/* GP/ส่วนลด */}
           {formData.sale_type && (formData.customer_type === 'dealer' || formData.customer_type === 'department_store' || formData.customer_type === 'corporate') && (
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
               <ConsignmentSettings
-                data={{
-                  consignment_gp_rate: formData.consignment_gp_rate,
-                  consignment_gp_base_price: formData.consignment_gp_base_price,
-                  consignment_report_due_days: formData.consignment_report_due_days,
-                  consignment_payment_terms: formData.consignment_payment_terms,
-                  contract_number: formData.contract_number,
-                  contract_date: formData.contract_date,
-                  rd_submitted_at: formData.rd_submitted_at,
-                }}
+                data={{ consignment_gp_rate: formData.consignment_gp_rate, consignment_gp_base_price: formData.consignment_gp_base_price, consignment_report_due_days: formData.consignment_report_due_days, consignment_payment_terms: formData.consignment_payment_terms, contract_number: formData.contract_number, contract_date: formData.contract_date, rd_submitted_at: formData.rd_submitted_at }}
                 onChange={(patch) => setFormData(prev => ({ ...prev, ...patch }))}
-                inputClassName={inputFull}
-                labelClassName={labelFull}
-                brandGpRows={brandGpRows}
-                onBrandGpRowsChange={setBrandGpRows}
-                hideContract={formData.customer_type === 'department_store'}
-                wholesale={formData.sale_type !== 'consignment'}
+                inputClassName={inputFull} labelClassName={labelFull}
+                brandGpRows={brandGpRows} onBrandGpRowsChange={setBrandGpRows}
+                hideContract={formData.customer_type === 'department_store'} wholesale={formData.sale_type !== 'consignment'}
               />
             </div>
           )}
-
-          {/* Department Store Settings */}
           {formData.customer_type === 'department_store' && (
-            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
-              <DepartmentStoreSettings />
-            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6"><DepartmentStoreSettings /></div>
           )}
 
-          {/* Section: สัญญาฝากขาย — เฉพาะ dealer + consignment */}
+          {/* สัญญาฝากขาย */}
           {formData.customer_type === 'dealer' && formData.sale_type === 'consignment' && (
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-amber-300 dark:border-amber-700/50 p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-2">
-                    <FileText className="w-5 h-5" /> สัญญาฝากขาย (ม.78(3))
-                  </h3>
-                  <p className="text-sm text-amber-600/70 dark:text-amber-400/70 mt-0.5">ต้องยื่นต่อสรรพากรภายใน 15 วันนับจากวันทำสัญญา</p>
-                </div>
+              <div>
+                <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                  <FileText className="w-5 h-5" /> สัญญาฝากขาย (ม.78(3))
+                </h3>
+                <p className="text-sm text-amber-600/70 dark:text-amber-400/70 mt-0.5">ต้องยื่นต่อสรรพากรภายใน 15 วันนับจากวันทำสัญญา</p>
               </div>
-
-              {/* Warning if agent data incomplete */}
               {(!formData.name || !formData.tax_id) && (
                 <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-sm text-amber-700 dark:text-amber-400">
                   กรุณากรอกข้อมูลตัวแทนให้ครบก่อนสร้างสัญญา:
                   {!formData.name && <span className="block ml-2">- ชื่อร้าน/ชื่อลูกค้า</span>}
                   {!formData.tax_id && <span className="block ml-2">- เลขผู้เสียภาษี</span>}
-                  {!formData.billing_address && <span className="block ml-2">- ที่อยู่ออกบิล</span>}
                 </div>
               )}
-
               {!formData.contract_number ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const now = new Date();
-                    const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-                    const rand = String(Math.floor(Math.random() * 9000) + 1000);
-                    setFormData(prev => ({ ...prev, contract_number: `CSN-${ym}-${rand}` }));
-                  }}
-                  className="w-full py-3 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center justify-center gap-2 font-medium"
-                >
-                  <Plus className="w-4 h-4" /> สร้างสัญญา
+                <button type="button" onClick={() => { const now = new Date(); const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`; const rand = String(Math.floor(Math.random() * 9000) + 1000); setFormData(prev => ({ ...prev, contract_number: `CSN-${ym}-${rand}` })); }}
+                  className="w-full py-3 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center justify-center gap-2 font-medium">
+                  + สร้างสัญญา
                 </button>
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={labelFull}>เลขที่สัญญา</label>
-                      <input
-                        type="text"
-                        value={formData.contract_number || ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, contract_number: e.target.value }))}
-                        className={inputFull}
-                        readOnly
-                      />
+                      <input type="text" value={formData.contract_number || ''} onChange={(e) => setFormData(prev => ({ ...prev, contract_number: e.target.value }))} className={inputFull} readOnly />
                     </div>
                     <div>
                       <label className={labelFull}>วันที่ทำสัญญา <span className="text-red-500">*</span></label>
-                      <DateRangePicker
-                        asSingle
-                        useRange={false}
-                        showShortcuts={false}
-                        showFooter={false}
-                        placeholder="เลือกวันที่"
+                      <DateRangePicker asSingle useRange={false} showShortcuts={false} showFooter={false} placeholder="เลือกวันที่"
                         value={formData.contract_date ? { startDate: formData.contract_date, endDate: formData.contract_date } : null}
-                        onChange={(v) => setFormData(prev => ({ ...prev, contract_date: v?.startDate ? String(v.startDate) : '' }))}
-                      />
+                        onChange={(v) => setFormData(prev => ({ ...prev, contract_date: v?.startDate ? String(v.startDate) : '' }))} />
                     </div>
                   </div>
-
                   <div>
                     <label className={labelFull}>วันที่ยื่นสรรพากร</label>
-                    <DateRangePicker
-                      asSingle
-                      useRange={false}
-                      showShortcuts={false}
-                      showFooter={false}
-                      placeholder="เลือกวันที่"
+                    <DateRangePicker asSingle useRange={false} showShortcuts={false} showFooter={false} placeholder="เลือกวันที่"
                       value={formData.rd_submitted_at ? { startDate: formData.rd_submitted_at, endDate: formData.rd_submitted_at } : null}
-                      onChange={(v) => setFormData(prev => ({ ...prev, rd_submitted_at: v?.startDate ? String(v.startDate) : '' }))}
-                    />
+                      onChange={(v) => setFormData(prev => ({ ...prev, rd_submitted_at: v?.startDate ? String(v.startDate) : '' }))} />
                     {formData.contract_date && !formData.rd_submitted_at && (
-                      <p className="text-sm text-amber-600 dark:text-amber-400 mt-1 font-medium">
-                        ควรยื่นภายใน {new Date(new Date(formData.contract_date).getTime() + 15 * 86400000).toLocaleDateString('th-TH')}
-                      </p>
+                      <p className="text-sm text-amber-600 dark:text-amber-400 mt-1 font-medium">ควรยื่นภายใน {new Date(new Date(formData.contract_date).getTime() + 15 * 86400000).toLocaleDateString('th-TH')}</p>
                     )}
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!formData.contract_date) {
-                        showToast('กรุณาระบุวันที่ทำสัญญาก่อนพิมพ์', 'error');
-                        return;
-                      }
-                      try {
-                        const { generateConsignmentContractPdf } = await import('@/lib/consignment-contract-pdf');
-                        const blob = await generateConsignmentContractPdf(
-                          {
-                            name: formData.name,
-                            tax_company_name: formData.tax_company_name || null,
-                            tax_id: formData.tax_id || null,
-                            billing_address: [formData.billing_address, formData.billing_district, formData.billing_amphoe, formData.billing_province, formData.billing_postal_code].filter(Boolean).join(' ') || null,
-                            phone: formData.phone || null,
-                          },
-                          {
-                            contract_number: formData.contract_number || '',
-                            contract_date: formData.contract_date || '',
-                            gp_rate: Number(formData.consignment_gp_rate) || 30,
-                            gp_base_price: formData.consignment_gp_base_price || 'retail',
-                            report_due_days: Number(formData.consignment_report_due_days) || 15,
-                            payment_terms: Number(formData.consignment_payment_terms) || 30,
-                          },
-                        );
-                        showPdfPreview(blob, `สัญญาฝากขาย ${formData.contract_number}`);
-                      } catch (err) {
-                        console.error('Print contract error:', err);
-                        showToast('ไม่สามารถพิมพ์สัญญาได้', 'error');
-                      }
-                    }}
-                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
-                  >
+                  <button type="button" onClick={async () => {
+                    if (!formData.contract_date) { showToast('กรุณาระบุวันที่ทำสัญญาก่อนพิมพ์', 'error'); return; }
+                    try {
+                      const { generateConsignmentContractPdf } = await import('@/lib/consignment-contract-pdf');
+                      const shippingJoined = [formData.shipping_address, formData.shipping_district, formData.shipping_amphoe, formData.shipping_province, formData.shipping_postal_code].filter(Boolean).join(' ');
+                      const blob = await generateConsignmentContractPdf(
+                        { name: formData.name, tax_company_name: formData.tax_company_name || null, tax_id: formData.tax_id || null, billing_address: formData.billing_address || shippingJoined || null, phone: formData.phone || null },
+                        { contract_number: formData.contract_number || '', contract_date: formData.contract_date || '', gp_rate: Number(formData.consignment_gp_rate) || 30, gp_base_price: formData.consignment_gp_base_price || 'retail', report_due_days: Number(formData.consignment_report_due_days) || 15, payment_terms: Number(formData.consignment_payment_terms) || 30 },
+                      );
+                      showPdfPreview(blob, `สัญญาฝากขาย ${formData.contract_number}`);
+                    } catch (err) { console.error('Print contract error:', err); showToast('ไม่สามารถพิมพ์สัญญาได้', 'error'); }
+                  }} className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-medium">
                     <Printer className="w-4 h-4" /> พิมพ์สัญญา
                   </button>
                 </>
@@ -1288,46 +683,49 @@ export default function CustomerForm({
             </div>
           )}
 
-          {/* Section: ข้อมูลภาษี */}
+          {/* ข้อมูลภาษี (+ ที่อยู่ออกบิล) */}
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
-            <div className="flex items-center gap-2 mb-4 cursor-pointer"
-              onClick={() => setFormData(prev => ({ ...prev, needs_tax_invoice: !prev.needs_tax_invoice }))}>
-              <Checkbox checked={formData.needs_tax_invoice} onChange={(v) => setFormData(prev => ({ ...prev, needs_tax_invoice: v }))} />
-              <span className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <Building2 className="w-5 h-5" /> ข้อมูลภาษี
-              </span>
-              <span className="text-sm font-normal text-gray-400 dark:text-slate-500">(สำหรับออกใบกำกับภาษี)</span>
-            </div>
-
-            {formData.needs_tax_invoice && (
-              <>
-                <TaxInfoForm
-                  data={{
-                    tax_type: formData.tax_type,
-                    tax_company_name: formData.tax_company_name,
-                    tax_id: formData.tax_id,
-                    tax_branch: formData.tax_branch,
-                  }}
-                  onChange={(patch) => setFormData(prev => ({ ...prev, ...patch }))}
-                  inputClassName={inputFull}
-                  labelClassName={labelFull}
-                />
-                <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">ที่อยู่ออกบิลใช้จาก "ที่อยู่" ด้านซ้าย</p>
-              </>
-            )}
+            {renderTaxSection(inputFull, labelFull)}
           </div>
 
+          {/* ข้อมูลเพิ่มเติม (collapsible) */}
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
+            <button type="button" onClick={() => setShowExtraSection(prev => !prev)} className="w-full flex items-center justify-between p-6 text-left">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <User className="w-5 h-5" /> ข้อมูลเพิ่มเติม
+                {!showExtraSection && (formData.contact_person || formData.notes || (selectedTags && selectedTags.length > 0)) && <span className="w-1.5 h-1.5 rounded-full bg-[#F4511E]" />}
+              </h3>
+              {showExtraSection ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+            </button>
+            {showExtraSection && (
+              <div className="px-6 pb-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelFull}>ผู้ติดต่อ</label>
+                    <input type="text" value={formData.contact_person} onChange={(e) => setFormData(prev => ({ ...prev, contact_person: e.target.value }))} className={inputFull} placeholder="ชื่อผู้ติดต่อ" />
+                  </div>
+                  {allTags && onTagsChange && (
+                    <div>
+                      <label className={labelFull}>แท็ก</label>
+                      <TagInput value={selectedTags || []} onChange={onTagsChange} allTags={allTags} onTagCreated={onTagCreated} />
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className={labelFull}>หมายเหตุ</label>
+                  <textarea value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))} className={inputFull} rows={2} placeholder="หมายเหตุเกี่ยวกับลูกค้า..." />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-
       </div>
 
       {/* Action Buttons */}
       {!isEditing && (
         <div className="flex justify-end gap-3 mt-6">
           <button type="button" onClick={onCancel} disabled={isLoading}
-            className="px-6 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 dark:bg-slate-900 text-gray-700 dark:text-slate-300">
-            ยกเลิก
-          </button>
+            className="px-6 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 dark:bg-slate-900 text-gray-700 dark:text-slate-300">ยกเลิก</button>
           <button type="submit" disabled={isLoading}
             className="bg-[#F4511E] text-white px-6 py-2.5 rounded-lg hover:bg-[#D63B0E] disabled:opacity-50 flex items-center gap-2">
             {isLoading ? (<><Loader2 className="w-4 h-4 animate-spin" />กำลังบันทึก...</>) : 'บันทึก'}

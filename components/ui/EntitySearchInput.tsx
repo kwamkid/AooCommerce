@@ -8,6 +8,7 @@ export interface EntitySearchOption {
   label: string;
   subtitle?: string;
   icon?: React.ReactNode;
+  badge?: React.ReactNode;
 }
 
 interface EntitySearchInputProps {
@@ -271,7 +272,7 @@ export default function EntitySearchInput({
       >
         {o.icon && <span className="flex-shrink-0">{o.icon}</span>}
         <div className="flex-1 min-w-0 text-left">
-          <div className="truncate font-medium">{o.label}</div>
+          <div className="truncate font-medium flex items-center gap-1.5">{o.label}{o.badge}</div>
           {o.subtitle && (
             <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{o.subtitle}</div>
           )}

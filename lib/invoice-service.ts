@@ -1030,7 +1030,7 @@ export async function autoIssueDocument(
     };
 
     // ─── Flow R (Retail): ABB/REC when accepted (processing+) AND paid ───
-    if ((order.flow_type === 'r_retail' || order.flow_type === 'a_cash')
+    if ((order.flow_type === 'r_retail')
         && ['processing', 'shipping', 'completed'].includes(order.order_status)
         && order.payment_status === 'paid') {
       if (!(await hasAbbOrRec())) {
@@ -1082,7 +1082,7 @@ export async function autoIssueDocument(
     }
 
     // ─── Flow W-Credit: ส่งของ → DN (มีราคา) + TAX tax_invoice (VAT) or INV (no VAT) ───
-    if ((order.flow_type === 'w_credit' || order.flow_type === 'b_credit')
+    if ((order.flow_type === 'w_credit')
         && ['shipping', 'completed'].includes(order.order_status)) {
       // DN (มีราคา)
       if (!(await hasDN())) {
@@ -1137,7 +1137,7 @@ export async function autoIssueDocument(
     }
 
     // ─── Flow W-Credit: Auto create statement (ใบวางบิล) on shipping ───
-    if ((order.flow_type === 'w_credit' || order.flow_type === 'b_credit')
+    if ((order.flow_type === 'w_credit')
         && ['shipping', 'completed'].includes(order.order_status)) {
       try {
         const { createStatementForOrder } = await import('@/lib/statement-service');
@@ -1152,7 +1152,7 @@ export async function autoIssueDocument(
     }
 
     // ─── Flow W-Credit: จ่ายเงินครบ → REC (ref TAX/INV) ───
-    if ((order.flow_type === 'w_credit' || order.flow_type === 'b_credit')
+    if ((order.flow_type === 'w_credit')
         && order.payment_status === 'paid'
         && ['shipping', 'completed'].includes(order.order_status)) {
       // Check if REC already exists for this order

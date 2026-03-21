@@ -897,7 +897,7 @@ export default function ReadyToShipTab({
           key="unhold"
           onClick={(e) => { e.stopPropagation(); handleUnhold(order.id); }}
           disabled={actionLoading}
-          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          className="btn-focus-action green"
           title="กลับมา"
         >
           <Play className="w-4 h-4" />
@@ -923,7 +923,7 @@ export default function ReadyToShipTab({
           key="approve-slip"
           onClick={(e) => { e.stopPropagation(); handleApproveSlip(order.id); }}
           disabled={actionLoading}
-          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          className="btn-focus-action green"
           title="ยืนยันสลิป"
         >
           <CheckCircle className="w-4 h-4" />

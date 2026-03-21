@@ -180,10 +180,13 @@ export async function POST(request: NextRequest) {
       if (cust?.customer_type) {
         const ct = cust.customer_type;
         const st = cust.sale_type || '';
-        if (ct === 'consignment_dealer' || (ct === 'dealer' && st === 'consignment')) flowType = 'c_consign';
-        else if (ct === 'department_store' && st === 'consignment') flowType = 'd_department';
+        if (ct === 'consignment_dealer') flowType = 'c_consign';
+        else if (ct === 'department_store') flowType = 'd_statement';
+        else if (ct === 'wholesale_department') flowType = 'd_statement';
+        else if (st === 'wholesale_credit') flowType = 'w_credit';
         else if (st === 'wholesale_cash') flowType = 'w_cash';
-        else if (st === 'wholesale_credit' || ct === 'credit') flowType = 'w_credit';
+        else if (ct === 'wholesale_dealer') flowType = st === 'wholesale_credit' ? 'w_credit' : 'w_cash';
+        else if (ct === 'credit' || ct === 'corporate') flowType = 'w_credit';
         // retail, dropship, affiliate → r_retail (default)
       }
     }
@@ -260,7 +263,7 @@ export async function POST(request: NextRequest) {
         total_amount: totalAmount,
         payment_method: orderData.payment_method || null,
         payment_status: 'pending',
-        order_status: 'new',
+        order_status: ['w_credit', 'c_consign', 'd_statement'].includes(flowType) ? 'ready_to_ship' : 'new',
         notes: orderData.notes || null,
         internal_notes: orderData.internal_notes || null,
         delivery_name: orderData.delivery_name || null,
@@ -1051,7 +1054,7 @@ export async function PUT(request: NextRequest) {
           .in('order_status', ['ready_to_ship', 'new']);
 
         // Credit flow orders can skip to processing from 'new'
-        const creditFlowTypes = ['w_credit', 'b_credit', 'c_consign', 'd_department', 'd_statement'];
+        const creditFlowTypes = ['w_credit', 'c_consign', 'd_statement'];
         const manualOrders = (ordersToAccept || []).filter(o => o.source !== 'shopee' && (
           o.order_status === 'ready_to_ship' ||
           (o.order_status === 'new' && creditFlowTypes.includes(o.flow_type || ''))
@@ -1937,18 +1940,14 @@ export async function PUT(request: NextRequest) {
       }
       if (body.payment_status !== undefined) {
         updateData.payment_status = body.payment_status;
-        // Flow R/W-Cash: paid → ready_to_ship → wait for manual accept
-        // Flow W-Credit/C/D: paid → processing directly (no ready_to_ship)
-        const isCreditFlow = ['w_credit', 'b_credit', 'c_consign', 'd_department', 'd_statement'].includes(existingOrder.flow_type || '');
+        // paid/verifying + still 'new' → ready_to_ship (รอคอนเฟิร์ม)
         if ((body.payment_status === 'paid' || body.payment_status === 'verifying')
             && existingOrder.order_status === 'new' && !body.order_status) {
-          updateData.order_status = isCreditFlow ? 'processing' : 'ready_to_ship';
+          updateData.order_status = 'ready_to_ship';
         }
-        // Auto-reverse: when rejected (pending) and still 'ready_to_ship' or 'processing' (credit), revert to 'new'
+        // Auto-reverse: rejected (pending) → revert to 'new'
         if (body.payment_status === 'pending' && !body.order_status) {
           if (existingOrder.order_status === 'ready_to_ship') {
-            updateData.order_status = 'new';
-          } else if (existingOrder.order_status === 'processing' && isCreditFlow) {
             updateData.order_status = 'new';
           }
         }

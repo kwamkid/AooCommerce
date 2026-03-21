@@ -45,7 +45,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import OrderForm from '@/components/orders/OrderForm';
-import CustomerForm, { CustomerFormData } from '@/components/customers/CustomerForm';
+import CustomerForm, { CustomerFormData, buildCustomerPayload } from '@/components/customers/CustomerForm';
 import TagBadge, { Tag } from '@/components/ui/TagBadge';
 import TagInput from '@/components/ui/TagInput';
 import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact } from './lib/chatTypes';
@@ -917,23 +917,7 @@ function UnifiedChatPageContent() {
     setEditingCustomer(true);
     setEditCustomerError('');
     try {
-      const billingAddress = formData.billing_same_as_shipping ? formData.shipping_address : formData.billing_address;
-      const billingDistrict = formData.billing_same_as_shipping ? formData.shipping_district : formData.billing_district;
-      const billingAmphoe = formData.billing_same_as_shipping ? formData.shipping_amphoe : formData.billing_amphoe;
-      const billingProvince = formData.billing_same_as_shipping ? formData.shipping_province : formData.billing_province;
-      const billingPostalCode = formData.billing_same_as_shipping ? formData.shipping_postal_code : formData.billing_postal_code;
-
-      const payload = {
-        id: selectedContact.customer.id, name: formData.name, contact_person: formData.contact_person,
-        phone: formData.phone, email: formData.email, customer_type: formData.customer_type,
-        credit_limit: formData.credit_limit, credit_days: formData.credit_days, is_active: formData.is_active,
-        notes: formData.notes,
-        tax_id: formData.needs_tax_invoice ? formData.tax_id : '',
-        tax_company_name: formData.needs_tax_invoice ? formData.tax_company_name : '',
-        tax_branch: formData.needs_tax_invoice ? formData.tax_branch : '',
-        billing_address: billingAddress, billing_district: billingDistrict, billing_amphoe: billingAmphoe,
-        billing_province: billingProvince, billing_postal_code: billingPostalCode
-      };
+      const payload = buildCustomerPayload(formData, selectedContact.customer.id);
 
       const response = await apiFetch('/api/customers', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
@@ -950,8 +934,7 @@ function UnifiedChatPageContent() {
         ...selectedContact.customer, name: formData.name, contact_person: formData.contact_person,
         phone: formData.phone, email: formData.email,
         customer_type: formData.customer_type as 'retail' | 'wholesale' | 'distributor',
-        billing_address: billingAddress, billing_district: billingDistrict, billing_amphoe: billingAmphoe,
-        billing_province: billingProvince, billing_postal_code: billingPostalCode,
+        billing_address: formData.billing_address,
         tax_id: formData.needs_tax_invoice ? formData.tax_id : '',
         tax_company_name: formData.needs_tax_invoice ? formData.tax_company_name : '',
         tax_branch: formData.needs_tax_invoice ? formData.tax_branch : '',
@@ -1216,9 +1199,10 @@ function UnifiedChatPageContent() {
     is_active: selectedContact.customer.is_active ?? true, notes: selectedContact.customer.notes || '',
     needs_tax_invoice: !!selectedContact.customer.tax_id, tax_id: selectedContact.customer.tax_id || '',
     tax_company_name: selectedContact.customer.tax_company_name || '', tax_branch: selectedContact.customer.tax_branch || 'สำนักงานใหญ่',
-    billing_address: selectedContact.customer.billing_address || '', billing_district: selectedContact.customer.billing_district || '',
-    billing_amphoe: selectedContact.customer.billing_amphoe || '', billing_province: selectedContact.customer.billing_province || '',
-    billing_postal_code: selectedContact.customer.billing_postal_code || '', billing_same_as_shipping: false
+    billing_address: [selectedContact.customer.billing_address, selectedContact.customer.billing_district, selectedContact.customer.billing_amphoe, selectedContact.customer.billing_province, selectedContact.customer.billing_postal_code].filter(Boolean).join(' '),
+    shipping_address: '', shipping_district: '', shipping_amphoe: '',
+    shipping_province: '', shipping_postal_code: '',
+    shipping_google_maps_link: '', shipping_delivery_notes: ''
   } : undefined;
 
   return (

@@ -6,6 +6,7 @@ import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
+import { getTabColor } from '@/lib/status-tab-colors';
 import {
   FileText, Loader2, RefreshCw, CheckCircle2,
   AlertCircle, Clock, Package, Eye, Receipt,
@@ -44,11 +45,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 };
 
 const STATUS_TABS = [
-  { key: 'all',            label: 'ทั้งหมด',       active: 'bg-indigo-500',    inactive: 'bg-indigo-50 dark:bg-indigo-950/30',   labelColor: 'text-indigo-600 dark:text-indigo-400',   countColor: 'text-indigo-700 dark:text-indigo-300' },
-  { key: 'sent',           label: 'รอชำระ',        active: 'bg-blue-600',      inactive: 'bg-blue-50 dark:bg-blue-950/50',       labelColor: 'text-blue-600 dark:text-blue-400',       countColor: 'text-blue-700 dark:text-blue-300' },
-  { key: 'partially_paid', label: 'ชำระบางส่วน',   active: 'bg-amber-500',     inactive: 'bg-amber-50 dark:bg-amber-950/50',     labelColor: 'text-amber-600 dark:text-amber-400',     countColor: 'text-amber-700 dark:text-amber-300' },
-  { key: 'paid',           label: 'ชำระแล้ว',      active: 'bg-emerald-600',   inactive: 'bg-emerald-50 dark:bg-emerald-950/50', labelColor: 'text-emerald-600 dark:text-emerald-400', countColor: 'text-emerald-700 dark:text-emerald-300' },
-  { key: 'overdue',        label: 'เกินกำหนด',     active: 'bg-red-500',       inactive: 'bg-red-50 dark:bg-red-950/50',         labelColor: 'text-red-500 dark:text-red-400',         countColor: 'text-red-600 dark:text-red-300' },
+  { key: 'all',            label: 'ทั้งหมด',       ...getTabColor('all') },
+  { key: 'sent',           label: 'รอชำระ',        ...getTabColor('sent') },
+  { key: 'partially_paid', label: 'ชำระบางส่วน',   ...getTabColor('partially_paid') },
+  { key: 'paid',           label: 'ชำระแล้ว',      ...getTabColor('paid') },
+  { key: 'overdue',        label: 'เกินกำหนด',     ...getTabColor('overdue') },
 ];
 
 const THAI_MONTHS = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
@@ -449,7 +450,7 @@ function StatementsContent() {
                           {['sent', 'partially_paid', 'overdue'].includes(st.status) && (
                             <button
                               onClick={() => setPaymentConfirm(st)}
-                              className="flex items-center gap-1.5 px-2.5 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors whitespace-nowrap"
+                              className="btn-focus-action indigo"
                             >
                               <Banknote className="w-4 h-4" />
                               <span className="hidden lg:inline">ลูกค้าชำระแล้ว</span>
@@ -512,7 +513,7 @@ function StatementsContent() {
                       {['sent', 'partially_paid', 'overdue'].includes(st.status) && (
                         <button
                           onClick={() => setPaymentConfirm(st)}
-                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                          className="btn-focus-action indigo flex-1 justify-center"
                         >
                           <Banknote className="w-4 h-4" /> ลูกค้าชำระแล้ว
                         </button>

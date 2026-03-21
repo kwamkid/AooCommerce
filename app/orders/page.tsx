@@ -60,6 +60,7 @@ import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { markOrdersPrinted, updateLocalPrintStatus } from '@/lib/print-tracking';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
+import { getTabColor } from '@/lib/status-tab-colors';
 import { useCompany } from '@/lib/company-context';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
@@ -307,7 +308,7 @@ function OrdersPageContent() {
 
   // Status flow helpers — credit/consignment/dept_store skip ready_to_ship
   const getNextOrderStatus = (currentStatus: string, flowType?: string | null): string | null => {
-    const isCreditFlow = ['w_credit', 'b_credit', 'c_consign', 'd_department', 'd_statement'].includes(flowType || '');
+    const isCreditFlow = ['w_credit', 'c_consign', 'd_statement'].includes(flowType || '');
     if (isCreditFlow) {
       const flow: Record<string, string> = { new: 'processing', processing: 'shipping', shipping: 'completed' };
       return flow[currentStatus] || null;
@@ -560,13 +561,13 @@ function OrdersPageContent() {
     const menuItems: ActionItem[] = [];
 
     // Primary: Payment action (manual, new tab, pending payment, flow A only)
-    const isCreditFlowOrder = ['w_credit', 'b_credit', 'c_consign', 'd_department', 'd_statement'].includes(order.flow_type || '');
+    const isCreditFlowOrder = ['w_credit', 'c_consign', 'd_statement'].includes(order.flow_type || '');
     if (statusFilter === 'new' && !isMarketplace && order.payment_status === 'pending' && !isCreditFlowOrder) {
       primaryActions.push(
         <button
           key="pay"
           onClick={(e) => { e.stopPropagation(); handlePaymentStatusClick(order); }}
-          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5"
+          className="btn-focus-action green"
           title="บันทึกชำระ"
         >
           <CreditCard className="w-4 h-4" />
@@ -576,12 +577,12 @@ function OrdersPageContent() {
     }
 
     // Primary: Accept order (manual, new tab, credit flow — ship first pay later)
-    if (statusFilter === 'new' && !isMarketplace && isCreditFlow) {
+    if (statusFilter === 'new' && !isMarketplace && isCreditFlowOrder) {
       primaryActions.push(
         <button
           key="accept"
           onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }}
-          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
+          className="btn-focus-action indigo"
           title="รับออเดอร์"
         >
           <Package className="w-4 h-4" />
@@ -596,7 +597,7 @@ function OrdersPageContent() {
         <button
           key="complete"
           onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }}
-          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5"
+          className="btn-focus-action green"
           title="สำเร็จ"
         >
           <Package className="w-4 h-4" />
@@ -891,13 +892,13 @@ function OrdersPageContent() {
         {/* Status Tabs */}
         <div className="flex gap-2 overflow-x-auto pb-1">
           {[
-            { key: 'all', label: 'ทั้งหมด', active: 'bg-indigo-600', inactive: 'bg-indigo-50 dark:bg-indigo-950/50', labelColor: 'text-indigo-600 dark:text-indigo-400', countColor: 'text-indigo-700 dark:text-indigo-300' },
-            { key: 'new', label: 'ใหม่', active: 'bg-blue-600', inactive: 'bg-blue-50 dark:bg-blue-950/50', labelColor: 'text-blue-600 dark:text-blue-400', countColor: 'text-blue-700 dark:text-blue-300' },
-            { key: 'ready_to_ship', label: 'รอกดรับ', active: 'bg-orange-500', inactive: 'bg-orange-50 dark:bg-orange-950/50', labelColor: 'text-orange-600 dark:text-orange-400', countColor: 'text-orange-700 dark:text-orange-300' },
-            { key: 'processing', label: 'ที่ต้องจัดส่ง', active: 'bg-indigo-500', inactive: 'bg-indigo-50 dark:bg-indigo-950/50', labelColor: 'text-indigo-500 dark:text-indigo-400', countColor: 'text-indigo-700 dark:text-indigo-300' },
-            { key: 'shipping', label: 'กำลังส่ง', active: 'bg-amber-500', inactive: 'bg-amber-50 dark:bg-amber-950/50', labelColor: 'text-amber-600 dark:text-amber-400', countColor: 'text-amber-700 dark:text-amber-300' },
-            { key: 'completed', label: 'สำเร็จ', active: 'bg-emerald-600', inactive: 'bg-emerald-50 dark:bg-emerald-950/50', labelColor: 'text-emerald-600 dark:text-emerald-400', countColor: 'text-emerald-700 dark:text-emerald-300' },
-            { key: 'cancelled', label: 'ยกเลิก', active: 'bg-gray-500', inactive: 'bg-gray-100 dark:bg-gray-800', labelColor: 'text-gray-500 dark:text-gray-400', countColor: 'text-gray-600 dark:text-gray-300' },
+            { key: 'all', label: 'ทั้งหมด', ...getTabColor('all') },
+            { key: 'new', label: 'ใหม่', ...getTabColor('new') },
+            { key: 'ready_to_ship', label: 'รอกดรับ', ...getTabColor('ready_to_ship') },
+            { key: 'processing', label: 'ที่ต้องจัดส่ง', ...getTabColor('processing') },
+            { key: 'shipping', label: 'กำลังส่ง', ...getTabColor('shipping') },
+            { key: 'completed', label: 'สำเร็จ', ...getTabColor('completed') },
+            { key: 'cancelled', label: 'ยกเลิก', ...getTabColor('cancelled') },
           ].map((s) => {
             const isActive = statusFilter === s.key;
             const count = statusCounts[s.key] || 0;

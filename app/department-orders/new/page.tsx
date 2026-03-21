@@ -1,35 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
-import { ArrowLeft, Building2, Warehouse } from 'lucide-react';
+import { ArrowLeft, Building2 } from 'lucide-react';
 import Link from 'next/link';
-import DepartmentOrderForm from '@/components/department-orders/DepartmentOrderForm';
-import FormSelect from '@/components/ui/FormSelect';
-import { apiFetch } from '@/lib/api-client';
-
-interface WarehouseItem {
-  id: string;
-  name: string;
-  is_default: boolean;
-}
+import DealerOrderForm from '@/components/dealer/DealerOrderForm';
 
 export default function NewDepartmentOrderPage() {
-  const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
-
-  useEffect(() => {
-    apiFetch('/api/warehouses')
-      .then(r => r.json())
-      .then(d => {
-        const whs: WarehouseItem[] = d.warehouses || [];
-        setWarehouses(whs);
-        const def = whs.find(w => w.is_default) || whs[0];
-        if (def) setSelectedWarehouseId(def.id);
-      })
-      .catch(() => {});
-  }, []);
-
   return (
     <Layout>
       <div className="space-y-4">
@@ -44,24 +20,15 @@ export default function NewDepartmentOrderPage() {
           </div>
         </div>
 
-        {/* Warehouse picker */}
-        {warehouses.length > 0 && (
-          <div className="inline-block min-w-[160px]">
-            <FormSelect
-              value={selectedWarehouseId}
-              onChange={setSelectedWarehouseId}
-              options={warehouses.map(w => ({
-                id: w.id,
-                label: `${w.is_default ? '⭐ ' : ''}${w.name}`,
-              }))}
-              icon={<Warehouse className="w-4 h-4" />}
-              placeholder="-- เลือกคลัง --"
-              searchThreshold={99}
-            />
-          </div>
-        )}
-
-        <DepartmentOrderForm warehouseId={selectedWarehouseId} />
+        <DealerOrderForm
+          mode="department"
+          customerTypeFilter="department_store"
+          customerLabel="ห้างสรรพสินค้า"
+          submitLabel="สร้างใบส่งห้าง"
+          summaryTitle="สรุปใบส่งห้าง"
+          showWarehousePicker
+          backUrl="/department-orders"
+        />
       </div>
     </Layout>
   );

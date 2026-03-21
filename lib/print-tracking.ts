@@ -2,13 +2,14 @@ import { apiFetch } from '@/lib/api-client';
 import type { Order } from '@/app/orders/components/types';
 
 // ===== Entity type definitions =====
-export type PrintEntityType = 'order' | 'replenishment' | 'consignment_report' | 'statement';
+export type PrintEntityType = 'order' | 'replenishment' | 'consignment_report' | 'department_store_report' | 'statement';
 
 /** Valid print types per entity */
 export const ENTITY_PRINT_TYPES: Record<PrintEntityType, readonly string[]> = {
   order: ['label', 'packing', 'invoice'],
   replenishment: ['packing', 'dn', 'label'],
   consignment_report: ['invoice', 'statement'],
+  department_store_report: ['invoice', 'statement'],
   statement: ['statement'],
 };
 
@@ -17,6 +18,7 @@ export const ENTITY_TABLE: Record<PrintEntityType, string> = {
   order: 'orders',
   replenishment: 'replenishments',
   consignment_report: 'consignment_reports',
+  department_store_report: 'department_store_reports',
   statement: 'statements',
 };
 

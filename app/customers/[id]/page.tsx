@@ -10,17 +10,13 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import CustomerForm, {
   CustomerFormData,
-  ExistingAddress,
   LinkedContact,
   buildCustomerPayload,
 } from '@/components/customers/CustomerForm';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import { Tag } from '@/components/ui/TagBadge';
-import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
-import { parseThaiAddress } from '@/lib/address-parser';
 import {
   ArrowLeft,
-  MapPin,
   Loader2,
   AlertCircle,
   Save,
@@ -60,24 +56,9 @@ interface Customer {
   portal_access_code?: string | null;
 }
 
-// Phone formatting utilities
-const formatPhoneDisplay = (phone: string): string => {
-  const cleaned = phone.replace(/\D/g, '');
-  if (cleaned.length === 10 && cleaned.startsWith('0')) return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-  if (cleaned.length === 9 && cleaned.startsWith('0')) return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 5)}-${cleaned.slice(5)}`;
-  return phone;
-};
-
-const normalizePhone = (phone: string): string => {
-  let cleaned = phone.replace(/\D/g, '');
-  if (cleaned.startsWith('66')) cleaned = '0' + cleaned.slice(2);
-  if (cleaned.length === 9 && !cleaned.startsWith('0')) cleaned = '0' + cleaned;
-  return cleaned;
-};
-
 export default function CustomerEditPage() {
   const { userProfile, loading: authLoading } = useAuth();
-  const { confirmDialog, confirm } = useConfirmDialog();
+  const { confirmDialog } = useConfirmDialog();
   const { showToast } = useToast();
   const router = useRouter();
   const params = useParams();
@@ -86,36 +67,18 @@ export default function CustomerEditPage() {
   const canEdit = userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('sales');
 
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [addresses, setAddresses] = useState<ExistingAddress[]>([]);
-  const [defaultAddressId, setDefaultAddressId] = useState<string | null>(null);
   const [linkedContacts, setLinkedContacts] = useState<LinkedContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [regeneratingCode, setRegeneratingCode] = useState(false);
+  const [hasOrders, setHasOrders] = useState(false);
 
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
+  const [defaultAddressId, setDefaultAddressId] = useState<string | null>(null);
 
-  // Form data (populated from customer + default shipping address)
+  // Form data
   const [formData, setFormData] = useState<CustomerFormData | null>(null);
-
-  // Address modal (for editing/adding non-default addresses)
-  const [showAddressModal, setShowAddressModal] = useState(false);
-  const [editingAddress, setEditingAddress] = useState<ExistingAddress | null>(null);
-  const [regeneratingCode, setRegeneratingCode] = useState(false);
-  const [addressForm, setAddressForm] = useState({
-    address_name: '',
-    contact_person: '',
-    phone: '',
-    address_line1: '',
-    district: '',
-    amphoe: '',
-    province: '',
-    postal_code: '',
-    google_maps_link: '',
-    delivery_notes: '',
-    is_default: false
-  });
-  const [addressPhoneDisplay, setAddressPhoneDisplay] = useState('');
 
   useEffect(() => {
     if (!authLoading && userProfile && customerId) {
@@ -127,22 +90,28 @@ export default function CustomerEditPage() {
     try {
       setLoading(true);
 
-      const [customerRes, addressRes, linkedRes, tagsRes, customerTagsRes] = await Promise.all([
+      const [customerRes, linkedRes, tagsRes, customerTagsRes, ordersRes, addressRes] = await Promise.all([
         apiFetch(`/api/customers?search=${customerId}`),
-        apiFetch(`/api/shipping-addresses?customer_id=${customerId}`),
         apiFetch(`/api/chat/contacts?customer_id=${customerId}`),
         apiFetch('/api/customers/tags'),
         apiFetch(`/api/customers/${customerId}/tags`),
+        apiFetch(`/api/orders?customer_id=${customerId}&limit=1`),
+        apiFetch(`/api/shipping-addresses?customer_id=${customerId}`),
       ]);
 
       const customerResult = await customerRes.json();
-      const addressResult = await addressRes.json();
       const linkedResult = await linkedRes.json();
       setLinkedContacts(linkedResult.linked_contacts || []);
       const tagsResult = await tagsRes.json();
       if (tagsResult.tags) setAllTags(tagsResult.tags);
       const customerTagsResult = await customerTagsRes.json();
       if (customerTagsResult.tags) setSelectedTags(customerTagsResult.tags);
+      const ordersResult = await ordersRes.json();
+      setHasOrders((ordersResult.orders?.length || 0) > 0);
+      const addressResult = await addressRes.json();
+      const addrs = addressResult.addresses || [];
+      const defaultAddr = addrs.find((a: { is_default: boolean }) => a.is_default) || addrs[0] || null;
+      setDefaultAddressId(defaultAddr?.id || null);
 
       if (!customerRes.ok) throw new Error(customerResult.error || 'Failed to fetch customer');
 
@@ -151,18 +120,6 @@ export default function CustomerEditPage() {
 
       const customerData: Customer = { ...data, customer_type: data.customer_type || 'retail' };
       setCustomer(customerData);
-
-      const addrs: ExistingAddress[] = addressResult.addresses || [];
-      setAddresses(addrs);
-
-      const defaultAddr = addrs.find(a => a.is_default) || addrs[0] || null;
-      setDefaultAddressId(defaultAddr?.id || null);
-
-      const storedBilling = [customerData.billing_address, customerData.billing_district, customerData.billing_amphoe, customerData.billing_province, customerData.billing_postal_code].filter(Boolean).join(' ');
-      const shippingCombined = defaultAddr
-        ? [defaultAddr.address_line1, defaultAddr.district, defaultAddr.amphoe, defaultAddr.province, defaultAddr.postal_code].filter(Boolean).join(' ')
-        : '';
-      const billingSameAsShipping = !storedBilling || storedBilling === shippingCombined;
 
       setFormData({
         name: customerData.name || '',
@@ -175,10 +132,6 @@ export default function CustomerEditPage() {
         credit_days: customerData.credit_days || 0,
         is_active: customerData.is_active,
         notes: customerData.notes || '',
-        has_multiple_branches: addrs.length > 1,
-        shipping_address_name: defaultAddr?.address_name || 'ที่อยู่หลัก',
-        shipping_contact_person: defaultAddr?.contact_person || '',
-        shipping_phone: defaultAddr?.phone || '',
         shipping_address: defaultAddr?.address_line1 || '',
         shipping_district: defaultAddr?.district || '',
         shipping_amphoe: defaultAddr?.amphoe || '',
@@ -186,16 +139,12 @@ export default function CustomerEditPage() {
         shipping_postal_code: defaultAddr?.postal_code || '',
         shipping_google_maps_link: defaultAddr?.google_maps_link || '',
         shipping_delivery_notes: defaultAddr?.delivery_notes || '',
+        billing_address: [customerData.billing_address, customerData.billing_district, customerData.billing_amphoe, customerData.billing_province, customerData.billing_postal_code].filter(Boolean).join(' '),
         needs_tax_invoice: !!(customerData.tax_id || customerData.tax_company_name),
+        tax_type: (customerData as Record<string, unknown>).tax_type as 'personal' | 'corporate' || 'corporate',
         tax_company_name: customerData.tax_company_name || '',
         tax_id: customerData.tax_id || '',
         tax_branch: customerData.tax_branch || 'สำนักงานใหญ่',
-        billing_same_as_shipping: !!billingSameAsShipping,
-        billing_address: storedBilling || '',
-        billing_district: '',
-        billing_amphoe: '',
-        billing_province: '',
-        billing_postal_code: '',
         consignment_gp_rate: customerData.consignment_gp_rate ?? '',
         consignment_gp_base_price: (customerData.consignment_gp_base_price as 'retail' | 'discounted' | null) ?? null,
       });
@@ -205,16 +154,6 @@ export default function CustomerEditPage() {
       showToast('ไม่สามารถโหลดข้อมูลลูกค้าได้', 'error');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchAddresses = async () => {
-    try {
-      const res = await apiFetch(`/api/shipping-addresses?customer_id=${customerId}`);
-      const result = await res.json();
-      if (res.ok) setAddresses(result.addresses || []);
-    } catch (err) {
-      console.error('Error fetching addresses:', err);
     }
   };
 
@@ -235,37 +174,36 @@ export default function CustomerEditPage() {
       const customerResult = await customerRes.json();
       if (!customerRes.ok) throw new Error(customerResult.error || 'ไม่สามารถบันทึกข้อมูลลูกค้าได้');
 
-      // Update or create default shipping address
-      const shippingPayload = {
-        address_name: data.shipping_address_name || 'ที่อยู่หลัก',
-        contact_person: data.shipping_contact_person || data.contact_person,
-        phone: data.shipping_phone || data.phone,
-        address_line1: data.shipping_address,
-        district: data.shipping_district,
-        amphoe: data.shipping_amphoe,
-        province: data.shipping_province,
-        postal_code: data.shipping_postal_code,
-        google_maps_link: data.shipping_google_maps_link,
-        delivery_notes: data.shipping_delivery_notes,
-        is_default: true,
-      };
-
-      if (defaultAddressId) {
-        const addrRes = await apiFetch('/api/shipping-addresses', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: defaultAddressId, ...shippingPayload }),
-        });
-        const addrResult = await addrRes.json();
-        if (!addrRes.ok) console.error('shipping PUT failed:', addrResult);
-      } else if (data.shipping_province) {
-        const addrRes = await apiFetch('/api/shipping-addresses', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customer_id: customerId, ...shippingPayload }),
-        });
-        const addrResult = await addrRes.json();
-        if (addrRes.ok && addrResult.address?.id) setDefaultAddressId(addrResult.address.id);
+      // Save/update shipping address
+      if (data.shipping_address || data.shipping_province) {
+        const shippingPayload = {
+          address_name: 'ที่อยู่หลัก',
+          contact_person: data.contact_person || '',
+          phone: data.phone || '',
+          address_line1: data.shipping_address,
+          district: data.shipping_district,
+          amphoe: data.shipping_amphoe,
+          province: data.shipping_province,
+          postal_code: data.shipping_postal_code,
+          google_maps_link: data.shipping_google_maps_link,
+          delivery_notes: data.shipping_delivery_notes,
+          is_default: true,
+        };
+        if (defaultAddressId) {
+          await apiFetch('/api/shipping-addresses', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: defaultAddressId, ...shippingPayload }),
+          });
+        } else {
+          const addrRes = await apiFetch('/api/shipping-addresses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customer_id: customerId, ...shippingPayload }),
+          });
+          const addrResult = await addrRes.json();
+          if (addrRes.ok && addrResult.address?.id) setDefaultAddressId(addrResult.address.id);
+        }
       }
 
       // Save tags
@@ -302,81 +240,6 @@ export default function CustomerEditPage() {
     }
   };
 
-  // Address modal handlers
-  const handleEditAddress = (address: ExistingAddress) => {
-    setEditingAddress(address);
-    setAddressForm({
-      address_name: address.address_name,
-      contact_person: address.contact_person || '',
-      phone: address.phone || '',
-      address_line1: address.address_line1,
-      district: address.district || '',
-      amphoe: address.amphoe || '',
-      province: address.province,
-      postal_code: address.postal_code || '',
-      google_maps_link: address.google_maps_link || '',
-      delivery_notes: address.delivery_notes || '',
-      is_default: address.is_default
-    });
-    setAddressPhoneDisplay(address.phone ? formatPhoneDisplay(address.phone) : '');
-    setShowAddressModal(true);
-  };
-
-  const handleAddAddress = () => {
-    setEditingAddress(null);
-    setAddressForm({
-      address_name: '', contact_person: '', phone: '',
-      address_line1: '', district: '', amphoe: '', province: '',
-      postal_code: '', google_maps_link: '', delivery_notes: '', is_default: false
-    });
-    setAddressPhoneDisplay('');
-    setShowAddressModal(true);
-  };
-
-  const handleSaveAddress = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const method = editingAddress ? 'PUT' : 'POST';
-      const payload = editingAddress
-        ? { id: editingAddress.id, ...addressForm }
-        : { customer_id: customerId, ...addressForm };
-
-      const res = await apiFetch('/api/shipping-addresses', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const result = await res.json();
-        throw new Error(result.error || 'เกิดข้อผิดพลาด');
-      }
-
-      showToast(editingAddress ? 'อัพเดทที่อยู่สำเร็จ' : 'เพิ่มที่อยู่สำเร็จ', 'success');
-      setShowAddressModal(false);
-      fetchAddresses();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteAddress = async (addressId: string) => {
-    const ok = await confirm({ title: 'ต้องการลบที่อยู่นี้?', variant: 'danger' });
-    if (!ok) return;
-    try {
-      const res = await apiFetch(`/api/shipping-addresses?id=${addressId}`, { method: 'DELETE' });
-      if (res.ok) {
-        showToast('ลบที่อยู่สำเร็จ', 'success');
-        fetchAddresses();
-      }
-    } catch {
-      showToast('ไม่สามารถลบที่อยู่ได้', 'error');
-    }
-  };
-
   const handleRegenerateCode = async () => {
     if (!customer) return;
     setRegeneratingCode(true);
@@ -392,8 +255,6 @@ export default function CustomerEditPage() {
       setRegeneratingCode(false);
     }
   };
-
-  const inputClass = "w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] dark:bg-slate-900 dark:text-white";
 
   if (authLoading || loading) {
     return (
@@ -419,9 +280,6 @@ export default function CustomerEditPage() {
     );
   }
 
-  // Non-default addresses (shown as existing cards in form)
-  const additionalAddresses = addresses.filter(a => a.id !== defaultAddressId);
-
   return (
     <Layout>
       <div className="space-y-6">
@@ -443,19 +301,6 @@ export default function CustomerEditPage() {
               </div>
             </div>
           </div>
-          {canEdit && (
-            <button
-              onClick={() => {
-                const form = document.getElementById('customer-edit-form') as HTMLFormElement;
-                form?.requestSubmit();
-              }}
-              disabled={saving}
-              className="bg-[#F4511E] text-white px-5 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {saving ? 'กำลังบันทึก...' : 'บันทึก'}
-            </button>
-          )}
         </div>
 
         {!canEdit && (
@@ -551,6 +396,7 @@ export default function CustomerEditPage() {
             customerId={customerId}
             isEditing={true}
             isLoading={saving}
+            lockCustomerType={hasOrders}
             onSubmit={handleSave}
             onCancel={() => router.push('/customers')}
             allTags={allTags}
@@ -558,10 +404,6 @@ export default function CustomerEditPage() {
             onTagsChange={setSelectedTags}
             onTagCreated={(tag) => setAllTags(prev => [...prev, tag])}
             linkedContacts={linkedContacts}
-            existingAddresses={additionalAddresses}
-            onEditAddress={canEdit ? handleEditAddress : undefined}
-            onDeleteAddress={canEdit ? handleDeleteAddress : undefined}
-            onAddAddress={canEdit ? handleAddAddress : undefined}
             onNavigateToChat={(id, platform) => router.push(`/chat?contact_id=${id}&platform=${platform}`)}
           />
         </div>
@@ -590,127 +432,6 @@ export default function CustomerEditPage() {
           </div>
         )}
       </div>
-
-      {/* Address Modal (for editing/adding non-default addresses) */}
-      {showAddressModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowAddressModal(false)}
-          onKeyDown={(e) => { if (e.key === 'Escape') setShowAddressModal(false); }}
-        >
-          <div className="bg-white dark:bg-slate-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6">
-              <h2 className="text-2xl font-bold mb-6 dark:text-white">
-                {editingAddress ? 'แก้ไขที่อยู่จัดส่ง' : 'เพิ่มที่อยู่จัดส่ง'}
-              </h2>
-
-              <form onSubmit={handleSaveAddress}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      ชื่อที่อยู่ <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={addressForm.address_name}
-                      onChange={(e) => setAddressForm({ ...addressForm, address_name: e.target.value })}
-                      className={inputClass}
-                      placeholder="เช่น สาขาลาดพร้าว, คลังบางนา"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ผู้รับสินค้า</label>
-                      <input type="text" value={addressForm.contact_person}
-                        onChange={(e) => setAddressForm({ ...addressForm, contact_person: e.target.value })} className={inputClass} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทรผู้รับ</label>
-                      <input type="tel" value={addressPhoneDisplay}
-                        onChange={(e) => {
-                          const normalized = normalizePhone(e.target.value);
-                          setAddressPhoneDisplay(e.target.value);
-                          setAddressForm({ ...addressForm, phone: normalized });
-                        }}
-                        className={inputClass} placeholder="0xx-xxx-xxxx" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่จัดส่ง</label>
-                    <textarea
-                      value={addressForm.address_line1}
-                      onChange={(e) => setAddressForm({ ...addressForm, address_line1: e.target.value })}
-                      onPaste={(e) => {
-                        const pasted = e.clipboardData.getData('text');
-                        if (pasted.length > 20) {
-                          const parsed = parseThaiAddress(pasted);
-                          if (parsed) {
-                            e.preventDefault();
-                            setAddressForm(prev => ({
-                              ...prev,
-                              address_line1: parsed.address || pasted,
-                              district: parsed.district || prev.district,
-                              amphoe: parsed.amphoe || prev.amphoe,
-                              province: parsed.province || prev.province,
-                              postal_code: parsed.postal_code || prev.postal_code,
-                            }));
-                          }
-                        }
-                      }}
-                      className={inputClass}
-                      rows={2}
-                      placeholder="วางที่อยู่เต็ม — ระบบจะแยกตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์ให้อัตโนมัติ"
-                    />
-                  </div>
-
-                  <ThaiAddressInput
-                    district={addressForm.district} amphoe={addressForm.amphoe}
-                    province={addressForm.province} postalCode={addressForm.postal_code}
-                    onAddressChange={(addr) => setAddressForm(prev => ({
-                      ...prev,
-                      ...(addr.district !== undefined && { district: addr.district }),
-                      ...(addr.amphoe !== undefined && { amphoe: addr.amphoe }),
-                      ...(addr.province !== undefined && { province: addr.province }),
-                      ...(addr.postalCode !== undefined && { postal_code: addr.postalCode }),
-                    }))}
-                    inputClassName={inputClass}
-                  />
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 flex items-center gap-1">
-                      <MapPin className="w-4 h-4" />Google Maps Link
-                    </label>
-                    <input type="url" value={addressForm.google_maps_link}
-                      onChange={(e) => setAddressForm({ ...addressForm, google_maps_link: e.target.value })}
-                      className={inputClass} placeholder="วาง link Google Maps" />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุสำหรับการจัดส่ง</label>
-                    <textarea value={addressForm.delivery_notes}
-                      onChange={(e) => setAddressForm({ ...addressForm, delivery_notes: e.target.value })}
-                      className={inputClass} rows={2} placeholder="เช่น ส่งช่วงเช้า, โทรก่อนส่ง" />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 mt-6">
-                  <button type="button" onClick={() => setShowAddressModal(false)}
-                    className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 dark:bg-slate-900" disabled={saving}>
-                    ยกเลิก
-                  </button>
-                  <button type="submit"
-                    className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] disabled:opacity-50 flex items-center" disabled={saving}>
-                    {saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />กำลังบันทึก...</>) : 'บันทึก'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
       {confirmDialog}
     </Layout>
   );

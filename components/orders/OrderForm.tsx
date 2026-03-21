@@ -19,6 +19,8 @@ import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker'
 import FormSelect from '@/components/ui/FormSelect';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
+import CustomerInfoCard from '@/components/ui/CustomerInfoCard';
+import TaxInvoiceInfo from '@/components/ui/TaxInvoiceInfo';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import {
   Plus,
@@ -1662,9 +1664,7 @@ export default function OrderForm({
                   className={`flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg h-full ${shippingAddresses.length > 1 && !isReadOnly ? 'cursor-pointer' : ''}`}
                   onClick={() => { if (shippingAddresses.length > 1 && !isReadOnly) setShowAddressDropdown(!showAddressDropdown); }}
                 >
-                  <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-900 dark:text-slate-200">{selectedCustomer.name}</div>
+                  <CustomerInfoCard customer={selectedCustomer}>
                     {shippingAddresses.length > 0 && (
                       <div className="text-sm text-gray-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
                         <MapPin className="w-3 h-3 flex-shrink-0" />
@@ -1672,7 +1672,7 @@ export default function OrderForm({
                         {shippingAddresses.length > 1 && !isReadOnly && <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />}
                       </div>
                     )}
-                  </div>
+                  </CustomerInfoCard>
                   {!isReadOnly && !preselectedCustomerId && (
                     <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedCustomer(null); setCustomerSearch(''); setShippingAddresses([]); setSelectedAddressId(''); setCustomerPrices({}); setShowAddressDropdown(false); setTaxName(''); setTaxTaxId(''); setTaxBranch('สำนักงานใหญ่'); setTaxAddress(''); setTaxInvoiceRequested(false); }} className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors">
                       <X className="w-3.5 h-3.5 text-gray-400" />
@@ -1784,28 +1784,15 @@ export default function OrderForm({
               <span className="text-base font-medium text-[#F4511E] dark:text-orange-400">ขอใบกำกับภาษี</span>
             </label>
             {taxInvoiceRequested && (
-              <div className="mt-3 space-y-3">
-                {/* Row 1: ชื่อกิจการ */}
-                <div>
-                  <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
-                  <input type="text" value={taxName} onChange={(e) => setTaxName(e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="บริษัท XXX จำกัด" />
-                </div>
-                {/* Row 2: เลขผู้เสียภาษี + สาขา */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">เลขประจำตัวผู้เสียภาษี</label>
-                    <input type="text" value={taxTaxId} onChange={(e) => setTaxTaxId(e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
-                  </div>
-                  <div>
-                    <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">สาขา</label>
-                    <input type="text" value={taxBranch} onChange={(e) => setTaxBranch(e.target.value)} disabled={isReadOnly} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="สำนักงานใหญ่" />
-                  </div>
-                </div>
-                {/* Row 3: ที่อยู่ออกบิล */}
-                <div>
-                  <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">ที่อยู่ออกบิล</label>
-                  <textarea value={taxAddress} onChange={(e) => setTaxAddress(e.target.value)} rows={2} disabled={isReadOnly} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E] resize-none disabled:bg-gray-100 dark:disabled:bg-slate-800" placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์" />
-                </div>
+              <div className="mt-2">
+                <TaxInvoiceInfo
+                  customerName={selectedCustomer?.name || ''}
+                  taxCompanyName={taxName} taxId={taxTaxId} taxBranch={taxBranch} billingAddress={taxAddress}
+                  onEdit={!isReadOnly ? (data) => {
+                    setTaxName(data.tax_company_name); setTaxTaxId(data.tax_id);
+                    setTaxBranch(data.tax_branch); setTaxAddress(data.billing_address);
+                  } : undefined}
+                />
               </div>
             )}
           </div>

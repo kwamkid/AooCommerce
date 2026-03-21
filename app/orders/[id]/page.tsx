@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import OrderForm from '@/components/orders/OrderForm';
 import { useAuth } from '@/lib/auth-context';
@@ -115,10 +115,12 @@ interface PaymentRecord {
   status?: string; // 'pending' | 'verified' | 'rejected'
 }
 
-export default function OrderDetailPage() {
+export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?: string } = {}) {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const orderId = params.id as string;
+  const backUrl = overrideBackUrl || searchParams.get('back') || '/orders';
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const { features } = useFeatures();
@@ -825,7 +827,7 @@ export default function OrderDetailPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push('/orders')}
+              onClick={() => router.push(backUrl)}
               className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors print:hidden"
             >
               <ArrowLeft className="w-6 h-6 text-gray-600 dark:text-slate-300" />

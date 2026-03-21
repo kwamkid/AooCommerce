@@ -23,6 +23,10 @@ interface Props {
   /** Input class */
   inputClassName?: string;
   labelClassName?: string;
+  /** Show required marker on tax_id */
+  required?: boolean;
+  /** Error message for tax_id field */
+  taxIdError?: string;
 }
 
 /**
@@ -38,6 +42,8 @@ export default function TaxInfoForm({
   readOnly,
   inputClassName = 'w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50',
   labelClassName = 'block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1',
+  required,
+  taxIdError,
 }: Props) {
   return (
     <div className="space-y-4">
@@ -96,13 +102,14 @@ export default function TaxInfoForm({
       {data.tax_type === 'corporate' ? (
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={labelClassName}>เลขประจำตัวผู้เสียภาษี</label>
+            <label className={labelClassName}>เลขประจำตัวผู้เสียภาษี{required && <span className="text-red-500 ml-0.5">*</span>}</label>
             {readOnly
               ? <p className="text-sm text-gray-900 dark:text-white">{data.tax_id || '-'}</p>
-              : <input type="text" value={data.tax_id}
+              : <input type="text" data-field="tax_id" value={data.tax_id}
                   onChange={e => onChange({ tax_id: e.target.value })}
-                  className={inputClassName} placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
+                  className={`${inputClassName} ${taxIdError ? 'border-red-400 ring-1 ring-red-400' : ''}`} placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
             }
+            {taxIdError && <p className="text-red-500 text-xs mt-1">{taxIdError}</p>}
           </div>
           <div>
             <label className={labelClassName}>สาขา</label>
@@ -116,13 +123,14 @@ export default function TaxInfoForm({
         </div>
       ) : (
         <div>
-          <label className={labelClassName}>เลขประจำตัวประชาชน</label>
+          <label className={labelClassName}>เลขประจำตัวประชาชน{required && <span className="text-red-500 ml-0.5">*</span>}</label>
           {readOnly
             ? <p className="text-sm text-gray-900 dark:text-white">{data.tax_id || '-'}</p>
             : <input type="text" value={data.tax_id}
                 onChange={e => onChange({ tax_id: e.target.value })}
-                className={inputClassName} placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
+                className={`${inputClassName} ${taxIdError ? 'border-red-400 ring-1 ring-red-400' : ''}`} placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
           }
+          {taxIdError && <p className="text-red-500 text-xs mt-1">{taxIdError}</p>}
         </div>
       )}
 

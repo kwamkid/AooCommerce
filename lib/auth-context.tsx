@@ -38,7 +38,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const PUBLIC_ROUTES = ['/login', '/register', '/auth/callback', '/line-callback', '/onboarding', '/bills', '/transfers/receive', '/supplier-portal'];
+const PUBLIC_ROUTES = ['/login', '/register', '/auth/callback', '/line-callback', '/onboarding', '/bills', '/transfers/receive', '/replenishments/receive', '/portal/consignment', '/supplier-portal'];
 const STORAGE_KEY = 'aoo-current-company-id';
 const AUTH_CACHE_KEY = 'aoo-auth-cache';
 const AUTH_CACHE_TTL = 30 * 60 * 1000; // 30 minutes — refreshed on role/company changes

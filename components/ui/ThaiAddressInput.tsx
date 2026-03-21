@@ -18,6 +18,8 @@ interface ThaiAddressInputProps {
   dropdownClassName?: string;
   dropdownStyle?: React.CSSProperties;
   showLabels?: boolean;
+  /** Error message for province field */
+  provinceError?: string;
 }
 
 type FieldType = 'district' | 'amphoe' | 'province' | 'zipcode';
@@ -34,6 +36,7 @@ export default function ThaiAddressInput({
   inputStyle,
   labelClassName,
   dropdownClassName,
+  provinceError,
   dropdownStyle,
   showLabels = true,
 }: ThaiAddressInputProps) {
@@ -212,9 +215,11 @@ export default function ThaiAddressInput({
             placeholder="พิมพ์จังหวัด"
             disabled={disabled}
             autoComplete="off"
-            className={inputClass}
+            data-field="shipping_province"
+            className={`${inputClass} ${provinceError ? 'border-red-400 ring-1 ring-red-400' : ''}`}
             style={inputStyle}
           />
+          {provinceError && <p className="text-red-500 text-xs mt-1">{provinceError}</p>}
         </div>
         <div ref={(el) => { fieldRefs.current.zipcode = el; }}>
           {showLabels && <label className={lblClass}>รหัสไปรษณีย์</label>}

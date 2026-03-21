@@ -18,6 +18,8 @@ import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import { type GpResolverContext, resolveGp, fetchGpContext } from '@/lib/gp-resolver';
 import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/replenishment-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
+import CustomerInfoCard from '@/components/ui/CustomerInfoCard';
+import TaxInvoiceInfo from '@/components/ui/TaxInvoiceInfo';
 
 interface Customer {
   id: string;
@@ -32,6 +34,7 @@ interface Customer {
   province: string | null;
   postal_code: string | null;
   customer_type: string | null;
+  tax_company_name: string | null;
   tax_id: string | null;
   tax_branch: string | null;
   billing_address: string | null;
@@ -713,50 +716,21 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         {/* Customer Info */}
         {selectedCustomer && (() => {
           const c = selectedCustomer;
-          const billingParts = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean);
-          const shippingParts = [c.address_line1, c.district, c.amphoe, c.province, c.postal_code].filter(Boolean);
-          const addressParts = billingParts.length > 0 ? billingParts : shippingParts;
-          const addressLabel = billingParts.length > 0 ? 'ที่อยู่ออกบิล' : shippingParts.length > 0 ? 'ที่อยู่จัดส่ง' : null;
+          const billingFull = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
 
-          if (isDisabled) {
-            return (
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500 dark:text-slate-400">
-                {c.contact_person && <span>ติดต่อ: {c.contact_person}</span>}
-                {c.phone && <span>โทร: {c.phone}</span>}
-                {c.tax_id && <span>เลขผู้เสียภาษี: {c.tax_id}{c.tax_branch ? ` (${c.tax_branch})` : ''}</span>}
-                {addressParts.length > 0 && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3 h-3 flex-shrink-0" />
-                    {addressParts.join(', ')}
-                  </span>
-                )}
-              </div>
-            );
-          }
-
-          return (
+          return isDisabled ? (
+            <div className="mt-2">
+              <CustomerInfoCard customer={c} compact />
+              <TaxInvoiceInfo customerName={c.name}
+                taxCompanyName={c.tax_company_name || ''} taxId={c.tax_id || ''}
+                taxBranch={c.tax_branch || ''} billingAddress={billingFull} compact />
+            </div>
+          ) : (
             <div className="mt-3 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg">
-              <div className="flex items-start gap-2">
-                {loadingGpData
-                  ? <Loader2 className="w-4 h-4 text-[#F4511E] flex-shrink-0 mt-0.5 animate-spin" />
-                  : <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0 mt-0.5" />
-                }
-                <div className="flex-1 min-w-0 flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
-                  {c.contact_person && <span className="text-gray-600 dark:text-slate-300">ติดต่อ: <span className="font-medium">{c.contact_person}</span></span>}
-                  {c.phone && <span className="text-gray-500 dark:text-slate-400">โทร: {c.phone}</span>}
-                  {c.email && <span className="text-gray-500 dark:text-slate-400">อีเมล: {c.email}</span>}
-                  {c.tax_id && <span className="text-gray-500 dark:text-slate-400">เลขผู้เสียภาษี: {c.tax_id}{c.tax_branch ? ` (${c.tax_branch})` : ''}</span>}
-                  {addressParts.length > 0 && (
-                    <span className="text-gray-500 dark:text-slate-400 flex items-center gap-1">
-                      <MapPin className="w-3 h-3 flex-shrink-0" />
-                      <span><span className="text-gray-600 dark:text-slate-300 font-medium">{addressLabel}: </span>{addressParts.join(', ')}</span>
-                    </span>
-                  )}
-                  {!c.contact_person && !c.phone && !c.email && addressParts.length === 0 && (
-                    <span className="text-gray-400 dark:text-slate-500 italic">ยังไม่มีข้อมูลเพิ่มเติม</span>
-                  )}
-                </div>
-              </div>
+              <CustomerInfoCard customer={c} loading={loadingGpData} />
+              <TaxInvoiceInfo customerName={c.name}
+                taxCompanyName={c.tax_company_name || ''} taxId={c.tax_id || ''}
+                taxBranch={c.tax_branch || ''} billingAddress={billingFull} />
             </div>
           );
         })()}

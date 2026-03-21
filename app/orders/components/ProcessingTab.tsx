@@ -877,7 +877,7 @@ export default function ProcessingTab({
     if (!isMarketplace && !isOnHold && order.payment_status === 'pending') {
       primaryActions.push(
         <button key="pay" onClick={(e) => { e.stopPropagation(); onPaymentClick?.(order); }}
-          className="px-2.5 py-1.5 md:px-3 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1" title="บันทึกชำระ">
+          className="btn-focus-action green" title="บันทึกชำระ">
           <CreditCard className="w-3.5 h-3.5" /> <span className="hidden md:inline">บันทึกชำระ</span>
         </button>
       );
@@ -886,7 +886,7 @@ export default function ProcessingTab({
     if (!isMarketplace && !isOnHold) {
       primaryActions.push(
         <button key="ship" onClick={(e) => { e.stopPropagation(); setShipModal({ order }); }}
-          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1.5" title="จัดส่งแล้ว">
+          className="btn-focus-action amber" title="จัดส่งแล้ว">
           <Package className="w-4 h-4" /> <span className="hidden md:inline">จัดส่งแล้ว</span>
         </button>
       );
@@ -895,7 +895,7 @@ export default function ProcessingTab({
     if (isOnHold) {
       primaryActions.push(
         <button key="unhold" onClick={(e) => { e.stopPropagation(); handleUnhold(order.id); }} disabled={actionLoading}
-          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5 disabled:opacity-50" title="กลับมา">
+          className="btn-focus-action green" title="กลับมา">
           <Play className="w-4 h-4" /> <span className="hidden md:inline">กลับมา</span>
         </button>
       );
@@ -1172,7 +1172,7 @@ export default function ProcessingTab({
               </button>
               <button
                 onClick={() => handleBulkPrintInvoices(Array.from(selectedIds))}
-                className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1.5"
+                className="btn-focus-action green"
               >
                 <Banknote className="w-4 h-4" />
                 <span className="hidden md:inline">ใบกำกับ/ใบเสร็จ</span> ({selectedIds.size})

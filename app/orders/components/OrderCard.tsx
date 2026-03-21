@@ -132,7 +132,7 @@ export default function OrderCard({
             {(order.flow_type === 'w_cash') && (
               <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300 flex-shrink-0">ขายส่ง</span>
             )}
-            {(order.flow_type === 'w_credit' || order.flow_type === 'b_credit') && (
+            {order.flow_type === 'w_credit' && (
               <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 flex-shrink-0">เครดิต</span>
             )}
             {order.flow_type === 'c_consign' && (

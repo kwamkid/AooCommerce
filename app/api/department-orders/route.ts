@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { deductStock } from '@/lib/stock-service';
 
 // GET /api/department-orders
 export async function GET(request: NextRequest) {
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { customer_id, notes, internal_notes, items } = body;
+    const { customer_id, warehouse_id, notes, internal_notes, items } = body;
 
     if (!customer_id) {
       return NextResponse.json({ error: 'customer_id is required' }, { status: 400 });
@@ -132,6 +133,7 @@ export async function POST(request: NextRequest) {
         company_id: auth.companyId,
         department_order_number: numberData,
         customer_id,
+        warehouse_id: warehouse_id || null,
         status: 'draft',
         notes: notes || null,
         internal_notes: internal_notes || null,
@@ -171,6 +173,30 @@ export async function POST(request: NextRequest) {
     if (itemsError) {
       await supabaseAdmin.from('department_orders').delete().eq('id', order.id);
       return NextResponse.json({ error: itemsError.message }, { status: 500 });
+    }
+
+    // Deduct stock from selected warehouse
+    if (warehouse_id) {
+      try {
+        for (const item of items) {
+          const varId = item.variation_id || null;
+          if (!varId || !item.quantity || item.quantity <= 0) continue;
+          await deductStock({
+            supabase: supabaseAdmin,
+            companyId: auth.companyId!,
+            warehouseId: warehouse_id,
+            variationId: varId,
+            qty: item.quantity,
+            referenceType: 'department_order',
+            referenceId: order.id,
+            notes: `ตัดสต๊อกจากใบส่งห้าง ${order.department_order_number}`,
+            createdBy: auth.userId,
+          });
+        }
+      } catch (stockErr) {
+        console.error('Department order stock deduction error:', stockErr);
+        // ไม่ block — order สร้างสำเร็จแล้ว แค่ตัด stock ไม่ได้
+      }
     }
 
     return NextResponse.json({
