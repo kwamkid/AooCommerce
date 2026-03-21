@@ -25,12 +25,12 @@ import {
   Loader2,
   Award,
   AlertCircle,
-  MoreVertical,
   FilterX,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Checkbox from '@/components/ui/Checkbox';
+import SharedActionMenu from '@/app/orders/components/ActionMenu';
 import SearchableDropdown, { DropdownOption } from '@/components/ui/SearchableDropdown';
 import FormSelect from '@/components/ui/FormSelect';
 
@@ -116,58 +116,17 @@ function ActiveBadge({ isActive }: { isActive: boolean }) {
   );
 }
 
-function ActionMenu({ productId, onEdit, onDuplicate, onDelete }: {
-  productId: string;
+function ProductActionMenu({ onEdit, onDuplicate, onDelete }: {
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
   return (
-    <div ref={ref} className="relative inline-block">
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-      >
-        <MoreVertical className="w-4 h-4" />
-      </button>
-      {open && (
-        <div className="absolute right-0 z-50 mt-1 w-40 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg py-1">
-          <button
-            onClick={() => { setOpen(false); onEdit(); }}
-            className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
-          >
-            <Edit2 className="w-3.5 h-3.5" />
-            แก้ไข
-          </button>
-          <button
-            onClick={() => { setOpen(false); onDuplicate(); }}
-            className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
-          >
-            <Copy className="w-3.5 h-3.5" />
-            คัดลอก
-          </button>
-          <button
-            onClick={() => { setOpen(false); onDelete(); }}
-            className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            ลบ
-          </button>
-        </div>
-      )}
-    </div>
+    <SharedActionMenu items={[
+      { key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-3.5 h-3.5" />, onClick: onEdit },
+      { key: 'duplicate', label: 'คัดลอก', icon: <Copy className="w-3.5 h-3.5" />, onClick: onDuplicate },
+      { key: 'delete', label: 'ลบ', icon: <Trash2 className="w-3.5 h-3.5" />, danger: true, onClick: onDelete },
+    ]} />
   );
 }
 
@@ -660,7 +619,7 @@ function ProductsPageContent() {
             )}
 
             {/* Products Table */}
-            <div className="data-table-wrap relative">
+            <div className="data-table-wrap relative hidden md:block">
               {/* Loading overlay for page/filter changes */}
               {fetching && !loading && (
                 <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 z-10 flex items-center justify-center rounded-xl">
@@ -821,7 +780,7 @@ function ProductsPageContent() {
                         {/* Actions — dropdown menu */}
                         {isCol('actions') && (
                           <td className="px-1 py-2 whitespace-nowrap text-center">
-                            <ActionMenu
+                            <ProductActionMenu
                               productId={product.product_id}
                               onEdit={() => window.open(`/products/${product.product_id}/edit`, '_blank')}
                               onDuplicate={() => router.push(`/products/new?duplicate=${product.product_id}`)}
@@ -855,6 +814,128 @@ function ProductsPageContent() {
                   dropUp
                 />
               </Pagination>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+              {paginatedProducts.length === 0 ? (
+                <div className="text-center py-16">
+                  <Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+                  <p className="text-gray-500 dark:text-slate-400 text-sm">ไม่พบข้อมูลสินค้า</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100 dark:divide-slate-700">
+                  {paginatedProducts.map(product => (
+                    <div
+                      key={product.product_id}
+                      className="p-4 cursor-pointer active:bg-gray-50 dark:active:bg-slate-700/50"
+                      onClick={() => window.open(`/products/${product.product_id}/edit`, '_blank')}
+                    >
+                      <div className="flex gap-3">
+                        {/* Product Image */}
+                        <div className="flex-shrink-0">
+                          {(product.main_image_url || product.image) ? (
+                            <img
+                              src={product.main_image_url || getImageUrl(product.image)}
+                              alt={product.name}
+                              className="w-14 h-14 object-cover rounded"
+                            />
+                          ) : (
+                            <div className="w-14 h-14 bg-gray-200 dark:bg-slate-700 rounded flex items-center justify-center">
+                              <Package2 className="w-6 h-6 text-gray-400" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Product Info */}
+                        <div className="flex-1 min-w-0">
+                          {/* Name + Action */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-gray-900 dark:text-white text-[15px] line-clamp-2">{product.name}</p>
+                              <p className="text-xs text-gray-400 dark:text-slate-500 font-mono">{product.code}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                              <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${
+                                product.product_type === 'simple'
+                                  ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+                                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                              }`}>
+                                {product.product_type === 'simple' ? 'ปกติ' : 'ย่อย'}
+                              </span>
+                              <ProductActionMenu
+                                productId={product.product_id}
+                                onEdit={() => window.open(`/products/${product.product_id}/edit`, '_blank')}
+                                onDuplicate={() => router.push(`/products/new?duplicate=${product.product_id}`)}
+                                onDelete={() => handleDelete(product)}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Price */}
+                          <div className="mt-1.5">
+                            {product.product_type === 'simple' ? (
+                              <div>
+                                <span className="text-base font-semibold text-gray-900 dark:text-white">
+                                  ฿{formatNumber(product.simple_default_price)}
+                                </span>
+                                {product.simple_discount_price != null && product.simple_discount_price > 0 && (
+                                  <span className="text-sm text-red-600 dark:text-red-400 ml-1">
+                                    (฿{formatNumber(product.simple_discount_price)})
+                                  </span>
+                                )}
+                                {product.simple_sku && (
+                                  <span className="text-xs text-gray-400 dark:text-slate-500 ml-2">SKU: {product.simple_sku}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="space-y-0.5">
+                                {product.variations && product.variations.length > 0 ? (
+                                  product.variations.slice(0, 3).map((v) => (
+                                    <div key={v.variation_id || `${product.product_id}-${v.variation_label}`} className="flex items-center gap-1.5 text-sm">
+                                      <Wine className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                                      <span className="text-gray-500 dark:text-slate-400">{v.variation_label}</span>
+                                      <span className="text-gray-900 dark:text-white font-medium">฿{formatNumber(v.default_price)}</span>
+                                      {v.discount_price > 0 && (
+                                        <span className="text-red-600 dark:text-red-400 text-xs">(฿{formatNumber(v.discount_price)})</span>
+                                      )}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <span className="text-sm text-gray-400 dark:text-slate-500">ไม่มีสินค้าย่อย</span>
+                                )}
+                                {product.variations && product.variations.length > 3 && (
+                                  <p className="text-xs text-gray-400 dark:text-slate-500">+{product.variations.length - 3} รายการ</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Brand */}
+                          {product.brand_id && (
+                            <div className="mt-1">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
+                                <Award className="w-3 h-3" />
+                                {brands.find(b => b.id === product.brand_id)?.name || '-'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalRecords={totalFiltered}
+                startIdx={startIndex}
+                endIdx={Math.min(startIndex + rowsPerPage, totalFiltered)}
+                recordsPerPage={rowsPerPage}
+                setRecordsPerPage={(v: number) => setParams({ limit: String(v) })}
+                setPage={(p: number) => setParams({ page: String(p) })}
+              />
             </div>
       </div>
 

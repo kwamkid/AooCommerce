@@ -495,8 +495,8 @@ export default function UsersPage() {
         <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อหรืออีเมล..." className="py-2" />
       </div>
 
-      {/* Users Table */}
-      <div className="data-table-wrap-shadow">
+      {/* Users Table - Desktop */}
+      <div className="data-table-wrap-shadow hidden md:block">
         <div className="overflow-x-auto">
           <table className="data-table-fixed">
             <thead className="data-thead">
@@ -626,6 +626,59 @@ export default function UsersPage() {
             setPage={setCurrentPage}
           />
         </div>
+      </div>
+
+      {/* Users Cards - Mobile */}
+      <div className="md:hidden">
+        {paginatedUsers.length === 0 ? (
+          <div className="text-center py-12">
+            <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-gray-500 dark:text-slate-400">ไม่พบผู้ใช้งาน</p>
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow divide-y divide-gray-100 dark:divide-slate-700">
+            {paginatedUsers.map((user) => (
+              <div
+                key={user.id}
+                className="px-4 py-3 space-y-1.5 active:bg-gray-50 dark:active:bg-slate-700/50"
+                onClick={() => handleEditUser(user)}
+              >
+                {/* Row 1: Name + email / Status */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                      {user.name}
+                      {user.id === userProfile?.id && (
+                        <span className="ml-1 text-xs text-gray-500 dark:text-slate-400">(คุณ)</span>
+                      )}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400 truncate">{user.email}</p>
+                  </div>
+                  <StatusBadge isActive={user.is_active} />
+                </div>
+                {/* Row 2: Roles */}
+                <RoleBadges roles={user.roles} />
+                {/* Row 3: Phone */}
+                {user.phone && (
+                  <p className="text-sm text-gray-500 dark:text-slate-400 flex items-center">
+                    <Phone className="w-3 h-3 mr-1" />
+                    {user.phone}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalFiltered}
+          startIdx={startIndex}
+          endIdx={Math.min(startIndex + rowsPerPage, totalFiltered)}
+          recordsPerPage={rowsPerPage}
+          setRecordsPerPage={setRowsPerPage}
+          setPage={setCurrentPage}
+        />
       </div>
 
       </div>

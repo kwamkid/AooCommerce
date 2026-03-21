@@ -486,8 +486,8 @@ export default function PaymentFollowupPage() {
           </div>
         )}
 
-        {/* Customer List */}
-        <div className="data-table-wrap">
+        {/* Customer List - Desktop */}
+        <div className="data-table-wrap hidden md:block">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
@@ -702,6 +702,94 @@ export default function PaymentFollowupPage() {
                 dropUp
               />
             </Pagination>
+          )}
+        </div>
+
+        {/* Customer List - Mobile */}
+        <div className="md:hidden">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+            </div>
+          ) : customers.length === 0 ? (
+            <div className="text-center py-12">
+              <DollarSign className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500 text-lg">ไม่มียอดค้างชำระ</p>
+              <p className="text-gray-400 text-sm">ลูกค้าทุกรายชำระเงินครบถ้วนแล้ว</p>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 divide-y divide-gray-200 dark:divide-slate-700">
+              {customers.map((customer) => (
+                <div key={customer.customerId} className="p-4 space-y-2">
+                  {/* Row 1: Name + Pending amount */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-xs text-gray-400 dark:text-slate-500">{customer.customerCode}</div>
+                      <div className="font-medium text-gray-900 dark:text-white truncate">{customer.customerName}</div>
+                      {customer.phone !== '-' && (
+                        <a href={`tel:${customer.phone}`} className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                          <Phone className="w-3 h-3" />
+                          {customer.phone}
+                        </a>
+                      )}
+                    </div>
+                    <span className="font-bold text-red-600 whitespace-nowrap">฿{formatPrice(customer.totalPending)}</span>
+                  </div>
+
+                  {/* Row 2: Days overdue + Bill count + Date range */}
+                  <div className="flex items-center flex-wrap gap-2 text-sm">
+                    <AgingBadge days={customer.daysOverdue} />
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                      {customer.orderCount} บิล
+                    </span>
+                    <div className="flex items-center gap-1 text-gray-500 dark:text-slate-400">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>{formatDate(customer.oldestOrderDate)}</span>
+                      {customer.orderCount > 1 && (
+                        <>
+                          <span className="text-gray-400 dark:text-slate-500">-</span>
+                          <span>{formatDate(customer.newestOrderDate)}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Row 3: Actions */}
+                  <div className="flex items-center justify-end gap-2">
+                    {customer.lineUserId ? (
+                      <button
+                        onClick={() => handleContactLine(customer.lineUserId!)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm font-medium transition-colors"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        ทัก LINE
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-xs">ไม่มี LINE</span>
+                    )}
+                    <button
+                      onClick={() => router.push(`/customers/${customer.customerId}`)}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!loading && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={pagination.totalPages}
+              totalRecords={pagination.total}
+              startIdx={(currentPage - 1) * rowsPerPage}
+              endIdx={Math.min(currentPage * rowsPerPage, pagination.total)}
+              recordsPerPage={rowsPerPage}
+              setRecordsPerPage={setRowsPerPage}
+              setPage={setCurrentPage}
+            />
           )}
         </div>
       </div>

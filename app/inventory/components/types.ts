@@ -52,7 +52,7 @@ export interface InventoryItem {
   in_transit_breakdown?: InTransitBreakdownItem[];
 }
 
-export type StockColumnKey = 'image' | 'product' | 'sku' | 'quantity' | 'reserved' | 'in_transit' | 'available' | 'consign' | 'min' | 'status' | 'actions';
+export type StockColumnKey = 'image' | 'product' | 'quantity' | 'reserved' | 'in_transit' | 'available' | 'consign' | 'min' | 'status' | 'actions';
 
 export interface ColumnConfig<T extends string> {
   key: T;
@@ -64,7 +64,6 @@ export interface ColumnConfig<T extends string> {
 export const STOCK_COLUMN_CONFIGS: ColumnConfig<StockColumnKey>[] = [
   { key: 'image', label: 'รูป', defaultVisible: true },
   { key: 'product', label: 'ชื่อสินค้า', defaultVisible: true, alwaysVisible: true },
-  { key: 'sku', label: 'SKU', defaultVisible: false },
   { key: 'quantity', label: 'จำนวน', defaultVisible: true },
   { key: 'reserved', label: 'จอง', defaultVisible: true },
   { key: 'in_transit', label: 'กำลังส่ง', defaultVisible: true },

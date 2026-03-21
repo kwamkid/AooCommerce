@@ -8,11 +8,11 @@ import { apiFetch } from '@/lib/api-client';
 import SearchInput from '@/components/ui/SearchInput';
 import SearchableDropdown from '@/components/ui/SearchableDropdown';
 import Pagination from '@/app/components/Pagination';
+import SharedActionMenu, { type ActionItem as SharedActionItem } from '@/app/orders/components/ActionMenu';
 import {
   Plus,
   Edit2,
   Trash2,
-  MoreVertical,
   Package,
   Gift,
   Percent,
@@ -151,53 +151,13 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function ActionMenu({ onEdit, onDelete, onPush }: { onEdit: () => void; onDelete: () => void; onPush?: () => void }) {
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = () => setOpen(false);
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
-  }, [open]);
-
-  return (
-    <div className="relative inline-block">
-      <button
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-      >
-        <MoreVertical className="w-4 h-4 text-gray-500" />
-      </button>
-      {open && (
-        <div className="absolute right-0 z-[999] mt-1 w-44 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-600 py-1">
-          <button
-            onClick={(e) => { e.stopPropagation(); setOpen(false); onEdit(); }}
-            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
-          >
-            <Edit2 className="w-3.5 h-3.5" />
-            แก้ไข
-          </button>
-          {onPush && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setOpen(false); onPush(); }}
-              className="w-full text-left px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-2"
-            >
-              <Send className="w-3.5 h-3.5" />
-              ส่งไป Shopee
-            </button>
-          )}
-          <button
-            onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(); }}
-            className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            ลบ
-          </button>
-        </div>
-      )}
-    </div>
-  );
+function PromoActionMenu({ onEdit, onDelete, onPush }: { onEdit: () => void; onDelete: () => void; onPush?: () => void }) {
+  const items: SharedActionItem[] = [
+    { key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-3.5 h-3.5" />, onClick: onEdit },
+    ...(onPush ? [{ key: 'push', label: 'ส่งไป Shopee', icon: <Send className="w-3.5 h-3.5" />, onClick: onPush }] : []),
+    { key: 'delete', label: 'ลบ', icon: <Trash2 className="w-3.5 h-3.5" />, danger: true, onClick: onDelete },
+  ];
+  return <SharedActionMenu items={items} />;
 }
 
 function RoleBadge({ role }: { role: string }) {
@@ -433,7 +393,7 @@ function PromotionCard({
 
           {/* Actions */}
           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-            <ActionMenu
+            <PromoActionMenu
               onEdit={onEdit}
               onDelete={onDelete}
               onPush={onPush}

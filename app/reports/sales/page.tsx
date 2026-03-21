@@ -397,7 +397,8 @@ export default function SalesReportPage() {
             <p className="text-gray-500 dark:text-slate-400">ไม่พบข้อมูลในช่วงเวลานี้</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="overflow-x-auto hidden md:block">
             <table className="data-table-fixed">
               <thead className="data-thead">
                 <tr>
@@ -577,6 +578,102 @@ export default function SalesReportPage() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+
+          {/* Mobile Card Layout */}
+          <div className="md:hidden space-y-3">
+            {groupBy === 'date' && groupedData.map((item: GroupedDataByDate, index: number) => (
+              <div key={item.date || `date-${index}`} className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <span className="font-medium text-gray-900 dark:text-white">{item.date ? formatDate(item.date) : 'ไม่ระบุ'}</span>
+                  <span className="ml-auto text-sm text-gray-500 dark:text-slate-400">{item.orderCount} orders</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <div className="text-gray-500 dark:text-slate-400">ยอดขาย</div>
+                    <div className="font-semibold text-gray-900 dark:text-white">{formatPrice(item.totalAmount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500 dark:text-slate-400">ชำระแล้ว</div>
+                    <div className="font-semibold text-green-600">{formatPrice(item.paidAmount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500 dark:text-slate-400">รอชำระ</div>
+                    <div className="font-semibold text-orange-600">{formatPrice(item.pendingAmount)}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {groupBy === 'customer' && groupedData.map((item: GroupedDataByCustomer, index: number) => (
+              <div key={item.customerId || `customer-${index}`} className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+                <div className="mb-3">
+                  <div className="font-medium text-gray-900 dark:text-white">{item.customerName}</div>
+                  <div className="text-sm text-gray-500 dark:text-slate-400">{item.customerCode} &middot; {item.orderCount} orders</div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <div className="text-gray-500 dark:text-slate-400">ยอดขาย</div>
+                    <div className="font-semibold text-gray-900 dark:text-white">{formatPrice(item.totalAmount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500 dark:text-slate-400">ชำระแล้ว</div>
+                    <div className="font-semibold text-green-600">{formatPrice(item.paidAmount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500 dark:text-slate-400">รอชำระ</div>
+                    <div className="font-semibold text-orange-600">{formatPrice(item.pendingAmount)}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {groupBy === 'product' && groupedData.map((item: GroupedDataByProduct, index: number) => (
+              <div key={`${item.productCode || 'unknown'}-${item.variationLabel || 'unknown'}-${index}`} className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-white">{item.productName}</div>
+                    <div className="text-sm text-gray-500 dark:text-slate-400">{item.productCode}</div>
+                  </div>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:text-blue-400">
+                    {item.variationLabel}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm mt-2">
+                  <span className="text-gray-500 dark:text-slate-400">จำนวนขาย: <span className="font-semibold text-gray-900 dark:text-white">{(item.totalQuantity || 0).toLocaleString()} ขวด</span></span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{formatPrice(item.totalAmount || 0)}</span>
+                </div>
+              </div>
+            ))}
+
+            {/* Mobile Totals */}
+            <div className="bg-gray-50 dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+              <div className="text-sm font-bold text-gray-900 dark:text-white mb-2">รวมทั้งหมด</div>
+              {groupBy === 'product' ? (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600 dark:text-slate-400">
+                    {groupedData.reduce((sum: number, item: GroupedDataByProduct) => sum + (item.totalQuantity || 0), 0).toLocaleString()} ขวด
+                  </span>
+                  <span className="font-bold text-gray-900 dark:text-white">{formatPrice(summary?.totalNet || 0)}</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <div className="text-gray-500 dark:text-slate-400">ยอดขาย</div>
+                    <div className="font-bold text-gray-900 dark:text-white">{formatPrice(summary?.totalNet || 0)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500 dark:text-slate-400">ชำระแล้ว</div>
+                    <div className="font-bold text-green-600">{formatPrice(summary?.paidAmount || 0)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500 dark:text-slate-400">รอชำระ</div>
+                    <div className="font-bold text-orange-600">{formatPrice(summary?.pendingAmount || 0)}</div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

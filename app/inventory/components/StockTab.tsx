@@ -391,14 +391,13 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
           </p>
         </div>
       ) : (
-        <div className="data-table-wrap">
+        <div className="data-table-wrap hidden md:block">
           <div className="overflow-x-auto">
             <table className="data-table-fixed">
               <thead className="data-thead">
                 <tr>
                   {visibleColumns.has('image') && <th className="data-th !pl-4 !pr-1" style={{ width: '80px', minWidth: '80px' }}>รูป</th>}
                   {visibleColumns.has('product') && <th className="data-th !px-2" style={{ minWidth: '240px' }}>ชื่อสินค้า</th>}
-                  {visibleColumns.has('sku') && <th className="data-th">SKU</th>}
                   {visibleColumns.has('quantity') && <th className="data-th text-right">จำนวน</th>}
                   {visibleColumns.has('reserved') && <th className="data-th text-right">จอง</th>}
                   {visibleColumns.has('in_transit') && features.consignment && <th className="data-th text-right" title="สินค้ากำลังจัดส่งไปตัวแทน">กำลังส่ง</th>}
@@ -439,9 +438,6 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                           <div className="data-primary text-gray-900 dark:text-white line-clamp-2">{displayName}</div>
                           <div className="data-secondary text-gray-400 dark:text-slate-500">{getProductSubtitle(item)}</div>
                         </td>
-                      )}
-                      {visibleColumns.has('sku') && (
-                        <td className="px-6 py-4 text-gray-600 dark:text-slate-300 font-mono text-sm">{item.sku || '-'}</td>
                       )}
                       {visibleColumns.has('quantity') && (
                         <td className="px-6 py-4 text-right text-sm font-medium text-gray-900 dark:text-white">{item.quantity.toLocaleString()}</td>
@@ -553,6 +549,102 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
               dropUp
             />
           </Pagination>
+        </div>
+      )}
+
+      {/* Mobile Cards */}
+      {!loading && displayedItems.length > 0 && (
+        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+          <div className="divide-y divide-gray-100 dark:divide-slate-700">
+            {displayedItems.map(item => {
+              const displayName = getProductDisplayName(item);
+              return (
+                <div key={item.id} className="p-4">
+                  <div className="flex gap-3">
+                    {/* Image */}
+                    <div className="flex-shrink-0">
+                      {item.product_image ? (
+                        <img
+                          src={item.product_image}
+                          alt=""
+                          className="w-14 h-14 object-cover rounded cursor-pointer"
+                          onClick={() => setLightboxImage(item.product_image!)}
+                        />
+                      ) : (
+                        <div className="w-14 h-14 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center">
+                          <Package2 className="w-6 h-6 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      {/* Row 1: Name + Status */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 dark:text-white text-[15px] line-clamp-2">{displayName}</p>
+                          <p className="text-xs text-gray-400 dark:text-slate-500">{getProductSubtitle(item)}</p>
+                        </div>
+                        <div className="flex-shrink-0">{getStockBadge(item)}</div>
+                      </div>
+
+                      {/* Row 2: Stock numbers */}
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                        <div>
+                          <p className="text-xs text-gray-400 dark:text-slate-500">จำนวน</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{item.quantity.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 dark:text-slate-500">จอง</p>
+                          <p className={`text-sm font-medium ${item.reserved_quantity > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-300 dark:text-slate-600'}`}>
+                            {item.reserved_quantity > 0 ? item.reserved_quantity.toLocaleString() : '-'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 dark:text-slate-500">พร้อมขาย</p>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">{item.available.toLocaleString()}</p>
+                        </div>
+                      </div>
+
+                      {/* Row 3: Actions */}
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
+                          {item.min_stock > 0 && <span>Min: {item.min_stock}</span>}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => openAdjustModal(item)}
+                            className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-[#F4511E]/10 rounded-lg transition-colors"
+                            title="ปรับ stock"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => onViewHistory?.(item.variation_id, displayName)}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                            title="ดูประวัติ"
+                          >
+                            <ClipboardList className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalRecords={effectiveTotal}
+            startIdx={startIdx}
+            endIdx={endIdx}
+            recordsPerPage={recordsPerPage}
+            setRecordsPerPage={v => setParams({ limit: String(v) })}
+            setPage={v => setParams({ page: v > 1 ? String(v) : null })}
+            loadTime={loadTime}
+          />
         </div>
       )}
 

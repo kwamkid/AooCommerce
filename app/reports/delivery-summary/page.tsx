@@ -1125,7 +1125,8 @@ export default function DeliverySummaryPage() {
                 <p className="text-gray-500 dark:text-slate-400">ไม่มีสินค้าที่ต้องจัดในวันที่เลือก</p>
               </div>
             ) : (
-              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+              {/* Desktop Table */}
+              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden hidden md:block">
                 <table className="w-full">
                   <thead>
                     <tr className="bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700">
@@ -1182,6 +1183,45 @@ export default function DeliverySummaryPage() {
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+
+              {/* Mobile Card Layout */}
+              <div className="md:hidden space-y-3">
+                {reportData.productSummary.map((product, index) => (
+                  <div key={index} className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-3">
+                    <div className="flex items-center gap-3">
+                      {product.image ? (
+                        <img
+                          src={getImageUrl(product.image)}
+                          alt={product.productName}
+                          className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border border-gray-200 dark:border-slate-700"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                          <Package className="w-6 h-6 text-gray-300" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                          {product.productName}{product.variationLabel ? ` - ${product.variationLabel}` : ''}
+                        </div>
+                        <div className="text-xs text-gray-400 font-mono">{product.productCode}</div>
+                      </div>
+                      <span className="inline-flex items-center gap-1 bg-[#F4511E]/10 text-[#F4511E] px-3 py-1 rounded-full flex-shrink-0">
+                        <span className="text-lg font-bold">{product.totalQuantity}</span>
+                        <span className="text-xs text-gray-600 dark:text-slate-400">ขวด</span>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {/* Mobile Totals */}
+                <div className="bg-gray-50 dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-slate-400">{reportData.productSummary.length} รายการ</span>
+                    <span className="text-lg font-bold text-gray-900 dark:text-white">รวม {reportData.totals.totalBottles.toLocaleString()} ขวด</span>
+                  </div>
+                </div>
               </div>
             )}
           </>

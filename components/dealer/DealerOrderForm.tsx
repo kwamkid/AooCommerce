@@ -235,7 +235,7 @@ export default function DealerOrderForm({
               default_price: v.default_price || 0,
               discount_price: v.discount_price || 0,
               brand_id: p.brand_id || null,
-              image: v.image_url || v.image || p.image || null,
+              image: v.image_url || ((p.variations?.length || 0) <= 1 ? (p.main_image_url || p.image) : null) || null,
             });
           }
         }

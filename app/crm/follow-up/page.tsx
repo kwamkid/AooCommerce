@@ -482,8 +482,8 @@ export default function CRMFollowUpPage() {
           </div>
         )}
 
-        {/* Customer List */}
-        <div className="data-table-wrap">
+        {/* Customer List - Desktop */}
+        <div className="data-table-wrap hidden md:block">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
@@ -638,6 +638,99 @@ export default function CRMFollowUpPage() {
                 dropUp
               />
             </Pagination>
+          )}
+        </div>
+
+        {/* Customer List - Mobile */}
+        <div className="md:hidden">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+            </div>
+          ) : customers.length === 0 ? (
+            <div className="text-center py-12">
+              <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500 dark:text-slate-400">ไม่พบลูกค้าตามเงื่อนไขที่เลือก</p>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 divide-y divide-gray-200 dark:divide-slate-700">
+              {customers.map((customer) => (
+                <div key={customer.id} className="p-4 space-y-2">
+                  {/* Row 1: Name + Type badge */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-xs text-gray-400 dark:text-slate-500">{customer.customer_code}</div>
+                      <div className="font-medium text-gray-900 dark:text-white truncate">{customer.name}</div>
+                      {customer.phone && (
+                        <a href={`tel:${customer.phone}`} className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 mt-0.5">
+                          <Phone className="w-3 h-3" />
+                          {customer.phone}
+                        </a>
+                      )}
+                    </div>
+                    <CustomerTypeBadge type={customer.customer_type || 'retail'} />
+                  </div>
+
+                  {/* Row 2: Last order + Days since + Frequency */}
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="flex items-center gap-1 text-gray-500 dark:text-slate-400">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {formatDate(customer.last_order_date)}
+                    </div>
+                    <DaysBadge days={customer.days_since_last_order} avgFrequency={customer.avg_order_frequency} />
+                    {customer.avg_order_frequency && (
+                      <span className="text-gray-400 dark:text-slate-500 text-sm">~{customer.avg_order_frequency} วัน</span>
+                    )}
+                  </div>
+
+                  {/* Row 3: Orders + Spent + Actions */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-sm">
+                      <span className="text-gray-600 dark:text-slate-400">{customer.total_orders} ออเดอร์</span>
+                      <span className="font-medium text-gray-900 dark:text-white">฿{formatPrice(customer.total_spent)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {customer.line_user_id ? (
+                        <button
+                          onClick={() => handleContactLine(customer.line_user_id!)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm font-medium transition-colors"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          ทัก LINE
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleCreateOrder(customer.id)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] text-sm font-medium transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          สร้างออเดอร์
+                        </button>
+                      )}
+                      <button
+                        onClick={() => router.push(`/customers/${customer.id}`)}
+                        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!loading && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={pagination.totalPages}
+              totalRecords={pagination.total}
+              startIdx={(currentPage - 1) * rowsPerPage}
+              endIdx={Math.min(currentPage * rowsPerPage, pagination.total)}
+              recordsPerPage={rowsPerPage}
+              setRecordsPerPage={setRowsPerPage}
+              setPage={setCurrentPage}
+            />
           )}
         </div>
       </div>

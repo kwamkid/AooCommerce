@@ -212,7 +212,8 @@ export default function TaxInvoicesPage() {
         ) : invoices.length === 0 ? (
           <div className="text-center py-16 text-gray-500 dark:text-slate-400 text-sm">ไม่พบใบกำกับภาษี</div>
         ) : (
-          <div className="data-table-wrap">
+          <>
+          <div className="data-table-wrap hidden md:block">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="data-thead">
@@ -285,6 +286,62 @@ export default function TaxInvoicesPage() {
               setRecordsPerPage={setRecordsPerPage} setPage={setPage} loadTime={loadTime}
             />
           </div>
+
+          {/* Mobile card layout */}
+          <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+            <div className="divide-y divide-gray-100 dark:divide-slate-700">
+              {invoices.map(inv => {
+                const link = getSourceLink(inv);
+                return (
+                  <div key={inv.doc_id} className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-sm font-medium text-[#F4511E]">{inv.tax_invoice_number}</span>
+                        {inv.tax_invoice_replaced_abbrev_number && (
+                          <span className="text-xs text-amber-600 dark:text-amber-400">แทน {inv.tax_invoice_replaced_abbrev_number}</span>
+                        )}
+                        {inv.voided_at && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+                        )}
+                        {inv.is_receipt && !inv.voided_at && (
+                          <span className="text-xs text-green-600 dark:text-green-400">+ใบเสร็จ</span>
+                        )}
+                      </div>
+                      <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors" title="พิมพ์">
+                        <Printer className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(inv.tax_invoice_date)}</div>
+                    <div className="mt-1">
+                      <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
+                        {link.label} <ExternalLink className="w-3 h-3" />
+                      </Link>
+                      {inv.source_type !== 'order' && (
+                        <span className="text-xs text-gray-400 ml-1">
+                          {inv.source_type === 'statement' ? 'ใบวางบิล' : 'เติมสินค้า'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <div>
+                        <div className="text-sm text-gray-600 dark:text-slate-300">{inv.tax_invoice_name || '-'}</div>
+                        {inv.tax_invoice_tax_id && (
+                          <div className="text-xs font-mono text-gray-400">{inv.tax_invoice_tax_id}</div>
+                        )}
+                      </div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{formatMoney(inv.total_amount)} บาท</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <Pagination
+              currentPage={page} totalPages={totalPages} totalRecords={total}
+              startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
+              setRecordsPerPage={setRecordsPerPage} setPage={setPage} loadTime={loadTime}
+            />
+          </div>
+          </>
         )}
       </div>
     </Layout>

@@ -651,7 +651,7 @@ function CustomersPageContent() {
         )}
 
         {/* Customer Table */}
-        <div className="data-table-wrap">
+        <div className="data-table-wrap hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="data-thead">
@@ -875,9 +875,151 @@ function CustomersPageContent() {
           </Pagination>
         </div>
 
+        {/* Mobile Cards */}
+        <div className="md:hidden space-y-0 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+          {paginatedCustomers.length === 0 ? (
+            <div className="text-center py-16">
+              <UserCircle className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-slate-400 text-sm">ไม่พบข้อมูลลูกค้า</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 dark:divide-slate-700">
+              {paginatedCustomers.map(customer => (
+                <div
+                  key={customer.id}
+                  className="p-4 cursor-pointer active:bg-gray-50 dark:active:bg-slate-700/50"
+                  onClick={() => router.push(`/customers/${customer.id}`)}
+                >
+                  {/* Row 1: Name + Type + Menu */}
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 dark:text-white text-[15px] truncate">{customer.name}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <CustomerTypeBadge type={customer.customer_type} />
+                      <div onClick={e => e.stopPropagation()}>
+                        <ActionMenu items={(() => {
+                          const items: ActionItem[] = [];
+                          if (customer.customer_type === 'consignment_dealer' && customer.portal_token) {
+                            items.push({
+                              key: 'portal-link',
+                              label: 'ลิงก์ Portal',
+                              icon: <ExternalLink className="w-4 h-4 text-amber-500" />,
+                              onClick: () => window.open(`/portal/consignment/${customer.portal_token}`, '_blank'),
+                            });
+                            items.push({
+                              key: 'portal-copy',
+                              label: 'คัดลอกลิงก์',
+                              icon: <Copy className="w-4 h-4" />,
+                              onClick: () => { navigator.clipboard.writeText(`${window.location.origin}/portal/consignment/${customer.portal_token}`).then(() => showToast('คัดลอกลิงก์แล้ว', 'success')); },
+                            });
+                            items.push({
+                              key: 'portal-code',
+                              label: customer.portal_access_code ? `รหัส: ${customer.portal_access_code}` : 'รหัส Portal: ยังไม่มี',
+                              icon: <KeyRound className="w-4 h-4" />,
+                              onClick: customer.portal_access_code
+                                ? () => navigator.clipboard.writeText(customer.portal_access_code!).then(() => showToast('คัดลอกรหัสแล้ว', 'success'))
+                                : undefined,
+                              suffix: customer.portal_access_code ? <Copy className="w-3.5 h-3.5 text-gray-400" /> : undefined,
+                            });
+                            items.push({
+                              key: 'portal-regen',
+                              label: 'สร้างรหัสใหม่',
+                              icon: regeneratingCodeId === customer.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />,
+                              onClick: () => handleRegenerateCode(customer.id),
+                              disabled: regeneratingCodeId === customer.id,
+                            });
+                          }
+                          items.push({
+                            key: 'delete',
+                            label: 'ลบ',
+                            icon: <Trash2 className="w-4 h-4" />,
+                            danger: true,
+                            onClick: () => handleDeleteCustomer(customer.id, customer.name),
+                          });
+                          return items;
+                        })()} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Phone + Email */}
+                  {(customer.phone || customer.email) && (
+                    <div className="flex items-center gap-3 mb-1.5 text-sm text-gray-500 dark:text-slate-400">
+                      {customer.phone && (
+                        <a href={`tel:${customer.phone}`} onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 hover:text-blue-600">
+                          <Phone className="w-3 h-3" />{customer.phone}
+                        </a>
+                      )}
+                      {customer.email && (
+                        <span className="inline-flex items-center gap-1">
+                          <Mail className="w-3 h-3" />{customer.email}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Row 3: Channels + Tags */}
+                  {((customer.channels && customer.channels.length > 0) || (customer.tags && customer.tags.length > 0)) && (
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      {customer.channels && customer.channels.length > 0 && (
+                        <div className="flex items-center gap-1">
+                          {customer.channels.map(ch => {
+                            const cfg = CHANNEL_CONFIG[ch];
+                            if (!cfg) return null;
+                            return (
+                              <span key={ch} title={cfg.label} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 dark:bg-slate-700">
+                                {cfg.icon ? <img src={cfg.icon} alt={cfg.label} className="w-3.5 h-3.5" /> : <span className="text-[9px]">{cfg.label.charAt(0)}</span>}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {customer.tags && customer.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {customer.tags.map(tag => (
+                            <TagBadge key={tag.id} tag={tag} size="sm" />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Row 4: Address */}
+                  {customer.default_address && (
+                    <p className="text-sm text-gray-500 dark:text-slate-400 truncate mb-1.5">
+                      {[customer.default_address.address_line1, customer.default_address.amphoe, customer.default_address.province].filter(Boolean).join(' ')}
+                    </p>
+                  )}
+
+                  {/* Row 5: Order count + Total */}
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400 dark:text-slate-500">
+                      {customer.order_count && customer.order_count > 0 ? `${customer.order_count} บิล` : 'ยังไม่มีบิล'}
+                    </span>
+                    {customer.total_order_amount && customer.total_order_amount > 0 ? (
+                      <span className="font-semibold text-gray-900 dark:text-white">฿{formatPrice(customer.total_order_amount)}</span>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRecords={filteredCustomers.length}
+            startIdx={startIndex}
+            endIdx={Math.min(endIndex, filteredCustomers.length)}
+            recordsPerPage={rowsPerPage}
+            setRecordsPerPage={(v) => { setRowsPerPage(v); syncUrl({ limit: v, page: 1 }); }}
+            setPage={(p) => { setCurrentPage(p); syncUrl({ page: p }); }}
+          />
+        </div>
+
         {/* Empty State */}
         {filteredCustomers.length === 0 && (
-          <div className="text-center py-12">
+          <div className="text-center py-12 hidden md:block">
             <UserCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 text-lg">ไม่พบข้อมูลลูกค้า</p>
             {searchTerm && (

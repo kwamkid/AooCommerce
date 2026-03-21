@@ -6,6 +6,7 @@ import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
+import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
 import {
   Building2, Plus, Loader2, RefreshCw,
   ChevronRight, Package, Truck, Receipt, UserPlus,
@@ -27,21 +28,21 @@ interface DeptOrder {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: 'แบบร่าง', color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
-  confirmed: { label: 'ยืนยันแล้ว', color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/40' },
-  shipped: { label: 'จัดส่งแล้ว', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/40' },
-  invoiced: { label: 'ออก Invoice แล้ว', color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40' },
-  paid: { label: 'ได้รับเงินแล้ว', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40' },
-  cancelled: { label: 'ยกเลิก', color: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
+  draft: { label: 'แบบร่าง', ...getBadgeColor('draft') },
+  confirmed: { label: 'ยืนยันแล้ว', ...getBadgeColor('confirmed') },
+  shipped: { label: 'จัดส่งแล้ว', ...getBadgeColor('shipped') },
+  invoiced: { label: 'ออก Invoice แล้ว', ...getBadgeColor('invoiced') },
+  paid: { label: 'ได้รับเงินแล้ว', ...getBadgeColor('paid') },
+  cancelled: { label: 'ยกเลิก', ...getBadgeColor('cancelled') },
 };
 
 const STATUS_TABS = [
-  { key: 'all', label: 'ทั้งหมด' },
-  { key: 'draft', label: 'แบบร่าง' },
-  { key: 'confirmed', label: 'ยืนยันแล้ว' },
-  { key: 'shipped', label: 'จัดส่งแล้ว' },
-  { key: 'invoiced', label: 'Invoice' },
-  { key: 'paid', label: 'ได้รับเงิน' },
+  { key: 'all', label: 'ทั้งหมด', ...getTabColor('all') },
+  { key: 'draft', label: 'แบบร่าง', ...getTabColor('draft') },
+  { key: 'confirmed', label: 'ยืนยันแล้ว', ...getTabColor('confirmed') },
+  { key: 'shipped', label: 'จัดส่งแล้ว', ...getTabColor('shipped') },
+  { key: 'invoiced', label: 'Invoice', ...getTabColor('invoiced') },
+  { key: 'paid', label: 'ได้รับเงิน', ...getTabColor('paid') },
 ];
 
 function relativeTime(dateStr: string): string {
@@ -152,13 +153,13 @@ export default function DepartmentOrdersPage() {
                 key={tab.key}
                 onClick={() => handleStatusChange(tab.key)}
                 className={`flex-shrink-0 rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
-                  isActive ? 'bg-[#F4511E] text-white shadow-md' : 'bg-gray-50 dark:bg-slate-800/50 hover:opacity-80'
+                  isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
                 }`}
               >
-                <div className={`text-xs font-medium ${isActive ? 'text-white/80' : 'text-gray-500 dark:text-slate-400'}`}>
+                <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>
                   {tab.label}
                 </div>
-                <div className={`text-xl font-bold ${isActive ? 'text-white' : 'text-gray-700 dark:text-slate-200'}`}>
+                <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>
                   {count}
                 </div>
               </button>

@@ -129,7 +129,8 @@ export default function BillingInvoicesPage() {
         ) : rows.length === 0 ? (
           <div className="text-center py-16 text-gray-500 dark:text-slate-400 text-sm">ไม่พบใบแจ้งหนี้</div>
         ) : (
-          <div className="data-table-wrap">
+          <>
+          <div className="data-table-wrap hidden md:block">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="data-thead">
@@ -179,6 +180,48 @@ export default function BillingInvoicesPage() {
               loadTime={loadTime}
             />
           </div>
+
+          {/* Mobile card layout */}
+          <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+            <div className="divide-y divide-gray-100 dark:divide-slate-700">
+              {rows.map(row => {
+                const link = getSourceLink(row);
+                return (
+                  <div key={row.doc_id} className="p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-medium text-[#F4511E]">{row.invoice_number}</span>
+                      {row.voided_at && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(row.invoice_date)}</div>
+                    <div className="mt-1">
+                      <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
+                        {link.label} <ExternalLink className="w-3 h-3" />
+                      </Link>
+                      {link.subtitle && <span className="text-xs text-gray-400 ml-1">{link.subtitle}</span>}
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="text-sm text-gray-600 dark:text-slate-300">{row.customer_name || row.customer?.name || '-'}</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{formatMoney(row.total_amount)} บาท</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              startIdx={startIdx + 1}
+              endIdx={endIdx}
+              total={total}
+              recordsPerPage={recordsPerPage}
+              onRecordsPerPageChange={(v) => { setRecordsPerPage(v); setPage(1); }}
+              loadTime={loadTime}
+            />
+          </div>
+          </>
         )}
       </div>
     </Layout>

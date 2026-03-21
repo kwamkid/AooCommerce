@@ -105,7 +105,8 @@ export default function ReturnNotesPage() {
         ) : rows.length === 0 ? (
           <div className="text-center py-16 text-gray-500 dark:text-slate-400 text-sm">ไม่พบใบรับคืนสินค้า</div>
         ) : (
-          <div className="data-table-wrap">
+          <>
+          <div className="data-table-wrap hidden md:block">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="data-thead">
@@ -155,6 +156,44 @@ export default function ReturnNotesPage() {
               loadTime={loadTime}
             />
           </div>
+
+          {/* Mobile card layout */}
+          <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+            <div className="divide-y divide-gray-100 dark:divide-slate-700">
+              {rows.map(row => {
+                const badge = STATUS_BADGE[row.status] || STATUS_BADGE.issued;
+                return (
+                  <Link key={row.id} href={`/return-notes/${row.id}`} className="block p-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm font-medium text-[#F4511E]">{row.rn_number}</span>
+                        <span className="text-xs text-gray-400 dark:text-slate-500">{formatDate(row.rn_date)}</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${badge.cls}`}>{badge.label}</span>
+                    </div>
+                    <div className="text-sm text-gray-900 dark:text-white mb-1">{row.customer?.name || '-'}</div>
+                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400 mb-1">
+                      {row.reference_doc_number && <span>อ้างอิง: {row.reference_doc_number}</span>}
+                      {row.reason && <span className="truncate">เหตุผล: {row.reason}</span>}
+                    </div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white text-right">{formatMoney(row.total_amount)} บาท</div>
+                  </Link>
+                );
+              })}
+            </div>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              startIdx={startIdx + 1}
+              endIdx={endIdx}
+              total={total}
+              recordsPerPage={recordsPerPage}
+              onRecordsPerPageChange={(v) => { setRecordsPerPage(v); setPage(1); }}
+              loadTime={loadTime}
+            />
+          </div>
+          </>
         )}
       </div>
     </Layout>

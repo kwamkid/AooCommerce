@@ -329,7 +329,8 @@ export default function PendingReportPage() {
         </div>
       ) : (
         <div className="data-table-wrap">
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="overflow-x-auto hidden md:block">
             <table className="data-table-fixed">
               <thead className="data-thead">
                 <tr>
@@ -477,6 +478,82 @@ export default function PendingReportPage() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+
+          {/* Mobile Card Layout */}
+          <div className="md:hidden space-y-3 p-3">
+            {groupBy === 'customer' && groupedData.map((item: GroupedDataByCustomer, index: number) => (
+              <div key={item.customerId || `customer-${index}`} className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-white">{item.customerName}</div>
+                    <div className="text-sm text-gray-500 dark:text-slate-400">{item.customerCode}</div>
+                  </div>
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
+                    {item.orderCount} รายการ
+                  </span>
+                </div>
+                {(item.contactPerson || item.phone !== '-') && (
+                  <div className="flex flex-wrap gap-3 text-sm text-gray-600 dark:text-slate-400 mb-2">
+                    {item.contactPerson && (
+                      <span className="flex items-center gap-1">
+                        <User className="w-3 h-3" />
+                        {item.contactPerson}
+                      </span>
+                    )}
+                    {item.phone !== '-' && (
+                      <span className="flex items-center gap-1">
+                        <Phone className="w-3 h-3" />
+                        {item.phone}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-slate-700">
+                  <span className="text-sm text-gray-500 dark:text-slate-400">ยอดค้างรวม</span>
+                  <span className="font-bold text-red-600 dark:text-red-400">฿{formatPrice(item.totalPending)}</span>
+                </div>
+              </div>
+            ))}
+
+            {groupBy === 'order' && groupedData.map((item: GroupedDataByOrder) => {
+              const daysSince = getDaysSinceDelivery(item.deliveryDate);
+              return (
+                <div
+                  key={item.id}
+                  className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 cursor-pointer active:bg-gray-50 dark:active:bg-slate-700/50"
+                  onClick={() => router.push(`/orders/${item.id}`)}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <div className="font-medium text-gray-900 dark:text-white">{item.orderNumber}</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">สั่ง: {formatDate(item.orderDate)}</div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {getOrderStatusBadge(item.orderStatus)}
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-700 dark:text-slate-300 mb-2">
+                    {item.customerName} <span className="text-gray-400 dark:text-slate-500">({item.customerCode})</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500 dark:text-slate-400">ส่ง: {formatDate(item.deliveryDate)}</span>
+                      {getAgingBadge(daysSince)}
+                    </div>
+                    <span className="font-bold text-red-600 dark:text-red-400">฿{formatPrice(item.totalAmount)}</span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Mobile Totals */}
+            <div className="bg-gray-50 dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-900 dark:text-white">รวมทั้งหมด ({summary?.totalOrders || 0} รายการ)</span>
+                <span className="font-bold text-red-600 dark:text-red-400">฿{formatPrice(summary?.totalPending || 0)}</span>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -289,7 +289,9 @@ export default function SuperAdminErrorTranslations() {
             </p>
           </div>
         ) : (
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+          <>
+          {/* Desktop Table */}
+          <div className="hidden md:block bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -360,6 +362,54 @@ export default function SuperAdminErrorTranslations() {
               แสดง {filtered.length} จาก {translations.length} รายการ
             </div>
           </div>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden space-y-2">
+            {filtered.map((t, i) => (
+              <div key={t.id || i} className={`bg-slate-800/50 rounded-lg border border-slate-700/50 p-4 ${!t.is_active ? 'opacity-50' : ''}`}>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <code className="text-xs bg-slate-900 px-2 py-1 rounded text-amber-400 font-mono break-all">
+                    {t.error_key}
+                  </code>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {t.is_regex && (
+                      <span className="px-1.5 py-0.5 text-xs rounded-full bg-yellow-900/30 text-yellow-400 font-mono">.*</span>
+                    )}
+                    {t.id ? (
+                      <button onClick={() => handleToggle(t)} className="transition-colors">
+                        {t.is_active
+                          ? <ToggleRight className="w-5 h-5 text-green-400" />
+                          : <ToggleLeft className="w-5 h-5 text-slate-500" />
+                        }
+                      </button>
+                    ) : (
+                      <span className="text-green-400 text-xs">built-in</span>
+                    )}
+                  </div>
+                </div>
+                <p className="text-sm text-slate-200 mb-2">{t.thai_message}</p>
+                <div className="flex items-center justify-between">
+                  <span className={`inline-block px-2 py-0.5 text-xs rounded-full font-medium ${CATEGORY_COLORS[t.category] || CATEGORY_COLORS.common}`}>
+                    {CATEGORIES.find(c => c.value === t.category)?.label || t.category}
+                  </span>
+                  {t.id && (
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => openEdit(t)} className="p-1.5 hover:bg-slate-600 rounded-lg transition-colors" title="แก้ไข">
+                        <Edit2 className="w-4 h-4 text-slate-400" />
+                      </button>
+                      <button onClick={() => handleDelete(t)} className="p-1.5 hover:bg-red-500/10 rounded-lg transition-colors" title="ลบ">
+                        <Trash2 className="w-4 h-4 text-red-400" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            <div className="text-xs text-slate-500 pt-1">
+              แสดง {filtered.length} จาก {translations.length} รายการ
+            </div>
+          </div>
+          </>
         )}
       </div>
 

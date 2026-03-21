@@ -133,7 +133,6 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    console.log('[CREATE ORDER] items count:', orderData.items.length, 'subtotal:', subtotal, 'items:', orderData.items.map((i: any) => ({ name: i.product_name, qty: i.quantity, price: i.unit_price, address: i.shipments?.[0]?.shipping_address_id })));
 
     // Calculate total shipping fee (deduplicated by address)
     let totalShippingFee = 0;
@@ -167,7 +166,6 @@ export async function POST(request: NextRequest) {
     const subtotalBeforeVAT = isVatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
     const vatAmount = isVatRegistered ? totalWithVAT - subtotalBeforeVAT : 0;
     const totalAmount = totalWithVAT;
-    console.log('[CREATE ORDER] itemsSubtotal:', subtotal, 'discount:', discountAmount, 'shipping:', totalShippingFee, 'subtotalBeforeVAT:', subtotalBeforeVAT, 'vat:', vatAmount, 'TOTAL:', totalAmount);
 
     // Determine flow_type from customer_type + sale_type
     let flowType = 'r_retail'; // default
@@ -899,6 +897,7 @@ export async function GET(request: NextRequest) {
     const orderType = searchParams.get('order_type') || null;
     const platform = searchParams.get('platform') || null;
     const flowType = searchParams.get('flow_type') || null;
+    const customerTypeFilter = searchParams.get('customer_type') || null;
 
     // Lightweight: return only IDs matching the current filters (for "select all")
     if (searchParams.get('ids_only') === 'true') {
@@ -970,6 +969,39 @@ export async function GET(request: NextRequest) {
         { error: rpcError.message },
         { status: 500 }
       );
+    }
+
+    // Filter by customer_type if provided (post-RPC filter)
+    if (customerTypeFilter && result?.orders) {
+      const filterTypes = customerTypeFilter.split(',');
+      // Get all customer IDs matching the filter types
+      const { data: matchingCustomers } = await supabaseAdmin
+        .from('customers')
+        .select('id')
+        .eq('company_id', auth.companyId)
+        .in('customer_type', filterTypes);
+      const validCustIds = new Set((matchingCustomers || []).map((c: { id: string }) => c.id));
+
+      // Filter orders
+      result.orders = (result.orders as any[]).filter((o: any) => validCustIds.has(o.customer_id));
+      result.total = result.orders.length;
+
+      // Recalculate statusCounts from ALL orders of this customer_type (not just current page/status)
+      const flowTypes = flowType ? flowType.split(',') : null;
+      let countQuery = supabaseAdmin
+        .from('orders')
+        .select('order_status')
+        .eq('company_id', auth.companyId)
+        .in('customer_id', [...validCustIds]);
+      if (flowTypes) countQuery = countQuery.in('flow_type', flowTypes);
+      const { data: allStatusRows } = await countQuery;
+      if (allStatusRows) {
+        const counts: Record<string, number> = { all: allStatusRows.length };
+        for (const row of allStatusRows) {
+          counts[row.order_status] = (counts[row.order_status] || 0) + 1;
+        }
+        result.statusCounts = counts;
+      }
     }
 
     // Enrich orders with tax_invoice_doc_type from document tables

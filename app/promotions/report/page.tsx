@@ -161,7 +161,8 @@ export default function PromotionReportPage() {
               <p>ไม่พบข้อมูลโปรโมชั่นในช่วงเวลานี้</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            {/* Desktop Table */}
+            <div className="overflow-x-auto hidden md:block">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-700/50">
@@ -212,6 +213,52 @@ export default function PromotionReportPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card Layout */}
+            <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-700/30">
+              {report.map((item) => (
+                <div key={item.id} className="p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    {item.image ? (
+                      <img src={item.image} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/10 flex items-center justify-center">
+                        <Tag className="w-5 h-5 text-gray-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-gray-900 dark:text-white font-medium truncate">{item.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-sm text-gray-600 dark:text-gray-300">
+                          {TYPE_LABELS[item.promotion_type] || item.promotion_type}
+                        </span>
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          item.status === 'active'
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                            : 'bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400'
+                        }`}>
+                          {item.status === 'active' ? 'ใช้งาน' : item.status === 'inactive' ? 'ปิด' : item.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <div className="text-gray-500 dark:text-gray-400">คำสั่งซื้อ</div>
+                      <div className="font-medium text-gray-900 dark:text-white">{item.order_count}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500 dark:text-gray-400">จำนวนชิ้น</div>
+                      <div className="font-medium text-gray-900 dark:text-white">{item.total_qty}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-gray-500 dark:text-gray-400">ยอดขาย</div>
+                      <div className="font-bold text-[#F4511E]">฿{formatPrice(item.total_sales)}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

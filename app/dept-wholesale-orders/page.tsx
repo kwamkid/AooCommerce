@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -9,10 +9,11 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import {
   Store, Search, Plus, Package, Loader2, CheckCircle2, Clock, Truck, CreditCard,
-  Banknote, XCircle, ChevronRight, MoreVertical, X as XIcon, Send,
+  Banknote, XCircle, Send,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import FormSelect from '@/components/ui/FormSelect';
+import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
 import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
 import PaymentModal from '@/app/orders/components/PaymentModal';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
@@ -100,21 +101,10 @@ export default function DeptWholesaleOrdersPage() {
   const [recordsPerPage, setRecordsPerPage] = useState(20);
   const [loadTime, setLoadTime] = useState<number | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [paymentOrder, setPaymentOrder] = useState<WholesaleOrder | null>(null);
   const [shipOrder, setShipOrder] = useState<WholesaleOrder | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const showStatusCol = statusFilter === 'all';
-
-  // Close menu on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(null);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -143,7 +133,6 @@ export default function DeptWholesaleOrdersPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleAction = async (order: WholesaleOrder, action: string) => {
-    setMenuOpen(null);
 
     if (action === 'confirm_payment') {
       setPaymentOrder(order);
@@ -230,12 +219,19 @@ export default function DeptWholesaleOrdersPage() {
         {loading ? (
           <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" /></div>
         ) : orders.length === 0 ? (
-          <div className="text-center py-16">
+          <>
+          <div className="text-center py-16 hidden md:block">
             <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500 dark:text-slate-400">ไม่มีคำสั่งซื้อ</p>
           </div>
+          <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 text-center py-16">
+            <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500 dark:text-slate-400">ไม่มีคำสั่งซื้อ</p>
+          </div>
+          </>
         ) : (
-          <div className="data-table-wrap">
+          <>
+          <div className="data-table-wrap hidden md:block">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="data-thead">
@@ -293,23 +289,11 @@ export default function DeptWholesaleOrdersPage() {
                                 {focus.label}
                               </button>
                             )}
-                            {/* Action menu */}
-                            <div className="relative" ref={menuOpen === order.id ? menuRef : undefined}>
-                              <button onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === order.id ? null : order.id); }}
-                                className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                                <MoreVertical className="w-4 h-4 text-gray-400" />
-                              </button>
-                              {menuOpen === order.id && (
-                                <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-[999] overflow-hidden">
-                                  {canCancel && (
-                                    <button onClick={(e) => { e.stopPropagation(); handleAction(order, 'cancel'); }}
-                                      className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400">
-                                      ยกเลิกออเดอร์
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                            {canCancel && (
+                              <ActionMenu items={[
+                                { key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <XCircle className="w-4 h-4" />, danger: true, onClick: (e) => { e.stopPropagation(); handleAction(order, 'cancel'); } },
+                              ]} />
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -327,6 +311,78 @@ export default function DeptWholesaleOrdersPage() {
               loadTime={loadTime}
             />
           </div>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
+            <div className="divide-y divide-gray-100 dark:divide-slate-700">
+              {orders.map(order => {
+                const bc = getBadgeColor(order.order_status);
+                const statusLabel = ORDER_STATUS_LABELS[order.order_status] || order.order_status;
+                const pBadge = PAYMENT_BADGE[order.payment_status] || PAYMENT_BADGE.pending;
+                const focus = getFocusAction(order);
+                const isActioning = actionLoading === order.id;
+                const canCancel = ['new', 'ready_to_ship', 'processing'].includes(order.order_status);
+
+                return (
+                  <div key={order.id} className="p-4">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div
+                        className="cursor-pointer flex-1 min-w-0"
+                        onClick={() => router.push(`/dept-wholesale-orders/${order.id}`)}
+                      >
+                        <p className="font-mono text-sm font-bold text-[#F4511E]">{order.order_number}</p>
+                        <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDateTime(order.created_at)}</p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${bc.bg} ${bc.color}`}>
+                          {statusLabel}
+                        </span>
+                        {canCancel && (
+                          <ActionMenu items={[
+                            { key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <XCircle className="w-4 h-4" />, danger: true, onClick: (e) => { e.stopPropagation(); handleAction(order, 'cancel'); } },
+                          ]} />
+                        )}
+                      </div>
+                    </div>
+                    <div
+                      className="cursor-pointer"
+                      onClick={() => router.push(`/dept-wholesale-orders/${order.id}`)}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm text-gray-700 dark:text-slate-300 font-medium">{order.customer_name || '-'}</span>
+                        <span className="text-sm text-gray-900 dark:text-white font-semibold">฿{formatMoney(order.total_amount)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
+                        <span className={`font-medium ${pBadge.cls}`}>
+                          {order.payment_status === 'paid' && <CreditCard className="w-3 h-3 inline mr-1" />}
+                          {pBadge.label}
+                        </span>
+                        <span>{order.flow_type === 'w_credit' ? 'เครดิต' : 'เงินสด'}</span>
+                      </div>
+                    </div>
+                    {focus && (
+                      <div className="mt-3 flex gap-2" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => handleAction(order, focus.action)}
+                          disabled={isActioning} className={`btn-focus-action ${focus.color} flex-1 justify-center`}>
+                          {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : focus.icon}
+                          {focus.label}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <Pagination
+              currentPage={page} totalPages={totalPages} setPage={setPage}
+              startIdx={total > 0 ? (page - 1) * recordsPerPage + 1 : 0}
+              endIdx={Math.min(page * recordsPerPage, total)}
+              totalRecords={total}
+              recordsPerPage={recordsPerPage} setRecordsPerPage={(v: number) => { setRecordsPerPage(v); setPage(1); }}
+              loadTime={loadTime}
+            />
+          </div>
+          </>
         )}
       </div>
       {shipOrder && (

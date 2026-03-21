@@ -239,7 +239,7 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
           <p className="text-gray-500 dark:text-slate-400 text-sm">ไม่พบรายการเคลื่อนไหว</p>
         </div>
       ) : (
-        <div className="data-table-wrap">
+        <div className="data-table-wrap hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="data-thead">
@@ -360,6 +360,93 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
               dropUp
             />
           </Pagination>
+        </div>
+      )}
+
+      {/* Mobile Cards */}
+      {!loading && transactions.length > 0 && (
+        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+          <div className="divide-y divide-gray-100 dark:divide-slate-700">
+            {transactions.map(tx => (
+              <div key={tx.id} className="p-4">
+                {/* Row 1: Date + Type badge */}
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <div className="text-sm text-gray-500 dark:text-slate-400">
+                    {formatDate(tx.created_at)} <span className="text-xs">{formatTime(tx.created_at)}</span>
+                  </div>
+                  {getTypeBadge(tx.type)}
+                </div>
+
+                {/* Row 2: Product info */}
+                <div className="flex gap-3 mb-1.5">
+                  {tx.product_image ? (
+                    <img
+                      src={tx.product_image}
+                      alt=""
+                      className="w-10 h-10 object-cover rounded flex-shrink-0 cursor-pointer"
+                      onClick={() => setLightboxImage(tx.product_image!)}
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
+                      <Package2 className="w-5 h-5 text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-white text-[15px] line-clamp-2">
+                      {tx.product_name}{(() => {
+                        const raw = tx.variation_label || '';
+                        if (!raw || raw === tx.product_code || raw === (tx.sku || '') || /^\d+$/.test(raw)) return '';
+                        return ` - ${raw}`;
+                      })()}
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-slate-500">
+                      {getProductSubtitle({ product_code: tx.product_code, sku: tx.sku })}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Row 3: Qty + Balance + Warehouse */}
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <span className="text-xs text-gray-400 dark:text-slate-500 mr-1">จำนวน</span>
+                      {getQuantityDisplay(tx.type, tx.quantity)}
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-400 dark:text-slate-500 mr-1">คงเหลือ</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{tx.balance_after.toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400">
+                    <Warehouse className="w-3 h-3" />
+                    {tx.warehouse_name}
+                  </div>
+                </div>
+
+                {/* Row 4: Reference + User */}
+                <div className="flex items-center justify-between mt-1 text-xs text-gray-400 dark:text-slate-500">
+                  <div>{getReferenceDisplay(tx.reference_type, tx.reference_id)}</div>
+                  {tx.created_by_name && <span>{tx.created_by_name}</span>}
+                </div>
+
+                {/* Notes */}
+                {tx.notes && (
+                  <p className="mt-1 text-xs text-gray-400 dark:text-slate-500 truncate">{tx.notes}</p>
+                )}
+              </div>
+            ))}
+          </div>
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalRecords={total}
+            startIdx={startIdx}
+            endIdx={endIdx}
+            recordsPerPage={recordsPerPage}
+            setRecordsPerPage={setRecordsPerPage}
+            setPage={setPage}
+            loadTime={loadTime}
+          />
         </div>
       )}
 
