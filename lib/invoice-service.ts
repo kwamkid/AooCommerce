@@ -587,12 +587,40 @@ export async function issueReportDocument(
   companyId: string,
   customerId: string,
   totalAmount: number,
-  reportType: 'consignment_report' | 'department_store_report',
+  reportType: 'consignment_report' | 'department_store_report' | 'department_order',
 ): Promise<IssueReportDocResult> {
   try {
     const vatRegistered = await getCompanyVat(companyId);
     const now = new Date().toISOString().split('T')[0];
     const cust = await fetchCustomerForDoc(customerId);
+
+    // Flow D (department_order) + จด VAT → TAX tax_only (ใบกำกับภาษี ออกตอนส่งของ)
+    if (vatRegistered && reportType === 'department_order') {
+      const { data: existing } = await supabaseAdmin
+        .from('tax_invoices')
+        .select('invoice_number')
+        .eq('source_type', 'department_order').eq('source_id', reportId)
+        .eq('company_id', companyId).is('voided_at', null)
+        .maybeSingle();
+      if (existing) return { success: true, documentNumber: existing.invoice_number, documentType: 'tax_only' };
+
+      const { data: taxNum } = await supabaseAdmin.rpc('generate_tax_invoice_number', { p_company_id: companyId });
+      if (!taxNum) return { success: false, error: 'ไม่สามารถสร้างเลขที่ใบกำกับภาษีได้' };
+
+      await insertTaxInvoice({
+        company_id: companyId, invoice_number: taxNum, invoice_date: now,
+        source_type: 'department_order', source_id: reportId, customer_id: customerId,
+        customer_name: cust?.custName || null,
+        customer_tax_id: cust?.tax_id || null,
+        customer_branch: cust?.tax_branch || null,
+        customer_address: cust?.custAddress || null,
+        total_amount: totalAmount,
+        is_receipt: false,
+        document_subtype: 'tax_only', // ใบกำกับภาษี (ห้างส่งของ)
+      });
+
+      return { success: true, documentNumber: taxNum, documentType: 'tax_only' };
+    }
 
     // Flow C (consignment) + จด VAT → TAX tax_invoice
     if (vatRegistered && reportType === 'consignment_report') {
@@ -722,13 +750,14 @@ export async function issuePaymentReceipt(
 export async function issueOrderDN(
   orderId: string,
   companyId: string,
+  sourceType: string = 'order',
 ): Promise<IssueResult> {
   try {
     // Check if already issued — query document table
     const { data: existing } = await supabaseAdmin
       .from('delivery_notes')
       .select('dn_number')
-      .eq('source_type', 'order').eq('source_id', orderId)
+      .eq('source_type', sourceType).eq('source_id', orderId)
       .eq('company_id', companyId)
       .maybeSingle();
 
@@ -745,12 +774,14 @@ export async function issueOrderDN(
 
     const now = new Date().toISOString().split('T')[0];
 
-    // Insert into document table (single source of truth)
+    // Insert into document table
+    const table = sourceType === 'department_order' ? 'department_orders' : 'orders';
+    const amountCol = sourceType === 'department_order' ? 'total_amount' : 'total_amount';
     const { data: orderInfo } = await supabaseAdmin
-      .from('orders').select('customer_id, total_amount').eq('id', orderId).single();
+      .from(table).select(`customer_id, ${amountCol}`).eq('id', orderId).single();
     await insertDeliveryNote({
       company_id: companyId, dn_number: dnNumber, dn_date: now,
-      source_type: 'order', source_id: orderId,
+      source_type: sourceType, source_id: orderId,
       customer_id: orderInfo?.customer_id, total_amount: orderInfo?.total_amount ?? 0,
     });
 

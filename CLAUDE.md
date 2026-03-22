@@ -124,27 +124,72 @@ import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu'
 | `wholesale_department` | wholesale_cash/credit | W | ห้างขายขาด |
 | `corporate` | wholesale_cash/credit | W | องค์กร/B2B |
 
+### Flow ทั้งหมด (5 flows)
+| flow_type | ชื่อ | ใช้กับ |
+|---|---|---|
+| `r_retail` | ลูกค้าปลีก | retail, dropship |
+| `w_cash` | ขายขาดเงินสด | wholesale_dealer, wholesale_department, corporate |
+| `w_credit` | ขายขาดเครดิต | wholesale_dealer, wholesale_department, corporate |
+| `c_consign` | ตัวแทนฝากขาย | consignment_dealer |
+| `d_consign` | ห้างฝากขาย | department_store |
+
 ### Order Status Flow
 ```
-ขายขาดเงินสด:  new → (ชำระ) → ready_to_ship → (คอนเฟิร์ม) → processing → (จัดส่ง) → completed
-ขายขาดเครดิต:  ready_to_ship → (คอนเฟิร์ม) → processing → (จัดส่ง) → completed → (บันทึกชำระ)
-ลูกค้าปลีก:    new → (ชำระ) → ready_to_ship → (กดรับ) → processing → (จัดส่ง) → shipping → completed
+r_retail:    new → (ชำระ) → ready_to_ship → (กดรับ) → processing → (จัดส่ง) → shipping → completed
+w_cash:      new → (ชำระ) → ready_to_ship → (คอนเฟิร์ม) → processing → (จัดส่ง) → completed
+w_credit:    ready_to_ship → (คอนเฟิร์ม) → processing → (จัดส่ง) → completed → (บันทึกชำระ)
+c_consign:   เติมของ(replenishment) → แจ้งยอด(CSR report) → ชำระ
+d_consign:   เติมของห้าง(dept order) → ห้างแจ้งยอด(DSR report) → ห้างโอน
 ```
 
-### เอกสาร (8 prefixes)
-| Prefix | ชื่อ | Table | ออกตอน |
-|---|---|---|---|
-| `ABB-` | ใบกำกับอย่างย่อ/ใบเสร็จ | `abbreviated_invoices` | ปลีก ชำระแล้ว (auto) |
-| `TAX-` | ใบกำกับภาษี | `tax_invoices` | คอนเฟิร์มออเดอร์ (auto) |
-| `INV-` | ใบแจ้งหนี้ | `invoices` | เครดิต (manual) |
-| `REC-` | ใบเสร็จรับเงิน | `receipts` | บันทึกชำระ (auto) |
-| `DN-` | ใบส่งสินค้า | `delivery_notes` | จัดส่ง (auto) |
-| `ST-` | ใบวางบิล | `statements` | รวม INV (manual) |
-| `CN-` | ใบลดหนี้ | `credit_notes` | void/refund |
+### Auto Issue Document Flow (ใช้ /check-flow เพื่อเช็คจาก code จริง)
 
-### TAX document_subtype
+**r_retail (ปลีก):**
+| จุด | เอกสาร | subtype |
+|---|---|---|
+| กดรับ + ชำระแล้ว | ABB/REC | — |
+
+**w_cash (ขายขาดเงินสด):**
+| จุด | เอกสาร | subtype |
+|---|---|---|
+| คอนเฟิร์ม + ชำระแล้ว | TAX | `tax_receipt` (ใบกำกับภาษี/ใบเสร็จ) |
+| จัดส่ง | DN | — |
+
+**w_credit (ขายขาดเครดิต):**
+| จุด | เอกสาร | subtype |
+|---|---|---|
+| คอนเฟิร์ม | TAX | `tax_invoice` (ใบกำกับภาษี/ใบแจ้งหนี้) |
+| จัดส่ง | DN + ST | — |
+| บันทึกชำระ | REC | — |
+
+**c_consign (ตัวแทนฝากขาย):**
+| จุด | เอกสาร | subtype |
+|---|---|---|
+| เติมของ (replenishment ship) | DN (ไม่มีราคา) | — |
+| แจ้งยอด (CSR report) | TAX + ST | `tax_invoice` (ใบกำกับภาษี/ใบแจ้งหนี้) |
+| ชำระ | REC | — |
+
+**d_consign (ห้างฝากขาย):**
+| จุด | เอกสาร | subtype |
+|---|---|---|
+| เติมของห้าง (dept order) | TAX + DN (มีราคา) | `tax_only` (ใบกำกับภาษี) |
+| ห้างแจ้งยอด (DSR report) | INV + ST | — |
+| ห้างโอน | REC | — |
+
+### เอกสาร (8 prefixes)
+| Prefix | ชื่อ | Table |
+|---|---|---|
+| `ABB-` | ใบกำกับอย่างย่อ/ใบเสร็จ | `abbreviated_invoices` |
+| `TAX-` | ใบกำกับภาษี | `tax_invoices` |
+| `INV-` | ใบแจ้งหนี้ | `invoices` |
+| `REC-` | ใบเสร็จรับเงิน | `receipts` |
+| `DN-` | ใบส่งสินค้า | `delivery_notes` |
+| `ST-` | ใบวางบิล | `statements` |
+| `CN-` | ใบลดหนี้ | `credit_notes` |
+
+### TAX document_subtype → หัวเอกสาร
 - `tax_only` → "ใบกำกับภาษี" (ห้างส่งของ)
-- `tax_receipt` → "ใบกำกับภาษี/ใบเสร็จรับเงิน" (ขายปลีกจ่ายสด)
+- `tax_receipt` → "ใบกำกับภาษี/ใบเสร็จรับเงิน" (ขายปลีกจ่ายสด, ขายขาดเงินสด)
 - `tax_invoice` → "ใบกำกับภาษี/ใบแจ้งหนี้" (ฝากขาย, ขายขาดเครดิต)
 
 ### GP Pricing
@@ -209,6 +254,29 @@ marketplace_accounts → marketplace_product_links → product_variations
 ### PDF Utilities (`lib/pdf-utils.ts`)
 `buildCompanyStack()`, `buildCornerTriangle()`, `buildSignatureFooter()`,
 `buildProductNameStack()`, `withOriginalAndCopy()`, `formatPdfPrice()`, `formatPdfDate()`
+
+### Bill Template Design (PDF Layout)
+**Library**: pdfMake, **Font**: IBMPlexSansThai, **Page**: A4, **Margins**: `[40,40,40,110]`
+
+**5 Sections**:
+1. **Header** — Logo+company (left) + doc title 24pt + info box (right, 230pt)
+2. **Sub-header** — Customer/warehouse info
+3. **Item Table** — No vertical lines, 1px #333 header/footer, 0.5px #e5e7eb row dividers
+4. **Summary** — Notes/QR (left) + totals table (right, 260pt), grand total bold 12pt
+5. **Signature Footer** — 2 sides: ผู้ออกเอกสาร + ผู้รับ (absolute bottom)
+
+**Corner triangle**: 50pt filled polyline, top-right, theme color
+**ต้นฉบับ/สำเนา**: page 1 green "(ต้นฉบับ)", page 2 gray "(สำเนา)"
+
+**PDF Color Palette**:
+| Color | Hex | Usage |
+|---|---|---|
+| Green | `#15803d` | paid, receive, ต้นฉบับ |
+| Dark Slate | `#1e293b` | unpaid, issue |
+| Amber | `#b45309` | transfer, consignment |
+| Red | `#dc2626` | credit note, void |
+| Indigo | `#4f46e5` | statement |
+| Orange | `#F4511E` | consignment report, brand accent |
 
 ### Print Preview
 ```typescript

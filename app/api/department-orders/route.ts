@@ -199,10 +199,39 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Auto issue TAX (tax_only) + DN for department orders
+    let taxNumber: string | null = null;
+    let dnNumber: string | null = null;
+    try {
+      const { issueReportDocument } = await import('@/lib/invoice-service');
+      const result = await issueReportDocument(
+        order.id, auth.companyId!, customer_id, totalAmount, 'department_order'
+      );
+      if (result.success) taxNumber = result.documentNumber || null;
+    } catch (err) {
+      console.error('Auto issue TAX for department order error:', err);
+    }
+    try {
+      const { issueOrderDN } = await import('@/lib/invoice-service');
+      await issueOrderDN(order.id, auth.companyId!, 'department_order');
+      // Get DN number
+      const { data: dnData } = await supabaseAdmin
+        .from('delivery_notes')
+        .select('dn_number')
+        .eq('source_type', 'department_order')
+        .eq('source_id', order.id)
+        .single();
+      dnNumber = dnData?.dn_number || null;
+    } catch (err) {
+      console.error('Auto issue DN for department order error:', err);
+    }
+
     return NextResponse.json({
       success: true,
       id: order.id,
       department_order_number: order.department_order_number,
+      tax_invoice_number: taxNumber,
+      dn_number: dnNumber,
     });
   } catch (err) {
     console.error('Department orders POST unhandled error:', err);
