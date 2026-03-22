@@ -1081,13 +1081,14 @@ export async function autoIssueDocument(
       return;
     }
 
-    // ─── Flow W-Credit: ส่งของ → DN (มีราคา) + TAX tax_invoice (VAT) or INV (no VAT) ───
+    // ─── Flow W-Credit: TAX ตอน processing (กดรับ), DN ตอน shipping/completed (จัดส่ง) ───
     if ((order.flow_type === 'w_credit')
-        && ['shipping', 'completed'].includes(order.order_status)) {
-      // DN (มีราคา)
-      if (!(await hasDN())) {
+        && ['processing', 'shipping', 'completed'].includes(order.order_status)) {
+      // DN (มีราคา) — เฉพาะ shipping/completed
+      if (['shipping', 'completed'].includes(order.order_status) && !(await hasDN())) {
         await issueOrderDN(orderId, companyId);
       }
+      // TAX — ออกตั้งแต่ processing (กดรับออเดอร์)
       const vatRegistered = await getCompanyVat(companyId);
       if (vatRegistered) {
         // จด VAT → ออก TAX (ถ้ายังไม่มี)

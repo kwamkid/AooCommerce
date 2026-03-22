@@ -9,7 +9,7 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import {
   Store, Search, Plus, Package, Loader2, CheckCircle2, Clock, Truck, CreditCard,
-  Banknote, XCircle, Send,
+  Banknote, XCircle, Send, Printer, FileText, ClipboardList,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import FormSelect from '@/components/ui/FormSelect';
@@ -17,6 +17,9 @@ import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu'
 import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
 import PaymentModal from '@/app/orders/components/PaymentModal';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
+import { showPdfPreview } from '@/lib/print-pdf';
+import { generatePackingPdf } from '@/lib/orders-packing-pdf';
+import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 
 interface WholesaleOrder {
   id: string;
@@ -166,6 +169,73 @@ export default function DeptWholesaleOrdersPage() {
 
   const totalPages = Math.ceil(total / recordsPerPage);
 
+  const handlePrint = async (orderId: string, type: 'tax' | 'dn' | 'packing' | 'label' | 'all') => {
+    try {
+      const res = await apiFetch(`/api/orders/${orderId}`);
+      if (!res.ok) throw new Error('Failed to fetch order');
+      const data = await res.json();
+      const orderData = data.order || data;
+      const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+
+      if (type === 'tax') {
+        const blob = await generateFullInvoicePdf(orderData);
+        showPdfPreview(blob, `ใบกำกับภาษี ${orderData.order_number}`);
+      } else if (type === 'dn') {
+        const blob = await generateFullInvoicePdf({ ...orderData, tax_invoice_doc_type: 'dn' });
+        showPdfPreview(blob, `ใบส่งสินค้า ${orderData.order_number}`);
+      } else if (type === 'packing') {
+        const blob = await generatePackingPdf([orderData]);
+        showPdfPreview(blob, `ใบจัดของ ${orderData.order_number}`);
+      } else if (type === 'label') {
+        const blob = await generateShippingLabelPdf([orderData]);
+        showPdfPreview(blob, `ใบปะหน้า ${orderData.order_number}`);
+      } else if (type === 'all') {
+        const { mergePdfBlobs } = await import('@/lib/print-pdf');
+        const blobs = await Promise.all([
+          generateFullInvoicePdf(orderData),
+          generateFullInvoicePdf({ ...orderData, tax_invoice_doc_type: 'dn' }),
+          generatePackingPdf([orderData]),
+          generateShippingLabelPdf([orderData]),
+        ]);
+        const merged = await mergePdfBlobs(blobs);
+        showPdfPreview(merged, `เอกสารทั้งหมด ${orderData.order_number}`);
+      }
+    } catch (err) {
+      showToast('ไม่สามารถพิมพ์เอกสารได้', 'error');
+      console.error('Print error:', err);
+    }
+  };
+
+  const getMenuItems = (order: WholesaleOrder): ActionItem[] => {
+    const items: ActionItem[] = [];
+    const canCancel = ['new', 'ready_to_ship', 'processing'].includes(order.order_status);
+    const hasProcessed = ['processing', 'shipping', 'completed'].includes(order.order_status);
+
+    // === Financial documents ===
+    if (hasProcessed) {
+      items.push({ key: 'print_tax', label: 'ใบกำกับภาษี/ใบแจ้งหนี้', icon: <FileText className="w-4 h-4" />, onClick: () => handlePrint(order.id, 'tax') });
+      items.push({ key: 'print_dn', label: 'ใบส่งสินค้า', icon: <FileText className="w-4 h-4" />, onClick: () => handlePrint(order.id, 'dn') });
+      items.push({
+        key: 'print_all', label: 'พิมพ์ทั้งหมด', icon: <Printer className="w-4 h-4" />,
+        className: 'text-[#F4511E] font-medium',
+        onClick: () => handlePrint(order.id, 'all'),
+      });
+    }
+
+    // === Shipping documents ===
+    if (hasProcessed) {
+      items.push({ key: 'print_packing', label: 'ใบจัดของ', icon: <ClipboardList className="w-4 h-4" />, dividerBefore: true, onClick: () => handlePrint(order.id, 'packing') });
+      items.push({ key: 'print_label', label: 'ใบปะหน้า', icon: <Printer className="w-4 h-4" />, onClick: () => handlePrint(order.id, 'label') });
+    }
+
+    // === Cancel ===
+    if (canCancel) {
+      items.push({ key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <XCircle className="w-4 h-4" />, danger: true, dividerBefore: true, onClick: (e) => { e?.stopPropagation(); handleAction(order, 'cancel'); } });
+    }
+
+    return items;
+  };
+
   return (
     <Layout>
       <div className="space-y-4">
@@ -289,11 +359,7 @@ export default function DeptWholesaleOrdersPage() {
                                 {focus.label}
                               </button>
                             )}
-                            {canCancel && (
-                              <ActionMenu items={[
-                                { key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <XCircle className="w-4 h-4" />, danger: true, onClick: (e) => { e.stopPropagation(); handleAction(order, 'cancel'); } },
-                              ]} />
-                            )}
+                            <ActionMenu items={getMenuItems(order)} />
                           </div>
                         </td>
                       </tr>
