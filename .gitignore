@@ -52,6 +52,10 @@ supabase/migrations/
 todo.md
 knowledge.md
 
+# Claude Code
+CLAUDE.md
+.claude/commands/
+
 # local API docs
 api_doc_knowledge/
 " api_doc_knowledge/"
