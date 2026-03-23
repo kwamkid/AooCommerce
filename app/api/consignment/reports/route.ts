@@ -274,10 +274,8 @@ export async function POST(request: NextRequest) {
     const dueDate = new Date(periodEnd);
     dueDate.setDate(dueDate.getDate() + dueDays);
 
-    // Insert consignment report
-    // Admin-keyed → invoiced (skip draft/received), portal → draft
-    const initialStatus = isAdminKeyed ? 'invoiced' : 'draft';
-    const now = new Date().toISOString();
+    // Insert consignment report — always draft first, confirm later
+    const initialStatus = 'draft';
 
     const { data: report, error: insertError } = await supabaseAdmin
       .from('consignment_reports')
@@ -294,11 +292,6 @@ export async function POST(request: NextRequest) {
         due_date: dueDate.toISOString().split('T')[0],
         notes: notes ?? null,
         created_by: userId ?? null,
-        ...(isAdminKeyed ? {
-          received_at: now,
-          confirmed_at: now,
-          confirmed_by: userId ?? null,
-        } : {}),
       })
       .select('id')
       .single();
@@ -333,70 +326,12 @@ export async function POST(request: NextRequest) {
 
     }
 
-    // Admin-keyed: deduct stock from consignment warehouse immediately
-    if (isAdminKeyed && itemsWithAmounts.length > 0) {
-      const { data: warehouse } = await supabaseAdmin
-        .from('warehouses')
-        .select('id')
-        .eq('company_id', companyId)
-        .eq('customer_id', customer_id)
-        .eq('warehouse_type', 'consignment')
-        .single();
-
-      if (warehouse) {
-        for (const item of itemsWithAmounts) {
-          if (!item.variation_id || item.qty_sold <= 0) continue;
-
-          await deductStock({
-            supabase: supabaseAdmin,
-            companyId,
-            warehouseId: warehouse.id,
-            variationId: item.variation_id,
-            qty: item.qty_sold,
-            referenceType: 'consignment_report',
-            referenceId: report.id,
-            notes: `ตัดสต๊อกจากรายงาน (คีย์โดย admin) ${reportNumber}`,
-            createdBy: userId ?? null,
-          });
-        }
-      }
-    }
-
-    // Auto create statement + issue document for admin-keyed reports
-    let stResult = null;
-    let docResult: { documentNumber?: string; documentType?: string } | null = null;
-    if (isAdminKeyed) {
-      try {
-        const { createStatementForReport } = await import('@/lib/statement-service');
-        stResult = await createStatementForReport(
-          report.id, customer_id, companyId, userId ?? null,
-          totalOurAmount, period_year, period_month
-        );
-      } catch (err) {
-        console.error('Auto create statement error:', err);
-      }
-
-      // Issue TAX (tax_invoice) or INV depending on VAT status
-      try {
-        const { issueReportDocument } = await import('@/lib/invoice-service');
-        const result = await issueReportDocument(
-          report.id, companyId, customer_id, totalOurAmount, 'consignment_report'
-        );
-        if (result.success) docResult = result;
-      } catch (err) {
-        console.error('Auto issue report document error:', err);
-      }
-    }
-
+    // Draft created — stock deduction + documents happen on confirm
     return NextResponse.json({
       success: true,
       report_id: report.id,
       report_number: reportNumber,
-      status: stResult?.statementId ? 'billed' : initialStatus,
-      statement_id: stResult?.statementId || null,
-      statement_number: stResult?.statementNumber || null,
-      document_number: docResult?.documentNumber || null,
-      document_type: docResult?.documentType || null,
+      status: 'draft',
     });
   } catch (error) {
     console.error('POST consignment reports error:', error);

@@ -42,7 +42,7 @@ interface ConsignmentReport {
 
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft:    { label: 'รอรายงาน',   color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
+  draft:    { label: 'ร่าง',       color: 'text-blue-700 dark:text-blue-300',     bg: 'bg-blue-100 dark:bg-blue-900/40' },
   received: { label: 'รับแล้ว',    color: 'text-blue-700 dark:text-blue-300',     bg: 'bg-blue-100 dark:bg-blue-900/40' },
   invoiced: { label: 'ออก invoice', color: 'text-purple-700 dark:text-purple-300', bg: 'bg-purple-100 dark:bg-purple-900/40' },
   billed:   { label: 'วางบิลแล้ว', color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40' },
@@ -53,6 +53,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 
 const STATUS_TABS = [
   { key: 'all',      label: 'ทั้งหมด',       ...getTabColor('all') },
+  { key: 'draft',    label: 'ร่าง',          ...getTabColor('draft') },
   { key: 'received', label: 'รอยืนยัน',     ...getTabColor('received'),
     tooltip: 'ตัวแทนรายงานยอดขายแล้ว รอ Admin ตรวจสอบและยืนยัน', hideIfZero: true },
   { key: 'billed',   label: 'วางบิลแล้ว',   ...getTabColor('billed') },

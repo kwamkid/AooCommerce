@@ -93,7 +93,7 @@ interface ReportItem {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft:     { label: 'รอรายงาน',    color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
+  draft:     { label: 'ร่าง',          color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/40' },
   received:  { label: 'รับแล้ว',     color: 'text-blue-700 dark:text-blue-300',     bg: 'bg-blue-100 dark:bg-blue-900/40' },
   invoiced:  { label: 'ออก invoice', color: 'text-purple-700 dark:text-purple-300', bg: 'bg-purple-100 dark:bg-purple-900/40' },
   billed:    { label: 'วางบิลแล้ว',  color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40' },
@@ -642,9 +642,9 @@ function EditReportContent() {
               </button>
             )}
 
-            {report.status === 'received' && (
+            {['draft', 'received'].includes(report.status) && (
               <button
-                onClick={() => handleAction('confirm', 'ยืนยันรายงานแล้ว + หักสต๊อก')}
+                onClick={() => handleAction('confirm', 'ยืนยันรายงานแล้ว + สร้างเอกสาร + หักสต๊อก')}
                 disabled={actionLoading === 'confirm'}
                 className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5 text-sm disabled:opacity-50"
               >

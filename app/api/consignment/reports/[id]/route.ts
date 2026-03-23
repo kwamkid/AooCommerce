@@ -113,8 +113,8 @@ export async function PUT(
     }
 
     if (action === 'confirm') {
-      // Confirm: received → invoiced + deduct stock from consignment warehouse
-      if (report.status !== 'received') {
+      // Confirm: draft/received → invoiced + deduct stock from consignment warehouse
+      if (!['draft', 'received'].includes(report.status)) {
         return NextResponse.json(
           { error: `ไม่สามารถยืนยันรายงานที่มีสถานะ "${report.status}" ได้` },
           { status: 400 }
