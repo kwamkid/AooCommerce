@@ -1,12 +1,2 @@
 {
-  "crons": [
-    {
-      "path": "/api/shopee/webhook/retry",
-      "schedule": "*/10 * * * *"
-    },
-    {
-      "path": "/api/shopee/refresh-tokens",
-      "schedule": "0 */6 * * *"
-    }
-  ]
 }
