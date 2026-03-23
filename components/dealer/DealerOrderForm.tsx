@@ -5,13 +5,9 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useRouter } from 'next/navigation';
 import { useCompany } from '@/lib/company-context';
-import { parseThaiAddress } from '@/lib/address-parser';
-import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
-import {
-  Loader2, Save, Users, CheckCircle, MapPin, X, ChevronDown, Plus, Warehouse,
-} from 'lucide-react';
+import CustomerSelectionCard, { type DeliveryFields, type ShippingAddress } from '@/components/ui/CustomerSelectionCard';
+import { Loader2, Save, Warehouse } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
-import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import { resolveGp, fetchCustomerOrderContext, type GpResolverContext } from '@/lib/gp-resolver';
@@ -19,8 +15,6 @@ import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import MonthYearPicker from '@/components/ui/MonthYearPicker';
 import OrderStatusBar from '@/components/dealer/OrderStatusBar';
 import OrderPrintButtons from '@/components/ui/OrderPrintButtons';
-import CustomerInfoCard from '@/components/ui/CustomerInfoCard';
-import TaxInvoiceInfo from '@/components/ui/TaxInvoiceInfo';
 import { formatNumber } from '@/lib/utils/format';
 
 // ── Types ──────────────────────────────────────────────────
@@ -45,18 +39,6 @@ interface Customer {
   tax_branch?: string | null;
 }
 
-interface ShippingAddress {
-  id: string;
-  address_name: string;
-  address_line1: string;
-  district: string;
-  amphoe: string;
-  province: string;
-  postal_code: string;
-  phone: string;
-  contact_person: string;
-  is_default?: boolean;
-}
 
 interface OrderItem {
   variation_id: string;
@@ -144,7 +126,6 @@ export default function DealerOrderForm({
   // Shipping address
   const [shippingAddresses, setShippingAddresses] = useState<ShippingAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
-  const [showAddressDropdown, setShowAddressDropdown] = useState(false);
 
   // Delivery fields
   const [deliveryAddress, setDeliveryAddress] = useState('');
@@ -275,7 +256,7 @@ export default function DealerOrderForm({
   }, []);
 
   const resetForm = useCallback(() => {
-    setShippingAddresses([]); setSelectedAddressId(''); setShowAddressDropdown(false);
+    setShippingAddresses([]); setSelectedAddressId('');
     setDeliveryAddress(''); setDeliveryName(''); setDeliveryPhone('');
     setDeliveryEmail(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
     setDeliveryProvince(''); setDeliveryPostalCode('');
@@ -830,206 +811,56 @@ export default function DealerOrderForm({
         </div>
       )}
 
-      {/* Customer + Delivery section — 2-column grid */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-          {/* Row 1 Left: ลูกค้า */}
-          <div className="relative flex flex-col">
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-              {customerLabel} <span className="text-red-500">*</span>
-            </label>
-            {selectedCustomer ? (
-              <div className="relative flex-1">
-                <div
-                  className={`flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg h-full ${shippingAddresses.length > 1 ? 'cursor-pointer' : ''}`}
-                  onClick={() => { if (shippingAddresses.length > 1) setShowAddressDropdown(!showAddressDropdown); }}
-                >
-                  <CustomerInfoCard
-                    customer={selectedCustomer}
-                    loading={loadingGp}
-                    badge={isWholesale ? (
-                      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${flowType === 'w_credit' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>
-                        {flowType === 'w_credit' ? 'เครดิต' : 'เงินสด'}
-                      </span>
-                    ) : undefined}
-                  >
-                    {shippingAddresses.length > 1 && (
-                      <div className="text-sm text-gray-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
-                        <MapPin className="w-3 h-3 flex-shrink-0" />
-                        <span>{selectedAddressId === 'new' ? 'ที่อยู่ใหม่' : (shippingAddresses.find(a => a.id === selectedAddressId)?.address_name || shippingAddresses[0]?.address_name)}</span>
-                        <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                      </div>
-                    )}
-                  </CustomerInfoCard>
-                  <button type="button" onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedCustomerId(''); setSelectedCustomer(null); setGpContext(null); setItems([]);
-                    latestCustomerIdRef.current = '';
-                    resetForm();
-                  }} className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors">
-                    <X className="w-3.5 h-3.5 text-gray-400" />
-                  </button>
-                </div>
-                {/* Address dropdown */}
-                {showAddressDropdown && shippingAddresses.length > 1 && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowAddressDropdown(false)} />
-                    <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
-                      {shippingAddresses.map(addr => (
-                        <button key={addr.id} type="button" onClick={() => {
-                          setSelectedAddressId(addr.id);
-                          fillDeliveryFromAddress(addr, selectedCustomer);
-                          setShowAddressDropdown(false);
-                        }} className={`w-full px-3 py-2.5 text-left flex items-center gap-2 transition-colors ${selectedAddressId === addr.id ? 'bg-orange-50 dark:bg-orange-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}>
-                          <MapPin className={`w-3.5 h-3.5 flex-shrink-0 ${selectedAddressId === addr.id ? 'text-[#F4511E]' : 'text-gray-400'}`} />
-                          <div className="flex-1 min-w-0">
-                            <div className={`text-sm ${selectedAddressId === addr.id ? 'font-medium text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>{addr.address_name}</div>
-                            <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{[addr.address_line1, addr.district, addr.amphoe, addr.province].filter(Boolean).join(', ')}</div>
-                          </div>
-                          {selectedAddressId === addr.id && <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />}
-                        </button>
-                      ))}
-                      <button type="button" onClick={() => {
-                        setSelectedAddressId('new');
-                        setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
-                        setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
-                        setDeliveryProvince(''); setDeliveryPostalCode('');
-                        setShowAddressDropdown(false);
-                      }} className="w-full px-3 py-2.5 text-left flex items-center gap-2 border-t border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
-                        <Plus className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-sm text-gray-500 dark:text-slate-400">ที่อยู่ใหม่</span>
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : (
-              <EntitySearchInput
-                value=""
-                onChange={handleCustomerChange}
-                options={customers.map(c => {
-                  const st = c.sale_type || (c.customer_type === 'consignment_dealer' ? 'consignment' : 'wholesale_cash');
-                  const badgeLabel = st === 'wholesale_credit' ? 'เครดิต' : st === 'wholesale_cash' ? 'เงินสด' : st === 'consignment' ? 'ฝากขาย' : '';
-                  const badgeCls = st === 'wholesale_credit' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : st === 'consignment' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
-                  return {
-                    id: c.id,
-                    label: c.name,
-                    subtitle: c.phone || undefined,
-                    icon: <Users className="w-4 h-4 text-gray-400" />,
-                    badge: badgeLabel ? <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${badgeCls}`}>{badgeLabel}</span> : undefined,
-                  };
-                })}
-                placeholder="ค้นหาชื่อ, รหัส, หรือเบอร์โทร..."
-                emptyMessage="ไม่พบลูกค้า"
-              />
-            )}
-          </div>
-
-          {/* Row 1 Right: ที่อยู่ */}
-          <div className="flex flex-col sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่</label>
-            <textarea
-              value={deliveryAddress}
-              onChange={(e) => setDeliveryAddress(e.target.value)}
-              onPaste={(e) => {
-                const pasted = e.clipboardData.getData('text');
-                if (pasted.length > 10) {
-                  const parsed = parseThaiAddress(pasted);
-                  if (parsed) {
-                    e.preventDefault();
-                    setDeliveryAddress(parsed.address);
-                    setDeliveryDistrict(parsed.district);
-                    setDeliveryAmphoe(parsed.amphoe);
-                    setDeliveryProvince(parsed.province);
-                    setDeliveryPostalCode(parsed.postal_code);
-                  }
-                }
-              }}
-              rows={2}
-              placeholder="วางที่อยู่ยาวๆ ได้เลย — ระบบจะแยก ตำบล อำเภอ จังหวัด ให้อัตโนมัติ"
-              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] resize-none"
-            />
-          </div>
-
-          {/* Row 2 Left: เบอร์โทร + อีเมล + ข้อมูลออกใบกำกับ */}
-          <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
-                <input type="text" inputMode="tel" value={deliveryPhone} onChange={(e) => setDeliveryPhone(e.target.value)} placeholder="0xx-xxx-xxxx" className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
-              </div>
-              <div>
-                <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
-                <input type="text" inputMode="email" value={deliveryEmail} onChange={(e) => setDeliveryEmail(e.target.value)} placeholder="email@example.com" className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
-              </div>
-            </div>
-            {/* ข้อมูลออกใบกำกับภาษี */}
-            {vatRegistered && selectedCustomerId && (
-              <TaxInvoiceInfo
-                customerName={selectedCustomer?.name || ''}
-                taxCompanyName={taxName} taxId={taxTaxId} taxBranch={taxBranch} billingAddress={taxAddress}
-                onEdit={!isReadOnly ? (data) => {
-                  setTaxName(data.tax_company_name); setTaxTaxId(data.tax_id);
-                  setTaxBranch(data.tax_branch); setTaxAddress(data.billing_address);
-                } : undefined}
-              />
-            )}
-          </div>
-
-          {/* Row 2 Right: ตำบล อำเภอ จังหวัด รหัสไปรษณีย์ */}
-          <div className="sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
-            <ThaiAddressInput
-              district={deliveryDistrict}
-              amphoe={deliveryAmphoe}
-              province={deliveryProvince}
-              postalCode={deliveryPostalCode}
-              onAddressChange={(addr) => {
-                if (addr.district !== undefined) setDeliveryDistrict(addr.district);
-                if (addr.amphoe !== undefined) setDeliveryAmphoe(addr.amphoe);
-                if (addr.province !== undefined) setDeliveryProvince(addr.province);
-                if (addr.postalCode !== undefined) setDeliveryPostalCode(addr.postalCode);
-              }}
-            />
-          </div>
-
-          {/* Tax Invoice — checkbox (no VAT company only) */}
-          {!vatRegistered && (
-            <div className="sm:col-span-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={taxInvoiceRequested}
-                  onChange={(e) => setTaxInvoiceRequested(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E] accent-[#F4511E]"
-                />
-                <span className="text-base font-medium text-[#F4511E] dark:text-orange-400">ขอใบกำกับภาษี</span>
-              </label>
-              {taxInvoiceRequested && (
-                <div className="mt-3 space-y-3">
-                  <div>
-                    <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
-                    <input type="text" value={taxName} onChange={(e) => setTaxName(e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="บริษัท XXX จำกัด" />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">เลขประจำตัวผู้เสียภาษี</label>
-                      <input type="text" value={taxTaxId} onChange={(e) => setTaxTaxId(e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
-                    </div>
-                    <div>
-                      <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">สาขา</label>
-                      <input type="text" value={taxBranch} onChange={(e) => setTaxBranch(e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="สำนักงานใหญ่" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">ที่อยู่ออกบิล</label>
-                    <textarea value={taxAddress} onChange={(e) => setTaxAddress(e.target.value)} rows={2} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E] resize-none" placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์" />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Customer + Delivery section */}
+      <CustomerSelectionCard
+        customerLabel={customerLabel}
+        customers={customers}
+        selectedCustomer={selectedCustomer}
+        selectedCustomerId={selectedCustomerId}
+        onCustomerChange={handleCustomerChange}
+        onCustomerClear={() => {
+          setSelectedCustomerId(''); setSelectedCustomer(null); setGpContext(null); setItems([]);
+          latestCustomerIdRef.current = '';
+          resetForm();
+        }}
+        loading={loadingGp}
+        badge={isWholesale ? (
+          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${flowType === 'w_credit' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>
+            {flowType === 'w_credit' ? 'เครดิต' : 'เงินสด'}
+          </span>
+        ) : undefined}
+        disabled={isReadOnly}
+        delivery={{ deliveryName, deliveryPhone, deliveryEmail, deliveryAddress, deliveryDistrict, deliveryAmphoe, deliveryProvince, deliveryPostalCode }}
+        onDeliveryChange={(f) => {
+          if (f.deliveryName !== undefined) setDeliveryName(f.deliveryName);
+          if (f.deliveryPhone !== undefined) setDeliveryPhone(f.deliveryPhone);
+          if (f.deliveryEmail !== undefined) setDeliveryEmail(f.deliveryEmail);
+          if (f.deliveryAddress !== undefined) setDeliveryAddress(f.deliveryAddress);
+          if (f.deliveryDistrict !== undefined) setDeliveryDistrict(f.deliveryDistrict);
+          if (f.deliveryAmphoe !== undefined) setDeliveryAmphoe(f.deliveryAmphoe);
+          if (f.deliveryProvince !== undefined) setDeliveryProvince(f.deliveryProvince);
+          if (f.deliveryPostalCode !== undefined) setDeliveryPostalCode(f.deliveryPostalCode);
+        }}
+        shippingAddresses={shippingAddresses}
+        selectedAddressId={selectedAddressId}
+        onAddressSelect={(id, addr) => {
+          setSelectedAddressId(id);
+          fillDeliveryFromAddress(addr, selectedCustomer);
+        }}
+        onNewAddress={() => {
+          setSelectedAddressId('new');
+          setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
+          setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
+          setDeliveryProvince(''); setDeliveryPostalCode('');
+        }}
+        showTaxInvoice
+        vatRegistered={vatRegistered}
+        taxFields={{ taxName, taxTaxId, taxBranch, taxAddress }}
+        onTaxFieldsChange={(f) => { setTaxName(f.taxName); setTaxTaxId(f.taxTaxId); setTaxBranch(f.taxBranch); setTaxAddress(f.taxAddress); }}
+        showTaxCheckbox
+        taxInvoiceRequested={taxInvoiceRequested}
+        onTaxInvoiceRequestedChange={setTaxInvoiceRequested}
+      />
 
       {/* 2-column: Products+Notes (left) + Summary (right) */}
       <div className="flex flex-wrap gap-4 items-start">

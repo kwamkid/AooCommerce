@@ -5,21 +5,19 @@ import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
-  Loader2, X, UserPlus, Package, Save, Users, Settings, ChevronDown, Clock, CheckCircle, MapPin, FileText, Receipt,
+  Loader2, X, Package, Save, Settings, ChevronDown, Clock, CheckCircle, MapPin, FileText, Receipt,
   QrCode, Copy, Camera, Link2, AlertTriangle, Eye, Printer,
 } from 'lucide-react';
 import { useCompany } from '@/lib/company-context';
 import { formatNumber } from '@/lib/utils/format';
-import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import { productDisplayName } from '@/lib/product-display';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
-import { type GpResolverContext, resolveGp, fetchGpContext } from '@/lib/gp-resolver';
+import CustomerSelectionCard from '@/components/ui/CustomerSelectionCard';
+import { type GpResolverContext, resolveGp, fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/replenishment-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
-import CustomerInfoCard from '@/components/ui/CustomerInfoCard';
-import TaxInvoiceInfo from '@/components/ui/TaxInvoiceInfo';
 
 interface Customer {
   id: string;
@@ -111,6 +109,16 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   const [orderDiscountType, setOrderDiscountType] = useState<'percent' | 'amount'>('percent');
   const [shippingFee, setShippingFee] = useState(0);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
+  // Delivery fields (editable, like DealerOrderForm)
+  const [deliveryName, setDeliveryName] = useState('');
+  const [deliveryPhone, setDeliveryPhone] = useState('');
+  const [deliveryEmail, setDeliveryEmail] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryDistrict, setDeliveryDistrict] = useState('');
+  const [deliveryAmphoe, setDeliveryAmphoe] = useState('');
+  const [deliveryProvince, setDeliveryProvince] = useState('');
+  const [deliveryPostalCode, setDeliveryPostalCode] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Edit mode state
@@ -329,20 +337,53 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
 
   const handleCustomerChange = async (id: string) => {
     setSelectedCustomerId(id);
-    setSelectedCustomer(customers.find(c => c.id === id) || null);
+    const cust = customers.find(c => c.id === id) || null;
+    setSelectedCustomer(cust);
     latestCustomerIdRef.current = id;
 
-    if (!id) { setGpContext(null); return; }
+    if (!id) {
+      setGpContext(null);
+      setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
+      setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
+      setDeliveryProvince(''); setDeliveryPostalCode('');
+      return;
+    }
 
     setLoadingGpData(true);
     try {
-      const ctx = await fetchGpContext(id);
+      const orderCtx = await fetchCustomerOrderContext(id);
       if (latestCustomerIdRef.current !== id) return;
-      setGpContext(ctx);
+      setGpContext(orderCtx.gpContext);
+
+      // Prefill delivery — use shipping address if available, else billing
+      const c = orderCtx.customer;
+      const defaultAddr = orderCtx.shippingAddresses?.find(a => a.is_default) || orderCtx.shippingAddresses?.[0];
+      if (defaultAddr) {
+        setDeliveryName(defaultAddr.contact_person || c.name || '');
+        setDeliveryPhone(defaultAddr.phone || c.phone || '');
+        setDeliveryEmail(c.email || '');
+        setDeliveryAddress(defaultAddr.address_line1 || '');
+        setDeliveryDistrict(defaultAddr.district || '');
+        setDeliveryAmphoe(defaultAddr.amphoe || '');
+        setDeliveryProvince(defaultAddr.province || '');
+        setDeliveryPostalCode(defaultAddr.postal_code || '');
+      } else {
+        setDeliveryName(c.contact_person || c.name || '');
+        setDeliveryPhone(c.phone || '');
+        setDeliveryEmail(c.email || '');
+        setDeliveryAddress(c.billing_address || '');
+        setDeliveryDistrict(c.billing_district || '');
+        setDeliveryAmphoe(c.billing_amphoe || '');
+        setDeliveryProvince(c.billing_province || '');
+        setDeliveryPostalCode(c.billing_postal_code || '');
+      }
+
+      // Update customer with full data from RPC
+      setSelectedCustomer(prev => prev ? { ...prev, ...c } : prev);
 
       if (items.length > 0) {
         setItems(prev => prev.map(item => {
-          const resolution = resolveGp(ctx, {
+          const resolution = resolveGp(orderCtx.gpContext, {
             brand_id: item.brand_id,
             default_price: item.default_price,
             discount_price: item.discount_price,
@@ -363,6 +404,9 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
     setSelectedCustomer(null);
     setGpContext(null);
     latestCustomerIdRef.current = '';
+    setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
+    setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
+    setDeliveryProvince(''); setDeliveryPostalCode('');
   };
 
   // ── Add product with GP pricing ──────────────────────────────────────
@@ -674,99 +718,39 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         </div>
       )}
 
-      {/* Customer + Address Section — 2-column grid (same as DealerOrderForm) */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-          {/* Row 1 Left: ตัวแทน */}
-          <div className="relative flex flex-col">
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-              ตัวแทน <span className="text-red-500">*</span>
-            </label>
-            {selectedCustomer ? (
-              <div className="flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg h-full">
-                <CustomerInfoCard
-                  customer={selectedCustomer}
-                  loading={loadingGpData}
-                  badge={<span className="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">ฝากขาย</span>}
-                />
-                {!isDisabled && (
-                  <button type="button" onClick={(e) => { e.stopPropagation(); handleCustomerClear(); setItems([]); }}
-                    className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors flex-shrink-0">
-                    <X className="w-3.5 h-3.5 text-gray-400" />
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="flex gap-2 items-start">
-                <div className="flex-1">
-                  <EntitySearchInput
-                    value={selectedCustomerId}
-                    onChange={handleCustomerChange}
-                    onClear={handleCustomerClear}
-                    options={customers.map(c => ({
-                      id: c.id,
-                      label: c.name,
-                      subtitle: c.phone || undefined,
-                      icon: <Users className="w-4 h-4 text-gray-400" />,
-                    }))}
-                    placeholder="ค้นหาชื่อหรือรหัสตัวแทน..."
-                    emptyMessage="ไม่พบตัวแทน — กรุณาสร้างลูกค้าก่อน"
-                  />
-                </div>
-                {!isDisabled && (
-                  <button
-                    type="button"
-                    onClick={() => window.open('/customers/new?type=consignment_dealer', '_blank')}
-                    className="flex-shrink-0 flex items-center gap-1.5 px-3 h-[42px] rounded-lg border border-gray-300 dark:border-slate-600 text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
-                  >
-                    <UserPlus className="w-4 h-4" /> เพิ่มตัวแทน
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Row 1 Right: ที่อยู่ (read-only from customer) */}
-          <div className="flex flex-col sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่</label>
-            {selectedCustomer ? (
-              <div className="text-sm text-gray-700 dark:text-slate-300 space-y-0.5 py-2">
-                <p>{[selectedCustomer.billing_address, selectedCustomer.billing_district, selectedCustomer.billing_amphoe, selectedCustomer.billing_province, selectedCustomer.billing_postal_code].filter(Boolean).join(' ') || '-'}</p>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400 dark:text-slate-500 py-2">เลือกตัวแทนเพื่อแสดงที่อยู่</p>
-            )}
-          </div>
-
-          {/* Row 2 Left: เบอร์โทร + อีเมล */}
-          {selectedCustomer && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
-                <p className="text-sm text-gray-900 dark:text-white">{selectedCustomer.phone || '-'}</p>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
-                <p className="text-sm text-gray-900 dark:text-white">{selectedCustomer.email || '-'}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Row 2 Right: ข้อมูลภาษี (compact, read-only) */}
-          {selectedCustomer && selectedCustomer.tax_company_name && (
-            <div className="sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
-              <TaxInvoiceInfo
-                customerName={selectedCustomer.name}
-                taxCompanyName={selectedCustomer.tax_company_name || ''}
-                taxId={selectedCustomer.tax_id || ''}
-                taxBranch={selectedCustomer.tax_branch || ''}
-                billingAddress={[selectedCustomer.billing_address, selectedCustomer.billing_district, selectedCustomer.billing_amphoe, selectedCustomer.billing_province, selectedCustomer.billing_postal_code].filter(Boolean).join(' ')}
-                compact
-              />
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Customer + Address Section */}
+      <CustomerSelectionCard
+        customerLabel="ตัวแทน"
+        searchPlaceholder="ค้นหาชื่อหรือรหัสตัวแทน..."
+        createCustomerUrl="/customers/new?type=consignment_dealer"
+        createButtonLabel="เพิ่มตัวแทน"
+        customers={customers}
+        selectedCustomer={selectedCustomer}
+        selectedCustomerId={selectedCustomerId}
+        onCustomerChange={handleCustomerChange}
+        onCustomerClear={() => { handleCustomerClear(); setItems([]); }}
+        loading={loadingGpData}
+        disabled={isDisabled}
+        delivery={{ deliveryName, deliveryPhone, deliveryEmail, deliveryAddress, deliveryDistrict, deliveryAmphoe, deliveryProvince, deliveryPostalCode }}
+        onDeliveryChange={(f) => {
+          if (f.deliveryName !== undefined) setDeliveryName(f.deliveryName);
+          if (f.deliveryPhone !== undefined) setDeliveryPhone(f.deliveryPhone);
+          if (f.deliveryEmail !== undefined) setDeliveryEmail(f.deliveryEmail);
+          if (f.deliveryAddress !== undefined) setDeliveryAddress(f.deliveryAddress);
+          if (f.deliveryDistrict !== undefined) setDeliveryDistrict(f.deliveryDistrict);
+          if (f.deliveryAmphoe !== undefined) setDeliveryAmphoe(f.deliveryAmphoe);
+          if (f.deliveryProvince !== undefined) setDeliveryProvince(f.deliveryProvince);
+          if (f.deliveryPostalCode !== undefined) setDeliveryPostalCode(f.deliveryPostalCode);
+        }}
+        showTaxInvoice
+        vatRegistered={vatRegistered}
+        taxFields={selectedCustomer?.tax_company_name ? {
+          taxName: selectedCustomer.tax_company_name || '',
+          taxTaxId: selectedCustomer.tax_id || '',
+          taxBranch: selectedCustomer.tax_branch || '',
+          taxAddress: [selectedCustomer.billing_address, selectedCustomer.billing_district, selectedCustomer.billing_amphoe, selectedCustomer.billing_province, selectedCustomer.billing_postal_code].filter(Boolean).join(' '),
+        } : undefined}
+      />
 
       {/* 2-Column Layout */}
       <div className="flex flex-wrap gap-4 items-start">
