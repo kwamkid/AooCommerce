@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/shopee/webhook/retry",
-      "schedule": "* * * * *"
+      "schedule": "*/10 * * * *"
     },
     {
       "path": "/api/shopee/refresh-tokens",
