@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     const startedAt = Date.now();
     const body = await request.json();
-    const { order_id, pickup_time_id } = body;
+    const { order_id, pickup_time_id, preview, mode, address_id, branch_id } = body;
 
     if (!order_id) {
       return NextResponse.json({ error: 'Missing order_id' }, { status: 400 });
@@ -95,6 +95,54 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[Shopee Ship] Shipping params:', JSON.stringify(shippingParams).substring(0, 1000));
+
+    // 4.5. Preview mode — return shipping options to UI without shipping
+    if (preview) {
+      const params = shippingParams as Record<string, unknown>;
+      const infoNeeded = (params.info_needed || {}) as Record<string, unknown>;
+      const modes: { mode: string; label: string; details?: unknown }[] = [];
+
+      if (infoNeeded.pickup) {
+        const pickup = (params.pickup || {}) as { address_list?: Array<{ address_id: number; address_flag?: string[]; time_slot_list?: Array<{ pickup_time_id: string; date: number; flags?: string[] }> }> };
+        modes.push({
+          mode: 'pickup',
+          label: 'สั่งรับพัสดุ (Pickup)',
+          details: {
+            addresses: (pickup.address_list || []).map(a => ({
+              address_id: a.address_id,
+              address_flag: a.address_flag,
+              time_slots: (a.time_slot_list || []).map(ts => ({
+                pickup_time_id: ts.pickup_time_id,
+                date: ts.date,
+                is_recommended: ts.flags?.includes('recommended') || false,
+              })),
+            })),
+          },
+        });
+      }
+      if (infoNeeded.dropoff) {
+        const dropoff = (params.dropoff || {}) as { branch_list?: Array<{ branch_id: number; address?: string; city?: string; district?: string }> };
+        modes.push({
+          mode: 'dropoff',
+          label: 'ส่งผ่านสาขา (Drop-off)',
+          details: {
+            branches: dropoff.branch_list || [],
+          },
+        });
+      }
+      if (infoNeeded.non_integrated) {
+        modes.push({
+          mode: 'non_integrated',
+          label: 'ขนส่งอื่น (Non-integrated)',
+        });
+      }
+
+      return NextResponse.json({
+        preview: true,
+        order_sn: order.external_order_sn,
+        modes,
+      });
+    }
 
     // 5. Determine pickup vs dropoff and call ship_order
     const params = shippingParams as {
@@ -199,22 +247,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Non-split order: ship normally (no package_number)
+    // Use user-selected mode if provided, otherwise auto-detect
     let shipResult;
-    const isNonIntegrated = !!(params.info_needed?.non_integrated);
+    const selectedMode = mode || (
+      params.info_needed?.non_integrated ? 'non_integrated' :
+      (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) ? 'dropoff' :
+      'pickup'
+    );
 
-    if (isNonIntegrated) {
-      // Non-integrated channel (e.g. seller's own courier) — send non_integrated: {}
+    if (selectedMode === 'non_integrated') {
       shipResult = await shipOrder(creds, order.external_order_sn, undefined, undefined, undefined, {});
-    } else if (params.info_needed?.dropoff && params.info_needed.dropoff.length > 0) {
-      // Dropoff mode
+    } else if (selectedMode === 'dropoff') {
       const dropoffParams: Record<string, unknown> = {};
-      if (params.dropoff?.branch_list?.[0]) {
-        dropoffParams.branch_id = params.dropoff.branch_list[0].branch_id;
-      }
+      const selectedBranchId = branch_id || params.dropoff?.branch_list?.[0]?.branch_id;
+      if (selectedBranchId) dropoffParams.branch_id = selectedBranchId;
       shipResult = await shipOrder(creds, order.external_order_sn, undefined, dropoffParams);
     } else {
       // Pickup mode (default)
-      const pickupAddress = params.pickup?.address_list?.[0];
+      const pickupAddresses = params.pickup?.address_list || [];
+      const pickupAddress = address_id
+        ? pickupAddresses.find(a => a.address_id === address_id) || pickupAddresses[0]
+        : pickupAddresses[0];
 
       if (!pickupAddress) {
         return NextResponse.json({ error: 'ไม่พบที่อยู่รับพัสดุ กรุณาตั้งค่าใน Shopee Seller Center' }, { status: 400 });

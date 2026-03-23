@@ -39,6 +39,7 @@ import {
   Copy,
 } from 'lucide-react';
 import PaymentModal from '../components/PaymentModal';
+import ShopeeShipModal from '../components/ShopeeShipModal';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
@@ -144,6 +145,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
   const [externalStatus, setExternalStatus] = useState('');
   const [externalOrderSn, setExternalOrderSn] = useState('');
   const [shopeeActionLoading, setShopeeActionLoading] = useState(false);
+  const [showShopeeShipModal, setShowShopeeShipModal] = useState(false);
   const [fullOrderData, setFullOrderData] = useState<any>(null);
   const isShopeeOrder = orderSource === 'shopee';
   const isMarketplaceOrder = isMarketplaceSource(orderSource);
@@ -471,26 +473,14 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
   };
 
   // Shopee action handlers
-  const handleAcceptShopeeOrder = async () => {
-    try {
-      setShopeeActionLoading(true);
-      const response = await apiFetch('/api/shopee/orders/ship', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: orderId }),
-      });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to accept order');
-      }
-      showToast('รับออเดอร์ Shopee สำเร็จ');
-      setExternalStatus('PROCESSED');
-      setOrderStatus('shipping');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
-    } finally {
-      setShopeeActionLoading(false);
-    }
+  const handleAcceptShopeeOrder = () => {
+    setShowShopeeShipModal(true);
+  };
+
+  const handleShopeeShipSuccess = () => {
+    setShowShopeeShipModal(false);
+    setExternalStatus('PROCESSED');
+    setOrderStatus('processing');
   };
 
   // Key to force OrderForm remount after re-sync
@@ -1658,6 +1648,18 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           onCancel={() => router.push('/orders')}
           printMode={printMode}
         />
+
+        {/* Shopee Ship Modal */}
+        {showShopeeShipModal && (
+          <ShopeeShipModal
+            orderId={orderId}
+            orderSn={externalOrderSn || ''}
+            onClose={() => setShowShopeeShipModal(false)}
+            onSuccess={handleShopeeShipSuccess}
+            apiFetch={apiFetch}
+            showToast={showToast}
+          />
+        )}
 
         {/* Ship Modal */}
         {showShipModal && (

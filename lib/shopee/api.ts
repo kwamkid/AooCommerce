@@ -1508,3 +1508,75 @@ export async function unsplitOrder(
     order_sn: orderSn,
   });
 }
+
+// --- Buyer Invoice Info ---
+
+export interface BuyerInvoiceInfo {
+  order_sn: string;
+  invoice_type: 'personal' | 'company' | 'household' | '';
+  is_requested: boolean;
+  invoice_detail: {
+    // Personal
+    name?: string;
+    email?: string;
+    phone_number?: string;
+    tax_id?: string;
+    address?: string;
+    id_card_address?: string;
+    // Company (TH)
+    company_name?: string;
+    company_tax_id?: string;
+    company_email?: string;
+    company_address?: string;
+    company_branch_name?: string;
+    company_branch_id?: string;
+    company_type?: string;
+    company_head_office?: boolean;
+    // Address breakdown
+    address_breakdown?: {
+      region?: string;
+      state?: string;
+      city?: string;
+      town?: string;
+      postcode?: string;
+      detailed_address?: string;
+      full_address?: string;
+    };
+    company_address_breakdown?: {
+      region?: string;
+      state?: string;
+      city?: string;
+      town?: string;
+      postcode?: string;
+      detailed_address?: string;
+      full_address?: string;
+    };
+  };
+  error?: string;
+}
+
+/**
+ * Fetch buyer invoice info for multiple orders (batch).
+ * POST /api/v2/order/get_buyer_invoice_info
+ * Available: VN, TH, PH
+ */
+export async function getBuyerInvoiceInfo(
+  creds: ShopeeCredentials,
+  orderSns: string[]
+): Promise<{ invoices: BuyerInvoiceInfo[]; error?: string }> {
+  const queries = orderSns.map(sn => ({ order_sn: sn }));
+  const { data, error } = await shopeeApiRequest(
+    creds,
+    'POST',
+    '/api/v2/order/get_buyer_invoice_info',
+    {},
+    { queries }
+  );
+
+  if (error) {
+    return { invoices: [], error };
+  }
+
+  const invoiceList = (data as { invoice_info_list?: BuyerInvoiceInfo[] })?.invoice_info_list || [];
+  return { invoices: invoiceList };
+}

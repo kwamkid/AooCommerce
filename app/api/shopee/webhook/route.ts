@@ -5,6 +5,7 @@ import { ShopeeAccountRow } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 import { getPushLabel } from '@/lib/shopee/webhook-codes';
 import { createCreditNote, hasCreditNote } from '@/lib/credit-notes/auto-cn';
+import { syncSingleOrder } from '@/lib/shopee/webhook-processor';
 import crypto from 'crypto';
 
 // Allow up to 60s — sync runs in background via after() but Vercel
@@ -115,14 +116,33 @@ async function processWebhook(
 ) {
   const updateLog = async (status: string, error?: string) => {
     if (!logId) return;
+    const update: Record<string, unknown> = {
+      processing_status: status,
+      processing_error: error || null,
+      processing_duration_ms: Date.now() - startTime,
+      processed_at: new Date().toISOString(),
+    };
+    // On failure: schedule retry with exponential backoff (30s, 60s, 120s)
+    if (status === 'failed') {
+      const { data: current } = await supabaseAdmin
+        .from('shopee_webhook_log')
+        .select('retry_count, max_retries')
+        .eq('id', logId)
+        .single();
+      const retryCount = (current?.retry_count || 0) + 1;
+      const maxRetries = current?.max_retries || 3;
+      if (retryCount >= maxRetries) {
+        update.processing_status = 'dead_letter';
+        update.retry_count = retryCount;
+      } else {
+        const backoffMs = 30_000 * Math.pow(2, retryCount - 1); // 30s, 60s, 120s
+        update.retry_count = retryCount;
+        update.next_retry_at = new Date(Date.now() + backoffMs).toISOString();
+      }
+    }
     await supabaseAdmin
       .from('shopee_webhook_log')
-      .update({
-        processing_status: status,
-        processing_error: error || null,
-        processing_duration_ms: Date.now() - startTime,
-        processed_at: new Date().toISOString(),
-      })
+      .update(update)
       .eq('id', logId);
   };
 
@@ -326,106 +346,7 @@ async function handleOrderTracking(
   }
 }
 
-// ─── Order sync (unchanged) ──────────────────────────────────────────
-
-async function syncSingleOrder(account: ShopeeAccountRow, orderSn: string, webhookStatus?: string) {
-  const { syncOrdersByOrderSn } = await import('@/lib/shopee/sync');
-
-  // Dedup: skip only if this exact order was updated within 10s AND already has the correct status
-  if (webhookStatus) {
-    const { data: existingOrder } = await supabaseAdmin
-      .from('orders')
-      .select('id, external_status, updated_at')
-      .eq('company_id', account.company_id)
-      .eq('external_order_sn', orderSn)
-      .gte('updated_at', new Date(Date.now() - 10_000).toISOString())
-      .maybeSingle();
-
-    if (existingOrder && existingOrder.external_status === webhookStatus) {
-      console.log(`[Shopee Webhook] Skipping duplicate sync for ${orderSn} — already ${webhookStatus}`);
-      return;
-    }
-  }
-
-  // Create sync log entry (before sync, so we can track failures)
-  const { data: log } = await supabaseAdmin
-    .from('marketplace_sync_log')
-    .insert({
-      marketplace_account_id: account.id,
-      company_id: account.company_id,
-      sync_type: 'webhook',
-    })
-    .select()
-    .single();
-
-  try {
-    const webhookStatusHint = webhookStatus ? { [orderSn]: webhookStatus } : undefined;
-    const result = await syncOrdersByOrderSn(account, [orderSn], undefined, webhookStatusHint);
-
-    // Update sync log with results
-    if (log) {
-      await supabaseAdmin
-        .from('marketplace_sync_log')
-        .update({
-          orders_fetched: 1,
-          orders_created: result.orders_created,
-          orders_updated: result.orders_updated,
-          errors: result.errors.length > 0 ? result.errors : null,
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', log.id);
-    }
-
-    // Log sync error to integration_logs for UI visibility
-    if (result.errors.length > 0) {
-      logIntegration({
-        company_id: account.company_id,
-        integration: 'shopee',
-        account_id: account.id,
-        account_name: account.shop_name,
-        direction: 'incoming',
-        action: 'webhook_sync_error',
-        method: 'POST',
-        api_path: '/api/shopee/webhook',
-        status: 'error',
-        error_message: result.errors.join('; '),
-        reference_type: 'order',
-        reference_id: orderSn,
-        reference_label: `Sync failed: ${orderSn}`,
-      });
-    }
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : 'Unknown sync error';
-    if (log) {
-      await supabaseAdmin
-        .from('marketplace_sync_log')
-        .update({
-          orders_fetched: 1,
-          errors: [errorMsg],
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', log.id);
-    }
-
-    logIntegration({
-      company_id: account.company_id,
-      integration: 'shopee',
-      account_id: account.id,
-      account_name: account.shop_name,
-      direction: 'incoming',
-      action: 'webhook_sync_error',
-      method: 'POST',
-      api_path: '/api/shopee/webhook',
-      status: 'error',
-      error_message: errorMsg,
-      reference_type: 'order',
-      reference_id: orderSn,
-      reference_label: `Sync failed: ${orderSn}`,
-    });
-
-    throw err;
-  }
-}
+// syncSingleOrder is now in lib/shopee/webhook-processor.ts (shared with retry worker)
 
 // ─── Auto Credit Note for Shopee cancellations/refunds ──────────────
 
@@ -462,6 +383,18 @@ async function tryAutoCreditNote(
 
   const wasPaid = (paymentCount || 0) > 0;
   if (!wasPaid) return;
+
+  // Only create CN if company is VAT registered (non-VAT shops don't issue tax documents)
+  const { data: company } = await supabaseAdmin
+    .from('companies')
+    .select('vat_registered')
+    .eq('id', account.company_id)
+    .single();
+
+  if (!company?.vat_registered) {
+    console.log(`[Shopee Webhook] Skip auto-CN for ${orderSn} — company not VAT registered`);
+    return;
+  }
 
   // Check for existing CN (dedup)
   const cnType = isCancelled ? 'void' : 'refund';

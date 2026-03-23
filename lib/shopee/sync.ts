@@ -1,10 +1,11 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemEnrichment, ShopeeItemEnrichment, getEscrowDetail, getPackageDetail, getPackageNumberList } from '@/lib/shopee/api';
+import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemEnrichment, ShopeeItemEnrichment, getEscrowDetail, getPackageDetail, getPackageNumberList, getBuyerInvoiceInfo, BuyerInvoiceInfo } from '@/lib/shopee/api';
 import { getCategoryName } from '@/lib/shopee/product-sync';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
 import { fetchCostMap } from '@/lib/cost-utils';
-import { reserveStock as reserveStockService, returnStock as returnStockService, unreserveStock as unreserveStockService } from '@/lib/stock-service';
+import { reserveStock as reserveStockService, returnStock as returnStockService, unreserveStock as unreserveStockService, deductAndUnreserve } from '@/lib/stock-service';
+import { getStockConfig } from '@/lib/stock-utils';
 
 // --- Sync Progress Types ---
 
@@ -184,6 +185,23 @@ export async function syncOrdersByOrderSn(
         response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,item_list,pay_time,shipping_carrier,checkout_shipping_carrier,tracking_number,total_amount,payment_method,estimated_shipping_fee,actual_shipping_fee,actual_shipping_fee_confirmed,note,buyer_cancel_reason,cancel_by,cancel_reason,ship_by_date,days_to_ship,package_list,invoice_data,item_list.promotion_list',
       });
 
+      // Log get_order_detail API call
+      logIntegration({
+        company_id: account.company_id,
+        integration: 'shopee',
+        account_id: account.id,
+        account_name: account.shop_name,
+        direction: 'outgoing',
+        action: 'get_order_detail',
+        method: 'GET',
+        api_path: '/api/v2/order/get_order_detail',
+        request_body: { order_sn_list: batch },
+        status: error ? 'error' : 'success',
+        error_message: error || undefined,
+        reference_type: 'order',
+        reference_label: `Batch ${batch.length} orders`,
+      });
+
       if (error) {
         result.errors.push(`Batch fetch error (shop_id=${creds.shop_id}): ${error}`);
         processedCount += batch.length;
@@ -205,10 +223,42 @@ export async function syncOrdersByOrderSn(
         }
       }
 
+      // Fetch buyer invoice info for all orders in this batch (1 API call)
+      let invoiceMap: Record<string, BuyerInvoiceInfo> = {};
+      try {
+        const orderSnList = orders.map(o => o.order_sn);
+        const { invoices, error: invoiceError } = await getBuyerInvoiceInfo(creds, orderSnList);
+        if (invoiceError) {
+          console.warn(`[Shopee Sync] get_buyer_invoice_info error: ${invoiceError} — continuing without invoice data`);
+        }
+        for (const inv of invoices) {
+          invoiceMap[inv.order_sn] = inv;
+        }
+        // Log the buyer invoice API call
+        logIntegration({
+          company_id: account.company_id,
+          integration: 'shopee',
+          account_id: account.id,
+          account_name: account.shop_name,
+          direction: 'outgoing',
+          action: 'get_buyer_invoice_info',
+          method: 'POST',
+          api_path: '/api/v2/order/get_buyer_invoice_info',
+          request_body: { order_sns: orderSnList },
+          response_body: { count: invoices.length, requested_count: invoices.filter(i => i.is_requested).length },
+          status: invoiceError ? 'error' : 'success',
+          error_message: invoiceError || undefined,
+          reference_type: 'order',
+          reference_label: `Batch ${orderSnList.length} orders`,
+        });
+      } catch (e) {
+        console.warn(`[Shopee Sync] get_buyer_invoice_info failed:`, e);
+      }
+
       // Process orders in parallel (concurrency=3) for ~3x speedup
       await parallelLimit(orders, async (shopeeOrder) => {
         try {
-          const upsertResult = await upsertOrder(account, shopeeOrder);
+          const upsertResult = await upsertOrder(account, shopeeOrder, invoiceMap[shopeeOrder.order_sn]);
           if (upsertResult.action === 'created') {
             result.orders_created++;
           } else if (upsertResult.action === 'updated') {
@@ -497,9 +547,52 @@ interface UpsertResult {
 }
 
 /**
+ * Map Shopee BuyerInvoiceInfo to order tax_invoice_* fields.
+ * Returns empty object if buyer didn't request an invoice.
+ */
+function mapBuyerInvoiceToTaxFields(
+  buyerInvoice: BuyerInvoiceInfo | undefined,
+  shopeeOrder: ShopeeOrder
+): Record<string, unknown> {
+  // If buyer invoice API returned data and is_requested
+  if (buyerInvoice?.is_requested && buyerInvoice.invoice_detail) {
+    const d = buyerInvoice.invoice_detail;
+    if (buyerInvoice.invoice_type === 'company') {
+      return {
+        tax_invoice_requested: true,
+        tax_invoice_name: d.company_name || null,
+        tax_invoice_tax_id: d.company_tax_id || null,
+        tax_invoice_address: d.company_address || d.company_address_breakdown?.full_address || null,
+        // ถ้าไม่ส่ง branch → default สำนักงานใหญ่
+        tax_invoice_branch: d.company_branch_name || (d.company_head_office !== false ? 'สำนักงานใหญ่' : null),
+      };
+    }
+    // personal or household
+    return {
+      tax_invoice_requested: true,
+      tax_invoice_name: d.name || null,
+      tax_invoice_tax_id: d.tax_id || null,
+      tax_invoice_address: d.id_card_address || d.address || d.address_breakdown?.full_address || null,
+      tax_invoice_branch: null,
+    };
+  }
+
+  // Fallback: check invoice_data.tax_code from get_order_detail (legacy/basic)
+  if (shopeeOrder.invoice_data?.tax_code) {
+    return {
+      tax_invoice_requested: true,
+      tax_invoice_tax_id: shopeeOrder.invoice_data.tax_code,
+      tax_invoice_name: shopeeOrder.recipient_address?.name || shopeeOrder.buyer_username || null,
+    };
+  }
+
+  return {};
+}
+
+/**
  * Upsert a single Shopee order.
  */
-async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder): Promise<UpsertResult> {
+async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, buyerInvoice?: BuyerInvoiceInfo): Promise<UpsertResult> {
   const companyId = account.company_id;
   const { order_status, payment_status } = mapShopeeStatus(shopeeOrder.order_status);
 
@@ -588,6 +681,45 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
         autoIssueDocument(existing.id, companyId).catch(() => {});
       }
 
+      // Deduct + unreserve stock when Shopee order ships (SHIPPED/TO_CONFIRM_RECEIVE/COMPLETED)
+      // This is the equivalent of commitStock — reduces on_hand and releases reservation
+      if (['SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'].includes(shopeeOrder.order_status) && existing.warehouse_id) {
+        // Only deduct if previous status was pre-ship (avoid double deduction)
+        const wasPreShip = ['new', 'ready_to_ship', 'processing'].includes(existing.order_status);
+        if (wasPreShip) {
+          try {
+            const stockConfig = await getStockConfig(companyId);
+            if (stockConfig.stockEnabled) {
+              const { data: orderItems } = await supabaseAdmin
+                .from('order_items')
+                .select('id, variation_id, quantity')
+                .eq('order_id', existing.id);
+
+              for (const oi of (orderItems || [])) {
+                if (!oi.variation_id) continue;
+                try {
+                  await deductAndUnreserve({
+                    supabase: supabaseAdmin,
+                    companyId,
+                    warehouseId: existing.warehouse_id,
+                    variationId: oi.variation_id,
+                    qty: Number(oi.quantity),
+                    referenceType: 'order',
+                    referenceId: existing.id,
+                    notes: `Shopee shipped: ${shopeeOrder.order_sn}`,
+                  });
+                } catch (stockErr) {
+                  console.error(`[Shopee Sync] Stock deduct error for ${shopeeOrder.order_sn} item ${oi.variation_id}:`, stockErr);
+                }
+              }
+              console.log(`[Shopee Sync] Stock deducted for ${shopeeOrder.order_sn} (${(orderItems || []).length} items)`);
+            }
+          } catch (stockErr) {
+            console.error(`[Shopee Sync] Stock deduction failed for ${shopeeOrder.order_sn}:`, stockErr);
+          }
+        }
+      }
+
       // Stock return for CANCELLED/IN_CANCEL orders
       if (['CANCELLED', 'IN_CANCEL'].includes(shopeeOrder.order_status) && existing.warehouse_id) {
         await returnStockForCancelledOrder(
@@ -651,6 +783,25 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
         fetchAndSaveEscrowDetail(account, shopeeOrder.order_sn, existing.id).catch(err => {
           console.error(`[Shopee Sync] Escrow backfill error for ${shopeeOrder.order_sn}:`, err);
         });
+      }
+    }
+
+    // Backfill buyer invoice info if not yet captured
+    if (buyerInvoice?.is_requested) {
+      const { data: orderCheck } = await supabaseAdmin
+        .from('orders')
+        .select('tax_invoice_requested')
+        .eq('id', existing.id)
+        .single();
+      if (orderCheck && !orderCheck.tax_invoice_requested) {
+        const taxFields = mapBuyerInvoiceToTaxFields(buyerInvoice, shopeeOrder);
+        if (Object.keys(taxFields).length > 0) {
+          await supabaseAdmin
+            .from('orders')
+            .update({ ...taxFields, updated_at: new Date().toISOString() })
+            .eq('id', existing.id);
+          console.log(`[Shopee Sync] Backfilled buyer invoice for ${shopeeOrder.order_sn}: type=${buyerInvoice.invoice_type}`);
+        }
       }
     }
 
@@ -1101,12 +1252,8 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
       is_split: shopeeOrder.split_up === true && (shopeeOrder.package_list || []).length > 1,
       flow_type: 'r_retail', // Marketplace orders always use retail flow
       created_at: new Date(shopeeOrder.create_time * 1000).toISOString(),
-      // Tax invoice from Shopee Buyer Tax Invoice feature (customer request fields)
-      ...(shopeeOrder.invoice_data?.tax_code ? {
-        tax_invoice_requested: true,
-        tax_invoice_tax_id: shopeeOrder.invoice_data.tax_code,
-        tax_invoice_name: shopeeOrder.recipient_address?.name || shopeeOrder.buyer_username || null,
-      } : {}),
+      // Tax invoice from Shopee Buyer Tax Invoice feature
+      ...mapBuyerInvoiceToTaxFields(buyerInvoice, shopeeOrder),
     })
     .select()
     .single();
