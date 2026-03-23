@@ -674,66 +674,98 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         </div>
       )}
 
-      {/* Customer Section */}
-      <div className={`bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 ${isDisabled ? 'p-3' : 'p-5'}`}>
-        {isDisabled ? (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-gray-500 dark:text-slate-400">ตัวแทน</span>
-            <span className="font-bold text-gray-900 dark:text-white">{selectedCustomer?.name || 'ไม่ระบุ'}</span>
-          </div>
-        ) : (
-          <>
-          <label className="label">ตัวแทน <span className="text-red-500">*</span></label>
-          <div className="flex gap-2 items-start">
-            <div className="flex-1">
-              <EntitySearchInput
-                value={selectedCustomerId}
-                onChange={handleCustomerChange}
-                onClear={handleCustomerClear}
-                options={customers.map(c => ({
-                  id: c.id,
-                  label: c.name,
-                  subtitle: c.phone || undefined,
-                  icon: <Users className="w-4 h-4 text-gray-400" />,
-                }))}
-                placeholder="ค้นหาชื่อหรือรหัสตัวแทน..."
-                emptyMessage="ไม่พบตัวแทน — กรุณาสร้างลูกค้าก่อน"
-              />
-            </div>
-            {!selectedCustomerId && (
-              <button
-                type="button"
-                onClick={() => window.open('/customers/new?type=consignment_dealer', '_blank')}
-                className="flex-shrink-0 flex items-center gap-1.5 px-3 h-[42px] rounded-lg border border-gray-300 dark:border-slate-600 text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
-              >
-                <UserPlus className="w-4 h-4" /> เพิ่มตัวแทน
-              </button>
+      {/* Customer + Address Section — 2-column grid (same as DealerOrderForm) */}
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+          {/* Row 1 Left: ตัวแทน */}
+          <div className="relative flex flex-col">
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+              ตัวแทน <span className="text-red-500">*</span>
+            </label>
+            {selectedCustomer ? (
+              <div className="flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg h-full">
+                <CustomerInfoCard
+                  customer={selectedCustomer}
+                  loading={loadingGpData}
+                  badge={<span className="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">ฝากขาย</span>}
+                />
+                {!isDisabled && (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); handleCustomerClear(); setItems([]); }}
+                    className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors flex-shrink-0">
+                    <X className="w-3.5 h-3.5 text-gray-400" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex gap-2 items-start">
+                <div className="flex-1">
+                  <EntitySearchInput
+                    value={selectedCustomerId}
+                    onChange={handleCustomerChange}
+                    onClear={handleCustomerClear}
+                    options={customers.map(c => ({
+                      id: c.id,
+                      label: c.name,
+                      subtitle: c.phone || undefined,
+                      icon: <Users className="w-4 h-4 text-gray-400" />,
+                    }))}
+                    placeholder="ค้นหาชื่อหรือรหัสตัวแทน..."
+                    emptyMessage="ไม่พบตัวแทน — กรุณาสร้างลูกค้าก่อน"
+                  />
+                </div>
+                {!isDisabled && (
+                  <button
+                    type="button"
+                    onClick={() => window.open('/customers/new?type=consignment_dealer', '_blank')}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 h-[42px] rounded-lg border border-gray-300 dark:border-slate-600 text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
+                  >
+                    <UserPlus className="w-4 h-4" /> เพิ่มตัวแทน
+                  </button>
+                )}
+              </div>
             )}
           </div>
-          </>
-        )}
 
-        {/* Customer Info */}
-        {selectedCustomer && (() => {
-          const c = selectedCustomer;
-          const billingFull = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
+          {/* Row 1 Right: ที่อยู่ (read-only from customer) */}
+          <div className="flex flex-col sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่</label>
+            {selectedCustomer ? (
+              <div className="text-sm text-gray-700 dark:text-slate-300 space-y-0.5 py-2">
+                <p>{[selectedCustomer.billing_address, selectedCustomer.billing_district, selectedCustomer.billing_amphoe, selectedCustomer.billing_province, selectedCustomer.billing_postal_code].filter(Boolean).join(' ') || '-'}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 dark:text-slate-500 py-2">เลือกตัวแทนเพื่อแสดงที่อยู่</p>
+            )}
+          </div>
 
-          return isDisabled ? (
-            <div className="mt-2">
-              <CustomerInfoCard customer={c} compact />
-              <TaxInvoiceInfo customerName={c.name}
-                taxCompanyName={c.tax_company_name || ''} taxId={c.tax_id || ''}
-                taxBranch={c.tax_branch || ''} billingAddress={billingFull} compact />
+          {/* Row 2 Left: เบอร์โทร + อีเมล */}
+          {selectedCustomer && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
+                <p className="text-sm text-gray-900 dark:text-white">{selectedCustomer.phone || '-'}</p>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
+                <p className="text-sm text-gray-900 dark:text-white">{selectedCustomer.email || '-'}</p>
+              </div>
             </div>
-          ) : (
-            <div className="mt-3 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg">
-              <CustomerInfoCard customer={c} loading={loadingGpData} />
-              <TaxInvoiceInfo customerName={c.name}
-                taxCompanyName={c.tax_company_name || ''} taxId={c.tax_id || ''}
-                taxBranch={c.tax_branch || ''} billingAddress={billingFull} />
+          )}
+
+          {/* Row 2 Right: ข้อมูลภาษี (compact, read-only) */}
+          {selectedCustomer && selectedCustomer.tax_company_name && (
+            <div className="sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
+              <TaxInvoiceInfo
+                customerName={selectedCustomer.name}
+                taxCompanyName={selectedCustomer.tax_company_name || ''}
+                taxId={selectedCustomer.tax_id || ''}
+                taxBranch={selectedCustomer.tax_branch || ''}
+                billingAddress={[selectedCustomer.billing_address, selectedCustomer.billing_district, selectedCustomer.billing_amphoe, selectedCustomer.billing_province, selectedCustomer.billing_postal_code].filter(Boolean).join(' ')}
+                compact
+              />
             </div>
-          );
-        })()}
+          )}
+        </div>
       </div>
 
       {/* 2-Column Layout */}

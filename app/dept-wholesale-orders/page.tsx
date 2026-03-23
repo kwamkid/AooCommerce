@@ -17,9 +17,7 @@ import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu'
 import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
 import PaymentModal from '@/app/orders/components/PaymentModal';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
-import { showPdfPreview } from '@/lib/print-pdf';
-import { generatePackingPdf } from '@/lib/orders-packing-pdf';
-import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
+import { printOrder, type PrintType } from '@/components/ui/OrderPrintButtons';
 
 interface WholesaleOrder {
   id: string;
@@ -141,7 +139,7 @@ export default function DeptWholesaleOrdersPage() {
       setPaymentOrder(order);
       return;
     } else if (action === 'accept') {
-      const ok = await confirm({ title: `รับออเดอร์ ${order.order_number}?`, variant: 'default' });
+      const ok = await confirm({ title: `รับออเดอร์ ${order.order_number}?`, variant: 'primary' });
       if (!ok) return;
       setActionLoading(order.id);
       try {
@@ -155,7 +153,7 @@ export default function DeptWholesaleOrdersPage() {
       setShipOrder(order);
       return;
     } else if (action === 'cancel') {
-      const ok = await confirm({ title: `ยกเลิกออเดอร์ ${order.order_number}?`, message: 'ยกเลิกแล้วไม่สามารถย้อนกลับได้', variant: 'danger' });
+      const ok = await confirm({ title: `ยกเลิกออเดอร์ ${order.order_number}?`, description: 'ยกเลิกแล้วไม่สามารถย้อนกลับได้', variant: 'danger' });
       if (!ok) return;
       setActionLoading(order.id);
       try {
@@ -169,37 +167,9 @@ export default function DeptWholesaleOrdersPage() {
 
   const totalPages = Math.ceil(total / recordsPerPage);
 
-  const handlePrint = async (orderId: string, type: 'tax' | 'dn' | 'packing' | 'label' | 'all') => {
+  const handlePrint = async (orderId: string, type: PrintType) => {
     try {
-      const res = await apiFetch(`/api/orders/${orderId}`);
-      if (!res.ok) throw new Error('Failed to fetch order');
-      const data = await res.json();
-      const orderData = data.order || data;
-      const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
-
-      if (type === 'tax') {
-        const blob = await generateFullInvoicePdf(orderData);
-        showPdfPreview(blob, `ใบกำกับภาษี ${orderData.order_number}`);
-      } else if (type === 'dn') {
-        const blob = await generateFullInvoicePdf({ ...orderData, tax_invoice_doc_type: 'dn' });
-        showPdfPreview(blob, `ใบส่งสินค้า ${orderData.order_number}`);
-      } else if (type === 'packing') {
-        const blob = await generatePackingPdf([orderData]);
-        showPdfPreview(blob, `ใบจัดของ ${orderData.order_number}`);
-      } else if (type === 'label') {
-        const blob = await generateShippingLabelPdf([orderData]);
-        showPdfPreview(blob, `ใบปะหน้า ${orderData.order_number}`);
-      } else if (type === 'all') {
-        const { mergePdfBlobs } = await import('@/lib/print-pdf');
-        const blobs = await Promise.all([
-          generateFullInvoicePdf(orderData),
-          generateFullInvoicePdf({ ...orderData, tax_invoice_doc_type: 'dn' }),
-          generatePackingPdf([orderData]),
-          generateShippingLabelPdf([orderData]),
-        ]);
-        const merged = await mergePdfBlobs(blobs);
-        showPdfPreview(merged, `เอกสารทั้งหมด ${orderData.order_number}`);
-      }
+      await printOrder(orderId, type);
     } catch (err) {
       showToast('ไม่สามารถพิมพ์เอกสารได้', 'error');
       console.error('Print error:', err);

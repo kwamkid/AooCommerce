@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, hasAnyRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
-import { addStock } from '@/lib/stock-service';
+import { addStock, updateWeightedAverageCost } from '@/lib/stock-service';
 
 // GET - List receives or get single
 export async function GET(request: NextRequest) {
@@ -226,12 +226,15 @@ export async function POST(request: NextRequest) {
       });
       const newQuantity = result.balanceAfter;
 
-      // Always update cost_price on variation when unit_cost is provided
+      // Update WAC (Weighted Average Cost) on variation when unit_cost is provided
       if (unit_cost && unit_cost > 0) {
-        await supabaseAdmin
-          .from('product_variations')
-          .update({ cost_price: unit_cost })
-          .eq('id', variation_id);
+        await updateWeightedAverageCost(
+          supabaseAdmin,
+          auth.companyId!,
+          variation_id,
+          quantity,
+          unit_cost,
+        );
       }
 
       results.push({ variation_id, quantity, new_balance: newQuantity });

@@ -161,6 +161,7 @@ export default function PromotionReportPage() {
               <p>ไม่พบข้อมูลโปรโมชั่นในช่วงเวลานี้</p>
             </div>
           ) : (
+            <>
             {/* Desktop Table */}
             <div className="overflow-x-auto hidden md:block">
               <table className="w-full">
@@ -260,6 +261,7 @@ export default function PromotionReportPage() {
                 </div>
               ))}
             </div>
+            </>
           )}
         </div>
       </div>

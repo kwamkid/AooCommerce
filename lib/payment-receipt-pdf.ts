@@ -180,7 +180,7 @@ export async function generatePaymentReceiptPdf(data: PaymentReceiptPdfData): Pr
   }
 
   // ═══ Section 3 — Footer ═══
-  const footer = buildSignatureFooter('ผู้รับเงิน', 'ผู้ชำระเงิน');
+  const footer = buildSignatureFooter('', 'ผู้รับเงิน', 'ผู้ชำระเงิน');
   content.push({ text: '', margin: [0, 30, 0, 0] });
   content.push(footer);
 
@@ -191,9 +191,10 @@ export async function generatePaymentReceiptPdf(data: PaymentReceiptPdfData): Pr
     defaultStyle: { font: 'IBMPlexSansThai', fontSize: 10 },
   };
 
-  const finalDef = withOriginalAndCopy(docDef);
+  const finalContent = withOriginalAndCopy(content);
 
-  return new Promise((resolve) => {
-    pdfMake.createPdf(finalDef).getBlob((blob: Blob) => resolve(blob));
-  });
+  return pdfMake.createPdf({
+    ...docDef,
+    content: finalContent,
+  }).getBlob();
 }

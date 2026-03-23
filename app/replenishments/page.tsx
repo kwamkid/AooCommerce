@@ -735,7 +735,7 @@ function ReplenishmentsPageContent() {
             const isActive = activeStatus === tab.key;
             return (
               <div key={tab.key} className="flex-shrink-0">
-                {tab.tooltip ? (
+                {'tooltip' in tab && tab.tooltip ? (
                   <Tooltip text={tab.tooltip}>
                     <button
                       onClick={() => handleStatusChange(tab.key)}

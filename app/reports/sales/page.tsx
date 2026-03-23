@@ -397,6 +397,7 @@ export default function SalesReportPage() {
             <p className="text-gray-500 dark:text-slate-400">ไม่พบข้อมูลในช่วงเวลานี้</p>
           </div>
         ) : (
+          <>
           {/* Desktop Table */}
           <div className="overflow-x-auto hidden md:block">
             <table className="data-table-fixed">
@@ -675,6 +676,7 @@ export default function SalesReportPage() {
               )}
             </div>
           </div>
+          </>
         )}
       </div>
     </Layout>

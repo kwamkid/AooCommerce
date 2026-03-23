@@ -491,3 +491,36 @@ export async function cancelFromShipped(params: StockOpParams): Promise<StockOpR
 
   return { balanceAfter: newQty, inventoryId: inv.id };
 }
+
+/**
+ * 13. updateWeightedAverageCost — คำนวณต้นทุนเฉลี่ยถ่วงน้ำหนัก (WAC)
+ *
+ * สูตร: new_wac = (existing_qty × old_wac + received_qty × new_unit_cost) / total_qty
+ *
+ * เรียกเฉพาะจาก inventory receives เท่านั้น
+ * ห้ามเรียกจาก: ย้ายคลัง, ส่งตัวแทน, ส่งห้าง, return
+ *
+ * ต้องเรียกหลัง addStock() เพราะ total qty ต้องรวมของที่เพิ่งรับเข้าแล้ว
+ */
+export async function updateWeightedAverageCost(
+  supabase: SupabaseClient,
+  companyId: string,
+  variationId: string,
+  receivedQty: number,
+  newUnitCost: number,
+): Promise<number> {
+  // Atomic WAC update via Postgres RPC (SELECT FOR UPDATE prevents race conditions)
+  const { data, error } = await supabase.rpc('update_weighted_average_cost', {
+    p_variation_id: variationId,
+    p_company_id: companyId,
+    p_received_qty: receivedQty,
+    p_new_unit_cost: newUnitCost,
+  });
+
+  if (error) {
+    console.error('[WAC] RPC error:', error.message);
+    return newUnitCost; // fallback to new cost
+  }
+
+  return data ?? newUnitCost;
+}

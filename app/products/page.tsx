@@ -781,7 +781,6 @@ function ProductsPageContent() {
                         {isCol('actions') && (
                           <td className="px-1 py-2 whitespace-nowrap text-center">
                             <ProductActionMenu
-                              productId={product.product_id}
                               onEdit={() => window.open(`/products/${product.product_id}/edit`, '_blank')}
                               onDuplicate={() => router.push(`/products/new?duplicate=${product.product_id}`)}
                               onDelete={() => handleDelete(product)}
@@ -864,7 +863,6 @@ function ProductsPageContent() {
                                 {product.product_type === 'simple' ? 'ปกติ' : 'ย่อย'}
                               </span>
                               <ProductActionMenu
-                                productId={product.product_id}
                                 onEdit={() => window.open(`/products/${product.product_id}/edit`, '_blank')}
                                 onDuplicate={() => router.push(`/products/new?duplicate=${product.product_id}`)}
                                 onDelete={() => handleDelete(product)}

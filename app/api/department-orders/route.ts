@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { deductStock } from '@/lib/stock-service';
+import { fetchCostMap } from '@/lib/cost-utils';
 
 // GET /api/department-orders
 export async function GET(request: NextRequest) {
@@ -148,6 +149,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: insertError?.message || 'Failed to create' }, { status: 500 });
     }
 
+    // Fetch WAC cost map for cost snapshot
+    const deptCostMap = await fetchCostMap(
+      supabaseAdmin,
+      items.map((i: { variation_id?: string }) => i.variation_id).filter(Boolean) as string[],
+    );
+
     // Insert items
     const itemRows = items.map((item: {
       product_id?: string;
@@ -164,6 +171,7 @@ export async function POST(request: NextRequest) {
       variation_label: item.variation_label || null,
       quantity: item.quantity,
       unit_price: item.unit_price || 0,
+      unit_cost: item.variation_id ? (deptCostMap[item.variation_id] || null) : null,
     }));
 
     const { error: itemsError } = await supabaseAdmin

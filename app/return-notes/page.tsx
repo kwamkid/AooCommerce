@@ -145,14 +145,14 @@ export default function ReturnNotesPage() {
               </table>
             </div>
             <Pagination
-              page={page}
+              currentPage={page}
               totalPages={totalPages}
-              onPageChange={setPage}
+              setPage={setPage}
               startIdx={startIdx + 1}
               endIdx={endIdx}
-              total={total}
+              totalRecords={total}
               recordsPerPage={recordsPerPage}
-              onRecordsPerPageChange={(v) => { setRecordsPerPage(v); setPage(1); }}
+              setRecordsPerPage={(v) => { setRecordsPerPage(v); setPage(1); }}
               loadTime={loadTime}
             />
           </div>
@@ -182,14 +182,14 @@ export default function ReturnNotesPage() {
               })}
             </div>
             <Pagination
-              page={page}
+              currentPage={page}
               totalPages={totalPages}
-              onPageChange={setPage}
+              setPage={setPage}
               startIdx={startIdx + 1}
               endIdx={endIdx}
-              total={total}
+              totalRecords={total}
               recordsPerPage={recordsPerPage}
-              onRecordsPerPageChange={(v) => { setRecordsPerPage(v); setPage(1); }}
+              setRecordsPerPage={(v) => { setRecordsPerPage(v); setPage(1); }}
               loadTime={loadTime}
             />
           </div>

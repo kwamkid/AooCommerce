@@ -1125,6 +1125,7 @@ export default function DeliverySummaryPage() {
                 <p className="text-gray-500 dark:text-slate-400">ไม่มีสินค้าที่ต้องจัดในวันที่เลือก</p>
               </div>
             ) : (
+              <>
               {/* Desktop Table */}
               <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden hidden md:block">
                 <table className="w-full">
@@ -1223,6 +1224,7 @@ export default function DeliverySummaryPage() {
                   </div>
                 </div>
               </div>
+              </>
             )}
           </>
         )}

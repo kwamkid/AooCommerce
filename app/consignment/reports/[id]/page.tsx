@@ -53,6 +53,12 @@ interface ReportData {
   created_at: string;
   confirmed_at: string | null;
   notes: string | null;
+  tax_invoice_number: string | null;
+  tax_invoice_date: string | null;
+  document_subtype: 'tax_only' | 'tax_receipt' | 'tax_invoice' | null;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  vat_registered?: boolean;
   customer: ReportCustomer | null;
   items: {
     id: string;

@@ -3,6 +3,7 @@ import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemEnrichment
 import { getCategoryName } from '@/lib/shopee/product-sync';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
+import { fetchCostMap } from '@/lib/cost-utils';
 import { reserveStock as reserveStockService, returnStock as returnStockService, unreserveStock as unreserveStockService } from '@/lib/stock-service';
 
 // --- Sync Progress Types ---
@@ -767,6 +768,25 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
         itemsCreated++;
       }
 
+      // Batch update unit_cost for inserted items
+      try {
+        const { data: insertedItems } = await supabaseAdmin
+          .from('order_items')
+          .select('id, variation_id')
+          .eq('order_id', existing.id);
+        const varIds = (insertedItems || []).map(i => i.variation_id).filter((v): v is string => !!v);
+        if (varIds.length > 0) {
+          const costMap = await fetchCostMap(supabaseAdmin, varIds);
+          for (const item of insertedItems || []) {
+            if (item.variation_id && costMap[item.variation_id]) {
+              await supabaseAdmin.from('order_items')
+                .update({ unit_cost: costMap[item.variation_id] })
+                .eq('id', item.id);
+            }
+          }
+        }
+      } catch { /* non-blocking */ }
+
       // Update order totals if they were zero
       const totalAmount = shopeeOrder.total_amount || subtotal;
       await supabaseAdmin
@@ -1137,6 +1157,12 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
     throw new Error(`Failed to create order: ${orderError.message}`);
   }
 
+  // Fetch WAC cost map for cost snapshot
+  const shopeeCostMap = await fetchCostMap(
+    supabaseAdmin,
+    resolvedItems.map(i => i.variation_id).filter((v): v is string => !!v),
+  );
+
   // Create order items in bulk (single insert)
   const orderItemsToInsert = resolvedItems.map(item => ({
     company_id: companyId,
@@ -1147,6 +1173,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder):
     product_name: item.product_name,
     quantity: item.qty,
     unit_price: item.price,
+    unit_cost: item.variation_id ? (shopeeCostMap[item.variation_id] || null) : null,
     discount_percent: 0,
     discount_amount: 0,
     discount_type: 'percent',

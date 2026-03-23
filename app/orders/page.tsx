@@ -54,15 +54,12 @@ import OrderCard from './components/OrderCard';
 import ActionMenu, { ActionItem } from './components/ActionMenu';
 import PaymentModal from './components/PaymentModal';
 import TaxInvoiceModal from './components/TaxInvoiceModal';
-import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
-import { generatePackingPdf } from '@/lib/orders-packing-pdf';
-import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { markOrdersPrinted, updateLocalPrintStatus } from '@/lib/print-tracking';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
+import { printAndTrack, type PrintType } from '@/components/ui/OrderPrintButtons';
 import { getTabColor } from '@/lib/status-tab-colors';
 import { useCompany } from '@/lib/company-context';
-import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FormSelect from '@/components/ui/FormSelect';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -258,6 +255,7 @@ function OrdersPageContent() {
       params.set('sort_by', sortBy);
       params.set('sort_dir', sortDir);
       params.set('source', 'exclude_pos');
+      params.set('exclude_flow_types', 'w_cash,w_credit,c_consign,d_consign');
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (paymentFilter !== 'all') params.set('payment_status', paymentFilter);
       if (createdByFilter !== 'all') params.set('created_by', createdByFilter);
@@ -406,146 +404,24 @@ function OrdersPageContent() {
   const [pdfMessage, setPdfMessage] = useState<string | undefined>();
   const [taxInvoiceModal, setTaxInvoiceModal] = useState<{ orderId: string; orderNumber: string; customerId?: string; hasAbbrev?: boolean } | null>(null);
 
-  const fetchOrderForPdf = async (orderId: string) => {
-    const res = await apiFetch(`/api/orders/${orderId}`);
-    if (!res.ok) throw new Error('Failed to fetch order');
-    const result = await res.json();
-    return result.order;
-  };
-
-  const handlePrintInvoice = async (orderId: string, paymentStatus?: string) => {
+  /**
+   * Unified print handler — delegates to shared printAndTrack()
+   * Supports all print types including marketplace labels
+   */
+  const handlePrint = async (orderId: string, type: PrintType, opts?: { source?: string }) => {
     setPdfLoading(true);
-    const label = getInvoiceMenuLabel(paymentStatus || 'pending', vatRegistered);
-    setPdfMessage(`กำลังสร้าง${label}...`);
     try {
-      const orderData = await fetchOrderForPdf(orderId);
-      const blob = await generateOrderInvoicePdf({ data: orderData });
-      showPdfPreview(blob, label);
-      markOrdersPrinted([orderId], 'invoice');
-      updateLocalPrintStatus(setOrders, [orderId], 'invoice');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
-    } finally {
-      setPdfLoading(false);
-      setPdfMessage(undefined);
-    }
-  };
-
-  const handlePrintAbbreviatedInvoice = async (orderId: string) => {
-    setPdfLoading(true);
-    const label = vatRegistered ? 'ใบกำกับอย่างย่อ' : 'ใบเสร็จรับเงิน';
-    setPdfMessage(`กำลังสร้าง${label}...`);
-    try {
-      const { generateAbbreviatedInvoicePdf } = await import('@/lib/order-invoice-abbreviated-pdf');
-      const orderData = await fetchOrderForPdf(orderId);
-      const blob = await generateAbbreviatedInvoicePdf([orderData]);
-      showPdfPreview(blob, `${label} ${orderData.tax_invoice_number || ''}`);
-      markOrdersPrinted([orderId], 'invoice');
-      updateLocalPrintStatus(setOrders, [orderId], 'invoice');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
-    } finally {
-      setPdfLoading(false);
-      setPdfMessage(undefined);
-    }
-  };
-
-  const handlePrintFullTaxInvoice = async (orderId: string) => {
-    setPdfLoading(true);
-    setPdfMessage('กำลังสร้างใบกำกับแบบเต็ม...');
-    try {
-      const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
-      const orderData = await fetchOrderForPdf(orderId);
-      const blob = await generateFullInvoicePdf(orderData);
-      showPdfPreview(blob, 'ใบกำกับแบบเต็ม');
-      markOrdersPrinted([orderId], 'invoice');
-      updateLocalPrintStatus(setOrders, [orderId], 'invoice');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
-    } finally {
-      setPdfLoading(false);
-      setPdfMessage(undefined);
-    }
-  };
-
-  const handlePrintPackingList = async (orderId: string) => {
-    setPdfLoading(true);
-    setPdfMessage('กำลังสร้างใบจัดของ...');
-    try {
-      const orderData = await fetchOrderForPdf(orderId);
-
-      // Build order list (expand split parcels as separate entries)
-      const ordersData: any[] = [];
-      if (orderData.is_split && orderData.parcels?.length > 0) {
-        for (const parcel of orderData.parcels) {
-          const parcelItems = (parcel.items || []).map((pi: any) => {
-            const fullItem = orderData.items?.find((i: any) => i.id === pi.order_item_id);
-            return {
-              product_name: pi.product_name || fullItem?.product_name || '',
-              variation_label: pi.variation_label || fullItem?.variation_label || null,
-              quantity: pi.quantity,
-              image: pi.image || fullItem?.image || null,
-              barcode: fullItem?.barcode || null,
-              sku: fullItem?.sku || null,
-              product_code: fullItem?.product_code || null,
-            };
-          });
-          ordersData.push({
-            ...orderData,
-            items: parcelItems.length > 0 ? parcelItems : orderData.items,
-            order_number: `${orderData.order_number} (กล่อง ${parcel.parcel_number}/${orderData.parcels.length})`,
-          });
-        }
-      } else {
-        ordersData.push(orderData);
-      }
-
-      const blob = await generatePackingPdf(ordersData);
-      showPdfPreview(blob, 'ใบจัดของ');
-      markOrdersPrinted([orderId], 'packing');
-      updateLocalPrintStatus(setOrders, [orderId], 'packing');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
-    } finally {
-      setPdfLoading(false);
-      setPdfMessage(undefined);
-    }
-  };
-
-  const handlePrintShippingLabel = async (orderId: string) => {
-    setPdfLoading(true);
-    setPdfMessage('กำลังสร้างใบปะหน้า...');
-    try {
-      const orderData = await fetchOrderForPdf(orderId);
-      const blob = await generateShippingLabelPdf({ data: orderData });
-      showPdfPreview(blob, 'ใบปะหน้า');
-      markOrdersPrinted([orderId], 'label');
-      updateLocalPrintStatus(setOrders, [orderId], 'label');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
-    } finally {
-      setPdfLoading(false);
-      setPdfMessage(undefined);
-    }
-  };
-
-  const handlePrintShopeeLabel = async (orderId: string) => {
-    setPdfLoading(true);
-    setPdfMessage('กำลังสร้างใบปะหน้า Shopee...');
-    try {
-      const response = await apiFetch('/api/shopee/orders/shipping-document', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: orderId }),
+      await printAndTrack(orderId, type, {
+        source: opts?.source,
+        onProgress: (msg) => setPdfMessage(msg),
       });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to generate Shopee label');
+      // Update local print status for UI indicators
+      const trackType = type === 'marketplace_label' ? 'label'
+        : type === 'abbreviated' || type === 'tax' || type === 'dn' || type === 'all' ? 'invoice'
+        : type as 'packing' | 'label';
+      if (['invoice', 'packing', 'label'].includes(trackType)) {
+        updateLocalPrintStatus(setOrders, [orderId], trackType as 'label' | 'packing' | 'invoice');
       }
-      const blob = await response.blob();
-      showPdfPreview(blob, 'ใบปะหน้า Shopee');
-      markOrdersPrinted([orderId], 'label');
-      updateLocalPrintStatus(setOrders, [orderId], 'label');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
@@ -553,6 +429,14 @@ function OrdersPageContent() {
       setPdfMessage(undefined);
     }
   };
+
+  // Legacy handlers — delegate to unified handlePrint (used by menu items below)
+  const handlePrintInvoice = (orderId: string) => handlePrint(orderId, 'abbreviated');
+  const handlePrintAbbreviatedInvoice = (orderId: string) => handlePrint(orderId, 'abbreviated');
+  const handlePrintFullTaxInvoice = (orderId: string) => handlePrint(orderId, 'tax');
+  const handlePrintPackingList = (orderId: string) => handlePrint(orderId, 'packing');
+  const handlePrintShippingLabel = (orderId: string) => handlePrint(orderId, 'label');
+  const handlePrintShopeeLabel = (orderId: string, source?: string) => handlePrint(orderId, 'marketplace_label', { source: source || 'shopee' });
 
   // === Render Default Order Card (for tabs without special components) ===
   const renderDefaultCardActions = (order: Order) => {
@@ -619,7 +503,7 @@ function OrdersPageContent() {
       if (isMarketplace) {
         menuItems.push({
           key: 'label', label: `ใบปะหน้า${sourceLabel}`, icon: <Printer className="w-4 h-4" />,
-          onClick: (e) => { e.stopPropagation(); handlePrintShopeeLabel(order.id); },
+          onClick: (e) => { e.stopPropagation(); handlePrintShopeeLabel(order.id, order.source); },
           className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
         });
       } else {
@@ -639,7 +523,7 @@ function OrdersPageContent() {
     if (order.payment_status !== 'paid') {
       menuItems.push({
         key: 'invoice', label: 'ใบแจ้งหนี้', icon: <Banknote className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
+        onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
         className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
       });
     } else if (vatRegistered) {
@@ -668,7 +552,7 @@ function OrdersPageContent() {
       // ไม่จด VAT + paid: ใบเสร็จรับเงินอย่างเดียว
       menuItems.push({
         key: 'receipt', label: 'ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
-        onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id, order.payment_status); },
+        onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
         className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
       });
     }
@@ -1300,7 +1184,10 @@ function OrdersPageContent() {
               setTaxInvoiceModal(null);
               try {
                 const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
-                const orderData = await fetchOrderForPdf(updatedOrder.id as string);
+                const fetchRes = await apiFetch(`/api/orders/${updatedOrder.id}`);
+                if (!fetchRes.ok) throw new Error('Failed to fetch order');
+                const fetchData = await fetchRes.json();
+                const orderData = fetchData.order;
                 const blob = await generateFullInvoicePdf({
                   ...orderData,
                   tax_invoice_number: updatedOrder.tax_invoice_number,

@@ -14,10 +14,11 @@ import FormSelect from '@/components/ui/FormSelect';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
-import { resolveGp, fetchGpContext, type GpResolverContext } from '@/lib/gp-resolver';
+import { resolveGp, fetchCustomerOrderContext, type GpResolverContext } from '@/lib/gp-resolver';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import MonthYearPicker from '@/components/ui/MonthYearPicker';
 import OrderStatusBar from '@/components/dealer/OrderStatusBar';
+import OrderPrintButtons from '@/components/ui/OrderPrintButtons';
 import CustomerInfoCard from '@/components/ui/CustomerInfoCard';
 import TaxInvoiceInfo from '@/components/ui/TaxInvoiceInfo';
 import { formatNumber } from '@/lib/utils/format';
@@ -331,7 +332,11 @@ export default function DealerOrderForm({
           else if (order.flow_type === 'w_cash') setFlowType('w_cash');
 
           // Fetch GP context + products for GP recalculation
-          try { gpCtx = await fetchGpContext(cust.id); setGpContext(gpCtx); } catch { /* ignore */ }
+          try {
+            const orderCtx = await fetchCustomerOrderContext(cust.id);
+            gpCtx = orderCtx.gpContext;
+            setGpContext(gpCtx);
+          } catch { /* ignore */ }
 
           // Fetch product default prices for GP recalc
           if (gpCtx && orderItems.length > 0) {
@@ -469,42 +474,31 @@ export default function DealerOrderForm({
     resetForm();
 
     if (custId) {
-      // Fetch GP context (all modes use GP)
+      // Single RPC call: customer + addresses + GP context
       setLoadingGp(true);
       try {
-        const ctx = await fetchGpContext(custId);
+        const ctx = await fetchCustomerOrderContext(custId);
         if (latestCustomerIdRef.current !== custId) return;
-        setGpContext(ctx);
-      } catch { setGpContext(null); }
-      finally { if (latestCustomerIdRef.current === custId) setLoadingGp(false); }
 
-      // Fetch shipping addresses
-      try {
-        const addrRes = await apiFetch(`/api/shipping-addresses?customer_id=${custId}`);
-        if (addrRes.ok) {
-          const addrData = await addrRes.json();
-          const addrs: ShippingAddress[] = addrData.addresses || addrData.data || [];
-          setShippingAddresses(addrs);
-          if (addrs.length > 0) {
-            const defaultAddr = addrs.find(a => a.is_default) || addrs[0];
-            setSelectedAddressId(defaultAddr.id);
-            fillDeliveryFromAddress(defaultAddr, cust);
-          }
+        setGpContext(ctx.gpContext);
+
+        // Shipping addresses
+        const addrs = ctx.shippingAddresses as ShippingAddress[];
+        setShippingAddresses(addrs);
+        if (addrs.length > 0) {
+          const defaultAddr = addrs.find(a => a.is_default) || addrs[0];
+          setSelectedAddressId(defaultAddr.id);
+          fillDeliveryFromAddress(defaultAddr, cust);
         }
-      } catch { /* ignore */ }
 
-      // Pre-fill tax invoice fields + billing address
-      try {
-        const res = await apiFetch(`/api/customers/${custId}`);
-        if (res.ok) {
-          const data = await res.json();
-          const c = data.customer || data;
+        // Prefill tax invoice + billing
+        const c = ctx.customer;
+        if (c) {
           if (c.tax_company_name) setTaxName(c.tax_company_name);
           if (c.tax_id) setTaxTaxId(c.tax_id);
           if (c.tax_branch) setTaxBranch(c.tax_branch);
           const addrParts = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
           if (addrParts) setTaxAddress(addrParts);
-          // Store billing fields on selectedCustomer for display
           setSelectedCustomer(prev => prev ? {
             ...prev,
             billing_address: c.billing_address || null,
@@ -517,7 +511,8 @@ export default function DealerOrderForm({
             tax_branch: c.tax_branch || null,
           } : prev);
         }
-      } catch { /* ignore */ }
+      } catch { setGpContext(null); }
+      finally { setLoadingGp(false); }
     } else {
       setGpContext(null);
     }
@@ -786,14 +781,22 @@ export default function DealerOrderForm({
     <div className="space-y-4">
       {/* Edit mode: Status header + Actions */}
       {isEditMode && orderId && (
-        <OrderStatusBar
-          orderId={orderId}
-          orderNumber={orderNumber}
-          orderStatus={orderStatus}
-          paymentStatus={paymentStatus}
-          backUrl={backUrl}
-          onStatusChange={setOrderStatus}
-        />
+        <>
+          <OrderStatusBar
+            orderId={orderId}
+            orderNumber={orderNumber}
+            orderStatus={orderStatus}
+            paymentStatus={paymentStatus}
+            backUrl={backUrl}
+            onStatusChange={setOrderStatus}
+          />
+          <OrderPrintButtons
+            orderId={orderId}
+            orderNumber={orderNumber}
+            orderStatus={orderStatus}
+            flowType={mode === 'department' ? 'd_consign' : flowType}
+          />
+        </>
       )}
 
       {/* Consignment: Period Picker */}

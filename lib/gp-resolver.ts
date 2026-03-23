@@ -91,41 +91,62 @@ export function resolveGp(ctx: GpResolverContext, product: ProductForGp): GpReso
 // ── Fetch helper ───────────────────────────────────────────────────────────
 
 /**
- * Fetch all data needed to build GpResolverContext for a given customer.
- * Makes 4 parallel API calls.
+ * Fetch customer + shipping addresses + GP context in ONE RPC call.
+ * Returns everything needed when a customer is selected in order forms.
  */
-export async function fetchGpContext(customerId: string): Promise<GpResolverContext> {
-  const [commRes, custRes, brandsRes, settingsRes] = await Promise.all([
-    apiFetch(`/api/customer-brand-commissions?customer_id=${customerId}`),
-    apiFetch(`/api/customers?search=${customerId}`),
-    apiFetch('/api/brands'),
-    apiFetch('/api/settings/features'),
-  ]);
+export interface CustomerOrderContext {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  customer: Record<string, any>;
+  shippingAddresses: { id: string; address_name: string; contact_person: string; phone: string; address_line1: string; district: string; amphoe: string; province: string; postal_code: string; delivery_notes: string; is_default: boolean }[];
+  gpContext: GpResolverContext;
+}
 
-  const [commData, custData, brandsData, settingsData] = await Promise.all([
-    commRes.ok ? commRes.json() : { data: [] },
-    custRes.ok ? custRes.json() : { customers: [] },
-    brandsRes.ok ? brandsRes.json() : { data: [] },
-    settingsRes.ok ? settingsRes.json() : {},
-  ]) as [Record<string, any>, Record<string, any>, Record<string, any>, Record<string, any>];
+export async function fetchCustomerOrderContext(customerId: string): Promise<CustomerOrderContext> {
+  const res = await apiFetch(`/api/customers/order-context?customer_id=${customerId}`);
+  if (!res.ok) throw new Error('Failed to fetch customer context');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await res.json();
 
-  const customer = custData.customers?.[0] || {};
-  const cs = settingsData.consignment_settings || {};
+  const customer = data.customer || {};
+  const cs = data.consignment_settings || {};
 
   return {
-    customerBrandCommissions: (commData.data || []).map((c: Record<string, unknown>) => ({
-      brand_id: c.brand_id as string,
-      gp_rate: c.gp_rate as number,
-      gp_base_price: (c.gp_base_price as 'retail' | 'discounted') || 'retail',
-    })),
-    customerGpRate: customer.consignment_gp_rate ?? null,
-    customerGpBasePrice: customer.consignment_gp_base_price ?? null,
-    globalBrandGp: (brandsData.data || []).map((b: Record<string, unknown>) => ({
-      brand_id: b.id as string,
-      default_gp_rate: (b.default_gp_rate as number) ?? null,
-      gp_base_price: (b.gp_base_price as 'retail' | 'discounted') || 'retail',
-    })),
-    globalDefaultGpRate: (cs.default_gp_rate as number) ?? 30,
-    globalDefaultGpBasePrice: (cs.default_gp_base_price as 'retail' | 'discounted') || 'retail',
+    customer,
+    shippingAddresses: data.shipping_addresses || [],
+    gpContext: {
+      customerBrandCommissions: (data.brand_commissions || []).map((c: Record<string, unknown>) => ({
+        brand_id: c.brand_id as string,
+        gp_rate: c.gp_rate as number,
+        gp_base_price: (c.gp_base_price as 'retail' | 'discounted') || 'retail',
+      })),
+      customerGpRate: customer.consignment_gp_rate ?? null,
+      customerGpBasePrice: customer.consignment_gp_base_price ?? null,
+      globalBrandGp: (data.brand_gp_overrides || []).map((b: Record<string, unknown>) => ({
+        brand_id: b.brand_id as string,
+        default_gp_rate: (b.default_gp_rate ?? b.gp_rate) as number ?? null,
+        gp_base_price: (b.gp_base_price as 'retail' | 'discounted') || 'retail',
+      })),
+      globalDefaultGpRate: (cs.default_gp_rate as number) ?? 30,
+      globalDefaultGpBasePrice: (cs.default_gp_base_price as 'retail' | 'discounted') || 'retail',
+    },
   };
+}
+
+/**
+ * Legacy wrapper — fetches only GP context (for consignment/department report pages).
+ * Uses the same RPC but discards shipping addresses.
+ */
+export async function fetchGpContext(
+  customerId: string,
+  customerData?: { consignment_gp_rate?: number | null; consignment_gp_base_price?: string | null },
+): Promise<GpResolverContext> {
+  // If customerData provided, still need brand commissions + global brands
+  // Use the full RPC anyway — it's just 1 call
+  const ctx = await fetchCustomerOrderContext(customerId);
+  // Override with pre-supplied customer data if provided
+  if (customerData) {
+    ctx.gpContext.customerGpRate = customerData.consignment_gp_rate ?? null;
+    ctx.gpContext.customerGpBasePrice = (customerData.consignment_gp_base_price as 'retail' | 'discounted') ?? null;
+  }
+  return ctx.gpContext;
 }

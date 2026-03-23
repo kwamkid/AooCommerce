@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { deductStock } from '@/lib/stock-service';
+import { fetchCostMap } from '@/lib/cost-utils';
 
 interface PosItemInput {
   variation_id: string;
@@ -378,6 +379,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: orderError.message }, { status: 400 });
     }
 
+    // Fetch WAC cost map for cost snapshot
+    const posCostMap = await fetchCostMap(
+      supabaseAdmin,
+      itemsWithTotals.map((i: PosItemInput) => i.variation_id).filter(Boolean),
+    );
+
     // Create order items (no shipments for POS)
     for (const item of itemsWithTotals) {
       const { error: itemError } = await supabaseAdmin
@@ -392,6 +399,7 @@ export async function POST(request: NextRequest) {
           variation_label: item.variation_label || null,
           quantity: item.quantity,
           unit_price: item.unit_price,
+          unit_cost: posCostMap[item.variation_id] || null,
           discount_percent: item.discount_percent || 0,
           discount_amount: item.discount_amount || 0,
           discount_type: item.discount_type || 'percent',

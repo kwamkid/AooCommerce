@@ -601,7 +601,7 @@ function ConsignmentReportsContent() {
           {STATUS_TABS.map(tab => {
             const count = getTabCount(tab.key);
             const isActive = activeStatus === tab.key;
-            if (tab.hideIfZero && count === 0 && !isActive) return null;
+            if ('hideIfZero' in tab && tab.hideIfZero && count === 0 && !isActive) return null;
             const btn = (
               <button
                 onClick={() => setParams({ status: tab.key })}
@@ -615,7 +615,7 @@ function ConsignmentReportsContent() {
             );
             return (
               <div key={tab.key} className="flex-shrink-0">
-                {tab.tooltip ? <Tooltip text={tab.tooltip}>{btn}</Tooltip> : btn}
+                {'tooltip' in tab && tab.tooltip ? <Tooltip text={tab.tooltip}>{btn}</Tooltip> : btn}
               </div>
             );
           })}

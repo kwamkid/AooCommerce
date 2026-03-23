@@ -5,6 +5,7 @@ import { getStockConfig } from '@/lib/stock-utils';
 import { createCreditNote } from '@/lib/credit-notes/auto-cn';
 import { reserveStock, unreserveStock, returnStock, deductAndUnreserve } from '@/lib/stock-service';
 import { getPromotionComponents } from '@/lib/promotion-service';
+import { fetchCostMap } from '@/lib/cost-utils';
 
 // Type definitions
 interface OrderItemInput {
@@ -296,6 +297,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Fetch WAC cost map for cost snapshot
+    const costMap = await fetchCostMap(
+      supabaseAdmin,
+      itemsWithTotals.map((i: OrderItemInput) => i.variation_id).filter(Boolean),
+    );
+
     // Create order items and shipments
     for (const item of itemsWithTotals) {
       // For promotion items: resolve real variation_id from promotion_items if needed
@@ -345,6 +352,7 @@ export async function POST(request: NextRequest) {
           variation_label: item.variation_label || null,
           quantity: item.quantity,
           unit_price: item.unit_price,
+          unit_cost: costMap[resolvedVariationId] || null,
           discount_percent: item.discount_percent || 0,
           discount_amount: item.discount_amount,
           discount_type: item.discount_type || 'percent',
@@ -897,6 +905,7 @@ export async function GET(request: NextRequest) {
     const orderType = searchParams.get('order_type') || null;
     const platform = searchParams.get('platform') || null;
     const flowType = searchParams.get('flow_type') || null;
+    const excludeFlowTypes = searchParams.get('exclude_flow_types') || null; // comma-separated
     const customerTypeFilter = searchParams.get('customer_type') || null;
 
     // Lightweight: return only IDs matching the current filters (for "select all")
@@ -916,6 +925,11 @@ export async function GET(request: NextRequest) {
         query = query.eq('source', source);
       }
       if (customerId) query = query.eq('customer_id', customerId);
+      if (excludeFlowTypes) {
+        for (const ft of excludeFlowTypes.split(',')) {
+          query = query.neq('flow_type', ft.trim());
+        }
+      }
 
       // Shipping carrier filter (matches RPC logic)
       if (shippingCarrier === '__on_hold__') {
@@ -960,6 +974,7 @@ export async function GET(request: NextRequest) {
     if (orderType) rpcParams.p_order_type = orderType;
     if (platform) rpcParams.p_platform = platform;
     if (flowType) rpcParams.p_flow_type = flowType;
+    if (excludeFlowTypes) rpcParams.p_exclude_flow_types = excludeFlowTypes.split(',');
 
     const { data: result, error: rpcError } = await supabaseAdmin.rpc('get_orders_list', rpcParams);
 
@@ -1873,6 +1888,12 @@ export async function PUT(request: NextRequest) {
         );
       }
 
+      // Fetch WAC cost map for cost snapshot (update path)
+      const updateCostMap = await fetchCostMap(
+        supabaseAdmin,
+        itemsWithTotals.map((i: OrderItemInput) => i.variation_id).filter(Boolean),
+      );
+
       // Create new order items and shipments
       for (const item of itemsWithTotals) {
         const { data: orderItem, error: itemError } = await supabaseAdmin
@@ -1887,6 +1908,7 @@ export async function PUT(request: NextRequest) {
             variation_label: item.variation_label || null,
             quantity: item.quantity,
             unit_price: item.unit_price,
+            unit_cost: updateCostMap[item.variation_id] || null,
             discount_percent: item.discount_percent || 0,
             discount_amount: item.discount_amount,
             discount_type: item.discount_type || 'percent',

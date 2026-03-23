@@ -16,7 +16,9 @@ interface CustomerData {
   tax_id?: string;
   tax_company_name?: string;
   tax_branch?: string;
+  tax_type?: string;
   customer_type: string;
+  sale_type?: string;
   credit_limit?: number;
   credit_days?: number;
   assigned_salesperson?: string;

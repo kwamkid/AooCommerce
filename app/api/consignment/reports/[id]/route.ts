@@ -94,7 +94,7 @@ export async function PUT(
     const { id: reportId } = await context.params;
 
     const body = await request.json();
-    const { action } = body as { action: 'confirm' | 'cancel' | 'update_items' };
+    const { action } = body as { action: 'confirm' | 'cancel' | 'update_items' | 'void' };
 
     if (!action) {
       return NextResponse.json({ error: 'กรุณาระบุ action' }, { status: 400 });
@@ -103,7 +103,7 @@ export async function PUT(
     // Fetch report to validate state
     const { data: report, error: fetchError } = await supabaseAdmin
       .from('consignment_reports')
-      .select('id, status, company_id, customer_id, our_amount, period_year, period_month')
+      .select('id, status, company_id, customer_id, our_amount, period_year, period_month, statement_id')
       .eq('id', reportId)
       .eq('company_id', companyId)
       .single();

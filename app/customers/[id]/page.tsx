@@ -45,6 +45,8 @@ interface Customer {
   tax_company_name?: string;
   tax_branch?: string;
   customer_type: string;
+  sale_type?: string;
+  tax_type?: string;
   credit_limit: number;
   credit_days: number;
   is_active: boolean;
@@ -127,7 +129,7 @@ export default function CustomerEditPage() {
         phone: customerData.phone || '',
         email: customerData.email || '',
         customer_type: customerData.customer_type,
-        sale_type: (customerData as Record<string, unknown>).sale_type as string || '',
+        sale_type: customerData.sale_type || '',
         credit_limit: customerData.credit_limit || 0,
         credit_days: customerData.credit_days || 0,
         is_active: customerData.is_active,
@@ -141,7 +143,7 @@ export default function CustomerEditPage() {
         shipping_delivery_notes: defaultAddr?.delivery_notes || '',
         billing_address: [customerData.billing_address, customerData.billing_district, customerData.billing_amphoe, customerData.billing_province, customerData.billing_postal_code].filter(Boolean).join(' '),
         needs_tax_invoice: !!(customerData.tax_id || customerData.tax_company_name),
-        tax_type: (customerData as Record<string, unknown>).tax_type as 'personal' | 'corporate' || 'corporate',
+        tax_type: (customerData.tax_type as 'personal' | 'corporate') || 'corporate',
         tax_company_name: customerData.tax_company_name || '',
         tax_id: customerData.tax_id || '',
         tax_branch: customerData.tax_branch || 'สำนักงานใหญ่',

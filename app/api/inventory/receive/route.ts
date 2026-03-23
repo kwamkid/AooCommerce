@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, hasAnyRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
-import { addStock } from '@/lib/stock-service';
+import { addStock, updateWeightedAverageCost } from '@/lib/stock-service';
 
 // POST - Receive stock into warehouse
 export async function POST(request: NextRequest) {
@@ -59,6 +59,17 @@ export async function POST(request: NextRequest) {
         createdBy: auth.userId,
         unitCost: unit_cost || null,
       });
+
+      // Update WAC when unit_cost is provided
+      if (unit_cost && unit_cost > 0) {
+        await updateWeightedAverageCost(
+          supabaseAdmin,
+          auth.companyId!,
+          variation_id,
+          quantity,
+          unit_cost,
+        );
+      }
 
       results.push({ variation_id, quantity, new_balance: result.balanceAfter });
     }

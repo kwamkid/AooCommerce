@@ -24,7 +24,7 @@ export async function insertTaxInvoice(params: {
   company_id: string;
   invoice_number: string;
   invoice_date: string;
-  source_type: 'order' | 'statement' | 'replenishment' | 'consignment_report' | 'department_store_report';
+  source_type: 'order' | 'statement' | 'replenishment' | 'consignment_report' | 'department_store_report' | 'department_order';
   source_id: string;
   customer_id?: string | null;
   customer_name?: string | null;
@@ -118,7 +118,7 @@ export async function insertDeliveryNote(params: {
   company_id: string;
   dn_number: string;
   dn_date: string;
-  source_type: 'order' | 'replenishment';
+  source_type: 'order' | 'replenishment' | 'department_order';
   source_id: string;
   customer_id?: string | null;
   total_amount: number;
@@ -142,7 +142,7 @@ export async function insertInvoice(params: {
   company_id: string;
   invoice_number: string;
   invoice_date: string;
-  source_type: 'consignment_report' | 'department_store_report' | 'order';
+  source_type: 'consignment_report' | 'department_store_report' | 'department_order' | 'order';
   source_id: string;
   customer_id?: string | null;
   customer_name?: string | null;
@@ -569,7 +569,7 @@ async function fetchCustomerForDoc(customerId: string) {
 interface IssueReportDocResult {
   success: boolean;
   documentNumber?: string;
-  documentType?: 'tax_invoice' | 'invoice';
+  documentType?: 'tax_invoice' | 'tax_only' | 'invoice';
   error?: string;
 }
 
@@ -750,7 +750,7 @@ export async function issuePaymentReceipt(
 export async function issueOrderDN(
   orderId: string,
   companyId: string,
-  sourceType: string = 'order',
+  sourceType: 'order' | 'replenishment' | 'department_order' = 'order',
 ): Promise<IssueResult> {
   try {
     // Check if already issued — query document table
