@@ -69,6 +69,7 @@ export interface ReplenishmentFormState {
   status: string;
   replenishmentNumber: string;
   receiveToken: string;
+  warehouseId: string | null;
   existingData: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   selectedCustomer: Customer | null;
   items: ReplenishmentItem[];
@@ -163,6 +164,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
       status: existingStatus,
       replenishmentNumber,
       receiveToken,
+      warehouseId: existingData?.warehouse_id || warehouseId || null,
       existingData,
       selectedCustomer,
       items,
@@ -307,7 +309,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
 
   // Fetch source warehouse inventory (for stock_source column)
   useEffect(() => {
-    if (!warehouseId || isEditMode) { setSourceInventory([]); return; }
+    if (!warehouseId) { setSourceInventory([]); return; }
     apiFetch(`/api/inventory?warehouse_id=${warehouseId}&limit=9999`)
       .then(r => r.json())
       .then(d => setSourceInventory((d.items || []).map((i: { variation_id: string; quantity: number; available: number }) => ({ variation_id: i.variation_id, quantity: i.quantity, available: i.available ?? i.quantity }))))
@@ -316,7 +318,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
 
   // Fetch dealer consignment inventory (for stock_dest column)
   useEffect(() => {
-    if (!selectedCustomerId || isEditMode) { setDealerInventory([]); return; }
+    if (!selectedCustomerId) { setDealerInventory([]); return; }
     apiFetch(`/api/inventory?dealer_id=${selectedCustomerId}&limit=9999`)
       .then(r => r.json())
       .then(d => {

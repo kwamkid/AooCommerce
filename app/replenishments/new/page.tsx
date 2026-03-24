@@ -217,6 +217,13 @@ function NewReplenishmentPageContent() {
     showToast('คัดลอกลิงก์แล้ว', 'success');
   };
 
+  // Set warehouse from loaded replenishment (edit mode)
+  useEffect(() => {
+    if (isEdit && formState?.warehouseId && !selectedWarehouseId) {
+      setSelectedWarehouseId(formState.warehouseId);
+    }
+  }, [isEdit, formState?.warehouseId, selectedWarehouseId]);
+
   const status = formState?.status || '';
   const statusCfg = STATUS_CONFIG[status];
 
@@ -298,12 +305,12 @@ function NewReplenishmentPageContent() {
           )}
         </div>
 
-        {/* Warehouse picker (only for new) */}
-        {!isEdit && warehouses.length > 0 && (
+        {/* Warehouse picker */}
+        {warehouses.length > 0 && (
           <div className="inline-block min-w-[160px]">
             <FormSelect
               value={selectedWarehouseId}
-              onChange={setSelectedWarehouseId}
+              onChange={isEdit ? () => {} : setSelectedWarehouseId}
               options={warehouses.map(w => ({
                 id: w.id,
                 label: `${w.is_default ? '⭐ ' : ''}${w.name}`,
@@ -311,6 +318,7 @@ function NewReplenishmentPageContent() {
               icon={<Warehouse className="w-4 h-4" />}
               placeholder="-- เลือกคลัง --"
               searchThreshold={99}
+              disabled={isEdit}
             />
           </div>
         )}
