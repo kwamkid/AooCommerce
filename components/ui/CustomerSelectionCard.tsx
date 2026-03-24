@@ -199,29 +199,37 @@ export default function CustomerSelectionCard({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
         {/* Row 1 Left: ลูกค้า */}
         <div className="relative flex flex-col">
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300">
-              {customerLabel} {customerRequired && <span className="text-red-500">*</span>}
-            </label>
-            {/* Toggle: ลูกค้าเดิม / ลูกค้าใหม่ */}
-            {allowNewCustomer && isEditable && !selectedCustomer && (
+          {/* Label or Toggle */}
+          {allowNewCustomer && isEditable && !selectedCustomer ? (
+            <div className="flex items-center gap-0 mb-1 bg-gray-100 dark:bg-slate-700 rounded-lg p-0.5 w-fit">
               <button
                 type="button"
-                onClick={() => {
-                  const next = !newCustomerMode;
-                  onNewCustomerModeChange?.(next);
-                  if (next) onCustomerClear();
-                }}
-                className={`text-xs px-2 py-1 rounded-md transition-colors ${
-                  newCustomerMode
-                    ? 'bg-[#F4511E] text-white'
-                    : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                onClick={() => { if (newCustomerMode) { onNewCustomerModeChange?.(false); onNewCustomerNameChange?.(''); } }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  !newCustomerMode
+                    ? 'bg-white dark:bg-slate-600 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
                 }`}
               >
-                {newCustomerMode ? 'ลูกค้าเดิม' : 'ลูกค้าใหม่'}
+                ลูกค้าเดิม
               </button>
-            )}
-          </div>
+              <button
+                type="button"
+                onClick={() => { if (!newCustomerMode) { onNewCustomerModeChange?.(true); onCustomerClear(); } }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  newCustomerMode
+                    ? 'bg-white dark:bg-slate-600 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
+                }`}
+              >
+                ลูกค้าใหม่
+              </button>
+            </div>
+          ) : (
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+              {customerLabel} {customerRequired && <span className="text-red-500">*</span>}
+            </label>
+          )}
 
           {/* Mode: New Customer — name input */}
           {newCustomerMode && !selectedCustomer ? (
