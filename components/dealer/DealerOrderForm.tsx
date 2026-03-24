@@ -335,46 +335,38 @@ export default function DealerOrderForm({
             } catch { /* ignore */ }
           }
 
+          // Fetch addresses + tax in 1 RPC call (reuses GP context already fetched above)
           try {
-            const addrRes = await apiFetch(`/api/shipping-addresses?customer_id=${cust.id}`);
-            if (addrRes.ok) {
-              const addrData = await addrRes.json();
-              const addrs: ShippingAddress[] = addrData.addresses || addrData.data || [];
-              setShippingAddresses(addrs);
-              if (order.shipping_address_id) {
-                setSelectedAddressId(order.shipping_address_id);
-                const addr = addrs.find(a => a.id === order.shipping_address_id);
-                if (addr) fillDeliveryFromAddress(addr, cust);
-              } else if (addrs.length > 0) {
-                const defaultAddr = addrs.find(a => a.is_default) || addrs[0];
-                setSelectedAddressId(defaultAddr.id);
-                fillDeliveryFromAddress(defaultAddr, cust);
-              }
+            const ctx = await fetchCustomerOrderContext(cust.id);
+            const addrs: ShippingAddress[] = ctx.shippingAddresses as ShippingAddress[];
+            setShippingAddresses(addrs);
+            if (order.shipping_address_id) {
+              setSelectedAddressId(order.shipping_address_id);
+              const addr = addrs.find(a => a.id === order.shipping_address_id);
+              if (addr) fillDeliveryFromAddress(addr, cust);
+            } else if (addrs.length > 0) {
+              const defaultAddr = addrs.find(a => a.is_default) || addrs[0];
+              setSelectedAddressId(defaultAddr.id);
+              fillDeliveryFromAddress(defaultAddr, cust);
             }
-          } catch { /* ignore */ }
-
-          try {
-            const taxRes = await apiFetch(`/api/customers/${cust.id}`);
-            if (taxRes.ok) {
-              const td = await taxRes.json();
-              const c = td.customer || td;
-              if (c.tax_company_name) setTaxName(c.tax_company_name);
-              if (c.tax_id) setTaxTaxId(c.tax_id);
-              if (c.tax_branch) setTaxBranch(c.tax_branch);
-              const ap = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
-              if (ap) setTaxAddress(ap);
-              setSelectedCustomer(prev => prev ? {
-                ...prev,
-                billing_address: c.billing_address || null,
-                billing_district: c.billing_district || null,
-                billing_amphoe: c.billing_amphoe || null,
-                billing_province: c.billing_province || null,
-                billing_postal_code: c.billing_postal_code || null,
-                tax_company_name: c.tax_company_name || null,
-                tax_id: c.tax_id || null,
-                tax_branch: c.tax_branch || null,
-              } : prev);
-            }
+            // Tax + billing from customer context
+            const c = ctx.customer;
+            if (c.tax_company_name) setTaxName(c.tax_company_name);
+            if (c.tax_id) setTaxTaxId(c.tax_id);
+            if (c.tax_branch) setTaxBranch(c.tax_branch);
+            const ap = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
+            if (ap) setTaxAddress(ap);
+            setSelectedCustomer(prev => prev ? {
+              ...prev,
+              billing_address: c.billing_address || null,
+              billing_district: c.billing_district || null,
+              billing_amphoe: c.billing_amphoe || null,
+              billing_province: c.billing_province || null,
+              billing_postal_code: c.billing_postal_code || null,
+              tax_company_name: c.tax_company_name || null,
+              tax_id: c.tax_id || null,
+              tax_branch: c.tax_branch || null,
+            } : prev);
           } catch { /* ignore */ }
         }
 
