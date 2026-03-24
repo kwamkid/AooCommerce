@@ -129,7 +129,18 @@ interface Props {
 // ── Helper: get badge for sale_type ──────────────────────
 
 function getSaleTypeBadge(customer: CustomerOption): React.ReactNode {
-  const st = customer.sale_type || (customer.customer_type === 'consignment_dealer' ? 'consignment' : '');
+  // Resolve sale_type with fallback based on customer_type
+  let st = customer.sale_type || '';
+  if (!st && customer.customer_type) {
+    const fallback: Record<string, string> = {
+      consignment_dealer: 'consignment',
+      wholesale_dealer: 'wholesale_cash',
+      wholesale_department: 'wholesale_cash',
+      department_store: 'consignment',
+      corporate: 'wholesale_credit',
+    };
+    st = fallback[customer.customer_type] || '';
+  }
   if (!st) return undefined;
   const map: Record<string, { label: string; cls: string }> = {
     wholesale_credit: { label: 'เครดิต', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
