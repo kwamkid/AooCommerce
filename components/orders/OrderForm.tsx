@@ -21,6 +21,8 @@ import { formatPrice, formatNumber } from '@/lib/utils/format';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import CustomerInfoCard from '@/components/ui/CustomerInfoCard';
 import TaxInvoiceInfo from '@/components/ui/TaxInvoiceInfo';
+import CustomerSelectionCard, { type CustomerOption, type DeliveryFields, type TaxFields, type ShippingAddress as CSCShippingAddress } from '@/components/ui/CustomerSelectionCard';
+import { fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import {
   Plus,
@@ -45,6 +47,7 @@ interface Customer {
   contact_person?: string;
   phone?: string;
   email?: string;
+  customer_type?: string;
 }
 
 interface ShippingAddress {
@@ -57,8 +60,9 @@ interface ShippingAddress {
   amphoe?: string;
   province: string;
   postal_code?: string;
-  is_default: boolean;
-  created_at: string;
+  is_default?: boolean;
+  created_at?: string;
+  delivery_notes?: string;
 }
 
 interface Product {
@@ -180,7 +184,7 @@ export default function OrderForm({
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [addressConflict, setAddressConflict] = useState<{ mode: 'update' | 'new' | null; addressName: string } | null>(null);
-  const [showAddressDropdown, setShowAddressDropdown] = useState(false);
+  // showAddressDropdown removed — handled by CustomerSelectionCard
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [savedOrderId, setSavedOrderId] = useState('');
   const [savedOrderNumber, setSavedOrderNumber] = useState('');
@@ -198,7 +202,7 @@ export default function OrderForm({
   // Customer selection
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [customerSearch, setCustomerSearch] = useState('');
+  // customerSearch removed — using selectedCustomer?.name directly
 
   // Shipping addresses
   const [shippingAddresses, setShippingAddresses] = useState<ShippingAddress[]>([]);
@@ -339,7 +343,7 @@ export default function OrderForm({
       const customer = customers.find(c => c.id === initialOrderData.customer_id);
       if (customer) {
         setSelectedCustomer(customer);
-        setCustomerSearch(customer.name);
+        // customerSearch removed
         // Fetch addresses and auto-select default
         (async () => {
           try {
@@ -461,7 +465,7 @@ export default function OrderForm({
         // Set customer
         if (order.customer) {
           setSelectedCustomer(order.customer);
-          setCustomerSearch(order.customer.name);
+          // customerSearch removed
         }
 
         // Set delivery date
@@ -577,8 +581,11 @@ export default function OrderForm({
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to fetch customers');
 
+      // Only show retail-compatible customers (exclude dealers and department stores)
+      const retailTypes = ['retail', 'dropship', 'affiliate', null, undefined, ''];
       const sortedCustomers = (result.customers || [])
-        .filter((c: Customer & { is_active?: boolean }) => c.is_active !== false)
+        .filter((c: Customer & { is_active?: boolean; customer_type?: string }) =>
+          c.is_active !== false && retailTypes.includes(c.customer_type || ''))
         .sort((a: Customer, b: Customer) => a.name.localeCompare(b.name));
       setCustomers(sortedCustomers);
     } catch (error) {
@@ -690,19 +697,44 @@ export default function OrderForm({
     }
   };
 
-  const handleSelectCustomer = async (customer: Customer) => {
-    setSelectedCustomer(customer);
-    setCustomerSearch(customer.name);
+  // Helper: fill delivery fields from a shipping address
+  const fillDeliveryFromAddress = (addr: ShippingAddress | CSCShippingAddress, cust: Customer | null) => {
+    setDeliveryName(addr.contact_person || cust?.name || '');
+    setDeliveryPhone(addr.phone || cust?.phone || '');
+    setDeliveryEmail(cust?.email || '');
+    setDeliveryAddress(addr.address_line1 || '');
+    setDeliveryDistrict(addr.district || '');
+    setDeliveryAmphoe(addr.amphoe || '');
+    setDeliveryProvince(addr.province || '');
+    setDeliveryPostalCode(addr.postal_code || '');
+  };
+
+  // Helper: clear customer and all related state
+  const handleCustomerClear = () => {
+    setSelectedCustomer(null);
     setShippingAddresses([]);
-    // Reset delivery info — will be filled when user picks an address
-    setDeliveryName('');
-    setDeliveryPhone('');
-    setDeliveryAddress('');
-    setDeliveryDistrict('');
-    setDeliveryAmphoe('');
-    setDeliveryProvince('');
-    setDeliveryPostalCode('');
-    setDeliveryEmail('');
+    setSelectedAddressId('');
+    setCustomerPrices({});
+    setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
+    setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
+    setDeliveryProvince(''); setDeliveryPostalCode('');
+    setTaxName(''); setTaxTaxId(''); setTaxBranch('สำนักงานใหญ่'); setTaxAddress('');
+    setTaxInvoiceRequested(false);
+  };
+
+  const handleSelectCustomer = async (customerIdOrCustomer: string | Customer) => {
+    // Support both ID (from CustomerSelectionCard) and object (from EntitySearchInput)
+    const customerId = typeof customerIdOrCustomer === 'string' ? customerIdOrCustomer : customerIdOrCustomer.id;
+    const customer = typeof customerIdOrCustomer === 'string'
+      ? customers.find(c => c.id === customerIdOrCustomer) || null
+      : customerIdOrCustomer;
+    if (!customer) return;
+
+    setSelectedCustomer(customer);
+    setShippingAddresses([]);
+    setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
+    setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
+    setDeliveryProvince(''); setDeliveryPostalCode('');
     setSelectedAddressId('');
 
     // Keep existing products, just reset shipping address
@@ -713,54 +745,36 @@ export default function OrderForm({
       shipping_fee: existingShippingFee,
     }]);
 
-    // Fetch shipping addresses
+    // Fetch customer context (addresses + tax) in 1 RPC call
     try {
-      const addrResponse = await apiFetch(`/api/shipping-addresses?customer_id=${customer.id}`);
-      if (addrResponse.ok) {
-        const addrResult = await addrResponse.json();
-        const addresses = addrResult.addresses || [];
-        setShippingAddresses(addresses);
-        if (addresses.length > 0) {
-          const defaultAddr = addresses.find((a: ShippingAddress) => a.is_default) || addresses[0];
-          setSelectedAddressId(defaultAddr.id);
-          setDeliveryName(defaultAddr.contact_person || customer.name);
-          setDeliveryPhone(defaultAddr.phone || customer.phone || '');
-          setDeliveryEmail(customer.email || '');
-          setDeliveryAddress(defaultAddr.address_line1 || '');
-          setDeliveryDistrict(defaultAddr.district || '');
-          setDeliveryAmphoe(defaultAddr.amphoe || '');
-          setDeliveryProvince(defaultAddr.province || '');
-          setDeliveryPostalCode(defaultAddr.postal_code || '');
-        }
+      const ctx = await fetchCustomerOrderContext(customerId);
+      const addrs = ctx.shippingAddresses;
+      setShippingAddresses(addrs);
+      if (addrs.length > 0) {
+        const defaultAddr = addrs.find(a => a.is_default) || addrs[0];
+        setSelectedAddressId(defaultAddr.id);
+        fillDeliveryFromAddress(defaultAddr, customer);
       }
+      // Pre-fill tax invoice from customer
+      const c = ctx.customer;
+      if (c.tax_company_name) setTaxName(c.tax_company_name);
+      if (c.tax_id) setTaxTaxId(c.tax_id);
+      if (c.tax_branch) setTaxBranch(c.tax_branch);
+      const addrParts = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
+      if (addrParts) setTaxAddress(addrParts);
     } catch (error) {
-      console.error('Error fetching shipping addresses:', error);
+      console.error('Error fetching customer context:', error);
     }
 
+    // Customer prices (separate call — not in RPC)
     try {
-      const response = await apiFetch(`/api/customer-prices?customer_id=${customer.id}`);
+      const response = await apiFetch(`/api/customer-prices?customer_id=${customerId}`);
       if (response.ok) {
         const result = await response.json();
         setCustomerPrices(result.prices || {});
       }
     } catch (error) {
       console.error('Error fetching customer prices:', error);
-    }
-
-    // Pre-fill tax invoice fields from customer
-    try {
-      const res = await apiFetch(`/api/customers/${customer.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        const c = data.customer || data;
-        if (c.tax_company_name) setTaxName(c.tax_company_name);
-        if (c.tax_id) setTaxTaxId(c.tax_id);
-        if (c.tax_branch) setTaxBranch(c.tax_branch);
-        const addrParts = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
-        if (addrParts) setTaxAddress(addrParts);
-      }
-    } catch {
-      // Ignore tax pre-fill errors
     }
   };
 
@@ -1458,7 +1472,7 @@ export default function OrderForm({
       {/* Customer info - username only */}
       {selectedCustomer && (
         <div className="mb-4 text-sm">
-          <span className="text-gray-500">ลูกค้า:</span> <span className="font-medium">{customerSearch || selectedCustomer.name}</span>
+          <span className="text-gray-500">ลูกค้า:</span> <span className="font-medium">{selectedCustomer.name}</span>
         </div>
       )}
 
@@ -1651,166 +1665,78 @@ export default function OrderForm({
 
       {/* Customer + Delivery section — hidden in edit mode (shown in top card instead) */}
       {!isEditMode && (
-      <div ref={deliverySectionRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-          {/* Row 1 Left: ลูกค้า */}
-          <div ref={customerSectionRef} className="relative flex flex-col">
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-              ลูกค้า <span className="text-gray-400 text-xs font-normal">(ไม่บังคับ)</span>
-            </label>
-            {selectedCustomer ? (
-              <div className="relative flex-1">
-                <div
-                  className={`flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg h-full ${shippingAddresses.length > 1 && !isReadOnly ? 'cursor-pointer' : ''}`}
-                  onClick={() => { if (shippingAddresses.length > 1 && !isReadOnly) setShowAddressDropdown(!showAddressDropdown); }}
-                >
-                  <CustomerInfoCard customer={selectedCustomer}>
-                    {shippingAddresses.length > 0 && (
-                      <div className="text-sm text-gray-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
-                        <MapPin className="w-3 h-3 flex-shrink-0" />
-                        <span>{selectedAddressId === 'new' ? 'ที่อยู่ใหม่' : (shippingAddresses.find(a => a.id === selectedAddressId)?.address_name || shippingAddresses[0]?.address_name)}</span>
-                        {shippingAddresses.length > 1 && !isReadOnly && <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />}
-                      </div>
-                    )}
-                  </CustomerInfoCard>
-                  {!isReadOnly && !preselectedCustomerId && (
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedCustomer(null); setCustomerSearch(''); setShippingAddresses([]); setSelectedAddressId(''); setCustomerPrices({}); setShowAddressDropdown(false); setTaxName(''); setTaxTaxId(''); setTaxBranch('สำนักงานใหญ่'); setTaxAddress(''); setTaxInvoiceRequested(false); }} className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors">
-                      <X className="w-3.5 h-3.5 text-gray-400" />
-                    </button>
-                  )}
-                </div>
-                {/* Custom address dropdown */}
-                {showAddressDropdown && shippingAddresses.length > 1 && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowAddressDropdown(false)} />
-                    <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
-                      {shippingAddresses.map(addr => (
-                        <button key={addr.id} type="button" onClick={() => {
-                          setSelectedAddressId(addr.id);
-                          setDeliveryName(addr.contact_person || selectedCustomer.name);
-                          setDeliveryPhone(addr.phone || selectedCustomer.phone || '');
-                          setDeliveryAddress(addr.address_line1 || '');
-                          setDeliveryDistrict(addr.district || '');
-                          setDeliveryAmphoe(addr.amphoe || '');
-                          setDeliveryProvince(addr.province || '');
-                          setDeliveryPostalCode(addr.postal_code || '');
-                          setShowAddressDropdown(false);
-                        }} className={`w-full px-3 py-2.5 text-left flex items-center gap-2 transition-colors ${selectedAddressId === addr.id ? 'bg-orange-50 dark:bg-orange-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}>
-                          <MapPin className={`w-3.5 h-3.5 flex-shrink-0 ${selectedAddressId === addr.id ? 'text-[#F4511E]' : 'text-gray-400'}`} />
-                          <div className="flex-1 min-w-0">
-                            <div className={`text-sm ${selectedAddressId === addr.id ? 'font-medium text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>{addr.address_name}</div>
-                            <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{[addr.address_line1, addr.district, addr.amphoe, addr.province].filter(Boolean).join(', ')}</div>
-                          </div>
-                          {selectedAddressId === addr.id && <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />}
-                        </button>
-                      ))}
-                      <button type="button" onClick={() => {
-                        setSelectedAddressId('new');
-                        setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
-                        setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
-                        setDeliveryProvince(''); setDeliveryPostalCode('');
-                        setShowAddressDropdown(false);
-                      }} className="w-full px-3 py-2.5 text-left flex items-center gap-2 border-t border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
-                        <Plus className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-sm text-gray-500 dark:text-slate-400">ที่อยู่ใหม่</span>
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : (
-              <EntitySearchInput
-                value=""
-                onChange={(id) => {
-                  const customer = customers.find(c => c.id === id);
-                  if (customer) handleSelectCustomer(customer);
-                }}
-                options={customers.map(c => ({
-                  id: c.id,
-                  label: c.name,
-                  subtitle: `${c.customer_code}${c.phone ? ' · ' + c.phone : ''}`,
-                }))}
-                placeholder="ค้นหาชื่อ, รหัส, หรือเบอร์โทร..."
-                disabled={(!!preselectedCustomerId || isEditMode) && !!selectedCustomer}
-              />
-            )}
-            {!selectedCustomer && (
-              <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">ไม่เลือกลูกค้า = ส่ง Bill Online ให้ลูกค้ากรอกเอง</p>
-            )}
-          </div>
+      <div ref={deliverySectionRef} className="space-y-4">
+        <CustomerSelectionCard
+          customerLabel="ลูกค้า"
+          customerRequired={false}
+          searchPlaceholder="ค้นหาชื่อ, รหัส, หรือเบอร์โทร..."
+          createCustomerUrl="/customers/new"
+          customers={customers.map(c => ({
+            id: c.id, name: c.name, phone: c.phone || null, email: c.email || null,
+            contact_person: c.contact_person || null, customer_code: c.customer_code || null,
+          }))}
+          selectedCustomer={selectedCustomer ? {
+            id: selectedCustomer.id, name: selectedCustomer.name,
+            phone: selectedCustomer.phone || null, email: selectedCustomer.email || null,
+            contact_person: selectedCustomer.contact_person || null,
+            customer_code: selectedCustomer.customer_code || null,
+          } : null}
+          selectedCustomerId={selectedCustomer?.id || ''}
+          onCustomerChange={(id) => handleSelectCustomer(id)}
+          onCustomerClear={handleCustomerClear}
+          disabled={isReadOnly || (!!preselectedCustomerId && !!selectedCustomer)}
+          delivery={{
+            deliveryName, deliveryPhone, deliveryEmail,
+            deliveryAddress, deliveryDistrict, deliveryAmphoe,
+            deliveryProvince, deliveryPostalCode,
+          }}
+          onDeliveryChange={(f) => {
+            if (f.deliveryName !== undefined) setDeliveryName(f.deliveryName);
+            if (f.deliveryPhone !== undefined) setDeliveryPhone(f.deliveryPhone);
+            if (f.deliveryEmail !== undefined) setDeliveryEmail(f.deliveryEmail);
+            if (f.deliveryAddress !== undefined) setDeliveryAddress(f.deliveryAddress);
+            if (f.deliveryDistrict !== undefined) setDeliveryDistrict(f.deliveryDistrict);
+            if (f.deliveryAmphoe !== undefined) setDeliveryAmphoe(f.deliveryAmphoe);
+            if (f.deliveryProvince !== undefined) setDeliveryProvince(f.deliveryProvince);
+            if (f.deliveryPostalCode !== undefined) setDeliveryPostalCode(f.deliveryPostalCode);
+          }}
+          shippingAddresses={shippingAddresses as CSCShippingAddress[]}
+          selectedAddressId={selectedAddressId}
+          onAddressSelect={(id, addr) => {
+            setSelectedAddressId(id);
+            fillDeliveryFromAddress(addr, selectedCustomer);
+          }}
+          onNewAddress={() => {
+            setSelectedAddressId('new');
+            setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
+            setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
+            setDeliveryProvince(''); setDeliveryPostalCode('');
+          }}
+          showTaxInvoice
+          vatRegistered={vatRegistered}
+          taxFields={{ taxName, taxTaxId, taxBranch, taxAddress }}
+          onTaxFieldsChange={(f) => {
+            setTaxName(f.taxName); setTaxTaxId(f.taxTaxId);
+            setTaxBranch(f.taxBranch); setTaxAddress(f.taxAddress);
+          }}
+          showTaxCheckbox
+          taxInvoiceRequested={taxInvoiceRequested}
+          onTaxInvoiceRequestedChange={setTaxInvoiceRequested}
+          readOnly={isReadOnly}
+        />
 
-          {/* Row 1 Right: ที่อยู่จัดส่ง */}
-          <div className="flex flex-col sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่จัดส่ง</label>
-            <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} onPaste={(e) => { const pasted = e.clipboardData.getData('text'); if (pasted.length > 10) { const parsed = parseThaiAddress(pasted); if (parsed) { e.preventDefault(); setDeliveryAddress(parsed.address); setDeliveryDistrict(parsed.district); setDeliveryAmphoe(parsed.amphoe); setDeliveryProvince(parsed.province); setDeliveryPostalCode(parsed.postal_code); } } }} placeholder="วางที่อยู่ยาวๆ ได้เลย — ระบบจะแยก ตำบล อำเภอ จังหวัด ให้อัตโนมัติ" disabled={isReadOnly} className="w-full flex-1 px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none" />
+        {/* Delivery Date */}
+        {features.delivery_date.enabled && (
+        <div ref={deliveryDateRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+            วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
+          </label>
+          <div className={fieldErrors.deliveryDate ? 'ring-2 ring-red-400 rounded-lg' : ''}>
+            <DateRangePicker value={deliveryDateValue} onChange={(val) => { setDeliveryDateValue(val); setFieldErrors(prev => { const { deliveryDate, ...rest } = prev; return rest; }); }} asSingle={true} useRange={false} showShortcuts={false} showFooter={false} placeholder="เลือกวันที่ส่ง" disabled={isReadOnly} />
           </div>
-
-          {/* Row 2-3 Left: ชื่อผู้รับ + เบอร์โทร + อีเมล */}
-          <div className="space-y-3">
-            <div>
-              <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">ชื่อผู้รับ</label>
-              <input type="text" value={deliveryName} onChange={(e) => setDeliveryName(e.target.value)} placeholder="ชื่อ-นามสกุล" disabled={isReadOnly} className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
-                <input type="text" inputMode="tel" value={deliveryPhone} onChange={(e) => { setDeliveryPhone(e.target.value); if (fieldErrors.deliveryPhone) { const v = e.target.value.trim(); setFieldErrors(prev => { const next = { ...prev }; if (!v || /^(0[0-9]{8,9}|[0-9]{9,10})$/.test(v)) delete next.deliveryPhone; return next; }); } }} onBlur={() => { const v = deliveryPhone.trim(); if (v && !/^(0[0-9]{8,9}|[0-9]{9,10})$/.test(v)) setFieldErrors(prev => ({ ...prev, deliveryPhone: 'เบอร์โทรไม่ถูกต้อง' })); else setFieldErrors(prev => { const { deliveryPhone: _, ...rest } = prev; return rest; }); }} placeholder="0xx-xxx-xxxx" disabled={isReadOnly} className={`w-full px-3 py-2.5 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 ${fieldErrors.deliveryPhone ? 'border-red-400' : 'border-gray-300 dark:border-slate-600'}`} />
-                {fieldErrors.deliveryPhone && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryPhone}</p>}
-              </div>
-              <div>
-                <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
-                <input type="text" inputMode="email" value={deliveryEmail} onChange={(e) => { setDeliveryEmail(e.target.value); if (fieldErrors.deliveryEmail) { const v = e.target.value.trim(); setFieldErrors(prev => { const next = { ...prev }; if (!v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) delete next.deliveryEmail; return next; }); } }} onBlur={() => { const v = deliveryEmail.trim(); if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) setFieldErrors(prev => ({ ...prev, deliveryEmail: 'อีเมลไม่ถูกต้อง' })); else setFieldErrors(prev => { const { deliveryEmail: _, ...rest } = prev; return rest; }); }} placeholder="email@example.com" disabled={isReadOnly} className={`w-full px-3 py-2.5 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 ${fieldErrors.deliveryEmail ? 'border-red-400' : 'border-gray-300 dark:border-slate-600'}`} />
-                {fieldErrors.deliveryEmail && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryEmail}</p>}
-              </div>
-            </div>
-          </div>
-
-          {/* Row 2-3 Right: ตำบล อำเภอ จังหวัด รหัสไปรษณีย์ (with autocomplete) */}
-          <div className="sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
-            <ThaiAddressInput district={deliveryDistrict} amphoe={deliveryAmphoe} province={deliveryProvince} postalCode={deliveryPostalCode} onAddressChange={(addr) => { if (addr.district !== undefined) setDeliveryDistrict(addr.district); if (addr.amphoe !== undefined) setDeliveryAmphoe(addr.amphoe); if (addr.province !== undefined) setDeliveryProvince(addr.province); if (addr.postalCode !== undefined) setDeliveryPostalCode(addr.postalCode); }} disabled={isReadOnly} />
-          </div>
-
-          {/* Tax Invoice Request — full width */}
-          {vatRegistered && (
-          <div className={'sm:col-span-2'}>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={taxInvoiceRequested}
-                onChange={(e) => setTaxInvoiceRequested(e.target.checked)}
-                disabled={isReadOnly}
-                className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E] accent-[#F4511E]"
-              />
-              <span className="text-base font-medium text-[#F4511E] dark:text-orange-400">ขอใบกำกับภาษี</span>
-            </label>
-            {taxInvoiceRequested && (
-              <div className="mt-2">
-                <TaxInvoiceInfo
-                  customerName={selectedCustomer?.name || ''}
-                  taxCompanyName={taxName} taxId={taxTaxId} taxBranch={taxBranch} billingAddress={taxAddress}
-                  onEdit={!isReadOnly ? (data) => {
-                    setTaxName(data.tax_company_name); setTaxTaxId(data.tax_id);
-                    setTaxBranch(data.tax_branch); setTaxAddress(data.billing_address);
-                  } : undefined}
-                />
-              </div>
-            )}
-          </div>
-          )}
-
-          {/* Delivery Date — full width */}
-          {features.delivery_date.enabled && (
-          <div ref={deliveryDateRef} className={'sm:col-span-2'}>
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-              วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
-            </label>
-            <div className={fieldErrors.deliveryDate ? 'ring-2 ring-red-400 rounded-lg' : ''}>
-              <DateRangePicker value={deliveryDateValue} onChange={(val) => { setDeliveryDateValue(val); setFieldErrors(prev => { const { deliveryDate, ...rest } = prev; return rest; }); }} asSingle={true} useRange={false} showShortcuts={false} showFooter={false} placeholder="เลือกวันที่ส่ง" disabled={isReadOnly} />
-            </div>
-            {fieldErrors.deliveryDate && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryDate}</p>}
-          </div>
-          )}
+          {fieldErrors.deliveryDate && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryDate}</p>}
         </div>
+        )}
       </div>
       )}
 

@@ -71,6 +71,8 @@ interface Props {
   createCustomerUrl?: string;
   /** Create button label */
   createButtonLabel?: string;
+  /** Whether customer selection is required (shows * indicator) — default true */
+  customerRequired?: boolean;
 
   // ── Customer data ──
   customers: CustomerOption[];
@@ -134,6 +136,7 @@ export default function CustomerSelectionCard({
   searchPlaceholder = 'ค้นหาชื่อ, รหัส, หรือเบอร์โทร...',
   createCustomerUrl,
   createButtonLabel = 'เพิ่มลูกค้า',
+  customerRequired = true,
   customers,
   selectedCustomer,
   selectedCustomerId,
@@ -180,7 +183,7 @@ export default function CustomerSelectionCard({
         {/* Row 1 Left: ลูกค้า */}
         <div className="relative flex flex-col">
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-            {customerLabel} <span className="text-red-500">*</span>
+            {customerLabel} {customerRequired && <span className="text-red-500">*</span>}
           </label>
           {selectedCustomer ? (
             <div className="relative flex-1">
@@ -300,7 +303,7 @@ export default function CustomerSelectionCard({
         </div>
 
         {/* Row 2 Left: เบอร์โทร + อีเมล + ภาษี */}
-        {selectedCustomer && (
+        {(selectedCustomer || (hasDelivery && isEditable)) && (
           <div className="space-y-2">
             {hasDelivery && isEditable ? (
               <div className="grid grid-cols-2 gap-3">
@@ -315,7 +318,7 @@ export default function CustomerSelectionCard({
                     className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
                 </div>
               </div>
-            ) : (
+            ) : selectedCustomer ? (
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
@@ -326,12 +329,12 @@ export default function CustomerSelectionCard({
                   <p className="text-sm text-gray-900 dark:text-white">{selectedCustomer.email || '-'}</p>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* Tax invoice — VAT registered: show TaxInvoiceInfo */}
             {showTaxInvoice && vatRegistered && taxFields && (
               <TaxInvoiceInfo
-                customerName={selectedCustomer.name}
+                customerName={selectedCustomer?.name || ''}
                 taxCompanyName={taxFields.taxName} taxId={taxFields.taxTaxId}
                 taxBranch={taxFields.taxBranch} billingAddress={taxFields.taxAddress}
                 onEdit={isEditable && onTaxFieldsChange ? (data) => {
@@ -348,7 +351,7 @@ export default function CustomerSelectionCard({
         )}
 
         {/* Row 2 Right: ThaiAddressInput (editable) or read-only display */}
-        {selectedCustomer && (
+        {(selectedCustomer || (hasDelivery && isEditable)) && (
           <div className="sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
             {hasDelivery && isEditable ? (
               <ThaiAddressInput
@@ -369,7 +372,7 @@ export default function CustomerSelectionCard({
               /* Read-only: show tax info if available */
               taxFields?.taxName ? (
                 <TaxInvoiceInfo
-                  customerName={selectedCustomer.name}
+                  customerName={selectedCustomer?.name || ''}
                   taxCompanyName={taxFields.taxName} taxId={taxFields.taxTaxId}
                   taxBranch={taxFields.taxBranch} billingAddress={taxFields.taxAddress}
                   compact
@@ -380,7 +383,7 @@ export default function CustomerSelectionCard({
         )}
 
         {/* Tax Invoice checkbox (non-VAT companies) */}
-        {showTaxCheckbox && !vatRegistered && selectedCustomer && isEditable && (
+        {showTaxCheckbox && !vatRegistered && (selectedCustomer || hasDelivery) && isEditable && (
           <div className="sm:col-span-2">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
