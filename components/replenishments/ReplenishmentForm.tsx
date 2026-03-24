@@ -253,6 +253,40 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         setSelectedCustomerId(rp.customer?.id || '');
         setSelectedCustomer(rp.customer || null);
 
+        // Prefill delivery fields from customer's shipping_address (same as create mode)
+        if (rp.customer?.id) {
+          fetchCustomerOrderContext(rp.customer.id).then(ctx => {
+            const addrs = ctx.shippingAddresses || [];
+            const c = ctx.customer;
+            const defaultAddr = addrs.find((a: { is_default?: boolean }) => a.is_default) || addrs[0];
+            if (defaultAddr) {
+              setDeliveryName(defaultAddr.contact_person || c?.name || '');
+              setDeliveryPhone(defaultAddr.phone || c?.phone || '');
+              setDeliveryEmail(c?.email || '');
+              setDeliveryAddress(defaultAddr.address_line1 || '');
+              setDeliveryDistrict(defaultAddr.district || '');
+              setDeliveryAmphoe(defaultAddr.amphoe || '');
+              setDeliveryProvince(defaultAddr.province || '');
+              setDeliveryPostalCode(defaultAddr.postal_code || '');
+            } else if (c) {
+              setDeliveryName(c.contact_person || c.name || '');
+              setDeliveryPhone(c.phone || '');
+              setDeliveryEmail(c.email || '');
+              setDeliveryAddress(c.billing_address || '');
+              setDeliveryDistrict(c.billing_district || '');
+              setDeliveryAmphoe(c.billing_amphoe || '');
+              setDeliveryProvince(c.billing_province || '');
+              setDeliveryPostalCode(c.billing_postal_code || '');
+            }
+            // Update customer with full data from RPC (for tax display)
+            if (c) {
+              setSelectedCustomer(prev => prev ? { ...prev, ...c } : prev);
+            }
+            // GP context
+            setGpContext(ctx.gpContext);
+          }).catch(() => {});
+        }
+
         // Map items
         const mappedItems: ReplenishmentItem[] = (rp.items || []).map((item: any) => ({
           id: item.id,
