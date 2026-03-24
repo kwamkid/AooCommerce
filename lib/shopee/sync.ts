@@ -599,7 +599,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
   // Check if order already exists
   const { data: existing } = await supabaseAdmin
     .from('orders')
-    .select('id, order_status, external_status, external_data, customer_id, created_at, fulfillment_status, warehouse_id')
+    .select('id, order_status, external_status, external_data, customer_id, created_at, fulfillment_status, warehouse_id, is_split')
     .eq('company_id', companyId)
     .eq('source', 'shopee')
     .eq('external_order_sn', shopeeOrder.order_sn)
@@ -653,6 +653,10 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
       // Create/update order_parcels for Shopee-side split orders
       if (isSplit) {
         await syncShopeeParcels(existing.id, companyId, shopeeOrder);
+      } else if (existing.is_split && !isSplit) {
+        // Unsplit: Shopee consolidated back to 1 package — cleanup orphaned parcels
+        await supabaseAdmin.from('order_parcels').delete().eq('order_id', existing.id);
+        console.log(`[Shopee Sync] Cleaned up parcels for unsplit order ${shopeeOrder.order_sn}`);
       }
 
       // Check can_split_order via get_package_detail
