@@ -110,6 +110,10 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   const [shippingFee, setShippingFee] = useState(0);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
+  // Shipping addresses (for CustomerSelectionCard dropdown)
+  const [shippingAddresses, setShippingAddresses] = useState<{ id: string; address_name: string; contact_person: string; phone: string; address_line1: string; district: string; amphoe: string; province: string; postal_code: string; is_default?: boolean }[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
+
   // Delivery fields (editable, like DealerOrderForm)
   const [deliveryName, setDeliveryName] = useState('');
   const [deliveryPhone, setDeliveryPhone] = useState('');
@@ -258,7 +262,9 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
           fetchCustomerOrderContext(rp.customer.id).then(ctx => {
             const addrs = ctx.shippingAddresses || [];
             const c = ctx.customer;
+            setShippingAddresses(addrs);
             const defaultAddr = addrs.find((a: { is_default?: boolean }) => a.is_default) || addrs[0];
+            if (defaultAddr) setSelectedAddressId(defaultAddr.id);
             if (defaultAddr) {
               setDeliveryName(defaultAddr.contact_person || c?.name || '');
               setDeliveryPhone(defaultAddr.phone || c?.phone || '');
@@ -391,8 +397,11 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
 
       // Prefill delivery — use shipping address if available, else billing
       const c = orderCtx.customer;
-      const defaultAddr = orderCtx.shippingAddresses?.find(a => a.is_default) || orderCtx.shippingAddresses?.[0];
+      const addrs = orderCtx.shippingAddresses || [];
+      setShippingAddresses(addrs);
+      const defaultAddr = addrs.find(a => a.is_default) || addrs[0];
       if (defaultAddr) {
+        setSelectedAddressId(defaultAddr.id);
         setDeliveryName(defaultAddr.contact_person || c.name || '');
         setDeliveryPhone(defaultAddr.phone || c.phone || '');
         setDeliveryEmail(c.email || '');
@@ -765,6 +774,25 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         onCustomerClear={() => { handleCustomerClear(); setItems([]); }}
         loading={loadingGpData}
         disabled={isDisabled}
+        shippingAddresses={shippingAddresses}
+        selectedAddressId={selectedAddressId}
+        onAddressSelect={(id, addr) => {
+          setSelectedAddressId(id);
+          setDeliveryName(addr.contact_person || selectedCustomer?.name || '');
+          setDeliveryPhone(addr.phone || selectedCustomer?.phone || '');
+          setDeliveryEmail(selectedCustomer?.email || '');
+          setDeliveryAddress(addr.address_line1 || '');
+          setDeliveryDistrict(addr.district || '');
+          setDeliveryAmphoe(addr.amphoe || '');
+          setDeliveryProvince(addr.province || '');
+          setDeliveryPostalCode(addr.postal_code || '');
+        }}
+        onNewAddress={() => {
+          setSelectedAddressId('new');
+          setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
+          setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
+          setDeliveryProvince(''); setDeliveryPostalCode('');
+        }}
         delivery={{ deliveryName, deliveryPhone, deliveryEmail, deliveryAddress, deliveryDistrict, deliveryAmphoe, deliveryProvince, deliveryPostalCode }}
         onDeliveryChange={(f) => {
           if (f.deliveryName !== undefined) setDeliveryName(f.deliveryName);
