@@ -157,23 +157,19 @@ export async function PUT(
         });
       }
 
-      // 4. Update report status
-      const { error: updateError } = await supabaseAdmin
-        .from('consignment_reports')
-        .update({
-          status: 'invoiced',
-          confirmed_at: new Date().toISOString(),
-          confirmed_by: userId ?? null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', reportId);
-
-      if (updateError) {
-        console.error('Confirm report error:', updateError);
-        return NextResponse.json({ error: 'ไม่สามารถยืนยันรายงานได้' }, { status: 500 });
+      // 4. Auto-issue TAX document (ใบกำกับภาษี/ใบแจ้งหนี้)
+      let taxResult = null;
+      try {
+        const { issueReportDocument } = await import('@/lib/invoice-service');
+        taxResult = await issueReportDocument(
+          reportId, companyId, report.customer_id,
+          report.our_amount, 'consignment_report'
+        );
+      } catch (err) {
+        console.error('Auto issue TAX error:', err);
       }
 
-      // Auto create statement (ใบวางบิล)
+      // 5. Auto create statement (ใบวางบิล)
       let stResult = null;
       try {
         const { createStatementForReport } = await import('@/lib/statement-service');
@@ -185,9 +181,26 @@ export async function PUT(
         console.error('Auto create statement error:', err);
       }
 
+      // 6. Update report status → billed (skip invoiced, go straight to billed)
+      const { error: updateError } = await supabaseAdmin
+        .from('consignment_reports')
+        .update({
+          status: 'billed',
+          confirmed_at: new Date().toISOString(),
+          confirmed_by: userId ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', reportId);
+
+      if (updateError) {
+        console.error('Confirm report error:', updateError);
+        return NextResponse.json({ error: 'ไม่สามารถยืนยันรายงานได้' }, { status: 500 });
+      }
+
       return NextResponse.json({
         success: true,
-        status: stResult?.statementId ? 'billed' : 'invoiced',
+        status: 'billed',
+        tax_invoice_number: taxResult?.documentNumber || null,
         statement_id: stResult?.statementId || null,
         statement_number: stResult?.statementNumber || null,
       });

@@ -434,10 +434,35 @@ function EditReportContent() {
     }
   };
 
-  const handleCopyLink = () => {
-    if (!report?.report_token || !report?.customer?.id) return;
-    const url = `${window.location.origin}/portal/consignment/${report.customer.id}?report=${report.report_token}`;
-    navigator.clipboard.writeText(url).then(() => showToast('คัดลอกลิงก์แล้ว', 'success'));
+  // พร้อมวางบิล: confirm + auto-issue TAX + ST + auto-print
+  const handleReadyToBill = async () => {
+    if (!confirm('ต้องการยืนยัน "พร้อมวางบิล" หรือไม่?\n\n• หักสต๊อกจากคลังตัวแทน\n• ออกใบกำกับภาษี (TAX) + ใบวางบิล (ST)\n• สถานะจะเปลี่ยนเป็น "วางบิลแล้ว"')) return;
+
+    setActionLoading('confirm');
+    try {
+      const res = await apiFetch(`/api/consignment/reports/${reportId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'confirm' }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed');
+      }
+      const data = await res.json();
+      const docs = [data.tax_invoice_number, data.statement_number].filter(Boolean).join(' + ');
+      showToast(`พร้อมวางบิลแล้ว${docs ? ` — ออกเอกสาร ${docs}` : ''}`, 'success');
+
+      // Auto-print report PDF
+      await fetchReport();
+      try {
+        await handlePrintReport();
+      } catch { /* ignore print errors */ }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setActionLoading('');
+    }
   };
 
   const handlePrintReport = async () => {
@@ -592,7 +617,7 @@ function EditReportContent() {
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-2">
-            {/* Print buttons — show after invoiced */}
+            {/* Print buttons — show after billed */}
             {!['draft', 'received'].includes(report.status) && report.status !== 'cancelled' && (
               <button
                 onClick={handlePrintReport}
@@ -603,64 +628,44 @@ function EditReportContent() {
               </button>
             )}
             {report.statement_id && (
-              <button
-                onClick={handlePrintStatement}
-                className="border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5 text-sm"
-              >
-                <Printer className="w-4 h-4" />
-                พิมพ์ใบวางบิล
-              </button>
-            )}
-            {report.statement_id && (
-              <Link
-                href={`/statements/${report.statement_id}`}
-                className="border border-indigo-300 dark:border-indigo-600 text-indigo-600 dark:text-indigo-400 px-3 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center gap-1.5 text-sm"
-              >
-                <ExternalLink className="w-4 h-4" />
-                ดูใบวางบิล
-              </Link>
-            )}
-
-            {report.status === 'draft' && report.report_token && (
-              <button
-                onClick={handleCopyLink}
-                className="border border-amber-400 text-amber-700 dark:text-amber-400 px-3 py-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center gap-1.5 text-sm"
-              >
-                <Copy className="w-4 h-4" />
-                ส่งลิงก์
-              </button>
+              <>
+                <button
+                  onClick={handlePrintStatement}
+                  className="border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5 text-sm"
+                >
+                  <Printer className="w-4 h-4" />
+                  พิมพ์ใบวางบิล
+                </button>
+                <Link
+                  href={`/statements/${report.statement_id}`}
+                  className="border border-indigo-300 dark:border-indigo-600 text-indigo-600 dark:text-indigo-400 px-3 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center gap-1.5 text-sm"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  ดูใบวางบิล
+                </Link>
+              </>
             )}
 
             {report.status === 'draft' && (
               <button
-                onClick={() => handleAction('cancel', 'ยกเลิกรายงานแล้ว')}
+                onClick={() => handleAction('cancel', 'ยกเลิกออเดอร์แล้ว')}
                 disabled={actionLoading === 'cancel'}
                 className="border border-red-300 text-red-600 dark:text-red-400 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-1.5 text-sm disabled:opacity-50"
               >
                 {actionLoading === 'cancel' ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
-                ยกเลิก
+                ยกเลิกออเดอร์
               </button>
             )}
 
+            {/* Focus button: พร้อมวางบิล — deduct stock + auto-issue TAX + ST + print */}
             {['draft', 'received'].includes(report.status) && (
               <button
-                onClick={() => handleAction('confirm', 'ยืนยันรายงานแล้ว + สร้างเอกสาร + หักสต๊อก')}
-                disabled={actionLoading === 'confirm'}
-                className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5 text-sm disabled:opacity-50"
+                onClick={handleReadyToBill}
+                disabled={actionLoading === 'confirm' || items.length === 0}
+                className="btn-focus-action green"
               >
                 {actionLoading === 'confirm' ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
-                ยืนยัน
-              </button>
-            )}
-
-            {report.status === 'invoiced' && !report.statement_id && (
-              <button
-                onClick={handleCreateStatement}
-                disabled={actionLoading === 'create_statement'}
-                className="bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5 text-sm disabled:opacity-50"
-              >
-                {actionLoading === 'create_statement' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
-                สร้างใบวางบิล
+                พร้อมวางบิล
               </button>
             )}
 
@@ -671,7 +676,7 @@ function EditReportContent() {
                 className="btn-primary"
               >
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                บันทึก
+                บันทึกแก้ไข
               </button>
             )}
           </div>
