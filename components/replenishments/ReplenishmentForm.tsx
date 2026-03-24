@@ -15,6 +15,7 @@ import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import { productDisplayName } from '@/lib/product-display';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import CustomerSelectionCard from '@/components/ui/CustomerSelectionCard';
+import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 import { type GpResolverContext, resolveGp, fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/replenishment-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
@@ -110,19 +111,11 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   const [shippingFee, setShippingFee] = useState(0);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
-  // Shipping addresses (for CustomerSelectionCard dropdown)
-  const [shippingAddresses, setShippingAddresses] = useState<{ id: string; address_name: string; contact_person: string; phone: string; address_line1: string; district: string; amphoe: string; province: string; postal_code: string; is_default?: boolean }[]>([]);
-  const [selectedAddressId, setSelectedAddressId] = useState('');
-
-  // Delivery fields (editable, like DealerOrderForm)
-  const [deliveryName, setDeliveryName] = useState('');
-  const [deliveryPhone, setDeliveryPhone] = useState('');
-  const [deliveryEmail, setDeliveryEmail] = useState('');
-  const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [deliveryDistrict, setDeliveryDistrict] = useState('');
-  const [deliveryAmphoe, setDeliveryAmphoe] = useState('');
-  const [deliveryProvince, setDeliveryProvince] = useState('');
-  const [deliveryPostalCode, setDeliveryPostalCode] = useState('');
+  // Customer prefill hook (delivery + tax + addresses)
+  const customerPrefill = useCustomerPrefill();
+  const { shippingAddresses, selectedAddressId, delivery: deliveryFields } = customerPrefill;
+  const { deliveryName, deliveryPhone, deliveryEmail, deliveryAddress, deliveryDistrict, deliveryAmphoe, deliveryProvince, deliveryPostalCode } = deliveryFields;
+  const { setDeliveryName, setDeliveryPhone, setDeliveryEmail, setDeliveryAddress, setDeliveryDistrict, setDeliveryAmphoe, setDeliveryProvince, setDeliveryPostalCode } = customerPrefill;
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Edit mode state
@@ -259,36 +252,9 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
 
         // Prefill delivery fields from customer's shipping_address (same as create mode)
         if (rp.customer?.id) {
-          fetchCustomerOrderContext(rp.customer.id).then(ctx => {
-            const addrs = ctx.shippingAddresses || [];
-            const c = ctx.customer;
-            setShippingAddresses(addrs);
-            const defaultAddr = addrs.find((a: { is_default?: boolean }) => a.is_default) || addrs[0];
-            if (defaultAddr) setSelectedAddressId(defaultAddr.id);
-            if (defaultAddr) {
-              setDeliveryName(defaultAddr.contact_person || c?.name || '');
-              setDeliveryPhone(defaultAddr.phone || c?.phone || '');
-              setDeliveryEmail(c?.email || '');
-              setDeliveryAddress(defaultAddr.address_line1 || '');
-              setDeliveryDistrict(defaultAddr.district || '');
-              setDeliveryAmphoe(defaultAddr.amphoe || '');
-              setDeliveryProvince(defaultAddr.province || '');
-              setDeliveryPostalCode(defaultAddr.postal_code || '');
-            } else if (c) {
-              setDeliveryName(c.contact_person || c.name || '');
-              setDeliveryPhone(c.phone || '');
-              setDeliveryEmail(c.email || '');
-              setDeliveryAddress(c.billing_address || '');
-              setDeliveryDistrict(c.billing_district || '');
-              setDeliveryAmphoe(c.billing_amphoe || '');
-              setDeliveryProvince(c.billing_province || '');
-              setDeliveryPostalCode(c.billing_postal_code || '');
-            }
-            // Update customer with full data from RPC (for tax display)
-            if (c) {
-              setSelectedCustomer(prev => prev ? { ...prev, ...c } : prev);
-            }
-            // GP context
+          customerPrefill.prefillCustomer(rp.customer.id, { includeTax: false }).then(ctx => {
+            if (!ctx) return;
+            setSelectedCustomer(prev => prev ? { ...prev, ...ctx.customer } : prev);
             setGpContext(ctx.gpContext);
           }).catch(() => {});
         }
@@ -383,50 +349,20 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
 
     if (!id) {
       setGpContext(null);
-      setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
-      setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
-      setDeliveryProvince(''); setDeliveryPostalCode('');
+      customerPrefill.clearPrefill();
       return;
     }
 
     setLoadingGpData(true);
     try {
-      const orderCtx = await fetchCustomerOrderContext(id);
-      if (latestCustomerIdRef.current !== id) return;
-      setGpContext(orderCtx.gpContext);
-
-      // Prefill delivery — use shipping address if available, else billing
-      const c = orderCtx.customer;
-      const addrs = orderCtx.shippingAddresses || [];
-      setShippingAddresses(addrs);
-      const defaultAddr = addrs.find(a => a.is_default) || addrs[0];
-      if (defaultAddr) {
-        setSelectedAddressId(defaultAddr.id);
-        setDeliveryName(defaultAddr.contact_person || c.name || '');
-        setDeliveryPhone(defaultAddr.phone || c.phone || '');
-        setDeliveryEmail(c.email || '');
-        setDeliveryAddress(defaultAddr.address_line1 || '');
-        setDeliveryDistrict(defaultAddr.district || '');
-        setDeliveryAmphoe(defaultAddr.amphoe || '');
-        setDeliveryProvince(defaultAddr.province || '');
-        setDeliveryPostalCode(defaultAddr.postal_code || '');
-      } else {
-        setDeliveryName(c.contact_person || c.name || '');
-        setDeliveryPhone(c.phone || '');
-        setDeliveryEmail(c.email || '');
-        setDeliveryAddress(c.billing_address || '');
-        setDeliveryDistrict(c.billing_district || '');
-        setDeliveryAmphoe(c.billing_amphoe || '');
-        setDeliveryProvince(c.billing_province || '');
-        setDeliveryPostalCode(c.billing_postal_code || '');
-      }
-
-      // Update customer with full data from RPC
-      setSelectedCustomer(prev => prev ? { ...prev, ...c } : prev);
+      const ctx = await customerPrefill.prefillCustomer(id, { includeTax: false });
+      if (!ctx) return;
+      setGpContext(ctx.gpContext);
+      setSelectedCustomer(prev => prev ? { ...prev, ...ctx.customer } : prev);
 
       if (items.length > 0) {
         setItems(prev => prev.map(item => {
-          const resolution = resolveGp(orderCtx.gpContext, {
+          const resolution = resolveGp(ctx.gpContext, {
             brand_id: item.brand_id,
             default_price: item.default_price,
             discount_price: item.discount_price,
@@ -447,9 +383,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
     setSelectedCustomer(null);
     setGpContext(null);
     latestCustomerIdRef.current = '';
-    setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
-    setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
-    setDeliveryProvince(''); setDeliveryPostalCode('');
+    customerPrefill.clearPrefill();
   };
 
   // ── Add product with GP pricing ──────────────────────────────────────
@@ -776,34 +710,10 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         disabled={isDisabled}
         shippingAddresses={shippingAddresses}
         selectedAddressId={selectedAddressId}
-        onAddressSelect={(id, addr) => {
-          setSelectedAddressId(id);
-          setDeliveryName(addr.contact_person || selectedCustomer?.name || '');
-          setDeliveryPhone(addr.phone || selectedCustomer?.phone || '');
-          setDeliveryEmail(selectedCustomer?.email || '');
-          setDeliveryAddress(addr.address_line1 || '');
-          setDeliveryDistrict(addr.district || '');
-          setDeliveryAmphoe(addr.amphoe || '');
-          setDeliveryProvince(addr.province || '');
-          setDeliveryPostalCode(addr.postal_code || '');
-        }}
-        onNewAddress={() => {
-          setSelectedAddressId('new');
-          setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
-          setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
-          setDeliveryProvince(''); setDeliveryPostalCode('');
-        }}
-        delivery={{ deliveryName, deliveryPhone, deliveryEmail, deliveryAddress, deliveryDistrict, deliveryAmphoe, deliveryProvince, deliveryPostalCode }}
-        onDeliveryChange={(f) => {
-          if (f.deliveryName !== undefined) setDeliveryName(f.deliveryName);
-          if (f.deliveryPhone !== undefined) setDeliveryPhone(f.deliveryPhone);
-          if (f.deliveryEmail !== undefined) setDeliveryEmail(f.deliveryEmail);
-          if (f.deliveryAddress !== undefined) setDeliveryAddress(f.deliveryAddress);
-          if (f.deliveryDistrict !== undefined) setDeliveryDistrict(f.deliveryDistrict);
-          if (f.deliveryAmphoe !== undefined) setDeliveryAmphoe(f.deliveryAmphoe);
-          if (f.deliveryProvince !== undefined) setDeliveryProvince(f.deliveryProvince);
-          if (f.deliveryPostalCode !== undefined) setDeliveryPostalCode(f.deliveryPostalCode);
-        }}
+        onAddressSelect={(id, addr) => customerPrefill.handleAddressSelect(id, addr, selectedCustomer)}
+        onNewAddress={customerPrefill.handleNewAddress}
+        delivery={deliveryFields}
+        onDeliveryChange={customerPrefill.handleDeliveryChange}
         showTaxInvoice
         vatRegistered={vatRegistered}
         taxFields={selectedCustomer?.tax_company_name ? {
