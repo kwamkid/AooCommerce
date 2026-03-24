@@ -22,6 +22,7 @@ import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import CustomerInfoCard from '@/components/ui/CustomerInfoCard';
 import TaxInvoiceInfo from '@/components/ui/TaxInvoiceInfo';
 import CustomerSelectionCard, { type CustomerOption, type DeliveryFields, type TaxFields, type ShippingAddress as CSCShippingAddress } from '@/components/ui/CustomerSelectionCard';
+import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 import { fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import {
@@ -204,8 +205,13 @@ export default function OrderForm({
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   // customerSearch removed — using selectedCustomer?.name directly
 
-  // Shipping addresses
-  const [shippingAddresses, setShippingAddresses] = useState<ShippingAddress[]>([]);
+  // Customer prefill hook (delivery + tax + addresses)
+  const customerPrefill = useCustomerPrefill();
+  const { shippingAddresses, selectedAddressId, delivery: deliveryFields, taxFields: taxFieldsState } = customerPrefill;
+  const { deliveryName, deliveryPhone, deliveryEmail, deliveryAddress, deliveryDistrict, deliveryAmphoe, deliveryProvince, deliveryPostalCode } = deliveryFields;
+  const { taxName, taxTaxId, taxBranch, taxAddress } = taxFieldsState;
+  const { setDeliveryName, setDeliveryPhone, setDeliveryEmail, setDeliveryAddress, setDeliveryDistrict, setDeliveryAmphoe, setDeliveryProvince, setDeliveryPostalCode } = customerPrefill;
+  const { setTaxName, setTaxTaxId, setTaxBranch, setTaxAddress, setShippingAddresses, setSelectedAddressId } = customerPrefill;
 
   // Products
   const [products, setProducts] = useState<Product[]>([]);
@@ -234,10 +240,6 @@ export default function OrderForm({
   const [orderDiscount, setOrderDiscount] = useState(0);
   const [orderDiscountType, setOrderDiscountType] = useState<'percent' | 'amount'>('amount');
   const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
-  const [taxName, setTaxName] = useState('');
-  const [taxTaxId, setTaxTaxId] = useState('');
-  const [taxBranch, setTaxBranch] = useState('สำนักงานใหญ่');
-  const [taxAddress, setTaxAddress] = useState('');
 
   // Bill expiry advance settings
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
@@ -248,16 +250,7 @@ export default function OrderForm({
   const [newCustomerMode, setNewCustomerMode] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
 
-  // Delivery info (for new customer / no customer / selected address)
-  const [deliveryName, setDeliveryName] = useState('');
-  const [deliveryPhone, setDeliveryPhone] = useState('');
-  const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [deliveryDistrict, setDeliveryDistrict] = useState('');
-  const [deliveryAmphoe, setDeliveryAmphoe] = useState('');
-  const [deliveryProvince, setDeliveryProvince] = useState('');
-  const [deliveryPostalCode, setDeliveryPostalCode] = useState('');
-  const [deliveryEmail, setDeliveryEmail] = useState('');
-  const [selectedAddressId, setSelectedAddressId] = useState<string>('');
+  // Delivery info — managed by customerPrefill hook
 
   // Stock & Warehouse
   const [stockEnabled, setStockEnabled] = useState(false);
@@ -701,28 +694,12 @@ export default function OrderForm({
     }
   };
 
-  // Helper: fill delivery fields from a shipping address
-  const fillDeliveryFromAddress = (addr: ShippingAddress | CSCShippingAddress, cust: Customer | null) => {
-    setDeliveryName(addr.contact_person || cust?.name || '');
-    setDeliveryPhone(addr.phone || cust?.phone || '');
-    setDeliveryEmail(cust?.email || '');
-    setDeliveryAddress(addr.address_line1 || '');
-    setDeliveryDistrict(addr.district || '');
-    setDeliveryAmphoe(addr.amphoe || '');
-    setDeliveryProvince(addr.province || '');
-    setDeliveryPostalCode(addr.postal_code || '');
-  };
-
-  // Helper: clear customer and all related state
+  // Reuse from hook
+  const { fillDeliveryFromAddress } = customerPrefill;
   const handleCustomerClear = () => {
     setSelectedCustomer(null);
-    setShippingAddresses([]);
-    setSelectedAddressId('');
     setCustomerPrices({});
-    setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
-    setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
-    setDeliveryProvince(''); setDeliveryPostalCode('');
-    setTaxName(''); setTaxTaxId(''); setTaxBranch('สำนักงานใหญ่'); setTaxAddress('');
+    customerPrefill.clearPrefill();
     setTaxInvoiceRequested(false);
   };
 
@@ -749,23 +726,9 @@ export default function OrderForm({
       shipping_fee: existingShippingFee,
     }]);
 
-    // Fetch customer context (addresses + tax) in 1 RPC call
+    // Fetch customer context (addresses + tax) via hook
     try {
-      const ctx = await fetchCustomerOrderContext(customerId);
-      const addrs = ctx.shippingAddresses;
-      setShippingAddresses(addrs);
-      if (addrs.length > 0) {
-        const defaultAddr = addrs.find(a => a.is_default) || addrs[0];
-        setSelectedAddressId(defaultAddr.id);
-        fillDeliveryFromAddress(defaultAddr, customer);
-      }
-      // Pre-fill tax invoice from customer
-      const c = ctx.customer;
-      if (c.tax_company_name) setTaxName(c.tax_company_name);
-      if (c.tax_id) setTaxTaxId(c.tax_id);
-      if (c.tax_branch) setTaxBranch(c.tax_branch);
-      const addrParts = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
-      if (addrParts) setTaxAddress(addrParts);
+      await customerPrefill.prefillCustomer(customerId);
     } catch (error) {
       console.error('Error fetching customer context:', error);
     }
@@ -1745,40 +1708,16 @@ export default function OrderForm({
           onCustomerChange={(id) => handleSelectCustomer(id)}
           onCustomerClear={handleCustomerClear}
           disabled={isReadOnly || (!!preselectedCustomerId && !!selectedCustomer)}
-          delivery={{
-            deliveryName, deliveryPhone, deliveryEmail,
-            deliveryAddress, deliveryDistrict, deliveryAmphoe,
-            deliveryProvince, deliveryPostalCode,
-          }}
-          onDeliveryChange={(f) => {
-            if (f.deliveryName !== undefined) setDeliveryName(f.deliveryName);
-            if (f.deliveryPhone !== undefined) setDeliveryPhone(f.deliveryPhone);
-            if (f.deliveryEmail !== undefined) setDeliveryEmail(f.deliveryEmail);
-            if (f.deliveryAddress !== undefined) setDeliveryAddress(f.deliveryAddress);
-            if (f.deliveryDistrict !== undefined) setDeliveryDistrict(f.deliveryDistrict);
-            if (f.deliveryAmphoe !== undefined) setDeliveryAmphoe(f.deliveryAmphoe);
-            if (f.deliveryProvince !== undefined) setDeliveryProvince(f.deliveryProvince);
-            if (f.deliveryPostalCode !== undefined) setDeliveryPostalCode(f.deliveryPostalCode);
-          }}
+          delivery={deliveryFields}
+          onDeliveryChange={customerPrefill.handleDeliveryChange}
           shippingAddresses={shippingAddresses as CSCShippingAddress[]}
           selectedAddressId={selectedAddressId}
-          onAddressSelect={(id, addr) => {
-            setSelectedAddressId(id);
-            fillDeliveryFromAddress(addr, selectedCustomer);
-          }}
-          onNewAddress={() => {
-            setSelectedAddressId('new');
-            setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
-            setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
-            setDeliveryProvince(''); setDeliveryPostalCode('');
-          }}
+          onAddressSelect={(id, addr) => customerPrefill.handleAddressSelect(id, addr, selectedCustomer)}
+          onNewAddress={customerPrefill.handleNewAddress}
           showTaxInvoice
           vatRegistered={vatRegistered}
-          taxFields={{ taxName, taxTaxId, taxBranch, taxAddress }}
-          onTaxFieldsChange={(f) => {
-            setTaxName(f.taxName); setTaxTaxId(f.taxTaxId);
-            setTaxBranch(f.taxBranch); setTaxAddress(f.taxAddress);
-          }}
+          taxFields={taxFieldsState}
+          onTaxFieldsChange={customerPrefill.handleTaxFieldsChange}
           showTaxCheckbox
           taxInvoiceRequested={taxInvoiceRequested}
           onTaxInvoiceRequestedChange={setTaxInvoiceRequested}

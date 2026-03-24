@@ -6,6 +6,7 @@ import { useToast } from '@/lib/toast-context';
 import { useRouter } from 'next/navigation';
 import { useCompany } from '@/lib/company-context';
 import CustomerSelectionCard, { type DeliveryFields, type ShippingAddress } from '@/components/ui/CustomerSelectionCard';
+import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 import { Loader2, Save, Warehouse } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
@@ -123,26 +124,16 @@ export default function DealerOrderForm({
   const [loadingGp, setLoadingGp] = useState(false);
   const [flowType, setFlowType] = useState<'w_cash' | 'w_credit'>(defaultFlowType || 'w_cash');
 
-  // Shipping address
-  const [shippingAddresses, setShippingAddresses] = useState<ShippingAddress[]>([]);
-  const [selectedAddressId, setSelectedAddressId] = useState('');
-
-  // Delivery fields
-  const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [deliveryName, setDeliveryName] = useState('');
-  const [deliveryPhone, setDeliveryPhone] = useState('');
-  const [deliveryEmail, setDeliveryEmail] = useState('');
-  const [deliveryDistrict, setDeliveryDistrict] = useState('');
-  const [deliveryAmphoe, setDeliveryAmphoe] = useState('');
-  const [deliveryProvince, setDeliveryProvince] = useState('');
-  const [deliveryPostalCode, setDeliveryPostalCode] = useState('');
+  // Customer prefill hook (delivery + tax + addresses)
+  const customerPrefill = useCustomerPrefill();
+  const { shippingAddresses, selectedAddressId, delivery: deliveryFields, taxFields: taxFieldsState } = customerPrefill;
+  const { deliveryName, deliveryPhone, deliveryEmail, deliveryAddress, deliveryDistrict, deliveryAmphoe, deliveryProvince, deliveryPostalCode } = deliveryFields;
+  const { taxName, taxTaxId, taxBranch, taxAddress } = taxFieldsState;
+  const { setTaxName, setTaxTaxId, setTaxBranch, setTaxAddress, setShippingAddresses, setSelectedAddressId } = customerPrefill;
+  const { setDeliveryName, setDeliveryPhone, setDeliveryEmail, setDeliveryAddress, setDeliveryDistrict, setDeliveryAmphoe, setDeliveryProvince, setDeliveryPostalCode } = customerPrefill;
 
   // Tax invoice
   const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
-  const [taxName, setTaxName] = useState('');
-  const [taxTaxId, setTaxTaxId] = useState('');
-  const [taxBranch, setTaxBranch] = useState('สำนักงานใหญ่');
-  const [taxAddress, setTaxAddress] = useState('');
 
   // Products
   const [products, setProducts] = useState<ProductSearchItem[]>([]);
@@ -243,26 +234,12 @@ export default function DealerOrderForm({
       .catch(() => setDealerStockMap({}));
   }, [isConsignment, selectedCustomerId]);
 
-  // Helper: fill delivery fields from address
-  const fillDeliveryFromAddress = useCallback((addr: ShippingAddress, cust: Customer | null) => {
-    setDeliveryName(addr.contact_person || cust?.name || '');
-    setDeliveryPhone(addr.phone || cust?.phone || '');
-    setDeliveryEmail(cust?.email || '');
-    setDeliveryAddress(addr.address_line1 || '');
-    setDeliveryDistrict(addr.district || '');
-    setDeliveryAmphoe(addr.amphoe || '');
-    setDeliveryProvince(addr.province || '');
-    setDeliveryPostalCode(addr.postal_code || '');
-  }, []);
-
+  // Reuse from hook
+  const { fillDeliveryFromAddress } = customerPrefill;
   const resetForm = useCallback(() => {
-    setShippingAddresses([]); setSelectedAddressId('');
-    setDeliveryAddress(''); setDeliveryName(''); setDeliveryPhone('');
-    setDeliveryEmail(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
-    setDeliveryProvince(''); setDeliveryPostalCode('');
-    setTaxInvoiceRequested(false); setTaxName(''); setTaxTaxId('');
-    setTaxBranch('สำนักงานใหญ่'); setTaxAddress('');
-  }, []);
+    customerPrefill.clearPrefill();
+    setTaxInvoiceRequested(false);
+  }, [customerPrefill]);
 
   // Load existing order for edit mode
   const orderLoaded = useRef(false);
@@ -312,43 +289,32 @@ export default function DealerOrderForm({
           if (order.flow_type === 'w_credit') setFlowType('w_credit');
           else if (order.flow_type === 'w_cash') setFlowType('w_cash');
 
-          // Single RPC: GP context + addresses + tax
+          // Single RPC: GP context + addresses + tax + delivery prefill
           try {
-            const ctx = await fetchCustomerOrderContext(cust.id);
-            gpCtx = ctx.gpContext;
-            setGpContext(gpCtx);
-
-            // Addresses + delivery prefill
-            const addrs: ShippingAddress[] = ctx.shippingAddresses as ShippingAddress[];
-            setShippingAddresses(addrs);
-            if (order.shipping_address_id) {
-              setSelectedAddressId(order.shipping_address_id);
-              const addr = addrs.find(a => a.id === order.shipping_address_id);
-              if (addr) fillDeliveryFromAddress(addr, cust);
-            } else if (addrs.length > 0) {
-              const defaultAddr = addrs.find(a => a.is_default) || addrs[0];
-              setSelectedAddressId(defaultAddr.id);
-              fillDeliveryFromAddress(defaultAddr, cust);
+            const ctx = await customerPrefill.prefillCustomer(cust.id);
+            if (ctx) {
+              gpCtx = ctx.gpContext;
+              setGpContext(gpCtx);
+              // Override address selection if order has specific shipping_address_id
+              if (order.shipping_address_id) {
+                const addr = ctx.shippingAddresses.find(a => a.id === order.shipping_address_id);
+                if (addr) {
+                  customerPrefill.setSelectedAddressId(order.shipping_address_id);
+                  customerPrefill.fillDeliveryFromAddress(addr, cust);
+                }
+              }
+              setSelectedCustomer(prev => prev ? {
+                ...prev,
+                billing_address: ctx.customer.billing_address || null,
+                billing_district: ctx.customer.billing_district || null,
+                billing_amphoe: ctx.customer.billing_amphoe || null,
+                billing_province: ctx.customer.billing_province || null,
+                billing_postal_code: ctx.customer.billing_postal_code || null,
+                tax_company_name: ctx.customer.tax_company_name || null,
+                tax_id: ctx.customer.tax_id || null,
+                tax_branch: ctx.customer.tax_branch || null,
+              } : prev);
             }
-
-            // Tax + billing
-            const c = ctx.customer;
-            if (c.tax_company_name) setTaxName(c.tax_company_name);
-            if (c.tax_id) setTaxTaxId(c.tax_id);
-            if (c.tax_branch) setTaxBranch(c.tax_branch);
-            const ap = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
-            if (ap) setTaxAddress(ap);
-            setSelectedCustomer(prev => prev ? {
-              ...prev,
-              billing_address: c.billing_address || null,
-              billing_district: c.billing_district || null,
-              billing_amphoe: c.billing_amphoe || null,
-              billing_province: c.billing_province || null,
-              billing_postal_code: c.billing_postal_code || null,
-              tax_company_name: c.tax_company_name || null,
-              tax_id: c.tax_id || null,
-              tax_branch: c.tax_branch || null,
-            } : prev);
           } catch { /* ignore */ }
 
           // Fetch product default prices for GP recalc
@@ -445,41 +411,22 @@ export default function DealerOrderForm({
     resetForm();
 
     if (custId) {
-      // Single RPC call: customer + addresses + GP context
       setLoadingGp(true);
       try {
-        const ctx = await fetchCustomerOrderContext(custId);
+        const ctx = await customerPrefill.prefillCustomer(custId);
         if (latestCustomerIdRef.current !== custId) return;
-
-        setGpContext(ctx.gpContext);
-
-        // Shipping addresses
-        const addrs = ctx.shippingAddresses as ShippingAddress[];
-        setShippingAddresses(addrs);
-        if (addrs.length > 0) {
-          const defaultAddr = addrs.find(a => a.is_default) || addrs[0];
-          setSelectedAddressId(defaultAddr.id);
-          fillDeliveryFromAddress(defaultAddr, cust);
-        }
-
-        // Prefill tax invoice + billing
-        const c = ctx.customer;
-        if (c) {
-          if (c.tax_company_name) setTaxName(c.tax_company_name);
-          if (c.tax_id) setTaxTaxId(c.tax_id);
-          if (c.tax_branch) setTaxBranch(c.tax_branch);
-          const addrParts = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
-          if (addrParts) setTaxAddress(addrParts);
+        if (ctx) {
+          setGpContext(ctx.gpContext);
           setSelectedCustomer(prev => prev ? {
             ...prev,
-            billing_address: c.billing_address || null,
-            billing_district: c.billing_district || null,
-            billing_amphoe: c.billing_amphoe || null,
-            billing_province: c.billing_province || null,
-            billing_postal_code: c.billing_postal_code || null,
-            tax_company_name: c.tax_company_name || null,
-            tax_id: c.tax_id || null,
-            tax_branch: c.tax_branch || null,
+            billing_address: ctx.customer.billing_address || null,
+            billing_district: ctx.customer.billing_district || null,
+            billing_amphoe: ctx.customer.billing_amphoe || null,
+            billing_province: ctx.customer.billing_province || null,
+            billing_postal_code: ctx.customer.billing_postal_code || null,
+            tax_company_name: ctx.customer.tax_company_name || null,
+            tax_id: ctx.customer.tax_id || null,
+            tax_branch: ctx.customer.tax_branch || null,
           } : prev);
         }
       } catch { setGpContext(null); }
@@ -820,33 +767,16 @@ export default function DealerOrderForm({
           </span>
         ) : undefined}
         disabled={isReadOnly}
-        delivery={{ deliveryName, deliveryPhone, deliveryEmail, deliveryAddress, deliveryDistrict, deliveryAmphoe, deliveryProvince, deliveryPostalCode }}
-        onDeliveryChange={(f) => {
-          if (f.deliveryName !== undefined) setDeliveryName(f.deliveryName);
-          if (f.deliveryPhone !== undefined) setDeliveryPhone(f.deliveryPhone);
-          if (f.deliveryEmail !== undefined) setDeliveryEmail(f.deliveryEmail);
-          if (f.deliveryAddress !== undefined) setDeliveryAddress(f.deliveryAddress);
-          if (f.deliveryDistrict !== undefined) setDeliveryDistrict(f.deliveryDistrict);
-          if (f.deliveryAmphoe !== undefined) setDeliveryAmphoe(f.deliveryAmphoe);
-          if (f.deliveryProvince !== undefined) setDeliveryProvince(f.deliveryProvince);
-          if (f.deliveryPostalCode !== undefined) setDeliveryPostalCode(f.deliveryPostalCode);
-        }}
+        delivery={deliveryFields}
+        onDeliveryChange={customerPrefill.handleDeliveryChange}
         shippingAddresses={shippingAddresses}
         selectedAddressId={selectedAddressId}
-        onAddressSelect={(id, addr) => {
-          setSelectedAddressId(id);
-          fillDeliveryFromAddress(addr, selectedCustomer);
-        }}
-        onNewAddress={() => {
-          setSelectedAddressId('new');
-          setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
-          setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
-          setDeliveryProvince(''); setDeliveryPostalCode('');
-        }}
+        onAddressSelect={(id, addr) => customerPrefill.handleAddressSelect(id, addr, selectedCustomer)}
+        onNewAddress={customerPrefill.handleNewAddress}
         showTaxInvoice
         vatRegistered={vatRegistered}
-        taxFields={{ taxName, taxTaxId, taxBranch, taxAddress }}
-        onTaxFieldsChange={(f) => { setTaxName(f.taxName); setTaxTaxId(f.taxTaxId); setTaxBranch(f.taxBranch); setTaxAddress(f.taxAddress); }}
+        taxFields={taxFieldsState}
+        onTaxFieldsChange={customerPrefill.handleTaxFieldsChange}
         showTaxCheckbox
         taxInvoiceRequested={taxInvoiceRequested}
         onTaxInvoiceRequestedChange={setTaxInvoiceRequested}
