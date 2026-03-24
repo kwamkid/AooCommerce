@@ -397,6 +397,7 @@ export default function StockReceivePage() {
           items={tableItems}
           columns={mode === 'po' ? ['stock_badge', 'po_quantity', 'qty', 'unit_cost', 'total'] : ['stock_badge', 'qty', 'unit_cost', 'total']}
           stockMap={stockMap}
+          disableStockWarning
           products={products}
           loadingProducts={productsLoading}
           onAdd={handleAddProduct}
