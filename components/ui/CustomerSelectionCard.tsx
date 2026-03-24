@@ -109,6 +109,18 @@ interface Props {
   taxInvoiceRequested?: boolean;
   onTaxInvoiceRequestedChange?: (checked: boolean) => void;
 
+  // ── New customer mode (toggle) ──
+  /** Allow toggling between existing/new customer */
+  allowNewCustomer?: boolean;
+  /** Whether "new customer" mode is active */
+  newCustomerMode?: boolean;
+  /** Callback when toggle changes */
+  onNewCustomerModeChange?: (isNew: boolean) => void;
+  /** New customer name (editable in new customer mode) */
+  newCustomerName?: string;
+  /** Callback when new customer name changes */
+  onNewCustomerNameChange?: (name: string) => void;
+
   // ── Read-only display mode ──
   /** Show customer info as read-only (no editable fields) */
   readOnly?: boolean;
@@ -158,6 +170,11 @@ export default function CustomerSelectionCard({
   showTaxCheckbox = false,
   taxInvoiceRequested = false,
   onTaxInvoiceRequestedChange,
+  allowNewCustomer = false,
+  newCustomerMode = false,
+  onNewCustomerModeChange,
+  newCustomerName = '',
+  onNewCustomerNameChange,
   readOnly = false,
 }: Props) {
   const [showAddressDropdown, setShowAddressDropdown] = useState(false);
@@ -182,10 +199,42 @@ export default function CustomerSelectionCard({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
         {/* Row 1 Left: ลูกค้า */}
         <div className="relative flex flex-col">
-          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-            {customerLabel} {customerRequired && <span className="text-red-500">*</span>}
-          </label>
-          {selectedCustomer ? (
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300">
+              {customerLabel} {customerRequired && <span className="text-red-500">*</span>}
+            </label>
+            {/* Toggle: ลูกค้าเดิม / ลูกค้าใหม่ */}
+            {allowNewCustomer && isEditable && !selectedCustomer && (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !newCustomerMode;
+                  onNewCustomerModeChange?.(next);
+                  if (next) onCustomerClear();
+                }}
+                className={`text-xs px-2 py-1 rounded-md transition-colors ${
+                  newCustomerMode
+                    ? 'bg-[#F4511E] text-white'
+                    : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                }`}
+              >
+                {newCustomerMode ? 'ลูกค้าเดิม' : 'ลูกค้าใหม่'}
+              </button>
+            )}
+          </div>
+
+          {/* Mode: New Customer — name input */}
+          {newCustomerMode && !selectedCustomer ? (
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={newCustomerName}
+                onChange={(e) => onNewCustomerNameChange?.(e.target.value)}
+                placeholder="ชื่อลูกค้าใหม่"
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+              />
+            </div>
+          ) : selectedCustomer ? (
             <div className="relative flex-1">
               <div
                 className={`flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg h-full ${shippingAddresses.length > 1 && isEditable ? 'cursor-pointer' : ''}`}
@@ -205,7 +254,7 @@ export default function CustomerSelectionCard({
                   )}
                 </CustomerInfoCard>
                 {isEditable && (
-                  <button type="button" onClick={(e) => { e.stopPropagation(); onCustomerClear(); }}
+                  <button type="button" onClick={(e) => { e.stopPropagation(); onCustomerClear(); onNewCustomerModeChange?.(false); }}
                     className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors flex-shrink-0">
                     <X className="w-3.5 h-3.5 text-gray-400" />
                   </button>
@@ -215,7 +264,7 @@ export default function CustomerSelectionCard({
               {showAddressDropdown && shippingAddresses.length > 1 && isEditable && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowAddressDropdown(false)} />
-                  <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
+                  <div className="absolute z-[999] w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
                     {shippingAddresses.map(addr => (
                       <button key={addr.id} type="button" onClick={() => {
                         onAddressSelect?.(addr.id, addr);
@@ -241,26 +290,13 @@ export default function CustomerSelectionCard({
               )}
             </div>
           ) : (
-            <div className="flex gap-2 items-start">
-              <div className="flex-1">
-                <EntitySearchInput
-                  value=""
-                  onChange={onCustomerChange}
-                  options={searchOptions}
-                  placeholder={searchPlaceholder}
-                  emptyMessage="ไม่พบลูกค้า"
-                />
-              </div>
-              {createCustomerUrl && isEditable && (
-                <button
-                  type="button"
-                  onClick={() => window.open(createCustomerUrl, '_blank')}
-                  className="flex-shrink-0 flex items-center gap-1.5 px-3 h-[42px] rounded-lg border border-gray-300 dark:border-slate-600 text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
-                >
-                  <UserPlus className="w-4 h-4" /> {createButtonLabel}
-                </button>
-              )}
-            </div>
+            <EntitySearchInput
+              value=""
+              onChange={onCustomerChange}
+              options={searchOptions}
+              placeholder={searchPlaceholder}
+              emptyMessage="ไม่พบลูกค้า"
+            />
           )}
         </div>
 

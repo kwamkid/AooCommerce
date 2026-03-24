@@ -37,6 +37,7 @@ export default function POEditItemsTable({
       items={tableItems}
       columns={['stock_badge', 'qty', 'unit_cost', 'total']}
       stockMap={stockMap}
+      disableStockWarning
       products={supplierId ? supplierProducts : []}
       loadingProducts={loadingProducts}
       searchPlaceholder="ค้นหาสินค้าของ supplier นี้..."

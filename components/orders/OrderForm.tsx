@@ -244,6 +244,10 @@ export default function OrderForm({
   const [expiryMode, setExpiryMode] = useState<'default' | 'custom' | 'none'>('default');
   const [customExpiryDays, setCustomExpiryDays] = useState(7);
 
+  // New customer mode
+  const [newCustomerMode, setNewCustomerMode] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
+
   // Delivery info (for new customer / no customer / selected address)
   const [deliveryName, setDeliveryName] = useState('');
   const [deliveryPhone, setDeliveryPhone] = useState('');
@@ -1333,9 +1337,60 @@ export default function OrderForm({
         }
       }
 
+      // Auto-create customer if in new customer mode
+      let resolvedCustomerId = selectedCustomer?.id;
+      let resolvedShippingAddressId: string | undefined;
+      if (newCustomerMode && newCustomerName.trim() && !selectedCustomer) {
+        try {
+          // 1. Create customer
+          const createRes = await apiFetch('/api/customers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: newCustomerName.trim(),
+              phone: snapshotPhone || undefined,
+              email: snapshotEmail || undefined,
+              customer_type: 'retail',
+            }),
+          });
+          if (createRes.ok) {
+            const createResult = await createRes.json();
+            resolvedCustomerId = createResult.customer?.id || createResult.id;
+
+            // 2. Create shipping address if delivery info provided
+            if (resolvedCustomerId && snapshotAddress) {
+              const addrRes = await apiFetch('/api/shipping-addresses', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  customer_id: resolvedCustomerId,
+                  address_name: 'ที่อยู่หลัก',
+                  contact_person: snapshotName || newCustomerName.trim(),
+                  phone: snapshotPhone || undefined,
+                  address_line1: snapshotAddress,
+                  district: snapshotDistrict || undefined,
+                  amphoe: snapshotAmphoe || undefined,
+                  province: snapshotProvince || undefined,
+                  postal_code: snapshotPostalCode || undefined,
+                  is_default: true,
+                }),
+              });
+              if (addrRes.ok) {
+                const addrResult = await addrRes.json();
+                resolvedShippingAddressId = addrResult.address?.id || addrResult.id;
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Auto-create customer error:', err);
+        }
+      }
+
+      const finalAddressId = resolvedShippingAddressId || primaryAddressId;
+
       const orderData: any = {
-        ...(selectedCustomer ? { customer_id: selectedCustomer.id } : {}),
-        ...(primaryAddressId ? { shipping_address_id: primaryAddressId } : {}),
+        ...(resolvedCustomerId ? { customer_id: resolvedCustomerId } : {}),
+        ...(finalAddressId ? { shipping_address_id: finalAddressId } : {}),
         delivery_date: deliveryDate || undefined,
         discount_amount: calculateOrderDiscount(),
         order_discount_type: orderDiscountType,
@@ -1669,6 +1724,11 @@ export default function OrderForm({
         <CustomerSelectionCard
           customerLabel="ลูกค้า"
           customerRequired={false}
+          allowNewCustomer
+          newCustomerMode={newCustomerMode}
+          onNewCustomerModeChange={(isNew) => { setNewCustomerMode(isNew); if (isNew) setNewCustomerName(''); }}
+          newCustomerName={newCustomerName}
+          onNewCustomerNameChange={setNewCustomerName}
           searchPlaceholder="ค้นหาชื่อ, รหัส, หรือเบอร์โทร..."
           createCustomerUrl="/customers/new"
           customers={customers.map(c => ({

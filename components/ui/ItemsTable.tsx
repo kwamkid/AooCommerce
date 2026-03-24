@@ -92,6 +92,8 @@ interface ItemsTableProps {
   // stock in dropdown
   showStockInSearch?: boolean;   // default: auto (true if stockMap has entries)
   disableOutOfStock?: boolean;   // disable items with stock <= 0 in dropdown
+  /** Disable over-stock warning (e.g. for PO — stock is incoming, not outgoing) */
+  disableStockWarning?: boolean;
 
   // reason options
   reasonOptions?: { value: string; label: string }[];
@@ -161,6 +163,7 @@ export default function ItemsTable({
   stockMap = {},
   showStockInSearch,
   disableOutOfStock = false,
+  disableStockWarning = false,
   reasonOptions = [
     { value: 'เสียหาย', label: 'เสียหาย' },
     { value: 'หมดอายุ', label: 'หมดอายุ' },
@@ -333,7 +336,7 @@ export default function ItemsTable({
                 : (item.discount_value || 0);
               const lineTotal = subtotal - discAmt;
               const stockQty = stockMap[item.variation_id];
-              const isOverStock = hasStock && stockQty !== undefined && item.quantity > stockQty;
+              const isOverStock = !disableStockWarning && hasStock && stockQty !== undefined && item.quantity > stockQty;
               const hasPromoComponents = item.promotion_components && item.promotion_components.length > 0;
               return (
                 <Fragment key={`${item.variation_id}-${idx}`}>
