@@ -187,7 +187,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   }, []);
 
   useEffect(() => {
-    if (!isEditMode) {
+    {
       setLoadingProducts(true);
       apiFetch('/api/products?limit=999&active=true')
         .then(r => r.json())
