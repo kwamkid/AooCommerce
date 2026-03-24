@@ -12,11 +12,15 @@ export const maxDuration = 60;
  * Protected by CRON_SECRET header.
  */
 export async function GET(request: NextRequest) {
-  // Verify cron secret
+  // Verify cron secret (supports both Authorization: Bearer and x-cron-secret headers)
   const cronSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get('authorization');
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (cronSecret) {
+    const authHeader = request.headers.get('authorization') || '';
+    const xCronHeader = request.headers.get('x-cron-secret') || '';
+    const bearerToken = authHeader.replace(/^Bearer\s+/i, '');
+    if (bearerToken !== cronSecret && xCronHeader !== cronSecret) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   const startTime = Date.now();
