@@ -312,32 +312,13 @@ export default function DealerOrderForm({
           if (order.flow_type === 'w_credit') setFlowType('w_credit');
           else if (order.flow_type === 'w_cash') setFlowType('w_cash');
 
-          // Fetch GP context + products for GP recalculation
-          try {
-            const orderCtx = await fetchCustomerOrderContext(cust.id);
-            gpCtx = orderCtx.gpContext;
-            setGpContext(gpCtx);
-          } catch { /* ignore */ }
-
-          // Fetch product default prices for GP recalc
-          if (gpCtx && orderItems.length > 0) {
-            try {
-              const prodRes = await apiFetch('/api/products?limit=999&active=true');
-              if (prodRes.ok) {
-                const prodData = await prodRes.json();
-                for (const p of prodData.products || []) {
-                  for (const v of p.variations || []) {
-                    const vid = v.variation_id || v.id;
-                    if (vid) productMap[vid] = { default_price: v.default_price || 0, discount_price: v.discount_price || 0, brand_id: p.brand_id || null };
-                  }
-                }
-              }
-            } catch { /* ignore */ }
-          }
-
-          // Fetch addresses + tax in 1 RPC call (reuses GP context already fetched above)
+          // Single RPC: GP context + addresses + tax
           try {
             const ctx = await fetchCustomerOrderContext(cust.id);
+            gpCtx = ctx.gpContext;
+            setGpContext(gpCtx);
+
+            // Addresses + delivery prefill
             const addrs: ShippingAddress[] = ctx.shippingAddresses as ShippingAddress[];
             setShippingAddresses(addrs);
             if (order.shipping_address_id) {
@@ -349,7 +330,8 @@ export default function DealerOrderForm({
               setSelectedAddressId(defaultAddr.id);
               fillDeliveryFromAddress(defaultAddr, cust);
             }
-            // Tax + billing from customer context
+
+            // Tax + billing
             const c = ctx.customer;
             if (c.tax_company_name) setTaxName(c.tax_company_name);
             if (c.tax_id) setTaxTaxId(c.tax_id);
@@ -368,6 +350,22 @@ export default function DealerOrderForm({
               tax_branch: c.tax_branch || null,
             } : prev);
           } catch { /* ignore */ }
+
+          // Fetch product default prices for GP recalc
+          if (gpCtx && orderItems.length > 0) {
+            try {
+              const prodRes = await apiFetch('/api/products?limit=999&active=true');
+              if (prodRes.ok) {
+                const prodData = await prodRes.json();
+                for (const p of prodData.products || []) {
+                  for (const v of p.variations || []) {
+                    const vid = v.variation_id || v.id;
+                    if (vid) productMap[vid] = { default_price: v.default_price || 0, discount_price: v.discount_price || 0, brand_id: p.brand_id || null };
+                  }
+                }
+              }
+            } catch { /* ignore */ }
+          }
         }
 
         // Set items — recalculate GP from gpContext + product prices
