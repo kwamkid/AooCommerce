@@ -10,8 +10,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generatePOPdf } from '@/lib/supplier-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
-import Pagination from '@/app/components/Pagination';
-import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import DataTable from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { ActionItem } from '@/app/orders/components/ActionMenu';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -35,25 +34,6 @@ interface PurchaseOrder {
   items: { id: string; quantity: number; received_quantity: number }[];
 }
 
-// ─── Column config ──────────────────────────────
-type ColumnKey = 'poInfo' | 'supplier' | 'warehouse' | 'itemCount' | 'amount' | 'status' | 'createdBy' | 'actions';
-
-const COLUMN_CONFIGS: { key: ColumnKey; label: string; defaultVisible: boolean; alwaysVisible?: boolean }[] = [
-  { key: 'poInfo', label: 'เลขที่ PO', defaultVisible: true, alwaysVisible: true },
-  { key: 'supplier', label: 'Supplier', defaultVisible: true },
-  { key: 'warehouse', label: 'คลัง', defaultVisible: true },
-  { key: 'itemCount', label: 'รายการ', defaultVisible: true },
-  { key: 'amount', label: 'มูลค่า', defaultVisible: true },
-  { key: 'status', label: 'สถานะ', defaultVisible: true },
-  { key: 'createdBy', label: 'ผู้สร้าง', defaultVisible: true },
-  { key: 'actions', label: 'จัดการ', defaultVisible: true, alwaysVisible: true },
-];
-
-const STORAGE_KEY = 'po-visible-columns';
-
-function getDefaultColumns(): ColumnKey[] {
-  return COLUMN_CONFIGS.filter(c => c.defaultVisible).map(c => c.key);
-}
 
 const STATUS_OPTIONS = [
   { id: 'draft', label: 'ร่าง' },
@@ -109,27 +89,6 @@ export default function PurchaseOrdersPage() {
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-  // Column visibility
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        try { return new Set(JSON.parse(stored) as ColumnKey[]); } catch { /* defaults */ }
-      }
-    }
-    return new Set(getDefaultColumns());
-  });
-  const toggleColumn = (key: ColumnKey) => {
-    const config = COLUMN_CONFIGS.find(c => c.key === key);
-    if (config?.alwaysVisible) return;
-    setVisibleColumns(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
-      return next;
-    });
-  };
-  const isCol = (key: ColumnKey) => visibleColumns.has(key);
 
   // Feature gate redirect
   useFetchOnce(() => {
@@ -306,8 +265,6 @@ export default function PurchaseOrdersPage() {
   const formatCurrency = (n: number) =>
     n.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
-  const visibleCount = COLUMN_CONFIGS.filter(c => visibleColumns.has(c.key)).length;
-
   if (authLoading || loading) {
     return (
       <Layout title="ใบสั่งซื้อ (PO)" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'ใบสั่งซื้อ (PO)' }]}>
@@ -375,132 +332,100 @@ export default function PurchaseOrdersPage() {
           </button>
         </div>
 
-        {/* Desktop Table */}
-        <div className="data-table-wrap hidden md:block">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="data-thead">
-                <tr>
-                  {isCol('poInfo') && <th className="data-th">เลขที่ PO</th>}
-                  {isCol('supplier') && <th className="data-th">Supplier</th>}
-                  {isCol('warehouse') && <th className="data-th">คลัง</th>}
-                  {isCol('itemCount') && <th className="data-th text-center">รายการ</th>}
-                  {isCol('amount') && <th className="data-th text-right">มูลค่า</th>}
-                  {isCol('status') && <th className="data-th text-center">สถานะ</th>}
-                  {isCol('createdBy') && <th className="data-th">ผู้สร้าง</th>}
-                  {isCol('actions') && <th className="data-th text-center">จัดการ</th>}
-                </tr>
-              </thead>
-              <tbody className="data-tbody">
-                {paged.length === 0 ? (
-                  <tr>
-                    <td colSpan={visibleCount} className="px-6 py-12 text-center">
-                      <ClipboardList className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-gray-500 dark:text-slate-400 text-sm">
-                        {purchaseOrders.length === 0 ? 'ยังไม่มีใบสั่งซื้อ' : 'ไม่พบรายการที่ค้นหา'}
-                      </p>
-                    </td>
-                  </tr>
-                ) : (
-                  paged.map(po => {
-                    const badge = statusBadge(po.status);
-                    const totalQty = po.items.reduce((s, i) => s + i.quantity, 0);
-                    const totalReceived = po.items.reduce((s, i) => s + i.received_quantity, 0);
-                    return (
-                      <tr key={po.id} className="data-tr cursor-pointer" onClick={() => router.push(`/inventory/purchase-orders/${po.id}`)}>
-                        {isCol('poInfo') && (
-                          <td className="data-td">
-                            <p
-                              className="id-text-clickable text-gray-900 dark:text-white"
-                              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(po.po_number).then(() => showToast('คัดลอกเลข PO แล้ว')); }}
-                              title="คัดลอกเลข PO"
-                            >{po.po_number}</p>
-                            <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(po.created_at)}</p>
-                          </td>
-                        )}
-                        {isCol('supplier') && (
-                          <td className="data-td">
-                            <div className="flex items-center gap-1.5">
-                              <Factory className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <span className="data-primary text-gray-900 dark:text-slate-100">{po.supplier?.name || '-'}</span>
-                            </div>
-                          </td>
-                        )}
-                        {isCol('warehouse') && (
-                          <td className="data-td">
-                            <div className="flex items-center gap-1.5">
-                              <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <span className="data-text text-gray-700 dark:text-slate-300">{po.warehouse?.name || '-'}</span>
-                            </div>
-                          </td>
-                        )}
-                        {isCol('itemCount') && (
-                          <td className="data-td text-center">
-                            <span className="data-text text-gray-700 dark:text-slate-300">{po.items.length}</span>
-                            {totalReceived > 0 && (
-                              <span className="data-number-muted text-gray-500 dark:text-slate-400 ml-1">({totalReceived}/{totalQty})</span>
-                            )}
-                          </td>
-                        )}
-                        {isCol('amount') && (
-                          <td className="data-td text-right">
-                            <span className="data-number text-gray-900 dark:text-white">฿{formatCurrency(po.total_amount)}</span>
-                          </td>
-                        )}
-                        {isCol('status') && (
-                          <td className="data-td text-center">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${badge.color}`}>
-                              {statusIcon(po.status)}
-                              {badge.label}
-                            </span>
-                          </td>
-                        )}
-                        {isCol('createdBy') && (
-                          <td className="data-td data-text text-gray-700 dark:text-slate-300">{po.created_by_name || '-'}</td>
-                        )}
-                        {isCol('actions') && (
-                          <td className="data-td" onClick={e => e.stopPropagation()}>
-                            <div className="flex items-center justify-center">
-                              <ActionMenu items={getMenuItems(po)} />
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <Pagination
-            currentPage={page} totalPages={totalPages} totalRecords={totalRecords}
-            startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
-            setRecordsPerPage={setRecordsPerPage} setPage={setPage}
-          >
-            <ColumnSettingsDropdown
-              configs={COLUMN_CONFIGS}
-              visible={visibleColumns}
-              toggle={toggleColumn}
-              buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
-              dropUp
-            />
-          </Pagination>
-        </div>
-
-        {/* Mobile */}
-        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
-          {paged.length === 0 ? (
-            <div className="text-center py-16">
-              <ClipboardList className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-slate-400 text-sm">
-                {purchaseOrders.length === 0 ? 'ยังไม่มีใบสั่งซื้อ' : 'ไม่พบรายการที่ค้นหา'}
-              </p>
-            </div>
-          ) : paged.map(po => {
+        <DataTable<PurchaseOrder>
+          storageKey="po-visible-columns"
+          columns={[
+            {
+              key: 'poInfo', label: 'เลขที่ PO', alwaysVisible: true,
+              render: (po) => (
+                <>
+                  <p
+                    className="id-text-clickable text-gray-900 dark:text-white"
+                    onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(po.po_number).then(() => showToast('คัดลอกเลข PO แล้ว')); }}
+                    title="คัดลอกเลข PO"
+                  >{po.po_number}</p>
+                  <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(po.created_at)}</p>
+                </>
+              ),
+            },
+            {
+              key: 'supplier', label: 'Supplier',
+              render: (po) => (
+                <div className="flex items-center gap-1.5">
+                  <Factory className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <span className="data-primary text-gray-900 dark:text-slate-100">{po.supplier?.name || '-'}</span>
+                </div>
+              ),
+            },
+            {
+              key: 'warehouse', label: 'คลัง',
+              render: (po) => (
+                <div className="flex items-center gap-1.5">
+                  <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <span className="data-text text-gray-700 dark:text-slate-300">{po.warehouse?.name || '-'}</span>
+                </div>
+              ),
+            },
+            {
+              key: 'itemCount', label: 'รายการ', headerClassName: 'text-center', cellClassName: 'text-center',
+              render: (po) => {
+                const totalQty = po.items.reduce((s, i) => s + i.quantity, 0);
+                const totalReceived = po.items.reduce((s, i) => s + i.received_quantity, 0);
+                return (
+                  <>
+                    <span className="data-text text-gray-700 dark:text-slate-300">{po.items.length}</span>
+                    {totalReceived > 0 && (
+                      <span className="data-number-muted text-gray-500 dark:text-slate-400 ml-1">({totalReceived}/{totalQty})</span>
+                    )}
+                  </>
+                );
+              },
+            },
+            {
+              key: 'amount', label: 'มูลค่า', headerClassName: 'text-right', cellClassName: 'text-right',
+              render: (po) => <span className="data-number text-gray-900 dark:text-white">฿{formatCurrency(po.total_amount)}</span>,
+            },
+            {
+              key: 'status', label: 'สถานะ', headerClassName: 'text-center', cellClassName: 'text-center',
+              render: (po) => {
+                const badge = statusBadge(po.status);
+                return (
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${badge.color}`}>
+                    {statusIcon(po.status)}
+                    {badge.label}
+                  </span>
+                );
+              },
+            },
+            {
+              key: 'createdBy', label: 'ผู้สร้าง',
+              render: (po) => <span className="data-text text-gray-700 dark:text-slate-300">{po.created_by_name || '-'}</span>,
+            },
+            {
+              key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-center', stopPropagation: true, hideMobile: true,
+              render: (po) => (
+                <div className="flex items-center justify-center">
+                  <ActionMenu items={getMenuItems(po)} />
+                </div>
+              ),
+            },
+          ]}
+          data={paged}
+          loading={false}
+          getRowId={(po) => po.id}
+          onRowClick={(po) => router.push(`/inventory/purchase-orders/${po.id}`)}
+          emptyMessage={purchaseOrders.length === 0 ? 'ยังไม่มีใบสั่งซื้อ' : 'ไม่พบรายการที่ค้นหา'}
+          emptyIcon={<ClipboardList className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          currentPage={page}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          recordsPerPage={recordsPerPage}
+          onPageChange={setPage}
+          onRecordsPerPageChange={setRecordsPerPage}
+          mobileCardRender={(po) => {
             const badge = statusBadge(po.status);
             return (
-              <div key={po.id} className="p-4 border-b border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/30 cursor-pointer" onClick={() => router.push(`/inventory/purchase-orders/${po.id}`)}>
+              <>
                 <div className="flex items-center justify-between mb-1.5">
                   <div>
                     <span
@@ -523,10 +448,10 @@ export default function PurchaseOrdersPage() {
                   <span className="data-muted text-gray-400 dark:text-slate-500">{po.items.length} รายการ | {po.created_by_name || '-'}</span>
                   <span className="data-number text-gray-900 dark:text-white">฿{formatCurrency(po.total_amount)}</span>
                 </div>
-              </div>
+              </>
             );
-          })}
-        </div>
+          }}
+        />
       </div>
       {confirmDialog}
     </Layout>

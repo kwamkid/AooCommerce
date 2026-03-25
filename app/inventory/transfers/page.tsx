@@ -9,10 +9,9 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
-import Pagination from '@/app/components/Pagination';
-import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import DataTable from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
-import ActionMenu, { ActionItem } from '@/app/orders/components/ActionMenu';
+import ActionMenu from '@/app/orders/components/ActionMenu';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import {
   Loader2, ArrowRightLeft, Plus, Warehouse, Eye, Printer, User,
@@ -43,32 +42,6 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: React.Com
   cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: XCircle },
 };
 
-// ─── Column config ──────────────────────────────
-type ColumnKey = 'transferInfo' | 'fromWarehouse' | 'toWarehouse' | 'itemCount' | 'status' | 'createdBy' | 'receiver' | 'actions';
-
-interface ColumnConfig {
-  key: ColumnKey;
-  label: string;
-  defaultVisible: boolean;
-  alwaysVisible?: boolean;
-}
-
-const COLUMN_CONFIGS: ColumnConfig[] = [
-  { key: 'transferInfo', label: 'เลขที่', defaultVisible: true, alwaysVisible: true },
-  { key: 'fromWarehouse', label: 'คลังต้นทาง', defaultVisible: true },
-  { key: 'toWarehouse', label: 'คลังปลายทาง', defaultVisible: true },
-  { key: 'itemCount', label: 'รายการ', defaultVisible: true },
-  { key: 'status', label: 'สถานะ', defaultVisible: true },
-  { key: 'createdBy', label: 'ผู้ทำรายการ', defaultVisible: true },
-  { key: 'receiver', label: 'ผู้รับ', defaultVisible: true },
-  { key: 'actions', label: 'จัดการ', defaultVisible: true, alwaysVisible: true },
-];
-
-const STORAGE_KEY = 'transfers-visible-columns';
-
-function getDefaultColumns(): ColumnKey[] {
-  return COLUMN_CONFIGS.filter(c => c.defaultVisible).map(c => c.key);
-}
 
 export default function TransferListPage() {
   const router = useRouter();
@@ -92,28 +65,6 @@ export default function TransferListPage() {
   const [page, setPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState(20);
 
-  // Column visibility
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        try { return new Set(JSON.parse(stored) as ColumnKey[]); } catch { /* defaults */ }
-      }
-    }
-    return new Set(getDefaultColumns());
-  });
-  const toggleColumn = (key: ColumnKey) => {
-    const config = COLUMN_CONFIGS.find(c => c.key === key);
-    if (config?.alwaysVisible) return;
-    setVisibleColumns(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
-      return next;
-    });
-  };
-  const isCol = (key: ColumnKey) => visibleColumns.has(key);
-  const visibleCount = COLUMN_CONFIGS.filter(c => visibleColumns.has(c.key)).length;
 
   useFetchOnce(() => {
     fetchWarehouses();
@@ -342,243 +293,186 @@ export default function TransferListPage() {
           </button>
         </div>
 
-        {/* Desktop Table */}
-        <div className="data-table-wrap hidden md:block">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="data-thead">
-                <tr>
-                  {isCol('transferInfo') && <th className="data-th">เลขที่</th>}
-                  {isCol('fromWarehouse') && <th className="data-th">คลังต้นทาง</th>}
-                  {isCol('toWarehouse') && <th className="data-th">คลังปลายทาง</th>}
-                  {isCol('itemCount') && <th className="data-th text-center">รายการ</th>}
-                  {isCol('status') && <th className="data-th text-center">สถานะ</th>}
-                  {isCol('createdBy') && <th className="data-th">ผู้ทำรายการ</th>}
-                  {isCol('receiver') && <th className="data-th">ผู้รับ</th>}
-                  {isCol('actions') && <th className="data-th text-center">จัดการ</th>}
-                </tr>
-              </thead>
-              <tbody className="data-tbody">
-                {paginatedTransfers.length === 0 ? (
-                  <tr>
-                    <td colSpan={visibleCount} className="px-6 py-12 text-center">
-                      <ArrowRightLeft className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-gray-500 dark:text-slate-400 text-sm">
-                        {transfers.length === 0 ? 'ยังไม่มีรายการโอนย้าย' : 'ไม่พบรายการที่ค้นหา'}
-                      </p>
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedTransfers.map(t => {
-                    const st = STATUS_MAP[t.status] || STATUS_MAP.pending;
-                    const StIcon = st.icon;
-                    return (
-                      <tr key={t.id} className="data-tr cursor-pointer" onClick={() => router.push(`/inventory/transfers/${t.id}`)}>
-                        {isCol('transferInfo') && (
-                          <td className="data-td">
-                            <p className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(t.transfer_number).then(() => showToast('คัดลอกเลขที่ใบโอนแล้ว')); }}>{t.transfer_number}</p>
-                            <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
-                          </td>
-                        )}
-                        {isCol('fromWarehouse') && (
-                          <td className="data-td">
-                            <div className="flex items-center gap-1.5">
-                              <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <span className="data-text text-gray-700 dark:text-slate-300">
-                                {t.from_warehouse?.name || '-'}
-                              </span>
-                            </div>
-                          </td>
-                        )}
-                        {isCol('toWarehouse') && (
-                          <td className="data-td">
-                            <div className="flex items-center gap-1.5">
-                              <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <span className="data-text text-gray-700 dark:text-slate-300">
-                                {t.to_warehouse?.name || '-'}
-                              </span>
-                            </div>
-                          </td>
-                        )}
-                        {isCol('itemCount') && (
-                          <td className="data-td text-center data-text text-gray-700 dark:text-slate-300">
-                            {t.items?.length || 0}
-                          </td>
-                        )}
-                        {isCol('status') && (
-                          <td className="data-td text-center">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${st.color}`}>
-                              <StIcon className="w-3 h-3" />
-                              {st.label}
-                            </span>
-                          </td>
-                        )}
-                        {isCol('createdBy') && (
-                          <td className="data-td data-text text-gray-700 dark:text-slate-300">{t.created_by_user?.name || '-'}</td>
-                        )}
-                        {isCol('receiver') && (
-                          <td className="data-td" onClick={e => e.stopPropagation()}>
-                            {t.receiver_name ? (
-                              <div className="flex items-center gap-2">
-                                {t.receive_photo_url && (
-                                  <img
-                                    src={t.receive_photo_url}
-                                    alt="รูปรับสินค้า"
-                                    className="w-8 h-8 rounded object-cover cursor-pointer hover:opacity-80 flex-shrink-0"
-                                    onClick={() => setLightboxSrc(t.receive_photo_url)}
-                                  />
-                                )}
-                                <span className="data-text text-gray-700 dark:text-slate-300">{t.receiver_name}</span>
-                              </div>
-                            ) : (
-                              <span className="data-muted text-gray-400 dark:text-slate-500">-</span>
-                            )}
-                          </td>
-                        )}
-                        {isCol('actions') && (
-                          <td className="data-td" onClick={e => e.stopPropagation()}>
-                            <div className="flex items-center justify-center">
-                              <ActionMenu items={[
-                                {
-                                  key: 'view',
-                                  label: 'ดูรายละเอียด',
-                                  icon: <Eye className="w-4 h-4" />,
-                                  onClick: () => router.push(`/inventory/transfers/${t.id}`),
-                                },
-                                {
-                                  key: 'print',
-                                  label: 'พิมพ์',
-                                  icon: printingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
-                                  onClick: () => handlePrint(t.id),
-                                  disabled: printingId === t.id,
-                                },
-                                ...((t.status === 'pending' || t.status === 'shipping') ? [{
-                                  key: 'cancel',
-                                  label: 'ยกเลิก',
-                                  icon: <Ban className="w-4 h-4" />,
-                                  danger: true,
-                                  dividerBefore: true,
-                                  onClick: () => setConfirmCancel(t),
-                                }] : []),
-                              ]} />
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <Pagination
-            currentPage={page} totalPages={totalPages} totalRecords={totalRecords}
-            startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
-            setRecordsPerPage={setRecordsPerPage} setPage={setPage}
-          >
-            <ColumnSettingsDropdown
-              configs={COLUMN_CONFIGS}
-              visible={visibleColumns}
-              toggle={toggleColumn}
-              buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
-              dropUp
-            />
-          </Pagination>
-        </div>
-
-        {/* Mobile Cards */}
-        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-          {paginatedTransfers.length === 0 ? (
-            <div className="text-center py-16">
-              <ArrowRightLeft className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-slate-400 text-sm">
-                {transfers.length === 0 ? 'ยังไม่มีรายการโอนย้าย' : 'ไม่พบรายการที่ค้นหา'}
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-slate-700">
-              {paginatedTransfers.map(t => {
+        <DataTable<Transfer>
+          storageKey="transfers-visible-columns"
+          columns={[
+            {
+              key: 'transferInfo', label: 'เลขที่', alwaysVisible: true,
+              render: (t) => (
+                <>
+                  <p className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(t.transfer_number).then(() => showToast('คัดลอกเลขที่ใบโอนแล้ว')); }}>{t.transfer_number}</p>
+                  <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
+                </>
+              ),
+            },
+            {
+              key: 'fromWarehouse', label: 'คลังต้นทาง',
+              render: (t) => (
+                <div className="flex items-center gap-1.5">
+                  <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <span className="data-text text-gray-700 dark:text-slate-300">{t.from_warehouse?.name || '-'}</span>
+                </div>
+              ),
+            },
+            {
+              key: 'toWarehouse', label: 'คลังปลายทาง',
+              render: (t) => (
+                <div className="flex items-center gap-1.5">
+                  <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <span className="data-text text-gray-700 dark:text-slate-300">{t.to_warehouse?.name || '-'}</span>
+                </div>
+              ),
+            },
+            {
+              key: 'itemCount', label: 'รายการ', headerClassName: 'text-center', cellClassName: 'text-center',
+              render: (t) => <span className="data-text text-gray-700 dark:text-slate-300">{t.items?.length || 0}</span>,
+            },
+            {
+              key: 'status', label: 'สถานะ', headerClassName: 'text-center', cellClassName: 'text-center',
+              render: (t) => {
                 const st = STATUS_MAP[t.status] || STATUS_MAP.pending;
                 const StIcon = st.icon;
                 return (
-                  <div
-                    key={t.id}
-                    className="p-4"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div
-                        className="cursor-pointer"
-                        onClick={() => router.push(`/inventory/transfers/${t.id}`)}
-                      >
-                        <span className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(t.transfer_number).then(() => showToast('คัดลอกเลขที่ใบโอนแล้ว')); }}>
-                          {t.transfer_number}
-                        </span>
-                        <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
-                          <StIcon className="w-3 h-3" />
-                          {st.label}
-                        </span>
-                        <ActionMenu items={[
-                          {
-                            key: 'view',
-                            label: 'ดูรายละเอียด',
-                            icon: <Eye className="w-4 h-4" />,
-                            onClick: () => router.push(`/inventory/transfers/${t.id}`),
-                          },
-                          {
-                            key: 'print',
-                            label: 'พิมพ์',
-                            icon: printingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
-                            onClick: () => handlePrint(t.id),
-                            disabled: printingId === t.id,
-                          },
-                          ...((t.status === 'pending' || t.status === 'shipping') ? [{
-                            key: 'cancel',
-                            label: 'ยกเลิก',
-                            icon: <Ban className="w-4 h-4" />,
-                            danger: true,
-                            dividerBefore: true,
-                            onClick: () => setConfirmCancel(t),
-                          }] : []),
-                        ]} />
-                      </div>
-                    </div>
-                    <div
-                      className="cursor-pointer"
-                      onClick={() => router.push(`/inventory/transfers/${t.id}`)}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Warehouse className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="data-text text-gray-700 dark:text-slate-300">{t.from_warehouse?.name || '-'}</span>
-                        <ArrowRightLeft className="w-3 h-3 text-gray-400" />
-                        <span className="data-text text-gray-700 dark:text-slate-300">{t.to_warehouse?.name || '-'}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="data-muted text-gray-400 dark:text-slate-500">{t.items?.length || 0} รายการ | {t.created_by_user?.name || '-'}</span>
-                        {t.receiver_name && (
-                          <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                            {t.receive_photo_url && (
-                              <img
-                                src={t.receive_photo_url}
-                                alt="รูปรับสินค้า"
-                                className="w-6 h-6 rounded object-cover cursor-pointer"
-                                onClick={() => setLightboxSrc(t.receive_photo_url)}
-                              />
-                            )}
-                            <span>ผู้รับ: {t.receiver_name}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${st.color}`}>
+                    <StIcon className="w-3 h-3" />
+                    {st.label}
+                  </span>
                 );
-              })}
-            </div>
-          )}
-        </div>
+              },
+            },
+            {
+              key: 'createdBy', label: 'ผู้ทำรายการ',
+              render: (t) => <span className="data-text text-gray-700 dark:text-slate-300">{t.created_by_user?.name || '-'}</span>,
+            },
+            {
+              key: 'receiver', label: 'ผู้รับ', stopPropagation: true,
+              render: (t) => t.receiver_name ? (
+                <div className="flex items-center gap-2">
+                  {t.receive_photo_url && (
+                    <img
+                      src={t.receive_photo_url}
+                      alt="รูปรับสินค้า"
+                      className="w-8 h-8 rounded object-cover cursor-pointer hover:opacity-80 flex-shrink-0"
+                      onClick={() => setLightboxSrc(t.receive_photo_url)}
+                    />
+                  )}
+                  <span className="data-text text-gray-700 dark:text-slate-300">{t.receiver_name}</span>
+                </div>
+              ) : (
+                <span className="data-muted text-gray-400 dark:text-slate-500">-</span>
+              ),
+            },
+            {
+              key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-center', stopPropagation: true, hideMobile: true,
+              render: (t) => (
+                <div className="flex items-center justify-center">
+                  <ActionMenu items={[
+                    {
+                      key: 'view',
+                      label: 'ดูรายละเอียด',
+                      icon: <Eye className="w-4 h-4" />,
+                      onClick: () => router.push(`/inventory/transfers/${t.id}`),
+                    },
+                    {
+                      key: 'print',
+                      label: 'พิมพ์',
+                      icon: printingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+                      onClick: () => handlePrint(t.id),
+                      disabled: printingId === t.id,
+                    },
+                    ...((t.status === 'pending' || t.status === 'shipping') ? [{
+                      key: 'cancel',
+                      label: 'ยกเลิก',
+                      icon: <Ban className="w-4 h-4" />,
+                      danger: true,
+                      dividerBefore: true,
+                      onClick: () => setConfirmCancel(t),
+                    }] : []),
+                  ]} />
+                </div>
+              ),
+            },
+          ]}
+          data={paginatedTransfers}
+          loading={false}
+          getRowId={(t) => t.id}
+          onRowClick={(t) => router.push(`/inventory/transfers/${t.id}`)}
+          emptyMessage={transfers.length === 0 ? 'ยังไม่มีรายการโอนย้าย' : 'ไม่พบรายการที่ค้นหา'}
+          emptyIcon={<ArrowRightLeft className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          currentPage={page}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          recordsPerPage={recordsPerPage}
+          onPageChange={setPage}
+          onRecordsPerPageChange={setRecordsPerPage}
+          mobileCardRender={(t) => {
+            const st = STATUS_MAP[t.status] || STATUS_MAP.pending;
+            const StIcon = st.icon;
+            return (
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <span className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(t.transfer_number).then(() => showToast('คัดลอกเลขที่ใบโอนแล้ว')); }}>
+                      {t.transfer_number}
+                    </span>
+                    <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
+                      <StIcon className="w-3 h-3" />
+                      {st.label}
+                    </span>
+                    <ActionMenu items={[
+                      {
+                        key: 'view',
+                        label: 'ดูรายละเอียด',
+                        icon: <Eye className="w-4 h-4" />,
+                        onClick: () => router.push(`/inventory/transfers/${t.id}`),
+                      },
+                      {
+                        key: 'print',
+                        label: 'พิมพ์',
+                        icon: printingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+                        onClick: () => handlePrint(t.id),
+                        disabled: printingId === t.id,
+                      },
+                      ...((t.status === 'pending' || t.status === 'shipping') ? [{
+                        key: 'cancel',
+                        label: 'ยกเลิก',
+                        icon: <Ban className="w-4 h-4" />,
+                        danger: true,
+                        dividerBefore: true,
+                        onClick: () => setConfirmCancel(t),
+                      }] : []),
+                    ]} />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Warehouse className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="data-text text-gray-700 dark:text-slate-300">{t.from_warehouse?.name || '-'}</span>
+                  <ArrowRightLeft className="w-3 h-3 text-gray-400" />
+                  <span className="data-text text-gray-700 dark:text-slate-300">{t.to_warehouse?.name || '-'}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="data-muted text-gray-400 dark:text-slate-500">{t.items?.length || 0} รายการ | {t.created_by_user?.name || '-'}</span>
+                  {t.receiver_name && (
+                    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                      {t.receive_photo_url && (
+                        <img
+                          src={t.receive_photo_url}
+                          alt="รูปรับสินค้า"
+                          className="w-6 h-6 rounded object-cover cursor-pointer"
+                          onClick={() => setLightboxSrc(t.receive_photo_url)}
+                        />
+                      )}
+                      <span>ผู้รับ: {t.receiver_name}</span>
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          }}
+        />
       </div>
 
       {/* Image Lightbox */}
