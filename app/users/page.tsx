@@ -24,7 +24,7 @@ import {
   Loader2,
   Trash2,
 } from 'lucide-react';
-import Pagination from '@/app/components/Pagination';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
 
@@ -495,154 +495,132 @@ export default function UsersPage() {
         <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อหรืออีเมล..." className="py-2" />
       </div>
 
-      {/* Users Table - Desktop */}
-      <div className="data-table-wrap-shadow hidden md:block">
-        <div className="overflow-x-auto">
-          <table className="data-table-fixed">
-            <thead className="data-thead">
-              <tr>
-                <th className="data-th">
-                  ผู้ใช้
-                </th>
-                <th className="data-th">
-                  Role
-                </th>
-                <th className="data-th">
-                  เบอร์โทร
-                </th>
-                <th className="data-th">
-                  สถานะ
-                </th>
-                <th className="data-th">
-                  วันที่สร้าง
-                </th>
-                <th className="data-th text-right">
-                  จัดการ
-                </th>
-              </tr>
-            </thead>
-            <tbody className="data-tbody">
-              {paginatedUsers.map((user) => (
-                <tr key={user.id} className="data-tr">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-[#F4511E]/20 flex items-center justify-center">
-                          <span className="text-[#F4511E] font-semibold">
-                            {user.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {user.name}
-                          {user.id === userProfile?.id && (
-                            <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">(คุณ)</span>
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-500 flex items-center">
-                          <Mail className="w-3 h-3 mr-1" />
-                          {user.email}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <RoleBadges roles={user.roles} />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-slate-400">
-                    {user.phone ? (
-                      <span className="flex items-center">
-                        <Phone className="w-3 h-3 mr-1" />
-                        {user.phone}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 dark:text-slate-500">-</span>
+      {/* Users Table */}
+      {(() => {
+        const userColumns: DataTableColumn<User>[] = [
+          {
+            key: 'user',
+            label: 'ผู้ใช้',
+            alwaysVisible: true,
+            render: (user) => (
+              <div className="flex items-center">
+                <div className="flex-shrink-0 h-10 w-10">
+                  <div className="h-10 w-10 rounded-full bg-[#F4511E]/20 flex items-center justify-center">
+                    <span className="text-[#F4511E] font-semibold">
+                      {user.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+                <div className="ml-4">
+                  <div className="text-sm font-medium text-gray-900 dark:text-white">
+                    {user.name}
+                    {user.id === userProfile?.id && (
+                      <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">(คุณ)</span>
                     )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <StatusBadge isActive={user.is_active} />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-slate-400">
-                    {new Date(user.created_at).toLocaleDateString('th-TH', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric'
-                    })}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end space-x-2">
-                      <button
-                        onClick={() => handleEditUser(user)}
-                        className="text-[#F4511E] hover:text-[#F4511E]/80 p-1"
-                        title="แก้ไข"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      {user.id !== userProfile?.id && (
-                        <>
-                          <button
-                            onClick={() => handleToggleUserStatus(user)}
-                            className={user.is_active ? 'text-orange-600 hover:text-orange-900 p-1' : 'text-green-600 hover:text-green-900 p-1'}
-                            title={user.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน'}
-                          >
-                            {user.is_active ? (
-                              <X className="w-4 h-4" />
-                            ) : (
-                              <Check className="w-4 h-4" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(user)}
-                            className="text-red-600 hover:text-red-900 p-1"
-                            title="ลบผู้ใช้ถาวร"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
+                  </div>
+                  <div className="text-sm text-gray-500 flex items-center">
+                    <Mail className="w-3 h-3 mr-1" />
+                    {user.email}
+                  </div>
+                </div>
+              </div>
+            ),
+          },
+          {
+            key: 'role',
+            label: 'Role',
+            render: (user) => <RoleBadges roles={user.roles} />,
+          },
+          {
+            key: 'phone',
+            label: 'เบอร์โทร',
+            render: (user) =>
+              user.phone ? (
+                <span className="flex items-center text-sm text-gray-500 dark:text-slate-400">
+                  <Phone className="w-3 h-3 mr-1" />
+                  {user.phone}
+                </span>
+              ) : (
+                <span className="text-gray-400 dark:text-slate-500">-</span>
+              ),
+          },
+          {
+            key: 'status',
+            label: 'สถานะ',
+            render: (user) => <StatusBadge isActive={user.is_active} />,
+          },
+          {
+            key: 'created_at',
+            label: 'วันที่สร้าง',
+            render: (user) => (
+              <span className="text-sm text-gray-500 dark:text-slate-400">
+                {new Date(user.created_at).toLocaleDateString('th-TH', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric'
+                })}
+              </span>
+            ),
+          },
+          {
+            key: 'actions',
+            label: 'จัดการ',
+            headerClassName: 'text-right',
+            cellClassName: 'text-right',
+            stopPropagation: true,
+            render: (user) => (
+              <div className="flex justify-end space-x-2">
+                <button
+                  onClick={() => handleEditUser(user)}
+                  className="text-[#F4511E] hover:text-[#F4511E]/80 p-1"
+                  title="แก้ไข"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                {user.id !== userProfile?.id && (
+                  <>
+                    <button
+                      onClick={() => handleToggleUserStatus(user)}
+                      className={user.is_active ? 'text-orange-600 hover:text-orange-900 p-1' : 'text-green-600 hover:text-green-900 p-1'}
+                      title={user.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน'}
+                    >
+                      {user.is_active ? (
+                        <X className="w-4 h-4" />
+                      ) : (
+                        <Check className="w-4 h-4" />
                       )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUser(user)}
+                      className="text-red-600 hover:text-red-900 p-1"
+                      title="ลบผู้ใช้ถาวร"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+              </div>
+            ),
+          },
+        ];
 
-          {paginatedUsers.length === 0 && (
-            <div className="text-center py-12">
-              <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-slate-400">ไม่พบผู้ใช้งาน</p>
-            </div>
-          )}
-
-          <Pagination
+        return (
+          <DataTable<User>
+            storageKey="users-list"
+            columns={userColumns}
+            data={paginatedUsers}
+            loading={false}
+            getRowId={(user) => user.id}
+            emptyMessage="ไม่พบผู้ใช้งาน"
+            emptyIcon={<Users className="w-12 h-12 text-gray-400" />}
             currentPage={currentPage}
             totalPages={totalPages}
             totalRecords={totalFiltered}
-            startIdx={startIndex}
-            endIdx={Math.min(startIndex + rowsPerPage, totalFiltered)}
             recordsPerPage={rowsPerPage}
-            setRecordsPerPage={setRowsPerPage}
-            setPage={setCurrentPage}
-          />
-        </div>
-      </div>
-
-      {/* Users Cards - Mobile */}
-      <div className="md:hidden">
-        {paginatedUsers.length === 0 ? (
-          <div className="text-center py-12">
-            <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-500 dark:text-slate-400">ไม่พบผู้ใช้งาน</p>
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow divide-y divide-gray-100 dark:divide-slate-700">
-            {paginatedUsers.map((user) => (
-              <div
-                key={user.id}
-                className="px-4 py-3 space-y-1.5 active:bg-gray-50 dark:active:bg-slate-700/50"
-                onClick={() => handleEditUser(user)}
-              >
+            onPageChange={setCurrentPage}
+            onRecordsPerPageChange={setRowsPerPage}
+            mobileCardRender={(user) => (
+              <div className="space-y-1.5" onClick={() => handleEditUser(user)}>
                 {/* Row 1: Name + email / Status */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -666,20 +644,10 @@ export default function UsersPage() {
                   </p>
                 )}
               </div>
-            ))}
-          </div>
-        )}
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalRecords={totalFiltered}
-          startIdx={startIndex}
-          endIdx={Math.min(startIndex + rowsPerPage, totalFiltered)}
-          recordsPerPage={rowsPerPage}
-          setRecordsPerPage={setRowsPerPage}
-          setPage={setCurrentPage}
-        />
-      </div>
+            )}
+          />
+        );
+      })()}
 
       </div>
 

@@ -9,7 +9,7 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import Pagination from '@/app/components/Pagination';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import {
   Loader2, FileText, Factory, Calendar, CheckCircle2, Clock, Send,
   Plus, Trash2, Filter,
@@ -297,96 +297,109 @@ export default function SupplierReportsPage() {
         <p className="text-sm text-gray-500 dark:text-slate-400">{filtered.length} รายการ</p>
 
         {/* Table */}
-        {paged.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 dark:text-slate-500">
-            <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p className="text-sm">{selectedSupplier || selectedMonth ? 'ไม่พบรายงานที่ตรงกัน' : 'ยังไม่มีรายงาน'}</p>
-          </div>
-        ) : (
-          <>
-            {/* Desktop */}
-            <div className="hidden sm:block bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
-              <table className="data-table-fixed">
-                <thead>
-                  <tr className="data-thead-tr">
-                    <th className="data-th">Supplier</th>
-                    <th className="data-th">ประเภท</th>
-                    <th className="data-th">เดือน/ปี</th>
-                    <th className="data-th text-right">ยอดรวม</th>
-                    <th className="data-th">สถานะ</th>
-                    <th className="data-th w-16"></th>
-                  </tr>
-                </thead>
-                <tbody className="data-tbody">
-                  {paged.map(s => {
-                    const badge = statusBadge(s.status);
-                    const typeBadge = supplierTypeBadge(s.supplier_type);
-                    const amount = s.supplier_type === 'consignment' ? s.total_sold_amount : s.total_received_amount;
-                    return (
-                      <tr
-                        key={s.id}
-                        onClick={() => router.push(`/reports/supplier/${s.id}`)}
-                        className="data-tr cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/50"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <Factory className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                            <span className="text-sm font-medium text-gray-900 dark:text-white">{s.supplier?.name || '-'}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${typeBadge.color}`}>
-                            {typeBadge.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                            <span className="text-sm text-gray-700 dark:text-slate-300">
-                              {MONTHS[s.period_month - 1]} {s.period_year + 543}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            ฿{formatCurrency(amount)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-                            {badge.icon}
-                            {badge.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          {s.status === 'draft' && (
-                            <button
-                              onClick={e => handleDelete(s.id, e)}
-                              className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+        {(() => {
+          const supplierColumns: DataTableColumn<Snapshot>[] = [
+            {
+              key: 'supplier',
+              label: 'Supplier',
+              alwaysVisible: true,
+              render: (s) => (
+                <div className="flex items-center gap-2">
+                  <Factory className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{s.supplier?.name || '-'}</span>
+                </div>
+              ),
+            },
+            {
+              key: 'type',
+              label: 'ประเภท',
+              render: (s) => {
+                const typeBadge = supplierTypeBadge(s.supplier_type);
+                return (
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${typeBadge.color}`}>
+                    {typeBadge.label}
+                  </span>
+                );
+              },
+            },
+            {
+              key: 'period',
+              label: 'เดือน/ปี',
+              render: (s) => (
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <span className="text-sm text-gray-700 dark:text-slate-300">
+                    {MONTHS[s.period_month - 1]} {s.period_year + 543}
+                  </span>
+                </div>
+              ),
+            },
+            {
+              key: 'amount',
+              label: 'ยอดรวม',
+              headerClassName: 'text-right',
+              cellClassName: 'text-right',
+              render: (s) => {
+                const amount = s.supplier_type === 'consignment' ? s.total_sold_amount : s.total_received_amount;
+                return (
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    ฿{formatCurrency(amount)}
+                  </span>
+                );
+              },
+            },
+            {
+              key: 'status',
+              label: 'สถานะ',
+              render: (s) => {
+                const badge = statusBadge(s.status);
+                return (
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
+                    {badge.icon}
+                    {badge.label}
+                  </span>
+                );
+              },
+            },
+            {
+              key: 'actions',
+              label: '',
+              headerClassName: 'w-16',
+              stopPropagation: true,
+              render: (s) =>
+                s.status === 'draft' ? (
+                  <button
+                    onClick={e => handleDelete(s.id, e)}
+                    className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                ) : null,
+            },
+          ];
 
-            {/* Mobile */}
-            <div className="sm:hidden space-y-3">
-              {paged.map(s => {
+          return (
+            <DataTable<Snapshot>
+              storageKey="supplier-reports"
+              columns={supplierColumns}
+              data={paged}
+              loading={false}
+              getRowId={(s) => s.id}
+              onRowClick={(s) => router.push(`/reports/supplier/${s.id}`)}
+              emptyMessage={selectedSupplier || selectedMonth ? 'ไม่พบรายงานที่ตรงกัน' : 'ยังไม่มีรายงาน'}
+              emptyIcon={<FileText className="w-12 h-12 text-gray-300 dark:text-slate-600 opacity-50" />}
+              currentPage={page}
+              totalPages={totalPages}
+              totalRecords={filtered.length}
+              recordsPerPage={recordsPerPage}
+              onPageChange={setPage}
+              onRecordsPerPageChange={v => { setRecordsPerPage(v); setPage(1); }}
+              mobileCardRender={(s) => {
                 const badge = statusBadge(s.status);
                 const typeBadge = supplierTypeBadge(s.supplier_type);
                 const amount = s.supplier_type === 'consignment' ? s.total_sold_amount : s.total_received_amount;
                 return (
-                  <div
-                    key={s.id}
-                    onClick={() => router.push(`/reports/supplier/${s.id}`)}
-                    className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 cursor-pointer active:bg-gray-50 dark:active:bg-slate-700/50"
-                  >
+                  <>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-gray-900 dark:text-white">{s.supplier?.name || '-'}</span>
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
@@ -403,25 +416,12 @@ export default function SupplierReportsPage() {
                       </div>
                       <div className="text-xs">{MONTHS[s.period_month - 1]} {s.period_year + 543}</div>
                     </div>
-                  </div>
+                  </>
                 );
-              })}
-            </div>
-
-            {totalPages > 1 && (
-              <Pagination
-                currentPage={page}
-                totalPages={totalPages}
-                totalRecords={filtered.length}
-                startIdx={(page - 1) * recordsPerPage}
-                endIdx={Math.min(page * recordsPerPage, filtered.length)}
-                recordsPerPage={recordsPerPage}
-                setRecordsPerPage={v => { setRecordsPerPage(v); setPage(1); }}
-                setPage={setPage}
-              />
-            )}
-          </>
-        )}
+              }}
+            />
+          );
+        })()}
       </div>
       {confirmDialog}
     </Layout>

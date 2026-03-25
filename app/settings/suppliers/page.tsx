@@ -24,29 +24,12 @@ import {
   KeyRound,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
-import Pagination from '@/app/components/Pagination';
-import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getBankByCode } from '@/lib/constants/banks';
 
-// Column toggle system
-type ColumnKey = 'name' | 'type' | 'contact' | 'phone' | 'email' | 'bank';
-
-const COLUMN_CONFIGS: { key: ColumnKey; label: string; defaultVisible: boolean; alwaysVisible?: boolean }[] = [
-  { key: 'name', label: 'ซัพพลายเออร์', defaultVisible: true, alwaysVisible: true },
-  { key: 'type', label: 'ประเภท', defaultVisible: true },
-  { key: 'contact', label: 'ผู้ติดต่อ', defaultVisible: true },
-  { key: 'phone', label: 'เบอร์โทร', defaultVisible: true },
-  { key: 'email', label: 'อีเมล', defaultVisible: true },
-  { key: 'bank', label: 'ธนาคาร', defaultVisible: true },
-];
-
-const STORAGE_KEY = 'suppliers-visible-columns';
-
-function getDefaultColumns(): ColumnKey[] {
-  return COLUMN_CONFIGS.filter(c => c.defaultVisible).map(c => c.key);
-}
+// (Column toggle handled by DataTable)
 
 interface Supplier {
   id: string;
@@ -106,27 +89,7 @@ export default function SuppliersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
-  // Column visibility
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        try { return new Set(JSON.parse(stored) as ColumnKey[]); } catch { /* use defaults */ }
-      }
-    }
-    return new Set(getDefaultColumns());
-  });
-
-  const toggleColumn = (key: ColumnKey) => {
-    setVisibleColumns(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
-      return next;
-    });
-  };
-
-  const isCol = (key: ColumnKey) => visibleColumns.has(key);
+  // (Column visibility handled by DataTable)
 
   // Selection helpers
   const toggleSelect = (id: string) => {
@@ -248,18 +211,7 @@ export default function SuppliersPage() {
   const endIndex = startIndex + rowsPerPage;
   const paginatedSuppliers = filteredSuppliers.slice(startIndex, endIndex);
 
-  const allPageSelected = paginatedSuppliers.length > 0 &&
-    paginatedSuppliers.every(s => selectedIds.has(s.id));
-
-  const toggleSelectAll = () => {
-    const pageIds = paginatedSuppliers.map(s => s.id);
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (allPageSelected) pageIds.forEach(id => next.delete(id));
-      else pageIds.forEach(id => next.add(id));
-      return next;
-    });
-  };
+  // (Selection toggle handled by DataTable)
 
   // Admin guard
   if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
@@ -343,187 +295,163 @@ export default function SuppliersPage() {
         )}
 
         {/* Supplier Table */}
-        <div className="data-table-wrap hidden md:block">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="data-thead">
-                <tr>
-                  <th className="w-[44px] px-3 py-3 text-center">
-                    <Checkbox checked={allPageSelected} onChange={toggleSelectAll} />
-                  </th>
-                  {isCol('name') && <th className="data-th min-w-[200px]">ซัพพลายเออร์</th>}
-                  {isCol('type') && <th className="data-th w-[100px]">ประเภท</th>}
-                  {isCol('contact') && <th className="data-th min-w-[130px]">ผู้ติดต่อ</th>}
-                  {isCol('phone') && <th className="data-th w-[120px]">เบอร์โทร</th>}
-                  {isCol('email') && <th className="data-th min-w-[160px]">อีเมล</th>}
-                  {isCol('bank') && <th className="data-th min-w-[150px]">ธนาคาร</th>}
-                  <th className="w-[44px]"></th>
-                </tr>
-              </thead>
-              <tbody className="data-tbody">
-                {paginatedSuppliers.map((supplier) => (
-                  <tr
-                    key={supplier.id}
-                    onClick={() => router.push(`/settings/suppliers/${supplier.id}/edit`)}
-                    className="data-tr cursor-pointer"
-                  >
-                    <td className="w-[44px] px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                      <Checkbox checked={selectedIds.has(supplier.id)} onChange={() => toggleSelect(supplier.id)} />
-                    </td>
+        {(() => {
+          const getSupplierActions = (supplier: Supplier): ActionItem[] => {
+            const items: ActionItem[] = [];
+            if (supplier.access_code) {
+              items.push({
+                key: 'portal',
+                label: 'ลิงก์ซัพออนไลน์',
+                icon: <ExternalLink className="w-4 h-4" />,
+                onClick: () => window.open(`/supplier-portal/${supplier.id}`, '_blank'),
+              });
+              items.push({
+                key: 'copy-link',
+                label: 'คัดลอกลิงก์',
+                icon: <Copy className="w-4 h-4" />,
+                onClick: () => { navigator.clipboard.writeText(`${window.location.origin}/supplier-portal/${supplier.id}`).then(() => showToast('คัดลอกลิงก์แล้ว')); },
+              });
+              items.push({
+                key: 'copy-code',
+                label: `รหัส: ${supplier.access_code}`,
+                icon: <KeyRound className="w-4 h-4" />,
+                onClick: () => copyCode(supplier.access_code!),
+                suffix: <Copy className="w-3.5 h-3.5 text-gray-400" />,
+              });
+              items.push({
+                key: 'regenerate',
+                label: 'สร้างรหัสใหม่',
+                icon: <RefreshCw className="w-4 h-4" />,
+                onClick: () => setRegenerateTarget(supplier),
+              });
+              if (supplier.portal_enabled_at) {
+                items.push({
+                  key: 'portal-date',
+                  label: `เปิด Portal เมื่อ ${new Date(supplier.portal_enabled_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} ${new Date(supplier.portal_enabled_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`,
+                  icon: <Clock className="w-4 h-4" />,
+                  disabled: true,
+                  dividerBefore: true,
+                });
+              }
+            } else {
+              items.push({
+                key: 'enable-portal',
+                label: 'เปิด Portal',
+                icon: <ExternalLink className="w-4 h-4" />,
+                onClick: () => handleRegenerateCode(supplier),
+              });
+            }
+            items.push({
+              key: 'delete',
+              label: 'ลบ',
+              icon: <Trash2 className="w-4 h-4" />,
+              onClick: () => setDeleteTarget({ id: supplier.id, name: supplier.name }),
+              danger: true,
+              dividerBefore: true,
+            });
+            return items;
+          };
 
-                    {isCol('name') && (
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-[16px] text-gray-900 dark:text-white">{supplier.name}</div>
-                      {supplier.address && <div className="data-muted text-gray-400 dark:text-slate-500 line-clamp-1">{supplier.address}</div>}
-                    </td>
-                    )}
+          const supplierColumns: DataTableColumn<Supplier>[] = [
+            {
+              key: 'name',
+              label: 'ซัพพลายเออร์',
+              alwaysVisible: true,
+              headerClassName: 'min-w-[200px]',
+              render: (supplier) => (
+                <>
+                  <div className="font-semibold text-[16px] text-gray-900 dark:text-white">{supplier.name}</div>
+                  {supplier.address && <div className="data-muted text-gray-400 dark:text-slate-500 line-clamp-1">{supplier.address}</div>}
+                </>
+              ),
+            },
+            {
+              key: 'type',
+              label: 'ประเภท',
+              headerClassName: 'w-[100px]',
+              render: (supplier) => <SupplierTypeBadge type={supplier.supplier_type} />,
+            },
+            {
+              key: 'contact',
+              label: 'ผู้ติดต่อ',
+              headerClassName: 'min-w-[130px]',
+              render: (supplier) => (
+                <span className="data-text text-gray-700 dark:text-slate-300">{supplier.contact_name || '-'}</span>
+              ),
+            },
+            {
+              key: 'phone',
+              label: 'เบอร์โทร',
+              headerClassName: 'w-[120px]',
+              stopPropagation: true,
+              render: (supplier) =>
+                supplier.phone ? (
+                  <a href={`tel:${supplier.phone}`} className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                    <Phone className="w-3.5 h-3.5" />{supplier.phone}
+                  </a>
+                ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>,
+            },
+            {
+              key: 'email',
+              label: 'อีเมล',
+              headerClassName: 'min-w-[160px]',
+              render: (supplier) => (
+                <span className="data-text text-gray-700 dark:text-slate-300">{supplier.email || '-'}</span>
+              ),
+            },
+            {
+              key: 'bank',
+              label: 'ธนาคาร',
+              headerClassName: 'min-w-[150px]',
+              render: (supplier) =>
+                supplier.bank_name ? (() => {
+                  const bank = supplier.bank_code ? getBankByCode(supplier.bank_code) : null;
+                  return (
+                    <div className="flex items-center gap-2">
+                      {bank && (bank.logo ? (
+                        <img src={bank.logo} alt="" className="w-5 h-5 rounded-full flex-shrink-0 object-contain" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[8px] font-bold" style={{ backgroundColor: bank.color }}>
+                          {bank.code.slice(0, 2)}
+                        </div>
+                      ))}
+                      <span className="data-text text-gray-700 dark:text-slate-300">{supplier.bank_name} {supplier.bank_account ? `(${supplier.bank_account})` : ''}</span>
+                    </div>
+                  );
+                })() : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>,
+            },
+            {
+              key: 'actions',
+              label: '',
+              headerClassName: 'w-[44px]',
+              stopPropagation: true,
+              hideMobile: true,
+              render: (supplier) => (
+                <ActionMenu items={getSupplierActions(supplier)} />
+              ),
+            },
+          ];
 
-                    {isCol('type') && (
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <SupplierTypeBadge type={supplier.supplier_type} />
-                    </td>
-                    )}
-
-                    {isCol('contact') && (
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <span className="data-text text-gray-700 dark:text-slate-300">{supplier.contact_name || '-'}</span>
-                    </td>
-                    )}
-
-                    {isCol('phone') && (
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      {supplier.phone ? (
-                        <a href={`tel:${supplier.phone}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                          <Phone className="w-3.5 h-3.5" />{supplier.phone}
-                        </a>
-                      ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
-                    </td>
-                    )}
-
-                    {isCol('email') && (
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <span className="data-text text-gray-700 dark:text-slate-300">{supplier.email || '-'}</span>
-                    </td>
-                    )}
-
-                    {isCol('bank') && (
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      {supplier.bank_name ? (() => {
-                        const bank = supplier.bank_code ? getBankByCode(supplier.bank_code) : null;
-                        return (
-                          <div className="flex items-center gap-2">
-                            {bank && (bank.logo ? (
-                              <img src={bank.logo} alt="" className="w-5 h-5 rounded-full flex-shrink-0 object-contain" />
-                            ) : (
-                              <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[8px] font-bold" style={{ backgroundColor: bank.color }}>
-                                {bank.code.slice(0, 2)}
-                              </div>
-                            ))}
-                            <span className="data-text text-gray-700 dark:text-slate-300">{supplier.bank_name} {supplier.bank_account ? `(${supplier.bank_account})` : ''}</span>
-                          </div>
-                        );
-                      })() : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
-                    </td>
-                    )}
-
-                    <td className="w-[44px] px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                      <ActionMenu items={(() => {
-                        const items: ActionItem[] = [];
-                        if (supplier.access_code) {
-                          items.push({
-                            key: 'portal',
-                            label: 'ลิงก์ซัพออนไลน์',
-                            icon: <ExternalLink className="w-4 h-4" />,
-                            onClick: () => window.open(`/supplier-portal/${supplier.id}`, '_blank'),
-                          });
-                          items.push({
-                            key: 'copy-link',
-                            label: 'คัดลอกลิงก์',
-                            icon: <Copy className="w-4 h-4" />,
-                            onClick: () => { navigator.clipboard.writeText(`${window.location.origin}/supplier-portal/${supplier.id}`).then(() => showToast('คัดลอกลิงก์แล้ว')); },
-                          });
-                          items.push({
-                            key: 'copy-code',
-                            label: `รหัส: ${supplier.access_code}`,
-                            icon: <KeyRound className="w-4 h-4" />,
-                            onClick: () => copyCode(supplier.access_code!),
-                            suffix: <Copy className="w-3.5 h-3.5 text-gray-400" />,
-                          });
-                          items.push({
-                            key: 'regenerate',
-                            label: 'สร้างรหัสใหม่',
-                            icon: <RefreshCw className="w-4 h-4" />,
-                            onClick: () => setRegenerateTarget(supplier),
-                          });
-                          if (supplier.portal_enabled_at) {
-                            items.push({
-                              key: 'portal-date',
-                              label: `เปิด Portal เมื่อ ${new Date(supplier.portal_enabled_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} ${new Date(supplier.portal_enabled_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`,
-                              icon: <Clock className="w-4 h-4" />,
-                              disabled: true,
-                              dividerBefore: true,
-                            });
-                          }
-                        } else {
-                          items.push({
-                            key: 'enable-portal',
-                            label: 'เปิด Portal',
-                            icon: <ExternalLink className="w-4 h-4" />,
-                            onClick: () => handleRegenerateCode(supplier),
-                          });
-                        }
-                        items.push({
-                          key: 'delete',
-                          label: 'ลบ',
-                          icon: <Trash2 className="w-4 h-4" />,
-                          onClick: () => setDeleteTarget({ id: supplier.id, name: supplier.name }),
-                          danger: true,
-                          dividerBefore: true,
-                        });
-                        return items;
-                      })()} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalRecords={filteredSuppliers.length}
-          startIdx={startIndex}
-          endIdx={Math.min(endIndex, filteredSuppliers.length)}
-          recordsPerPage={rowsPerPage}
-          setRecordsPerPage={setRowsPerPage}
-          setPage={setCurrentPage}
-        >
-          <ColumnSettingsDropdown
-            configs={COLUMN_CONFIGS}
-            visible={visibleColumns}
-            toggle={toggleColumn}
-            buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
-            dropUp
-          />
-        </Pagination>
-
-        {/* Mobile Cards */}
-        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-          {paginatedSuppliers.length === 0 ? (
-            <div className="text-center py-16">
-              <Factory className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-slate-400 text-sm">ไม่พบซัพพลายเออร์</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-slate-700">
-              {paginatedSuppliers.map(supplier => (
-                <div
-                  key={supplier.id}
-                  className="p-4 cursor-pointer active:bg-gray-50 dark:active:bg-slate-700/50"
-                  onClick={() => router.push(`/settings/suppliers/${supplier.id}/edit`)}
-                >
+          return (
+            <DataTable<Supplier>
+              storageKey="suppliers-list"
+              columns={supplierColumns}
+              data={paginatedSuppliers}
+              loading={false}
+              getRowId={(s) => s.id}
+              onRowClick={(s) => router.push(`/settings/suppliers/${s.id}/edit`)}
+              emptyMessage="ไม่พบซัพพลายเออร์"
+              emptyIcon={<Factory className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalRecords={filteredSuppliers.length}
+              recordsPerPage={rowsPerPage}
+              onPageChange={setCurrentPage}
+              onRecordsPerPageChange={setRowsPerPage}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+              mobileCardRender={(supplier) => (
+                <>
                   {/* Row 1: Name + Type + Menu */}
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <div className="flex-1 min-w-0">
@@ -533,61 +461,7 @@ export default function SuppliersPage() {
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       <SupplierTypeBadge type={supplier.supplier_type} />
                       <div onClick={e => e.stopPropagation()}>
-                        <ActionMenu items={(() => {
-                          const items: ActionItem[] = [];
-                          if (supplier.access_code) {
-                            items.push({
-                              key: 'portal',
-                              label: 'ลิงก์ซัพออนไลน์',
-                              icon: <ExternalLink className="w-4 h-4" />,
-                              onClick: () => window.open(`/supplier-portal/${supplier.id}`, '_blank'),
-                            });
-                            items.push({
-                              key: 'copy-link',
-                              label: 'คัดลอกลิงก์',
-                              icon: <Copy className="w-4 h-4" />,
-                              onClick: () => { navigator.clipboard.writeText(`${window.location.origin}/supplier-portal/${supplier.id}`).then(() => showToast('คัดลอกลิงก์แล้ว')); },
-                            });
-                            items.push({
-                              key: 'copy-code',
-                              label: `รหัส: ${supplier.access_code}`,
-                              icon: <KeyRound className="w-4 h-4" />,
-                              onClick: () => copyCode(supplier.access_code!),
-                              suffix: <Copy className="w-3.5 h-3.5 text-gray-400" />,
-                            });
-                            items.push({
-                              key: 'regenerate',
-                              label: 'สร้างรหัสใหม่',
-                              icon: <RefreshCw className="w-4 h-4" />,
-                              onClick: () => setRegenerateTarget(supplier),
-                            });
-                            if (supplier.portal_enabled_at) {
-                              items.push({
-                                key: 'portal-date',
-                                label: `เปิด Portal เมื่อ ${new Date(supplier.portal_enabled_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} ${new Date(supplier.portal_enabled_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`,
-                                icon: <Clock className="w-4 h-4" />,
-                                disabled: true,
-                                dividerBefore: true,
-                              });
-                            }
-                          } else {
-                            items.push({
-                              key: 'enable-portal',
-                              label: 'เปิด Portal',
-                              icon: <ExternalLink className="w-4 h-4" />,
-                              onClick: () => handleRegenerateCode(supplier),
-                            });
-                          }
-                          items.push({
-                            key: 'delete',
-                            label: 'ลบ',
-                            icon: <Trash2 className="w-4 h-4" />,
-                            onClick: () => setDeleteTarget({ id: supplier.id, name: supplier.name }),
-                            danger: true,
-                            dividerBefore: true,
-                          });
-                          return items;
-                        })()} />
+                        <ActionMenu items={getSupplierActions(supplier)} />
                       </div>
                     </div>
                   </div>
@@ -621,21 +495,11 @@ export default function SuppliersPage() {
                       );
                     })()}
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalRecords={filteredSuppliers.length}
-            startIdx={startIndex}
-            endIdx={Math.min(endIndex, filteredSuppliers.length)}
-            recordsPerPage={rowsPerPage}
-            setRecordsPerPage={setRowsPerPage}
-            setPage={setCurrentPage}
-          />
-        </div>
+                </>
+              )}
+            />
+          );
+        })()}
 
         {/* Confirm Dialogs */}
         <ConfirmDialog
