@@ -277,7 +277,7 @@ export default function SuppliersPage() {
 
         {/* Bulk Action Bar */}
         {selectedIds.size > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-lg px-6 py-3">
+          <div className="fixed bottom-0 left-0 right-0 z-[999] bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-lg px-6 py-3">
             <div className="max-w-screen-xl mx-auto flex items-center justify-between">
               <button onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors">
                 clear all
