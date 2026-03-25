@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { markPrinted as markPrintedDB, updateLocalPrintState } from '@/lib/print-tracking';
-import Pagination from '@/app/components/Pagination';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Tooltip from '@/components/ui/Tooltip';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Link from 'next/link';
@@ -140,9 +140,6 @@ function DeptStoreReportsContent() {
 
   const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
   const getTabCount = (key: string) => key === 'all' ? totalCount : (statusCounts[key] || 0);
-
-  const startIdx = (currentPage - 1) * recordsPerPage;
-  const endIdx = Math.min(startIdx + reports.length, totalRecords);
 
   // Print state
   const [printingId, setPrintingId] = useState<string | null>(null);
@@ -464,6 +461,130 @@ function DeptStoreReportsContent() {
     return items;
   };
 
+  const columns: DataTableColumn<DeptStoreReport>[] = [
+    {
+      key: 'report_number',
+      label: 'เลขที่',
+      alwaysVisible: true,
+      render: (report) => (
+        <>
+          <p className="id-text-clickable text-gray-900 dark:text-white">{report.report_number}</p>
+          <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(report.created_at)}</p>
+        </>
+      ),
+    },
+    {
+      key: 'customer',
+      label: 'ห้าง',
+      alwaysVisible: true,
+      render: (report) => (
+        <>
+          <p className="data-text text-gray-900 dark:text-white font-medium">{report.customer?.name || '-'}</p>
+          {report.customer?.customer_code && (
+            <p className="data-timestamp text-gray-400 dark:text-slate-500">{report.customer.customer_code}</p>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'period',
+      label: 'งวด',
+      render: (report) => (
+        <span className="data-text text-gray-700 dark:text-slate-300">{formatPeriod(report.period_year, report.period_month)}</span>
+      ),
+    },
+    {
+      key: 'qty',
+      label: 'จำนวน',
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+      render: (report) => (
+        <span className="data-text text-gray-700 dark:text-slate-300">{report.total_qty_sold} ชิ้น</span>
+      ),
+    },
+    {
+      key: 'amount',
+      label: 'ยอดสุทธิ (บาท)',
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+      render: (report) => (
+        <span className="data-number text-gray-900 dark:text-white">฿{formatAmount(report.our_amount)}</span>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'สถานะ',
+      render: (report) => {
+        const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.invoiced;
+        return (
+          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
+            {report.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
+            {cfg.label}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'print',
+      label: 'พิมพ์',
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      stopPropagation: true,
+      render: (report) => {
+        const isPrinting = printingId === report.id;
+        const hasDocs = ['invoiced', 'billed', 'paid'].includes(report.status);
+        if (!hasDocs) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
+        return (
+          <Tooltip text={`${report.status === 'paid' ? 'ใบกำกับภาษี/ใบเสร็จ' : 'ใบแจ้งหนี้'}: ${isPrintedDoc(report, 'invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${report.statement_id ? (isPrintedDoc(report, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
+            <div className="relative flex items-center justify-center gap-1">
+              {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
+              <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+              <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(report, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+            </div>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      key: 'due_date',
+      label: 'ครบกำหนด',
+      render: (report) => {
+        const isOverdue = report.due_date && new Date(report.due_date) < new Date() && report.status !== 'paid';
+        if (!report.due_date) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
+        return (
+          <span className={`data-text flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
+            {isOverdue && <AlertCircle className="w-3.5 h-3.5" />}
+            {formatDate(report.due_date)}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'actions',
+      label: 'จัดการ',
+      headerClassName: 'text-right',
+      alwaysVisible: true,
+      stopPropagation: true,
+      render: (report) => (
+        <div className="flex items-center justify-end gap-1">
+          {['billed', 'overdue'].includes(report.status) && report.statement_id && (
+            <button
+              onClick={() => setPaymentConfirm(report)}
+              className="btn-focus-action indigo"
+            >
+              <Banknote className="w-4 h-4" />
+              <span className="hidden lg:inline">ลูกค้าชำระแล้ว</span>
+            </button>
+          )}
+          {report.status === 'paid' && (
+            <CheckCircle2 className="w-5 h-5 text-green-500" />
+          )}
+          <ActionMenu items={buildMenuItems(report)} />
+        </div>
+      ),
+    },
+  ];
+
   return (
     <Layout>
       <div className="space-y-4">
@@ -520,184 +641,69 @@ function DeptStoreReportsContent() {
           </div>
         </div>
 
-        {/* Desktop Table */}
-        <div className="data-table-wrap hidden md:block">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="data-thead">
-                <tr>
-                  <th className="data-th">เลขที่</th>
-                  <th className="data-th">ห้าง</th>
-                  <th className="data-th">งวด</th>
-                  <th className="data-th text-right">จำนวน</th>
-                  <th className="data-th text-right">ยอดสุทธิ (บาท)</th>
-                  <th className="data-th">สถานะ</th>
-                  <th className="data-th text-center">พิมพ์</th>
-                  <th className="data-th">ครบกำหนด</th>
-                  <th className="data-th text-right">จัดการ</th>
-                </tr>
-              </thead>
-              <tbody className="data-tbody">
-                {isLoading ? (
-                  <tr><td colSpan={10} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin mx-auto" /></td></tr>
-                ) : reports.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="px-6 py-12 text-center">
-                      <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-gray-500 dark:text-slate-400 data-text">ไม่พบรายงาน</p>
-                    </td>
-                  </tr>
-                ) : reports.map(report => {
-                  const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.invoiced;
-                  const isOverdue = report.due_date && new Date(report.due_date) < new Date() && report.status !== 'paid';
-                  return (
-                    <tr key={report.id} className="data-tr cursor-pointer" onClick={() => router.push(`/department-store/reports/${report.id}`)}>
-                      <td className="data-td">
-                        <p className="id-text-clickable text-gray-900 dark:text-white">{report.report_number}</p>
-                        <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(report.created_at)}</p>
-                      </td>
-                      <td className="data-td">
-                        <p className="data-text text-gray-900 dark:text-white font-medium">{report.customer?.name || '-'}</p>
-                        {report.customer?.customer_code && (
-                          <p className="data-timestamp text-gray-400 dark:text-slate-500">{report.customer.customer_code}</p>
-                        )}
-                      </td>
-                      <td className="data-td">
-                        <span className="data-text text-gray-700 dark:text-slate-300">{formatPeriod(report.period_year, report.period_month)}</span>
-                      </td>
-                      <td className="data-td text-right">
-                        <span className="data-text text-gray-700 dark:text-slate-300">{report.total_qty_sold} ชิ้น</span>
-                      </td>
-                      <td className="data-td text-right">
-                        <span className="data-number text-gray-900 dark:text-white">฿{formatAmount(report.our_amount)}</span>
-                      </td>
-                      <td className="data-td">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
-                          {report.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
-                          {cfg.label}
-                        </span>
-                      </td>
-                      <td className="data-td text-center" onClick={e => e.stopPropagation()}>
-                        {(() => {
-                          const isPrinting = printingId === report.id;
-                          const hasDocs = ['invoiced', 'billed', 'paid'].includes(report.status);
-                          if (!hasDocs) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
-                          return (
-                            <Tooltip text={`${report.status === 'paid' ? 'ใบกำกับภาษี/ใบเสร็จ' : 'ใบแจ้งหนี้'}: ${isPrintedDoc(report, 'invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${report.statement_id ? (isPrintedDoc(report, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
-                              <div className="relative flex items-center justify-center gap-1">
-                                {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
-                                <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                                <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(report, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                              </div>
-                            </Tooltip>
-                          );
-                        })()}
-                      </td>
-                      <td className="data-td">
-                        {report.due_date ? (
-                          <span className={`data-text flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
-                            {isOverdue && <AlertCircle className="w-3.5 h-3.5" />}
-                            {formatDate(report.due_date)}
-                          </span>
-                        ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
-                      </td>
-                      <td className="data-td" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
-                          {['billed', 'overdue'].includes(report.status) && report.statement_id && (
-                            <button
-                              onClick={() => setPaymentConfirm(report)}
-                              className="btn-focus-action indigo"
-                            >
-                              <Banknote className="w-4 h-4" />
-                              <span className="hidden lg:inline">ลูกค้าชำระแล้ว</span>
-                            </button>
-                          )}
-                          {report.status === 'paid' && (
-                            <CheckCircle2 className="w-5 h-5 text-green-500" />
-                          )}
-                          <ActionMenu items={buildMenuItems(report)} />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <Pagination
-            currentPage={currentPage} totalPages={totalPages} totalRecords={totalRecords}
-            startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
-            setRecordsPerPage={v => setParams({ limit: String(v) })}
-            setPage={v => setParams({ page: String(v) })}
-          />
-        </div>
-
-        {/* Mobile Cards */}
-        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-          {isLoading ? (
-            <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" /></div>
-          ) : reports.length === 0 ? (
-            <div className="text-center py-16">
-              <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-slate-400 data-text">ไม่พบรายงาน</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-slate-700">
-              {reports.map(report => {
-                const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.invoiced;
-                return (
-                  <div key={report.id} className="p-4 cursor-pointer" onClick={() => router.push(`/department-store/reports/${report.id}`)}>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="id-text-clickable text-gray-900 dark:text-white">{report.report_number}</p>
-                        <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(report.created_at)}</p>
-                      </div>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
-                        {cfg.label}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{report.customer?.name || '-'}</span>
-                      <span className="data-number text-gray-900 dark:text-white">฿{formatAmount(report.our_amount)}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-slate-500">
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatPeriod(report.period_year, report.period_month)}</span>
-                      <span>{report.total_qty_sold} ชิ้น</span>
-                    </div>
-                    <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                      {['billed', 'overdue'].includes(report.status) && report.statement_id && (
-                        <button
-                          onClick={() => setPaymentConfirm(report)}
-                          className="btn-focus-action indigo flex-1 justify-center"
-                        >
-                          <Banknote className="w-4 h-4" /> ลูกค้าชำระแล้ว
-                        </button>
-                      )}
-                      {report.status === 'paid' && (
-                        <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600">
-                          <CheckCircle2 className="w-4 h-4" /> ชำระแล้ว
-                        </span>
-                      )}
-                      {['invoiced', 'billed', 'paid'].includes(report.status) && (
-                        <div className="flex items-center gap-1">
-                          <span className={`w-2 h-2 rounded-full ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                          <span className={`w-2 h-2 rounded-full ${isPrintedDoc(report, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                        </div>
-                      )}
-                      <ActionMenu items={buildMenuItems(report)} />
-                    </div>
+        {/* Table + Mobile Cards */}
+        <DataTable<DeptStoreReport>
+          storageKey="dept-store-reports"
+          columns={columns}
+          data={reports}
+          loading={isLoading}
+          getRowId={(r) => r.id}
+          onRowClick={(r) => router.push(`/department-store/reports/${r.id}`)}
+          rowClassName={(r) => r.status === 'cancelled' ? 'opacity-50' : ''}
+          emptyMessage="ไม่พบรายงาน"
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          recordsPerPage={recordsPerPage}
+          onPageChange={(v) => setParams({ page: String(v) })}
+          onRecordsPerPageChange={(v) => setParams({ limit: String(v) })}
+          mobileCardRender={(report) => {
+            const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.invoiced;
+            return (
+              <div>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="id-text-clickable text-gray-900 dark:text-white">{report.report_number}</p>
+                    <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(report.created_at)}</p>
                   </div>
-                );
-              })}
-            </div>
-          )}
-          <Pagination
-            currentPage={currentPage} totalPages={totalPages} totalRecords={totalRecords}
-            startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
-            setRecordsPerPage={v => setParams({ limit: String(v) })}
-            setPage={v => setParams({ page: String(v) })}
-          />
-        </div>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
+                    {cfg.label}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{report.customer?.name || '-'}</span>
+                  <span className="data-number text-gray-900 dark:text-white">฿{formatAmount(report.our_amount)}</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-slate-500">
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatPeriod(report.period_year, report.period_month)}</span>
+                  <span>{report.total_qty_sold} ชิ้น</span>
+                </div>
+                <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                  {['billed', 'overdue'].includes(report.status) && report.statement_id && (
+                    <button
+                      onClick={() => setPaymentConfirm(report)}
+                      className="btn-focus-action indigo flex-1 justify-center"
+                    >
+                      <Banknote className="w-4 h-4" /> ลูกค้าชำระแล้ว
+                    </button>
+                  )}
+                  {report.status === 'paid' && (
+                    <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600">
+                      <CheckCircle2 className="w-4 h-4" /> ชำระแล้ว
+                    </span>
+                  )}
+                  {['invoiced', 'billed', 'paid'].includes(report.status) && (
+                    <div className="flex items-center gap-1">
+                      <span className={`w-2 h-2 rounded-full ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                      <span className={`w-2 h-2 rounded-full ${isPrintedDoc(report, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                    </div>
+                  )}
+                  <ActionMenu items={buildMenuItems(report)} />
+                </div>
+              </div>
+            );
+          }}
+        />
       </div>
 
       {/* Payment Confirm Dialog */}
