@@ -20,8 +20,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Link from 'next/link';
 import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
 import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
-import { useColumnToggle, type ColumnConfig } from '@/lib/useColumnToggle';
-import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 
 interface ConsignmentReport {
   id: string;
@@ -78,23 +77,10 @@ const formatDate = (d: string | null | undefined) => {
   return new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
 };
 
-type ColKey = 'report' | 'customer' | 'period' | 'amount' | 'status' | 'print' | 'docs' | 'dueDate';
-const COLUMN_CONFIGS: ColumnConfig<ColKey>[] = [
-  { key: 'report', label: 'เลขที่', alwaysVisible: true },
-  { key: 'customer', label: 'ตัวแทน', defaultVisible: true },
-  { key: 'period', label: 'งวด', defaultVisible: true },
-  { key: 'amount', label: 'ยอดสุทธิ', defaultVisible: true },
-  { key: 'status', label: 'สถานะ', defaultVisible: true },
-  { key: 'print', label: 'พิมพ์', defaultVisible: true },
-  { key: 'docs', label: 'เอกสาร', defaultVisible: true },
-  { key: 'dueDate', label: 'ครบกำหนด', defaultVisible: true },
-];
-
 function ConsignmentReportsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
-  const { isCol, visibleColumns, toggleColumn, configs: colConfigs } = useColumnToggle('csr-columns', COLUMN_CONFIGS);
 
   // Derive filter state from URL params
   const activeStatus = searchParams.get('status') || 'all';
@@ -645,266 +631,169 @@ function ConsignmentReportsContent() {
           </div>
         </div>
 
-        {/* Desktop Table */}
-        <div className="data-table-wrap hidden md:block">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="data-thead">
-                <tr>
-                  {isCol('report') && <th className="data-th min-w-[140px]">เลขที่</th>}
-                  {isCol('customer') && <th className="data-th">ตัวแทน</th>}
-                  {isCol('period') && <th className="data-th whitespace-nowrap">งวด</th>}
-                  {isCol('amount') && <th className="data-th text-right whitespace-nowrap">ยอดสุทธิ</th>}
-                  {isCol('status') && <th className="data-th">สถานะ</th>}
-                  {isCol('print') && <th className="data-th text-center">พิมพ์</th>}
-                  {isCol('docs') && <th className="data-th whitespace-nowrap">เอกสาร</th>}
-                  {isCol('dueDate') && <th className="data-th whitespace-nowrap">ครบกำหนด</th>}
-                  <th className="data-th text-right">จัดการ</th>
-                </tr>
-              </thead>
-              <tbody className="data-tbody">
-                {isLoading ? (
-                  <tr><td colSpan={8} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin mx-auto" /></td></tr>
-                ) : reports.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
-                      <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-gray-500 dark:text-slate-400 data-text">ไม่พบรายงาน</p>
-                    </td>
-                  </tr>
-                ) : reports.map(report => {
-                  const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.draft;
-                  const isOverdue = report.due_date && new Date(report.due_date) < new Date() && report.status !== 'paid';
-                  return (
-                    <tr key={report.id} className={`data-tr cursor-pointer ${report.status === 'cancelled' ? 'opacity-50' : ''}`} onClick={() => router.push(`/consignment/reports/${report.id}`)}>
-                      {/* เลขที่ */}
-                      {isCol('report') && (
-                      <td className="data-td whitespace-nowrap">
-                        <p className={`font-mono text-sm font-bold ${report.status === 'cancelled' ? 'text-red-500 line-through' : 'text-gray-900 dark:text-white'}`}>
-                          {report.report_number}
-                          {report.status === 'cancelled' && <span className="ml-1.5 no-underline inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">VOID</span>}
-                        </p>
-                        <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{new Date(report.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
-                      </td>
-                      )}
-                      {/* ตัวแทน */}
-                      {isCol('customer') && (
-                      <td className="data-td">
-                        <p className="data-text text-gray-900 dark:text-white font-medium">{report.customer?.name || '-'}</p>
-                        {report.customer?.phone && (
-                          <p className="data-timestamp text-gray-400 dark:text-slate-500">{report.customer.phone}</p>
-                        )}
-                      </td>
-                      )}
-                      {/* งวด */}
-                      {isCol('period') && (
-                      <td className="data-td whitespace-nowrap">
-                        <span className="data-text text-gray-700 dark:text-slate-300">{formatPeriod(report.period_year, report.period_month)}</span>
-                      </td>
-                      )}
-                      {/* ยอดสุทธิ */}
-                      {isCol('amount') && (
-                      <td className="data-td text-right">
-                        <span className="data-number text-gray-900 dark:text-white">
-                          ฿{formatAmount(report.our_amount)}
-                        </span>
-                      </td>
-                      )}
-                      {/* สถานะ */}
-                      {isCol('status') && (
-                      <td className="data-td">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
-                          {report.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
-                          {cfg.label}
-                        </span>
-                      </td>
-                      )}
-                      {/* พิมพ์ */}
-                      {isCol('print') && (
-                      <td className="data-td text-center" onClick={e => e.stopPropagation()}>
-                        {(() => {
-                          const isPrinting = printingId === report.id;
-                          const hasDocs = ['invoiced', 'billed', 'paid'].includes(report.status);
-                          if (!hasDocs) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
-                          return (
-                            <Tooltip text={`${report.doc_type === 'tax_invoice' ? 'ใบกำกับภาษี/ใบแจ้งหนี้' : 'ใบแจ้งหนี้'}: ${isPrintedDoc(report, 'invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${report.statement_id ? (isPrintedDoc(report, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
-                              <div className="relative flex items-center justify-center gap-1">
-                                {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
-                                <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                                <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(report, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                              </div>
-                            </Tooltip>
-                          );
-                        })()}
-                      </td>
-                      )}
-                      {/* เอกสาร (TAX + ST รวม) */}
-                      {isCol('docs') && (
-                      <td className="data-td whitespace-nowrap">
-                        {report.doc_number || report.statement_number ? (
-                          <div className="space-y-0.5">
-                            {report.doc_number && <p className="font-mono text-xs text-[#F4511E]">{report.doc_number}</p>}
-                            {report.statement_number && <p className="font-mono text-xs text-indigo-600 dark:text-indigo-400">{report.statement_number}</p>}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-300 dark:text-slate-600">-</span>
-                        )}
-                      </td>
-                      )}
-                      {/* ครบกำหนด */}
-                      {isCol('dueDate') && (
-                      <td className="data-td">
-                        {report.due_date ? (
-                          <span className={`data-text flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
-                            {isOverdue && <AlertCircle className="w-3.5 h-3.5" />}
-                            {formatDate(report.due_date)}
-                          </span>
-                        ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
-                      </td>
-                      )}
-                      {/* จัดการ */}
-                      <td className="data-td" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
-                          {report.status === 'received' && (
-                            <button
-                              onClick={async () => {
-                                const res = await apiFetch(`/api/consignment/reports/${report.id}`, {
-                                  method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ action: 'confirm' }),
-                                });
-                                if (res.ok) {
-                                  const data = await res.json();
-                                  const stMsg = data.statement_number ? ` สร้างใบวางบิล ${data.statement_number}` : '';
-                                  showToast(`ยืนยันรายงานแล้ว${stMsg}`, 'success');
-                                  fetchReports(true);
-                                } else showToast('เกิดข้อผิดพลาด', 'error');
-                              }}
-                              className="btn-focus-action green"
-                            >
-                              <BadgeCheck className="w-4 h-4" />
-                              <span className="hidden lg:inline">ยืนยัน</span>
-                            </button>
-                          )}
-                          {['billed', 'overdue'].includes(report.status) && report.statement_id && (
-                            <button
-                              onClick={() => setPaymentConfirm(report)}
-                              className="btn-focus-action indigo"
-                            >
-                              <Banknote className="w-4 h-4" />
-                              <span className="hidden xl:inline">ลูกค้าชำระแล้ว</span>
-                            </button>
-                          )}
-                          {report.status === 'paid' && (
-                            <CheckCircle2 className="w-5 h-5 text-green-500" />
-                          )}
-                          <ActionMenu items={buildMenuItems(report)} />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <Pagination
-            currentPage={currentPage} totalPages={totalPages} totalRecords={totalRecords}
-            startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
-            setRecordsPerPage={v => setParams({ limit: String(v) })}
-            setPage={v => setParams({ page: String(v) })}
-          >
-            <ColumnSettingsDropdown configs={colConfigs} visible={visibleColumns} toggle={toggleColumn} dropUp />
-          </Pagination>
-        </div>
-
-        {/* Mobile Cards */}
-        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-          {isLoading ? (
-            <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" /></div>
-          ) : reports.length === 0 ? (
-            <div className="text-center py-16">
-              <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-slate-400 data-text">ไม่พบรายงาน</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-slate-700">
-              {reports.map(report => {
-                const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.draft;
+        {/* Table + Mobile Cards via DataTable */}
+        <DataTable<ConsignmentReport>
+          storageKey="csr-columns"
+          columns={[
+            {
+              key: 'report', label: 'เลขที่', alwaysVisible: true,
+              headerClassName: 'min-w-[140px]', cellClassName: 'whitespace-nowrap',
+              render: (r) => (
+                <>
+                  <p className={`font-mono text-sm font-bold ${r.status === 'cancelled' ? 'text-red-500 line-through' : 'text-gray-900 dark:text-white'}`}>
+                    {r.report_number}
+                    {r.status === 'cancelled' && <span className="ml-1.5 no-underline inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">VOID</span>}
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{new Date(r.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                </>
+              ),
+            },
+            {
+              key: 'customer', label: 'ตัวแทน',
+              render: (r) => (
+                <>
+                  <p className="data-text text-gray-900 dark:text-white font-medium">{r.customer?.name || '-'}</p>
+                  {r.customer?.phone && <p className="data-timestamp text-gray-400 dark:text-slate-500">{r.customer.phone}</p>}
+                </>
+              ),
+            },
+            {
+              key: 'period', label: 'งวด', headerClassName: 'whitespace-nowrap', cellClassName: 'whitespace-nowrap',
+              render: (r) => <span className="data-text text-gray-700 dark:text-slate-300">{formatPeriod(r.period_year, r.period_month)}</span>,
+            },
+            {
+              key: 'amount', label: 'ยอดสุทธิ', headerClassName: 'text-right whitespace-nowrap', cellClassName: 'text-right',
+              render: (r) => <span className="data-number text-gray-900 dark:text-white">฿{formatAmount(r.our_amount)}</span>,
+            },
+            {
+              key: 'status', label: 'สถานะ',
+              render: (r) => {
+                const c = STATUS_CONFIG[r.status] || STATUS_CONFIG.draft;
                 return (
-                  <div key={report.id} className="p-4 cursor-pointer" onClick={() => router.push(`/consignment/reports/${report.id}`)}>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="id-text-clickable text-gray-900 dark:text-white">
-                          {report.report_number}
-                        </p>
-                        <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(report.created_at)}</p>
-                      </div>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
-                        {cfg.label}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{report.customer?.name || '-'}</span>
-                      <span className="data-number text-gray-900 dark:text-white">฿{formatAmount(report.our_amount)}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-slate-500">
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatPeriod(report.period_year, report.period_month)}</span>
-                      <span>{report.total_qty_sold} ชิ้น</span>
-                    </div>
-                    {/* Action buttons */}
-                    <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                      {report.status === 'received' && (
-                        <button
-                          onClick={async () => {
-                            const res = await apiFetch(`/api/consignment/reports/${report.id}`, {
-                              method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ action: 'confirm' }),
-                            });
-                            if (res.ok) {
-                              const data = await res.json();
-                              const stMsg = data.statement_number ? ` สร้างใบวางบิล ${data.statement_number}` : '';
-                              showToast(`ยืนยันรายงานแล้ว${stMsg}`, 'success');
-                              fetchReports(true);
-                            } else showToast('เกิดข้อผิดพลาด', 'error');
-                          }}
-                          className="btn-focus-action green flex-1 justify-center"
-                        >
-                          <BadgeCheck className="w-4 h-4" /> ยืนยัน
-                        </button>
-                      )}
-                      {['billed', 'overdue'].includes(report.status) && report.statement_id && (
-                        <button
-                          onClick={() => setPaymentConfirm(report)}
-                          className="btn-focus-action indigo flex-1 justify-center"
-                        >
-                          <Banknote className="w-4 h-4" /> ลูกค้าชำระแล้ว
-                        </button>
-                      )}
-                      {report.status === 'paid' && (
-                        <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600">
-                          <CheckCircle2 className="w-4 h-4" /> ชำระแล้ว
-                        </span>
-                      )}
-                      {/* Print indicators (mobile) */}
-                      {['invoiced', 'billed', 'paid'].includes(report.status) && (
-                        <div className="flex items-center gap-1">
-                          <span className={`w-2 h-2 rounded-full ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                          <span className={`w-2 h-2 rounded-full ${isPrintedDoc(report, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                        </div>
-                      )}
-                      <ActionMenu items={buildMenuItems(report)} />
-                    </div>
-                  </div>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${c.bg} ${c.color}`}>
+                    {r.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
+                    {c.label}
+                  </span>
                 );
-              })}
-            </div>
-          )}
-          <Pagination
-            currentPage={currentPage} totalPages={totalPages} totalRecords={totalRecords}
-            startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
-            setRecordsPerPage={v => setParams({ limit: String(v) })}
-            setPage={v => setParams({ page: String(v) })}
-          />
-        </div>
+              },
+            },
+            {
+              key: 'print', label: 'พิมพ์', headerClassName: 'text-center', cellClassName: 'text-center', stopPropagation: true, hideMobile: true,
+              render: (r) => {
+                const isPrinting = printingId === r.id;
+                const hasDocs = ['invoiced', 'billed', 'paid'].includes(r.status);
+                if (!hasDocs) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
+                return (
+                  <Tooltip text={`${r.doc_type === 'tax_invoice' ? 'ใบกำกับภาษี/ใบแจ้งหนี้' : 'ใบแจ้งหนี้'}: ${isPrintedDoc(r, 'invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${r.statement_id ? (isPrintedDoc(r, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
+                    <div className="relative flex items-center justify-center gap-1">
+                      {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
+                      <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                      <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                    </div>
+                  </Tooltip>
+                );
+              },
+            },
+            {
+              key: 'docs', label: 'เอกสาร', headerClassName: 'whitespace-nowrap', cellClassName: 'whitespace-nowrap',
+              render: (r) => r.doc_number || r.statement_number ? (
+                <div className="space-y-0.5">
+                  {r.doc_number && <p className="font-mono text-xs text-[#F4511E]">{r.doc_number}</p>}
+                  {r.statement_number && <p className="font-mono text-xs text-indigo-600 dark:text-indigo-400">{r.statement_number}</p>}
+                </div>
+              ) : <span className="text-xs text-gray-300 dark:text-slate-600">-</span>,
+            },
+            {
+              key: 'dueDate', label: 'ครบกำหนด', headerClassName: 'whitespace-nowrap',
+              render: (r) => {
+                const ov = r.due_date && new Date(r.due_date) < new Date() && r.status !== 'paid';
+                return r.due_date ? (
+                  <span className={`data-text flex items-center gap-1 ${ov ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
+                    {ov && <AlertCircle className="w-3.5 h-3.5" />}
+                    {formatDate(r.due_date)}
+                  </span>
+                ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
+              },
+            },
+            {
+              key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-right', stopPropagation: true, hideMobile: true,
+              render: (r) => (
+                <div className="flex items-center justify-end gap-1">
+                  {r.status === 'received' && (
+                    <button onClick={async () => {
+                      const res = await apiFetch(`/api/consignment/reports/${r.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'confirm' }) });
+                      if (res.ok) { const d = await res.json(); showToast(`ยืนยันรายงานแล้ว${d.statement_number ? ` สร้างใบวางบิล ${d.statement_number}` : ''}`, 'success'); fetchReports(true); }
+                      else showToast('เกิดข้อผิดพลาด', 'error');
+                    }} className="btn-focus-action green">
+                      <BadgeCheck className="w-4 h-4" /><span className="hidden lg:inline">ยืนยัน</span>
+                    </button>
+                  )}
+                  {['billed', 'overdue'].includes(r.status) && r.statement_id && (
+                    <button onClick={() => setPaymentConfirm(r)} className="btn-focus-action indigo">
+                      <Banknote className="w-4 h-4" /><span className="hidden xl:inline">ลูกค้าชำระแล้ว</span>
+                    </button>
+                  )}
+                  {r.status === 'paid' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+                  <ActionMenu items={buildMenuItems(r)} />
+                </div>
+              ),
+            },
+          ]}
+          data={reports}
+          loading={isLoading}
+          getRowId={(r) => r.id}
+          onRowClick={(r) => router.push(`/consignment/reports/${r.id}`)}
+          rowClassName={(r) => r.status === 'cancelled' ? 'opacity-50' : ''}
+          emptyMessage="ไม่พบรายงาน"
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          recordsPerPage={recordsPerPage}
+          onPageChange={(v) => setParams({ page: String(v) })}
+          onRecordsPerPageChange={(v) => setParams({ limit: String(v) })}
+          mobileCardRender={(report) => {
+            const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.draft;
+            return (
+              <>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="id-text-clickable text-gray-900 dark:text-white">{report.report_number}</p>
+                    <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(report.created_at)}</p>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
+                </div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{report.customer?.name || '-'}</span>
+                  <span className="data-number text-gray-900 dark:text-white">฿{formatAmount(report.our_amount)}</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-slate-500">
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatPeriod(report.period_year, report.period_month)}</span>
+                  <span>{report.total_qty_sold} ชิ้น</span>
+                </div>
+                <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                  {report.status === 'received' && (
+                    <button onClick={async () => {
+                      const res = await apiFetch(`/api/consignment/reports/${report.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'confirm' }) });
+                      if (res.ok) { const d = await res.json(); showToast(`ยืนยันรายงานแล้ว${d.statement_number ? ` สร้างใบวางบิล ${d.statement_number}` : ''}`, 'success'); fetchReports(true); }
+                      else showToast('เกิดข้อผิดพลาด', 'error');
+                    }} className="btn-focus-action green flex-1 justify-center"><BadgeCheck className="w-4 h-4" /> ยืนยัน</button>
+                  )}
+                  {['billed', 'overdue'].includes(report.status) && report.statement_id && (
+                    <button onClick={() => setPaymentConfirm(report)} className="btn-focus-action indigo flex-1 justify-center"><Banknote className="w-4 h-4" /> ลูกค้าชำระแล้ว</button>
+                  )}
+                  {report.status === 'paid' && <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600"><CheckCircle2 className="w-4 h-4" /> ชำระแล้ว</span>}
+                  {['invoiced', 'billed', 'paid'].includes(report.status) && (
+                    <div className="flex items-center gap-1">
+                      <span className={`w-2 h-2 rounded-full ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                      <span className={`w-2 h-2 rounded-full ${isPrintedDoc(report, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                    </div>
+                  )}
+                  <ActionMenu items={buildMenuItems(report)} />
+                </div>
+              </>
+            );
+          }}
+        />
       </div>
 
       {/* Payment Confirm Dialog */}
