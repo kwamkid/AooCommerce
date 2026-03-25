@@ -20,6 +20,8 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Link from 'next/link';
 import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
 import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
+import { useColumnToggle, type ColumnConfig } from '@/lib/useColumnToggle';
+import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 
 interface ConsignmentReport {
   id: string;
@@ -76,10 +78,23 @@ const formatDate = (d: string | null | undefined) => {
   return new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
 };
 
+type ColKey = 'report' | 'customer' | 'period' | 'amount' | 'status' | 'print' | 'docs' | 'dueDate';
+const COLUMN_CONFIGS: ColumnConfig<ColKey>[] = [
+  { key: 'report', label: 'เลขที่', alwaysVisible: true },
+  { key: 'customer', label: 'ตัวแทน', defaultVisible: true },
+  { key: 'period', label: 'งวด', defaultVisible: true },
+  { key: 'amount', label: 'ยอดสุทธิ', defaultVisible: true },
+  { key: 'status', label: 'สถานะ', defaultVisible: true },
+  { key: 'print', label: 'พิมพ์', defaultVisible: true },
+  { key: 'docs', label: 'เอกสาร', defaultVisible: true },
+  { key: 'dueDate', label: 'ครบกำหนด', defaultVisible: true },
+];
+
 function ConsignmentReportsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
+  const { isCol, visibleColumns, toggleColumn, configs: colConfigs } = useColumnToggle('csr-columns', COLUMN_CONFIGS);
 
   // Derive filter state from URL params
   const activeStatus = searchParams.get('status') || 'all';
@@ -636,14 +651,14 @@ function ConsignmentReportsContent() {
             <table className="w-full">
               <thead className="data-thead">
                 <tr>
-                  <th className="data-th min-w-[140px]">เลขที่</th>
-                  <th className="data-th">ตัวแทน</th>
-                  <th className="data-th whitespace-nowrap">งวด</th>
-                  <th className="data-th text-right whitespace-nowrap">ยอดสุทธิ</th>
-                  <th className="data-th">สถานะ</th>
-                  <th className="data-th text-center">พิมพ์</th>
-                  <th className="data-th whitespace-nowrap">เอกสาร</th>
-                  <th className="data-th whitespace-nowrap">ครบกำหนด</th>
+                  {isCol('report') && <th className="data-th min-w-[140px]">เลขที่</th>}
+                  {isCol('customer') && <th className="data-th">ตัวแทน</th>}
+                  {isCol('period') && <th className="data-th whitespace-nowrap">งวด</th>}
+                  {isCol('amount') && <th className="data-th text-right whitespace-nowrap">ยอดสุทธิ</th>}
+                  {isCol('status') && <th className="data-th">สถานะ</th>}
+                  {isCol('print') && <th className="data-th text-center">พิมพ์</th>}
+                  {isCol('docs') && <th className="data-th whitespace-nowrap">เอกสาร</th>}
+                  {isCol('dueDate') && <th className="data-th whitespace-nowrap">ครบกำหนด</th>}
                   <th className="data-th text-right">จัดการ</th>
                 </tr>
               </thead>
@@ -663,6 +678,7 @@ function ConsignmentReportsContent() {
                   return (
                     <tr key={report.id} className={`data-tr cursor-pointer ${report.status === 'cancelled' ? 'opacity-50' : ''}`} onClick={() => router.push(`/consignment/reports/${report.id}`)}>
                       {/* เลขที่ */}
+                      {isCol('report') && (
                       <td className="data-td whitespace-nowrap">
                         <p className={`font-mono text-sm font-bold ${report.status === 'cancelled' ? 'text-red-500 line-through' : 'text-gray-900 dark:text-white'}`}>
                           {report.report_number}
@@ -670,31 +686,41 @@ function ConsignmentReportsContent() {
                         </p>
                         <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{new Date(report.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
                       </td>
+                      )}
                       {/* ตัวแทน */}
+                      {isCol('customer') && (
                       <td className="data-td">
                         <p className="data-text text-gray-900 dark:text-white font-medium">{report.customer?.name || '-'}</p>
                         {report.customer?.phone && (
                           <p className="data-timestamp text-gray-400 dark:text-slate-500">{report.customer.phone}</p>
                         )}
                       </td>
+                      )}
                       {/* งวด */}
+                      {isCol('period') && (
                       <td className="data-td whitespace-nowrap">
                         <span className="data-text text-gray-700 dark:text-slate-300">{formatPeriod(report.period_year, report.period_month)}</span>
                       </td>
+                      )}
                       {/* ยอดสุทธิ */}
+                      {isCol('amount') && (
                       <td className="data-td text-right">
                         <span className="data-number text-gray-900 dark:text-white">
                           ฿{formatAmount(report.our_amount)}
                         </span>
                       </td>
+                      )}
                       {/* สถานะ */}
+                      {isCol('status') && (
                       <td className="data-td">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
                           {report.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
                           {cfg.label}
                         </span>
                       </td>
+                      )}
                       {/* พิมพ์ */}
+                      {isCol('print') && (
                       <td className="data-td text-center" onClick={e => e.stopPropagation()}>
                         {(() => {
                           const isPrinting = printingId === report.id;
@@ -711,7 +737,9 @@ function ConsignmentReportsContent() {
                           );
                         })()}
                       </td>
+                      )}
                       {/* เอกสาร (TAX + ST รวม) */}
+                      {isCol('docs') && (
                       <td className="data-td whitespace-nowrap">
                         {report.doc_number || report.statement_number ? (
                           <div className="space-y-0.5">
@@ -722,7 +750,9 @@ function ConsignmentReportsContent() {
                           <span className="text-xs text-gray-300 dark:text-slate-600">-</span>
                         )}
                       </td>
+                      )}
                       {/* ครบกำหนด */}
+                      {isCol('dueDate') && (
                       <td className="data-td">
                         {report.due_date ? (
                           <span className={`data-text flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
@@ -731,6 +761,7 @@ function ConsignmentReportsContent() {
                           </span>
                         ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
                       </td>
+                      )}
                       {/* จัดการ */}
                       <td className="data-td" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
@@ -780,7 +811,9 @@ function ConsignmentReportsContent() {
             startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
             setRecordsPerPage={v => setParams({ limit: String(v) })}
             setPage={v => setParams({ page: String(v) })}
-          />
+          >
+            <ColumnSettingsDropdown configs={colConfigs} visible={visibleColumns} toggle={toggleColumn} dropUp />
+          </Pagination>
         </div>
 
         {/* Mobile Cards */}
