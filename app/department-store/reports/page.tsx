@@ -435,16 +435,7 @@ function DeptStoreReportsContent() {
       });
     }
 
-    // Payment action
-    if (['billed', 'overdue'].includes(report.status) && report.statement_id) {
-      items.push({
-        key: 'payment',
-        label: 'ลูกค้าชำระแล้ว',
-        icon: <Banknote className="w-4 h-4" />,
-        onClick: () => setPaymentConfirm(report),
-        dividerBefore: true,
-      });
-    }
+    // Payment action removed — already shown as focus button (btn-focus-action indigo)
 
     // Reverse payment
     if (report.status === 'paid' && report.statement_id) {
