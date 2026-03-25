@@ -38,6 +38,7 @@ interface ConsignmentReport {
   customer: { id: string; name: string; customer_code: string | null; phone?: string | null; contact_person?: string | null } | null;
   doc_number?: string | null;
   doc_type?: string | null;
+  statement_number?: string | null;
 }
 
 
@@ -635,9 +636,11 @@ function ConsignmentReportsContent() {
             <table className="w-full">
               <thead className="data-thead">
                 <tr>
-                  <th className="data-th min-w-[160px]">เลขที่เอกสาร</th>
+                  <th className="data-th min-w-[140px]">CSR</th>
                   <th className="data-th">ตัวแทน</th>
                   <th className="data-th whitespace-nowrap">งวด</th>
+                  <th className="data-th whitespace-nowrap">TAX</th>
+                  <th className="data-th whitespace-nowrap">ST</th>
                   <th className="data-th text-right whitespace-nowrap">ยอดสุทธิ</th>
                   <th className="data-th">สถานะ</th>
                   <th className="data-th text-center">พิมพ์</th>
@@ -660,22 +663,13 @@ function ConsignmentReportsContent() {
                   const isOverdue = report.due_date && new Date(report.due_date) < new Date() && report.status !== 'paid';
                   return (
                     <tr key={report.id} className={`data-tr cursor-pointer ${report.status === 'cancelled' ? 'opacity-50' : ''}`} onClick={() => router.push(`/consignment/reports/${report.id}`)}>
-                      {/* เลขที่เอกสาร */}
+                      {/* CSR */}
                       <td className="data-td whitespace-nowrap">
-                        {report.doc_number ? (
-                          <>
-                            <p className={`font-mono text-sm font-bold ${report.status === 'cancelled' ? 'text-red-500 line-through' : 'text-[#F4511E]'}`}>
-                              {report.doc_number}
-                              {report.status === 'cancelled' && <span className="ml-1.5 no-underline inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">VOID</span>}
-                            </p>
-                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{report.report_number} · {formatDate(report.created_at)}</p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="font-mono text-sm font-bold text-gray-900 dark:text-white">{report.report_number}</p>
-                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(report.created_at)}</p>
-                          </>
-                        )}
+                        <p className={`font-mono text-sm font-bold ${report.status === 'cancelled' ? 'text-red-500 line-through' : 'text-gray-900 dark:text-white'}`}>
+                          {report.report_number}
+                          {report.status === 'cancelled' && <span className="ml-1.5 no-underline inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">VOID</span>}
+                        </p>
+                        <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(report.created_at)}</p>
                       </td>
                       {/* ตัวแทน */}
                       <td className="data-td">
@@ -687,6 +681,22 @@ function ConsignmentReportsContent() {
                       {/* งวด */}
                       <td className="data-td whitespace-nowrap">
                         <span className="data-text text-gray-700 dark:text-slate-300">{formatPeriod(report.period_year, report.period_month)}</span>
+                      </td>
+                      {/* TAX */}
+                      <td className="data-td whitespace-nowrap">
+                        {report.doc_number ? (
+                          <span className="font-mono text-xs text-[#F4511E]">{report.doc_number}</span>
+                        ) : (
+                          <span className="text-xs text-gray-300 dark:text-slate-600">-</span>
+                        )}
+                      </td>
+                      {/* ST */}
+                      <td className="data-td whitespace-nowrap">
+                        {report.statement_number ? (
+                          <span className="font-mono text-xs text-indigo-600 dark:text-indigo-400">{report.statement_number}</span>
+                        ) : (
+                          <span className="text-xs text-gray-300 dark:text-slate-600">-</span>
+                        )}
                       </td>
                       {/* ยอดสุทธิ */}
                       <td className="data-td text-right">

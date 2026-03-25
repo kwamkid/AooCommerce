@@ -164,10 +164,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Enrich with statement numbers
+    const statementIds = (reports || []).map((r: { statement_id?: string }) => r.statement_id).filter(Boolean) as string[];
+    let stMap: Record<string, string> = {};
+    if (statementIds.length > 0) {
+      const { data: stData } = await supabaseAdmin.from('statements')
+        .select('id, statement_number')
+        .in('id', statementIds);
+      for (const s of stData || []) {
+        stMap[s.id] = s.statement_number;
+      }
+    }
+
     const enrichedReports = (reports || []).map((r: Record<string, unknown>) => ({
       ...r,
       doc_number: docMap[r.id as string]?.doc_number || null,
       doc_type: docMap[r.id as string]?.doc_type || null,
+      statement_number: stMap[r.statement_id as string] || null,
     }));
 
     return NextResponse.json({
