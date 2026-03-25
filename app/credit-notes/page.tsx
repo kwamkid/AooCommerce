@@ -11,8 +11,8 @@ import {
   Loader2,
   ChevronRight,
 } from 'lucide-react';
-import Pagination from '@/app/components/Pagination';
 import SearchInput from '@/components/ui/SearchInput';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 
 interface CreditNote {
   id: string;
@@ -91,8 +91,6 @@ export default function CreditNotesPage() {
   }, [authLoading, userProfile, page, rowsPerPage, typeFilter, debouncedSearch]);
 
   const totalPages = Math.ceil(total / rowsPerPage);
-  const startIndex = (page - 1) * rowsPerPage;
-  const endIndex = Math.min(startIndex + rowsPerPage, total);
 
   if (authLoading || (loading && data.length === 0)) {
     return (
@@ -147,129 +145,96 @@ export default function CreditNotesPage() {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="data-table-wrap">
-          {loading && (
-            <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 z-10 flex items-center justify-center rounded-xl">
-              <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
-            </div>
-          )}
-
-          {/* Desktop table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full">
-              <thead className="data-thead">
-                <tr>
-                  <th className="data-th min-w-[140px]">เลขที่</th>
-                  <th className="data-th w-[140px]">วันที่</th>
-                  <th className="data-th min-w-[120px]">อ้างอิงบิล</th>
-                  <th className="data-th w-[120px]">ประเภท</th>
-                  <th className="data-th text-right w-[130px]">ยอดเงิน</th>
-                  <th className="data-th w-[100px]">สถานะ</th>
-                </tr>
-              </thead>
-              <tbody className="data-tbody">
-                {data.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
-                      <ReceiptText className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-gray-400 dark:text-slate-500">ยังไม่มีใบลดหนี้</p>
-                    </td>
-                  </tr>
-                ) : (
-                  data.map(cn => {
-                    const typeConfig = TYPE_LABELS[cn.type] || TYPE_LABELS.void;
-                    const statusConfig = STATUS_LABELS[cn.status] || STATUS_LABELS.issued;
-                    return (
-                      <tr
-                        key={cn.id}
-                        onClick={() => router.push(`/credit-notes/${cn.id}`)}
-                        className="data-tr cursor-pointer"
-                      >
-                        <td className="data-td">
-                          <span className="id-text text-gray-900 dark:text-white">{cn.cn_number}</span>
-                        </td>
-                        <td className="data-td whitespace-nowrap">
-                          <span className="data-text text-gray-500 dark:text-slate-400">
-                            {new Date(cn.issued_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
-                          </span>
-                        </td>
-                        <td className="data-td">
-                          {cn.source_type === 'replenishment' && cn.replenishment ? (
-                            <span className="id-text text-amber-600 dark:text-amber-400">{cn.replenishment.replenishment_number}</span>
-                          ) : (
-                            <span className="id-text text-blue-600 dark:text-blue-400">{cn.order?.order_number || '-'}</span>
-                          )}
-                        </td>
-                        <td className="data-td whitespace-nowrap">
-                          <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${typeConfig.color}`}>
-                            {typeConfig.label}
-                          </span>
-                        </td>
-                        <td className="data-td text-right whitespace-nowrap">
-                          <span className="data-number text-gray-900 dark:text-white">฿{formatPrice(cn.total_amount)}</span>
-                        </td>
-                        <td className="data-td whitespace-nowrap">
-                          <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${statusConfig.color}`}>
-                            {statusConfig.label}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile cards */}
-          <div className="md:hidden divide-y divide-gray-100 dark:divide-slate-700">
-            {data.length === 0 ? (
-              <div className="text-center py-12">
-                <ReceiptText className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                <p className="text-gray-400 dark:text-slate-500">ยังไม่มีใบลดหนี้</p>
-              </div>
-            ) : (
-              data.map(cn => {
+        {/* DataTable */}
+        <DataTable<CreditNote>
+          storageKey="credit-notes-columns"
+          columns={[
+            {
+              key: 'cn_number', label: 'เลขที่', alwaysVisible: true, headerClassName: 'min-w-[140px]',
+              render: (cn) => (
+                <span className="id-text text-gray-900 dark:text-white">{cn.cn_number}</span>
+              ),
+            },
+            {
+              key: 'issued_at', label: 'วันที่', headerClassName: 'w-[140px]',
+              render: (cn) => (
+                <span className="data-text text-gray-500 dark:text-slate-400">
+                  {new Date(cn.issued_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>
+              ),
+            },
+            {
+              key: 'reference', label: 'อ้างอิงบิล', headerClassName: 'min-w-[120px]',
+              render: (cn) => cn.source_type === 'replenishment' && cn.replenishment ? (
+                <span className="id-text text-amber-600 dark:text-amber-400">{cn.replenishment.replenishment_number}</span>
+              ) : (
+                <span className="id-text text-blue-600 dark:text-blue-400">{cn.order?.order_number || '-'}</span>
+              ),
+            },
+            {
+              key: 'type', label: 'ประเภท', headerClassName: 'w-[120px]',
+              render: (cn) => {
                 const typeConfig = TYPE_LABELS[cn.type] || TYPE_LABELS.void;
                 return (
-                  <button
-                    key={cn.id}
-                    onClick={() => router.push(`/credit-notes/${cn.id}`)}
-                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-left"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{cn.cn_number}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${typeConfig.color}`}>
-                          {typeConfig.label}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-400 dark:text-slate-500">
-                        {cn.source_type === 'replenishment' ? cn.replenishment?.replenishment_number : cn.order?.order_number || '-'} · {new Date(cn.issued_at).toLocaleDateString('th-TH')}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">฿{formatPrice(cn.total_amount)}</span>
-                      <ChevronRight className="w-4 h-4 text-gray-400" />
-                    </div>
-                  </button>
+                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${typeConfig.color}`}>
+                    {typeConfig.label}
+                  </span>
                 );
-              })
-            )}
-          </div>
-
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            totalRecords={total}
-            startIdx={startIndex}
-            endIdx={endIndex}
-            recordsPerPage={rowsPerPage}
-            setRecordsPerPage={setRowsPerPage}
-            setPage={setPage}
-          />
-        </div>
+              },
+            },
+            {
+              key: 'total_amount', label: 'ยอดเงิน', headerClassName: 'text-right w-[130px]', cellClassName: 'text-right',
+              render: (cn) => (
+                <span className="data-number text-gray-900 dark:text-white">฿{formatPrice(cn.total_amount)}</span>
+              ),
+            },
+            {
+              key: 'status', label: 'สถานะ', headerClassName: 'w-[100px]',
+              render: (cn) => {
+                const statusConfig = STATUS_LABELS[cn.status] || STATUS_LABELS.issued;
+                return (
+                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${statusConfig.color}`}>
+                    {statusConfig.label}
+                  </span>
+                );
+              },
+            },
+          ]}
+          data={data}
+          loading={loading}
+          getRowId={(cn) => cn.id}
+          onRowClick={(cn) => router.push(`/credit-notes/${cn.id}`)}
+          emptyMessage="ยังไม่มีใบลดหนี้"
+          emptyIcon={<ReceiptText className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          currentPage={page}
+          totalPages={totalPages}
+          totalRecords={total}
+          recordsPerPage={rowsPerPage}
+          onPageChange={setPage}
+          onRecordsPerPageChange={setRowsPerPage}
+          mobileCardRender={(cn) => {
+            const typeConfig = TYPE_LABELS[cn.type] || TYPE_LABELS.void;
+            return (
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{cn.cn_number}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${typeConfig.color}`}>
+                      {typeConfig.label}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400 dark:text-slate-500">
+                    {cn.source_type === 'replenishment' ? cn.replenishment?.replenishment_number : cn.order?.order_number || '-'} · {new Date(cn.issued_at).toLocaleDateString('th-TH')}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">฿{formatPrice(cn.total_amount)}</span>
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                </div>
+              </div>
+            );
+          }}
+        />
       </div>
     </Layout>
   );

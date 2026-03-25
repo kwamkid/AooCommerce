@@ -5,7 +5,7 @@ import Layout from '@/components/layout/Layout';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { RotateCcw, Search, Plus } from 'lucide-react';
-import Pagination from '@/app/components/Pagination';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 
 interface ReturnNoteRow {
   id: string;
@@ -63,8 +63,6 @@ export default function ReturnNotesPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const totalPages = Math.ceil(total / recordsPerPage);
-  const startIdx = (page - 1) * recordsPerPage;
-  const endIdx = Math.min(startIdx + rows.length, total);
 
   return (
     <Layout>
@@ -75,7 +73,7 @@ export default function ReturnNotesPage() {
               <RotateCcw className="w-8 h-8 text-[#F4511E]" />
               ใบรับคืนสินค้า
             </h1>
-            <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">RN-YYYYMM-NNNN — คืนสินค้าจากตัวแทน/ห้าง</p>
+            <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">RN-YYYYMM-NNNN -- คืนสินค้าจากตัวแทน/ห้าง</p>
           </div>
           <Link
             href="/return-notes/new"
@@ -100,101 +98,90 @@ export default function ReturnNotesPage() {
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-16"><RotateCcw className="w-8 h-8 text-gray-300 animate-spin" /></div>
-        ) : rows.length === 0 ? (
-          <div className="text-center py-16 text-gray-500 dark:text-slate-400 text-sm">ไม่พบใบรับคืนสินค้า</div>
-        ) : (
-          <>
-          <div className="data-table-wrap hidden md:block">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="data-thead">
-                  <tr>
-                    <th className="data-th">เลขที่</th>
-                    <th className="data-th">วันที่</th>
-                    <th className="data-th">ลูกค้า</th>
-                    <th className="data-th">อ้างอิง</th>
-                    <th className="data-th">เหตุผล</th>
-                    <th className="data-th text-right">ยอด (บาท)</th>
-                    <th className="data-th text-center">สถานะ</th>
-                  </tr>
-                </thead>
-                <tbody className="data-tbody">
-                  {rows.map(row => {
-                    const badge = STATUS_BADGE[row.status] || STATUS_BADGE.issued;
-                    return (
-                      <tr key={row.id} className="data-tr">
-                        <td className="px-6 py-4">
-                          <Link href={`/return-notes/${row.id}`} className="font-mono text-sm font-medium text-[#F4511E] hover:underline">
-                            {row.rn_number}
-                          </Link>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300 whitespace-nowrap">{formatDate(row.rn_date)}</td>
-                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{row.customer?.name || '-'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400">{row.reference_doc_number || '-'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400 truncate max-w-[200px]">{row.reason || '-'}</td>
-                        <td className="px-6 py-4 text-sm text-right font-medium text-gray-900 dark:text-white">{formatMoney(row.total_amount)}</td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${badge.cls}`}>{badge.label}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              setPage={setPage}
-              startIdx={startIdx + 1}
-              endIdx={endIdx}
-              totalRecords={total}
-              recordsPerPage={recordsPerPage}
-              setRecordsPerPage={(v) => { setRecordsPerPage(v); setPage(1); }}
-              loadTime={loadTime}
-            />
-          </div>
-
-          {/* Mobile card layout */}
-          <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-            <div className="divide-y divide-gray-100 dark:divide-slate-700">
-              {rows.map(row => {
+        {/* DataTable */}
+        <DataTable<ReturnNoteRow>
+          storageKey="return-notes-columns"
+          columns={[
+            {
+              key: 'rn_number', label: 'เลขที่', alwaysVisible: true,
+              render: (row) => (
+                <Link href={`/return-notes/${row.id}`} className="font-mono text-sm font-medium text-[#F4511E] hover:underline" onClick={e => e.stopPropagation()}>
+                  {row.rn_number}
+                </Link>
+              ),
+            },
+            {
+              key: 'rn_date', label: 'วันที่',
+              render: (row) => (
+                <span className="text-sm text-gray-600 dark:text-slate-300 whitespace-nowrap">{formatDate(row.rn_date)}</span>
+              ),
+            },
+            {
+              key: 'customer', label: 'ลูกค้า',
+              render: (row) => (
+                <span className="text-sm text-gray-900 dark:text-white">{row.customer?.name || '-'}</span>
+              ),
+            },
+            {
+              key: 'reference', label: 'อ้างอิง',
+              render: (row) => (
+                <span className="text-sm text-gray-500 dark:text-slate-400">{row.reference_doc_number || '-'}</span>
+              ),
+            },
+            {
+              key: 'reason', label: 'เหตุผล',
+              render: (row) => (
+                <span className="text-sm text-gray-500 dark:text-slate-400 truncate max-w-[200px] block">{row.reason || '-'}</span>
+              ),
+            },
+            {
+              key: 'total_amount', label: 'ยอด (บาท)', headerClassName: 'text-right', cellClassName: 'text-right',
+              render: (row) => (
+                <span className="text-sm font-medium text-gray-900 dark:text-white">{formatMoney(row.total_amount)}</span>
+              ),
+            },
+            {
+              key: 'status', label: 'สถานะ', headerClassName: 'text-center', cellClassName: 'text-center',
+              render: (row) => {
                 const badge = STATUS_BADGE[row.status] || STATUS_BADGE.issued;
                 return (
-                  <Link key={row.id} href={`/return-notes/${row.id}`} className="block p-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-medium text-[#F4511E]">{row.rn_number}</span>
-                        <span className="text-xs text-gray-400 dark:text-slate-500">{formatDate(row.rn_date)}</span>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${badge.cls}`}>{badge.label}</span>
-                    </div>
-                    <div className="text-sm text-gray-900 dark:text-white mb-1">{row.customer?.name || '-'}</div>
-                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400 mb-1">
-                      {row.reference_doc_number && <span>อ้างอิง: {row.reference_doc_number}</span>}
-                      {row.reason && <span className="truncate">เหตุผล: {row.reason}</span>}
-                    </div>
-                    <div className="text-sm font-medium text-gray-900 dark:text-white text-right">{formatMoney(row.total_amount)} บาท</div>
-                  </Link>
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${badge.cls}`}>{badge.label}</span>
                 );
-              })}
-            </div>
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              setPage={setPage}
-              startIdx={startIdx + 1}
-              endIdx={endIdx}
-              totalRecords={total}
-              recordsPerPage={recordsPerPage}
-              setRecordsPerPage={(v) => { setRecordsPerPage(v); setPage(1); }}
-              loadTime={loadTime}
-            />
-          </div>
-          </>
-        )}
+              },
+            },
+          ]}
+          data={rows}
+          loading={loading}
+          getRowId={(row) => row.id}
+          emptyMessage="ไม่พบใบรับคืนสินค้า"
+          currentPage={page}
+          totalPages={totalPages}
+          totalRecords={total}
+          recordsPerPage={recordsPerPage}
+          onPageChange={setPage}
+          onRecordsPerPageChange={(v) => { setRecordsPerPage(v); setPage(1); }}
+          loadTime={loadTime}
+          mobileCardRender={(row) => {
+            const badge = STATUS_BADGE[row.status] || STATUS_BADGE.issued;
+            return (
+              <Link href={`/return-notes/${row.id}`} className="block">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm font-medium text-[#F4511E]">{row.rn_number}</span>
+                    <span className="text-xs text-gray-400 dark:text-slate-500">{formatDate(row.rn_date)}</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${badge.cls}`}>{badge.label}</span>
+                </div>
+                <div className="text-sm text-gray-900 dark:text-white mb-1">{row.customer?.name || '-'}</div>
+                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400 mb-1">
+                  {row.reference_doc_number && <span>อ้างอิง: {row.reference_doc_number}</span>}
+                  {row.reason && <span className="truncate">เหตุผล: {row.reason}</span>}
+                </div>
+                <div className="text-sm font-medium text-gray-900 dark:text-white text-right">{formatMoney(row.total_amount)} บาท</div>
+              </Link>
+            );
+          }}
+        />
       </div>
     </Layout>
   );
