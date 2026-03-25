@@ -18,6 +18,8 @@ import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import { type GpResolverContext, resolveGp, fetchGpContext } from '@/lib/gp-resolver';
 import { showPdfPreview } from '@/lib/print-pdf';
+import CustomerSelectionCard from '@/components/ui/CustomerSelectionCard';
+import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -139,6 +141,9 @@ function EditReportContent() {
   const [gpContext, setGpContext] = useState<GpResolverContext | null>(null);
   const [loadingGpData, setLoadingGpData] = useState(false);
 
+  // Customer prefill hook
+  const customerPrefill = useCustomerPrefill();
+
   // Notes & actions
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -183,6 +188,14 @@ function EditReportContent() {
   }, [reportId]);
 
   useEffect(() => { fetchReport(); }, [fetchReport]);
+
+  // Prefill customer delivery/tax when report loads
+  useEffect(() => {
+    if (report?.customer?.id) {
+      customerPrefill.prefillCustomer(report.customer.id, { includeTax: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report?.customer?.id]);
 
   // ─── Load products (always — for images) + stock + GP (only if editable) ────
 
@@ -682,36 +695,32 @@ function EditReportContent() {
           </div>
         </div>
 
-        {/* Customer Info (read-only) */}
+        {/* Customer Info (read-only via CustomerSelectionCard) */}
         {customer && (
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
-            <div className="flex gap-3 items-stretch">
-              <div className="flex-1 min-w-0 flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg">
-                <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0 space-y-0.5 text-sm">
-                  <div className="text-gray-900 dark:text-white font-medium text-base">{customer.name}</div>
-                  {(() => {
-                    const addressParts = [customer.billing_address, customer.billing_district, customer.billing_amphoe, customer.billing_province, customer.billing_postal_code].filter(Boolean);
-                    if (addressParts.length === 0) return null;
-                    const addressLabel = 'ที่อยู่ออกบิล';
-                    return (
-                      <div className="text-gray-500 dark:text-slate-400 flex items-start gap-1 pt-0.5">
-                        <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                        <span>
-                          <span className="text-gray-600 dark:text-slate-300 font-medium">{addressLabel}: </span>
-                          {addressParts.join(', ')}
-                        </span>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-              <div className="flex-shrink-0 flex flex-col items-center justify-center px-4 py-2.5 rounded-lg border text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-                <FileText className="w-6 h-6 mb-1" />
-                <span className="text-xs font-bold whitespace-nowrap">ใบส่งสินค้า (DN)</span>
-              </div>
-            </div>
-          </div>
+          <CustomerSelectionCard
+            customerLabel="ตัวแทน"
+            customers={[]}
+            selectedCustomer={{
+              id: customer.id,
+              name: customer.name,
+              phone: customer.phone,
+              email: customer.email,
+              contact_person: customer.contact_person,
+              customer_code: customer.customer_code,
+            }}
+            selectedCustomerId={customer.id}
+            onCustomerChange={() => {}}
+            onCustomerClear={() => {}}
+            disabled
+            delivery={customerPrefill.delivery}
+            onDeliveryChange={customerPrefill.handleDeliveryChange}
+            shippingAddresses={customerPrefill.shippingAddresses}
+            selectedAddressId={customerPrefill.selectedAddressId}
+            showTaxInvoice
+            vatRegistered={report?.vat_registered ?? false}
+            taxFields={customerPrefill.taxFields}
+            readOnly
+          />
         )}
 
         {/* Report Info (due date, etc.) */}
