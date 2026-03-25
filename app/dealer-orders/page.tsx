@@ -8,12 +8,12 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import {
-  ShoppingBag, Search, Plus, Package, Loader2, CheckCircle2, Clock, Truck, CreditCard,
+  ShoppingBag, Search, Plus, Package, Loader2, CreditCard,
   Banknote, XCircle, Send, Printer, FileText, ClipboardList,
 } from 'lucide-react';
-import Pagination from '@/app/components/Pagination';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
 import PaymentModal from '@/app/orders/components/PaymentModal';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
@@ -255,171 +255,146 @@ export default function DealerOrdersPage() {
           </div>
         </div>
 
-        {/* Table */}
-        {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" /></div>
-        ) : orders.length === 0 ? (
-          <>
-          <div className="text-center py-16 hidden md:block">
-            <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 dark:text-slate-400">ไม่มีคำสั่งซื้อ</p>
-          </div>
-          <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 text-center py-16">
-            <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 dark:text-slate-400">ไม่มีคำสั่งซื้อ</p>
-          </div>
-          </>
-        ) : (
-          <>
-          <div className="data-table-wrap hidden md:block">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="data-thead">
-                  <tr>
-                    <th className="data-th">เลขที่</th>
-                    <th className="data-th">ลูกค้า</th>
-                    <th className="data-th text-right">ยอด</th>
-                    {showStatusCol && <th className="data-th">สถานะ</th>}
-                    <th className="data-th">ชำระ</th>
-                    <th className="data-th text-right">จัดการ</th>
-                  </tr>
-                </thead>
-                <tbody className="data-tbody">
-                  {orders.map(order => {
-                    const bc = getBadgeColor(order.order_status);
-                    const statusLabel = ORDER_STATUS_LABELS[order.order_status] || order.order_status;
-                    const pBadge = PAYMENT_BADGE[order.payment_status] || PAYMENT_BADGE.pending;
-                    const focus = getFocusAction(order);
-                    const isActioning = actionLoading === order.id;
-                    const canCancel = ['new', 'ready_to_ship', 'processing'].includes(order.order_status);
-
-                    return (
-                      <tr key={order.id} className="data-tr cursor-pointer" onClick={() => router.push(`/dealer-orders/${order.id}`)}>
-                        <td className="px-6 py-4">
-                          <span className="font-mono text-sm font-bold text-[#F4511E]">{order.order_number}</span>
-                          <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDateTime(order.created_at)}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-sm text-gray-900 dark:text-white font-medium">{order.customer_name || '-'}</p>
-                          <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                            {order.flow_type === 'w_credit' ? 'เครดิต' : 'เงินสด'}
-                            {order.customer_phone && ` · ${order.customer_phone}`}
-                          </p>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-right font-medium text-gray-900 dark:text-white">฿{formatMoney(order.total_amount)}</td>
-                        {showStatusCol && (
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${bc.bg} ${bc.color}`}>
-                              {statusLabel}
-                            </span>
-                          </td>
-                        )}
-                        <td className="px-6 py-4">
-                          <span className={`text-xs font-medium ${pBadge.cls}`}>
-                            {order.payment_status === 'paid' && <CreditCard className="w-3 h-3 inline mr-1" />}
-                            {pBadge.label}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {focus && (
-                              <button onClick={(e) => { e.stopPropagation(); handleAction(order, focus.action); }}
-                                disabled={isActioning} className={`btn-focus-action ${focus.color}`}>
-                                {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : focus.icon}
-                                {focus.label}
-                              </button>
-                            )}
-                            <ActionMenu items={getMenuItems(order)} />
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <Pagination
-              currentPage={page} totalPages={totalPages} setPage={setPage}
-              startIdx={total > 0 ? (page - 1) * recordsPerPage + 1 : 0}
-              endIdx={Math.min(page * recordsPerPage, total)}
-              totalRecords={total}
-              recordsPerPage={recordsPerPage} setRecordsPerPage={(v: number) => { setRecordsPerPage(v); setPage(1); }}
-              loadTime={loadTime}
-            />
-          </div>
-
-          {/* Mobile Cards */}
-          <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
-            <div className="divide-y divide-gray-100 dark:divide-slate-700">
-              {orders.map(order => {
+        {/* Table + Mobile Cards via DataTable */}
+        <DataTable<WholesaleOrder>
+          storageKey="dealer-orders-columns"
+          columns={[
+            {
+              key: 'order_number', label: 'เลขที่', alwaysVisible: true,
+              render: (order) => (
+                <>
+                  <span className="font-mono text-sm font-bold text-[#F4511E]">{order.order_number}</span>
+                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDateTime(order.created_at)}</p>
+                </>
+              ),
+            },
+            {
+              key: 'customer', label: 'ลูกค้า', alwaysVisible: true,
+              render: (order) => (
+                <>
+                  <p className="text-sm text-gray-900 dark:text-white font-medium">{order.customer_name || '-'}</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                    {order.flow_type === 'w_credit' ? 'เครดิต' : 'เงินสด'}
+                    {order.customer_phone && ` · ${order.customer_phone}`}
+                  </p>
+                </>
+              ),
+            },
+            {
+              key: 'total', label: 'ยอด', headerClassName: 'text-right', cellClassName: 'text-right',
+              render: (order) => (
+                <span className="text-sm font-medium text-gray-900 dark:text-white">฿{formatMoney(order.total_amount)}</span>
+              ),
+            },
+            ...(showStatusCol ? [{
+              key: 'status', label: 'สถานะ',
+              render: (order: WholesaleOrder) => {
                 const bc = getBadgeColor(order.order_status);
                 const statusLabel = ORDER_STATUS_LABELS[order.order_status] || order.order_status;
+                return (
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${bc.bg} ${bc.color}`}>
+                    {statusLabel}
+                  </span>
+                );
+              },
+            }] as DataTableColumn<WholesaleOrder>[] : []),
+            {
+              key: 'payment', label: 'ชำระ',
+              render: (order) => {
                 const pBadge = PAYMENT_BADGE[order.payment_status] || PAYMENT_BADGE.pending;
+                return (
+                  <span className={`text-xs font-medium ${pBadge.cls}`}>
+                    {order.payment_status === 'paid' && <CreditCard className="w-3 h-3 inline mr-1" />}
+                    {pBadge.label}
+                  </span>
+                );
+              },
+            },
+            {
+              key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-right', cellClassName: 'text-right', stopPropagation: true,
+              render: (order) => {
                 const focus = getFocusAction(order);
                 const isActioning = actionLoading === order.id;
-                const canCancel = ['new', 'ready_to_ship', 'processing'].includes(order.order_status);
-
                 return (
-                  <div key={order.id} className="p-4">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div
-                        className="cursor-pointer flex-1 min-w-0"
-                        onClick={() => router.push(`/dealer-orders/${order.id}`)}
-                      >
-                        <p className="font-mono text-sm font-bold text-[#F4511E]">{order.order_number}</p>
-                        <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDateTime(order.created_at)}</p>
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${bc.bg} ${bc.color}`}>
-                          {statusLabel}
-                        </span>
-                        {canCancel && (
-                          <ActionMenu items={[
-                            { key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <XCircle className="w-4 h-4" />, danger: true, onClick: (e) => { e.stopPropagation(); handleAction(order, 'cancel'); } },
-                          ]} />
-                        )}
-                      </div>
-                    </div>
-                    <div
-                      className="cursor-pointer"
-                      onClick={() => router.push(`/dealer-orders/${order.id}`)}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm text-gray-700 dark:text-slate-300 font-medium">{order.customer_name || '-'}</span>
-                        <span className="text-sm text-gray-900 dark:text-white font-semibold">฿{formatMoney(order.total_amount)}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
-                        <span className={`font-medium ${pBadge.cls}`}>
-                          {order.payment_status === 'paid' && <CreditCard className="w-3 h-3 inline mr-1" />}
-                          {pBadge.label}
-                        </span>
-                        <span>{order.flow_type === 'w_credit' ? 'เครดิต' : 'เงินสด'}</span>
-                      </div>
-                    </div>
+                  <div className="flex items-center justify-end gap-1.5">
                     {focus && (
-                      <div className="mt-3 flex gap-2" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => handleAction(order, focus.action)}
-                          disabled={isActioning} className={`btn-focus-action ${focus.color} flex-1 justify-center`}>
-                          {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : focus.icon}
-                          {focus.label}
-                        </button>
-                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); handleAction(order, focus.action); }}
+                        disabled={isActioning} className={`btn-focus-action ${focus.color}`}>
+                        {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : focus.icon}
+                        {focus.label}
+                      </button>
                     )}
+                    <ActionMenu items={getMenuItems(order)} />
                   </div>
                 );
-              })}
-            </div>
-            <Pagination
-              currentPage={page} totalPages={totalPages} setPage={setPage}
-              startIdx={total > 0 ? (page - 1) * recordsPerPage + 1 : 0}
-              endIdx={Math.min(page * recordsPerPage, total)}
-              totalRecords={total}
-              recordsPerPage={recordsPerPage} setRecordsPerPage={(v: number) => { setRecordsPerPage(v); setPage(1); }}
-              loadTime={loadTime}
-            />
-          </div>
-          </>
-        )}
+              },
+            },
+          ]}
+          data={orders}
+          loading={loading}
+          getRowId={(r) => r.id}
+          onRowClick={(r) => router.push(`/dealer-orders/${r.id}`)}
+          rowClassName={(r) => r.order_status === 'cancelled' ? 'opacity-50' : ''}
+          emptyMessage="ไม่มีคำสั่งซื้อ"
+          emptyIcon={<Package className="w-12 h-12 text-gray-300" />}
+          currentPage={page}
+          totalPages={totalPages}
+          totalRecords={total}
+          recordsPerPage={recordsPerPage}
+          onPageChange={setPage}
+          onRecordsPerPageChange={(v) => { setRecordsPerPage(v); setPage(1); }}
+          loadTime={loadTime}
+          mobileCardRender={(order) => {
+            const bc = getBadgeColor(order.order_status);
+            const statusLabel = ORDER_STATUS_LABELS[order.order_status] || order.order_status;
+            const pBadge = PAYMENT_BADGE[order.payment_status] || PAYMENT_BADGE.pending;
+            const focus = getFocusAction(order);
+            const isActioning = actionLoading === order.id;
+            const canCancel = ['new', 'ready_to_ship', 'processing'].includes(order.order_status);
+            return (
+              <>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-mono text-sm font-bold text-[#F4511E]">{order.order_number}</p>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDateTime(order.created_at)}</p>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${bc.bg} ${bc.color}`}>
+                      {statusLabel}
+                    </span>
+                    {canCancel && (
+                      <ActionMenu items={[
+                        { key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <XCircle className="w-4 h-4" />, danger: true, onClick: (e) => { e.stopPropagation(); handleAction(order, 'cancel'); } },
+                      ]} />
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm text-gray-700 dark:text-slate-300 font-medium">{order.customer_name || '-'}</span>
+                    <span className="text-sm text-gray-900 dark:text-white font-semibold">฿{formatMoney(order.total_amount)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
+                    <span className={`font-medium ${pBadge.cls}`}>
+                      {order.payment_status === 'paid' && <CreditCard className="w-3 h-3 inline mr-1" />}
+                      {pBadge.label}
+                    </span>
+                    <span>{order.flow_type === 'w_credit' ? 'เครดิต' : 'เงินสด'}</span>
+                  </div>
+                </div>
+                {focus && (
+                  <div className="mt-3 flex gap-2" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => handleAction(order, focus.action)}
+                      disabled={isActioning} className={`btn-focus-action ${focus.color} flex-1 justify-center`}>
+                      {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : focus.icon}
+                      {focus.label}
+                    </button>
+                  </div>
+                )}
+              </>
+            );
+          }}
+        />
       </div>
       {shipOrder && (
         <ShipModal
