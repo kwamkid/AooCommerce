@@ -14,10 +14,10 @@ import {
 } from 'lucide-react';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { markPrinted as markPrintedDB } from '@/lib/print-tracking';
-import Pagination from '@/app/components/Pagination';
 import Tooltip from '@/components/ui/Tooltip';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 
 interface Statement {
   id: string;
@@ -140,9 +140,6 @@ function StatementsContent() {
 
   const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
   const getTabCount = (key: string) => key === 'all' ? totalCount : (statusCounts[key] || 0);
-
-  const startIdx = (currentPage - 1) * recordsPerPage;
-  const endIdx = Math.min(startIdx + statements.length, totalRecords);
 
   // Print state (DB-backed via printed_*_at columns)
   const [printingId, setPrintingId] = useState<string | null>(null);
@@ -306,6 +303,143 @@ function StatementsContent() {
     return items;
   };
 
+  const statementColumns: DataTableColumn<Statement>[] = [
+    {
+      key: 'statement_number',
+      label: 'เลขที่',
+      alwaysVisible: true,
+      render: (st) => (
+        <>
+          <p className="id-text-clickable text-gray-900 dark:text-white">{st.statement_number}</p>
+          <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(st.statement_date)}</p>
+        </>
+      ),
+    },
+    {
+      key: 'customer',
+      label: 'ตัวแทน',
+      alwaysVisible: true,
+      render: (st) => (
+        <>
+          <p className="data-text text-gray-900 dark:text-white font-medium">{st.customer?.name || '-'}</p>
+          {st.customer?.customer_code && (
+            <p className="data-timestamp text-gray-400 dark:text-slate-500">{st.customer.customer_code}</p>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'period',
+      label: 'งวด',
+      render: (st) => (
+        <span className="data-text text-gray-700 dark:text-slate-300">{formatPeriod(st.period_year, st.period_month)}</span>
+      ),
+    },
+    {
+      key: 'total_amount',
+      label: 'ยอด (บาท)',
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+      render: (st) => (
+        <span className="data-number text-gray-900 dark:text-white">{formatAmount(st.total_amount)}</span>
+      ),
+    },
+    {
+      key: 'outstanding',
+      label: 'คงเหลือ',
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+      render: (st) => (
+        <span className={`data-number font-medium ${st.outstanding_amount > 0 ? 'text-gray-900 dark:text-white' : 'text-green-600 dark:text-green-400'}`}>
+          {st.outstanding_amount > 0 ? formatAmount(st.outstanding_amount) : 'ครบ'}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'สถานะ',
+      render: (st) => {
+        const cfg = STATUS_CONFIG[st.status] || STATUS_CONFIG.draft;
+        return (
+          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
+            {st.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
+            {cfg.label}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'print',
+      label: 'พิมพ์',
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      stopPropagation: true,
+      render: (st) => {
+        const isPrinting = printingId === st.id;
+        return (
+          <Tooltip text={`ใบวางบิล: ${isPrintedDoc(st, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`}>
+            <div className="relative flex items-center justify-center gap-1">
+              {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
+              <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(st, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+            </div>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      key: 'due_date',
+      label: 'ครบกำหนด',
+      render: (st) => {
+        const isOverdue = st.due_date && new Date(st.due_date) < new Date() && st.status !== 'paid';
+        return st.due_date ? (
+          <span className={`data-text flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
+            {isOverdue && <AlertCircle className="w-3.5 h-3.5" />}
+            {formatDate(st.due_date)}
+          </span>
+        ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
+      },
+    },
+    {
+      key: 'documents',
+      label: 'เอกสาร',
+      render: (st) => (
+        <div className="text-xs">
+          {st.tax_invoice_number && (
+            <div className="text-green-600 dark:text-green-400 font-mono">{st.tax_invoice_number}</div>
+          )}
+          {st.receipt_number && (
+            <div className="text-blue-600 dark:text-blue-400 font-mono">{st.receipt_number}</div>
+          )}
+          {!st.tax_invoice_number && !st.receipt_number && <span className="text-gray-400">-</span>}
+        </div>
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'จัดการ',
+      headerClassName: 'text-right',
+      alwaysVisible: true,
+      stopPropagation: true,
+      render: (st) => (
+        <div className="flex items-center justify-end gap-1">
+          {['sent', 'partially_paid', 'overdue'].includes(st.status) && (
+            <button
+              onClick={() => setPaymentConfirm(st)}
+              className="btn-focus-action indigo"
+            >
+              <Banknote className="w-4 h-4" />
+              <span className="hidden lg:inline">ลูกค้าชำระแล้ว</span>
+            </button>
+          )}
+          {st.status === 'paid' && (
+            <CheckCircle2 className="w-5 h-5 text-green-500" />
+          )}
+          <ActionMenu items={buildMenuItems(st)} />
+        </div>
+      ),
+    },
+  ];
+
   return (
     <Layout>
       <div className="space-y-4">
@@ -353,194 +487,68 @@ function StatementsContent() {
           </div>
         </div>
 
-        {/* Desktop Table */}
-        <div className="data-table-wrap hidden md:block">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="data-thead">
-                <tr>
-                  <th className="data-th">เลขที่</th>
-                  <th className="data-th">ตัวแทน</th>
-                  <th className="data-th">งวด</th>
-                  <th className="data-th text-right">ยอด (บาท)</th>
-                  <th className="data-th text-right">คงเหลือ</th>
-                  <th className="data-th">สถานะ</th>
-                  <th className="data-th text-center">พิมพ์</th>
-                  <th className="data-th">ครบกำหนด</th>
-                  <th className="data-th">เอกสาร</th>
-                  <th className="data-th text-right">จัดการ</th>
-                </tr>
-              </thead>
-              <tbody className="data-tbody">
-                {isLoading ? (
-                  <tr><td colSpan={10} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 text-indigo-500 animate-spin mx-auto" /></td></tr>
-                ) : statements.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="px-6 py-12 text-center">
-                      <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-gray-500 dark:text-slate-400 data-text">ไม่พบใบวางบิล</p>
-                    </td>
-                  </tr>
-                ) : statements.map(st => {
-                  const cfg = STATUS_CONFIG[st.status] || STATUS_CONFIG.draft;
-                  const isOverdue = st.due_date && new Date(st.due_date) < new Date() && st.status !== 'paid';
-                  return (
-                    <tr key={st.id} className="data-tr cursor-pointer" onClick={() => router.push(`/statements/${st.id}`)}>
-                      <td className="data-td">
-                        <p className="id-text-clickable text-gray-900 dark:text-white">{st.statement_number}</p>
-                        <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(st.statement_date)}</p>
-                      </td>
-                      <td className="data-td">
-                        <p className="data-text text-gray-900 dark:text-white font-medium">{st.customer?.name || '-'}</p>
-                        {st.customer?.customer_code && (
-                          <p className="data-timestamp text-gray-400 dark:text-slate-500">{st.customer.customer_code}</p>
-                        )}
-                      </td>
-                      <td className="data-td">
-                        <span className="data-text text-gray-700 dark:text-slate-300">{formatPeriod(st.period_year, st.period_month)}</span>
-                      </td>
-                      <td className="data-td text-right">
-                        <span className="data-number text-gray-900 dark:text-white">{formatAmount(st.total_amount)}</span>
-                      </td>
-                      <td className="data-td text-right">
-                        <span className={`data-number font-medium ${st.outstanding_amount > 0 ? 'text-gray-900 dark:text-white' : 'text-green-600 dark:text-green-400'}`}>
-                          {st.outstanding_amount > 0 ? formatAmount(st.outstanding_amount) : 'ครบ'}
-                        </span>
-                      </td>
-                      <td className="data-td">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
-                          {st.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
-                          {cfg.label}
-                        </span>
-                      </td>
-                      {/* พิมพ์ */}
-                      <td className="data-td text-center" onClick={e => e.stopPropagation()}>
-                        {(() => {
-                          const isPrinting = printingId === st.id;
-                          return (
-                            <Tooltip text={`ใบวางบิล: ${isPrintedDoc(st, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`}>
-                              <div className="relative flex items-center justify-center gap-1">
-                                {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
-                                <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(st, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                              </div>
-                            </Tooltip>
-                          );
-                        })()}
-                      </td>
-                      <td className="data-td">
-                        {st.due_date ? (
-                          <span className={`data-text flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
-                            {isOverdue && <AlertCircle className="w-3.5 h-3.5" />}
-                            {formatDate(st.due_date)}
-                          </span>
-                        ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
-                      </td>
-                      <td className="data-td text-xs">
-                        {st.tax_invoice_number && (
-                          <div className="text-green-600 dark:text-green-400 font-mono">{st.tax_invoice_number}</div>
-                        )}
-                        {st.receipt_number && (
-                          <div className="text-blue-600 dark:text-blue-400 font-mono">{st.receipt_number}</div>
-                        )}
-                        {!st.tax_invoice_number && !st.receipt_number && <span className="text-gray-400">-</span>}
-                      </td>
-                      {/* จัดการ */}
-                      <td className="data-td" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
-                          {['sent', 'partially_paid', 'overdue'].includes(st.status) && (
-                            <button
-                              onClick={() => setPaymentConfirm(st)}
-                              className="btn-focus-action indigo"
-                            >
-                              <Banknote className="w-4 h-4" />
-                              <span className="hidden lg:inline">ลูกค้าชำระแล้ว</span>
-                            </button>
-                          )}
-                          {st.status === 'paid' && (
-                            <CheckCircle2 className="w-5 h-5 text-green-500" />
-                          )}
-                          <ActionMenu items={buildMenuItems(st)} />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <Pagination
-            currentPage={currentPage} totalPages={totalPages} totalRecords={totalRecords}
-            startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
-            setRecordsPerPage={v => setParams({ limit: String(v) })}
-            setPage={v => setParams({ page: String(v) })}
-          />
-        </div>
-
-        {/* Mobile Cards */}
-        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-          {isLoading ? (
-            <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 text-indigo-500 animate-spin" /></div>
-          ) : statements.length === 0 ? (
-            <div className="text-center py-16">
-              <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-slate-400 data-text">ไม่พบใบวางบิล</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-slate-700">
-              {statements.map(st => {
-                const cfg = STATUS_CONFIG[st.status] || STATUS_CONFIG.draft;
-                return (
-                  <div key={st.id} className="p-4 cursor-pointer" onClick={() => router.push(`/statements/${st.id}`)}>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="id-text-clickable text-gray-900 dark:text-white">{st.statement_number}</p>
-                        <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(st.statement_date)}</p>
-                      </div>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
-                        {cfg.label}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{st.customer?.name || '-'}</span>
-                      <span className="data-number text-gray-900 dark:text-white">{formatAmount(st.total_amount)}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-slate-500">
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatPeriod(st.period_year, st.period_month)}</span>
-                      {st.outstanding_amount > 0 && <span>คงเหลือ {formatAmount(st.outstanding_amount)}</span>}
-                    </div>
-                    {/* Action buttons */}
-                    <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                      {['sent', 'partially_paid', 'overdue'].includes(st.status) && (
-                        <button
-                          onClick={() => setPaymentConfirm(st)}
-                          className="btn-focus-action indigo flex-1 justify-center"
-                        >
-                          <Banknote className="w-4 h-4" /> ลูกค้าชำระแล้ว
-                        </button>
-                      )}
-                      {st.status === 'paid' && (
-                        <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600">
-                          <CheckCircle2 className="w-4 h-4" /> ชำระแล้ว
-                        </span>
-                      )}
-                      {/* Print indicator (mobile) */}
-                      <div className="flex items-center gap-1">
-                        <span className={`w-2 h-2 rounded-full ${isPrintedDoc(st, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                      </div>
-                      <ActionMenu items={buildMenuItems(st)} />
-                    </div>
+        {/* Data Table */}
+        <DataTable<Statement>
+          storageKey="statements-columns"
+          columns={statementColumns}
+          data={statements}
+          loading={isLoading}
+          getRowId={(st) => st.id}
+          onRowClick={(st) => router.push(`/statements/${st.id}`)}
+          emptyMessage="ไม่พบใบวางบิล"
+          emptyIcon={<Package className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          recordsPerPage={recordsPerPage}
+          onPageChange={v => setParams({ page: String(v) })}
+          onRecordsPerPageChange={v => setParams({ limit: String(v) })}
+          mobileCardRender={(st) => {
+            const cfg = STATUS_CONFIG[st.status] || STATUS_CONFIG.draft;
+            return (
+              <>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="id-text-clickable text-gray-900 dark:text-white">{st.statement_number}</p>
+                    <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(st.statement_date)}</p>
                   </div>
-                );
-              })}
-            </div>
-          )}
-          <Pagination
-            currentPage={currentPage} totalPages={totalPages} totalRecords={totalRecords}
-            startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
-            setRecordsPerPage={v => setParams({ limit: String(v) })}
-            setPage={v => setParams({ page: String(v) })}
-          />
-        </div>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
+                    {cfg.label}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{st.customer?.name || '-'}</span>
+                  <span className="data-number text-gray-900 dark:text-white">{formatAmount(st.total_amount)}</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-slate-500">
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatPeriod(st.period_year, st.period_month)}</span>
+                  {st.outstanding_amount > 0 && <span>คงเหลือ {formatAmount(st.outstanding_amount)}</span>}
+                </div>
+                {/* Action buttons */}
+                <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                  {['sent', 'partially_paid', 'overdue'].includes(st.status) && (
+                    <button
+                      onClick={() => setPaymentConfirm(st)}
+                      className="btn-focus-action indigo flex-1 justify-center"
+                    >
+                      <Banknote className="w-4 h-4" /> ลูกค้าชำระแล้ว
+                    </button>
+                  )}
+                  {st.status === 'paid' && (
+                    <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600">
+                      <CheckCircle2 className="w-4 h-4" /> ชำระแล้ว
+                    </span>
+                  )}
+                  {/* Print indicator (mobile) */}
+                  <div className="flex items-center gap-1">
+                    <span className={`w-2 h-2 rounded-full ${isPrintedDoc(st, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                  </div>
+                  <ActionMenu items={buildMenuItems(st)} />
+                </div>
+              </>
+            );
+          }}
+        />
       </div>
 
       {/* Payment Confirm Dialog */}
