@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { FileText, Search, Printer, ExternalLink } from 'lucide-react';
 import { showPdfPreview } from '@/lib/print-pdf';
-import Pagination from '@/app/components/Pagination';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 
 interface Invoice {
   id: string;
@@ -167,8 +167,101 @@ export default function TaxInvoicesPage() {
   };
 
   const totalPages = Math.ceil(total / recordsPerPage);
-  const startIdx = (page - 1) * recordsPerPage;
-  const endIdx = Math.min(startIdx + invoices.length, total);
+
+  const columns: DataTableColumn<Invoice>[] = [
+    {
+      key: 'tax_invoice_number',
+      label: 'เลขที่ใบกำกับ',
+      alwaysVisible: true,
+      render: (inv) => (
+        <>
+          <span className="font-mono text-sm font-medium text-[#F4511E]">{inv.tax_invoice_number}</span>
+          {inv.tax_invoice_replaced_abbrev_number && (
+            <div className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+              แทน {inv.tax_invoice_replaced_abbrev_number}
+            </div>
+          )}
+          {inv.voided_at && (
+            <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+          )}
+          {inv.is_receipt && !inv.voided_at && (
+            <span className="ml-1 text-xs text-green-600 dark:text-green-400">+ใบเสร็จ</span>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'tax_invoice_date',
+      label: 'วันที่ออก',
+      render: (inv) => (
+        <span className="text-sm text-gray-600 dark:text-slate-300 whitespace-nowrap">{formatDate(inv.tax_invoice_date)}</span>
+      ),
+    },
+    {
+      key: 'source',
+      label: 'อ้างอิง',
+      render: (inv) => {
+        const link = getSourceLink(inv);
+        return (
+          <>
+            <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
+              {link.label} <ExternalLink className="w-3 h-3" />
+            </Link>
+            {inv.source_type !== 'order' && (
+              <div className="text-xs text-gray-400">
+                {inv.source_type === 'statement' ? 'ใบวางบิล' : 'เติมสินค้า'}
+              </div>
+            )}
+          </>
+        );
+      },
+    },
+    {
+      key: 'tax_invoice_name',
+      label: 'ชื่อผู้ซื้อ',
+      render: (inv) => (
+        <>
+          <div className="text-sm text-gray-900 dark:text-white">{inv.tax_invoice_name || '-'}</div>
+          {inv.tax_invoice_branch && (
+            <div className="text-xs text-gray-400">{inv.tax_invoice_branch}</div>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'tax_invoice_tax_id',
+      label: 'เลขผู้เสียภาษี',
+      render: (inv) => (
+        <span className="text-sm font-mono text-gray-600 dark:text-slate-300">{inv.tax_invoice_tax_id || '-'}</span>
+      ),
+    },
+    {
+      key: 'total_amount',
+      label: 'ยอด (บาท)',
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+      render: (inv) => (
+        <span className="text-sm font-medium text-gray-900 dark:text-white">{formatMoney(inv.total_amount)}</span>
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'พิมพ์',
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      stopPropagation: true,
+      hideMobile: true,
+      render: (inv) => (
+        <button
+          onClick={() => handlePrint(inv)}
+          className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
+          title="พิมพ์"
+        >
+          <Printer className="w-4 h-4" />
+        </button>
+      ),
+    },
+  ];
 
   return (
     <Layout>
@@ -206,143 +299,66 @@ export default function TaxInvoicesPage() {
           </div>
         </div>
 
-        {/* Table */}
-        {loading ? (
-          <div className="flex justify-center py-16"><FileText className="w-8 h-8 text-gray-300 animate-pulse" /></div>
-        ) : invoices.length === 0 ? (
-          <div className="text-center py-16 text-gray-500 dark:text-slate-400 text-sm">ไม่พบใบกำกับภาษี</div>
-        ) : (
-          <>
-          <div className="data-table-wrap hidden md:block">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="data-thead">
-                  <tr>
-                    <th className="data-th">เลขที่ใบกำกับ</th>
-                    <th className="data-th">วันที่ออก</th>
-                    <th className="data-th">อ้างอิง</th>
-                    <th className="data-th">ชื่อผู้ซื้อ</th>
-                    <th className="data-th">เลขผู้เสียภาษี</th>
-                    <th className="data-th text-right">ยอด (บาท)</th>
-                    <th className="data-th text-center">พิมพ์</th>
-                  </tr>
-                </thead>
-                <tbody className="data-tbody">
-                  {invoices.map(inv => {
-                    const link = getSourceLink(inv);
-                    return (
-                      <tr key={inv.doc_id} className="data-tr">
-                        <td className="px-6 py-4">
-                          <span className="font-mono text-sm font-medium text-[#F4511E]">{inv.tax_invoice_number}</span>
-                          {inv.tax_invoice_replaced_abbrev_number && (
-                            <div className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
-                              แทน {inv.tax_invoice_replaced_abbrev_number}
-                            </div>
-                          )}
-                          {inv.voided_at && (
-                            <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
-                          )}
-                          {inv.is_receipt && !inv.voided_at && (
-                            <span className="ml-1 text-xs text-green-600 dark:text-green-400">+ใบเสร็จ</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300 whitespace-nowrap">{formatDate(inv.tax_invoice_date)}</td>
-                        <td className="px-6 py-4">
-                          <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
-                            {link.label} <ExternalLink className="w-3 h-3" />
-                          </Link>
-                          {inv.source_type !== 'order' && (
-                            <div className="text-xs text-gray-400">
-                              {inv.source_type === 'statement' ? 'ใบวางบิล' : 'เติมสินค้า'}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900 dark:text-white">{inv.tax_invoice_name || '-'}</div>
-                          {inv.tax_invoice_branch && (
-                            <div className="text-xs text-gray-400">{inv.tax_invoice_branch}</div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-sm font-mono text-gray-600 dark:text-slate-300">{inv.tax_invoice_tax_id || '-'}</td>
-                        <td className="px-6 py-4 text-right text-sm font-medium text-gray-900 dark:text-white">{formatMoney(inv.total_amount)}</td>
-                        <td className="px-6 py-4 text-center">
-                          <button
-                            onClick={() => handlePrint(inv)}
-                            className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
-                            title="พิมพ์"
-                          >
-                            <Printer className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <Pagination
-              currentPage={page} totalPages={totalPages} totalRecords={total}
-              startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
-              setRecordsPerPage={setRecordsPerPage} setPage={setPage} loadTime={loadTime}
-            />
-          </div>
-
-          {/* Mobile card layout */}
-          <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-            <div className="divide-y divide-gray-100 dark:divide-slate-700">
-              {invoices.map(inv => {
-                const link = getSourceLink(inv);
-                return (
-                  <div key={inv.doc_id} className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-sm font-medium text-[#F4511E]">{inv.tax_invoice_number}</span>
-                        {inv.tax_invoice_replaced_abbrev_number && (
-                          <span className="text-xs text-amber-600 dark:text-amber-400">แทน {inv.tax_invoice_replaced_abbrev_number}</span>
-                        )}
-                        {inv.voided_at && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
-                        )}
-                        {inv.is_receipt && !inv.voided_at && (
-                          <span className="text-xs text-green-600 dark:text-green-400">+ใบเสร็จ</span>
-                        )}
-                      </div>
-                      <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors" title="พิมพ์">
-                        <Printer className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(inv.tax_invoice_date)}</div>
-                    <div className="mt-1">
-                      <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
-                        {link.label} <ExternalLink className="w-3 h-3" />
-                      </Link>
-                      {inv.source_type !== 'order' && (
-                        <span className="text-xs text-gray-400 ml-1">
-                          {inv.source_type === 'statement' ? 'ใบวางบิล' : 'เติมสินค้า'}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <div>
-                        <div className="text-sm text-gray-600 dark:text-slate-300">{inv.tax_invoice_name || '-'}</div>
-                        {inv.tax_invoice_tax_id && (
-                          <div className="text-xs font-mono text-gray-400">{inv.tax_invoice_tax_id}</div>
-                        )}
-                      </div>
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">{formatMoney(inv.total_amount)} บาท</div>
-                    </div>
+        <DataTable<Invoice>
+          storageKey="tax-invoices-cols"
+          columns={columns}
+          data={invoices}
+          loading={loading}
+          getRowId={(inv) => inv.doc_id}
+          emptyMessage="ไม่พบใบกำกับภาษี"
+          emptyIcon={<FileText className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
+          currentPage={page}
+          totalPages={totalPages}
+          totalRecords={total}
+          recordsPerPage={recordsPerPage}
+          onPageChange={setPage}
+          onRecordsPerPageChange={setRecordsPerPage}
+          loadTime={loadTime}
+          mobileCardRender={(inv) => {
+            const link = getSourceLink(inv);
+            return (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-sm font-medium text-[#F4511E]">{inv.tax_invoice_number}</span>
+                    {inv.tax_invoice_replaced_abbrev_number && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400">แทน {inv.tax_invoice_replaced_abbrev_number}</span>
+                    )}
+                    {inv.voided_at && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+                    )}
+                    {inv.is_receipt && !inv.voided_at && (
+                      <span className="text-xs text-green-600 dark:text-green-400">+ใบเสร็จ</span>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-            <Pagination
-              currentPage={page} totalPages={totalPages} totalRecords={total}
-              startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
-              setRecordsPerPage={setRecordsPerPage} setPage={setPage} loadTime={loadTime}
-            />
-          </div>
-          </>
-        )}
+                  <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors" title="พิมพ์">
+                    <Printer className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(inv.tax_invoice_date)}</div>
+                <div className="mt-1">
+                  <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
+                    {link.label} <ExternalLink className="w-3 h-3" />
+                  </Link>
+                  {inv.source_type !== 'order' && (
+                    <span className="text-xs text-gray-400 ml-1">
+                      {inv.source_type === 'statement' ? 'ใบวางบิล' : 'เติมสินค้า'}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-slate-300">{inv.tax_invoice_name || '-'}</div>
+                    {inv.tax_invoice_tax_id && (
+                      <div className="text-xs font-mono text-gray-400">{inv.tax_invoice_tax_id}</div>
+                    )}
+                  </div>
+                  <div className="text-sm font-medium text-gray-900 dark:text-white">{formatMoney(inv.total_amount)} บาท</div>
+                </div>
+              </>
+            );
+          }}
+        />
       </div>
     </Layout>
   );

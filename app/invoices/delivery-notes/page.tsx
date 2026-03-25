@@ -5,7 +5,7 @@ import Layout from '@/components/layout/Layout';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { Truck, Search, ExternalLink } from 'lucide-react';
-import Pagination from '@/app/components/Pagination';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 
 interface DnRow {
   doc_id: string;
@@ -86,8 +86,60 @@ export default function DeliveryNotesPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const totalPages = Math.ceil(total / recordsPerPage);
-  const startIdx = (page - 1) * recordsPerPage;
-  const endIdx = Math.min(startIdx + rows.length, total);
+
+  const columns: DataTableColumn<DnRow>[] = [
+    {
+      key: 'dn_number',
+      label: 'เลขที่',
+      alwaysVisible: true,
+      render: (row) => (
+        <>
+          <span className="font-mono text-sm font-medium text-[#F4511E]">{row.dn_number}</span>
+          {row.voided_at && (
+            <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'dn_date',
+      label: 'วันที่ออก',
+      render: (row) => (
+        <span className="text-sm text-gray-600 dark:text-slate-300 whitespace-nowrap">{formatDate(row.dn_date)}</span>
+      ),
+    },
+    {
+      key: 'source',
+      label: 'อ้างอิง',
+      render: (row) => {
+        const link = getSourceLink(row);
+        return (
+          <>
+            <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
+              {link.label} <ExternalLink className="w-3 h-3" />
+            </Link>
+            {link.subtitle && <div className="text-xs text-gray-400">{link.subtitle}</div>}
+          </>
+        );
+      },
+    },
+    {
+      key: 'customer',
+      label: 'ลูกค้า',
+      render: (row) => (
+        <span className="text-sm text-gray-900 dark:text-white">{row.customer_name || row.customer?.name || '-'}</span>
+      ),
+    },
+    {
+      key: 'total_amount',
+      label: 'ยอด (บาท)',
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+      render: (row) => (
+        <span className="text-sm font-medium text-gray-900 dark:text-white">{formatMoney(row.total_amount)}</span>
+      ),
+    },
+  ];
 
   return (
     <Layout>
@@ -122,105 +174,46 @@ export default function DeliveryNotesPage() {
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-16"><Truck className="w-8 h-8 text-gray-300 animate-pulse" /></div>
-        ) : rows.length === 0 ? (
-          <div className="text-center py-16 text-gray-500 dark:text-slate-400 text-sm">ไม่พบใบส่งสินค้า</div>
-        ) : (
-          <>
-          <div className="data-table-wrap hidden md:block">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="data-thead">
-                  <tr>
-                    <th className="data-th">เลขที่</th>
-                    <th className="data-th">วันที่ออก</th>
-                    <th className="data-th">อ้างอิง</th>
-                    <th className="data-th">ลูกค้า</th>
-                    <th className="data-th text-right">ยอด (บาท)</th>
-                  </tr>
-                </thead>
-                <tbody className="data-tbody">
-                  {rows.map(row => {
-                    const link = getSourceLink(row);
-                    return (
-                      <tr key={row.doc_id} className="data-tr">
-                        <td className="px-6 py-4">
-                          <span className="font-mono text-sm font-medium text-[#F4511E]">{row.dn_number}</span>
-                          {row.voided_at && (
-                            <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300 whitespace-nowrap">{formatDate(row.dn_date)}</td>
-                        <td className="px-6 py-4">
-                          <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
-                            {link.label} <ExternalLink className="w-3 h-3" />
-                          </Link>
-                          {link.subtitle && <div className="text-xs text-gray-400">{link.subtitle}</div>}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{row.customer_name || row.customer?.name || '-'}</td>
-                        <td className="px-6 py-4 text-sm text-right font-medium text-gray-900 dark:text-white">{formatMoney(row.total_amount)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              setPage={setPage}
-              startIdx={startIdx + 1}
-              endIdx={endIdx}
-              totalRecords={total}
-              recordsPerPage={recordsPerPage}
-              setRecordsPerPage={(v) => { setRecordsPerPage(v); setPage(1); }}
-              loadTime={loadTime}
-            />
-          </div>
-
-          {/* Mobile card layout */}
-          <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-            <div className="divide-y divide-gray-100 dark:divide-slate-700">
-              {rows.map(row => {
-                const link = getSourceLink(row);
-                return (
-                  <div key={row.doc_id} className="p-4">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm font-medium text-[#F4511E]">{row.dn_number}</span>
-                      {row.voided_at && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(row.dn_date)}</div>
-                    <div className="mt-1">
-                      <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
-                        {link.label} <ExternalLink className="w-3 h-3" />
-                      </Link>
-                      {link.subtitle && <span className="text-xs text-gray-400 ml-1">{link.subtitle}</span>}
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <div className="text-sm text-gray-600 dark:text-slate-300">{row.customer_name || row.customer?.name || '-'}</div>
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">{formatMoney(row.total_amount)} บาท</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              setPage={setPage}
-              startIdx={startIdx + 1}
-              endIdx={endIdx}
-              totalRecords={total}
-              recordsPerPage={recordsPerPage}
-              setRecordsPerPage={(v) => { setRecordsPerPage(v); setPage(1); }}
-              loadTime={loadTime}
-            />
-          </div>
-          </>
-        )}
+        <DataTable<DnRow>
+          storageKey="delivery-notes-cols"
+          columns={columns}
+          data={rows}
+          loading={loading}
+          getRowId={(row) => row.doc_id}
+          emptyMessage="ไม่พบใบส่งสินค้า"
+          emptyIcon={<Truck className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
+          currentPage={page}
+          totalPages={totalPages}
+          totalRecords={total}
+          recordsPerPage={recordsPerPage}
+          onPageChange={setPage}
+          onRecordsPerPageChange={(v) => { setRecordsPerPage(v); setPage(1); }}
+          loadTime={loadTime}
+          mobileCardRender={(row) => {
+            const link = getSourceLink(row);
+            return (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-sm font-medium text-[#F4511E]">{row.dn_number}</span>
+                  {row.voided_at && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+                  )}
+                </div>
+                <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(row.dn_date)}</div>
+                <div className="mt-1">
+                  <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
+                    {link.label} <ExternalLink className="w-3 h-3" />
+                  </Link>
+                  {link.subtitle && <span className="text-xs text-gray-400 ml-1">{link.subtitle}</span>}
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <div className="text-sm text-gray-600 dark:text-slate-300">{row.customer_name || row.customer?.name || '-'}</div>
+                  <div className="text-sm font-medium text-gray-900 dark:text-white">{formatMoney(row.total_amount)} บาท</div>
+                </div>
+              </>
+            );
+          }}
+        />
       </div>
     </Layout>
   );
