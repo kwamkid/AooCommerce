@@ -320,71 +320,51 @@ export default function CustomerSelectionCard({
         </div>
 
         {/* Row 1 Right: ที่อยู่ */}
+        {(selectedCustomer || hasDelivery) && (
         <div className="flex flex-col sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่</label>
-          {hasDelivery && isEditable ? (
-            <textarea
-              value={delivery.deliveryAddress}
-              onChange={(e) => onDeliveryChange!({ deliveryAddress: e.target.value })}
-              onPaste={(e) => {
-                const pasted = e.clipboardData.getData('text');
-                if (pasted.length > 10) {
-                  const parsed = parseThaiAddress(pasted);
-                  if (parsed) {
-                    e.preventDefault();
-                    onDeliveryChange!({
-                      deliveryAddress: parsed.address,
-                      deliveryDistrict: parsed.district,
-                      deliveryAmphoe: parsed.amphoe,
-                      deliveryProvince: parsed.province,
-                      deliveryPostalCode: parsed.postal_code,
-                    });
-                  }
+          <textarea
+            value={delivery?.deliveryAddress || ''}
+            onChange={(e) => onDeliveryChange?.({ deliveryAddress: e.target.value })}
+            onPaste={isEditable ? (e) => {
+              const pasted = e.clipboardData.getData('text');
+              if (pasted.length > 10) {
+                const parsed = parseThaiAddress(pasted);
+                if (parsed) {
+                  e.preventDefault();
+                  onDeliveryChange?.({
+                    deliveryAddress: parsed.address,
+                    deliveryDistrict: parsed.district,
+                    deliveryAmphoe: parsed.amphoe,
+                    deliveryProvince: parsed.province,
+                    deliveryPostalCode: parsed.postal_code,
+                  });
                 }
-              }}
-              rows={2}
-              placeholder="วางที่อยู่ยาวๆ ได้เลย — ระบบจะแยก ตำบล อำเภอ จังหวัด ให้อัตโนมัติ"
-              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] resize-none"
-            />
-          ) : selectedCustomer ? (
-            <p className="text-sm text-gray-700 dark:text-slate-300 py-2">
-              {delivery?.deliveryAddress
-                || [selectedCustomer.phone].filter(Boolean).join(' ')
-                || '-'}
-            </p>
-          ) : (
-            <p className="text-sm text-gray-400 dark:text-slate-500 py-2">เลือก{customerLabel}เพื่อแสดงที่อยู่</p>
-          )}
+              }
+            } : undefined}
+            rows={2}
+            disabled={!isEditable}
+            placeholder="วางที่อยู่ยาวๆ ได้เลย — ระบบจะแยก ตำบล อำเภอ จังหวัด ให้อัตโนมัติ"
+            className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none"
+          />
         </div>
+        )}
 
         {/* Row 2 Left: เบอร์โทร + อีเมล + ภาษี */}
-        {(selectedCustomer || (hasDelivery && isEditable)) && (
+        {(selectedCustomer || hasDelivery) && (
           <div className="space-y-2">
-            {hasDelivery && isEditable ? (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
-                  <input type="text" inputMode="tel" value={delivery.deliveryPhone} onChange={(e) => onDeliveryChange!({ deliveryPhone: e.target.value })} placeholder="0xx-xxx-xxxx"
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
-                  <input type="text" inputMode="email" value={delivery.deliveryEmail} onChange={(e) => onDeliveryChange!({ deliveryEmail: e.target.value })} placeholder="email@example.com"
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
-                </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
+                <input type="text" inputMode="tel" value={delivery?.deliveryPhone || selectedCustomer?.phone || ''} onChange={(e) => onDeliveryChange?.({ deliveryPhone: e.target.value })} placeholder="0xx-xxx-xxxx" disabled={!isEditable}
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" />
               </div>
-            ) : selectedCustomer ? (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
-                  <p className="text-sm text-gray-900 dark:text-white">{selectedCustomer.phone || '-'}</p>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
-                  <p className="text-sm text-gray-900 dark:text-white">{selectedCustomer.email || '-'}</p>
-                </div>
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
+                <input type="text" inputMode="email" value={delivery?.deliveryEmail || selectedCustomer?.email || ''} onChange={(e) => onDeliveryChange?.({ deliveryEmail: e.target.value })} placeholder="email@example.com" disabled={!isEditable}
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" />
               </div>
-            ) : null}
+            </div>
 
             {/* Tax invoice — VAT registered: show TaxInvoiceInfo */}
             {showTaxInvoice && vatRegistered && taxFields && (
@@ -405,49 +385,24 @@ export default function CustomerSelectionCard({
           </div>
         )}
 
-        {/* Row 2 Right: ThaiAddressInput (editable) or read-only display */}
-        {(selectedCustomer || (hasDelivery && isEditable)) && (
+        {/* Row 2 Right: ThaiAddressInput */}
+        {(selectedCustomer || hasDelivery) && (
           <div className="sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
-            {hasDelivery && isEditable ? (
-              <ThaiAddressInput
-                district={delivery.deliveryDistrict}
-                amphoe={delivery.deliveryAmphoe}
-                province={delivery.deliveryProvince}
-                postalCode={delivery.deliveryPostalCode}
-                onAddressChange={(addr) => {
-                  const updates: Partial<DeliveryFields> = {};
-                  if (addr.district !== undefined) updates.deliveryDistrict = addr.district;
-                  if (addr.amphoe !== undefined) updates.deliveryAmphoe = addr.amphoe;
-                  if (addr.province !== undefined) updates.deliveryProvince = addr.province;
-                  if (addr.postalCode !== undefined) updates.deliveryPostalCode = addr.postalCode;
-                  onDeliveryChange!(updates);
-                }}
-              />
-            ) : delivery ? (
-              /* Read-only: show address fields */
-              <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">ตำบล/แขวง</label>
-                    <p className="text-sm text-gray-900 dark:text-white">{delivery.deliveryDistrict || '-'}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">อำเภอ/เขต</label>
-                    <p className="text-sm text-gray-900 dark:text-white">{delivery.deliveryAmphoe || '-'}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">จังหวัด</label>
-                    <p className="text-sm text-gray-900 dark:text-white">{delivery.deliveryProvince || '-'}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">รหัสไปรษณีย์</label>
-                    <p className="text-sm text-gray-900 dark:text-white">{delivery.deliveryPostalCode || '-'}</p>
-                  </div>
-                </div>
-              </div>
-            ) : null}
+            <ThaiAddressInput
+              district={delivery?.deliveryDistrict || ''}
+              amphoe={delivery?.deliveryAmphoe || ''}
+              province={delivery?.deliveryProvince || ''}
+              postalCode={delivery?.deliveryPostalCode || ''}
+              onAddressChange={isEditable ? (addr) => {
+                const updates: Partial<DeliveryFields> = {};
+                if (addr.district !== undefined) updates.deliveryDistrict = addr.district;
+                if (addr.amphoe !== undefined) updates.deliveryAmphoe = addr.amphoe;
+                if (addr.province !== undefined) updates.deliveryProvince = addr.province;
+                if (addr.postalCode !== undefined) updates.deliveryPostalCode = addr.postalCode;
+                onDeliveryChange?.(updates);
+              } : () => {}}
+              disabled={!isEditable}
+            />
           </div>
         )}
 
