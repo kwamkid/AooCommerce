@@ -423,17 +423,31 @@ export default function CustomerSelectionCard({
                   onDeliveryChange!(updates);
                 }}
               />
-            ) : (
-              /* Read-only: show tax info if available */
-              taxFields?.taxName ? (
-                <TaxInvoiceInfo
-                  customerName={selectedCustomer?.name || ''}
-                  taxCompanyName={taxFields.taxName} taxId={taxFields.taxTaxId}
-                  taxBranch={taxFields.taxBranch} billingAddress={taxFields.taxAddress}
-                  compact
-                />
-              ) : null
-            )}
+            ) : delivery ? (
+              /* Read-only: show address fields */
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">ตำบล/แขวง</label>
+                    <p className="text-sm text-gray-900 dark:text-white">{delivery.deliveryDistrict || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">อำเภอ/เขต</label>
+                    <p className="text-sm text-gray-900 dark:text-white">{delivery.deliveryAmphoe || '-'}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">จังหวัด</label>
+                    <p className="text-sm text-gray-900 dark:text-white">{delivery.deliveryProvince || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">รหัสไปรษณีย์</label>
+                    <p className="text-sm text-gray-900 dark:text-white">{delivery.deliveryPostalCode || '-'}</p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
 
