@@ -16,8 +16,8 @@ import {
   Send, Copy, Eye, X, AlertTriangle, Printer,
   ClipboardList, FileText, User, Ban, Pencil,
 } from 'lucide-react';
-import Pagination from '@/app/components/Pagination';
 import Tooltip from '@/components/ui/Tooltip';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/replenishment-pdf';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateReplenishmentLabelPdf } from '@/lib/order-shipping-label-pdf';
@@ -185,9 +185,6 @@ function ReplenishmentsPageContent() {
 
   const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
   const getTabCount = (key: string) => key === 'all' ? totalCount : (statusCounts[key] || 0);
-
-  const startIdx = (currentPage - 1) * recordsPerPage;
-  const endIdx = Math.min(startIdx + replenishments.length, totalRecords);
 
   // Ship action
   const handleShip = async () => {
@@ -770,248 +767,219 @@ function ReplenishmentsPageContent() {
           </div>
         </div>
 
-        {/* Desktop Table */}
-        <div className="data-table-wrap hidden md:block">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="data-thead">
-                <tr>
-                  <th className="data-th">เลขที่</th>
-                  <th className="data-th">ตัวแทน</th>
-                  <th className="data-th text-right">มูลค่า / รายการ</th>
-                  <th className="data-th">สถานะ / วิธีส่ง</th>
-                  <th className="data-th">ผู้ทำรายการ</th>
-                  <th className="data-th">ผู้รับ</th>
-                  <th className="data-th text-center">พิมพ์</th>
-                  <th className="data-th text-right">จัดการ</th>
-                </tr>
-              </thead>
-              <tbody className="data-tbody">
-                {isLoading ? (
-                  <tr><td colSpan={8} className="px-6 py-12 text-center"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin mx-auto" /></td></tr>
-                ) : replenishments.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
-                      <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-gray-500 dark:text-slate-400 text-sm">ไม่มีรายการ</p>
-                    </td>
-                  </tr>
-                ) : replenishments.map(r => {
-                  const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending;
-                  const isPrinting = printingId === r.id;
-                  const itemCount = r.replenishment_items?.length || 0;
-                  return (
-                    <tr key={r.id} className="data-tr cursor-pointer" onClick={() => router.push(`/replenishments/new?id=${r.id}${r.status !== 'pending' ? '&view=1' : ''}`)}>
-                      {/* เลขที่ */}
-                      <td className="data-td">
-                        <p
-                          className="id-text-clickable text-gray-900 dark:text-white"
-                          title="คัดลอก"
-                          onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(r.replenishment_number).then(() => showToast('คัดลอกเลขที่แล้ว')); }}
-                        >
-                          {r.replenishment_number}
-                        </p>
-                        <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
-                      </td>
-                      {/* ตัวแทน */}
-                      <td className="data-td">
-                        <p className="data-text text-gray-900 dark:text-white font-medium">{r.customer?.name || '-'}</p>
-                      </td>
-                      {/* มูลค่า / รายการ */}
-                      <td className="data-td text-right">
-                        <span className="data-number text-gray-900 dark:text-white font-semibold">
-                          ฿{(r.confirmed_total ?? r.total_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
-                        </span>
-                        <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{itemCount} รายการ</p>
-                      </td>
-                      {/* สถานะ / วิธีส่ง */}
-                      <td className="data-td">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
-                          {statusCfg.label}
-                        </span>
-                        {r.shipping_carrier && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <Truck className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                            <span className="data-timestamp text-gray-500 dark:text-slate-400">{r.shipping_carrier}</span>
-                          </div>
-                        )}
-                        {r.tracking_number && <p className="code-text text-gray-500 dark:text-slate-400 text-xs mt-0.5">{r.tracking_number}</p>}
-                      </td>
-                      {/* ผู้ทำรายการ */}
-                      <td className="data-td data-text text-gray-700 dark:text-slate-300">{r.created_by_profile?.name || '-'}</td>
-                      {/* ผู้รับ */}
-                      <td className="data-td" onClick={e => e.stopPropagation()}>
-                        {r.receiver_name ? (
-                          <div className="flex items-center gap-2">
-                            {r.receive_photo_url && (
-                              <img
-                                src={r.receive_photo_url}
-                                alt="รูปรับสินค้า"
-                                className="w-8 h-8 rounded object-cover cursor-pointer hover:opacity-80 flex-shrink-0"
-                                onClick={() => setLightboxSrc(r.receive_photo_url!)}
-                              />
-                            )}
-                            <span className="data-text text-gray-700 dark:text-slate-300">{r.receiver_name}</span>
-                          </div>
-                        ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
-                      </td>
-                      {/* พิมพ์ */}
-                      <td className="data-td text-center" onClick={e => e.stopPropagation()}>
-                        {r.status !== 'cancelled' ? (
-                          <Tooltip text={`ใบจัดของ: ${isPrintedDoc(r, 'packing') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบปะหน้า: ${isPrintedDoc(r, 'label') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบส่งของ: ${isPrintedDoc(r, 'dn') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`}>
-                            <div className="relative flex items-center justify-center gap-1">
-                              {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
-                              <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                              <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                              <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                            </div>
-                          </Tooltip>
-                        ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>}
-                      </td>
-                      {/* จัดการ */}
-                      <td className="data-td" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
-                          {r.status === 'pending' && (
-                            <button
-                              onClick={() => setShipModalId(r.id)}
-                              className="btn-focus-action amber"
-                            >
-                              <Send className="w-4 h-4" />
-                              <span className="hidden md:inline">จัดส่ง</span>
-                            </button>
-                          )}
-                          {r.status === 'pending_confirm' && (
-                            <button
-                              onClick={() => router.push(`/replenishments/new?id=${r.id}`)}
-                              className="flex items-center gap-1.5 px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors whitespace-nowrap"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                              <span className="hidden md:inline">ยืนยัน</span>
-                            </button>
-                          )}
-                          {r.status === 'shipped' && r.receive_token && (
-                            <button
-                              onClick={() => copyReceiveLink(r.receive_token!)}
-                              className="flex items-center gap-1.5 px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-600 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50 transition-colors whitespace-nowrap"
-                            >
-                              <Copy className="w-4 h-4" />
-                              <span className="hidden md:inline">ลิงก์รับของ</span>
-                            </button>
-                          )}
-                          <ActionMenu items={getMenuItems(r)} />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <Pagination
-            currentPage={currentPage} totalPages={totalPages} totalRecords={totalRecords}
-            startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
-            setRecordsPerPage={v => setParams({ limit: String(v) })}
-            setPage={v => setParams({ page: String(v) })}
-          />
-        </div>
-
-        {/* Mobile Cards */}
-        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-          {isLoading ? (
-            <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" /></div>
-          ) : replenishments.length === 0 ? (
-            <div className="text-center py-16">
-              <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-slate-400 text-sm">ไม่มีรายการ</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-slate-700">
-              {replenishments.map(r => {
-                const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending;
-                const isPrinting = printingId === r.id;
+        {/* Table + Mobile Cards via DataTable */}
+        <DataTable<Replenishment>
+          storageKey="replenishments-columns"
+          columns={[
+            {
+              key: 'number', label: 'เลขที่', alwaysVisible: true,
+              headerClassName: 'min-w-[140px]', cellClassName: 'whitespace-nowrap',
+              render: (r) => (
+                <>
+                  <p
+                    className="id-text-clickable text-gray-900 dark:text-white"
+                    title="คัดลอก"
+                    onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(r.replenishment_number).then(() => showToast('คัดลอกเลขที่แล้ว')); }}
+                  >
+                    {r.replenishment_number}
+                  </p>
+                  <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
+                </>
+              ),
+            },
+            {
+              key: 'customer', label: 'ตัวแทน',
+              render: (r) => <p className="data-text text-gray-900 dark:text-white font-medium">{r.customer?.name || '-'}</p>,
+            },
+            {
+              key: 'amount', label: 'มูลค่า / รายการ', headerClassName: 'text-right', cellClassName: 'text-right',
+              render: (r) => {
+                const itemCount = r.replenishment_items?.length || 0;
                 return (
-                  <div key={r.id} className="p-4">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div
-                        className="cursor-pointer flex-1 min-w-0"
-                        onClick={() => router.push(`/replenishments/new?id=${r.id}${r.status !== 'pending' ? '&view=1' : ''}`)}
-                      >
-                        <p className="id-text-clickable text-gray-900 dark:text-white" onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(r.replenishment_number).then(() => showToast('คัดลอกเลขที่แล้ว')); }}>
-                          {r.replenishment_number}
-                        </p>
-                        <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(r.created_at)}</p>
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
-                          {statusCfg.label}
-                        </span>
-                        <ActionMenu items={getMenuItems(r)} />
-                      </div>
-                    </div>
-                    <div
-                      className="cursor-pointer"
-                      onClick={() => router.push(`/replenishments/new?id=${r.id}${r.status !== 'pending' ? '&view=1' : ''}`)}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{r.customer?.name || '-'}</span>
-                        <span className="data-number text-gray-900 dark:text-white font-semibold">฿{(r.confirmed_total ?? r.total_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
-                          {r.shipping_carrier && <span className="flex items-center gap-1"><Truck className="w-3 h-3" />{r.shipping_carrier}</span>}
-                          <span>{(r.replenishment_items?.length || 0)} รายการ</span>
-                          {r.created_by_profile?.name && <span>{r.created_by_profile.name}</span>}
-                        </div>
-                        {r.status !== 'cancelled' && (
-                          <div className="relative flex items-center gap-1" title="สถานะการพิมพ์">
-                            {isPrinting && <Loader2 className="w-3 h-3 text-gray-400 animate-spin absolute" />}
-                            <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                            <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                            <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-                          </div>
-                        )}
-                      </div>
-                      {r.receiver_name && (
-                        <div className="flex items-center gap-2 mt-1" onClick={e => e.stopPropagation()}>
-                          {r.receive_photo_url && (
-                            <img src={r.receive_photo_url} alt="" className="w-6 h-6 rounded object-cover cursor-pointer" onClick={() => setLightboxSrc(r.receive_photo_url!)} />
-                          )}
-                          <span className="text-xs text-gray-500 dark:text-slate-400">ผู้รับ: {r.receiver_name}</span>
-                        </div>
-                      )}
-                    </div>
-                    {/* Primary action buttons */}
-                    {(r.status === 'pending' || r.status === 'pending_confirm' || (r.status === 'shipped' && r.receive_token)) && (
-                      <div className="mt-3 flex gap-2" onClick={e => e.stopPropagation()}>
-                        {r.status === 'pending' && (
-                          <button onClick={() => setShipModalId(r.id)} className="btn-focus-action amber flex-1 justify-center">
-                            <Send className="w-4 h-4" /> จัดส่ง
-                          </button>
-                        )}
-                        {r.status === 'pending_confirm' && (
-                          <button onClick={() => router.push(`/replenishments/new?id=${r.id}`)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
-                            <CheckCircle2 className="w-4 h-4" /> ยืนยัน
-                          </button>
-                        )}
-                        {r.status === 'shipped' && r.receive_token && (
-                          <button onClick={() => copyReceiveLink(r.receive_token!)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors">
-                            <Copy className="w-4 h-4" /> ลิงก์รับของ
-                          </button>
-                        )}
+                  <>
+                    <span className="data-number text-gray-900 dark:text-white font-semibold">
+                      ฿{(r.confirmed_total ?? r.total_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                    </span>
+                    <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{itemCount} รายการ</p>
+                  </>
+                );
+              },
+            },
+            {
+              key: 'status', label: 'สถานะ / วิธีส่ง',
+              render: (r) => {
+                const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending;
+                return (
+                  <>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
+                      {statusCfg.label}
+                    </span>
+                    {r.shipping_carrier && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <Truck className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                        <span className="data-timestamp text-gray-500 dark:text-slate-400">{r.shipping_carrier}</span>
                       </div>
                     )}
-                  </div>
+                    {r.tracking_number && <p className="code-text text-gray-500 dark:text-slate-400 text-xs mt-0.5">{r.tracking_number}</p>}
+                  </>
                 );
-              })}
-            </div>
-          )}
-          <Pagination
-            currentPage={currentPage} totalPages={totalPages} totalRecords={totalRecords}
-            startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
-            setRecordsPerPage={v => setParams({ limit: String(v) })}
-            setPage={v => setParams({ page: String(v) })}
-          />
-        </div>
+              },
+            },
+            {
+              key: 'createdBy', label: 'ผู้ทำรายการ',
+              render: (r) => <span className="data-text text-gray-700 dark:text-slate-300">{r.created_by_profile?.name || '-'}</span>,
+            },
+            {
+              key: 'receiver', label: 'ผู้รับ', stopPropagation: true,
+              render: (r) => r.receiver_name ? (
+                <div className="flex items-center gap-2">
+                  {r.receive_photo_url && (
+                    <img
+                      src={r.receive_photo_url}
+                      alt="รูปรับสินค้า"
+                      className="w-8 h-8 rounded object-cover cursor-pointer hover:opacity-80 flex-shrink-0"
+                      onClick={() => setLightboxSrc(r.receive_photo_url!)}
+                    />
+                  )}
+                  <span className="data-text text-gray-700 dark:text-slate-300">{r.receiver_name}</span>
+                </div>
+              ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>,
+            },
+            {
+              key: 'print', label: 'พิมพ์', headerClassName: 'text-center', cellClassName: 'text-center', stopPropagation: true, hideMobile: true,
+              render: (r) => {
+                const isPrinting = printingId === r.id;
+                if (r.status === 'cancelled') return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
+                return (
+                  <Tooltip text={`ใบจัดของ: ${isPrintedDoc(r, 'packing') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบปะหน้า: ${isPrintedDoc(r, 'label') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบส่งของ: ${isPrintedDoc(r, 'dn') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`}>
+                    <div className="relative flex items-center justify-center gap-1">
+                      {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
+                      <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                      <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                      <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                    </div>
+                  </Tooltip>
+                );
+              },
+            },
+            {
+              key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-right', stopPropagation: true, hideMobile: true,
+              render: (r) => (
+                <div className="flex items-center justify-end gap-1">
+                  {r.status === 'pending' && (
+                    <button
+                      onClick={() => setShipModalId(r.id)}
+                      className="btn-focus-action amber"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span className="hidden md:inline">จัดส่ง</span>
+                    </button>
+                  )}
+                  {r.status === 'pending_confirm' && (
+                    <button
+                      onClick={() => router.push(`/replenishments/new?id=${r.id}`)}
+                      className="flex items-center gap-1.5 px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors whitespace-nowrap"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span className="hidden md:inline">ยืนยัน</span>
+                    </button>
+                  )}
+                  {r.status === 'shipped' && r.receive_token && (
+                    <button
+                      onClick={() => copyReceiveLink(r.receive_token!)}
+                      className="flex items-center gap-1.5 px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-600 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50 transition-colors whitespace-nowrap"
+                    >
+                      <Copy className="w-4 h-4" />
+                      <span className="hidden md:inline">ลิงก์รับของ</span>
+                    </button>
+                  )}
+                  <ActionMenu items={getMenuItems(r)} />
+                </div>
+              ),
+            },
+          ]}
+          data={replenishments}
+          loading={isLoading}
+          getRowId={(r) => r.id}
+          onRowClick={(r) => router.push(`/replenishments/new?id=${r.id}${r.status !== 'pending' ? '&view=1' : ''}`)}
+          rowClassName={(r) => r.status === 'cancelled' ? 'opacity-50' : ''}
+          emptyMessage="ไม่มีรายการ"
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          recordsPerPage={recordsPerPage}
+          onPageChange={(v) => setParams({ page: String(v) })}
+          onRecordsPerPageChange={(v) => setParams({ limit: String(v) })}
+          mobileCardRender={(r) => {
+            const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending;
+            const isPrinting = printingId === r.id;
+            return (
+              <>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="id-text-clickable text-gray-900 dark:text-white" onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(r.replenishment_number).then(() => showToast('คัดลอกเลขที่แล้ว')); }}>
+                      {r.replenishment_number}
+                    </p>
+                    <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(r.created_at)}</p>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
+                      {statusCfg.label}
+                    </span>
+                    <ActionMenu items={getMenuItems(r)} />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{r.customer?.name || '-'}</span>
+                  <span className="data-number text-gray-900 dark:text-white font-semibold">฿{(r.confirmed_total ?? r.total_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
+                    {r.shipping_carrier && <span className="flex items-center gap-1"><Truck className="w-3 h-3" />{r.shipping_carrier}</span>}
+                    <span>{(r.replenishment_items?.length || 0)} รายการ</span>
+                    {r.created_by_profile?.name && <span>{r.created_by_profile.name}</span>}
+                  </div>
+                  {r.status !== 'cancelled' && (
+                    <div className="relative flex items-center gap-1" title="สถานะการพิมพ์">
+                      {isPrinting && <Loader2 className="w-3 h-3 text-gray-400 animate-spin absolute" />}
+                      <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                      <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                      <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                    </div>
+                  )}
+                </div>
+                {r.receiver_name && (
+                  <div className="flex items-center gap-2 mt-1" onClick={e => e.stopPropagation()}>
+                    {r.receive_photo_url && (
+                      <img src={r.receive_photo_url} alt="" className="w-6 h-6 rounded object-cover cursor-pointer" onClick={() => setLightboxSrc(r.receive_photo_url!)} />
+                    )}
+                    <span className="text-xs text-gray-500 dark:text-slate-400">ผู้รับ: {r.receiver_name}</span>
+                  </div>
+                )}
+                {/* Primary action buttons */}
+                {(r.status === 'pending' || r.status === 'pending_confirm' || (r.status === 'shipped' && r.receive_token)) && (
+                  <div className="mt-3 flex gap-2" onClick={e => e.stopPropagation()}>
+                    {r.status === 'pending' && (
+                      <button onClick={() => setShipModalId(r.id)} className="btn-focus-action amber flex-1 justify-center">
+                        <Send className="w-4 h-4" /> จัดส่ง
+                      </button>
+                    )}
+                    {r.status === 'pending_confirm' && (
+                      <button onClick={() => router.push(`/replenishments/new?id=${r.id}`)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+                        <CheckCircle2 className="w-4 h-4" /> ยืนยัน
+                      </button>
+                    )}
+                    {r.status === 'shipped' && r.receive_token && (
+                      <button onClick={() => copyReceiveLink(r.receive_token!)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors">
+                        <Copy className="w-4 h-4" /> ลิงก์รับของ
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          }}
+        />
       </div>
 
       {/* Ship Modal */}
