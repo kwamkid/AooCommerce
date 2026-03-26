@@ -22,15 +22,18 @@ interface ShipModalProps {
   customerName: string;
   onSubmit: (result: ShipResult) => Promise<void>;
   onClose: () => void;
+  initialMethod?: string;
+  initialCarrier?: string;
+  initialTracking?: string;
 }
 
 /**
  * Shared shipping modal — used by dealer-orders, dept-wholesale, replenishments
  */
-export default function ShipModal({ orderNumber, customerName, onSubmit, onClose }: ShipModalProps) {
-  const [method, setMethod] = useState('');
-  const [carrier, setCarrier] = useState('');
-  const [tracking, setTracking] = useState('');
+export default function ShipModal({ orderNumber, customerName, onSubmit, onClose, initialMethod, initialCarrier, initialTracking }: ShipModalProps) {
+  const [method, setMethod] = useState(initialMethod || '');
+  const [carrier, setCarrier] = useState(initialCarrier || '');
+  const [tracking, setTracking] = useState(initialTracking || '');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 

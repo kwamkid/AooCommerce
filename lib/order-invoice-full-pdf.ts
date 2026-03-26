@@ -19,6 +19,7 @@ import {
   buildCornerTriangle,
   buildProductNameStack,
 } from './pdf-utils';
+import { productDisplayName } from './product-display';
 
 // ─── Interfaces ──────────────────────────────────────────
 
@@ -118,9 +119,11 @@ export async function generateFullInvoicePdf(
 
   const docTitle = data.tax_invoice_doc_type === 'receipt'
     ? 'ใบเสร็จรับเงิน'
-    : data.tax_invoice_doc_type === 'tax_receipt' || data.payment_status === 'paid'
-      ? 'ใบกำกับภาษี/ใบเสร็จรับเงิน'
-      : 'ใบกำกับภาษี';
+    : data.tax_invoice_doc_type === 'tax_only' || data.tax_invoice_doc_type === 'tax_invoice' || data.tax_invoice_doc_type === 'tax'
+      ? 'ใบกำกับภาษี'
+      : data.tax_invoice_doc_type === 'tax_receipt' || data.payment_status === 'paid'
+        ? 'ใบกำกับภาษี/ใบเสร็จรับเงิน'
+        : 'ใบกำกับภาษี';
   const dateStr = formatPdfDate(data.order_date || data.created_at);
   const invoiceDateStr = data.tax_invoice_date
     ? formatPdfDate(data.tax_invoice_date)
@@ -303,8 +306,8 @@ export async function generateFullInvoicePdf(
         tableBody.push(compRow);
       }
     } else {
-      const subtitle = [item.product_code, item.variation_label].filter(Boolean).join(' | ');
-      const productStack = buildProductNameStack(item.product_name, subtitle);
+      const fullName = productDisplayName(item);
+      const productStack = buildProductNameStack(fullName, null, item.sku || item.product_code);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const row: any[] = [

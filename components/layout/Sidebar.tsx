@@ -164,7 +164,7 @@ export default function Sidebar() {
     if (pathname?.startsWith('/products') || pathname === '/settings/categories' || pathname === '/settings/brands') setProductsOpen(true);
     if (pathname?.startsWith('/invoices') || pathname?.startsWith('/credit-notes') || pathname?.startsWith('/statements')) setAccountingOpen(true);
     if (pathname?.startsWith('/replenishments') || pathname?.startsWith('/consignment')) setConsignmentOpen(true);
-    if (pathname?.startsWith('/department-store/reports')) setDeptStoreOpen(true);
+    if (pathname?.startsWith('/department-store/reports') || pathname?.startsWith('/department-orders')) setDeptStoreOpen(true);
   }, [pathname]);
 
   useEffect(() => {
@@ -280,9 +280,15 @@ export default function Sidebar() {
 
     fetchOrderReadyCount();
 
+    // Debounced handler to avoid duplicate calls from Realtime events
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(fetchOrderReadyCount, 500);
+    };
+
     // Listen for custom event from order pages (e.g. after accepting orders)
-    const handler = () => fetchOrderReadyCount();
-    window.addEventListener('orders-count-changed', handler);
+    window.addEventListener('orders-count-changed', debouncedFetch);
 
     const channel = supabase
       .channel('sidebar-order-ready')
@@ -291,17 +297,18 @@ export default function Sidebar() {
         schema: 'public',
         table: 'orders',
         filter: `company_id=eq.${companyId}`,
-      }, () => { fetchOrderReadyCount(); })
+      }, debouncedFetch)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'orders',
         filter: `company_id=eq.${companyId}`,
-      }, () => { fetchOrderReadyCount(); })
+      }, debouncedFetch)
       .subscribe();
 
     return () => {
-      window.removeEventListener('orders-count-changed', handler);
+      if (debounceTimer) clearTimeout(debounceTimer);
+      window.removeEventListener('orders-count-changed', debouncedFetch);
       supabase.removeChannel(channel);
     };
   }, [userId, companyId, fetchOrderReadyCount]);

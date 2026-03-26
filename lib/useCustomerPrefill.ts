@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { fetchCustomerOrderContext, type GpResolverContext } from '@/lib/gp-resolver';
+import { parseThaiAddress } from '@/lib/address-parser';
 
 // ── Types ──
 
@@ -87,11 +88,37 @@ export function useCustomerPrefill() {
     setDeliveryName(c.contact_person || c.name || '');
     setDeliveryPhone(c.phone || '');
     setDeliveryEmail(c.email || '');
-    setDeliveryAddress(c.billing_address || '');
-    setDeliveryDistrict(c.billing_district || '');
-    setDeliveryAmphoe(c.billing_amphoe || '');
-    setDeliveryProvince(c.billing_province || '');
-    setDeliveryPostalCode(c.billing_postal_code || '');
+
+    // If billing has separate fields, use them directly
+    if (c.billing_district || c.billing_amphoe || c.billing_province) {
+      setDeliveryAddress(c.billing_address || '');
+      setDeliveryDistrict(c.billing_district || '');
+      setDeliveryAmphoe(c.billing_amphoe || '');
+      setDeliveryProvince(c.billing_province || '');
+      setDeliveryPostalCode(c.billing_postal_code || '');
+    } else if (c.billing_address) {
+      // billing_address is a combined string — try to parse it
+      const parsed = parseThaiAddress(c.billing_address);
+      if (parsed) {
+        setDeliveryAddress(parsed.address);
+        setDeliveryDistrict(parsed.district);
+        setDeliveryAmphoe(parsed.amphoe);
+        setDeliveryProvince(parsed.province);
+        setDeliveryPostalCode(parsed.postal_code);
+      } else {
+        setDeliveryAddress(c.billing_address);
+        setDeliveryDistrict('');
+        setDeliveryAmphoe('');
+        setDeliveryProvince('');
+        setDeliveryPostalCode('');
+      }
+    } else {
+      setDeliveryAddress('');
+      setDeliveryDistrict('');
+      setDeliveryAmphoe('');
+      setDeliveryProvince('');
+      setDeliveryPostalCode('');
+    }
   }, []);
 
   // ── Fill tax fields from customer ──

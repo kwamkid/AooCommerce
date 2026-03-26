@@ -82,6 +82,9 @@ async function enrichSourceNumbers(rows: Record<string, unknown>[]) {
   // Collect IDs by source type
   const orderIds = rows.filter(r => r.source_type === 'order').map(r => r.source_id as string);
   const statementIds = rows.filter(r => r.source_type === 'statement').map(r => r.source_id as string);
+  const csrIds = rows.filter(r => r.source_type === 'consignment_report').map(r => r.source_id as string);
+  const deptOrderIds = rows.filter(r => r.source_type === 'department_order').map(r => r.source_id as string);
+  const dsrIds = rows.filter(r => r.source_type === 'department_store_report').map(r => r.source_id as string);
   const repIds = rows.filter(r => r.source_type === 'replenishment').map(r => r.source_id as string);
 
   const refMap = new Map<string, string>();
@@ -93,6 +96,18 @@ async function enrichSourceNumbers(rows: Record<string, unknown>[]) {
   if (statementIds.length) {
     const { data } = await supabaseAdmin.from('statements').select('id, statement_number').in('id', statementIds);
     data?.forEach(s => refMap.set(s.id, s.statement_number));
+  }
+  if (csrIds.length) {
+    const { data } = await supabaseAdmin.from('consignment_reports').select('id, report_number').in('id', csrIds);
+    data?.forEach(r => refMap.set(r.id, r.report_number));
+  }
+  if (deptOrderIds.length) {
+    const { data } = await supabaseAdmin.from('department_orders').select('id, department_order_number').in('id', deptOrderIds);
+    data?.forEach(r => refMap.set(r.id, r.department_order_number));
+  }
+  if (dsrIds.length) {
+    const { data } = await supabaseAdmin.from('department_store_reports').select('id, report_number').in('id', dsrIds);
+    data?.forEach(r => refMap.set(r.id, r.report_number));
   }
   if (repIds.length) {
     const { data } = await supabaseAdmin.from('replenishments').select('id, replenishment_number').in('id', repIds);
@@ -113,7 +128,7 @@ async function queryTaxInvoices(companyId: string, f: FilterParams) {
       id, invoice_number, invoice_date,
       source_type, source_id,
       customer_id, customer_name, customer_tax_id, customer_branch, customer_address,
-      total_amount, vat_amount, is_receipt,
+      total_amount, vat_amount, is_receipt, document_subtype,
       voided_at, voided_reason,
       replaces_abbreviated_id,
       created_at,
@@ -168,6 +183,7 @@ async function queryTaxInvoices(companyId: string, f: FilterParams) {
       ? abbMap.get(r.replaces_abbreviated_id as string) || null
       : null,
     is_receipt: r.is_receipt,
+    document_subtype: r.document_subtype || null,
     total_amount: r.total_amount,
     vat_amount: r.vat_amount,
     customer_id: r.customer_id,

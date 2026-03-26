@@ -50,6 +50,7 @@ interface OrderItem {
   quantity: number;
   original_price: number;
   discount_rate: number;
+  discount_type?: 'percent' | 'amount';
   unit_price: number;
   gp_level: number;
   brand_id: string | null;
@@ -250,7 +251,8 @@ export default function DealerOrderForm({
 
     (async () => {
       try {
-        const res = await apiFetch(`/api/orders/${orderId}`);
+        const apiUrl = isDepartment ? `/api/department-orders/${orderId}` : `/api/orders/${orderId}`;
+        const res = await apiFetch(apiUrl);
         if (!res.ok) throw new Error('Order not found');
         const data = await res.json();
         const order = data.order;
@@ -259,9 +261,9 @@ export default function DealerOrderForm({
         let gpCtx: GpResolverContext | null = null;
         let productMap: Record<string, { default_price: number; discount_price: number; brand_id: string | null }> = {};
 
-        setOrderNumber(order.order_number);
-        setOrderStatus(order.order_status);
-        setPaymentStatus(order.payment_status);
+        setOrderNumber(isDepartment ? order.department_order_number : order.order_number);
+        setOrderStatus(isDepartment ? order.status : order.order_status);
+        setPaymentStatus(isDepartment ? 'paid' : order.payment_status);
         setNotes(order.notes || '');
         setInternalNotes(order.internal_notes || '');
         setShippingFee(parseFloat(order.shipping_fee) || 0);
@@ -495,7 +497,11 @@ export default function DealerOrderForm({
     if (!item.discount_rate) return null;
     const baseLabel = item.gp_base_price === 'discounted' ? 'ลด' : 'ปลีก';
     const basePrice = item.gp_base_price === 'discounted' && item.discount_price > 0 ? item.discount_price : item.default_price;
-    return `฿${formatNumber(basePrice)}(${baseLabel}) - ${isConsignment ? 'GP' : ''}${formatNumber(item.discount_rate)}% = ฿${formatNumber(item.unit_price)}`;
+    const prefix = isConsignment ? 'GP' : '';
+    if (item.discount_type === 'amount') {
+      return `฿${formatNumber(basePrice)}(${baseLabel}) - ฿${formatNumber(item.discount_rate)} = ฿${formatNumber(item.unit_price)}`;
+    }
+    return `฿${formatNumber(basePrice)}(${baseLabel}) - ${prefix}${formatNumber(item.discount_rate)}% = ฿${formatNumber(item.unit_price)}`;
   };
 
   // Available products (consignment: filter by dealer stock)
@@ -509,10 +515,8 @@ export default function DealerOrderForm({
 
   // Columns for ItemsTable
   const tableColumns: ('stock_dest' | 'qty' | 'unit_price' | 'discount' | 'total')[] = isConsignment
-    ? ['stock_dest', 'qty', 'unit_price', 'total']
-    : isDepartment
-      ? ['qty', 'unit_price', 'total']
-      : ['qty', 'unit_price', 'discount', 'total'];
+    ? ['stock_dest', 'qty', 'unit_price', 'discount', 'total']
+    : ['qty', 'unit_price', 'discount', 'total'];
 
   // ── Submit ──────────────────────────────────────────────────
 
@@ -687,7 +691,10 @@ export default function DealerOrderForm({
 
   // ── Edit mode: status actions ──────────────────────────────
 
-  const isReadOnly = isEditMode && ['completed', 'cancelled'].includes(orderStatus);
+  const deptReadOnlyStatuses = ['shipped', 'pending_confirm', 'received', 'partial_received', 'cancelled'];
+  const isReadOnly = isEditMode && (isDepartment
+    ? deptReadOnlyStatuses.includes(orderStatus)
+    : ['completed', 'cancelled'].includes(orderStatus));
 
   // ── Render ──────────────────────────────────────────────────
 
@@ -697,8 +704,8 @@ export default function DealerOrderForm({
 
   return (
     <div className="space-y-4">
-      {/* Edit mode: Status header + Actions */}
-      {isEditMode && orderId && (
+      {/* Edit mode: Status header + Actions (not for department — handled by page wrapper) */}
+      {isEditMode && orderId && !isDepartment && (
         <>
           <OrderStatusBar
             orderId={orderId}
@@ -712,7 +719,7 @@ export default function DealerOrderForm({
             orderId={orderId}
             orderNumber={orderNumber}
             orderStatus={orderStatus}
-            flowType={mode === 'department' ? 'd_consign' : flowType}
+            flowType={flowType}
           />
         </>
       )}
@@ -799,7 +806,7 @@ export default function DealerOrderForm({
                 quantity: i.quantity,
                 unit_price: i.original_price,
                 discount_value: i.discount_rate,
-                discount_type: 'percent' as const,
+                discount_type: (i.discount_type || 'percent') as 'percent' | 'amount',
                 gpInfo: gpInfoText(i),
                 stock_dest: isConsignment ? (dealerStockMap[i.variation_id] ?? 0) : undefined,
               }))}
@@ -811,12 +818,32 @@ export default function DealerOrderForm({
               stockMap={isConsignment ? dealerStockMap : undefined}
               showStockInSearch={isConsignment}
               disableOutOfStock={isConsignment}
+              disableDestWarning={isConsignment || isDepartment}
               onAdd={isReadOnly ? undefined : handleAddProduct}
               searchDisabledMessage={isReadOnly ? undefined : (loadingGp ? 'กำลังโหลดข้อมูลราคา...' : (!selectedCustomerId ? `กรุณาเลือก${customerLabel}ก่อน` : undefined))}
               onUpdateField={isReadOnly ? undefined : (idx, field, value) => {
                 if (field === 'quantity') updateItem(idx, 'quantity', value as number);
                 if (field === 'unit_price') updateItem(idx, 'original_price', value as number);
-                if (field === 'discount_value') updateItem(idx, 'discount_rate', value as number);
+                if (field === 'discount_value') {
+                  const item = items[idx];
+                  setItems(prev => prev.map((it, i) => {
+                    if (i !== idx) return it;
+                    const v = value as number;
+                    const updated = { ...it, discount_rate: v };
+                    if (it.discount_type === 'amount') {
+                      // THB discount: unit_price = original_price - discount_value
+                      updated.unit_price = Math.max(0, Math.round((it.original_price - v) * 100) / 100);
+                    } else {
+                      // % discount: unit_price = original_price * (1 - rate/100)
+                      updated.unit_price = Math.round(it.original_price * (1 - v / 100) * 100) / 100;
+                    }
+                    return updated;
+                  }));
+                }
+                if (field === 'discount_type') {
+                  // Reset discount value when toggling type
+                  setItems(prev => prev.map((it, i) => i === idx ? { ...it, discount_rate: 0, discount_type: value as string, unit_price: it.original_price } : it));
+                }
               }}
               onRemove={isReadOnly ? undefined : removeItem}
               emptyMessage="เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน"
@@ -868,10 +895,10 @@ export default function DealerOrderForm({
                 vatRegistered={vatRegistered}
                 shippingFee={!isConsignment ? shippingFee : undefined}
                 onShippingChange={!isConsignment ? setShippingFee : undefined}
-                discountValue={!isConsignment ? orderDiscount : undefined}
-                discountType={!isConsignment ? orderDiscountType : undefined}
-                onDiscountChange={!isConsignment ? setOrderDiscount : undefined}
-                onDiscountTypeToggle={!isConsignment ? () => { setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent'); setOrderDiscount(0); } : undefined}
+                discountValue={orderDiscount}
+                discountType={orderDiscountType}
+                onDiscountChange={setOrderDiscount}
+                onDiscountTypeToggle={() => { setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent'); setOrderDiscount(0); }}
               />
             </div>
           </div>

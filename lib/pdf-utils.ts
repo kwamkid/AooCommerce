@@ -98,7 +98,10 @@ export async function loadLogoDataUrl(logoUrl: string): Promise<string | null> {
 }
 
 /** Build product name stack for PDF item tables.
- * Truncates name to ~80 chars (approx 2 lines), deduplicates variation_label vs SKU.
+ * Simple product: "ชื่อสินค้า"
+ * Variation product: "ชื่อสินค้า - Variation Label"
+ * SKU shown as subtitle line below name.
+ * Truncates name to ~80 chars (approx 2 lines).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function buildProductNameStack(
@@ -106,10 +109,11 @@ export function buildProductNameStack(
   variationLabel?: string | null,
   sku?: string | null,
 ): any[] {
-  const maxLen = 80;
-  // Append variation label to product name: "ชื่อสินค้า - Variation"
-  const fullName = variationLabel && variationLabel !== sku
-    ? `${productName} - ${variationLabel}`
+  const maxLen = 140;
+  const cleanLabel = variationLabel && variationLabel !== sku && !/^\d+$/.test(variationLabel)
+    ? variationLabel : '';
+  const fullName = cleanLabel
+    ? `${productName} - ${cleanLabel}`
     : productName;
   const truncated = fullName.length > maxLen
     ? fullName.slice(0, maxLen) + '...'

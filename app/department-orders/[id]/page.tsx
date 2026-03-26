@@ -5,50 +5,25 @@ import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
+import ShipModal from '@/components/ui/ShipModal';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { getBadgeColor } from '@/lib/status-tab-colors';
+import { showPdfPreview } from '@/lib/print-pdf';
+import DealerOrderForm from '@/components/dealer/DealerOrderForm';
+import ReplenishmentForm from '@/components/replenishments/ReplenishmentForm';
 import {
-  ArrowLeft, Building2, Loader2, Package, Truck,
-  CheckCircle2, RefreshCw, XCircle, Receipt, Banknote,
+  ArrowLeft, Building2, Loader2, Send, Copy, CheckCircle2,
+  XCircle, Printer,
 } from 'lucide-react';
 import Link from 'next/link';
-import FormSelect from '@/components/ui/FormSelect';
-import { SHIPPING_CARRIERS } from '@/app/orders/components/types';
-
-interface DeptOrderItem {
-  id: string;
-  product_name: string;
-  variation_label: string | null;
-  quantity: number;
-  unit_price: number;
-  image?: string | null;
-}
-
-interface DeptOrderDetail {
-  id: string;
-  department_order_number: string;
-  status: string;
-  notes: string | null;
-  total_amount: number;
-  tax_invoice_number: string | null;
-  tax_invoice_date: string | null;
-  tax_invoice_name: string | null;
-  shipping_carrier: string | null;
-  tracking_number: string | null;
-  shipped_at: string | null;
-  invoiced_at: string | null;
-  paid_at: string | null;
-  created_at: string;
-  customer: { id: string; name: string; customer_code: string | null; phone: string | null } | null;
-  created_by_profile: { id: string; name: string } | null;
-  items: DeptOrderItem[];
-}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: 'แบบร่าง', color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
-  confirmed: { label: 'ยืนยันแล้ว', color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/40' },
-  shipped: { label: 'จัดส่งแล้ว', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/40' },
-  invoiced: { label: 'ออก Invoice แล้ว', color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40' },
-  paid: { label: 'ได้รับเงินแล้ว', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40' },
-  cancelled: { label: 'ยกเลิก', color: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
+  draft: { label: 'ที่ต้องจัดส่ง', ...getBadgeColor('draft') },
+  shipped: { label: 'กำลังส่ง', ...getBadgeColor('shipped') },
+  pending_confirm: { label: 'รอยืนยัน', ...getBadgeColor('pending_confirm') },
+  received: { label: 'รับครบแล้ว', ...getBadgeColor('completed') },
+  partial_received: { label: 'รับไม่ครบ', ...getBadgeColor('partial_received') },
+  cancelled: { label: 'ยกเลิก', ...getBadgeColor('cancelled') },
 };
 
 export default function DepartmentOrderDetailPage() {
@@ -57,25 +32,49 @@ export default function DepartmentOrderDetailPage() {
   const { showToast } = useToast();
   const id = params.id as string;
 
-  const [data, setData] = useState<DeptOrderDetail | null>(null);
+  // Fetch order status + basic info for header
+  const [orderInfo, setOrderInfo] = useState<{
+    department_order_number: string;
+    status: string;
+    receive_token: string | null;
+    customer_name: string;
+    receiver_name: string | null;
+  } | null>(null);
+  // Full order data (for pending_confirm view)
+  const [fullOrder, setFullOrder] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
 
-  const [shipModal, setShipModal] = useState(false);
-  const [shipCarrier, setShipCarrier] = useState('');
-  const [shipTracking, setShipTracking] = useState('');
+  // Ship modal
+  const [showShipModal, setShowShipModal] = useState(false);
 
-  const [invoiceModal, setInvoiceModal] = useState(false);
-  const [invoiceNumber, setInvoiceNumber] = useState('');
-  const [invoiceDate, setInvoiceDate] = useState('');
+  // Cancel confirm
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
+  // Void confirm
+  const [showVoidConfirm, setShowVoidConfirm] = useState(false);
+  const [voidSubmitting, setVoidSubmitting] = useState(false);
+
+  // ReplenishmentForm state (for pending_confirm)
+  const [repFormState, setRepFormState] = useState<any>(null);
+
+  // Print state
+  const [printing, setPrinting] = useState(false);
+
+  const fetchOrderInfo = useCallback(async () => {
     try {
       const res = await apiFetch(`/api/department-orders/${id}`);
       if (!res.ok) { router.push('/department-orders'); return; }
       const d = await res.json();
-      setData(d.order);
+      const order = d.order;
+      setOrderInfo({
+        department_order_number: order.department_order_number,
+        status: order.status,
+        receive_token: order.receive_token,
+        customer_name: order.customer?.name || '',
+        receiver_name: order.receiver_name || null,
+      });
+      setFullOrder(order);
     } catch {
       showToast('ไม่สามารถโหลดข้อมูลได้', 'error');
     } finally {
@@ -83,226 +82,354 @@ export default function DepartmentOrderDetailPage() {
     }
   }, [id]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchOrderInfo(); }, [fetchOrderInfo]);
 
-  const handleAction = async (updates: Record<string, unknown>) => {
-    setActionLoading(true);
+  // === Build tax invoice PDF data from department order ===
+  const buildTaxInvoiceData = (order: any) => {
+    const hasConfirmed = (order.items || []).some((i: any) => i.confirmed_quantity != null && i.confirmed_quantity !== i.quantity);
+    const orderItems = (order.items || [])
+      .filter((i: any) => !(hasConfirmed && i.confirmed_quantity != null && i.confirmed_quantity <= 0))
+      .map((i: any) => {
+        const qty = hasConfirmed && i.confirmed_quantity != null ? i.confirmed_quantity : (i.quantity || 0);
+        const lineTotal = qty * (i.unit_price || 0);
+        return { product_name: i.product_name, variation_label: i.variation_label, quantity: qty, unit_price: i.unit_price || 0, subtotal: lineTotal, total: lineTotal };
+      });
+    const totalAmt = order.confirmed_total ?? order.total_amount ?? 0;
+    const subtotalBeforeVat = totalAmt / 1.07;
+    return {
+      order_number: order.department_order_number, created_at: order.created_at, payment_status: 'paid',
+      subtotal: subtotalBeforeVat, discount_amount: 0, shipping_fee: 0, vat_amount: totalAmt - subtotalBeforeVat, total_amount: totalAmt,
+      notes: order.notes,
+      customer: order.customer ? { name: order.customer.name, phone: order.customer.phone } : null,
+      delivery_name: order.customer?.name, delivery_phone: order.customer?.phone,
+      delivery_address: order.customer?.billing_address, delivery_district: order.customer?.billing_district,
+      delivery_amphoe: order.customer?.billing_amphoe, delivery_province: order.customer?.billing_province,
+      delivery_postal_code: order.customer?.billing_postal_code,
+      tax_invoice_number: order.tax_invoice_number,
+      tax_invoice_date: order.tax_invoice_date || new Date().toISOString().split('T')[0],
+      tax_invoice_name: order.customer?.tax_company_name || order.customer?.name,
+      tax_invoice_tax_id: order.customer?.tax_id,
+      tax_invoice_address: [order.customer?.billing_address, order.customer?.billing_district, order.customer?.billing_amphoe, order.customer?.billing_province, order.customer?.billing_postal_code].filter(Boolean).join(' '),
+      tax_invoice_branch: order.customer?.tax_branch || 'สำนักงานใหญ่',
+      tax_invoice_doc_type: 'tax', items: orderItems,
+    };
+  };
+
+  // === Ship action ===
+  const handleShip = async (result: { method: string; carrier: string; tracking: string; notes: string }) => {
     try {
       const res = await apiFetch(`/api/department-orders/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({
+          action: 'ship',
+          shipping_method: result.method,
+          shipping_carrier: result.carrier,
+          tracking_number: result.tracking,
+          notes: result.notes || null,
+        }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
-      showToast('อัปเดตสำเร็จ', 'success');
-      fetchData();
+      if (!res.ok) { const r = await res.json(); throw new Error(r.error || 'Failed'); }
+      const resData = await res.json();
+      const dnNum = resData.dn_number;
+      const taxNum = resData.tax_invoice_number;
+      const docNums = [dnNum, taxNum].filter(Boolean);
+      showToast(docNums.length > 0 ? `จัดส่งเรียบร้อย + ออกเอกสาร ${docNums.join(' + ')}` : 'จัดส่งเรียบร้อย', 'success');
+      setShowShipModal(false);
+
+      // Auto print TAX + DN after ship
+      try {
+        const orderRes = await apiFetch(`/api/department-orders/${id}`);
+        if (orderRes.ok) {
+          const { order } = await orderRes.json();
+          const { showPdfPreview, mergePdfBlobs } = await import('@/lib/print-pdf');
+          const blobs: Blob[] = [];
+
+          if (taxNum) {
+            const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+            const taxData = buildTaxInvoiceData(order);
+            taxData.tax_invoice_number = taxNum;
+            const taxBlob = await generateFullInvoicePdf(taxData);
+            blobs.push(taxBlob);
+          }
+
+          if (dnNum) {
+            const { generateReplenishmentPdf } = await import('@/lib/replenishment-pdf');
+            const dnBlob = await generateReplenishmentPdf({
+              data: {
+                id: order.id,
+                replenishment_number: order.department_order_number,
+                status: order.status,
+                notes: order.notes,
+                created_at: order.created_at,
+                receive_token: order.receive_token,
+                total_amount: order.confirmed_total ?? order.total_amount,
+                shipping_fee: 0,
+                customer: order.customer ? {
+                  name: order.customer.name,
+                  customer_code: order.customer.customer_code,
+                  phone: order.customer.phone,
+                  billing_address: order.customer.billing_address,
+                  billing_district: order.customer.billing_district,
+                  billing_amphoe: order.customer.billing_amphoe,
+                  billing_province: order.customer.billing_province,
+                  billing_postal_code: order.customer.billing_postal_code,
+                } : null,
+                created_by_name: order.created_by_profile?.name,
+                items: (order.items || []).map((i: any) => ({
+                  product_name: i.product_name,
+                  variation_label: i.variation_label,
+                  sku: i.sku || null,
+                  quantity: i.quantity,
+                  confirmed_quantity: i.confirmed_quantity,
+                  unit_price: i.unit_price || 0,
+                  image: i.image,
+                })),
+              },
+            });
+            blobs.push(dnBlob);
+          }
+
+          if (blobs.length > 1) {
+            const merged = await mergePdfBlobs(blobs);
+            showPdfPreview(merged, `เอกสาร ${[taxNum, dnNum].filter(Boolean).join(' + ')}`);
+          } else if (blobs.length === 1) {
+            showPdfPreview(blobs[0], `เอกสาร ${taxNum || dnNum}`);
+          }
+        }
+      } catch (printErr) {
+        console.error('Auto-print after ship failed:', printErr);
+      }
+
+      router.push('/department-orders');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
-    } finally {
-      setActionLoading(false);
     }
   };
 
-  const handleShip = async () => {
-    await handleAction({ status: 'shipped', shipping_carrier: shipCarrier || null, tracking_number: shipTracking || null });
-    setShipModal(false);
+  // === Cancel action ===
+  const handleCancel = async () => {
+    setCancelSubmitting(true);
+    try {
+      const res = await apiFetch(`/api/department-orders/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' }),
+      });
+      if (!res.ok) { const r = await res.json(); throw new Error(r.error || 'Failed'); }
+      showToast('ยกเลิกเรียบร้อย', 'success');
+      router.push('/department-orders');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setCancelSubmitting(false);
+    }
   };
 
-  const handleInvoice = async () => {
-    if (!invoiceNumber) { showToast('กรุณากรอกเลข invoice', 'error'); return; }
-    await handleAction({ status: 'invoiced', tax_invoice_number: invoiceNumber, tax_invoice_date: invoiceDate || null });
-    setInvoiceModal(false);
+  // === Copy receive link ===
+  // === Void action (shipped → draft) ===
+  const handleVoid = async () => {
+    setVoidSubmitting(true);
+    try {
+      const res = await apiFetch(`/api/department-orders/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'void' }),
+      });
+      if (!res.ok) { const r = await res.json(); throw new Error(r.error || 'Failed'); }
+      showToast('Void เอกสารแล้ว — กลับเป็นที่ต้องจัดส่ง แก้ไขได้', 'success');
+      setShowVoidConfirm(false);
+      fetchOrderInfo();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setVoidSubmitting(false);
+    }
+  };
+
+
+  const copyReceiveLink = () => {
+    if (!orderInfo?.receive_token) return;
+    const url = `${window.location.origin}/department-orders/receive/${orderInfo.receive_token}`;
+    navigator.clipboard.writeText(url);
+    showToast('คัดลอกลิงก์รับของแล้ว', 'success');
+  };
+
+  // === Print DN ===
+  const handlePrint = async () => {
+    setPrinting(true);
+    try {
+      const res = await apiFetch(`/api/department-orders/${id}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      const { order } = await res.json();
+      const { generateReplenishmentPdf } = await import('@/lib/replenishment-pdf');
+      const pdfData = {
+        id: order.id,
+        replenishment_number: order.department_order_number,
+        status: order.status,
+        notes: order.notes,
+        created_at: order.created_at,
+        receive_token: order.receive_token,
+        total_amount: order.confirmed_total ?? order.total_amount,
+        shipping_fee: 0,
+        customer: order.customer ? {
+          name: order.customer.name,
+          customer_code: order.customer.customer_code,
+          phone: order.customer.phone,
+          billing_address: order.customer.billing_address,
+          billing_district: order.customer.billing_district,
+          billing_amphoe: order.customer.billing_amphoe,
+          billing_province: order.customer.billing_province,
+          billing_postal_code: order.customer.billing_postal_code,
+        } : null,
+        created_by_name: order.created_by_profile?.name,
+        items: (order.items || []).map((i: any) => ({
+          product_name: i.product_name,
+          variation_label: i.variation_label,
+          sku: i.sku || null,
+          quantity: i.quantity,
+          confirmed_quantity: i.confirmed_quantity,
+          unit_price: i.unit_price,
+          image: i.image,
+        })),
+      };
+      const blob = await generateReplenishmentPdf({ data: pdfData });
+      showPdfPreview(blob, `ใบส่งสินค้า ${order.department_order_number}`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setPrinting(false);
+    }
   };
 
   if (isLoading) {
     return <Layout><div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div></Layout>;
   }
 
-  if (!data) return null;
+  if (!orderInfo) return null;
 
-  const statusCfg = STATUS_CONFIG[data.status] || STATUS_CONFIG.draft;
+  const status = orderInfo.status;
+  const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
+  const isViewOnly = status !== 'draft';
 
   return (
     <Layout>
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <Link href="/department-orders" className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Building2 className="w-5 h-5 text-[#F4511E] flex-shrink-0" />
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate">{data.department_order_number}</h1>
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${statusCfg.bg} ${statusCfg.color}`}>
-              {statusCfg.label}
-            </span>
-          </div>
-          <button onClick={fetchData} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Info Card */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-3">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">{data.customer?.name}</p>
-              {data.customer?.customer_code && <p className="text-xs text-gray-400">{data.customer.customer_code}</p>}
-              {data.customer?.phone && <p className="text-xs text-gray-400">{data.customer.phone}</p>}
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-400">ยอดรวม</p>
-              <p className="text-lg font-bold text-gray-900 dark:text-white">
-                ฿{data.total_amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
-              </p>
+      <div className="space-y-4">
+        {/* Header — same pattern as replenishments */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Link href="/department-orders" className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <div className="flex items-center gap-2">
+              <Building2 className="w-6 h-6 text-[#F4511E]" />
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {isViewOnly ? 'ใบส่งห้าง' : 'แก้ไขใบส่งห้าง'}
+              </h1>
+              <span className="id-text text-[#F4511E]">{orderInfo.department_order_number}</span>
+              <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
+                {statusCfg.label}
+              </span>
             </div>
           </div>
-          {data.tax_invoice_number && (
-            <div className="flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400">
-              <Receipt className="w-4 h-4" />
-              Invoice: {data.tax_invoice_number}
-              {data.tax_invoice_date && <span className="text-gray-400">· {new Date(data.tax_invoice_date).toLocaleDateString('th-TH')}</span>}
-            </div>
-          )}
-          {data.shipping_carrier && (
-            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
-              <Truck className="w-4 h-4 text-gray-400" />
-              {data.shipping_carrier}
-              {data.tracking_number && <span className="font-mono text-xs bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">{data.tracking_number}</span>}
-            </div>
-          )}
-          {data.notes && <p className="text-sm text-gray-500 dark:text-slate-400 italic">{data.notes}</p>}
-          <p className="text-xs text-gray-400">
-            สร้างโดย {data.created_by_profile?.name || 'ระบบ'} · {new Date(data.created_at).toLocaleDateString('th-TH', { dateStyle: 'medium' })}
-          </p>
-        </div>
 
-        {/* Items */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">รายการสินค้า ({data.items.length} รายการ)</h2>
-          <div className="space-y-2">
-            {data.items.map(item => (
-              <div key={item.id} className="flex items-center gap-3 py-2 border-b border-gray-100 dark:border-slate-700/50 last:border-0">
-                {item.image ? (
-                  <img src={item.image} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-gray-100" />
-                ) : (
-                  <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                    <Package className="w-5 h-5 text-gray-300" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-800 dark:text-white truncate">{item.product_name}</p>
-                  {item.variation_label && <p className="text-xs text-gray-400">{item.variation_label}</p>}
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-medium text-gray-800 dark:text-white">{item.quantity} ชิ้น</p>
-                  <p className="text-xs text-gray-400">฿{item.unit_price.toLocaleString()}/ชิ้น</p>
-                </div>
-              </div>
-            ))}
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={handlePrint} disabled={printing} className="btn-secondary flex items-center gap-2">
+              {printing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+              พิมพ์
+            </button>
+
+            {status === 'shipped' && orderInfo.receive_token && (
+              <button onClick={copyReceiveLink}
+                className="btn-secondary flex items-center gap-2 !border-amber-300 dark:!border-amber-700 !bg-amber-50 dark:!bg-amber-900/20 !text-amber-700 dark:!text-amber-400 hover:!bg-amber-100 dark:hover:!bg-amber-900/30">
+                <Copy className="w-4 h-4" /> คัดลอกลิงก์รับสินค้า
+              </button>
+            )}
+
+            {status === 'draft' && (
+              <button onClick={() => setShowShipModal(true)} className="btn-primary">
+                <Send className="w-4 h-4" /> จัดส่ง
+              </button>
+            )}
+
+            {status === 'draft' && (
+              <button onClick={() => setShowCancelConfirm(true)} className="btn-danger flex items-center gap-2">
+                <XCircle className="w-4 h-4" /> ยกเลิก
+              </button>
+            )}
+
+            {status === 'pending_confirm' && repFormState && (
+              <button onClick={repFormState.handleConfirm} disabled={repFormState.confirmSubmitting} className="btn-success">
+                {repFormState.confirmSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                ยืนยัน
+              </button>
+            )}
+
+            {status === 'shipped' && (
+              <button onClick={() => setShowVoidConfirm(true)} className="btn-danger flex items-center gap-2">
+                <XCircle className="w-4 h-4" /> Void
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Actions */}
-        {data.status === 'draft' && (
-          <div className="flex gap-3">
-            <button onClick={() => handleAction({ status: 'cancelled' })} disabled={actionLoading} className="btn btn-ghost flex-1 gap-2">
-              <XCircle className="w-4 h-4" /> ยกเลิก
-            </button>
-            <button onClick={() => handleAction({ status: 'confirmed' })} disabled={actionLoading} className="btn btn-primary flex-1 gap-2">
-              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-              ยืนยัน
-            </button>
-          </div>
-        )}
-
-        {data.status === 'confirmed' && (
-          <div className="flex gap-3">
-            <button onClick={() => handleAction({ status: 'cancelled' })} disabled={actionLoading} className="btn btn-ghost flex-1 gap-2">
-              <XCircle className="w-4 h-4" /> ยกเลิก
-            </button>
-            <button onClick={() => { setShipCarrier(data.shipping_carrier || ''); setShipTracking(data.tracking_number || ''); setShipModal(true); }} disabled={actionLoading} className="btn btn-primary flex-1 gap-2">
-              <Truck className="w-4 h-4" /> จัดส่งแล้ว
-            </button>
-          </div>
-        )}
-
-        {data.status === 'shipped' && (
-          <button onClick={() => { setInvoiceNumber(data.tax_invoice_number || ''); setInvoiceDate(data.tax_invoice_date || ''); setInvoiceModal(true); }} disabled={actionLoading} className="btn btn-primary w-full gap-2">
-            <Receipt className="w-4 h-4" /> ออก Tax Invoice
-          </button>
-        )}
-
-        {data.status === 'invoiced' && (
-          <button onClick={() => handleAction({ status: 'paid' })} disabled={actionLoading} className="btn btn-primary w-full gap-2">
-            {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Banknote className="w-4 h-4" />}
-            บันทึกรับเงิน
-          </button>
-        )}
-
-        {data.status === 'paid' && (
-          <div className="rounded-xl p-4 flex items-center gap-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
-            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-            <p className="text-sm font-medium">
-              ได้รับเงินแล้ว{data.paid_at ? ` · ${new Date(data.paid_at).toLocaleDateString('th-TH')}` : ''}
-            </p>
-          </div>
+        {/* pending_confirm / received / partial_received: use ReplenishmentForm (shared confirm view) */}
+        {['pending_confirm', 'received', 'partial_received'].includes(status) ? (
+          <ReplenishmentForm
+            mode="department_order"
+            replenishmentId={id}
+            viewMode={status !== 'pending_confirm'}
+            onLoad={setRepFormState}
+          />
+        ) : (
+          /* Form — reuse DealerOrderForm for draft/shipped/cancelled */
+          <DealerOrderForm
+            mode="department"
+            customerTypeFilter="department_store"
+            customerLabel="ห้างสรรพสินค้า"
+            submitLabel="บันทึกการแก้ไข"
+            summaryTitle="สรุปใบส่งห้าง"
+            showWarehousePicker
+            backUrl="/department-orders"
+            orderId={id}
+          />
         )}
       </div>
 
       {/* Ship Modal */}
-      {shipModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !actionLoading && setShipModal(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">บันทึกการจัดส่ง</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="label-text text-xs mb-1 block">ขนส่ง</label>
-                <FormSelect value={shipCarrier} onChange={setShipCarrier}
-                  options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
-                  placeholder="เลือกขนส่ง" searchThreshold={99} />
-              </div>
-              <div>
-                <label className="label-text text-xs mb-1 block">เลขพัสดุ</label>
-                <input type="text" value={shipTracking} onChange={e => setShipTracking(e.target.value)}
-                  placeholder="เลข tracking" className="input w-full" />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShipModal(false)} disabled={actionLoading} className="btn btn-ghost flex-1">ยกเลิก</button>
-              <button onClick={handleShip} disabled={actionLoading} className="btn btn-primary flex-1 gap-2">
-                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />} จัดส่ง
-              </button>
-            </div>
-          </div>
-        </div>
+      {showShipModal && (
+        <ShipModal
+          orderNumber={orderInfo.department_order_number}
+          customerName={orderInfo.customer_name}
+          onSubmit={handleShip}
+          onClose={() => setShowShipModal(false)}
+        />
       )}
 
-      {/* Invoice Modal */}
-      {invoiceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !actionLoading && setInvoiceModal(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">ออก Tax Invoice</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="label-text text-xs mb-1 block">เลข Invoice <span className="text-red-500">*</span></label>
-                <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)}
-                  placeholder="เช่น IV-202603-0001" className="input w-full" autoFocus />
-              </div>
-              <div>
-                <label className="label-text text-xs mb-1 block">วันที่ออก Invoice</label>
-                <input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} className="input w-full" />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setInvoiceModal(false)} disabled={actionLoading} className="btn btn-ghost flex-1">ยกเลิก</button>
-              <button onClick={handleInvoice} disabled={actionLoading || !invoiceNumber} className="btn btn-primary flex-1 gap-2">
-                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />} บันทึก
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Cancel Confirm */}
+      <ConfirmDialog
+        open={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        title="ยืนยันยกเลิก"
+        description="ต้องการยกเลิกใบส่งห้างนี้หรือไม่? สต๊อกที่จองไว้จะถูกคืนกลับ"
+        confirmLabel="ยืนยันยกเลิก"
+        variant="danger"
+        loading={cancelSubmitting}
+        onConfirm={handleCancel}
+      />
+
+      <ConfirmDialog
+        open={showVoidConfirm}
+        onClose={() => !voidSubmitting && setShowVoidConfirm(false)}
+        title="ยกเลิก (Void)"
+        description="ยกเลิกใบกำกับภาษี + ใบส่งสินค้าที่ออกไปแล้ว และกลับเป็นสถานะ 'ที่ต้องจัดส่ง' เพื่อแก้ไขหรือยกเลิกออเดอร์ได้"
+        confirmLabel="Void เอกสาร"
+        variant="danger"
+        loading={voidSubmitting}
+        onConfirm={handleVoid}
+      />
     </Layout>
   );
 }
+

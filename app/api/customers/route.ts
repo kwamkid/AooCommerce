@@ -111,8 +111,8 @@ export async function POST(request: NextRequest) {
     // Normalize customer_type for response
     if (data) data.customer_type = data.customer_type || 'retail';
 
-    // Auto-create consignment warehouse for consignment_dealer customers
-    if (data && data.customer_type === 'consignment_dealer') {
+    // Auto-create consignment warehouse for consignment_dealer / department_store customers
+    if (data && (data.customer_type === 'consignment_dealer' || data.customer_type === 'department_store')) {
       await supabaseAdmin
         .from('warehouses')
         .insert({

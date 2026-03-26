@@ -7,7 +7,7 @@ import imageCompression from 'browser-image-compression';
 import { Loader2, Package, Camera, Sun, Moon, CheckCircle2, XCircle, Clock, Truck, AlertTriangle } from 'lucide-react';
 import { productDisplayName } from '@/lib/product-display';
 
-interface ReplenishmentItem {
+interface DeptOrderItem {
   id: string;
   product_id: string | null;
   variation_id: string | null;
@@ -16,13 +16,13 @@ interface ReplenishmentItem {
   quantity: number;
   received_quantity: number;
   unit_price: number;
-  sku: string | null;
   image: string | null;
+  sku: string | null;
 }
 
-interface ReplenishmentData {
+interface DeptOrderData {
   id: string;
-  replenishment_number: string;
+  department_order_number: string;
   status: string;
   notes: string | null;
   created_at: string;
@@ -37,17 +37,17 @@ interface ReplenishmentData {
   tracking_number: string | null;
   total_amount: number;
   customer: { id: string; name: string; customer_code: string | null; phone: string | null };
-  items: ReplenishmentItem[];
+  items: DeptOrderItem[];
   company: { id: string; name: string; logo_url: string | null };
 }
 
 const formatNumber = (n: number) => n.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
-export default function ReplenishmentReceivePage() {
+export default function DeptOrderReceivePage() {
   const params = useParams();
   const token = params.token as string;
 
-  const [data, setData] = useState<ReplenishmentData | null>(null);
+  const [data, setData] = useState<DeptOrderData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -55,14 +55,14 @@ export default function ReplenishmentReceivePage() {
   const [dark, setDark] = useState(true);
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    const stored = localStorage.getItem('replenish-receive-theme');
+    const stored = localStorage.getItem('dept-order-receive-theme');
     if (stored === 'light') setDark(false);
     setMounted(true);
   }, []);
   const toggleDark = () => {
     setDark(prev => {
       const next = !prev;
-      localStorage.setItem('replenish-receive-theme', next ? 'dark' : 'light');
+      localStorage.setItem('dept-order-receive-theme', next ? 'dark' : 'light');
       return next;
     });
   };
@@ -86,12 +86,12 @@ export default function ReplenishmentReceivePage() {
 
   const fetchData = async () => {
     try {
-      const res = await fetch(`/api/replenishments/receive?token=${token}`);
+      const res = await fetch(`/api/department-orders/receive?token=${token}`);
       if (!res.ok) {
         const r = await res.json();
-        throw new Error(r.error || 'ไม่พบใบเติมสินค้า');
+        throw new Error(r.error || 'ไม่พบใบส่งห้าง');
       }
-      const { replenishment } = await res.json();
+      const { order: replenishment } = await res.json();
       setData(replenishment);
       const initQty: Record<string, number> = {};
       for (const item of replenishment.items) {
@@ -155,7 +155,7 @@ export default function ReplenishmentReceivePage() {
       if (receiveNotes.trim()) formData.append('receive_notes', receiveNotes.trim());
       if (photo) formData.append('photo', photo);
 
-      const res = await fetch('/api/replenishments/receive', {
+      const res = await fetch('/api/department-orders/receive', {
         method: 'POST',
         body: formData,
       });
@@ -213,7 +213,7 @@ export default function ReplenishmentReceivePage() {
       <div className={`min-h-screen flex items-center justify-center p-4 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
         <div className="text-center">
           <Package className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-slate-600' : 'text-gray-300'}`} />
-          <h1 className={`text-xl font-semibold mb-2 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>ไม่พบใบเติมสินค้า</h1>
+          <h1 className={`text-xl font-semibold mb-2 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>ไม่พบใบส่งห้าง</h1>
           <p className={dark ? 'text-slate-500' : 'text-gray-500'}>{error || 'ลิงก์นี้ไม่ถูกต้องหรือหมดอายุแล้ว'}</p>
         </div>
       </div>
@@ -235,7 +235,7 @@ export default function ReplenishmentReceivePage() {
       <div className="sticky top-0 bg-[#1A1A2E] px-4 py-3 flex items-center justify-between z-10 shadow-md">
         <div className="flex items-center gap-2">
           <Image src="/logo.svg" alt="Logo" width={80} height={52} className="h-8 w-auto" priority />
-          <span className="font-medium text-white/80 text-sm ml-2">#{data.replenishment_number}</span>
+          <span className="font-medium text-white/80 text-sm ml-2">#{data.department_order_number}</span>
         </div>
         <button
           onClick={toggleDark}
@@ -260,11 +260,11 @@ export default function ReplenishmentReceivePage() {
               )}
               <div>
                 <div className={`text-lg font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{data.company.name}</div>
-                <p className={`text-sm ${dark ? 'text-slate-500' : 'text-gray-400'}`}>ใบเติมสินค้าตัวแทน</p>
+                <p className={`text-sm ${dark ? 'text-slate-500' : 'text-gray-400'}`}>ใบส่งสินค้าห้าง</p>
               </div>
             </div>
             <div className="text-right">
-              <div className={`font-bold text-base ${dark ? 'text-white' : 'text-gray-900'}`}>{data.replenishment_number}</div>
+              <div className={`font-bold text-base ${dark ? 'text-white' : 'text-gray-900'}`}>{data.department_order_number}</div>
               {data.shipped_at && (
                 <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`} suppressHydrationWarning>{formatDate(data.shipped_at)}</div>
               )}
@@ -280,11 +280,11 @@ export default function ReplenishmentReceivePage() {
             </div>
           </div>
 
-          {/* === STATUS: PENDING === */}
-          {data.status === 'pending' && (
+          {/* === STATUS: DRAFT (ยังไม่จัดส่ง) === */}
+          {data.status === 'draft' && (
             <div className={`border-2 rounded-xl p-5 text-center ${dark ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-200'}`}>
               <Clock className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-yellow-400' : 'text-yellow-500'}`} />
-              <div className={`font-bold text-lg ${dark ? 'text-yellow-400' : 'text-yellow-700'}`}>ใบเติมสินค้านี้ยังไม่ได้จัดส่ง</div>
+              <div className={`font-bold text-lg ${dark ? 'text-yellow-400' : 'text-yellow-700'}`}>ใบส่งห้างนี้ยังไม่ได้จัดส่ง</div>
               <p className={`text-sm mt-1 ${dark ? 'text-yellow-500/70' : 'text-yellow-500'}`}>กรุณารอจนกว่าจะมีการจัดส่งสินค้า</p>
             </div>
           )}
@@ -293,7 +293,7 @@ export default function ReplenishmentReceivePage() {
           {data.status === 'cancelled' && (
             <div className={`border-2 rounded-xl p-5 text-center ${dark ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'}`}>
               <XCircle className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-red-400' : 'text-red-500'}`} />
-              <div className={`font-bold text-lg ${dark ? 'text-red-400' : 'text-red-700'}`}>ใบเติมสินค้านี้ถูกยกเลิกแล้ว</div>
+              <div className={`font-bold text-lg ${dark ? 'text-red-400' : 'text-red-700'}`}>ใบส่งห้างนี้ถูกยกเลิกแล้ว</div>
             </div>
           )}
 

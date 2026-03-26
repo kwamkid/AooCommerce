@@ -61,6 +61,7 @@ interface ReplenishmentItem {
   gp_rate: number;
   gp_base_price: 'retail' | 'discounted';
   gp_level: number;
+  discount_type?: 'percent' | 'amount';
 }
 
 interface StockRecord { variation_id: string; quantity: number; available: number; }
@@ -87,13 +88,17 @@ interface Props {
   replenishmentId?: string;
   viewMode?: boolean;
   onLoad?: (state: ReplenishmentFormState) => void;
+  /** Department order mode: uses /api/department-orders instead of /api/replenishments */
+  mode?: 'replenishment' | 'department_order';
 }
 
-export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMode = false, onLoad }: Props) {
+export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMode = false, onLoad, mode = 'replenishment' }: Props) {
   const router = useRouter();
   const { showToast } = useToast();
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
+  const isDeptOrder = mode === 'department_order';
+  const apiBase = isDeptOrder ? '/api/department-orders' : '/api/replenishments';
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
@@ -180,7 +185,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   }, [existingStatus, replenishmentNumber, receiveToken, printing, submitting, confirmSubmitting, isEditMode]);
 
   useEffect(() => {
-    apiFetch('/api/customers?active=true&type=consignment_dealer')
+    apiFetch(`/api/customers?active=true&type=${isDeptOrder ? 'department_store' : 'consignment_dealer'}`)
       .then(r => r.json())
       .then(d => setCustomers(d.data || d.customers || []))
       .catch(() => {});
@@ -238,14 +243,14 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   useEffect(() => {
     if (!replenishmentId) return;
     setLoadingExisting(true);
-    apiFetch(`/api/replenishments/${replenishmentId}`)
+    apiFetch(`${apiBase}/${replenishmentId}`)
       .then(r => r.json())
       .then(data => {
-        const rp = data.replenishment;
+        const rp = isDeptOrder ? data.order : data.replenishment;
         if (!rp) return;
         setExistingData(rp);
         setExistingStatus(rp.status);
-        setReplenishmentNumber(rp.replenishment_number || '');
+        setReplenishmentNumber(isDeptOrder ? rp.department_order_number || '' : rp.replenishment_number || '');
         setReceiveToken(rp.receive_token || '');
         setNotes(rp.notes || '');
         setInternalNotes(rp.internal_notes || '');
@@ -425,8 +430,23 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
     setTimeout(() => searchInputRef.current?.focus(), 50);
   };
 
-  const updateItem = (idx: number, field: 'quantity' | 'unit_price', value: number) => {
-    setItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
+  const updateItem = (idx: number, field: 'quantity' | 'unit_price' | 'gp_rate' | 'discount_type', value: number | string) => {
+    setItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      if (field === 'discount_type') {
+        return { ...item, discount_type: value as 'percent' | 'amount', gp_rate: 0, unit_price: item.gp_base_price === 'discounted' && item.discount_price > 0 ? item.discount_price : item.default_price };
+      }
+      const updated = { ...item, [field]: value };
+      if (field === 'gp_rate') {
+        const basePrice = updated.gp_base_price === 'discounted' && updated.discount_price > 0 ? updated.discount_price : updated.default_price;
+        if (updated.discount_type === 'amount') {
+          updated.unit_price = Math.max(0, Math.round((basePrice - (value as number)) * 100) / 100);
+        } else {
+          updated.unit_price = Math.round(basePrice * (1 - (value as number) / 100) * 100) / 100;
+        }
+      }
+      return updated;
+    }));
   };
 
   const removeItem = (idx: number) => {
@@ -436,6 +456,9 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   const gpInfoText = (item: ReplenishmentItem): string => {
     const basePriceLabel = item.gp_base_price === 'discounted' ? 'ลด' : 'ปลีก';
     const basePrice = item.gp_base_price === 'discounted' && item.discount_price > 0 ? item.discount_price : item.default_price;
+    if (item.discount_type === 'amount') {
+      return `฿${formatNumber(basePrice)}(${basePriceLabel}) - ฿${formatNumber(item.gp_rate)} = ฿${formatNumber(item.unit_price)}`;
+    }
     return `฿${formatNumber(basePrice)}(${basePriceLabel}) - GP${formatNumber(item.gp_rate)}% = ฿${formatNumber(item.unit_price)}`;
   };
 
@@ -469,7 +492,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
     if (items.length === 0) { showToast('กรุณาเพิ่มสินค้า', 'error'); return; }
     setSubmitting(true);
     try {
-      const res = await apiFetch('/api/replenishments', {
+      const res = await apiFetch(apiBase, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -487,7 +510,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       showToast(`สร้างใบเติมสินค้า ${data.replenishment_number} สำเร็จ`, 'success');
-      router.push('/replenishments');
+      router.push(isDeptOrder ? '/department-orders' : '/replenishments');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -500,7 +523,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
     if (!replenishmentId) return;
     setSubmitting(true);
     try {
-      const res = await apiFetch(`/api/replenishments/${replenishmentId}`, {
+      const res = await apiFetch(`${apiBase}/${replenishmentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -513,7 +536,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
       });
       if (!res.ok) { const r = await res.json(); throw new Error(r.error || 'Failed'); }
       showToast('บันทึกเรียบร้อย', 'success');
-      router.push('/replenishments');
+      router.push(isDeptOrder ? '/department-orders' : '/replenishments');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -531,7 +554,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         .filter(i => i.id)
         .map(i => ({ id: i.id!, confirmed_quantity: currentConfirmed[i.id!] ?? i.received_quantity }));
 
-      const res = await apiFetch(`/api/replenishments/${replenishmentId}`, {
+      const res = await apiFetch(`${apiBase}/${replenishmentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'confirm', confirmed_items }),
@@ -539,7 +562,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
       if (!res.ok) { const r = await res.json(); throw new Error(r.error || 'Failed'); }
       const data = await res.json();
       showToast(data.status === 'received' ? 'ยืนยันเรียบร้อย — รับครบ' : 'ยืนยันเรียบร้อย — รับไม่ครบ', 'success');
-      router.push('/replenishments');
+      router.push(isDeptOrder ? '/department-orders' : '/replenishments');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -550,7 +573,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   // Copy receive link
   const copyReceiveLink = () => {
     if (!receiveToken) return;
-    const url = `${window.location.origin}/replenishments/receive/${receiveToken}`;
+    const url = `${window.location.origin}/${isDeptOrder ? 'department-orders' : 'replenishments'}/receive/${receiveToken}`;
     navigator.clipboard.writeText(url);
     showToast('คัดลอกลิงก์แล้ว', 'success');
   };
@@ -606,13 +629,13 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
 
   return (
     <div className="space-y-4">
-      {/* Invoice Info (Invoice Mode — auto-issued on ship) */}
-      {existingData?.tax_invoice_number && (
+      {/* Invoice Info (Invoice Mode — auto-issued on ship) — hide for dept orders (TAX managed by page wrapper) */}
+      {existingData?.tax_invoice_number && !isDeptOrder && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200 dark:border-purple-800 p-5">
           <div className="flex items-center gap-2 mb-2 text-purple-700 dark:text-purple-400">
             <Receipt className="w-5 h-5" />
             <span className="font-bold">
-              {existingData.tax_invoice_doc_type === 'tax' ? 'ใบกำกับภาษี' : 'ใบเสร็จรับเงิน'}
+              {['tax', 'tax_only', 'tax_invoice'].includes(existingData.tax_invoice_doc_type) ? 'ใบกำกับภาษี' : 'ใบเสร็จรับเงิน'}
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
@@ -644,12 +667,12 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
           </p>
           <div className="flex flex-col sm:flex-row items-center gap-4">
             <div className="bg-white p-3 rounded-lg">
-              <QRCodeBlock value={`${typeof window !== 'undefined' ? window.location.origin : ''}/replenishments/receive/${receiveToken}`} />
+              <QRCodeBlock value={`${typeof window !== 'undefined' ? window.location.origin : ''}/${isDeptOrder ? 'department-orders' : 'replenishments'}/receive/${receiveToken}`} />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <div className="flex-1 min-w-0 px-3 py-2 bg-gray-50 dark:bg-slate-700 rounded-lg text-sm text-gray-600 dark:text-slate-300 truncate font-mono">
-                  {typeof window !== 'undefined' ? `${window.location.origin}/replenishments/receive/${receiveToken}` : ''}
+                  {typeof window !== 'undefined' ? `${window.location.origin}/${isDeptOrder ? 'department-orders' : 'replenishments'}/receive/${receiveToken}` : ''}
                 </div>
                 <button
                   onClick={copyReceiveLink}
@@ -699,9 +722,9 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
 
       {/* Customer + Address Section */}
       <CustomerSelectionCard
-        customerLabel="ตัวแทน"
+        customerLabel={isDeptOrder ? 'ห้างสรรพสินค้า' : 'ตัวแทน'}
         searchPlaceholder="ค้นหาชื่อหรือรหัสตัวแทน..."
-        createCustomerUrl="/customers/new?type=consignment_dealer"
+        createCustomerUrl={isDeptOrder ? '/customers/new?type=department_store' : '/customers/new?type=consignment_dealer'}
         createButtonLabel="เพิ่มตัวแทน"
         customers={customers}
         selectedCustomer={selectedCustomer}
@@ -866,13 +889,16 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                 sku: i.sku,
                 image: i.image,
                 quantity: i.quantity,
-                unit_price: i.unit_price,
+                unit_price: i.gp_base_price === 'discounted' && i.discount_price > 0 ? i.discount_price : i.default_price,
+                discount_value: i.gp_rate,
+                discount_type: (i.discount_type || 'percent') as 'percent' | 'amount',
                 gpInfo: gpInfoText(i),
                 stock_dest: selectedCustomerId ? (dealerInventory.find(s => s.variation_id === (i.variation_id ?? i.product_id))?.quantity ?? 0) : null,
               }))}
-              columns={['stock_dest', 'qty', 'unit_price', 'total']}
+              columns={['stock_dest', 'qty', 'unit_price', 'discount', 'total']}
               stockMap={warehouseId ? Object.fromEntries(sourceInventory.map(s => [s.variation_id, s.available])) : {}}
               disableOutOfStock={!allowOversell}
+              disableDestWarning
               products={isDisabled ? undefined : products}
               loadingProducts={loadingProducts}
               inputRef={searchInputRef}
@@ -880,7 +906,21 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
               searchDisabledMessage={isDisabled ? undefined : !selectedCustomerId ? 'กรุณาเลือกตัวแทนก่อนเพิ่มสินค้า' : loadingGpData ? 'กำลังโหลดข้อมูลราคา...' : undefined}
               onUpdateField={isDisabled ? undefined : (idx, field, value) => {
                 if (field === 'quantity') updateItem(idx, 'quantity', value as number);
-                if (field === 'unit_price') updateItem(idx, 'unit_price', value as number);
+                if (field === 'unit_price') {
+                  const item = items[idx];
+                  const basePrice = value as number;
+                  // Update base price + recalc unit_price with GP
+                  setItems(prev => prev.map((it, i) => {
+                    if (i !== idx) return it;
+                    const updated = { ...it, default_price: basePrice };
+                    if (updated.gp_base_price !== 'discounted') {
+                      updated.unit_price = Math.round(basePrice * (1 - updated.gp_rate / 100) * 100) / 100;
+                    }
+                    return updated;
+                  }));
+                }
+                if (field === 'discount_value') updateItem(idx, 'gp_rate', value as number);
+                if (field === 'discount_type') updateItem(idx, 'discount_type', value as string);
               }}
               onRemove={isDisabled ? undefined : removeItem}
               showSummary={false}
@@ -982,7 +1022,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
             {confirmedTotalWithVAT !== null && confirmedTotalWithVAT !== totalWithVAT ? (
               /* Comparison mode: original vs confirmed side-by-side */
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-                <h3 className="text-base font-semibold text-gray-700 dark:text-slate-300 mb-3">สรุปใบเติมสินค้า</h3>
+                <h3 className="text-base font-semibold text-gray-700 dark:text-slate-300 mb-3">{isDeptOrder ? 'สรุปใบส่งห้าง' : 'สรุปใบเติมสินค้า'}</h3>
                 {/* Header row */}
                 <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 text-xs text-gray-400 dark:text-slate-500 mb-1.5">
                   <span />
@@ -1032,7 +1072,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
               /* Normal mode */
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
                 <OrderSummaryBox
-                  title="สรุปใบเติมสินค้า"
+                  title={isDeptOrder ? 'สรุปใบส่งห้าง' : 'สรุปใบเติมสินค้า'}
                   subtotalAmount={subtotalBeforeDiscount}
                   vatRegistered={vatRegistered}
                   shippingFee={shippingFee}
@@ -1052,7 +1092,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
       {/* Footer actions (create/edit only) */}
       {!isEditMode && (
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={() => router.push('/replenishments')} disabled={submitting} className="btn-secondary">ยกเลิก</button>
+          <button type="button" onClick={() => router.push(isDeptOrder ? '/department-orders' : '/replenishments')} disabled={submitting} className="btn-secondary">ยกเลิก</button>
           <button
             type="button"
             onClick={handleSubmit}
