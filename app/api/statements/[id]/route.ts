@@ -52,6 +52,26 @@ export async function GET(
       .order('period_year', { ascending: false })
       .order('period_month', { ascending: false });
 
+    // Enrich reports with TAX/INV numbers
+    if (reports?.length) {
+      const reportIds = reports.map((r: { id: string }) => r.id);
+      const [{ data: taxDocs }, { data: invDocs }] = await Promise.all([
+        supabaseAdmin.from('tax_invoices')
+          .select('source_id, invoice_number')
+          .eq('source_type', 'consignment_report').in('source_id', reportIds)
+          .eq('company_id', companyId).is('voided_at', null),
+        supabaseAdmin.from('invoices')
+          .select('source_id, invoice_number')
+          .eq('source_type', 'consignment_report').in('source_id', reportIds)
+          .eq('company_id', companyId).is('voided_at', null),
+      ]);
+      const taxMap = new Map((taxDocs || []).map(d => [d.source_id, d.invoice_number]));
+      const invMap = new Map((invDocs || []).map(d => [d.source_id, d.invoice_number]));
+      for (const r of reports as any[]) {
+        r.doc_number = taxMap.get(r.id) || invMap.get(r.id) || null;
+      }
+    }
+
     // Fetch payments
     const { data: payments } = await supabaseAdmin
       .from('statement_payments')
@@ -60,10 +80,12 @@ export async function GET(
       .order('paid_at', { ascending: false });
 
     // Enrich with document data from document tables
+    // 1. Try TAX/REC linked directly to statement
     const [taxRes, recRes] = await Promise.all([
       supabaseAdmin.from('tax_invoices')
         .select('invoice_number, invoice_date')
         .eq('source_type', 'statement').eq('source_id', id).eq('company_id', companyId)
+        .is('voided_at', null)
         .maybeSingle(),
       supabaseAdmin.from('receipts')
         .select('receipt_number, receipt_date')
@@ -71,10 +93,45 @@ export async function GET(
         .maybeSingle(),
     ]);
 
+    // 2. If no TAX on statement, look for TAX on linked consignment reports
+    let taxNumber = taxRes.data?.invoice_number || null;
+    let taxDate = taxRes.data?.invoice_date || null;
+    if (!taxNumber && reports?.length) {
+      const reportIds = reports.map((r: { id: string }) => r.id);
+      const { data: reportTax } = await supabaseAdmin.from('tax_invoices')
+        .select('invoice_number, invoice_date')
+        .eq('source_type', 'consignment_report').in('source_id', reportIds)
+        .eq('company_id', companyId).is('voided_at', null)
+        .limit(1)
+        .maybeSingle();
+      if (reportTax) {
+        taxNumber = reportTax.invoice_number;
+        taxDate = reportTax.invoice_date;
+      }
+    }
+    // 3. If still no TAX, try INV (invoices table) on linked reports
+    let invNumber: string | null = null;
+    let invDate: string | null = null;
+    if (!taxNumber && reports?.length) {
+      const reportIds = reports.map((r: { id: string }) => r.id);
+      const { data: reportInv } = await supabaseAdmin.from('invoices')
+        .select('invoice_number, invoice_date')
+        .eq('source_type', 'consignment_report').in('source_id', reportIds)
+        .eq('company_id', companyId).is('voided_at', null)
+        .limit(1)
+        .maybeSingle();
+      if (reportInv) {
+        invNumber = reportInv.invoice_number;
+        invDate = reportInv.invoice_date;
+      }
+    }
+
     const enrichedStatement = {
       ...statement,
-      tax_invoice_number: taxRes.data?.invoice_number || null,
-      tax_invoice_date: taxRes.data?.invoice_date || null,
+      tax_invoice_number: taxNumber,
+      tax_invoice_date: taxDate,
+      invoice_number: invNumber,
+      invoice_date: invDate,
       receipt_number: recRes.data?.receipt_number || null,
       receipt_date: recRes.data?.receipt_date || null,
     };

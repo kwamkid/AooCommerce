@@ -19,6 +19,7 @@ import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import { type GpResolverContext, resolveGp, fetchGpContext } from '@/lib/gp-resolver';
 import { showPdfPreview } from '@/lib/print-pdf';
 import CustomerSelectionCard from '@/components/ui/CustomerSelectionCard';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 
 // ─── Types ──────────────────────────────────────────────
@@ -87,6 +88,7 @@ interface ReportItem {
   qty_sold: number;
   selling_price: number;
   gp_rate: number;
+  discount_type?: 'percent' | 'amount';
   brand_id: string | null;
   default_price: number;
   discount_price: number;
@@ -146,8 +148,11 @@ function EditReportContent() {
 
   // Notes & actions
   const [notes, setNotes] = useState('');
+  const [orderDiscount, setOrderDiscount] = useState(0);
+  const [orderDiscountType, setOrderDiscountType] = useState<'percent' | 'amount'>('amount');
   const [submitting, setSubmitting] = useState(false);
   const [actionLoading, setActionLoading] = useState('');
+  const [billConfirmOpen, setBillConfirmOpen] = useState(false);
 
   const isEditable = report ? ['draft', 'received'].includes(report.status) : false;
 
@@ -162,6 +167,10 @@ function EditReportContent() {
       const r = data.report as ReportData;
       setReport(r);
       setNotes(r.notes || '');
+      if (r.discount_value) {
+        setOrderDiscount(r.discount_value);
+        setOrderDiscountType(r.discount_type || 'amount');
+      }
 
       // Map items — unit_price from DB is net price (after per-item GP deduction)
       setItems(r.items.map(item => ({
@@ -334,8 +343,24 @@ function EditReportContent() {
     setTimeout(() => searchInputRef.current?.focus(), 50);
   };
 
-  const updateItem = (idx: number, field: 'qty_sold' | 'selling_price', value: number) => {
-    setItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
+  const updateItem = (idx: number, field: 'qty_sold' | 'selling_price' | 'gp_rate' | 'discount_type', value: number | string) => {
+    setItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      if (field === 'discount_type') {
+        const basePrice = item.gp_base_price === 'discounted' && item.discount_price > 0 ? item.discount_price : item.default_price;
+        return { ...item, discount_type: value as 'percent' | 'amount', gp_rate: 0, selling_price: basePrice };
+      }
+      const updated = { ...item, [field]: value };
+      if (field === 'gp_rate') {
+        const basePrice = updated.gp_base_price === 'discounted' && updated.discount_price > 0 ? updated.discount_price : updated.default_price;
+        if (updated.discount_type === 'amount') {
+          updated.selling_price = Math.max(0, Math.round((basePrice - (value as number)) * 100) / 100);
+        } else {
+          updated.selling_price = Math.round(basePrice * (1 - (value as number) / 100) * 100) / 100;
+        }
+      }
+      return updated;
+    }));
   };
 
   const removeItem = (idx: number) => {
@@ -345,6 +370,9 @@ function EditReportContent() {
   const gpInfoText = (item: ReportItem): string => {
     const basePriceLabel = item.gp_base_price === 'discounted' ? 'ลด' : 'ปลีก';
     const basePrice = item.gp_base_price === 'discounted' && item.discount_price > 0 ? item.discount_price : item.default_price;
+    if (item.discount_type === 'amount') {
+      return `฿${formatNumber(basePrice)}(${basePriceLabel}) - ฿${formatNumber(item.gp_rate)} = ฿${formatNumber(item.selling_price)}`;
+    }
     return `฿${formatNumber(basePrice)}(${basePriceLabel}) - GP${formatNumber(item.gp_rate)}% = ฿${formatNumber(item.selling_price)}`;
   };
 
@@ -358,12 +386,21 @@ function EditReportContent() {
   // selling_price is already net (after per-item GP deduction)
   const vatRegistered = currentCompany?.vat_registered || false;
   const totalQty = items.reduce((s, i) => s + i.qty_sold, 0);
-  const totalOurAmount = items.reduce((sum, i) => sum + i.qty_sold * i.selling_price, 0);
+  const subtotalBeforeDiscount = items.reduce((sum, i) => sum + i.qty_sold * i.selling_price, 0);
+  const billDiscountAmount = orderDiscountType === 'percent'
+    ? subtotalBeforeDiscount * orderDiscount / 100
+    : orderDiscount;
+  const totalOurAmount = Math.max(0, subtotalBeforeDiscount - billDiscountAmount);
   const hasItems = items.length > 0;
+  const hasOverDestStock = items.some(i => {
+    const destQty = dealerStockMap[i.variation_id ?? i.product_id] ?? 0;
+    return i.qty_sold > destQty;
+  });
 
   // ─── Actions ──────────────────────────────────────
 
   const handleSave = async () => {
+    if (hasOverDestStock) { showToast('มีสินค้าจำนวนเกินสต๊อกที่ร้าน กรุณาตรวจสอบ', 'error'); return; }
     if (items.length === 0) { showToast('กรุณาเพิ่มสินค้า', 'error'); return; }
     setSubmitting(true);
     try {
@@ -373,6 +410,9 @@ function EditReportContent() {
         body: JSON.stringify({
           action: 'update_items',
           notes,
+          discount_amount: billDiscountAmount,
+          discount_type: orderDiscountType,
+          discount_value: orderDiscount,
           items: items.map(i => ({
             variation_id: i.variation_id ?? i.product_id,
             qty_sold: i.qty_sold,
@@ -449,8 +489,7 @@ function EditReportContent() {
 
   // พร้อมวางบิล: confirm + auto-issue TAX + ST + auto-print
   const handleReadyToBill = async () => {
-    if (!confirm('ต้องการยืนยัน "พร้อมวางบิล" หรือไม่?\n\n• หักสต๊อกจากคลังตัวแทน\n• ออกใบกำกับภาษี (TAX) + ใบวางบิล (ST)\n• สถานะจะเปลี่ยนเป็น "วางบิลแล้ว"')) return;
-
+    setBillConfirmOpen(false);
     setActionLoading('confirm');
     try {
       const res = await apiFetch(`/api/consignment/reports/${reportId}`, {
@@ -554,14 +593,16 @@ function EditReportContent() {
         paid_amount: st.paid_amount,
         outstanding_amount: st.outstanding_amount,
         tax_invoice_number: st.tax_invoice_number,
+        invoice_number: st.invoice_number || null,
         receipt_number: st.receipt_number,
         notes: st.notes,
         customer: st.customer ? {
           ...st.customer,
           billing_address: [st.customer.billing_address, st.customer.billing_district, st.customer.billing_amphoe, st.customer.billing_province, st.customer.billing_postal_code].filter(Boolean).join(', ') || null,
         } : null,
-        reports: stReports.map((r: { report_number: string; period_month: number; period_year: number; total_qty_sold: number; our_amount: number }) => ({
+        reports: stReports.map((r: any) => ({
           report_number: r.report_number,
+          doc_number: r.doc_number || null,
           period_label: `${THAI_MONTHS_FULL[r.period_month]} ${r.period_year + 543}`,
           total_qty_sold: r.total_qty_sold,
           our_amount: r.our_amount,
@@ -673,8 +714,8 @@ function EditReportContent() {
             {/* Focus button: พร้อมวางบิล — deduct stock + auto-issue TAX + ST + print */}
             {['draft', 'received'].includes(report.status) && (
               <button
-                onClick={handleReadyToBill}
-                disabled={actionLoading === 'confirm' || items.length === 0}
+                onClick={() => setBillConfirmOpen(true)}
+                disabled={actionLoading === 'confirm' || items.length === 0 || hasOverDestStock}
                 className="btn-focus-action green"
               >
                 {actionLoading === 'confirm' ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
@@ -744,11 +785,13 @@ function EditReportContent() {
                 sku: i.sku,
                 image: i.image,
                 quantity: i.qty_sold,
-                unit_price: i.selling_price,
+                unit_price: i.gp_base_price === 'discounted' && i.discount_price > 0 ? i.discount_price : i.default_price,
+                discount_value: i.gp_rate,
+                discount_type: (i.discount_type || 'percent') as 'percent' | 'amount',
                 gpInfo: isEditable ? gpInfoText(i) : null,
                 stock_dest: isEditable ? (dealerStockMap[i.variation_id ?? i.product_id] ?? 0) : undefined,
               }))}
-              columns={isEditable ? ['stock_dest', 'qty', 'unit_price', 'total'] : ['qty', 'unit_price', 'total']}
+              columns={isEditable ? ['stock_dest', 'qty', 'unit_price', 'discount', 'total'] : ['qty', 'unit_price', 'discount', 'total']}
               stockMap={isEditable ? dealerStockMap : undefined}
               showStockInSearch={isEditable}
               disableOutOfStock={isEditable}
@@ -759,7 +802,20 @@ function EditReportContent() {
               searchDisabledMessage={isEditable && loadingGpData ? 'กำลังโหลดข้อมูลราคา...' : undefined}
               onUpdateField={isEditable ? (idx, field, value) => {
                 if (field === 'quantity') updateItem(idx, 'qty_sold', value as number);
-                if (field === 'unit_price') updateItem(idx, 'selling_price', value as number);
+                if (field === 'unit_price') {
+                  // Update base price + recalc selling_price with GP
+                  setItems(prev => prev.map((it, i) => {
+                    if (i !== idx) return it;
+                    const basePrice = value as number;
+                    const updated = { ...it, default_price: basePrice };
+                    if (updated.gp_base_price !== 'discounted') {
+                      updated.selling_price = Math.round(basePrice * (1 - updated.gp_rate / 100) * 100) / 100;
+                    }
+                    return updated;
+                  }));
+                }
+                if (field === 'discount_value') updateItem(idx, 'gp_rate', value as number);
+                if (field === 'discount_type') updateItem(idx, 'discount_type', value as string);
               } : undefined}
               onRemove={isEditable ? removeItem : undefined}
               showSummary={false}
@@ -795,14 +851,38 @@ function EditReportContent() {
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
                 <OrderSummaryBox
                   title="สรุปยอดขาย"
-                  subtotalAmount={totalOurAmount}
+                  subtotalAmount={subtotalBeforeDiscount}
                   vatRegistered={vatRegistered}
+                  discountValue={orderDiscount}
+                  discountType={orderDiscountType}
+                  onDiscountChange={isEditable ? setOrderDiscount : undefined}
+                  onDiscountTypeToggle={isEditable ? () => { setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent'); setOrderDiscount(0); } : undefined}
                 />
               </div>
             </div>
           )}
         </div>
       </div>
+      {/* Ready to Bill Confirm Dialog */}
+      <ConfirmDialog
+        open={billConfirmOpen}
+        onClose={() => actionLoading !== 'confirm' && setBillConfirmOpen(false)}
+        onConfirm={handleReadyToBill}
+        icon={<BadgeCheck className="w-6 h-6 text-emerald-600" />}
+        title="พร้อมวางบิล"
+        confirmLabel={actionLoading === 'confirm' ? 'กำลังดำเนินการ...' : 'ยืนยันพร้อมวางบิล'}
+        confirmIcon={actionLoading === 'confirm' ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
+        loading={actionLoading === 'confirm'}
+      >
+        {report && (
+          <div className="text-base text-gray-600 dark:text-slate-300 mt-2 space-y-1 text-center">
+            <p>ยืนยัน &quot;พร้อมวางบิล&quot; ของ <span className="font-semibold">{report.customer?.name || '-'}</span></p>
+            <p>รายงาน <span className="font-semibold">{report.report_number}</span></p>
+            <p>งวด <span className="font-semibold">{formatPeriod(report.period_year, report.period_month)}</span></p>
+            <p className="text-sm text-gray-400 dark:text-slate-500 mt-2">• หักสต๊อกจากคลังตัวแทน<br/>• ออกใบกำกับภาษี (TAX) + ใบวางบิล (ST)<br/>• สถานะจะเปลี่ยนเป็น &quot;วางบิลแล้ว&quot;</p>
+          </div>
+        )}
+      </ConfirmDialog>
     </Layout>
   );
 }

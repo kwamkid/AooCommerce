@@ -203,6 +203,12 @@ export default function TransferReceivePage() {
 
   // Image lightbox
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!lightboxSrc) return;
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [lightboxSrc]);
 
   // Loading
   if (loading || !mounted) {

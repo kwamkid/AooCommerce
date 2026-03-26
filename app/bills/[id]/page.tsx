@@ -14,6 +14,7 @@ import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker'
 import TimePicker from '@/components/ui/TimePicker';
 import { getBankByCode } from '@/lib/constants/banks';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
+import { productDisplayName } from '@/lib/product-display';
 import { BEAM_CHANNELS } from '@/lib/constants/payment-gateway';
 import { saveQrImage } from '@/lib/utils/save-qr-image';
 import generatePayload from 'promptpay-qr';
@@ -491,7 +492,7 @@ export default function BillOnlinePage() {
                         </div>
                       )}
                       <div>
-                        <div className="font-medium text-base">{item.product_name}</div>
+                        <div className="font-medium text-base">{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label })}</div>
                         {hasPromo ? (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 mt-0.5">
                             โปรโมชั่น ({item.promotion_components!.length} รายการ)
@@ -560,7 +561,7 @@ export default function BillOnlinePage() {
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <div className={`font-medium text-base truncate ${dark ? 'text-white' : 'text-gray-900'}`}>{item.product_name}</div>
+                  <div className={`font-medium text-base truncate ${dark ? 'text-white' : 'text-gray-900'}`}>{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label })}</div>
                   {hasPromo ? (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
                       โปรโมชั่น ({item.promotion_components!.length} รายการ)
@@ -627,8 +628,8 @@ export default function BillOnlinePage() {
                   <img src={item.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
                 )}
                 <div>
-                  <span className="font-medium">{item.product_name}</span>
-                  {item.product_code && <span className="text-gray-500 ml-1 text-xs font-mono">[{item.product_code}]</span>}
+                  <span className="font-medium">{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label })}</span>
+                  {item.product_code && <div className="text-gray-500 text-xs font-mono">SKU: {item.product_code}</div>}
                 </div>
               </div>
             </td>

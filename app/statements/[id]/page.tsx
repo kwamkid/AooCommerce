@@ -211,14 +211,16 @@ export default function StatementDetailPage() {
         paid_amount: statement.paid_amount,
         outstanding_amount: statement.outstanding_amount,
         tax_invoice_number: statement.tax_invoice_number,
+        invoice_number: statement.invoice_number || null,
         receipt_number: statement.receipt_number,
         notes: statement.notes,
         customer: statement.customer ? {
           ...statement.customer,
           billing_address: [statement.customer.billing_address, statement.customer.billing_district, statement.customer.billing_amphoe, statement.customer.billing_province, statement.customer.billing_postal_code].filter(Boolean).join(', ') || null,
         } : null,
-        reports: reports.map(r => ({
+        reports: reports.map((r: any) => ({
           report_number: r.report_number,
+          doc_number: r.doc_number || null,
           period_label: `${THAI_MONTHS[r.period_month]} ${r.period_year + 543}`,
           total_qty_sold: r.total_qty_sold,
           our_amount: r.our_amount,

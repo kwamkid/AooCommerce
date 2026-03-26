@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import {
   X,
   CheckCircle2,
@@ -37,6 +38,13 @@ export default function FormModals({ hook }: Props) {
     handleSyncShopee,
     promotionId,
   } = hook;
+
+  useEffect(() => {
+    if (!lightboxSrc) return;
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [lightboxSrc]);
 
   return (
     <>

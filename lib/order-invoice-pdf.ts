@@ -21,6 +21,7 @@ import {
   buildProductNameStack,
   withOriginalAndCopy,
 } from './pdf-utils';
+import { productDisplayName } from './product-display';
 
 // ─── Interfaces ──────────────────────────────────────────
 
@@ -346,8 +347,8 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
       }
     } else {
       // Normal item row
-      const subtitle = [item.product_code, item.variation_label].filter(Boolean).join(' | ');
-      const productStack = buildProductNameStack(item.product_name, subtitle);
+      const fullName = productDisplayName(item);
+      const productStack = buildProductNameStack(fullName, null, item.sku || item.product_code);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const row: any[] = [

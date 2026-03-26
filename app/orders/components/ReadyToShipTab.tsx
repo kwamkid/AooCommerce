@@ -136,6 +136,7 @@ export default function ReadyToShipTab({
       const params = new URLSearchParams();
       params.set('status', 'ready_to_ship');
       params.set('source', 'exclude_pos');
+      params.set('flow_type', 'r_retail');
       params.set('payment_status', 'verifying');
       params.set('page', '1');
       params.set('limit', '1');
@@ -159,6 +160,7 @@ export default function ReadyToShipTab({
       const params = new URLSearchParams();
       params.set('status', 'ready_to_ship');
       params.set('source', 'exclude_pos');
+      params.set('flow_type', 'r_retail');
       params.set('page', currentPage.toString());
       params.set('limit', recordsPerPage.toString());
       params.set('sort_by', 'created_at');
@@ -347,6 +349,7 @@ export default function ReadyToShipTab({
       const params = new URLSearchParams();
       params.set('status', 'ready_to_ship');
       params.set('source', 'exclude_pos');
+      params.set('flow_type', 'r_retail');
       params.set('shipping_carrier', ACTIVE_KEY);
       params.set('exclude_payment_status', 'verifying');
       params.set('ids_only', 'true');

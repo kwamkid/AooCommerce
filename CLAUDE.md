@@ -6,7 +6,16 @@
 - **Stack**: Next.js 16 (App Router, Turbopack) + Supabase + Tailwind CSS + pdfMake
 - **Multi-tenant**: ทุก query ต้อง filter `company_id`
 - **Language**: UI ภาษาไทย, code/comments ภาษาอังกฤษได้
-- **Files**: `knowledge.md` ถูกรวมเข้ามาแล้ว, `todo.md` = งานที่ยังไม่ได้ทำ
+- **Files**: `todo.md` = งานที่ยังไม่ได้ทำ
+
+## Rules (`.claude/rules/`) — อ่านก่อนเขียน code!
+
+| Rule File | เนื้อหา |
+|-----------|---------|
+| `code-simplicity.md` | Shared components, hooks, services, API routes ทั้งหมด — ห้ามสร้างซ้ำ |
+| `order-flows.md` | Customer type × sale type × status flow + auto-issue documents |
+| `list-page-actions.md` | Focus action + ActionMenu ทุกหน้า list (per status) |
+| `detail-page-actions.md` | Action buttons ทุกหน้า detail/edit (per status) |
 
 ---
 
@@ -42,24 +51,10 @@ Pagination: Pagination component
 ### Tab Filter Colors (`lib/status-tab-colors.ts`)
 ```typescript
 import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
-
-// Tab: { active, inactive, labelColor, countColor }
-// Badge: { color, bg }
-
 // ทุกหน้าใช้สีเดียวกันตาม status key:
 // all=indigo, new/draft=blue, ready_to_ship/pending_confirm=orange,
 // processing/pending=indigo, shipping/shipped=amber,
 // completed/paid/confirmed=emerald, overdue=red, cancelled=gray
-```
-
-### Action Menu
-ใช้ `ActionMenu` component (portal-based) ทุกหน้า — **ห้าม**สร้าง inline dropdown menu
-```typescript
-import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
-<ActionMenu items={[
-  { key: 'print', label: 'พิมพ์', icon: <Printer />, onClick: () => {} },
-  { key: 'cancel', label: 'ยกเลิก', icon: <XCircle />, danger: true, dividerBefore: true, onClick: () => {} },
-]} />
 ```
 
 ### Color Palette
@@ -85,139 +80,16 @@ import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu'
 
 ---
 
-## Shared Components
-
-### Form Components
-| Component | Path | ใช้สำหรับ |
-|---|---|---|
-| `FormSelect` | `components/ui/FormSelect.tsx` | dropdown (ห้าม native select) |
-| `EntitySearchInput` | `components/ui/EntitySearchInput.tsx` | ค้นหาลูกค้า/สินค้า (มี badge prop) |
-| `ItemsTable` | `components/ui/ItemsTable.tsx` | ตารางสินค้าในฟอร์ม |
-| `ThaiAddressInput` | `components/ui/ThaiAddressInput.tsx` | ที่อยู่ auto-complete |
-| `TaxInfoForm` | `components/ui/TaxInfoForm.tsx` | toggle บุคคล/นิติบุคคล |
-| `CustomerInfoCard` | `components/ui/CustomerInfoCard.tsx` | แสดงชื่อ+badge+เบอร์ |
-| `TaxInvoiceInfo` | `components/ui/TaxInvoiceInfo.tsx` | แสดง+แก้ไขข้อมูลใบกำกับ |
-| `TaxInvoiceEditModal` | `components/ui/TaxInvoiceEditModal.tsx` | modal แก้ไข tax snapshot |
-| `ShipModal` | `components/ui/ShipModal.tsx` | modal จัดส่ง (3 วิธี) |
-| `PaymentModal` | `app/orders/components/PaymentModal.tsx` | modal ชำระเงิน+แนบ slip |
-| `ActionMenu` | `app/orders/components/ActionMenu.tsx` | dropdown menu (portal) |
-| `OrderSummaryBox` | `components/ui/OrderSummaryBox.tsx` | สรุปยอด |
-| `OrderPrintButtons` | `components/ui/OrderPrintButtons.tsx` | ปุ่มพิมพ์ + marketplace label dispatch |
-| `CustomerSelectionCard` | `components/ui/CustomerSelectionCard.tsx` | เลือกลูกค้า + address dropdown + delivery fields + tax info (shared ทุก form) |
-
-### Customer Prefill Hook
-- **`useCustomerPrefill`** (`lib/useCustomerPrefill.ts`) — **ต้องใช้ทุก form** ที่มี `CustomerSelectionCard`
-- จัดการ: delivery fields (8), tax fields (4), shipping addresses, address select handlers
-- เรียก `fetchCustomerOrderContext()` (1 RPC call) สำหรับ prefill ทั้ง create + edit mode
-- ทุก form ใช้ hook นี้: `OrderForm`, `DealerOrderForm`, `ReplenishmentForm`
-- **ห้ามสร้าง inline delivery/tax state ใหม่** → ใช้ hook เสมอ
-
-### Order Forms (3 forms)
-| Form | Path | ใช้สำหรับ |
-|---|---|---|
-| `DealerOrderForm` | `components/dealer/` | ตัวแทน/ห้าง ทุก mode (wholesale/consignment/dept) |
-| `ReplenishmentForm` | `components/replenishments/` | เติมของตัวแทน |
-| `OrderForm` | `components/orders/` | คำสั่งซื้อปกติ (ปลีก/marketplace) |
-
----
-
-## Business Domain
-
-### ประเภทลูกค้า (7 types, 4 flows)
-| DB customer_type | sale_type | Flow | คำอธิบาย |
-|---|---|---|---|
-| `retail` | — | R (Retail) | ลูกค้าปลีก |
-| `consignment_dealer` | consignment | C (Consignment) | ตัวแทนฝากขาย ม.78(3) |
-| `wholesale_dealer` | wholesale_cash/credit | W (Wholesale) | ตัวแทนขายขาด |
-| `department_store` | consignment | D (Department) | ห้างฝากขาย |
-| `wholesale_department` | wholesale_cash/credit | W | ห้างขายขาด |
-| `corporate` | wholesale_cash/credit | W | องค์กร/B2B |
-
-### Flow ทั้งหมด (5 flows)
-| flow_type | ชื่อ | ใช้กับ |
-|---|---|---|
-| `r_retail` | ลูกค้าปลีก | retail, dropship |
-| `w_cash` | ขายขาดเงินสด | wholesale_dealer, wholesale_department, corporate |
-| `w_credit` | ขายขาดเครดิต | wholesale_dealer, wholesale_department, corporate |
-| `c_consign` | ตัวแทนฝากขาย | consignment_dealer |
-| `d_consign` | ห้างฝากขาย | department_store |
-
-### Order Status Flow
-```
-r_retail:    new → (ชำระ) → ready_to_ship → (กดรับ) → processing → (จัดส่ง) → shipping → completed
-w_cash:      new → (ชำระ) → ready_to_ship → (คอนเฟิร์ม) → processing → (จัดส่ง) → completed
-w_credit:    ready_to_ship → (คอนเฟิร์ม) → processing → (จัดส่ง) → completed → (บันทึกชำระ)
-c_consign:   เติมของ(replenishment) → แจ้งยอด(CSR report) → ชำระ
-d_consign:   เติมของห้าง(dept order) → ห้างแจ้งยอด(DSR report) → ห้างโอน
-```
-
-### Auto Issue Document Flow (ใช้ /check-flow เพื่อเช็คจาก code จริง)
-
-**r_retail (ปลีก):**
-| จุด | เอกสาร | subtype |
-|---|---|---|
-| กดรับ + ชำระแล้ว | ABB/REC | — |
-
-**w_cash (ขายขาดเงินสด):**
-| จุด | เอกสาร | subtype |
-|---|---|---|
-| คอนเฟิร์ม + ชำระแล้ว | TAX | `tax_receipt` (ใบกำกับภาษี/ใบเสร็จ) |
-| จัดส่ง | DN | — |
-
-**w_credit (ขายขาดเครดิต):**
-| จุด | เอกสาร | subtype |
-|---|---|---|
-| คอนเฟิร์ม | TAX | `tax_invoice` (ใบกำกับภาษี/ใบแจ้งหนี้) |
-| จัดส่ง | DN + ST | — |
-| บันทึกชำระ | REC | — |
-
-**c_consign (ตัวแทนฝากขาย):**
-| จุด | เอกสาร | subtype |
-|---|---|---|
-| เติมของ (replenishment ship) | DN (ไม่มีราคา) | — |
-| แจ้งยอด (CSR report) | TAX + ST | `tax_invoice` (ใบกำกับภาษี/ใบแจ้งหนี้) |
-| ชำระ | REC | — |
-
-**d_consign (ห้างฝากขาย):**
-| จุด | เอกสาร | subtype |
-|---|---|---|
-| เติมของห้าง (dept order) | TAX + DN (มีราคา) | `tax_only` (ใบกำกับภาษี) |
-| ห้างแจ้งยอด (DSR report) | INV + ST | — |
-| ห้างโอน | REC | — |
-
-### เอกสาร (8 prefixes)
-| Prefix | ชื่อ | Table |
-|---|---|---|
-| `ABB-` | ใบกำกับอย่างย่อ/ใบเสร็จ | `abbreviated_invoices` |
-| `TAX-` | ใบกำกับภาษี | `tax_invoices` |
-| `INV-` | ใบแจ้งหนี้ | `invoices` |
-| `REC-` | ใบเสร็จรับเงิน | `receipts` |
-| `DN-` | ใบส่งสินค้า | `delivery_notes` |
-| `ST-` | ใบวางบิล | `statements` |
-| `CN-` | ใบลดหนี้ | `credit_notes` |
-
-### TAX document_subtype → หัวเอกสาร
-- `tax_only` → "ใบกำกับภาษี" (ห้างส่งของ)
-- `tax_receipt` → "ใบกำกับภาษี/ใบเสร็จรับเงิน" (ขายปลีกจ่ายสด, ขายขาดเงินสด)
-- `tax_invoice` → "ใบกำกับภาษี/ใบแจ้งหนี้" (ฝากขาย, ขายขาดเครดิต)
+## Business Domain (Critical Rules)
 
 ### GP Pricing
 - `resolveGp()` returns **NET price** (หลังหัก GP แล้ว) — **ห้ามหัก GP ซ้ำ!**
 - ใช้ `lib/gp-resolver.ts`
 - **4 levels** (ลำดับความสำคัญ สูง→ต่ำ):
-  1. **Customer Brand Override** — `customer_brand_commissions` table (per customer per brand)
-  2. **Customer Default GP** — `customers.consignment_gp_rate` + `consignment_gp_base_price`
-  3. **Global Brand GP** — `companies.settings.brand_gp_overrides` JSON array
+  1. **Customer Brand Override** — `customer_brand_commissions` table
+  2. **Customer Default GP** — `customers.consignment_gp_rate`
+  3. **Global Brand GP** — `companies.settings.brand_gp_overrides`
   4. **Global Default GP** — `companies.settings.consignment.default_gp_rate`
-- แต่ละ level มี `gp_rate` + `gp_base_price` (from retail price / discounted price)
-
-### Customer Order Context (RPC)
-- **`fetchCustomerOrderContext(customerId)`** — 1 RPC call แทน 4-6 API calls
-- RPC: `get_customer_order_context(p_company_id, p_customer_id)`
-- Return: `{ customer, shipping_addresses, brand_commissions, brand_gp_overrides, consignment_settings }`
-- API: `GET /api/customers/order-context?customer_id=xxx`
-- ใช้ใน DealerOrderForm เมื่อเลือกลูกค้า (ดึงทุกอย่างใน 1 call)
-- `fetchGpContext()` = legacy wrapper ที่ใช้ RPC เดียวกัน (สำหรับ consignment/dept report pages)
 
 ### Address System
 - **ที่อยู่จัดส่ง** = `shipping_*` fields (ThaiAddressInput, แยก field)
@@ -226,15 +98,9 @@ d_consign:   เติมของห้าง(dept order) → ห้างแ�
 - ลูกค้าที่มี order แล้ว → lock customer_type (ห้ามเปลี่ยน)
 
 ### Weighted Average Cost (WAC)
-- `product_variations.cost_price` = ต้นทุนเฉลี่ยถ่วงน้ำหนัก (WAC)
-- `updateWeightedAverageCost()` ใน `lib/stock-service.ts` — เรียก RPC `update_weighted_average_cost()` (atomic, SELECT FOR UPDATE)
+- `product_variations.cost_price` = WAC
 - สูตร: `new_wac = (existing_qty × old_wac + received_qty × new_cost) / total_qty`
-- `order_items.unit_cost` = snapshot ต้นทุน ณ ตอนสร้าง order
-- `fetchCostMap()` ใน `lib/cost-utils.ts` — batch ดึง WAC สำหรับ snapshot
 - **ห้ามเรียก WAC** จากย้ายคลัง, ส่งตัวแทน, ส่งห้าง, return — เฉพาะ inventory receives เท่านั้น
-
-### Stock Service
-ห้ามเขียน inline stock upsert → ใช้ `lib/stock-service.ts` เสมอ (13 functions)
 
 ---
 
@@ -267,25 +133,8 @@ marketplace_accounts → marketplace_product_links → product_variations
 
 ---
 
-## PDF Generators (all return `Promise<Blob>`)
+## PDF (Bill Template Design)
 
-| File | เอกสาร | ใช้สำหรับ |
-|---|---|---|
-| `lib/order-invoice-full-pdf.ts` | ใบกำกับภาษีแบบเต็ม / ใบส่งสินค้า | `generateFullInvoicePdf()` |
-| `lib/order-invoice-pdf.ts` | ใบกำกับอย่างย่อ / ใบเสร็จ | `generateOrderInvoicePdf()` |
-| `lib/orders-packing-pdf.ts` | ใบจัดของ | `generatePackingPdf()` |
-| `lib/order-shipping-label-pdf.ts` | ใบปะหน้า | `generateShippingLabelPdf()` |
-| `lib/replenishment-pdf.ts` | ใบเติมสินค้า | `generateReplenishmentPdf()` |
-| `lib/consignment-report-pdf.ts` | ใบแจ้งหนี้ฝากขาย | |
-| `lib/department-store-report-pdf.ts` | ใบแจ้งหนี้ห้าง | |
-| `lib/statement-pdf.ts` | ใบวางบิล | |
-| `lib/credit-note-pdf.ts` | ใบลดหนี้ | |
-
-### PDF Utilities (`lib/pdf-utils.ts`)
-`buildCompanyStack()`, `buildCornerTriangle()`, `buildSignatureFooter()`,
-`buildProductNameStack()`, `withOriginalAndCopy()`, `formatPdfPrice()`, `formatPdfDate()`
-
-### Bill Template Design (PDF Layout)
 **Library**: pdfMake, **Font**: IBMPlexSansThai, **Page**: A4, **Margins**: `[40,40,40,110]`
 
 **5 Sections**:
@@ -307,42 +156,6 @@ marketplace_accounts → marketplace_product_links → product_variations
 | Red | `#dc2626` | credit note, void |
 | Indigo | `#4f46e5` | statement |
 | Orange | `#F4511E` | consignment report, brand accent |
-
-### Print Preview
-```typescript
-import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
-const blob = await generateFullInvoicePdf(data);
-showPdfPreview(blob, 'ใบกำกับภาษี');
-```
-
----
-
-## Auto Issue Documents (`lib/invoice-service.ts`)
-
-`autoIssueDocument()` — เรียกหลังทุก status/payment change
-
-| Flow | Status | Payment | เอกสาร |
-|---|---|---|---|
-| r_retail | processing+ | paid | ABB/REC |
-| w_cash | processing+ | paid | TAX (tax_receipt) |
-| w_cash | shipping+ | — | DN |
-| w_credit | processing+ | — | TAX (tax_invoice) |
-| w_credit | shipping+ | — | DN |
-
----
-
-## Services & Libraries
-
-| Service | Path | หมายเหตุ |
-|---|---|---|
-| Stock | `lib/stock-service.ts` | 13 functions — ห้าม inline upsert |
-| Cost | `lib/cost-utils.ts` | fetchCostMap() — WAC snapshot |
-| GP Resolver | `lib/gp-resolver.ts` | resolveGp() + fetchCustomerOrderContext() (1 RPC) |
-| Invoice | `lib/invoice-service.ts` | autoIssueDocument() |
-| Statement | `lib/statement-service.ts` | createStatementForReport() |
-| Promotion | `lib/promotion-service.ts` | getPromotionComponents() |
-| Print | `lib/print-pdf.ts` | showPdfPreview() + mergePdfBlobs() |
-| Print Tracking | `lib/print-tracking.ts` | markOrdersPrinted() |
 
 ---
 
@@ -367,13 +180,11 @@ showPdfPreview(blob, 'ใบกำกับภาษี');
 ### Marketplace Label Printing
 - ใช้ `printOrder(orderId, 'marketplace_label', { source })` จาก `OrderPrintButtons`
 - Route map อยู่ใน `MARKETPLACE_LABEL_ROUTES` (`components/ui/OrderPrintButtons.tsx`)
-- เพิ่ม platform ใหม่: แค่เพิ่ม route ใน map + สร้าง API endpoint
 - ปัจจุบัน: Shopee ✅ | TikTok, Lazada, LINE Shopping, Shippop → ยังไม่มี API
 
 ### Orders Page — Flow Type Filter
 - หน้าคำสั่งซื้อ (`/orders`) exclude `w_cash,w_credit,c_consign,d_consign` อัตโนมัติ
 - ใช้ `p_exclude_flow_types` parameter ใน RPC `get_orders_list`
-- รองรับ flow ใหม่ (dropship, affiliate) โดยไม่ต้องแก้ — เพราะ exclude เฉพาะ 4 flow
 
 ### API Docs (Local — ดูก่อน web search!)
 - **Shopee v2**: `api_doc_knowledge/Shopee/_INDEX.md`
@@ -395,3 +206,4 @@ showPdfPreview(blob, 'ใบกำกับภาษี');
 ## File References
 - **todo.md** — งานที่ยังไม่ได้ทำ (ไม่ sync git)
 - **memory/** — Claude memory files (auto-loaded)
+- **.claude/rules/** — Modular rules (code simplicity, flows, actions)

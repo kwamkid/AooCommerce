@@ -94,6 +94,8 @@ interface ItemsTableProps {
   disableOutOfStock?: boolean;   // disable items with stock <= 0 in dropdown
   /** Disable over-stock warning (e.g. for PO — stock is incoming, not outgoing) */
   disableStockWarning?: boolean;
+  /** Disable stock_dest over-stock warning (e.g. replenishment — adding stock, not deducting) */
+  disableDestWarning?: boolean;
 
   // reason options
   reasonOptions?: { value: string; label: string }[];
@@ -164,6 +166,7 @@ export default function ItemsTable({
   showStockInSearch,
   disableOutOfStock = false,
   disableStockWarning = false,
+  disableDestWarning = false,
   reasonOptions = [
     { value: 'เสียหาย', label: 'เสียหาย' },
     { value: 'หมดอายุ', label: 'หมดอายุ' },
@@ -223,12 +226,10 @@ export default function ItemsTable({
   function ProductCell({ item, idx }: { item: TableItem; idx?: number }) {
     const hasPromo = item.promotion_components && item.promotion_components.length > 0;
     const name = productDisplayName(item);
-    // Build subtitle like ProductSearchInput: code | SKU: xxx | ฿price
+    // Build subtitle: SKU + price (when no price column)
     const subParts: string[] = [];
-    if (item.product_code) subParts.push(item.product_code);
-    if (item.sku && item.sku !== item.product_code && item.sku !== item.variation_label) subParts.push(`SKU: ${item.sku}`);
+    if (item.sku) subParts.push(item.sku);
     if (item.unit_price != null && !hasPrice) {
-      // Show price in subtitle only when unit_price column is NOT shown separately
       if (item.max_price && item.max_price > item.unit_price) {
         subParts.push(`฿${fmt(item.unit_price)} - ฿${fmt(item.max_price)}`);
       } else if (item.unit_price > 0) {
@@ -275,16 +276,23 @@ export default function ItemsTable({
       <div className={`inline-flex items-center border rounded-lg overflow-hidden ${
         poMismatch ? 'border-amber-400 dark:border-amber-500' : 'border-gray-300 dark:border-slate-600'
       }`}>
-        <button type="button"
-          onClick={() => onUpdateField!(idx, 'quantity', Math.max(1, item.quantity - 1))}
-          disabled={item.quantity <= 1}
-          className="w-7 h-8 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors text-sm border-r border-inherit"
-        >−</button>
         <div className="relative">
           <input type="number" min="1"
-            value={item.quantity}
-            onChange={e => onUpdateField!(idx, 'quantity', parseInt(e.target.value) || 1)}
-            className={`${poMismatch ? 'w-14 pr-7' : 'w-10'} h-8 px-1 text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none border-none`}
+            value={item.quantity || ''}
+            onChange={e => {
+              const raw = e.target.value;
+              if (raw === '') {
+                onUpdateField!(idx, 'quantity', 0);
+              } else {
+                onUpdateField!(idx, 'quantity', parseInt(raw) || 0);
+              }
+            }}
+            onBlur={() => {
+              if (!item.quantity || item.quantity < 1) {
+                onUpdateField!(idx, 'quantity', 1);
+              }
+            }}
+            className={`w-full ${poMismatch ? 'pr-7' : ''} h-8 px-2 text-center text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none border-none`}
           />
           {poMismatch && (
             <span className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center gap-px text-amber-600 dark:text-amber-400"
@@ -296,10 +304,6 @@ export default function ItemsTable({
             </span>
           )}
         </div>
-        <button type="button"
-          onClick={() => onUpdateField!(idx, 'quantity', item.quantity + 1)}
-          className="w-7 h-8 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-l border-inherit"
-        >+</button>
       </div>
     );
   }
@@ -314,18 +318,18 @@ export default function ItemsTable({
             <tr>
               <th className="data-th">สินค้า</th>
               {hasRole && <th className="data-th" style={{width:'9rem'}}>บทบาท</th>}
-              {hasStockSource && <th className="data-th text-center" style={{width:'8rem'}}>สต๊อกต้นทาง</th>}
-              {hasStockDest && <th className="data-th text-center" style={{width:'8rem'}}>สต๊อกที่ร้าน</th>}
-              {hasPoQty && <th className="data-th text-center" style={{width:'6rem'}}>จำนวน PO</th>}
-              <th className="data-th text-center" style={{width:'8rem'}}>จำนวน</th>
-              {hasQtyReceived && <th className="data-th text-center" style={{width:'4.5rem'}}>รับแล้ว</th>}
-              {hasPrice && <th className="data-th text-right" style={{width:'7.5rem'}}>ราคา/ชิ้น</th>}
-              {hasCost && <th className="data-th text-right" style={{width:'7.5rem'}}>ต้นทุน/ชิ้น</th>}
-              {hasSpecialPrice && <th className="data-th text-right" style={{width:'7.5rem'}}>ราคาพิเศษ</th>}
-              {hasDiscount && <th className="data-th text-center" style={{width:'8rem'}}>ส่วนลด</th>}
-              {hasReason && <th className="data-th" style={{width:'8rem'}}>เหตุผล</th>}
+              {hasStockSource && <th className="data-th text-center" style={{width:'5rem'}}>สต๊อกต้นทาง</th>}
+              {hasStockDest && <th className="data-th text-center" style={{width:'5rem'}}>สต๊อกที่ร้าน</th>}
+              {hasPoQty && <th className="data-th text-center" style={{width:'5rem'}}>จำนวน PO</th>}
+              <th className="data-th text-center" style={{width:'4.5rem'}}>จำนวน</th>
+              {hasQtyReceived && <th className="data-th text-center" style={{width:'4rem'}}>รับแล้ว</th>}
+              {hasPrice && <th className="data-th text-right" style={{width:'7rem'}}>ราคา/ชิ้น</th>}
+              {hasCost && <th className="data-th text-right" style={{width:'7rem'}}>ต้นทุน/ชิ้น</th>}
+              {hasSpecialPrice && <th className="data-th text-right" style={{width:'7rem'}}>ราคาพิเศษ</th>}
+              {hasDiscount && <th className="data-th text-center" style={{width:'7rem'}}>ส่วนลด</th>}
+              {hasReason && <th className="data-th" style={{width:'7rem'}}>เหตุผล</th>}
               {hasTotal && <th className="data-th text-right" style={{width:'6rem'}}>รวม</th>}
-              {!readOnly && <th className="data-th" style={{width:'2.5rem'}}></th>}
+              {!readOnly && <th className="data-th" style={{width:'2rem'}}></th>}
             </tr>
           </thead>
           <tbody className="data-tbody">
@@ -337,6 +341,8 @@ export default function ItemsTable({
               const lineTotal = subtotal - discAmt;
               const stockQty = stockMap[item.variation_id];
               const isOverStock = !disableStockWarning && hasStock && stockQty !== undefined && item.quantity > stockQty;
+              const destQty = item.stock_dest;
+              const isOverDest = !disableDestWarning && hasStockDest && destQty !== undefined && destQty !== null && item.quantity > destQty;
               const hasPromoComponents = item.promotion_components && item.promotion_components.length > 0;
               return (
                 <Fragment key={`${item.variation_id}-${idx}`}>
@@ -362,7 +368,9 @@ export default function ItemsTable({
                     <td className="py-3 text-center"><StockBadge qty={item.stock_source} /></td>
                   )}
                   {hasStockDest && (
-                    <td className="py-3 text-center"><StockBadge qty={item.stock_dest} destStyle /></td>
+                    <td className="py-3 text-center">
+                      <StockBadge qty={item.stock_dest} destStyle />
+                    </td>
                   )}
                   {hasPoQty && (
                     <td className="py-3 text-center">
@@ -374,8 +382,8 @@ export default function ItemsTable({
 
                   <td className="py-3 text-center">
                     {QtyCell({ item, idx })}
-                    {isOverStock && !readOnly && (
-                      <div className="flex items-center justify-center gap-1 mt-0.5 text-[10px] text-amber-600 dark:text-amber-400">
+                    {(isOverDest || isOverStock) && !readOnly && (
+                      <div className={`flex items-center justify-center gap-0.5 mt-0.5 text-[10px] ${isOverDest ? 'text-red-500' : 'text-amber-600 dark:text-amber-400'}`}>
                         <AlertTriangle className="w-2.5 h-2.5" />เกินสต๊อก
                       </div>
                     )}
@@ -403,14 +411,15 @@ export default function ItemsTable({
                             }
                           </span>
                         : <PostfixInput
-                            value={item.unit_price ?? 0}
-                            onChange={v => onUpdateField!(idx, 'unit_price', parseFloat(v) || 0)}
+                            value={item.unit_price || ''}
+                            onChange={v => onUpdateField!(idx, 'unit_price', v === '' ? 0 : parseFloat(v) || 0)}
+                            onBlur={() => { if (!item.unit_price) onUpdateField!(idx, 'unit_price', 0); }}
                             postfix="฿"
                             type="number"
                             min={0}
                             step={0.01}
                             compact
-                            inputClassName="w-20"
+                            inputClassName="w-full"
                           />
                       }
                     </td>
@@ -420,14 +429,15 @@ export default function ItemsTable({
                       {readOnly
                         ? <span className="text-sm text-gray-900 dark:text-white">฿{fmt(item.unit_cost ?? 0)}</span>
                         : <PostfixInput
-                            value={item.unit_cost ?? 0}
-                            onChange={v => onUpdateField!(idx, 'unit_cost', parseFloat(v) || 0)}
+                            value={item.unit_cost || ''}
+                            onChange={v => onUpdateField!(idx, 'unit_cost', v === '' ? 0 : parseFloat(v) || 0)}
+                            onBlur={() => { if (!item.unit_cost) onUpdateField!(idx, 'unit_cost', 0); }}
                             postfix="฿"
                             type="number"
                             min={0}
                             step={0.01}
                             compact
-                            inputClassName="w-20"
+                            inputClassName="w-full"
                           />
                       }
                     </td>
@@ -446,7 +456,7 @@ export default function ItemsTable({
                                 step={0.01}
                                 placeholder="0"
                                 compact
-                                inputClassName="w-20"
+                                inputClassName="w-full"
                               />
                           )
                         : <span className="text-sm text-gray-400">-</span>
@@ -456,10 +466,11 @@ export default function ItemsTable({
                   {hasDiscount && (
                     <td className="px-2 py-3">
                       <DiscountInput
-                        value={String(item.discount_value ?? 0)}
+                        value={item.discount_value ? String(item.discount_value) : ''}
                         discountType={item.discount_type === 'percent' ? 'percent' : 'fixed_discount'}
-                        onValueChange={v => onUpdateField!(idx, 'discount_value', parseFloat(v) || 0)}
+                        onValueChange={v => onUpdateField!(idx, 'discount_value', v === '' ? 0 : parseFloat(v) || 0)}
                         onTypeChange={t => onUpdateField!(idx, 'discount_type', t === 'percent' ? 'percent' : 'amount')}
+                        onBlur={() => { if (!item.discount_value) onUpdateField!(idx, 'discount_value', 0); }}
                         disabled={readOnly || !!item.promotion_id}
                         compact
                       />
@@ -567,6 +578,8 @@ export default function ItemsTable({
           const lineTotal = mSubtotal - mDiscAmt;
           const stockQty = stockMap[item.variation_id];
           const isOverStock = hasStock && stockQty !== undefined && item.quantity > stockQty;
+          const destQty = item.stock_dest;
+          const isOverDest = hasStockDest && destQty !== undefined && destQty !== null && item.quantity > destQty;
           const poMismatch = hasPoQty && item.po_quantity != null && item.quantity !== item.po_quantity;
           return (
             <div key={`${item.variation_id}-${idx}`} className="p-3 overflow-hidden">
@@ -589,8 +602,7 @@ export default function ItemsTable({
                       </span>
                     ) : (() => {
                       const parts: string[] = [];
-                      if (item.product_code) parts.push(item.product_code);
-                      if (item.sku && item.sku !== item.product_code && item.sku !== item.variation_label) parts.push(`SKU: ${item.sku}`);
+                      if (item.sku) parts.push(item.sku);
                       if (item.unit_price != null && !hasPrice) {
                         if (item.max_price && item.max_price > item.unit_price) {
                           parts.push(`฿${fmt(item.unit_price)} - ฿${fmt(item.max_price)}`);
@@ -669,8 +681,9 @@ export default function ItemsTable({
                           }
                         </span>
                       : <div className="relative">
-                          <input type="number" min="0" step="0.01" value={item.unit_price ?? 0}
-                            onChange={e => onUpdateField!(idx, 'unit_price', parseFloat(e.target.value) || 0)}
+                          <input type="number" min="0" step="0.01" value={item.unit_price || ''}
+                            onChange={e => onUpdateField!(idx, 'unit_price', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                            onBlur={() => { if (!item.unit_price) onUpdateField!(idx, 'unit_price', 0); }}
                             className={`w-24 text-right pr-5 ${INPUT_CLS}`} />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">฿</span>
                         </div>
@@ -683,8 +696,9 @@ export default function ItemsTable({
                     {readOnly
                       ? <span className="text-sm text-gray-900 dark:text-white">฿{fmt(item.unit_cost ?? 0)}</span>
                       : <div className="relative">
-                          <input type="number" min="0" step="0.01" value={item.unit_cost ?? 0}
-                            onChange={e => onUpdateField!(idx, 'unit_cost', parseFloat(e.target.value) || 0)}
+                          <input type="number" min="0" step="0.01" value={item.unit_cost || ''}
+                            onChange={e => onUpdateField!(idx, 'unit_cost', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                            onBlur={() => { if (!item.unit_cost) onUpdateField!(idx, 'unit_cost', 0); }}
                             className={`w-24 text-right pr-5 ${INPUT_CLS}`} />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">฿</span>
                         </div>
@@ -712,8 +726,9 @@ export default function ItemsTable({
                     <div className="flex items-stretch">
                       <input type="number" min="0" step="0.01"
                         max={item.discount_type === 'percent' ? 100 : undefined}
-                        value={item.discount_value ?? 0}
-                        onChange={e => onUpdateField!(idx, 'discount_value', parseFloat(e.target.value) || 0)}
+                        value={item.discount_value || ''}
+                        onChange={e => onUpdateField!(idx, 'discount_value', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                        onBlur={() => { if (!item.discount_value) onUpdateField!(idx, 'discount_value', 0); }}
                         disabled={readOnly}
                         className={`w-14 text-center rounded-l-lg rounded-r-none border-r-0 ${INPUT_CLS}`} />
                       <button type="button"
@@ -749,7 +764,12 @@ export default function ItemsTable({
                 )}
               </div>
 
-              {(isOverStock || poMismatch) && !readOnly && (
+              {isOverDest && !readOnly && (
+                <div className="mt-1.5 flex items-center gap-1 text-xs text-red-500">
+                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />จำนวนเกินสต๊อกที่ร้าน (มี {destQty})
+                </div>
+              )}
+              {(isOverStock || poMismatch) && !isOverDest && !readOnly && (
                 <div className="mt-1.5 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
                   <AlertTriangle className="w-3 h-3 flex-shrink-0" />
                   {isOverStock && 'จำนวนเกินสต๊อกที่มี'}

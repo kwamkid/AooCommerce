@@ -159,9 +159,7 @@ export async function POST(request: NextRequest) {
     const dueDate = new Date(periodEnd);
     dueDate.setDate(dueDate.getDate() + creditDays);
 
-    // Insert department store report — always 'invoiced' (admin key-in)
-    const now = new Date().toISOString();
-
+    // Insert department store report as 'draft' (INV + ST issued on confirm)
     const { data: report, error: insertError } = await supabaseAdmin
       .from('department_store_reports')
       .insert({
@@ -170,14 +168,12 @@ export async function POST(request: NextRequest) {
         report_number: reportNumber,
         period_year,
         period_month,
-        status: 'invoiced',
+        status: 'draft',
         total_qty_sold: totalQtySold,
         our_amount: totalOurAmount,
         due_date: dueDate.toISOString().split('T')[0],
         notes: notes ?? null,
         created_by: userId ?? null,
-        confirmed_at: now,
-        confirmed_by: userId ?? null,
       })
       .select('id')
       .single();
@@ -211,68 +207,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Deduct stock from customer's consignment warehouse (1:1 model)
-    if (itemsWithAmounts.length > 0) {
-      const { data: warehouse } = await supabaseAdmin
-        .from('warehouses')
-        .select('id')
-        .eq('company_id', companyId)
-        .eq('customer_id', customer_id)
-        .eq('warehouse_type', 'consignment')
-        .single();
-
-      if (warehouse) {
-        await Promise.all(
-          itemsWithAmounts
-            .filter(item => item.variation_id && item.qty_sold > 0)
-            .map(item => deductStock({
-              supabase: supabaseAdmin,
-              companyId,
-              warehouseId: warehouse.id,
-              variationId: item.variation_id,
-              qty: item.qty_sold,
-              referenceType: 'department_store_report',
-              referenceId: report.id,
-              notes: `ตัดสต๊อกจากยอดขายห้าง ${reportNumber}`,
-              createdBy: userId ?? null,
-            }))
-        );
-      }
-    }
-
-    // Auto create statement (ใบวางบิล)
-    let stResult = null;
-    try {
-      stResult = await createStatementForReport(
-        report.id, customer_id, companyId, userId ?? null,
-        totalOurAmount, period_year, period_month,
-        'department_store_reports'
-      );
-    } catch (err) {
-      console.error('Auto create statement error:', err);
-    }
-
-    // Issue INV (ห้าง always INV — TAX ออกตอนส่งของแล้ว)
-    let docResult: { documentNumber?: string; documentType?: string } | null = null;
-    try {
-      const { issueReportDocument } = await import('@/lib/invoice-service');
-      const result = await issueReportDocument(
-        report.id, companyId, customer_id, totalOurAmount, 'department_store_report'
-      );
-      if (result.success) docResult = result;
-    } catch (err) {
-      console.error('Auto issue report document error:', err);
-    }
+    // Stock deduction + INV + ST will be done on confirm (พร้อมวางบิล)
 
     return NextResponse.json({
       success: true,
       report_id: report.id,
       report_number: reportNumber,
-      status: stResult?.statementId ? 'billed' : 'invoiced',
-      statement_id: stResult?.statementId || null,
-      statement_number: stResult?.statementNumber || null,
-      document_number: docResult?.documentNumber || null,
-      document_type: docResult?.documentType || null,
+      status: 'draft',
     });
   } catch (error) {
     console.error('POST department store reports error:', error);

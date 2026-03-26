@@ -18,6 +18,7 @@ import {
   buildProductNameStack,
   withOriginalAndCopy,
 } from './pdf-utils';
+import { productDisplayName } from './product-display';
 
 // ─── Interfaces ──────────────────────────────────────────
 
@@ -207,8 +208,8 @@ export async function generateCreditNotePdf(data: CnData, vatRegistered = false)
   const tableBody: any[][] = [headerCols];
 
   data.items.forEach((item, idx) => {
-    const subtitle = [item.product_code, item.variation_label].filter(Boolean).join(' · ');
-    const nameContent = buildProductNameStack(item.product_name || '', subtitle);
+    const fullName = productDisplayName(item);
+    const nameContent = buildProductNameStack(fullName, null, item.sku || item.product_code);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const row: any[] = [

@@ -255,7 +255,7 @@ function OrdersPageContent() {
       params.set('sort_by', sortBy);
       params.set('sort_dir', sortDir);
       params.set('source', 'exclude_pos');
-      params.set('exclude_flow_types', 'w_cash,w_credit,c_consign,d_consign');
+      params.set('flow_type', 'r_retail');
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (paymentFilter !== 'all') params.set('payment_status', paymentFilter);
       if (createdByFilter !== 'all') params.set('created_by', createdByFilter);

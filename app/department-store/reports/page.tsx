@@ -6,20 +6,21 @@ import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { getTabColor } from '@/lib/status-tab-colors';
 import {
-  Building2, Loader2, RefreshCw, CheckCircle2,
-  AlertCircle, Clock, Receipt,
-  Plus, Package, FileText, Printer,
+  ClipboardList, Building2, Loader2, RefreshCw, CheckCircle2,
+  AlertCircle, Clock, BadgeCheck, Copy, Receipt,
+  Plus, Package, XCircle, Eye, FileText, Printer,
   Banknote, Undo2,
 } from 'lucide-react';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
-import { markPrinted as markPrintedDB, updateLocalPrintState } from '@/lib/print-tracking';
-import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import { markPrinted as markPrintedDB } from '@/lib/print-tracking';
+import Pagination from '@/app/components/Pagination';
 import Tooltip from '@/components/ui/Tooltip';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Link from 'next/link';
 import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
+import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 
 interface DeptStoreReport {
   id: string;
@@ -34,19 +35,26 @@ interface DeptStoreReport {
   printed_invoice_at?: string | null;
   printed_statement_at?: string | null;
   created_at: string;
-  customer: { id: string; name: string; customer_code: string | null } | null;
+  customer: { id: string; name: string; customer_code: string | null; phone?: string | null; contact_person?: string | null } | null;
+  doc_number?: string | null;
+  doc_type?: string | null;
+  statement_number?: string | null;
 }
 
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  draft:    { label: 'ร่าง',       color: 'text-blue-700 dark:text-blue-300',     bg: 'bg-blue-100 dark:bg-blue-900/40' },
+  received: { label: 'รับแล้ว',    color: 'text-blue-700 dark:text-blue-300',     bg: 'bg-blue-100 dark:bg-blue-900/40' },
   invoiced: { label: 'ออก invoice', color: 'text-purple-700 dark:text-purple-300', bg: 'bg-purple-100 dark:bg-purple-900/40' },
   billed:   { label: 'วางบิลแล้ว', color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40' },
-  paid:     { label: 'ชำระแล้ว',   color: 'text-green-700 dark:text-green-300',   bg: 'bg-green-100 dark:bg-green-900/40' },
-  overdue:  { label: 'เกินกำหนด',  color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100 dark:bg-red-900/40' },
-  cancelled: { label: 'ยกเลิก',    color: 'text-gray-500 dark:text-gray-400',     bg: 'bg-gray-100 dark:bg-gray-800' },
+  paid:      { label: 'ชำระแล้ว',   color: 'text-green-700 dark:text-green-300',   bg: 'bg-green-100 dark:bg-green-900/40' },
+  overdue:   { label: 'เกินกำหนด',  color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100 dark:bg-red-900/40' },
+  cancelled: { label: 'ยกเลิก',     color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100/50 dark:bg-red-900/20' },
 };
 
 const STATUS_TABS = [
   { key: 'all',      label: 'ทั้งหมด',       ...getTabColor('all') },
+  { key: 'draft',    label: 'ร่าง',          ...getTabColor('draft') },
   { key: 'billed',   label: 'วางบิลแล้ว',   ...getTabColor('billed') },
   { key: 'paid',     label: 'ชำระแล้ว',      ...getTabColor('paid') },
   { key: 'overdue',  label: 'เกินกำหนด',    ...getTabColor('overdue') },
@@ -71,6 +79,7 @@ function DeptStoreReportsContent() {
   const searchParams = useSearchParams();
   const { showToast } = useToast();
 
+  // Derive filter state from URL params
   const activeStatus = searchParams.get('status') || 'all';
   const search = searchParams.get('q') || '';
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
@@ -98,6 +107,7 @@ function DeptStoreReportsContent() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+
 
   const fetchReports = useCallback(async (showRefresh = false) => {
     if (showRefresh) setIsRefreshing(true); else setIsLoading(true);
@@ -141,7 +151,10 @@ function DeptStoreReportsContent() {
   const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
   const getTabCount = (key: string) => key === 'all' ? totalCount : (statusCounts[key] || 0);
 
-  // Print state
+  const startIdx = (currentPage - 1) * recordsPerPage;
+  const endIdx = Math.min(startIdx + reports.length, totalRecords);
+
+  // Print state (DB-backed via printed_*_at columns)
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [printingType, setPrintingType] = useState<string | null>(null);
 
@@ -151,10 +164,14 @@ function DeptStoreReportsContent() {
   };
   const markPrinted = (id: string, type: string) => {
     markPrintedDB('department_store_report', [id], type);
-    updateLocalPrintState(setReports, [id], type);
+    const col = `printed_${type}_at` as keyof DeptStoreReport;
+    setReports(prev => prev.map(r =>
+      r.id === id ? { ...r, [col]: new Date().toISOString() } : r
+    ));
   };
 
-  // Generate invoice blob
+  // Generate invoice blob (reusable for single print + merge)
+  // taxInvoiceOverride: pass statement's tax_invoice_number/receipt_number to render as ใบกำกับภาษี/ใบเสร็จ
   const generateInvoiceBlob = async (reportId: string, taxInvoiceOverride?: {
     tax_invoice_number?: string | null;
     receipt_number?: string | null;
@@ -197,11 +214,18 @@ function DeptStoreReportsContent() {
       total_sales: r.our_amount,
       total_gp_share: 0,
       our_amount: r.our_amount,
+      // Always pass doc info from report API
+      tax_invoice_number: r.tax_invoice_number || null,
+      tax_invoice_date: r.tax_invoice_date || null,
+      invoice_number: r.invoice_number || null,
+      invoice_date: r.invoice_date || null,
+      document_subtype: r.document_subtype || null,
+      vat_registered: r.vat_registered ?? false,
       ...(taxInvoiceOverride || {}),
     });
   };
 
-  // Generate statement blob
+  // Generate statement blob (reusable for single print + merge)
   const generateStatementBlob = async (statementId: string): Promise<Blob> => {
     const res = await apiFetch(`/api/statements/${statementId}`);
     if (!res.ok) throw new Error('fetch failed');
@@ -222,6 +246,7 @@ function DeptStoreReportsContent() {
       paid_amount: st.paid_amount,
       outstanding_amount: st.outstanding_amount,
       tax_invoice_number: st.tax_invoice_number,
+      invoice_number: st.invoice_number || null,
       receipt_number: st.receipt_number,
       notes: st.notes,
       customer: st.customer ? {
@@ -230,6 +255,7 @@ function DeptStoreReportsContent() {
       } : null,
       reports: stReports.map((r: any) => ({
         report_number: r.report_number,
+        doc_number: r.doc_number || null,
         period_label: `${THAI_MONTHS_FULL[r.period_month]} ${r.period_year + 543}`,
         total_qty_sold: r.total_qty_sold,
         our_amount: r.our_amount,
@@ -241,6 +267,7 @@ function DeptStoreReportsContent() {
     setPrintingId(reportId);
     setPrintingType('invoice');
     try {
+      // Check if statement has tax/receipt documents — always fetch fresh from API
       const report = reports.find(r => r.id === reportId);
       let taxOverride: Parameters<typeof generateInvoiceBlob>[1];
       if (report?.statement_id) {
@@ -291,6 +318,7 @@ function DeptStoreReportsContent() {
     setPrintingId(report.id);
     setPrintingType('all');
     try {
+      // Fetch statement to check if paid (has tax_invoice_number/receipt_number)
       const stRes = await apiFetch(`/api/statements/${report.statement_id}`);
       const stData = stRes.ok ? await stRes.json() : null;
       const st = stData?.statement;
@@ -311,7 +339,7 @@ function DeptStoreReportsContent() {
         generateStatementBlob(report.statement_id),
       ]);
       const merged = await mergePdfBlobs([invoiceBlob, statementBlob]);
-      const title = taxOverride ? `ใบกำกับภาษี/ใบเสร็จ + ใบวางบิล ${report.report_number}` : `เอกสารทั้งหมด ${report.report_number}`;
+      const title = `เอกสารทั้งหมด ${report.report_number}`;
       showPdfPreview(merged, title);
       markPrinted(report.id, 'invoice');
       markPrinted(report.id, 'statement');
@@ -324,6 +352,41 @@ function DeptStoreReportsContent() {
   };
 
   // Payment confirm state
+  // พร้อมวางบิล confirm state
+  const [billConfirm, setBillConfirm] = useState<DeptStoreReport | null>(null);
+  const [billLoading, setBillLoading] = useState(false);
+
+  const handleReadyToBill = async (report: DeptStoreReport) => {
+    setBillLoading(true);
+    try {
+      const res = await apiFetch(`/api/department-store/reports/${report.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'confirm' }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed');
+      }
+      const d = await res.json();
+      showToast(`พร้อมวางบิลแล้ว${d.statement_number ? ` — สร้างใบวางบิล ${d.statement_number}` : ''}`, 'success');
+      setBillConfirm(null);
+      fetchReports(true);
+
+      // Auto-print invoice + statement after confirm
+      const statementId = d.statement_id || d.statementId;
+      if (statementId) {
+        setTimeout(() => handlePrintAll({ ...report, statement_id: statementId, status: 'invoiced' }), 300);
+      } else {
+        setTimeout(() => handlePrintInvoice(report.id), 300);
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setBillLoading(false);
+    }
+  };
+
   const [paymentConfirm, setPaymentConfirm] = useState<DeptStoreReport | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
 
@@ -331,6 +394,7 @@ function DeptStoreReportsContent() {
     if (!report.statement_id) return;
     setPaymentLoading(true);
     try {
+      // Fetch statement to get outstanding_amount
       const stRes = await apiFetch(`/api/statements/${report.statement_id}`);
       if (!stRes.ok) throw new Error('fetch statement failed');
       const stData = await stRes.json();
@@ -342,6 +406,7 @@ function DeptStoreReportsContent() {
         return;
       }
 
+      // Record payment
       const payRes = await apiFetch(`/api/statements/${report.statement_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -353,9 +418,10 @@ function DeptStoreReportsContent() {
       const docNums = [payData.tax_invoice_number, payData.receipt_number].filter(Boolean).join(', ');
       showToast(`บันทึกการชำระแล้ว${docNums ? ` ออกเลข ${docNums}` : ''}`, 'success');
       setPaymentConfirm(null);
-      await fetchReports(true);
+      fetchReports(true);
 
-      handlePrintInvoice(report.id);
+      // Auto print invoice only (ไม่ต้องรวมใบวางบิล — พิมพ์ไปแล้วตอน billed)
+      setTimeout(() => handlePrintInvoice(report.id), 300);
     } catch {
       showToast('เกิดข้อผิดพลาดในการบันทึกการชำระ', 'error');
     } finally {
@@ -390,6 +456,32 @@ function DeptStoreReportsContent() {
     }
   };
 
+  // Void confirm state
+  const [voidConfirm, setVoidConfirm] = useState<DeptStoreReport | null>(null);
+  const [voidLoading, setVoidLoading] = useState(false);
+
+  const handleVoidReport = async (report: DeptStoreReport) => {
+    setVoidLoading(true);
+    try {
+      const res = await apiFetch(`/api/department-store/reports/${report.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'void' }),
+      });
+      if (!res.ok) {
+        const r = await res.json();
+        throw new Error(r.error || 'Failed');
+      }
+      showToast('Void เอกสารแล้ว — รายงานกลับเป็นร่าง แก้ไขได้', 'success');
+      setVoidConfirm(null);
+      fetchReports(true);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setVoidLoading(false);
+    }
+  };
+
   const buildMenuItems = (report: DeptStoreReport): ActionItem[] => {
     const isPrinting = printingId === report.id;
     const dot = (key: string) => isPrintedDoc(report, key)
@@ -398,11 +490,11 @@ function DeptStoreReportsContent() {
 
     const items: ActionItem[] = [];
 
-    // Print: ใบแจ้งหนี้ (billed/invoiced) or ใบกำกับภาษี/ใบเสร็จ (paid)
+    // Print: ใบกำกับภาษี/ใบแจ้งหนี้ or ใบแจ้งหนี้
     if (['invoiced', 'billed', 'paid'].includes(report.status)) {
       items.push({
         key: 'invoice',
-        label: report.status === 'paid' ? 'ใบกำกับภาษี/ใบเสร็จ' : 'ใบแจ้งหนี้',
+        label: 'ใบแจ้งหนี้',
         icon: isPrinting && printingType === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />,
         suffix: dot('invoice'),
         onClick: () => handlePrintInvoice(report.id),
@@ -411,7 +503,7 @@ function DeptStoreReportsContent() {
       });
     }
 
-    // Print: ใบวางบิล
+    // Print: ใบวางบิล (available when has statement_id)
     if (report.statement_id && ['billed', 'paid'].includes(report.status)) {
       items.push({
         key: 'statement',
@@ -423,7 +515,7 @@ function DeptStoreReportsContent() {
       });
     }
 
-    // Print all
+    // Print all (when both available) — merge into 1 PDF
     if (report.statement_id && ['billed', 'paid'].includes(report.status)) {
       items.push({
         key: 'print_all',
@@ -437,144 +529,80 @@ function DeptStoreReportsContent() {
 
     // Payment action removed — already shown as focus button (btn-focus-action indigo)
 
-    // Reverse payment
+    // Print receipt (paid only)
+    if (report.status === 'paid' && report.statement_id) {
+      items.push({
+        key: 'print_receipt',
+        label: 'ใบเสร็จรับเงิน',
+        icon: <Receipt className="w-4 h-4" />,
+        onClick: async () => {
+          try {
+            const stRes = await apiFetch(`/api/statements/${report.statement_id}`);
+            if (!stRes.ok) throw new Error('fetch failed');
+            const stData = await stRes.json();
+            const st = stData.statement;
+            const { generatePaymentReceiptPdf } = await import('@/lib/payment-receipt-pdf');
+            const blob = await generatePaymentReceiptPdf({
+              receipt_number: st.receipt_number || 'REC-PENDING',
+              receipt_date: st.receipt_date || st.statement_date || new Date().toISOString().split('T')[0],
+              reference_number: report.doc_number || null,
+              statement_number: st.statement_number || null,
+              customer: report.customer ? {
+                name: report.customer.name,
+                phone: report.customer.phone || null,
+              } : null,
+              total_amount: report.our_amount,
+            });
+            showPdfPreview(blob, `ใบเสร็จรับเงิน`);
+          } catch { showToast('ไม่สามารถพิมพ์ใบเสร็จได้', 'error'); }
+        },
+        dividerBefore: true,
+      });
+    }
+
+    // Reverse payment action (paid with statement)
     if (report.status === 'paid' && report.statement_id) {
       items.push({
         key: 'reverse_payment',
         label: 'ยกเลิกการชำระ',
         icon: <Undo2 className="w-4 h-4" />,
         onClick: () => setReverseConfirm(report),
-        dividerBefore: true,
         danger: true,
+      });
+    }
+
+    // Void (billed — cancel doc + report)
+    if (['billed', 'invoiced'].includes(report.status)) {
+      items.push({
+        key: 'void',
+        label: 'ยกเลิก (Void)',
+        icon: <XCircle className="w-4 h-4" />,
+        danger: true,
+        dividerBefore: true,
+        onClick: () => setVoidConfirm(report),
+      });
+    }
+
+    if (report.status === 'draft') {
+      items.push({
+        key: 'cancel',
+        label: 'ยกเลิกรายงาน',
+        icon: <XCircle className="w-4 h-4" />,
+        danger: true,
+        dividerBefore: true,
+        onClick: async () => {
+          const res = await apiFetch(`/api/department-store/reports/${report.id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'cancel' }),
+          });
+          if (res.ok) { showToast('ยกเลิกรายงานแล้ว', 'success'); fetchReports(true); }
+          else showToast('เกิดข้อผิดพลาด', 'error');
+        },
       });
     }
 
     return items;
   };
-
-  const columns: DataTableColumn<DeptStoreReport>[] = [
-    {
-      key: 'report_number',
-      label: 'เลขที่',
-      alwaysVisible: true,
-      render: (report) => (
-        <>
-          <p className="id-text-clickable text-gray-900 dark:text-white">{report.report_number}</p>
-          <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(report.created_at)}</p>
-        </>
-      ),
-    },
-    {
-      key: 'customer',
-      label: 'ห้าง',
-      alwaysVisible: true,
-      render: (report) => (
-        <>
-          <p className="data-text text-gray-900 dark:text-white font-medium">{report.customer?.name || '-'}</p>
-          {report.customer?.customer_code && (
-            <p className="data-timestamp text-gray-400 dark:text-slate-500">{report.customer.customer_code}</p>
-          )}
-        </>
-      ),
-    },
-    {
-      key: 'period',
-      label: 'งวด',
-      render: (report) => (
-        <span className="data-text text-gray-700 dark:text-slate-300">{formatPeriod(report.period_year, report.period_month)}</span>
-      ),
-    },
-    {
-      key: 'qty',
-      label: 'จำนวน',
-      headerClassName: 'text-right',
-      cellClassName: 'text-right',
-      render: (report) => (
-        <span className="data-text text-gray-700 dark:text-slate-300">{report.total_qty_sold} ชิ้น</span>
-      ),
-    },
-    {
-      key: 'amount',
-      label: 'ยอดสุทธิ (บาท)',
-      headerClassName: 'text-right',
-      cellClassName: 'text-right',
-      render: (report) => (
-        <span className="data-number text-gray-900 dark:text-white">฿{formatAmount(report.our_amount)}</span>
-      ),
-    },
-    {
-      key: 'status',
-      label: 'สถานะ',
-      render: (report) => {
-        const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.invoiced;
-        return (
-          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
-            {report.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
-            {cfg.label}
-          </span>
-        );
-      },
-    },
-    {
-      key: 'print',
-      label: 'พิมพ์',
-      headerClassName: 'text-center',
-      cellClassName: 'text-center',
-      stopPropagation: true,
-      render: (report) => {
-        const isPrinting = printingId === report.id;
-        const hasDocs = ['invoiced', 'billed', 'paid'].includes(report.status);
-        if (!hasDocs) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
-        return (
-          <Tooltip text={`${report.status === 'paid' ? 'ใบกำกับภาษี/ใบเสร็จ' : 'ใบแจ้งหนี้'}: ${isPrintedDoc(report, 'invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${report.statement_id ? (isPrintedDoc(report, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
-            <div className="relative flex items-center justify-center gap-1">
-              {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
-              <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-              <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(report, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
-            </div>
-          </Tooltip>
-        );
-      },
-    },
-    {
-      key: 'due_date',
-      label: 'ครบกำหนด',
-      render: (report) => {
-        const isOverdue = report.due_date && new Date(report.due_date) < new Date() && report.status !== 'paid';
-        if (!report.due_date) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
-        return (
-          <span className={`data-text flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
-            {isOverdue && <AlertCircle className="w-3.5 h-3.5" />}
-            {formatDate(report.due_date)}
-          </span>
-        );
-      },
-    },
-    {
-      key: 'actions',
-      label: 'จัดการ',
-      headerClassName: 'text-right',
-      alwaysVisible: true,
-      stopPropagation: true,
-      render: (report) => (
-        <div className="flex items-center justify-end gap-1">
-          {['billed', 'overdue'].includes(report.status) && report.statement_id && (
-            <button
-              onClick={() => setPaymentConfirm(report)}
-              className="btn-focus-action indigo"
-            >
-              <Banknote className="w-4 h-4" />
-              <span className="hidden lg:inline">ลูกค้าชำระแล้ว</span>
-            </button>
-          )}
-          {report.status === 'paid' && (
-            <CheckCircle2 className="w-5 h-5 text-green-500" />
-          )}
-          <ActionMenu items={buildMenuItems(report)} />
-        </div>
-      ),
-    },
-  ];
 
   return (
     <Layout>
@@ -609,17 +637,21 @@ function DeptStoreReportsContent() {
           {STATUS_TABS.map(tab => {
             const count = getTabCount(tab.key);
             const isActive = activeStatus === tab.key;
+            if ('hideIfZero' in tab && tab.hideIfZero && count === 0 && !isActive) return null;
+            const btn = (
+              <button
+                onClick={() => setParams({ status: tab.key })}
+                className={`rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
+                  isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
+                }`}
+              >
+                <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
+                <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
+              </button>
+            );
             return (
               <div key={tab.key} className="flex-shrink-0">
-                <button
-                  onClick={() => setParams({ status: tab.key })}
-                  className={`rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
-                    isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
-                  }`}
-                >
-                  <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
-                  <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
-                </button>
+                {'tooltip' in tab && tab.tooltip ? <Tooltip text={tab.tooltip}>{btn}</Tooltip> : btn}
               </div>
             );
           })}
@@ -632,10 +664,110 @@ function DeptStoreReportsContent() {
           </div>
         </div>
 
-        {/* Table + Mobile Cards */}
+        {/* Table + Mobile Cards via DataTable */}
         <DataTable<DeptStoreReport>
-          storageKey="dept-store-reports"
-          columns={columns}
+          storageKey="csr-columns"
+          columns={[
+            {
+              key: 'report', label: 'เลขที่', alwaysVisible: true,
+              headerClassName: 'min-w-[140px]', cellClassName: 'whitespace-nowrap',
+              render: (r) => (
+                <>
+                  <p className={`font-mono text-sm font-bold ${r.status === 'cancelled' ? 'text-red-500 line-through' : 'text-gray-900 dark:text-white'}`}>
+                    {r.report_number}
+                    {r.status === 'cancelled' && <span className="ml-1.5 no-underline inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">VOID</span>}
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{new Date(r.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                </>
+              ),
+            },
+            {
+              key: 'customer', label: 'ห้าง',
+              render: (r) => (
+                <>
+                  <p className="data-text text-gray-900 dark:text-white font-medium">{r.customer?.name || '-'}</p>
+                  {r.customer?.phone && <p className="data-timestamp text-gray-400 dark:text-slate-500">{r.customer.phone}</p>}
+                </>
+              ),
+            },
+            {
+              key: 'period', label: 'งวด', headerClassName: 'whitespace-nowrap', cellClassName: 'whitespace-nowrap',
+              render: (r) => <span className="data-text text-gray-700 dark:text-slate-300">{formatPeriod(r.period_year, r.period_month)}</span>,
+            },
+            {
+              key: 'amount', label: 'ยอดสุทธิ', headerClassName: 'text-right whitespace-nowrap', cellClassName: 'text-right',
+              render: (r) => <span className="data-number text-gray-900 dark:text-white">฿{formatAmount(r.our_amount)}</span>,
+            },
+            {
+              key: 'status', label: 'สถานะ',
+              render: (r) => {
+                const c = STATUS_CONFIG[r.status] || STATUS_CONFIG.draft;
+                return (
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${c.bg} ${c.color}`}>
+                    {r.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
+                    {c.label}
+                  </span>
+                );
+              },
+            },
+            {
+              key: 'print', label: 'พิมพ์', headerClassName: 'text-center', cellClassName: 'text-center', stopPropagation: true, hideMobile: true,
+              render: (r) => {
+                const isPrinting = printingId === r.id;
+                const hasDocs = ['invoiced', 'billed', 'paid'].includes(r.status);
+                if (!hasDocs) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
+                return (
+                  <Tooltip text={`ใบแจ้งหนี้: ${isPrintedDoc(r, 'invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${r.statement_id ? (isPrintedDoc(r, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
+                    <div className="relative flex items-center justify-center gap-1">
+                      {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
+                      <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                      <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                    </div>
+                  </Tooltip>
+                );
+              },
+            },
+            {
+              key: 'docs', label: 'เอกสาร', headerClassName: 'whitespace-nowrap', cellClassName: 'whitespace-nowrap',
+              render: (r) => r.doc_number || r.statement_number ? (
+                <div className="space-y-0.5">
+                  {r.doc_number && <p className="font-mono text-xs text-[#F4511E]">{r.doc_number}</p>}
+                  {r.statement_number && <p className="font-mono text-xs text-indigo-600 dark:text-indigo-400">{r.statement_number}</p>}
+                </div>
+              ) : <span className="text-xs text-gray-300 dark:text-slate-600">-</span>,
+            },
+            {
+              key: 'dueDate', label: 'ครบกำหนด', headerClassName: 'whitespace-nowrap',
+              render: (r) => {
+                const ov = r.due_date && new Date(r.due_date) < new Date() && r.status !== 'paid';
+                return r.due_date ? (
+                  <span className={`data-text flex items-center gap-1 ${ov ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
+                    {ov && <AlertCircle className="w-3.5 h-3.5" />}
+                    {formatDate(r.due_date)}
+                  </span>
+                ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
+              },
+            },
+            {
+              key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-right', stopPropagation: true, hideMobile: true,
+              render: (r) => (
+                <div className="flex items-center justify-end gap-1">
+                  {['draft', 'received'].includes(r.status) && (
+                    <button onClick={() => setBillConfirm(r)} className="btn-focus-action green">
+                      <BadgeCheck className="w-4 h-4" /><span className="hidden lg:inline">พร้อมวางบิล</span>
+                    </button>
+                  )}
+                  {['billed', 'overdue'].includes(r.status) && r.statement_id && (
+                    <button onClick={() => setPaymentConfirm(r)} className="btn-focus-action indigo">
+                      <Banknote className="w-4 h-4" /><span className="hidden xl:inline">ลูกค้าชำระแล้ว</span>
+                    </button>
+                  )}
+                  {r.status === 'paid' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+                  <ActionMenu items={buildMenuItems(r)} />
+                </div>
+              ),
+            },
+          ]}
           data={reports}
           loading={isLoading}
           getRowId={(r) => r.id}
@@ -649,17 +781,15 @@ function DeptStoreReportsContent() {
           onPageChange={(v) => setParams({ page: String(v) })}
           onRecordsPerPageChange={(v) => setParams({ limit: String(v) })}
           mobileCardRender={(report) => {
-            const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.invoiced;
+            const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.draft;
             return (
-              <div>
+              <>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
                     <p className="id-text-clickable text-gray-900 dark:text-white">{report.report_number}</p>
                     <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(report.created_at)}</p>
                   </div>
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
-                    {cfg.label}
-                  </span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
                 </div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{report.customer?.name || '-'}</span>
@@ -670,19 +800,13 @@ function DeptStoreReportsContent() {
                   <span>{report.total_qty_sold} ชิ้น</span>
                 </div>
                 <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                  {['draft', 'received'].includes(report.status) && (
+                    <button onClick={() => setBillConfirm(report)} className="btn-focus-action green flex-1 justify-center"><BadgeCheck className="w-4 h-4" /> พร้อมวางบิล</button>
+                  )}
                   {['billed', 'overdue'].includes(report.status) && report.statement_id && (
-                    <button
-                      onClick={() => setPaymentConfirm(report)}
-                      className="btn-focus-action indigo flex-1 justify-center"
-                    >
-                      <Banknote className="w-4 h-4" /> ลูกค้าชำระแล้ว
-                    </button>
+                    <button onClick={() => setPaymentConfirm(report)} className="btn-focus-action indigo flex-1 justify-center"><Banknote className="w-4 h-4" /> ลูกค้าชำระแล้ว</button>
                   )}
-                  {report.status === 'paid' && (
-                    <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600">
-                      <CheckCircle2 className="w-4 h-4" /> ชำระแล้ว
-                    </span>
-                  )}
+                  {report.status === 'paid' && <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600"><CheckCircle2 className="w-4 h-4" /> ชำระแล้ว</span>}
                   {['invoiced', 'billed', 'paid'].includes(report.status) && (
                     <div className="flex items-center gap-1">
                       <span className={`w-2 h-2 rounded-full ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
@@ -691,11 +815,33 @@ function DeptStoreReportsContent() {
                   )}
                   <ActionMenu items={buildMenuItems(report)} />
                 </div>
-              </div>
+              </>
             );
           }}
         />
       </div>
+
+      {/* Ready to Bill Confirm Dialog */}
+      <ConfirmDialog
+        open={!!billConfirm}
+        onClose={() => !billLoading && setBillConfirm(null)}
+        onConfirm={() => billConfirm && handleReadyToBill(billConfirm)}
+        icon={<BadgeCheck className="w-6 h-6 text-emerald-600" />}
+        title="พร้อมวางบิล"
+        confirmLabel={billLoading ? 'กำลังดำเนินการ...' : 'ยืนยันพร้อมวางบิล'}
+        confirmIcon={billLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
+        loading={billLoading}
+      >
+        {billConfirm && (
+          <div className="text-base text-gray-600 dark:text-slate-300 mt-2 space-y-1 text-center">
+            <p>ยืนยัน &quot;พร้อมวางบิล&quot; ของ <span className="font-semibold">{billConfirm.customer?.name || '-'}</span></p>
+            <p>รายงาน <span className="font-semibold">{billConfirm.report_number}</span></p>
+            <p>งวด <span className="font-semibold">{formatPeriod(billConfirm.period_year, billConfirm.period_month)}</span></p>
+            <p>จำนวน <span className="font-semibold text-[#F4511E]">฿{formatAmount(billConfirm.our_amount)}</span></p>
+            <p className="text-sm text-gray-400 dark:text-slate-500 mt-2">ระบบจะหักสต๊อก + ออกใบแจ้งหนี้ (INV) และใบวางบิล (ST) อัตโนมัติ</p>
+          </div>
+        )}
+      </ConfirmDialog>
 
       {/* Payment Confirm Dialog */}
       <ConfirmDialog
@@ -738,6 +884,28 @@ function DeptStoreReportsContent() {
             <p>งวด <span className="font-semibold">{formatPeriod(reverseConfirm.period_year, reverseConfirm.period_month)}</span></p>
             <p>จำนวน <span className="font-semibold text-red-500">฿{formatAmount(reverseConfirm.our_amount)}</span></p>
             <p className="text-sm text-gray-400 dark:text-slate-500 mt-2">ใบกำกับภาษี/ใบเสร็จที่ออกไปจะถูกยกเลิก (void)</p>
+          </div>
+        )}
+      </ConfirmDialog>
+
+      {/* Void Confirm Dialog */}
+      <ConfirmDialog
+        open={!!voidConfirm}
+        onClose={() => !voidLoading && setVoidConfirm(null)}
+        onConfirm={() => voidConfirm && handleVoidReport(voidConfirm)}
+        icon={<XCircle className="w-6 h-6 text-red-500" />}
+        title="ยกเลิกรายงาน (Void)"
+        confirmLabel={voidLoading ? 'กำลังดำเนินการ...' : 'ยืนยันยกเลิก'}
+        confirmIcon={voidLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+        variant="danger"
+        loading={voidLoading}
+      >
+        {voidConfirm && (
+          <div className="text-base text-gray-600 dark:text-slate-300 mt-2 space-y-1 text-center">
+            <p>ยกเลิกรายงานของ <span className="font-semibold">{voidConfirm.customer?.name || '-'}</span></p>
+            <p>รายงาน <span className="font-semibold">{voidConfirm.report_number}</span></p>
+            <p>งวด <span className="font-semibold">{formatPeriod(voidConfirm.period_year, voidConfirm.period_month)}</span></p>
+            <p className="text-sm text-gray-400 dark:text-slate-500 mt-2">• เอกสาร (INV/ST) จะถูก void<br/>• คืนสต๊อกกลับคลังห้าง<br/>• สถานะกลับเป็น &quot;ร่าง&quot; แก้ไขได้</p>
           </div>
         )}
       </ConfirmDialog>

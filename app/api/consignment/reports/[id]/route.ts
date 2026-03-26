@@ -1,7 +1,7 @@
 // Admin API for consignment report detail — requires authentication
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
-import { deductStock } from '@/lib/stock-service';
+import { deductStock, addStock } from '@/lib/stock-service';
 
 // GET — Fetch single report detail with items, customer, batch info
 export async function GET(
@@ -207,7 +207,7 @@ export async function PUT(
     }
 
     if (action === 'void') {
-      // Void: billed/invoiced → cancelled + void linked documents
+      // Void: billed/invoiced → draft + void documents + return stock
       if (!['billed', 'invoiced'].includes(report.status)) {
         return NextResponse.json({ error: `สถานะ "${report.status}" ไม่สามารถ void ได้` }, { status: 400 });
       }
@@ -215,31 +215,68 @@ export async function PUT(
       const now = new Date().toISOString();
       const voidReason = 'ยกเลิกรายงานยอดขาย';
 
-      // Void TAX invoices linked to this report
+      // 1. Return stock to consignment warehouse
+      const { data: warehouse } = await supabaseAdmin
+        .from('warehouses')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('customer_id', report.customer_id)
+        .eq('warehouse_type', 'consignment')
+        .single();
+
+      if (warehouse) {
+        const { data: reportItems } = await supabaseAdmin
+          .from('consignment_report_items')
+          .select('id, variation_id, qty_sold')
+          .eq('report_id', reportId);
+
+        for (const item of reportItems || []) {
+          if (!item.variation_id || item.qty_sold <= 0) continue;
+          await addStock({
+            supabase: supabaseAdmin,
+            companyId,
+            warehouseId: warehouse.id,
+            variationId: item.variation_id,
+            qty: item.qty_sold,
+            referenceType: 'consignment_report_void',
+            referenceId: reportId,
+            notes: `คืนสต๊อกจาก void รายงานฝากขาย ${reportId}`,
+            createdBy: userId ?? null,
+          });
+        }
+      }
+
+      // 2. Void TAX invoices linked to this report
       await supabaseAdmin.from('tax_invoices')
         .update({ voided_at: now, voided_reason: voidReason })
         .eq('source_type', 'consignment_report').eq('source_id', reportId)
         .is('voided_at', null);
 
-      // Void INV invoices linked to this report
+      // 3. Void INV invoices linked to this report
       await supabaseAdmin.from('invoices')
         .update({ voided_at: now, voided_reason: voidReason })
         .eq('source_type', 'consignment_report').eq('source_id', reportId)
         .is('voided_at', null);
 
-      // Void linked statement
+      // 4. Void linked statement
       if (report.statement_id) {
         await supabaseAdmin.from('statements')
           .update({ status: 'cancelled', updated_at: now })
           .eq('id', report.statement_id);
       }
 
-      // Cancel report
+      // 5. Reset report → draft (editable again)
       await supabaseAdmin.from('consignment_reports')
-        .update({ status: 'cancelled', updated_at: now })
+        .update({
+          status: 'draft',
+          statement_id: null,
+          confirmed_at: null,
+          confirmed_by: null,
+          updated_at: now,
+        })
         .eq('id', reportId);
 
-      return NextResponse.json({ success: true, status: 'cancelled' });
+      return NextResponse.json({ success: true, status: 'draft' });
     }
 
     if (action === 'cancel') {

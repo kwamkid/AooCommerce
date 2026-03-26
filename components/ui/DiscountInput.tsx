@@ -7,6 +7,7 @@ interface DiscountInputProps {
   discountType: DiscountType;
   onValueChange: (value: string) => void;
   onTypeChange: (type: DiscountType) => void;
+  onBlur?: () => void;
   error?: string;
   disabled?: boolean;
   placeholder?: string;
@@ -28,6 +29,7 @@ export default function DiscountInput({
   discountType,
   onValueChange,
   onTypeChange,
+  onBlur,
   error,
   disabled,
   placeholder = '0',
@@ -50,12 +52,13 @@ export default function DiscountInput({
           type="number"
           value={value}
           onChange={e => onValueChange(e.target.value)}
+          onBlur={onBlur}
           placeholder={placeholder}
           min={0}
           max={discountType === 'percent' ? 100 : undefined}
           step={discountType === 'percent' ? '0.1' : '0.01'}
           disabled={disabled}
-          className={`${width ? 'w-full' : compact ? 'w-16' : 'w-24'} ${h} ${fontSize} text-center px-2 border border-gray-300 dark:border-slate-600 rounded-l-lg rounded-r-none border-r-0 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]/50 disabled:opacity-40 disabled:cursor-not-allowed`}
+          className={`${width ? 'w-full' : compact ? 'w-full' : 'w-24'} ${h} ${fontSize} text-center px-2 border border-gray-300 dark:border-slate-600 rounded-l-lg rounded-r-none border-r-0 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]/50 disabled:opacity-40 disabled:cursor-not-allowed`}
         />
         <button
           type="button"

@@ -58,6 +58,12 @@ export default function TransferListPage() {
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({ all: 0, pending: 0, shipping: 0, received: 0, cancelled: 0 });
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!lightboxSrc) return;
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [lightboxSrc]);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<Transfer | null>(null);
 

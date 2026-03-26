@@ -22,6 +22,7 @@ import {
 
 interface StatementReportData {
   report_number: string;
+  doc_number?: string | null;
   period_label: string;
   total_qty_sold: number;
   our_amount: number;
@@ -38,6 +39,7 @@ export interface StatementPdfData {
   paid_amount: number;
   outstanding_amount: number;
   tax_invoice_number: string | null;
+  invoice_number?: string | null;
   receipt_number: string | null;
   notes: string | null;
   customer: {
@@ -151,7 +153,7 @@ export async function generateStatementPdf(data: StatementPdfData): Promise<Blob
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const headerCols: any[] = [
     { text: '#', style: 'tableHeader', alignment: 'center' },
-    { text: 'เลขที่รายงาน', style: 'tableHeader' },
+    { text: 'เลขที่ใบแจ้งหนี้', style: 'tableHeader' },
     { text: 'งวด', style: 'tableHeader', alignment: 'center' },
     { text: 'จำนวนชิ้น', style: 'tableHeader', alignment: 'center' },
     { text: 'ยอดเงิน', style: 'tableHeader', alignment: 'right' },
@@ -164,7 +166,7 @@ export async function generateStatementPdf(data: StatementPdfData): Promise<Blob
   data.reports.forEach((report, idx) => {
     tableBody.push([
       { text: String(idx + 1), alignment: 'center', fontSize: 10, color: '#666666' },
-      { text: report.report_number, fontSize: 10, color: '#333333' },
+      { text: report.doc_number || report.report_number, fontSize: 10, color: '#333333' },
       { text: report.period_label, alignment: 'center', fontSize: 10, color: '#666666' },
       { text: String(report.total_qty_sold), alignment: 'center', fontSize: 10 },
       { text: formatPdfPrice(report.our_amount), alignment: 'right', fontSize: 10, bold: true },
@@ -228,8 +230,13 @@ export async function generateStatementPdf(data: StatementPdfData): Promise<Blob
 
   if (data.tax_invoice_number) {
     summaryRows.push([
-      { text: 'ใบกำกับภาษี', fontSize: 9, alignment: 'right', color: '#666666' },
+      { text: 'ใบกำกับภาษี/ใบแจ้งหนี้', fontSize: 9, alignment: 'right', color: '#666666' },
       { text: data.tax_invoice_number, fontSize: 9, alignment: 'right', color: '#333333' },
+    ]);
+  } else if (data.invoice_number) {
+    summaryRows.push([
+      { text: 'ใบแจ้งหนี้', fontSize: 9, alignment: 'right', color: '#666666' },
+      { text: data.invoice_number, fontSize: 9, alignment: 'right', color: '#333333' },
     ]);
   }
   if (data.receipt_number) {

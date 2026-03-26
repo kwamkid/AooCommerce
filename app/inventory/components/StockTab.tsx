@@ -168,9 +168,135 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
   // Adjust modal
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
 
+  // Min stock edit mode
+  const [minStockEditMode, setMinStockEditMode] = useState(false);
+  const [minStockEdits, setMinStockEdits] = useState<Record<string, number>>({});
+  const [minStockOriginals, setMinStockOriginals] = useState<Record<string, number>>({});
+  const [bulkMinValue, setBulkMinValue] = useState('');
+  const [minStockSaving, setMinStockSaving] = useState(false);
+  const [bulkAllLoading, setBulkAllLoading] = useState(false);
+
+  const enterMinStockEditMode = () => {
+    setMinStockEditMode(true);
+    const edits: Record<string, number> = {};
+    const originals: Record<string, number> = {};
+    items.forEach(item => {
+      edits[item.variation_id] = item.min_stock ?? 0;
+      originals[item.variation_id] = item.min_stock ?? 0;
+    });
+    setMinStockEdits(edits);
+    setMinStockOriginals(originals);
+    setBulkMinValue('');
+    // Force min column visible
+    if (!visibleColumns.has('min')) {
+      setVisibleColumns(prev => {
+        const next = new Set(prev);
+        next.add('min');
+        localStorage.setItem(STOCK_COLUMNS_STORAGE_KEY, JSON.stringify([...next]));
+        return next;
+      });
+    }
+  };
+
+  const exitMinStockEditMode = () => {
+    setMinStockEditMode(false);
+    setMinStockEdits({});
+    setMinStockOriginals({});
+    setBulkMinValue('');
+  };
+
+  const applyBulkMinStock = () => {
+    const val = parseInt(bulkMinValue, 10);
+    if (isNaN(val) || val < 0) return;
+    setMinStockEdits(prev => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) next[key] = val;
+      return next;
+    });
+  };
+
+  const applyBulkMinStockAll = async () => {
+    const val = parseInt(bulkMinValue, 10);
+    if (isNaN(val) || val < 0) {
+      showToast('กรุณาใส่ค่า min stock ก่อน', 'error');
+      return;
+    }
+    setBulkAllLoading(true);
+    try {
+      const res = await apiFetch('/api/inventory/min-stock', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true, min_stock: val }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      showToast(`ตั้ง Min Stock = ${val} ทุกรายการสำเร็จ (${data.updated} รายการ)`, 'success');
+      exitMinStockEditMode();
+      fetchInventory();
+    } catch {
+      showToast('บันทึกไม่สำเร็จ', 'error');
+    } finally {
+      setBulkAllLoading(false);
+    }
+  };
+
+  const handleMinStockChange = (variationId: string, value: string) => {
+    const val = value === '' ? 0 : parseInt(value, 10);
+    if (isNaN(val) || val < 0) return;
+    setMinStockEdits(prev => ({ ...prev, [variationId]: val }));
+  };
+
+  const saveMinStock = async () => {
+    const changedItems = Object.entries(minStockEdits)
+      .filter(([vid, val]) => val !== (minStockOriginals[vid] ?? 0))
+      .map(([variation_id, min_stock]) => ({ variation_id, min_stock }));
+
+    if (changedItems.length === 0) {
+      showToast('ไม่มีรายการที่เปลี่ยนแปลง', 'error');
+      return;
+    }
+
+    setMinStockSaving(true);
+    try {
+      const res = await apiFetch('/api/inventory/min-stock', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: changedItems }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      showToast(`บันทึก Min Stock สำเร็จ (${changedItems.length} รายการ)`, 'success');
+      exitMinStockEditMode();
+      fetchInventory();
+    } catch {
+      showToast('บันทึกไม่สำเร็จ', 'error');
+    } finally {
+      setMinStockSaving(false);
+    }
+  };
+
+  // Populate edits when page changes in edit mode
+  useEffect(() => {
+    if (!minStockEditMode) return;
+    setMinStockEdits(prev => {
+      const next = { ...prev };
+      for (const item of items) {
+        if (!(item.variation_id in next)) next[item.variation_id] = item.min_stock ?? 0;
+      }
+      return next;
+    });
+    setMinStockOriginals(prev => {
+      const next = { ...prev };
+      for (const item of items) {
+        if (!(item.variation_id in next)) next[item.variation_id] = item.min_stock ?? 0;
+      }
+      return next;
+    });
+  }, [items, minStockEditMode]);
+
   const toggleColumn = (key: StockColumnKey) => {
     const config = STOCK_COLUMN_CONFIGS.find(c => c.key === key);
     if (config?.alwaysVisible) return;
+    if (minStockEditMode && key === 'min') return; // Prevent hiding min column during edit
     setVisibleColumns(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
@@ -306,6 +432,16 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
           >
             {hideEmpty ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </button>
+          {!minStockEditMode && (
+            <button
+              onClick={enterMinStockEditMode}
+              className="h-[42px] px-3 border border-gray-300 dark:border-slate-500 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium whitespace-nowrap"
+              title="ตั้ง Min Stock"
+            >
+              <Layers className="w-4 h-4" />
+              Min Stock
+            </button>
+          )}
         </div>
         {/* Category / Brand / Supplier filters */}
         <div className="flex items-center gap-2 flex-wrap">
@@ -379,6 +515,54 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
           ))}
         </div>
       </div>
+
+      {/* Min Stock Edit Bar */}
+      {minStockEditMode && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-2 flex-1 min-w-[250px]">
+            <span className="text-sm font-medium text-amber-800 dark:text-amber-300 whitespace-nowrap">ตั้ง min stock ทุกรายการเป็น:</span>
+            <input
+              type="number"
+              min="0"
+              value={bulkMinValue}
+              onChange={e => setBulkMinValue(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && applyBulkMinStock()}
+              className="w-24 h-9 px-3 border border-amber-300 dark:border-amber-700 rounded-lg text-sm text-right bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+              placeholder="0"
+            />
+            <button
+              onClick={applyBulkMinStock}
+              className="h-9 px-3 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-700 rounded-lg transition-colors whitespace-nowrap"
+            >
+              ใช้ทั้งหน้า
+            </button>
+            <button
+              onClick={applyBulkMinStockAll}
+              disabled={bulkAllLoading}
+              className="h-9 px-3 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors whitespace-nowrap disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {bulkAllLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              ใช้ทุกรายการ
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exitMinStockEditMode}
+              className="h-9 px-4 text-sm font-medium text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-500 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
+            >
+              ยกเลิก
+            </button>
+            <button
+              onClick={saveMinStock}
+              disabled={minStockSaving}
+              className="h-9 px-4 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {minStockSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+              บันทึก
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       {loading ? (
@@ -498,29 +682,43 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                         </td>
                       )}
                       {visibleColumns.has('min') && (
-                        <td className="px-6 py-4 text-right text-sm text-gray-500 dark:text-slate-400">{item.min_stock > 0 ? item.min_stock.toLocaleString() : '-'}</td>
+                        <td className="px-3 py-2 text-right text-sm text-gray-500 dark:text-slate-400">
+                          {minStockEditMode ? (
+                            <input
+                              type="number"
+                              min="0"
+                              value={minStockEdits[item.variation_id] ?? item.min_stock ?? 0}
+                              onChange={e => handleMinStockChange(item.variation_id, e.target.value)}
+                              className="w-20 h-8 px-2 text-right text-sm border border-gray-300 dark:border-slate-500 rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400"
+                            />
+                          ) : (
+                            item.min_stock > 0 ? item.min_stock.toLocaleString() : '-'
+                          )}
+                        </td>
                       )}
                       {visibleColumns.has('status') && (
                         <td className="px-6 py-4 text-center whitespace-nowrap">{getStockBadge(item)}</td>
                       )}
                       {visibleColumns.has('actions') && (
                         <td className="px-6 py-4 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => openAdjustModal(item)}
-                              className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-[#F4511E]/10 rounded-lg transition-colors"
-                              title="ปรับ stock"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => onViewHistory?.(item.variation_id, displayName)}
-                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                              title="ดูประวัติ"
-                            >
-                              <ClipboardList className="w-4 h-4" />
-                            </button>
-                          </div>
+                          {!minStockEditMode && (
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => openAdjustModal(item)}
+                                className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-[#F4511E]/10 rounded-lg transition-colors"
+                                title="ปรับ stock"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => onViewHistory?.(item.variation_id, displayName)}
+                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                title="ดูประวัติ"
+                              >
+                                <ClipboardList className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
                         </td>
                       )}
                     </tr>
@@ -609,24 +807,39 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                       {/* Row 3: Actions */}
                       <div className="mt-2 flex items-center justify-between">
                         <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
-                          {item.min_stock > 0 && <span>Min: {item.min_stock}</span>}
+                          {minStockEditMode ? (
+                            <div className="flex items-center gap-1">
+                              <span>Min:</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={minStockEdits[item.variation_id] ?? item.min_stock ?? 0}
+                                onChange={e => handleMinStockChange(item.variation_id, e.target.value)}
+                                className="w-16 h-7 px-2 text-right text-xs border border-gray-300 dark:border-slate-500 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                              />
+                            </div>
+                          ) : (
+                            item.min_stock > 0 && <span>Min: {item.min_stock}</span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => openAdjustModal(item)}
-                            className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-[#F4511E]/10 rounded-lg transition-colors"
-                            title="ปรับ stock"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => onViewHistory?.(item.variation_id, displayName)}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                            title="ดูประวัติ"
-                          >
-                            <ClipboardList className="w-4 h-4" />
-                          </button>
-                        </div>
+                        {!minStockEditMode && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => openAdjustModal(item)}
+                              className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-[#F4511E]/10 rounded-lg transition-colors"
+                              title="ปรับ stock"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => onViewHistory?.(item.variation_id, displayName)}
+                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                              title="ดูประวัติ"
+                            >
+                              <ClipboardList className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

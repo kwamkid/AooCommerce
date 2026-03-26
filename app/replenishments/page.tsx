@@ -140,6 +140,12 @@ function ReplenishmentsPageContent() {
 
   // Lightbox for receiver photo
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!lightboxSrc) return;
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [lightboxSrc]);
 
   const fetchData = useCallback(async (showRefresh = false) => {
     if (showRefresh) setIsRefreshing(true); else setIsLoading(true);

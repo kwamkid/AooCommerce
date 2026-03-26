@@ -106,6 +106,12 @@ export default function SupplierPortalPage() {
   const [companyName, setCompanyName] = useState('');
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  useEffect(() => {
+    if (!lightboxImage) return;
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxImage(null); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [lightboxImage]);
 
   // Dark mode (independent from admin system)
   const [dark, setDark] = useState(true);

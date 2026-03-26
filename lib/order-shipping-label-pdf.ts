@@ -27,12 +27,15 @@ import {
   setupPdfMake,
   formatPdfDate,
 } from './pdf-utils';
+import { cleanVariationLabel } from './product-display';
 
 // ─── Interfaces ──────────────────────────────────────────
 
 interface LabelItem {
   product_name: string;
   variation_label?: string;
+  sku?: string | null;
+  product_code?: string | null;
   quantity: number;
 }
 
@@ -106,7 +109,7 @@ function generateBarcodeDataUrl(value: string, opts?: { width?: number; height?:
   }
 }
 
-const MAX_NAME_LEN = 50;
+const MAX_NAME_LEN = 90;
 const truncate = (s: string) => s.length > MAX_NAME_LEN ? s.slice(0, MAX_NAME_LEN) + '...' : s;
 
 // ─── Main Export ─────────────────────────────────────────
@@ -351,10 +354,14 @@ export async function generateShippingLabelPdf({ data, company, pageSizeOverride
   ];
 
   data.items.forEach((item, idx) => {
-    const name = truncate(item.product_name) + (item.variation_label ? ` (${item.variation_label})` : '');
+    const varLabel = cleanVariationLabel({ product_name: item.product_name, variation_label: item.variation_label, sku: item.sku, product_code: item.product_code });
+    const fullName = varLabel ? `${item.product_name} - ${varLabel}` : item.product_name;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nameStack: any[] = [{ text: truncate(fullName), fontSize: 7, color: '#333333' }];
+    if (item.sku) nameStack.push({ text: item.sku, fontSize: 6, color: '#999999' });
     itemTableBody.push([
       { text: `${idx + 1}`, fontSize: 7, alignment: 'center', color: '#333333' },
-      { text: name, fontSize: 7, color: '#333333' },
+      { stack: nameStack },
       { text: `${item.quantity}`, fontSize: 7, alignment: 'center', color: '#333333' },
     ]);
   });

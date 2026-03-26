@@ -223,6 +223,13 @@ function ConsignmentReportsContent() {
       total_sales: r.our_amount,
       total_gp_share: 0,
       our_amount: r.our_amount,
+      // Always pass doc info from report API
+      tax_invoice_number: r.tax_invoice_number || null,
+      tax_invoice_date: r.tax_invoice_date || null,
+      invoice_number: r.invoice_number || null,
+      invoice_date: r.invoice_date || null,
+      document_subtype: r.document_subtype || null,
+      vat_registered: r.vat_registered ?? false,
       ...(taxInvoiceOverride || {}),
     });
   };
@@ -248,6 +255,7 @@ function ConsignmentReportsContent() {
       paid_amount: st.paid_amount,
       outstanding_amount: st.outstanding_amount,
       tax_invoice_number: st.tax_invoice_number,
+      invoice_number: st.invoice_number || null,
       receipt_number: st.receipt_number,
       notes: st.notes,
       customer: st.customer ? {
@@ -256,6 +264,7 @@ function ConsignmentReportsContent() {
       } : null,
       reports: stReports.map((r: any) => ({
         report_number: r.report_number,
+        doc_number: r.doc_number || null,
         period_label: `${THAI_MONTHS_FULL[r.period_month]} ${r.period_year + 543}`,
         total_qty_sold: r.total_qty_sold,
         our_amount: r.our_amount,
@@ -352,6 +361,41 @@ function ConsignmentReportsContent() {
   };
 
   // Payment confirm state
+  // พร้อมวางบิล confirm state
+  const [billConfirm, setBillConfirm] = useState<ConsignmentReport | null>(null);
+  const [billLoading, setBillLoading] = useState(false);
+
+  const handleReadyToBill = async (report: ConsignmentReport) => {
+    setBillLoading(true);
+    try {
+      const res = await apiFetch(`/api/consignment/reports/${report.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'confirm' }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed');
+      }
+      const d = await res.json();
+      showToast(`พร้อมวางบิลแล้ว${d.statement_number ? ` — สร้างใบวางบิล ${d.statement_number}` : ''}`, 'success');
+      setBillConfirm(null);
+      fetchReports(true);
+
+      // Auto-print invoice + statement after confirm
+      const statementId = d.statement_id || d.statementId;
+      if (statementId) {
+        setTimeout(() => handlePrintAll({ ...report, statement_id: statementId, status: 'invoiced' }), 300);
+      } else {
+        setTimeout(() => handlePrintInvoice(report.id), 300);
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setBillLoading(false);
+    }
+  };
+
   const [paymentConfirm, setPaymentConfirm] = useState<ConsignmentReport | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
 
@@ -418,6 +462,32 @@ function ConsignmentReportsContent() {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
       setReverseLoading(false);
+    }
+  };
+
+  // Void confirm state
+  const [voidConfirm, setVoidConfirm] = useState<ConsignmentReport | null>(null);
+  const [voidLoading, setVoidLoading] = useState(false);
+
+  const handleVoidReport = async (report: ConsignmentReport) => {
+    setVoidLoading(true);
+    try {
+      const res = await apiFetch(`/api/consignment/reports/${report.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'void' }),
+      });
+      if (!res.ok) {
+        const r = await res.json();
+        throw new Error(r.error || 'Failed');
+      }
+      showToast('Void เอกสารแล้ว — รายงานกลับเป็นร่าง แก้ไขได้', 'success');
+      setVoidConfirm(null);
+      fetchReports(true);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setVoidLoading(false);
     }
   };
 
@@ -529,15 +599,7 @@ function ConsignmentReportsContent() {
         icon: <XCircle className="w-4 h-4" />,
         danger: true,
         dividerBefore: true,
-        onClick: async () => {
-          if (!confirm('ยกเลิกรายงานนี้? เอกสารที่ออกไปแล้ว (TAX/INV/ST) จะถูก void')) return;
-          const res = await apiFetch(`/api/consignment/reports/${report.id}`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'void' }),
-          });
-          if (res.ok) { showToast('ยกเลิกรายงานและเอกสารแล้ว', 'success'); fetchReports(true); }
-          else { const r = await res.json(); showToast(r.error || 'เกิดข้อผิดพลาด', 'error'); }
-        },
+        onClick: () => setVoidConfirm(report),
       });
     }
 
@@ -710,13 +772,9 @@ function ConsignmentReportsContent() {
               key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-right', stopPropagation: true, hideMobile: true,
               render: (r) => (
                 <div className="flex items-center justify-end gap-1">
-                  {r.status === 'received' && (
-                    <button onClick={async () => {
-                      const res = await apiFetch(`/api/consignment/reports/${r.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'confirm' }) });
-                      if (res.ok) { const d = await res.json(); showToast(`ยืนยันรายงานแล้ว${d.statement_number ? ` สร้างใบวางบิล ${d.statement_number}` : ''}`, 'success'); fetchReports(true); }
-                      else showToast('เกิดข้อผิดพลาด', 'error');
-                    }} className="btn-focus-action green">
-                      <BadgeCheck className="w-4 h-4" /><span className="hidden lg:inline">ยืนยัน</span>
+                  {['draft', 'received'].includes(r.status) && (
+                    <button onClick={() => setBillConfirm(r)} className="btn-focus-action green">
+                      <BadgeCheck className="w-4 h-4" /><span className="hidden lg:inline">พร้อมวางบิล</span>
                     </button>
                   )}
                   {['billed', 'overdue'].includes(r.status) && r.statement_id && (
@@ -762,12 +820,8 @@ function ConsignmentReportsContent() {
                   <span>{report.total_qty_sold} ชิ้น</span>
                 </div>
                 <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                  {report.status === 'received' && (
-                    <button onClick={async () => {
-                      const res = await apiFetch(`/api/consignment/reports/${report.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'confirm' }) });
-                      if (res.ok) { const d = await res.json(); showToast(`ยืนยันรายงานแล้ว${d.statement_number ? ` สร้างใบวางบิล ${d.statement_number}` : ''}`, 'success'); fetchReports(true); }
-                      else showToast('เกิดข้อผิดพลาด', 'error');
-                    }} className="btn-focus-action green flex-1 justify-center"><BadgeCheck className="w-4 h-4" /> ยืนยัน</button>
+                  {['draft', 'received'].includes(report.status) && (
+                    <button onClick={() => setBillConfirm(report)} className="btn-focus-action green flex-1 justify-center"><BadgeCheck className="w-4 h-4" /> พร้อมวางบิล</button>
                   )}
                   {['billed', 'overdue'].includes(report.status) && report.statement_id && (
                     <button onClick={() => setPaymentConfirm(report)} className="btn-focus-action indigo flex-1 justify-center"><Banknote className="w-4 h-4" /> ลูกค้าชำระแล้ว</button>
@@ -786,6 +840,28 @@ function ConsignmentReportsContent() {
           }}
         />
       </div>
+
+      {/* Ready to Bill Confirm Dialog */}
+      <ConfirmDialog
+        open={!!billConfirm}
+        onClose={() => !billLoading && setBillConfirm(null)}
+        onConfirm={() => billConfirm && handleReadyToBill(billConfirm)}
+        icon={<BadgeCheck className="w-6 h-6 text-emerald-600" />}
+        title="พร้อมวางบิล"
+        confirmLabel={billLoading ? 'กำลังดำเนินการ...' : 'ยืนยันพร้อมวางบิล'}
+        confirmIcon={billLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
+        loading={billLoading}
+      >
+        {billConfirm && (
+          <div className="text-base text-gray-600 dark:text-slate-300 mt-2 space-y-1 text-center">
+            <p>ยืนยัน &quot;พร้อมวางบิล&quot; ของ <span className="font-semibold">{billConfirm.customer?.name || '-'}</span></p>
+            <p>รายงาน <span className="font-semibold">{billConfirm.report_number}</span></p>
+            <p>งวด <span className="font-semibold">{formatPeriod(billConfirm.period_year, billConfirm.period_month)}</span></p>
+            <p>จำนวน <span className="font-semibold text-[#F4511E]">฿{formatAmount(billConfirm.our_amount)}</span></p>
+            <p className="text-sm text-gray-400 dark:text-slate-500 mt-2">ระบบจะหักสต๊อก + ออกใบกำกับภาษี (TAX) และใบวางบิล (ST) อัตโนมัติ</p>
+          </div>
+        )}
+      </ConfirmDialog>
 
       {/* Payment Confirm Dialog */}
       <ConfirmDialog
@@ -828,6 +904,28 @@ function ConsignmentReportsContent() {
             <p>งวด <span className="font-semibold">{formatPeriod(reverseConfirm.period_year, reverseConfirm.period_month)}</span></p>
             <p>จำนวน <span className="font-semibold text-red-500">฿{formatAmount(reverseConfirm.our_amount)}</span></p>
             <p className="text-sm text-gray-400 dark:text-slate-500 mt-2">ใบกำกับภาษี/ใบเสร็จที่ออกไปจะถูกยกเลิก (void)</p>
+          </div>
+        )}
+      </ConfirmDialog>
+
+      {/* Void Confirm Dialog */}
+      <ConfirmDialog
+        open={!!voidConfirm}
+        onClose={() => !voidLoading && setVoidConfirm(null)}
+        onConfirm={() => voidConfirm && handleVoidReport(voidConfirm)}
+        icon={<XCircle className="w-6 h-6 text-red-500" />}
+        title="ยกเลิกรายงาน (Void)"
+        confirmLabel={voidLoading ? 'กำลังดำเนินการ...' : 'ยืนยันยกเลิก'}
+        confirmIcon={voidLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+        variant="danger"
+        loading={voidLoading}
+      >
+        {voidConfirm && (
+          <div className="text-base text-gray-600 dark:text-slate-300 mt-2 space-y-1 text-center">
+            <p>ยกเลิกรายงานของ <span className="font-semibold">{voidConfirm.customer?.name || '-'}</span></p>
+            <p>รายงาน <span className="font-semibold">{voidConfirm.report_number}</span></p>
+            <p>งวด <span className="font-semibold">{formatPeriod(voidConfirm.period_year, voidConfirm.period_month)}</span></p>
+            <p className="text-sm text-gray-400 dark:text-slate-500 mt-2">• เอกสาร (TAX/INV/ST) จะถูก void<br/>• คืนสต๊อกกลับคลังฝากขาย<br/>• สถานะกลับเป็น &quot;ร่าง&quot; แก้ไขได้</p>
           </div>
         )}
       </ConfirmDialog>

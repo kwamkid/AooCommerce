@@ -86,6 +86,12 @@ export default function TransferDetailPage() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!lightboxSrc) return;
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [lightboxSrc]);
   const fetchingRef = useRef(false);
 
   // Confirm action (pending_confirm)

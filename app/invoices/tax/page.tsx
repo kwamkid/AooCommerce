@@ -11,7 +11,7 @@ import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 interface Invoice {
   id: string;
   doc_id: string;
-  source_type: 'order' | 'statement' | 'replenishment';
+  source_type: 'order' | 'statement' | 'consignment_report' | 'department_order' | 'department_store_report' | 'replenishment';
   source_id: string;
   source_number: string | null;
   order_number: string | null;
@@ -22,6 +22,7 @@ interface Invoice {
   tax_invoice_branch: string | null;
   tax_invoice_replaced_abbrev_number: string | null;
   is_receipt: boolean;
+  document_subtype: 'tax_only' | 'tax_receipt' | 'tax_invoice' | null;
   total_amount: number;
   vat_amount: number;
   voided_at: string | null;
@@ -50,14 +51,20 @@ function getMonthOptions() {
   return opts;
 }
 
-function getSourceLink(inv: Invoice): { href: string; label: string } {
+function getSourceLink(inv: Invoice): { href: string; label: string; subtitle?: string } {
   switch (inv.source_type) {
     case 'order':
       return { href: `/orders/${inv.source_id}`, label: inv.source_number || '-' };
     case 'statement':
-      return { href: `/consignment/reports`, label: inv.source_number || 'ใบวางบิล' };
+      return { href: `/consignment/reports`, label: inv.source_number || 'ใบวางบิล', subtitle: 'ใบวางบิล' };
+    case 'consignment_report':
+      return { href: `/consignment/reports/${inv.source_id}`, label: inv.source_number || '-', subtitle: 'ยอดขายตัวแทน' };
+    case 'department_order':
+      return { href: `/department-orders/${inv.source_id}`, label: inv.source_number || '-', subtitle: 'ออเดอร์ห้าง' };
+    case 'department_store_report':
+      return { href: `/department-store/reports/${inv.source_id}`, label: inv.source_number || '-', subtitle: 'รายงานห้าง' };
     case 'replenishment':
-      return { href: `/inventory`, label: inv.source_number || 'เติมสินค้า' };
+      return { href: `/replenishments?id=${inv.source_id}`, label: inv.source_number || '-', subtitle: 'เติมสินค้า' };
     default:
       return { href: '#', label: '-' };
   }
@@ -122,7 +129,6 @@ export default function TaxInvoicesPage() {
         const stData = await res.json();
         const st = stData.statement;
         const reports = stData.reports || [];
-        // Flatten report items into FullInvoiceItem[]
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const items = reports.flatMap((r: any) =>
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -159,8 +165,53 @@ export default function TaxInvoicesPage() {
           voided_at: inv.voided_at,
         });
         showPdfPreview(blob, `ใบกำกับภาษี ${inv.tax_invoice_number}`);
+      } else if (inv.source_type === 'consignment_report') {
+        // Consignment report TAX — use consignment report PDF
+        const res = await apiFetch(`/api/consignment/reports/${inv.source_id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const r = data.report;
+        const { generateConsignmentReportPdf } = await import('@/lib/consignment-report-pdf');
+        const blob = await generateConsignmentReportPdf({
+          report_number: r.report_number,
+          period_year: r.period_year,
+          period_month: r.period_month,
+          status: r.status,
+          created_at: r.created_at,
+          due_date: r.due_date,
+          notes: r.notes,
+          customer: r.customer ? {
+            name: r.customer.name,
+            customer_code: r.customer.customer_code,
+            phone: r.customer.phone,
+            tax_company_name: r.customer.tax_company_name,
+            tax_id: r.customer.tax_id,
+            tax_branch: r.customer.tax_branch,
+            billing_address: [r.customer.billing_address, r.customer.billing_district, r.customer.billing_amphoe, r.customer.billing_province, r.customer.billing_postal_code].filter(Boolean).join(', ') || null,
+          } : null,
+          items: (r.items || []).map((i: any) => ({
+            product_name: i.variation?.products?.name || '',
+            variation_label: i.variation?.variation_label || null,
+            sku: i.variation?.sku || null,
+            qty_sold: i.qty_sold,
+            unit_price: i.unit_price,
+            gp_rate: i.gp_rate,
+            our_amount: i.our_amount,
+          })),
+          total_qty_sold: r.total_qty_sold,
+          total_sales: r.our_amount,
+          total_gp_share: 0,
+          our_amount: r.our_amount,
+          tax_invoice_number: r.tax_invoice_number || null,
+          tax_invoice_date: r.tax_invoice_date || null,
+          invoice_number: r.invoice_number || null,
+          invoice_date: r.invoice_date || null,
+          document_subtype: r.document_subtype || null,
+          vat_registered: r.vat_registered ?? false,
+          voided_at: inv.voided_at,
+        });
+        showPdfPreview(blob, `ใบกำกับภาษี/ใบแจ้งหนี้ ${inv.tax_invoice_number}`);
       }
-      // replenishment TAX — TODO: add print support when needed
     } catch (e) {
       console.error(e);
     }
@@ -184,7 +235,10 @@ export default function TaxInvoicesPage() {
           {inv.voided_at && (
             <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
           )}
-          {inv.is_receipt && !inv.voided_at && (
+          {!inv.voided_at && inv.document_subtype === 'tax_invoice' && (
+            <span className="ml-1 text-xs text-blue-600 dark:text-blue-400">+ใบแจ้งหนี้</span>
+          )}
+          {!inv.voided_at && inv.is_receipt && (
             <span className="ml-1 text-xs text-green-600 dark:text-green-400">+ใบเสร็จ</span>
           )}
         </>
@@ -204,13 +258,11 @@ export default function TaxInvoicesPage() {
         const link = getSourceLink(inv);
         return (
           <>
-            <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
+            <Link href={link.href} className="text-xs text-[#F4511E] hover:underline inline-flex items-center gap-1">
               {link.label} <ExternalLink className="w-3 h-3" />
             </Link>
-            {inv.source_type !== 'order' && (
-              <div className="text-xs text-gray-400">
-                {inv.source_type === 'statement' ? 'ใบวางบิล' : 'เติมสินค้า'}
-              </div>
+            {link.subtitle && (
+              <div className="text-xs text-gray-400">{link.subtitle}</div>
             )}
           </>
         );
@@ -327,7 +379,10 @@ export default function TaxInvoicesPage() {
                     {inv.voided_at && (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
                     )}
-                    {inv.is_receipt && !inv.voided_at && (
+                    {!inv.voided_at && inv.document_subtype === 'tax_invoice' && (
+                      <span className="text-xs text-blue-600 dark:text-blue-400">+ใบแจ้งหนี้</span>
+                    )}
+                    {!inv.voided_at && inv.is_receipt && (
                       <span className="text-xs text-green-600 dark:text-green-400">+ใบเสร็จ</span>
                     )}
                   </div>
@@ -340,10 +395,8 @@ export default function TaxInvoicesPage() {
                   <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
                     {link.label} <ExternalLink className="w-3 h-3" />
                   </Link>
-                  {inv.source_type !== 'order' && (
-                    <span className="text-xs text-gray-400 ml-1">
-                      {inv.source_type === 'statement' ? 'ใบวางบิล' : 'เติมสินค้า'}
-                    </span>
+                  {link.subtitle && (
+                    <span className="text-xs text-gray-400 ml-1">{link.subtitle}</span>
                   )}
                 </div>
                 <div className="flex items-center justify-between mt-1">

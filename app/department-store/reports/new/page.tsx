@@ -73,6 +73,7 @@ function NewDeptStoreReportContent() {
         paid_amount: st.paid_amount,
         outstanding_amount: st.outstanding_amount,
         tax_invoice_number: st.tax_invoice_number,
+        invoice_number: st.invoice_number || null,
         receipt_number: st.receipt_number,
         notes: st.notes,
         customer: st.customer ? {
@@ -81,6 +82,7 @@ function NewDeptStoreReportContent() {
         } : null,
         reports: stReports.map((sr: any) => ({
           report_number: sr.report_number,
+          doc_number: sr.doc_number || null,
           period_label: `${THAI_MONTHS_FULL[sr.period_month]} ${sr.period_year + 543}`,
           total_qty_sold: sr.total_qty_sold,
           our_amount: sr.our_amount,

@@ -183,6 +183,7 @@ export default function ProcessingTab({
       const params = new URLSearchParams();
       params.set('status', 'processing');
       params.set('source', 'exclude_pos');
+      params.set('flow_type', 'r_retail');
       params.set('page', currentPage.toString());
       params.set('limit', recordsPerPage.toString());
       params.set('sort_by', 'created_at');
@@ -265,6 +266,7 @@ export default function ProcessingTab({
       const params = new URLSearchParams();
       params.set('status', 'processing');
       params.set('source', 'exclude_pos');
+      params.set('flow_type', 'r_retail');
       params.set('shipping_carrier', activeCarrierGroup);
       params.set('ids_only', 'true');
       if (search) params.set('search', search);

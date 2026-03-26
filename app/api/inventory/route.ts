@@ -120,6 +120,17 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20', 10);
     const offset = (page - 1) * limit;
 
+    // Fast path: low_stock count only (used by Sidebar badge)
+    if (lowStockOnly && limit <= 1 && !search && !categoryId && !brandId && !supplierId && !dealerId && !warehouseId) {
+      const { data: countData, error: countErr } = await supabaseAdmin.rpc('get_low_stock_count', {
+        p_company_id: auth.companyId,
+      });
+      if (!countErr && countData !== null) {
+        return NextResponse.json({ items: [], total: countData, page: 1, limit: 1, lowStockCount: countData });
+      }
+      // Fall through to full query if RPC doesn't exist or fails
+    }
+
     // Resolve dealer_id → consignment warehouse_id (if filtering by dealer)
     let dealerWarehouseId: string | null = null;
     if (dealerId) {

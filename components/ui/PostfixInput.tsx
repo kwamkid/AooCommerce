@@ -3,6 +3,7 @@
 interface PostfixInputProps {
   value: string | number;
   onChange: (value: string) => void;
+  onBlur?: () => void;
   postfix: string;
   type?: 'text' | 'number';
   placeholder?: string;
@@ -25,6 +26,7 @@ interface PostfixInputProps {
 export default function PostfixInput({
   value,
   onChange,
+  onBlur,
   postfix,
   type = 'number',
   placeholder = '0',
@@ -49,6 +51,7 @@ export default function PostfixInput({
           type={type}
           value={value}
           onChange={e => onChange(e.target.value)}
+          onBlur={onBlur}
           placeholder={placeholder}
           min={min}
           max={max}

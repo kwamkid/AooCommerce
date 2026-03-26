@@ -1,4 +1,4 @@
-// Path: app/api/orders/route.ts
+// Path: app/api/orders/route.ts  // v13 - exclude_flow_types filter
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
@@ -974,7 +974,7 @@ export async function GET(request: NextRequest) {
     if (orderType) rpcParams.p_order_type = orderType;
     if (platform) rpcParams.p_platform = platform;
     if (flowType) rpcParams.p_flow_type = flowType;
-    if (excludeFlowTypes) rpcParams.p_exclude_flow_types = excludeFlowTypes.split(',');
+    if (excludeFlowTypes) rpcParams.p_exclude_flow_types = excludeFlowTypes;
 
     const { data: result, error: rpcError } = await supabaseAdmin.rpc('get_orders_list', rpcParams);
 
@@ -984,6 +984,53 @@ export async function GET(request: NextRequest) {
         { error: rpcError.message },
         { status: 500 }
       );
+    }
+
+    // Post-RPC: filter flow types if PostgREST schema cache hasn't reloaded yet
+    if (result?.orders) {
+      const allOrders = result.orders as any[];
+      let filtered = allOrders;
+      let needsFilter = false;
+
+      if (flowType) {
+        const allowedFlows = new Set(flowType.split(',').map((s: string) => s.trim()));
+        const before = filtered.length;
+        filtered = filtered.filter((o: any) => allowedFlows.has(o.flow_type));
+        if (filtered.length < before) needsFilter = true;
+      }
+      if (excludeFlowTypes) {
+        const excludeSet = new Set(excludeFlowTypes.split(',').map((s: string) => s.trim()));
+        const before = filtered.length;
+        filtered = filtered.filter((o: any) => !excludeSet.has(o.flow_type));
+        if (filtered.length < before) needsFilter = true;
+      }
+
+      if (needsFilter) {
+        result.orders = filtered;
+        // RPC counts are wrong — query correct counts directly
+        let countQuery = supabaseAdmin
+          .from('orders')
+          .select('order_status', { count: 'exact', head: false })
+          .eq('company_id', auth.companyId);
+        if (source === 'exclude_pos') countQuery = countQuery.neq('source', 'pos');
+        if (flowType) countQuery = countQuery.in('flow_type', flowType.split(','));
+        if (excludeFlowTypes) {
+          for (const ft of excludeFlowTypes.split(',')) {
+            countQuery = countQuery.neq('flow_type', ft.trim());
+          }
+        }
+        const { data: countRows } = await countQuery;
+        if (countRows) {
+          const sc: Record<string, number> = { all: countRows.length, new: 0, ready_to_ship: 0, processing: 0, shipping: 0, completed: 0, cancelled: 0 };
+          for (const r of countRows) {
+            const s = (r as any).order_status;
+            if (sc[s] !== undefined) sc[s]++;
+          }
+          result.statusCounts = sc;
+        }
+        result.pagination.total = filtered.length;
+        result.pagination.totalPages = Math.ceil(filtered.length / Math.max(limit, 1));
+      }
     }
 
     // Filter by customer_type if provided (post-RPC filter)

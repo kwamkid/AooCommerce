@@ -176,6 +176,7 @@ function StatementsContent() {
         paid_amount: detail.paid_amount,
         outstanding_amount: detail.outstanding_amount,
         tax_invoice_number: detail.tax_invoice_number,
+        invoice_number: detail.invoice_number || null,
         receipt_number: detail.receipt_number,
         notes: detail.notes,
         customer: detail.customer ? {
@@ -184,6 +185,7 @@ function StatementsContent() {
         } : null,
         reports: stReports.map((r: any) => ({
           report_number: r.report_number,
+          doc_number: r.doc_number || null,
           period_label: `${THAI_MONTHS[r.period_month]} ${r.period_year + 543}`,
           total_qty_sold: r.total_qty_sold,
           our_amount: r.our_amount,

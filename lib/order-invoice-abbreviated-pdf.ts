@@ -19,6 +19,7 @@ import {
   buildCornerTriangle,
   buildProductNameStack,
 } from './pdf-utils';
+import { productDisplayName } from './product-display';
 
 // Re-export the data interface so callers can use it
 export { type OrderInvoiceData } from './order-invoice-pdf';
@@ -294,8 +295,8 @@ function buildCompactInvoiceContent(
       }
     } else {
       // Normal item row
-      const subtitle = [item.product_code, item.variation_label].filter(Boolean).join(' | ');
-      const productStack = buildProductNameStack(item.product_name, subtitle);
+      const fullName = productDisplayName(item);
+      const productStack = buildProductNameStack(fullName, null, item.sku || item.product_code);
 
       tableBody.push([
         { text: `${rowNum}`, alignment: 'center', fontSize: 9, margin: [0, 1, 0, 0] },

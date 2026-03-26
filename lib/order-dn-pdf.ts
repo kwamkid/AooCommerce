@@ -174,8 +174,7 @@ export async function generateOrderDnPdf(
       }
     } else {
       const fullName = productDisplayName(item);
-      const subText = item.sku ? `SKU: ${item.sku}` : null;
-      const productStack = buildProductNameStack(fullName, subText);
+      const productStack = buildProductNameStack(fullName, null, item.sku);
 
       tableBody.push([
         { text: `${rowNum}`, alignment: 'center', fontSize: 10 },

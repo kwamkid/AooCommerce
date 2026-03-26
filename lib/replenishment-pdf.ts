@@ -182,10 +182,7 @@ export async function generateReplenishmentPdf({ data, company, vatRegistered = 
     // ถ้าจำนวนไม่ตรง แสดงหมายเหตุ
     const hasMismatch = isConfirmed && item.confirmed_quantity != null && item.confirmed_quantity !== item.quantity;
     const mismatchNote = hasMismatch ? `(ส่ง ${item.quantity} รับ ${item.confirmed_quantity})` : null;
-    const subParts = [item.sku ? `SKU: ${item.sku}` : null, mismatchNote].filter(Boolean);
-    const subText = subParts.length > 0 ? subParts.join('  ') : null;
-
-    const productStack = buildProductNameStack(fullName, subText);
+    const productStack = buildProductNameStack(fullName, mismatchNote, item.sku);
 
     const lineTotal = item.unit_price * displayQty;
 
