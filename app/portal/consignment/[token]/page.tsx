@@ -290,7 +290,7 @@ export default function ConsignmentPortalPage() {
   if (authChecking || !mounted) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white dark:bg-[#1A1A2E] transition-colors">
-        <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
   }
@@ -424,7 +424,7 @@ export default function ConsignmentPortalPage() {
               onClick={() => setActiveTab(t.key)}
               className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                 activeTab === t.key
-                  ? 'bg-white dark:bg-slate-700 text-[#F4511E] shadow-sm'
+                  ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
                   : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
               }`}
             >
@@ -553,7 +553,7 @@ export default function ConsignmentPortalPage() {
                       {isDraftWithToken && (
                         <button
                           onClick={() => handleOpenReportForm(report)}
-                          className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-[#F4511E] hover:bg-[#e03e0d] text-white text-xs font-semibold rounded-lg transition-colors"
+                          className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-primary hover:bg-[#e03e0d] text-white text-xs font-semibold rounded-lg transition-colors"
                         >
                           กรอกรายงาน
                           <ChevronRight className="w-3 h-3" />

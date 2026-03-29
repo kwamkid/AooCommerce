@@ -151,7 +151,7 @@ export default function ShippingLabelsPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#F4511E] mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           <p className="mt-4 text-gray-600 dark:text-slate-400">กำลังโหลด...</p>
         </div>
       </div>
@@ -176,7 +176,7 @@ export default function ShippingLabelsPage() {
           </span>
           <button
             onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
           >
             <Printer className="w-5 h-5" />
             พิมพ์ทั้งหมด

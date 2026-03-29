@@ -961,7 +961,7 @@ export default function ReadyToShipTab({
             else onStatusClick(order);
           }}
           disabled={actionLoading}
-          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-[#F4511E] text-white hover:bg-[#D63B0E] transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary-hover transition-colors flex items-center gap-1.5 disabled:opacity-50"
           title="รับออเดอร์"
         >
           <Package className="w-4 h-4" />
@@ -1065,7 +1065,7 @@ export default function ReadyToShipTab({
             setTimeout(() => setToast(''), 2500);
           });
         },
-        className: 'p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
+        className: 'p-1.5 text-gray-400 hover:text-primary transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
       });
       menuItems.push({
         key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-4 h-4" />,
@@ -1151,7 +1151,7 @@ export default function ReadyToShipTab({
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-6 h-6 text-primary animate-spin" />
         </div>
       )}
 
@@ -1164,7 +1164,7 @@ export default function ReadyToShipTab({
                 type="checkbox"
                 checked={allSelected}
                 onChange={toggleSelectAll}
-                className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E]"
+                className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-primary focus:ring-primary"
               />
               <span className="text-xs text-gray-400 dark:text-slate-500">
                 เลือกทั้งหมด{totalOrders > orders.length ? ` (${totalOrders})` : ''}
@@ -1222,7 +1222,7 @@ export default function ReadyToShipTab({
               <button
                 onClick={() => setConfirmModal({ type: 'accept', ids: Array.from(selectedIds) })}
                 disabled={bulkLoading}
-                className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-[#F4511E] text-white hover:bg-[#D63B0E] transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary-hover transition-colors flex items-center gap-1.5 disabled:opacity-50"
               >
                 <Package className="w-4 h-4" />
                 <span className="hidden md:inline">รับออเดอร์</span> ({selectedIds.size})
@@ -1263,7 +1263,7 @@ export default function ReadyToShipTab({
                 }
                 disabled={bulkLoading}
                 className={`px-4 py-2 rounded-lg text-white transition-colors disabled:opacity-50 flex items-center gap-2 ${
-                  confirmModal.type === 'accept' ? 'bg-[#F4511E] hover:bg-[#D63B0E]' : 'bg-red-600 hover:bg-red-700'
+                  confirmModal.type === 'accept' ? 'bg-primary hover:bg-primary-hover' : 'bg-red-600 hover:bg-red-700'
                 }`}
               >
                 {bulkLoading ? (
@@ -1345,7 +1345,7 @@ export default function ReadyToShipTab({
                 value={holdReason}
                 onChange={(e) => setHoldReason(e.target.value)}
                 placeholder="ระบุเหตุผล เช่น รอสินค้า, รอลูกค้ายืนยัน..."
-                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div className="flex gap-3 justify-end">
@@ -1389,7 +1389,7 @@ export default function ReadyToShipTab({
       {/* PDF loading toast — only show when NOT in timeslot panel */}
       {actionLoading && !timeSlotPanelOpen && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm">
-          <Loader2 className="w-4 h-4 animate-spin text-[#F4511E]" />
+          <Loader2 className="w-4 h-4 animate-spin text-primary" />
           กำลังดำเนินการ...
         </div>
       )}

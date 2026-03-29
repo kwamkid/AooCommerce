@@ -573,7 +573,7 @@ function OrdersPageContent() {
               setTimeout(() => setToast(''), 2500);
             });
           }}
-          className="p-2 text-gray-500 hover:text-[#F4511E] rounded-lg transition-colors"
+          className="p-2 text-gray-500 hover:text-primary rounded-lg transition-colors"
           title="คัดลอกลิงก์บิลออนไลน์"
         >
           <Link2 className="w-4 h-4" />
@@ -734,7 +734,7 @@ function OrdersPageContent() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -746,7 +746,7 @@ function OrdersPageContent() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <ShoppingCart className="w-8 h-8 text-[#F4511E]" />
+            <ShoppingCart className="w-8 h-8 text-primary" />
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">คำสั่งซื้อ</h1>
           </div>
           <div className="flex items-center gap-2">
@@ -760,7 +760,7 @@ function OrdersPageContent() {
             </button>
             <button
               onClick={() => router.push('/orders/new')}
-              className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2"
+              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />
               สร้าง<span className="hidden md:inline">คำสั่งซื้อ</span>
@@ -853,7 +853,7 @@ function OrdersPageContent() {
               onClick={() => setShowAdvancedFilter(true)}
               className={`flex items-center gap-1.5 px-3 h-[42px] border rounded-lg text-sm transition-colors flex-shrink-0 ${
                 (paymentFilter !== 'all' || createdByFilter !== 'all' || orderTypeFilter !== 'all' || deliveryDateRange?.startDate)
-                  ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 text-[#F4511E]'
+                  ? 'border-primary bg-orange-50 dark:bg-orange-900/20 text-primary'
                   : 'border-gray-300 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-400 dark:hover:border-slate-500'
               }`}
             >
@@ -862,7 +862,7 @@ function OrdersPageContent() {
               {(() => {
                 const count = [paymentFilter !== 'all', createdByFilter !== 'all', orderTypeFilter !== 'all', !!deliveryDateRange?.startDate].filter(Boolean).length;
                 return count > 0 ? (
-                  <span className="bg-[#F4511E] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{count}</span>
+                  <span className="bg-primary text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{count}</span>
                 ) : null;
               })()}
             </button>
@@ -992,7 +992,7 @@ function OrdersPageContent() {
                 <button
                   type="button"
                   onClick={() => setShowAdvancedFilter(false)}
-                  className="px-6 py-2.5 bg-[#F4511E] text-white text-base font-medium rounded-lg hover:bg-[#D63B0E] transition-colors"
+                  className="px-6 py-2.5 bg-primary text-white text-base font-medium rounded-lg hover:bg-primary-hover transition-colors"
                 >
                   เสร็จสิ้น
                 </button>
@@ -1003,7 +1003,7 @@ function OrdersPageContent() {
 
         {fetching ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+            <Loader2 className="w-8 h-8 text-primary animate-spin" />
           </div>
         ) : (
         <>
@@ -1028,7 +1028,7 @@ function OrdersPageContent() {
                         key={opt.value}
                         onClick={() => { setParams({ sort: opt.value }); setShowSortDropdown(false); }}
                         className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
-                          sortValue === opt.value ? 'text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'
+                          sortValue === opt.value ? 'text-primary font-medium' : 'text-gray-700 dark:text-slate-300'
                         }`}
                       >
                         {opt.label}
@@ -1145,7 +1145,7 @@ function OrdersPageContent() {
                 <button
                   onClick={confirmStatusUpdate}
                   disabled={updatingStatus}
-                  className="px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
                   {updatingStatus ? (
                     <>
@@ -1255,7 +1255,7 @@ export default function OrdersPage() {
     <Suspense fallback={
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     }>

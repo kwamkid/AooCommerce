@@ -196,9 +196,9 @@ function SortableHeader({
         <span className="inline-flex flex-col">
           {isActive ? (
             currentOrder === 'asc' ? (
-              <ArrowUp className="w-3 h-3 text-[#F4511E]" />
+              <ArrowUp className="w-3 h-3 text-primary" />
             ) : (
-              <ArrowDown className="w-3 h-3 text-[#F4511E]" />
+              <ArrowDown className="w-3 h-3 text-primary" />
             )
           ) : (
             <ArrowUpDown className="w-3 h-3 text-gray-300" />
@@ -367,7 +367,7 @@ export default function CRMFollowUpPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -380,7 +380,7 @@ export default function CRMFollowUpPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Users className="w-7 h-7 text-[#F4511E]" />
+              <Users className="w-7 h-7 text-primary" />
               ติดตามลูกค้า
             </h1>
             <p className="text-gray-500 mt-1">ติดตามลูกค้าที่ไม่ได้สั่งซื้อนาน</p>
@@ -393,7 +393,7 @@ export default function CRMFollowUpPage() {
             {/* Total customers */}
             <button
               onClick={() => { setFilterDays(''); setCurrentPage(1); }}
-              className={`bg-white dark:bg-slate-800 rounded-lg border p-4 text-left transition-all hover:shadow-md ${filterDays === '' ? 'border-[#F4511E] ring-2 ring-[#F4511E]/20' : 'border-gray-200 dark:border-slate-700'}`}
+              className={`bg-white dark:bg-slate-800 rounded-lg border p-4 text-left transition-all hover:shadow-md ${filterDays === '' ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 dark:border-slate-700'}`}
             >
               <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400 mb-1">
                 <Users className="w-4 h-4" />
@@ -486,7 +486,7 @@ export default function CRMFollowUpPage() {
         <div className="data-table-wrap hidden md:block">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
           ) : customers.length === 0 ? (
             <div className="text-center py-12">
@@ -596,7 +596,7 @@ export default function CRMFollowUpPage() {
                           ) : (
                             <button
                               onClick={() => handleCreateOrder(customer.id)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] text-sm font-medium transition-colors"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm font-medium transition-colors"
                             >
                               <Plus className="w-3.5 h-3.5" />
                               สร้างออเดอร์
@@ -645,7 +645,7 @@ export default function CRMFollowUpPage() {
         <div className="md:hidden">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
           ) : customers.length === 0 ? (
             <div className="text-center py-12">
@@ -701,7 +701,7 @@ export default function CRMFollowUpPage() {
                       ) : (
                         <button
                           onClick={() => handleCreateOrder(customer.id)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] text-sm font-medium transition-colors"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm font-medium transition-colors"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           สร้างออเดอร์
@@ -762,7 +762,7 @@ export default function CRMFollowUpPage() {
             <div className="overflow-y-auto max-h-[60vh] px-5 py-4">
               {orderHistoryModal.loading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+                  <Loader2 className="w-6 h-6 text-primary animate-spin" />
                 </div>
               ) : orderHistoryModal.orders.length === 0 ? (
                 <div className="text-center py-8 text-gray-400 dark:text-slate-500">

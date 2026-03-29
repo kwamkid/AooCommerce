@@ -108,7 +108,7 @@ export default function TimePicker({
             : 'bg-white dark:bg-slate-700 cursor-pointer'
         } ${
           open
-            ? 'ring-2 ring-[#F4511E] border-transparent'
+            ? 'ring-2 ring-primary border-transparent'
             : 'border-gray-300 dark:border-slate-600'
         } ${
           displayValue

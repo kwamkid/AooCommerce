@@ -120,7 +120,7 @@ export default function NewCustomerPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     );

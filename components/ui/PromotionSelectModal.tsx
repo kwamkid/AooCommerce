@@ -186,8 +186,8 @@ export default function PromotionSelectModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700/50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#F4511E]/10 flex items-center justify-center">
-              <Gift className="w-5 h-5 text-[#F4511E]" />
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Gift className="w-5 h-5 text-primary" />
             </div>
             <div>
               <h3 className="text-gray-900 dark:text-white font-bold">{promotion.name}</h3>
@@ -273,7 +273,7 @@ export default function PromotionSelectModal({
                   <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
                     เลือกสินค้าราคาพิเศษ (ได้ {mainQty} ชิ้น)
                   </p>
-                  <span className="text-xs text-[#F4511E] font-medium">{totalSelectedDiscounted}/{mainQty}</span>
+                  <span className="text-xs text-primary font-medium">{totalSelectedDiscounted}/{mainQty}</span>
                 </div>
                 <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
                   {discountedItems.map((item, i) => {
@@ -295,7 +295,7 @@ export default function PromotionSelectModal({
                           {item.sku && <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{item.sku}</p>}
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-xs text-gray-400 line-through">฿{formatPrice(item.default_price)}</span>
-                            <span className="text-xs text-[#F4511E] font-bold">฿{formatPrice(item.special_price ?? item.default_price)}</span>
+                            <span className="text-xs text-primary font-bold">฿{formatPrice(item.special_price ?? item.default_price)}</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-1 flex-shrink-0">
@@ -356,7 +356,7 @@ export default function PromotionSelectModal({
                   min={1}
                   value={qty}
                   onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-20 h-10 text-center text-lg font-bold bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                  className="w-20 h-10 text-center text-lg font-bold bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <button
                   onClick={() => setQty(q => q + 1)}
@@ -382,11 +382,11 @@ export default function PromotionSelectModal({
                           !promotion.tiers![i + 1] || qty < promotion.tiers![i + 1].min_qty
                         );
                         return (
-                          <tr key={i} className={isActive ? 'bg-[#F4511E]/10' : ''}>
-                            <td className={`px-3 py-2 ${isActive ? 'text-[#F4511E] font-bold' : 'text-gray-700 dark:text-gray-300'}`}>
+                          <tr key={i} className={isActive ? 'bg-primary/10' : ''}>
+                            <td className={`px-3 py-2 ${isActive ? 'text-primary font-bold' : 'text-gray-700 dark:text-gray-300'}`}>
                               ตั้งแต่ {tier.min_qty} ชิ้น
                             </td>
-                            <td className={`px-3 py-2 text-right ${isActive ? 'text-[#F4511E] font-bold' : 'text-gray-700 dark:text-gray-300'}`}>
+                            <td className={`px-3 py-2 text-right ${isActive ? 'text-primary font-bold' : 'text-gray-700 dark:text-gray-300'}`}>
                               {tier.discount_type === 'percent' && `ลด ${tier.discount_value}%`}
                               {tier.discount_type === 'fixed_discount' && `ลด ฿${formatPrice(tier.discount_value)}/ชิ้น`}
                               {tier.discount_type === 'fixed_price' && `เหลือ ฿${formatPrice(tier.discount_value)}/ชิ้น`}
@@ -406,7 +406,7 @@ export default function PromotionSelectModal({
         <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700/50 flex items-center justify-between">
           <div>
             <p className="text-xs text-gray-500 dark:text-gray-400">ราคารวม</p>
-            <p className="text-xl font-bold text-[#F4511E]">฿{formatPrice(Math.round(getDisplayPrice() * 100) / 100)}</p>
+            <p className="text-xl font-bold text-primary">฿{formatPrice(Math.round(getDisplayPrice() * 100) / 100)}</p>
             {(() => {
               const full = getFullPrice();
               const promo = getDisplayPrice();
@@ -427,7 +427,7 @@ export default function PromotionSelectModal({
             </button>
             <button
               onClick={handleConfirm}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#F4511E] hover:bg-[#D63B0E] text-white font-medium text-sm rounded-lg transition-colors active:scale-[0.98]"
+              className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-medium text-sm rounded-lg transition-colors active:scale-[0.98]"
             >
               <ShoppingCart className="w-4 h-4" />
               เพิ่มลงรายการ

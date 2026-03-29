@@ -216,7 +216,7 @@ export default function MonitorTab({ warehouses }: MonitorTabProps) {
                 type="checkbox"
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="rounded border-gray-300 dark:border-slate-600 text-[#F4511E] focus:ring-[#F4511E]"
+                className="rounded border-gray-300 dark:border-slate-600 text-primary focus:ring-primary"
               />
               Auto-refresh 30s
             </label>

@@ -26,7 +26,7 @@ export default function CategoriesPageWrapper() {
     <Suspense fallback={
       <Layout title="หมวดหมู่สินค้า">
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-6 h-6 text-primary animate-spin" />
         </div>
       </Layout>
     }>
@@ -289,7 +289,7 @@ function CategoriesPage() {
       <div className="max-w-3xl">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
         ) : (
           <div className="space-y-4">
@@ -301,7 +301,7 @@ function CategoriesPage() {
                 value={searchInput}
                 onChange={e => handleSearchChange(e.target.value)}
                 placeholder="ค้นหาหมวดหมู่..."
-                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               />
             </div>
 
@@ -315,8 +315,8 @@ function CategoriesPage() {
               <div key={parent.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
                 {/* Parent row */}
                 <div className="flex items-center gap-3 p-4">
-                  <div className="w-8 h-8 rounded-lg bg-[#F4511E]/10 flex items-center justify-center flex-shrink-0">
-                    <Tag className="w-4 h-4 text-[#F4511E]" />
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Tag className="w-4 h-4 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
                     {editingId === parent.id ? (
@@ -326,7 +326,7 @@ function CategoriesPage() {
                           value={editingName}
                           onChange={e => setEditingName(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') cancelEdit(); }}
-                          className="flex-1 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
+                          className="flex-1 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
                           autoFocus
                         />
                         <button onClick={handleSaveEdit} disabled={saving} className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50">
@@ -351,7 +351,7 @@ function CategoriesPage() {
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button
                         onClick={() => { resetChildForm(); setAddingChildParentId(parent.id); cancelEdit(); }}
-                        className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
+                        className="p-1.5 text-gray-400 hover:text-primary transition-colors"
                         title="เพิ่มหมวดย่อย"
                       >
                         <Plus className="w-4 h-4" />
@@ -389,7 +389,7 @@ function CategoriesPage() {
                                 value={editingName}
                                 onChange={e => setEditingName(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') cancelEdit(); }}
-                                className="flex-1 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
+                                className="flex-1 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
                                 autoFocus
                               />
                               <button onClick={handleSaveEdit} disabled={saving} className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50">
@@ -438,7 +438,7 @@ function CategoriesPage() {
                         onChange={e => setChildName(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') handleAddChild(parent.id); if (e.key === 'Escape') resetChildForm(); }}
                         placeholder="ชื่อหมวดย่อย"
-                        className="flex-1 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
+                        className="flex-1 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
                         autoFocus
                       />
                       <button onClick={() => handleAddChild(parent.id)} disabled={saving} className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50">
@@ -457,7 +457,7 @@ function CategoriesPage() {
             {showAddForm ? (
               <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
                 <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
-                  <Tag className="w-4 h-4 text-[#F4511E]" />
+                  <Tag className="w-4 h-4 text-primary" />
                   เพิ่มหมวดหมู่
                 </div>
                 <div>
@@ -468,7 +468,7 @@ function CategoriesPage() {
                     onChange={e => setAddName(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') resetAddForm(); }}
                     placeholder="เช่น เครื่องดื่ม, อาหาร"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                     autoFocus
                   />
                 </div>
@@ -486,7 +486,7 @@ function CategoriesPage() {
                   <button
                     onClick={handleAdd}
                     disabled={saving}
-                    className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                    className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
                   >
                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                     บันทึก
@@ -502,7 +502,7 @@ function CategoriesPage() {
             ) : (
               <button
                 onClick={() => { cancelEdit(); resetChildForm(); setShowAddForm(true); }}
-                className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
                 เพิ่ม<span className="hidden md:inline">หมวดหมู่</span>

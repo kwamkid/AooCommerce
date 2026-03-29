@@ -428,7 +428,7 @@ function ProductsPageContent() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังโหลดข้อมูล...</p>
         </div>
       </div>
@@ -450,7 +450,7 @@ function ProductsPageContent() {
           </div>
           <button
             onClick={() => router.push('/products/new')}
-            className="flex items-center space-x-2 px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white rounded-lg font-semibold transition-colors"
+            className="flex items-center space-x-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold transition-colors"
           >
             <Plus className="w-5 h-5" />
             <span>เพิ่ม<span className="hidden md:inline">สินค้า</span></span>
@@ -623,7 +623,7 @@ function ProductsPageContent() {
               {/* Loading overlay for page/filter changes */}
               {fetching && !loading && (
                 <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 z-10 flex items-center justify-center rounded-xl">
-                  <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
                 </div>
               )}
               <div className="overflow-x-auto">
@@ -969,7 +969,7 @@ export default function ProductsPage() {
     <Suspense fallback={
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     }>

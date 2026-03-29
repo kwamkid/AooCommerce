@@ -70,7 +70,7 @@ function NewProductContent() {
       <Layout>
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
-            <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin mx-auto mb-3" />
+            <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-3" />
             <p className="text-gray-500 text-sm">กำลังโหลดข้อมูล...</p>
           </div>
         </div>
@@ -128,7 +128,7 @@ export default function NewProductPage() {
       <Layout>
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
-            <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin mx-auto mb-3" />
+            <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-3" />
             <p className="text-gray-500 text-sm">กำลังโหลด...</p>
           </div>
         </div>

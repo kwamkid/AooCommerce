@@ -596,7 +596,7 @@ export default function PosPage() {
   if (authLoading || loadingSession) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-[#0F172A]">
-        <Loader2 className="w-8 h-8 animate-spin text-[#F4511E]" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -670,7 +670,7 @@ export default function PosPage() {
           onClick={() => setMobileTab('products')}
           className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
             mobileTab === 'products'
-              ? 'text-[#F4511E] border-b-2 border-[#F4511E]'
+              ? 'text-primary border-b-2 border-primary'
               : 'text-gray-500 dark:text-gray-400'
           }`}
         >
@@ -681,14 +681,14 @@ export default function PosPage() {
           onClick={() => setMobileTab('cart')}
           className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative ${
             mobileTab === 'cart'
-              ? 'text-[#F4511E] border-b-2 border-[#F4511E]'
+              ? 'text-primary border-b-2 border-primary'
               : 'text-gray-500 dark:text-gray-400'
           }`}
         >
           <ShoppingCart className="w-4 h-4" />
           ตะกร้า
           {cartItems.length > 0 && (
-            <span className="absolute top-2 right-[calc(50%-40px)] bg-[#F4511E] text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+            <span className="absolute top-2 right-[calc(50%-40px)] bg-primary text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
               {cartItems.reduce((s, i) => s + i.quantity, 0)}
             </span>
           )}

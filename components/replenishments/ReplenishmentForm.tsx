@@ -940,7 +940,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                   rows={3}
                   disabled={isDisabled}
                   placeholder="หมายเหตุสำหรับตัวแทน, การจัดส่ง..."
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-base disabled:opacity-60"
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:opacity-60"
                 />
               </div>
               {!isDisabled && (
@@ -978,25 +978,25 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                       </div>
                       <div className="space-y-1.5">
                         <label className="flex items-center gap-2 text-sm cursor-pointer">
-                          <input type="radio" name="replenExpiry" checked={expiryMode === 'default'} onChange={() => setExpiryMode('default')} className="accent-[#F4511E]" />
+                          <input type="radio" name="replenExpiry" checked={expiryMode === 'default'} onChange={() => setExpiryMode('default')} className="accent-primary" />
                           <span className="text-gray-700 dark:text-slate-300">ใช้ที่ตั้งค่าไว้ <span className="text-gray-400 dark:text-slate-500">(7 วัน)</span></span>
                         </label>
                         <label className="flex items-center gap-2 text-sm cursor-pointer">
-                          <input type="radio" name="replenExpiry" checked={expiryMode === 'custom'} onChange={() => setExpiryMode('custom')} className="accent-[#F4511E]" />
+                          <input type="radio" name="replenExpiry" checked={expiryMode === 'custom'} onChange={() => setExpiryMode('custom')} className="accent-primary" />
                           <span className="text-gray-700 dark:text-slate-300">กำหนดเอง</span>
                           {expiryMode === 'custom' && (
                             <span className="flex items-center gap-1 ml-1">
                               <input
                                 type="number" min={1} max={90} value={customExpiryDays}
                                 onChange={e => setCustomExpiryDays(Math.max(1, Math.min(90, parseInt(e.target.value) || 1)))}
-                                className="w-14 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-sm text-center bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
+                                className="w-14 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-sm text-center bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
                               />
                               <span className="text-gray-500 dark:text-slate-400 text-xs">วัน</span>
                             </span>
                           )}
                         </label>
                         <label className="flex items-center gap-2 text-sm cursor-pointer">
-                          <input type="radio" name="replenExpiry" checked={expiryMode === 'none'} onChange={() => setExpiryMode('none')} className="accent-[#F4511E]" />
+                          <input type="radio" name="replenExpiry" checked={expiryMode === 'none'} onChange={() => setExpiryMode('none')} className="accent-primary" />
                           <span className="text-gray-700 dark:text-slate-300">ไม่หมดอายุ</span>
                         </label>
                       </div>
@@ -1054,7 +1054,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                 <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-center pt-2 mt-1 border-t border-gray-200 dark:border-slate-600">
                   <span className="font-bold text-gray-900 dark:text-white">ยอดรวมสุทธิ</span>
                   <span className="text-right w-20 text-gray-400 dark:text-slate-500 line-through text-sm">฿{formatNumber(totalWithVAT)}</span>
-                  <span className="text-right w-20 font-bold text-lg text-[#F4511E]">฿{formatNumber(confirmedTotalWithVAT)}</span>
+                  <span className="text-right w-20 font-bold text-lg text-primary">฿{formatNumber(confirmedTotalWithVAT)}</span>
                 </div>
                 {/* Difference badge */}
                 <div className={`mt-2 flex items-center justify-end gap-1.5 text-sm font-medium ${confirmedTotalWithVAT < totalWithVAT ? 'text-red-500' : 'text-blue-500'}`}>

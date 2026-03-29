@@ -1443,7 +1443,7 @@ export default function OrderForm({
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
   }
@@ -1800,7 +1800,7 @@ export default function OrderForm({
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
                   disabled={isReadOnly}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
                   placeholder="หมายเหตุสำหรับลูกค้า, การจัดส่ง..."
                 />
               </div>
@@ -1845,7 +1845,7 @@ export default function OrderForm({
                         name="expiryMode"
                         checked={expiryMode === 'default'}
                         onChange={() => setExpiryMode('default')}
-                        className="accent-[#F4511E]"
+                        className="accent-primary"
                       />
                       <span className="text-gray-700 dark:text-slate-300">
                         ใช้ที่ตั้งค่าไว้
@@ -1864,7 +1864,7 @@ export default function OrderForm({
                         name="expiryMode"
                         checked={expiryMode === 'custom'}
                         onChange={() => setExpiryMode('custom')}
-                        className="accent-[#F4511E]"
+                        className="accent-primary"
                       />
                       <span className="text-gray-700 dark:text-slate-300">กำหนดเอง</span>
                       {expiryMode === 'custom' && (
@@ -1875,7 +1875,7 @@ export default function OrderForm({
                             max={90}
                             value={customExpiryDays}
                             onChange={(e) => setCustomExpiryDays(Math.max(1, Math.min(90, parseInt(e.target.value) || 1)))}
-                            className="w-14 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-sm text-center bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
+                            className="w-14 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-sm text-center bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                           <span className="text-gray-500 dark:text-slate-400 text-xs">วัน</span>
                         </span>
@@ -1887,7 +1887,7 @@ export default function OrderForm({
                         name="expiryMode"
                         checked={expiryMode === 'none'}
                         onChange={() => setExpiryMode('none')}
-                        className="accent-[#F4511E]"
+                        className="accent-primary"
                       />
                       <span className="text-gray-700 dark:text-slate-300">ไม่หมดอายุ</span>
                     </label>
@@ -1957,7 +1957,7 @@ export default function OrderForm({
           <button
             type="submit"
             disabled={saving}
-            className="bg-[#F4511E] text-white px-5 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50 text-sm font-medium"
+            className="bg-primary text-white px-5 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50 text-sm font-medium"
           >
             {saving ? (
               <>
@@ -1984,7 +1984,7 @@ export default function OrderForm({
                 type="button"
                 onClick={() => doSave('update')}
                 disabled={saving}
-                className="w-full px-4 py-2.5 text-sm font-medium text-white bg-[#F4511E] rounded-lg hover:bg-[#E64A19] transition-colors disabled:opacity-50"
+                className="w-full px-4 py-2.5 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50"
               >
                 อัพเดท &quot;{addressConflict.addressName}&quot;
               </button>
@@ -2080,7 +2080,7 @@ export default function OrderForm({
                         onSuccess(savedOrderId, selectedCustomer?.id, deliveryName ? { name: deliveryName, phone: deliveryPhone, email: deliveryEmail } : undefined);
                       }
                     }}
-                    className="w-full px-4 py-2.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium flex items-center justify-center gap-2"
+                    className="w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium flex items-center justify-center gap-2"
                   >
                     <Send className="w-4 h-4" />
                     ส่งบิลให้ลูกค้า

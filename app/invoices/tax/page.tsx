@@ -226,7 +226,7 @@ export default function TaxInvoicesPage() {
       alwaysVisible: true,
       render: (inv) => (
         <>
-          <span className="font-mono text-sm font-medium text-[#F4511E]">{inv.tax_invoice_number}</span>
+          <span className="font-mono text-sm font-medium text-primary">{inv.tax_invoice_number}</span>
           {inv.tax_invoice_replaced_abbrev_number && (
             <div className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
               แทน {inv.tax_invoice_replaced_abbrev_number}
@@ -258,7 +258,7 @@ export default function TaxInvoicesPage() {
         const link = getSourceLink(inv);
         return (
           <>
-            <Link href={link.href} className="text-xs text-[#F4511E] hover:underline inline-flex items-center gap-1">
+            <Link href={link.href} className="text-xs text-primary hover:underline inline-flex items-center gap-1">
               {link.label} <ExternalLink className="w-3 h-3" />
             </Link>
             {link.subtitle && (
@@ -306,7 +306,7 @@ export default function TaxInvoicesPage() {
       render: (inv) => (
         <button
           onClick={() => handlePrint(inv)}
-          className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
+          className="p-1.5 text-gray-400 hover:text-primary transition-colors"
           title="พิมพ์"
         >
           <Printer className="w-4 h-4" />
@@ -321,7 +321,7 @@ export default function TaxInvoicesPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <FileText className="w-8 h-8 text-[#F4511E]" />
+              <FileText className="w-8 h-8 text-primary" />
               ใบกำกับภาษี
             </h1>
             <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">TAX-YYYYMM-NNNN — เรียงต่อเนื่องตลอดเดือน</p>
@@ -334,7 +334,7 @@ export default function TaxInvoicesPage() {
             <select
               value={month}
               onChange={e => { setMonth(e.target.value); setPage(1); }}
-              className="h-[42px] px-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
+              className="h-[42px] px-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
             >
               {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -345,7 +345,7 @@ export default function TaxInvoicesPage() {
                 value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
                 placeholder="ค้นหาเลขที่, ชื่อ, เลขภาษี..."
-                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               />
             </div>
           </div>
@@ -372,7 +372,7 @@ export default function TaxInvoicesPage() {
               <>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-sm font-medium text-[#F4511E]">{inv.tax_invoice_number}</span>
+                    <span className="font-mono text-sm font-medium text-primary">{inv.tax_invoice_number}</span>
                     {inv.tax_invoice_replaced_abbrev_number && (
                       <span className="text-xs text-amber-600 dark:text-amber-400">แทน {inv.tax_invoice_replaced_abbrev_number}</span>
                     )}
@@ -386,13 +386,13 @@ export default function TaxInvoicesPage() {
                       <span className="text-xs text-green-600 dark:text-green-400">+ใบเสร็จ</span>
                     )}
                   </div>
-                  <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors" title="พิมพ์">
+                  <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-primary transition-colors" title="พิมพ์">
                     <Printer className="w-4 h-4" />
                   </button>
                 </div>
                 <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(inv.tax_invoice_date)}</div>
                 <div className="mt-1">
-                  <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
+                  <Link href={link.href} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
                     {link.label} <ExternalLink className="w-3 h-3" />
                   </Link>
                   {link.subtitle && (

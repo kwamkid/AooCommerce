@@ -75,7 +75,7 @@ export default function OrderSummaryBox({
                   value={shippingFee || ''}
                   onChange={e => onShippingChange(parseFloat(e.target.value) || 0)}
                   placeholder="0"
-                  className="w-full px-2 pr-7 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                  className="w-full px-2 pr-7 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-slate-500 pointer-events-none">฿</span>
               </div>
@@ -98,7 +98,7 @@ export default function OrderSummaryBox({
                   step={0.01}
                   value={discountValue}
                   onChange={e => onDiscountChange(parseFloat(e.target.value) || 0)}
-                  className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-l-lg border-r-0 text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:z-10"
+                  className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-l-lg border-r-0 text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary focus:z-10"
                 />
                 <button
                   type="button"
@@ -133,7 +133,7 @@ export default function OrderSummaryBox({
         {/* Total */}
         <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200 dark:border-slate-600 text-gray-900 dark:text-slate-100">
           <span>ยอดรวมสุทธิ</span>
-          <span className="text-[#F4511E]">฿{formatNumber(totalWithVAT)}</span>
+          <span className="text-primary">฿{formatNumber(totalWithVAT)}</span>
         </div>
 
         {children}

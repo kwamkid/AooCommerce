@@ -150,7 +150,7 @@ export default function OrderSummaryCard({
       {/* Grand total */}
       <div className="border-t border-gray-200 dark:border-slate-700 pt-3 flex justify-between items-center">
         <span className="font-semibold text-gray-900 dark:text-white">ยอดรวมสุทธิ</span>
-        <span className="text-xl font-bold text-[#F4511E]">฿{fmt(grandTotal)}</span>
+        <span className="text-xl font-bold text-primary">฿{fmt(grandTotal)}</span>
       </div>
     </div>
   );

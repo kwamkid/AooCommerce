@@ -252,7 +252,7 @@ export default function CompanySettingsPage() {
     <Layout title="ข้อมูลบริษัท" breadcrumbs={[{ label: 'ตั้งค่า', href: '/settings' }, { label: 'ข้อมูลบริษัท' }]}>
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-[#F4511E]" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
           <span className="ml-3 text-gray-500 dark:text-slate-400">กำลังโหลดข้อมูล...</span>
         </div>
       ) : (
@@ -295,7 +295,7 @@ export default function CompanySettingsPage() {
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">JPG, PNG แนะนำ 200x200px</p>
                   </div>
                   {logoPreview && (
-                    <button type="button" onClick={handleUploadLogo} disabled={isUploadingLogo} className="px-3 py-2 bg-[#F4511E] text-white rounded-lg text-sm font-medium hover:bg-[#F4511E]/90 disabled:opacity-50 flex items-center">
+                    <button type="button" onClick={handleUploadLogo} disabled={isUploadingLogo} className="px-3 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center">
                       {isUploadingLogo ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Upload className="w-4 h-4 mr-1" />}
                       อัพโหลด
                     </button>
@@ -324,12 +324,12 @@ export default function CompanySettingsPage() {
                         disabled={isSaving}
                         className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
                           isSelected
-                            ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20'
+                            ? 'border-primary bg-orange-50 dark:bg-orange-900/20'
                             : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
                         }`}
                       >
-                        <div className={isSelected ? 'text-[#F4511E]' : 'text-gray-400 dark:text-slate-500'}>{icon}</div>
-                        <span className={`font-medium text-xs sm:text-sm text-center ${isSelected ? 'text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>
+                        <div className={isSelected ? 'text-primary' : 'text-gray-400 dark:text-slate-500'}>{icon}</div>
+                        <span className={`font-medium text-xs sm:text-sm text-center ${isSelected ? 'text-primary' : 'text-gray-700 dark:text-slate-300'}`}>
                           {label}
                         </span>
                       </button>
@@ -348,21 +348,21 @@ export default function CompanySettingsPage() {
                     </label>
                     <div className="relative">
                       <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="ชื่อที่แสดงให้ลูกค้าเห็น" required disabled={isSaving} />
+                      <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="ชื่อที่แสดงให้ลูกค้าเห็น" required disabled={isSaving} />
                     </div>
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เกี่ยวกับเรา <span className="text-xs font-normal text-gray-400 dark:text-slate-500">(แสดงในส่วนท้ายบิลออนไลน์)</span></label>
                     <div className="relative">
                       <FileText className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                      <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E] resize-none" placeholder="อธิบายเกี่ยวกับธุรกิจ" rows={3} disabled={isSaving} />
+                      <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary resize-none" placeholder="อธิบายเกี่ยวกับธุรกิจ" rows={3} disabled={isSaving} />
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">โทรศัพท์</label>
                     <div className="relative">
                       <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input type="tel" value={formData.phone} onChange={(e) => handlePhoneChange(e.target.value)} onBlur={() => setFieldErrors(prev => ({ ...prev, phone: validatePhone(formData.phone) || undefined }))} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 ${fieldErrors.phone ? 'border-red-400 dark:border-red-500 focus:ring-red-400' : 'border-gray-300 dark:border-slate-600 focus:ring-[#F4511E]'}`} placeholder="0xx-xxx-xxxx" disabled={isSaving} />
+                      <input type="tel" value={formData.phone} onChange={(e) => handlePhoneChange(e.target.value)} onBlur={() => setFieldErrors(prev => ({ ...prev, phone: validatePhone(formData.phone) || undefined }))} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 ${fieldErrors.phone ? 'border-red-400 dark:border-red-500 focus:ring-red-400' : 'border-gray-300 dark:border-slate-600 focus:ring-primary'}`} placeholder="0xx-xxx-xxxx" disabled={isSaving} />
                     </div>
                     {fieldErrors.phone && <p className="mt-1 text-xs text-red-500">{fieldErrors.phone}</p>}
                   </div>
@@ -370,7 +370,7 @@ export default function CompanySettingsPage() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อีเมล</label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input type="email" value={formData.email} onChange={(e) => handleEmailChange(e.target.value)} onBlur={() => setFieldErrors(prev => ({ ...prev, email: validateEmail(formData.email) || undefined }))} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 ${fieldErrors.email ? 'border-red-400 dark:border-red-500 focus:ring-red-400' : 'border-gray-300 dark:border-slate-600 focus:ring-[#F4511E]'}`} placeholder="company@email.com" disabled={isSaving} />
+                      <input type="email" value={formData.email} onChange={(e) => handleEmailChange(e.target.value)} onBlur={() => setFieldErrors(prev => ({ ...prev, email: validateEmail(formData.email) || undefined }))} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 ${fieldErrors.email ? 'border-red-400 dark:border-red-500 focus:ring-red-400' : 'border-gray-300 dark:border-slate-600 focus:ring-primary'}`} placeholder="company@email.com" disabled={isSaving} />
                     </div>
                     {fieldErrors.email && <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>}
                   </div>
@@ -378,7 +378,7 @@ export default function CompanySettingsPage() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่</label>
                     <div className="relative">
                       <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                      <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="เลขที่ ซอย ถนน" disabled={isSaving} />
+                      <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="เลขที่ ซอย ถนน" disabled={isSaving} />
                     </div>
                   </div>
                   <div className="sm:col-span-2">
@@ -397,7 +397,7 @@ export default function CompanySettingsPage() {
               {/* Tax Info — show for non-individual or always allow tax_id */}
               <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                  <Receipt className="w-5 h-5 mr-2 text-[#F4511E]" />
+                  <Receipt className="w-5 h-5 mr-2 text-primary" />
                   ข้อมูลภาษี
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -405,18 +405,18 @@ export default function CompanySettingsPage() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                       {formData.businessType === 'individual' ? 'เลขบัตรประชาชน' : 'เลขประจำตัวผู้เสียภาษี'}
                     </label>
-                    <input type="text" value={formData.taxId} onChange={(e) => setFormData({ ...formData, taxId: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="13 หลัก" disabled={isSaving} />
+                    <input type="text" value={formData.taxId} onChange={(e) => setFormData({ ...formData, taxId: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="13 หลัก" disabled={isSaving} />
                   </div>
                   {formData.businessType !== 'individual' && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">สาขา</label>
-                      <input type="text" value={formData.taxBranch} onChange={(e) => setFormData({ ...formData, taxBranch: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="สำนักงานใหญ่" disabled={isSaving} />
+                      <input type="text" value={formData.taxBranch} onChange={(e) => setFormData({ ...formData, taxBranch: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="สำนักงานใหญ่" disabled={isSaving} />
                     </div>
                   )}
                   {formData.businessType !== 'individual' && (
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อบริษัท (ออกบิล/ใบกำกับภาษี)</label>
-                      <input type="text" value={formData.taxCompanyName} onChange={(e) => setFormData({ ...formData, taxCompanyName: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="ชื่อตามจดทะเบียน (ถ้าต่างจากชื่อร้าน)" disabled={isSaving} />
+                      <input type="text" value={formData.taxCompanyName} onChange={(e) => setFormData({ ...formData, taxCompanyName: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="ชื่อตามจดทะเบียน (ถ้าต่างจากชื่อร้าน)" disabled={isSaving} />
                     </div>
                   )}
 
@@ -432,7 +432,7 @@ export default function CompanySettingsPage() {
                           onClick={() => setFormData(prev => ({ ...prev, vatRegistered: !prev.vatRegistered }))}
                           disabled={isSaving}
                           className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                            formData.vatRegistered ? 'bg-[#F4511E]' : 'bg-gray-300 dark:bg-slate-600'
+                            formData.vatRegistered ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
                           }`}
                         >
                           <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.vatRegistered ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -463,7 +463,7 @@ export default function CompanySettingsPage() {
             <button
               type="submit"
               disabled={isSaving}
-              className="px-6 py-3 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              className="px-6 py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
               {isSaving ? (
                 <><Loader2 className="w-5 h-5 animate-spin mr-2" />กำลังบันทึก...</>

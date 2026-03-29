@@ -281,7 +281,7 @@ export default function StockTransferPage() {
     return (
       <Layout title="โอนย้ายสินค้า" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการโอนย้าย', href: '/inventory/transfers' }, { label: 'สร้างใบโอนย้าย' }]}>
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-6 h-6 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -369,7 +369,7 @@ export default function StockTransferPage() {
             </label>
             <textarea value={batchNotes} onChange={e => setBatchNotes(e.target.value)} rows={3}
               placeholder="หมายเหตุสำหรับการโอนย้ายครั้งนี้..."
-              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
             />
           </div>
         )}
@@ -381,7 +381,7 @@ export default function StockTransferPage() {
             ยกเลิก
           </button>
           <button type="button" onClick={handleSubmit} disabled={!canSubmit}
-            className="bg-[#F4511E] text-white px-5 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
+            className="bg-primary text-white px-5 py-2.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
             {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />กำลังสร้างใบโอนย้าย...</> : <><ArrowRightLeft className="w-4 h-4" />สร้างใบโอนย้าย</>}
           </button>
         </div>

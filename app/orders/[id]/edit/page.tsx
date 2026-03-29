@@ -610,7 +610,7 @@ export default function EditOrderPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -648,7 +648,7 @@ export default function EditOrderPage() {
             </button>
             <button
               onClick={() => router.push(`/orders/${orderId}`)}
-              className="bg-[#F4511E] text-white px-6 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors"
+              className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-hover transition-colors"
             >
               ดูรายละเอียดคำสั่งซื้อ
             </button>
@@ -759,7 +759,7 @@ export default function EditOrderPage() {
                     onClick={() => setActiveBranchIndex(index)}
                     className={`px-4 py-2 font-medium whitespace-nowrap border-b-2 transition-colors ${
                       activeBranchIndex === index
-                        ? 'border-[#F4511E] text-[#F4511E]'
+                        ? 'border-primary text-primary'
                         : 'border-transparent text-gray-600 hover:text-gray-900'
                     }`}
                   >
@@ -811,7 +811,7 @@ export default function EditOrderPage() {
                           value={branch.shipping_fee || ''}
                           onChange={(e) => handleUpdateBranchShippingFee(branchIndex, parseFloat(e.target.value) || 0)}
                           placeholder="0.00"
-                          className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                          className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                       </div>
                     </div>
@@ -824,7 +824,7 @@ export default function EditOrderPage() {
                         value={branch.delivery_notes}
                         onChange={(e) => handleUpdateBranchNotes(branchIndex, e.target.value)}
                         placeholder="หมายเหตุสำหรับสาขานี้..."
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                     </div>
                   </div>
@@ -872,7 +872,7 @@ export default function EditOrderPage() {
                               min="1"
                               value={product.quantity}
                               onChange={(e) => handleUpdateProductQuantity(branchIndex, productIndex, parseInt(e.target.value) || 1)}
-                              className="w-20 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                              className="w-20 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-primary"
                             />
                           </td>
                           <td className="px-4 py-3 text-right">
@@ -883,7 +883,7 @@ export default function EditOrderPage() {
                                 step="0.01"
                                 value={product.unit_price}
                                 onChange={(e) => handleUpdateProductPrice(branchIndex, productIndex, Math.max(0, parseFloat(e.target.value) || 0))}
-                                className="w-20 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                                className="w-20 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-primary"
                               />
                               <span className="px-1.5 border border-l-0 border-gray-300 dark:border-slate-600 rounded-r bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 text-sm font-bold flex items-center">฿</span>
                             </div>
@@ -897,7 +897,7 @@ export default function EditOrderPage() {
                                 step="0.01"
                                 value={product.discount_percent}
                                 onChange={(e) => handleUpdateProductDiscount(branchIndex, productIndex, Math.max(0, parseFloat(e.target.value) || 0))}
-                                className="w-16 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                                className="w-16 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-primary"
                               />
                               <span className="px-2 border border-l-0 border-gray-300 dark:border-slate-600 rounded-r bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 text-sm font-bold flex items-center">%</span>
                             </div>
@@ -949,7 +949,7 @@ export default function EditOrderPage() {
                         <span className="text-gray-400 font-normal ml-2">(รวมค่าส่ง ฿{formatPrice(branch.shipping_fee)})</span>
                       )}
                     </span>
-                    <span className="text-lg font-bold text-[#F4511E]">
+                    <span className="text-lg font-bold text-primary">
                       ฿{formatPrice(calculateBranchTotal(branch) + (branch.shipping_fee || 0))}
                     </span>
                   </div>
@@ -974,7 +974,7 @@ export default function EditOrderPage() {
                     value={deliveryDate}
                     onChange={(e) => setDeliveryDate(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div>
@@ -985,7 +985,7 @@ export default function EditOrderPage() {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                     placeholder="หมายเหตุสำหรับลูกค้า..."
                   />
                 </div>
@@ -997,7 +997,7 @@ export default function EditOrderPage() {
                     value={internalNotes}
                     onChange={(e) => setInternalNotes(e.target.value)}
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                     placeholder="หมายเหตุภายใน (ไม่แสดงให้ลูกค้า)..."
                   />
                 </div>
@@ -1033,7 +1033,7 @@ export default function EditOrderPage() {
             <button
               type="submit"
               disabled={saving}
-              className="bg-[#F4511E] text-white px-6 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50"
+              className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50"
             >
               {saving ? (
                 <>

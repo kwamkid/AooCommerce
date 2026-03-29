@@ -140,7 +140,7 @@ export default function ThaiAddressInput({
     }
   }, [highlightIndex]);
 
-  const defaultInputClass = "w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800";
+  const defaultInputClass = "w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800";
   const inputClass = inputClassName || defaultInputClass;
   const lblClass = labelClassName || "block text-base text-gray-600 dark:text-slate-400 mb-1";
 
@@ -282,13 +282,13 @@ export default function ThaiAddressInput({
             >
               <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={dropdownStyle ? { color: '#9ca3af' } : undefined} />
               <div className="flex-1 min-w-0 leading-relaxed">
-                <span className={activeField === 'district' ? 'font-medium text-[#F4511E]' : ''} style={dropdownStyle && activeField !== 'district' ? { color: dropdownStyle.color } : undefined}>{addr.district}</span>
+                <span className={activeField === 'district' ? 'font-medium text-primary' : ''} style={dropdownStyle && activeField !== 'district' ? { color: dropdownStyle.color } : undefined}>{addr.district}</span>
                 <span className={dropdownStyle ? 'mx-0.5' : 'text-gray-400 mx-0.5'} style={dropdownStyle ? { color: '#9ca3af' } : undefined}>&raquo;</span>
-                <span className={activeField === 'amphoe' ? 'font-medium text-[#F4511E]' : ''} style={dropdownStyle && activeField !== 'amphoe' ? { color: dropdownStyle.color } : undefined}>{addr.amphoe}</span>
+                <span className={activeField === 'amphoe' ? 'font-medium text-primary' : ''} style={dropdownStyle && activeField !== 'amphoe' ? { color: dropdownStyle.color } : undefined}>{addr.amphoe}</span>
                 <span className={dropdownStyle ? 'mx-0.5' : 'text-gray-400 mx-0.5'} style={dropdownStyle ? { color: '#9ca3af' } : undefined}>&raquo;</span>
-                <span className={activeField === 'province' ? 'font-medium text-[#F4511E]' : ''} style={dropdownStyle && activeField !== 'province' ? { color: dropdownStyle.color } : undefined}>{addr.province}</span>
+                <span className={activeField === 'province' ? 'font-medium text-primary' : ''} style={dropdownStyle && activeField !== 'province' ? { color: dropdownStyle.color } : undefined}>{addr.province}</span>
                 <span className={dropdownStyle ? 'mx-1' : 'text-gray-400 mx-1'} style={dropdownStyle ? { color: '#9ca3af' } : undefined}>&middot;</span>
-                <span className={`${activeField === 'zipcode' ? 'font-medium text-[#F4511E]' : (dropdownStyle ? '' : 'text-gray-500 dark:text-slate-400')}`} style={dropdownStyle && activeField !== 'zipcode' ? { color: '#6b7280' } : undefined}>{addr.zipcode}</span>
+                <span className={`${activeField === 'zipcode' ? 'font-medium text-primary' : (dropdownStyle ? '' : 'text-gray-500 dark:text-slate-400')}`} style={dropdownStyle && activeField !== 'zipcode' ? { color: '#6b7280' } : undefined}>{addr.zipcode}</span>
               </div>
             </button>
           ))}

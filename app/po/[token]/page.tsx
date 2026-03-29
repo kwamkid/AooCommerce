@@ -90,7 +90,7 @@ export default function PublicPOPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#1A1A2E] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
   }
@@ -175,7 +175,7 @@ export default function PublicPOPage() {
 
             {/* PO Info */}
             <div className={`sm:text-right flex-shrink-0 ${dark ? '' : ''}`}>
-              <h1 className="text-xl font-bold text-[#F4511E]">ใบสั่งซื้อ</h1>
+              <h1 className="text-xl font-bold text-primary">ใบสั่งซื้อ</h1>
               <div className="mt-2 space-y-1 text-sm">
                 <div className="flex sm:justify-end items-center gap-2">
                   <span className={dark ? 'text-white/50' : 'text-gray-500'}>เลขที่:</span>
@@ -207,7 +207,7 @@ export default function PublicPOPage() {
         {supplier && (
           <div className={`rounded-xl border p-4 ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200'}`}>
             <div className="flex items-center gap-2 mb-3">
-              <Factory className="w-4 h-4 text-[#F4511E]" />
+              <Factory className="w-4 h-4 text-primary" />
               <h3 className={`text-sm font-semibold ${dark ? 'text-white' : 'text-gray-900'}`}>ข้อมูล Supplier</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
@@ -332,7 +332,7 @@ export default function PublicPOPage() {
               </div>
               <div className="flex items-center gap-4">
                 <span className={`text-sm ${dark ? 'text-white/50' : 'text-gray-500'}`}>มูลค่ารวม</span>
-                <span className="text-xl font-bold text-[#F4511E]">฿{formatCurrency(po.total_amount)}</span>
+                <span className="text-xl font-bold text-primary">฿{formatCurrency(po.total_amount)}</span>
               </div>
             </div>
           </div>

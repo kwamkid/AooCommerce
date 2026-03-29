@@ -96,7 +96,7 @@ export default function BarcodeInput({ onBarcodeScan, onSearchChange, searchValu
             onKeyDown={handleKeyDown}
             placeholder="ค้นหาชื่อ, รหัส, SKU หรือสแกนบาร์โค้ด..."
             disabled={disabled}
-            className="w-full pl-10 pr-4 py-3 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent text-base"
+            className="w-full pl-10 pr-4 py-3 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-base"
           />
         </div>
         <button

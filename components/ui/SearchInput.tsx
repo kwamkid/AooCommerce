@@ -14,7 +14,7 @@ interface SearchInputProps {
   onSubmit?: () => void;
   placeholder?: string;
   className?: string;
-  /** Custom ring color class, e.g. 'focus:ring-[#06C755]'. Default: 'focus:ring-[#F4511E]' */
+  /** Custom ring color class, e.g. 'focus:ring-line'. Default: 'focus:ring-primary' */
   ringColor?: string;
   /** Auto-focus on mount */
   autoFocus?: boolean;
@@ -26,7 +26,7 @@ const SearchInput = forwardRef<SearchInputHandle, SearchInputProps>(function Sea
   onSubmit,
   placeholder = 'ค้นหา...',
   className = '',
-  ringColor = 'focus:ring-[#F4511E]',
+  ringColor = 'focus:ring-primary',
   autoFocus = false,
 }, ref) {
   const inputRef = useRef<HTMLInputElement>(null);

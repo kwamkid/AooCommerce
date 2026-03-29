@@ -374,13 +374,13 @@ export default function SettingsPage() {
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
           <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-slate-700">
             <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-[#F4511E]" />
+              <Users className="w-5 h-5 text-primary" />
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ช่วงวันติดตามลูกค้า</h2>
             </div>
             <button
               onClick={handleSaveCRMSettings}
               disabled={savingCRM}
-              className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50"
             >
               {savingCRM ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               บันทึก
@@ -394,7 +394,7 @@ export default function SettingsPage() {
 
             {loadingCRM ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+                <Loader2 className="w-6 h-6 text-primary animate-spin" />
               </div>
             ) : (
               <div className="space-y-3">
@@ -415,7 +415,7 @@ export default function SettingsPage() {
                       {/* Color Picker */}
                       <div className="col-span-1">
                         <div className="relative group">
-                          <button className={`w-8 h-8 rounded-full ${preset.bg} cursor-pointer ring-2 ring-offset-2 ring-gray-200 dark:ring-slate-600 dark:ring-offset-slate-800 hover:ring-[#F4511E] transition-all`} />
+                          <button className={`w-8 h-8 rounded-full ${preset.bg} cursor-pointer ring-2 ring-offset-2 ring-gray-200 dark:ring-slate-600 dark:ring-offset-slate-800 hover:ring-primary transition-all`} />
                           <div className="absolute left-0 top-10 hidden group-hover:block p-2 bg-white dark:bg-slate-700 shadow-xl rounded-lg z-20">
                             <div className="grid grid-cols-4 gap-1.5 w-[130px]">
                               {colorPresets.map((c) => (
@@ -446,7 +446,7 @@ export default function SettingsPage() {
                           value={range.maxDays ?? ''}
                           placeholder="∞"
                           onChange={(e) => handleUpdateMaxDays(index, e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                         />
                       </div>
 
@@ -474,7 +474,7 @@ export default function SettingsPage() {
                 {/* Add Button */}
                 <button
                   onClick={handleAddRange}
-                  className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors"
+                  className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors"
                 >
                   <Plus className="w-5 h-5" />
                   เพิ่มช่วงวัน
@@ -488,7 +488,7 @@ export default function SettingsPage() {
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
           <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-slate-700">
             <div className="flex items-center gap-2">
-              <Tag className="w-5 h-5 text-[#F4511E]" />
+              <Tag className="w-5 h-5 text-primary" />
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประเภทตัวเลือกสินค้า</h2>
             </div>
           </div>
@@ -500,7 +500,7 @@ export default function SettingsPage() {
 
             {loadingVT ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+                <Loader2 className="w-6 h-6 text-primary animate-spin" />
               </div>
             ) : (
               <div className="space-y-2">
@@ -517,7 +517,7 @@ export default function SettingsPage() {
                             if (e.key === 'Enter') handleUpdateVariationType(vt.id);
                             if (e.key === 'Escape') { setEditingVTId(null); setEditingVTName(''); }
                           }}
-                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                           autoFocus
                         />
                         <button
@@ -540,7 +540,7 @@ export default function SettingsPage() {
                         <span className="flex-1 text-sm font-medium text-gray-700 dark:text-slate-300">{vt.name}</span>
                         <button
                           onClick={() => { setEditingVTId(vt.id); setEditingVTName(vt.name); }}
-                          className="p-2 text-gray-400 hover:text-[#F4511E] hover:bg-yellow-50 rounded-lg transition-colors"
+                          className="p-2 text-gray-400 hover:text-primary hover:bg-yellow-50 rounded-lg transition-colors"
                           title="แก้ไข"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -565,12 +565,12 @@ export default function SettingsPage() {
                     onChange={(e) => setNewTypeName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') handleAddVariationType(); }}
                     placeholder="ชื่อประเภทตัวเลือกใหม่"
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   />
                   <button
                     onClick={handleAddVariationType}
                     disabled={addingVT || !newTypeName.trim()}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium disabled:opacity-50 text-sm"
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50 text-sm"
                   >
                     {addingVT ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                     เพิ่ม
@@ -584,13 +584,13 @@ export default function SettingsPage() {
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
           <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-slate-700">
             <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-[#F4511E]" />
+              <Clock className="w-5 h-5 text-primary" />
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">บิลหมดอายุ</h2>
             </div>
             <button
               onClick={handleSaveBillExpiry}
               disabled={savingBillExpiry}
-              className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50"
             >
               {savingBillExpiry ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               บันทึก
@@ -613,7 +613,7 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={billExpiryEnabled}
                     onChange={(e) => setBillExpiryEnabled(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-[#F4511E] focus:ring-[#F4511E]"
+                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
                   />
                   <span className="text-sm font-medium text-gray-700 dark:text-slate-300">เปิดใช้งานบิลหมดอายุ</span>
                 </label>
@@ -627,7 +627,7 @@ export default function SettingsPage() {
                       max={90}
                       value={billExpiryDays}
                       onChange={(e) => setBillExpiryDays(Math.max(1, Math.min(90, Number(e.target.value) || 1)))}
-                      className="w-20 px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-center focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                      className="w-20 px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-center focus:ring-1 focus:ring-primary focus:border-primary"
                     />
                     <span className="text-sm text-gray-600 dark:text-slate-400">วัน</span>
                   </div>

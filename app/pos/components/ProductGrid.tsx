@@ -87,7 +87,7 @@ export default function ProductGrid({ products, onAddToCart, loading, allowOvers
             )}
 
             {/* Price */}
-            <p className="text-[#F4511E] font-bold text-sm mt-1">
+            <p className="text-primary font-bold text-sm mt-1">
               ฿{formatPrice(product.price)}
             </p>
 

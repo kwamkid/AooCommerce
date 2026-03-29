@@ -84,7 +84,7 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="p-2 text-gray-600 hover:text-[#F4511E] transition-colors"
+              className="p-2 text-gray-600 hover:text-primary transition-colors"
               title="พิมพ์"
             >
               <Printer className="w-5 h-5" />
@@ -211,7 +211,7 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
         <div className="p-4 border-t flex gap-3 print:hidden">
           <button
             onClick={onNewSale}
-            className="flex-1 py-3 bg-[#F4511E] hover:bg-[#D63B0E] text-white font-bold rounded-xl transition-colors"
+            className="flex-1 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl transition-colors"
           >
             ขายรายการถัดไป
           </button>

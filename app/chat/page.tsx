@@ -984,7 +984,7 @@ function UnifiedChatPageContent() {
   };
 
   if (authLoading) {
-    return (<Layout><div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" /></div></Layout>);
+    return (<Layout><div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div></Layout>);
   }
 
   // Helper to render order card (used in both mobile and desktop history)
@@ -1140,7 +1140,7 @@ function UnifiedChatPageContent() {
                       ) : (
                         <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center"><User className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /></div>
                       )}
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-line' : 'bg-facebook'}`}>
                         {lc.platform === 'line' ? <LineIcon size={8} /> : <FbIcon size={8} />}
                       </div>
                     </div>
@@ -1214,7 +1214,7 @@ function UnifiedChatPageContent() {
           <div className="p-4 border-b border-gray-200 dark:border-slate-700">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <MessageCircle className="w-5 h-5 text-[#F4511E]" />
+                <MessageCircle className="w-5 h-5 text-primary" />
                 แชท
               </h2>
               {totalUnread > 0 && (<span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{totalUnread}</span>)}
@@ -1260,7 +1260,7 @@ function UnifiedChatPageContent() {
                         <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50 max-h-60 overflow-hidden flex flex-col" style={{ width: 'min(calc(100vw - 2rem), 288px)' }}>
                           <div className="p-2 border-b border-gray-100 dark:border-slate-700">
                             <input type="text" value={accountSearch} onChange={e => setAccountSearch(e.target.value)} placeholder="ค้นหาบัญชี..." autoFocus
-                              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#F4511E]" />
+                              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary" />
                           </div>
                           <div className="overflow-y-auto py-1">
                             {!accountSearch && (
@@ -1268,7 +1268,7 @@ function UnifiedChatPageContent() {
                                 className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${!filterAccountId && filterPlatform === 'all' ? 'bg-gray-50 dark:bg-slate-700' : ''}`}>
                                 <MessageCircle className="w-5 h-5 text-gray-400" />
                                 <span className="text-gray-900 dark:text-white">ทุกช่องทาง</span>
-                                {!filterAccountId && filterPlatform === 'all' && <Check className="w-4 h-4 text-[#F4511E] ml-auto" />}
+                                {!filterAccountId && filterPlatform === 'all' && <Check className="w-4 h-4 text-primary ml-auto" />}
                               </button>
                             )}
                             {filteredAccounts.map(acc => {
@@ -1289,7 +1289,7 @@ function UnifiedChatPageContent() {
                                       <span className="absolute left-0 top-0 z-10 rounded-full bg-white dark:bg-slate-800 p-[1px]"><FbIcon size={14} /></span>
                                     </span>
                                   ) : <FbIcon size={16} />}
-                                  {isActive && <Check className="w-4 h-4 text-[#F4511E] flex-shrink-0" />}
+                                  {isActive && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
                                 </button>
                               );
                             })}
@@ -1316,7 +1316,7 @@ function UnifiedChatPageContent() {
               </button>
               <div className="relative h-[38px]" data-filter-popover>
                 <button onClick={() => setShowFilterPopover(!showFilterPopover)}
-                  className={`h-full w-[38px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-[#F4511E] border-[#F4511E] text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`} title="กรองรายชื่อ">
+                  className={`h-full w-[38px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-primary border-primary text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`} title="กรองรายชื่อ">
                   <Filter className="w-5 h-5" />
                 </button>
                 {showFilterPopover && (
@@ -1420,7 +1420,7 @@ function UnifiedChatPageContent() {
                   return sorted;
                 })().map((contact) => (
                   <button key={contact.id} onClick={() => setSelectedContact(contact)}
-                    className={`w-full px-3 py-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-100 dark:border-slate-700 ${selectedContact?.id === contact.id ? (contact.platform === 'line' ? 'bg-[#06C755]/10' : 'bg-[#1877F2]/10') : ''}`}>
+                    className={`w-full px-3 py-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-100 dark:border-slate-700 ${selectedContact?.id === contact.id ? (contact.platform === 'line' ? 'bg-line/10' : 'bg-facebook/10') : ''}`}>
                     {/* Avatar with channel profile badge */}
                     <div className="relative flex-shrink-0">
                       {getAvatarUrl(contact) ? (
@@ -1434,7 +1434,7 @@ function UnifiedChatPageContent() {
                       {contact.account_picture_url ? (
                         <img src={contact.account_picture_url} alt={contact.account_name || ''} loading="lazy" className="absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full object-cover shadow-sm border-2 border-white dark:border-slate-800" />
                       ) : (
-                        <span className={`absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-800 ${contact.source === 'instagram' ? 'bg-[#E4405F]' : contact.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
+                        <span className={`absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-800 ${contact.source === 'instagram' ? 'bg-[#E4405F]' : contact.platform === 'line' ? 'bg-line' : 'bg-facebook'}`}>
                           <PlatformIcon contact={contact} size={10} />
                         </span>
                       )}
@@ -1550,12 +1550,12 @@ function UnifiedChatPageContent() {
                   {selectedContact.customer ? (
                     <>
                       <button onClick={handleOpenHistory} className={`p-2 rounded-lg transition-colors ${rightPanel === 'history' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ดูประวัติออเดอร์"><History className="w-4 h-4" /></button>
-                      <button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" /></button>
+                      <button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" /></button>
                       <button onClick={handleOpenProfile} className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ดูข้อมูลลูกค้า"><User className="w-4 h-4" /></button>
                     </>
                   ) : (
                     <>
-                      <button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-[#F4511E] text-white' : 'bg-[#F4511E]/10 text-[#F4511E] hover:bg-[#F4511E]/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" /></button>
+                      <button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" /></button>
                       <button onClick={handleOpenProfile} className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="แท็ก / โปรไฟล์"><User className="w-4 h-4" /></button>
                       <button onClick={() => { setShowLinkModal(true); }} className="p-2 rounded-lg transition-colors bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600" title="เชื่อมลูกค้าที่มีอยู่"><LinkIcon className="w-4 h-4" /></button>
                     </>
@@ -1700,7 +1700,7 @@ function UnifiedChatPageContent() {
               <div className="mt-4 space-y-2">
                 {selectedContact.customer ? (
                   <>
-                    <button onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
+                    <button onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }} className="w-full py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
                     <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
                     <div className="flex gap-2 pt-2">
                       <button onClick={handleUnlinkCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Unlink className="w-3.5 h-3.5" />ยกเลิกเชื่อมต่อ</button>
@@ -1745,7 +1745,7 @@ function UnifiedChatPageContent() {
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3">
                 <button onClick={() => setRightPanel(null)} className="p-1 -ml-1 text-gray-500 hover:text-gray-700 md:hidden"><ChevronLeft className="w-6 h-6" /></button>
-                <ShoppingCart className="w-5 h-5 text-[#F4511E]" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer ? selectedContact.customer.name : `${selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}: ${selectedContact.display_name}`}</p></div>
+                <ShoppingCart className="w-5 h-5 text-primary" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer ? selectedContact.customer.name : `${selectedContact.platform === 'line' ? 'LINE' : 'Facebook'}: ${selectedContact.display_name}`}</p></div>
               </div>
               <div className="flex items-center gap-2">
                 <div ref={headerActionsRef} />
@@ -1783,7 +1783,7 @@ function UnifiedChatPageContent() {
               <div className="mt-4 space-y-2">
                 {selectedContact.customer ? (
                   <>
-                    <button onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }} className="w-full py-2 bg-[#F4511E] text-white rounded-lg font-medium hover:bg-[#D63B0E] transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
+                    <button onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }} className="w-full py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
                     <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
                     <div className="flex gap-2 pt-2">
                       <button onClick={handleUnlinkCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Unlink className="w-3.5 h-3.5" />ยกเลิกเชื่อมต่อ</button>
@@ -1851,7 +1851,7 @@ export default function ChatPage() {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     }>
       <UnifiedChatPageContent />

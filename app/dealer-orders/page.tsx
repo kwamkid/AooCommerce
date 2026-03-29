@@ -187,7 +187,7 @@ export default function DealerOrdersPage() {
       items.push({ key: 'print_dn', label: 'ใบส่งสินค้า', icon: <FileText className="w-4 h-4" />, onClick: () => handlePrint(order.id, 'dn') });
       items.push({
         key: 'print_all', label: 'พิมพ์ทั้งหมด', icon: <Printer className="w-4 h-4" />,
-        className: 'text-[#F4511E] font-medium',
+        className: 'text-primary font-medium',
         onClick: () => handlePrint(order.id, 'all'),
       });
     }
@@ -213,13 +213,13 @@ export default function DealerOrdersPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <ShoppingBag className="w-8 h-8 text-[#F4511E]" />
+              <ShoppingBag className="w-8 h-8 text-primary" />
               คำสั่งซื้อตัวแทนขายขาด
             </h1>
             <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">ตัวแทนขายขาด (เงินสด / เครดิต)</p>
           </div>
           <Link href="/dealer-orders/new"
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#E64A19] transition-colors text-sm font-medium">
+            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium">
             <Plus className="w-4 h-4" /> สร้างคำสั่งซื้อ
           </Link>
         </div>
@@ -246,7 +246,7 @@ export default function DealerOrdersPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input type="text" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
                 placeholder="ค้นหาเลขที่, ชื่อลูกค้า..."
-                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50" />
+                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50" />
             </div>
             <div className="w-[140px] flex-shrink-0">
               <FormSelect value={flowFilter} onChange={(v) => { setFlowFilter(v); setPage(1); }}
@@ -263,7 +263,7 @@ export default function DealerOrdersPage() {
               key: 'order_number', label: 'เลขที่', alwaysVisible: true,
               render: (order) => (
                 <>
-                  <span className="font-mono text-sm font-bold text-[#F4511E]">{order.order_number}</span>
+                  <span className="font-mono text-sm font-bold text-primary">{order.order_number}</span>
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDateTime(order.created_at)}</p>
                 </>
               ),
@@ -355,7 +355,7 @@ export default function DealerOrdersPage() {
               <>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
-                    <p className="font-mono text-sm font-bold text-[#F4511E]">{order.order_number}</p>
+                    <p className="font-mono text-sm font-bold text-primary">{order.order_number}</p>
                     <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDateTime(order.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>

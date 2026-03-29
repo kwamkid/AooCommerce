@@ -121,7 +121,7 @@ export default function Header() {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <header className="bg-[#1A1A2E] lg:bg-white lg:dark:bg-slate-900 border-b border-[#F4511E]/20 lg:border-gray-200 lg:dark:border-slate-700 sticky top-0 z-30">
+    <header className="bg-[#1A1A2E] lg:bg-white lg:dark:bg-slate-900 border-b border-primary/20 lg:border-gray-200 lg:dark:border-slate-700 sticky top-0 z-30">
       <div className="relative flex items-center justify-end h-16 px-4 lg:px-6">
         {/* Mobile Logo (absolute center) */}
         <div className="lg:hidden absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
@@ -145,7 +145,7 @@ export default function Header() {
                 setShowNotifications(!showNotifications);
                 setShowUserMenu(false);
               }}
-              className="relative p-2 text-[#F4511E] lg:text-gray-600 lg:dark:text-slate-400 hover:bg-white/10 lg:hover:bg-gray-100 lg:dark:hover:bg-slate-800 rounded-lg transition-colors"
+              className="relative p-2 text-primary lg:text-gray-600 lg:dark:text-slate-400 hover:bg-white/10 lg:hover:bg-gray-100 lg:dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
@@ -197,7 +197,7 @@ export default function Header() {
 
                 {notifications.length > 0 && (
                   <div className="p-3 border-t border-gray-200 dark:border-slate-700">
-                    <button className="w-full text-center text-sm text-[#F4511E] hover:text-[#F4511E]/80 font-medium">
+                    <button className="w-full text-center text-sm text-primary hover:text-primary/80 font-medium">
                       ดูทั้งหมด
                     </button>
                   </div>
@@ -215,7 +215,7 @@ export default function Header() {
               }}
               className="flex items-center space-x-2 p-2 text-white lg:text-gray-700 lg:dark:text-slate-200 hover:bg-white/10 lg:hover:bg-gray-100 lg:dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
-              <div className="w-8 h-8 bg-[#F4511E] rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
                 <span className="text-white font-semibold text-sm">
                   {userProfile?.name.charAt(0).toUpperCase()}
                 </span>
@@ -233,7 +233,7 @@ export default function Header() {
                   <p className="font-medium text-gray-900 dark:text-white">{userProfile?.name}</p>
                   <p className="text-sm text-gray-500 dark:text-slate-400">{userProfile?.email}</p>
                   {companyRoles.length > 0 && (
-                    <p className="text-xs text-[#F4511E] mt-1">
+                    <p className="text-xs text-primary mt-1">
                       {currentCompany?.name} · {
                         companyRoles.map(r => ({ owner: 'เจ้าของ', admin: 'ผู้ดูแลระบบ', account: 'บัญชี', warehouse: 'คลังสินค้า', sales: 'แอดมินออนไลน์', cashier: 'แคชเชียร์' } as Record<string, string>)[r] || r).join(', ')
                       }

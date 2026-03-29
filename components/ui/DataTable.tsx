@@ -135,7 +135,7 @@ export default function DataTable<T>({
                 {hasSelection && (
                   <th className="data-th w-10">
                     <input type="checkbox" checked={allSelected} onChange={toggleAll}
-                      className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E] accent-[#F4511E]" />
+                      className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-primary focus:ring-primary accent-primary" />
                   </th>
                 )}
                 {visibleCols.map(col => (
@@ -146,7 +146,7 @@ export default function DataTable<T>({
             <tbody className="data-tbody">
               {loading ? (
                 <tr><td colSpan={visibleCols.length + (hasSelection ? 1 : 0)} className="py-16 text-center">
-                  <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin mx-auto" />
+                  <Loader2 className="w-6 h-6 text-primary animate-spin mx-auto" />
                 </td></tr>
               ) : data.length === 0 ? (
                 <tr><td colSpan={visibleCols.length + (hasSelection ? 1 : 0)} className="py-16 text-center">
@@ -166,7 +166,7 @@ export default function DataTable<T>({
                     {hasSelection && (
                       <td className="data-td w-10" onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={selectedIds!.has(rowId)} onChange={() => toggleRow(rowId)}
-                          className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E] accent-[#F4511E]" />
+                          className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-primary focus:ring-primary accent-primary" />
                       </td>
                     )}
                     {visibleCols.map(col => (
@@ -199,7 +199,7 @@ export default function DataTable<T>({
       {/* Mobile Cards */}
       <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
         {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" /></div>
+          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
         ) : data.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16">
             {emptyIcon || <Package className="w-10 h-10 text-gray-300 dark:text-slate-600" />}

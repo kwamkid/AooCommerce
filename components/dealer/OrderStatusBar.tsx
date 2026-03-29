@@ -55,7 +55,7 @@ export default function OrderStatusBar({ orderId, orderNumber, orderStatus, paym
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-3">
-        <span className="font-mono text-lg font-bold text-[#F4511E]">{orderNumber}</span>
+        <span className="font-mono text-lg font-bold text-primary">{orderNumber}</span>
         <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_LABELS[orderStatus]?.cls || ''}`}>
           {STATUS_LABELS[orderStatus]?.label || orderStatus}
         </span>

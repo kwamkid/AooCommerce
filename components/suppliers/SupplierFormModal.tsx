@@ -53,7 +53,7 @@ export default function SupplierFormModal({ open, onClose, onCreated }: Supplier
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <Factory className="w-5 h-5 text-[#F4511E]" />
+            <Factory className="w-5 h-5 text-primary" />
             เพิ่มซัพพลายเออร์ใหม่
           </h2>
           <button type="button" onClick={onClose}

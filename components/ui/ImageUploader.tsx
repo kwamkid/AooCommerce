@@ -372,7 +372,7 @@ export default function ImageUploader({
       onDrop={handleDrop}
       className={`relative rounded-xl border-2 border-dashed transition-all duration-200 ${
         isDragOver
-          ? 'border-[#F4511E] bg-[#F4511E]/5 scale-[1.01]'
+          ? 'border-primary bg-primary/5 scale-[1.01]'
           : images.length > 0
             ? 'border-gray-200 dark:border-slate-600 bg-gray-50/50 dark:bg-slate-800/50'
             : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800'
@@ -390,7 +390,7 @@ export default function ImageUploader({
               onDragOver={(e) => e.preventDefault()}
               className={`relative group ${compact ? 'w-full aspect-square' : 'w-20 h-20'} rounded-lg overflow-hidden flex-shrink-0 transition-all duration-150 ${
                 dragIndex === index ? 'opacity-40 scale-95' : ''
-              } ${dragOverIndex === index ? 'ring-2 ring-[#F4511E] ring-offset-2' : ''} ${
+              } ${dragOverIndex === index ? 'ring-2 ring-primary ring-offset-2' : ''} ${
                 !disabled ? 'cursor-grab active:cursor-grabbing' : ''
               }`}
             >
@@ -402,7 +402,7 @@ export default function ImageUploader({
                 onClick={() => setLightboxIndex(index)}
               />
               {index === 0 && !compact && (
-                <span className="absolute bottom-0 left-0 right-0 bg-[#F4511E] text-white text-[9px] font-bold text-center py-0.5">
+                <span className="absolute bottom-0 left-0 right-0 bg-primary text-white text-[9px] font-bold text-center py-0.5">
                   หลัก
                 </span>
               )}
@@ -435,7 +435,7 @@ export default function ImageUploader({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-600 hover:border-[#F4511E] hover:bg-[#F4511E]/5 flex flex-col items-center justify-center gap-1 transition-colors flex-shrink-0"
+              className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-600 hover:border-primary hover:bg-primary/5 flex flex-col items-center justify-center gap-1 transition-colors flex-shrink-0"
             >
               <ImagePlus className="w-5 h-5 text-gray-400 dark:text-slate-500" />
               <span className="text-[10px] text-gray-400 dark:text-slate-500">{images.length}/{maxImages}</span>
@@ -477,15 +477,15 @@ export default function ImageUploader({
 
       {uploading && (
         <div className="flex items-center justify-center gap-2 p-4 text-gray-500 dark:text-slate-400">
-          <Loader2 className="w-5 h-5 animate-spin text-[#F4511E]" />
+          <Loader2 className="w-5 h-5 animate-spin text-primary" />
           <span className="text-sm">{uploadProgress || 'กำลังประมวลผล...'}</span>
         </div>
       )}
 
       {isDragOver && !uploading && (
-        <div className="absolute inset-0 bg-[#F4511E]/10 rounded-xl flex items-center justify-center pointer-events-none z-10">
+        <div className="absolute inset-0 bg-primary/10 rounded-xl flex items-center justify-center pointer-events-none z-10">
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg px-6 py-3 flex items-center gap-2">
-            <ImagePlus className="w-5 h-5 text-[#F4511E]" />
+            <ImagePlus className="w-5 h-5 text-primary" />
             <span className="text-sm font-medium text-gray-700 dark:text-slate-300">วางรูปภาพที่นี่</span>
           </div>
         </div>

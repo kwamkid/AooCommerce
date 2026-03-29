@@ -549,7 +549,7 @@ function StatementsContent() {
         open={!!paymentConfirm}
         onClose={() => !paymentLoading && setPaymentConfirm(null)}
         onConfirm={() => paymentConfirm && handleRecordPayment(paymentConfirm)}
-        icon={<Banknote className="w-6 h-6 text-[#F4511E]" />}
+        icon={<Banknote className="w-6 h-6 text-primary" />}
         title="ลูกค้าชำระแล้ว"
         description={paymentConfirm ? `ยืนยันการชำระเงินของ ${paymentConfirm.customer?.name || '-'}\nรายงาน ${paymentConfirm.statement_number}\nงวด ${formatPeriod(paymentConfirm.period_year, paymentConfirm.period_month)}\nจำนวน ฿${formatAmount(paymentConfirm.outstanding_amount)}\n\nระบบจะออกใบกำกับภาษี/ใบเสร็จรับเงินอัตโนมัติ` : ''}
         confirmLabel={paymentLoading ? 'กำลังบันทึก...' : 'ยืนยันการชำระ'}

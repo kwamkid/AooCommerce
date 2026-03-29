@@ -16,7 +16,7 @@ export default function PromotionForm({ promotionId }: { promotionId?: string })
   if (loadingPromo) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F4511E]" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
@@ -43,7 +43,7 @@ export default function PromotionForm({ promotionId }: { promotionId?: string })
             type="button"
             onClick={() => setForm(prev => ({ ...prev, is_active: !prev.is_active }))}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              form.is_active ? 'bg-[#F4511E]' : 'bg-gray-300'
+              form.is_active ? 'bg-primary' : 'bg-gray-300'
             }`}
           >
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${

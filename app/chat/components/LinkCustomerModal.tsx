@@ -71,7 +71,7 @@ export default function LinkCustomerModal({ contact, platformColor, onLink, onCl
               </div>
               <div className="flex gap-2">
                 <button onClick={() => { setConfirmLinkCustomer(null); setCustomers([]); }} className="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">ย้อนกลับ</button>
-                <button onClick={() => { onLink(confirmLinkCustomer.id); setConfirmLinkCustomer(null); }} className="flex-1 px-4 py-2 rounded-lg text-sm text-white transition-colors bg-[#F4511E] hover:bg-[#D63B0E]">ยืนยันเชื่อม</button>
+                <button onClick={() => { onLink(confirmLinkCustomer.id); setConfirmLinkCustomer(null); }} className="flex-1 px-4 py-2 rounded-lg text-sm text-white transition-colors bg-primary hover:bg-primary-hover">ยืนยันเชื่อม</button>
               </div>
             </div>
           ) : (

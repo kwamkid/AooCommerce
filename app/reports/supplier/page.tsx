@@ -196,7 +196,7 @@ export default function SupplierReportsPage() {
   if (authLoading || loading) {
     return (
       <Layout title="รายงานซัพพลายเออร์">
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" /></div>
+        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
       </Layout>
     );
   }
@@ -239,7 +239,7 @@ export default function SupplierReportsPage() {
           </div>
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
             สร้าง<span className="hidden md:inline">รายงาน</span>
@@ -283,7 +283,7 @@ export default function SupplierReportsPage() {
                 <button
                   onClick={handleCreate}
                   disabled={creating || !createSupplierId}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
                 >
                   {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                   {creating ? 'กำลังสร้าง...' : 'สร้าง Snapshot'}

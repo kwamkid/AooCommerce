@@ -61,7 +61,7 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
       type="button"
       onClick={() => !disabled && onChange(!checked)}
       className={`relative w-11 h-6 rounded-full transition-colors ${
-        checked ? 'bg-[#F4511E]' : 'bg-gray-300 dark:bg-slate-600'
+        checked ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
@@ -418,7 +418,7 @@ export default function PosTerminalsPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
         ) : features.pos ? (
           <div>
@@ -428,7 +428,7 @@ export default function PosTerminalsPage() {
                 onClick={() => setActiveTab('terminals')}
                 className={`px-5 py-3 text-base font-medium border-b-2 transition-colors ${
                   activeTab === 'terminals'
-                    ? 'border-[#F4511E] text-[#F4511E]'
+                    ? 'border-primary text-primary'
                     : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
                 }`}
               >
@@ -441,7 +441,7 @@ export default function PosTerminalsPage() {
                 onClick={() => setActiveTab('channels')}
                 className={`px-5 py-3 text-base font-medium border-b-2 transition-colors ${
                   activeTab === 'channels'
-                    ? 'border-[#F4511E] text-[#F4511E]'
+                    ? 'border-primary text-primary'
                     : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
                 }`}
               >
@@ -465,8 +465,8 @@ export default function PosTerminalsPage() {
                       <div key={t.id} className="space-y-3">
                         <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden ${!t.is_active ? 'opacity-60' : ''}`}>
                           <div className="flex items-center gap-3 p-4">
-                            <div className="w-10 h-10 rounded-lg bg-[#F4511E]/10 flex items-center justify-center flex-shrink-0">
-                              <Monitor className="w-5 h-5 text-[#F4511E]" />
+                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                              <Monitor className="w-5 h-5 text-primary" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
@@ -520,7 +520,7 @@ export default function PosTerminalsPage() {
                   ) : !showForm ? (
                     <button
                       onClick={() => { resetForm(); setShowForm(true); }}
-                      className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                      className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
                     >
                       <Plus className="w-4 h-4" />
                       เพิ่ม<span className="hidden md:inline">จุดขาย</span>
@@ -545,7 +545,7 @@ export default function PosTerminalsPage() {
 
                 {loadingChannels ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-5 h-5 text-[#F4511E] animate-spin" />
+                    <Loader2 className="w-5 h-5 text-primary animate-spin" />
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -597,7 +597,7 @@ export default function PosTerminalsPage() {
                                 {canEdit && (
                                   <button
                                     onClick={() => isEditing ? resetChannelForm() : startEditChannel(ch)}
-                                    className={`p-1.5 transition-colors ${isEditing ? 'text-[#F4511E]' : 'text-gray-400 hover:text-blue-600'}`}
+                                    className={`p-1.5 transition-colors ${isEditing ? 'text-primary' : 'text-gray-400 hover:text-blue-600'}`}
                                   >
                                     {isEditing ? <X className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
                                   </button>
@@ -630,7 +630,7 @@ export default function PosTerminalsPage() {
                     ) : !showChannelForm ? (
                       <button
                         onClick={() => { resetChannelForm(); setShowChannelForm(true); }}
-                        className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                        className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
                       >
                         <Plus className="w-4 h-4" />
                         เพิ่มช่องทางชำระเงิน
@@ -651,7 +651,7 @@ export default function PosTerminalsPage() {
     return (
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
         <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
-          <Monitor className="w-4 h-4 text-[#F4511E]" />
+          <Monitor className="w-4 h-4 text-primary" />
           {editingId ? 'แก้ไขจุดขาย' : 'เพิ่มจุดขาย'}
         </div>
 
@@ -662,7 +662,7 @@ export default function PosTerminalsPage() {
             value={formName}
             onChange={e => setFormName(e.target.value)}
             placeholder="เช่น สาขาสยาม, Event ตลาดนัด JJ"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
             autoFocus
           />
         </div>
@@ -674,7 +674,7 @@ export default function PosTerminalsPage() {
             value={formCode}
             onChange={e => setFormCode(e.target.value)}
             placeholder="เช่น POS01"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
           />
         </div>
 
@@ -695,7 +695,7 @@ export default function PosTerminalsPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             บันทึก
@@ -721,7 +721,7 @@ export default function PosTerminalsPage() {
             value={channelName}
             onChange={e => setChannelName(e.target.value)}
             placeholder="เช่น โอนเงิน, บัตรเครดิต"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
             autoFocus
           />
         </div>
@@ -751,7 +751,7 @@ export default function PosTerminalsPage() {
                 setChannelPromptPayId(v);
               }}
               placeholder="เบอร์โทร (10 หลัก) หรือ Tax ID (13 หลัก)"
-              className={`w-full px-3 py-2 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] ${
+              className={`w-full px-3 py-2 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary ${
                 channelPromptPayId.trim() && channelPromptPayId.replace(/\D/g, '').length !== 10 && channelPromptPayId.replace(/\D/g, '').length !== 13
                   ? 'border-red-400 dark:border-red-500'
                   : 'border-gray-300 dark:border-slate-600'
@@ -774,7 +774,7 @@ export default function PosTerminalsPage() {
           <button
             onClick={handleSaveChannel}
             disabled={savingChannel}
-            className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {savingChannel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             บันทึก
@@ -813,7 +813,7 @@ export default function PosTerminalsPage() {
                     }}
                     className={`flex-1 p-2 rounded-lg text-xs font-medium flex flex-col items-center gap-1 transition-all ${
                       channelType === opt.value
-                        ? 'bg-[#F4511E]/10 text-[#F4511E] border-2 border-[#F4511E]'
+                        ? 'bg-primary/10 text-primary border-2 border-primary'
                         : 'bg-gray-50 dark:bg-slate-700 text-gray-600 dark:text-slate-400 border-2 border-transparent hover:bg-gray-100 dark:hover:bg-slate-600'
                     }`}
                   >
@@ -833,7 +833,7 @@ export default function PosTerminalsPage() {
             value={channelName}
             onChange={e => setChannelName(e.target.value)}
             placeholder="เช่น โอนเงิน, บัตรเครดิต"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
             autoFocus
           />
         </div>
@@ -863,7 +863,7 @@ export default function PosTerminalsPage() {
                 setChannelPromptPayId(v);
               }}
               placeholder="เบอร์โทร (10 หลัก) หรือ Tax ID (13 หลัก)"
-              className={`w-full px-3 py-2 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] ${
+              className={`w-full px-3 py-2 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary ${
                 channelPromptPayId.trim() && channelPromptPayId.replace(/\D/g, '').length !== 10 && channelPromptPayId.replace(/\D/g, '').length !== 13
                   ? 'border-red-400 dark:border-red-500'
                   : 'border-gray-300 dark:border-slate-600'
@@ -886,7 +886,7 @@ export default function PosTerminalsPage() {
           <button
             onClick={handleSaveChannel}
             disabled={savingChannel}
-            className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {savingChannel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             บันทึก

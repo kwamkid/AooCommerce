@@ -18,7 +18,7 @@ interface Props {
   onClose: () => void;
 }
 
-const inputClass = "w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50";
+const inputClass = "w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50";
 const labelClass = "block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1";
 
 /**
@@ -57,7 +57,7 @@ export default function TaxInvoiceEditModal({ data, onSave, onClose }: Props) {
             ยกเลิก
           </button>
           <button type="button" onClick={() => onSave(form)}
-            className="px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors">
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors">
             บันทึก
           </button>
         </div>

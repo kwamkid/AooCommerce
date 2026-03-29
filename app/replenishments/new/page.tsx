@@ -240,10 +240,10 @@ function NewReplenishmentPageContent() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-2">
-              <ArrowUpFromLine className="w-6 h-6 text-[#F4511E]" />
+              <ArrowUpFromLine className="w-6 h-6 text-primary" />
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
               {isEdit && formState?.replenishmentNumber && (
-                <span className="id-text text-[#F4511E]">
+                <span className="id-text text-primary">
                   {formState.replenishmentNumber}
                 </span>
               )}
@@ -339,7 +339,7 @@ function NewReplenishmentPageContent() {
         >
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <Send className="w-5 h-5 text-[#F4511E]" /> จัดส่งสินค้า
+              <Send className="w-5 h-5 text-primary" /> จัดส่งสินค้า
             </h3>
 
             <div className="space-y-4">
@@ -362,7 +362,7 @@ function NewReplenishmentPageContent() {
                       value={shipCarrier}
                       onChange={e => setShipCarrier(e.target.value)}
                       placeholder="เช่น Kerry, Flash, J&T"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
                   <div>
@@ -372,7 +372,7 @@ function NewReplenishmentPageContent() {
                       value={shipTracking}
                       onChange={e => setShipTracking(e.target.value)}
                       placeholder="เลขพัสดุ"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
                 </>
@@ -386,7 +386,7 @@ function NewReplenishmentPageContent() {
                     value={shipNotes}
                     onChange={e => setShipNotes(e.target.value)}
                     placeholder="เบอร์โทรติดต่อ Lalamove"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               )}
@@ -399,7 +399,7 @@ function NewReplenishmentPageContent() {
                     value={shipNotes}
                     onChange={e => setShipNotes(e.target.value)}
                     placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               )}
@@ -416,7 +416,7 @@ function NewReplenishmentPageContent() {
               <button
                 onClick={handleShip}
                 disabled={shipSubmitting}
-                className="flex-1 px-4 py-2.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {shipSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 จัดส่ง
@@ -464,7 +464,7 @@ export default function NewReplenishmentPage() {
     <Suspense fallback={
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     }>

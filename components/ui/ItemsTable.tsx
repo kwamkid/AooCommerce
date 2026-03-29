@@ -137,7 +137,7 @@ function StockBadge({ qty, destStyle }: { qty: number | null | undefined; destSt
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{qty.toLocaleString()}</span>;
 }
 
-const INPUT_CLS = 'px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-400 dark:disabled:text-slate-500 disabled:cursor-not-allowed';
+const INPUT_CLS = 'px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-400 dark:disabled:text-slate-500 disabled:cursor-not-allowed';
 
 function RoleBadge({ role }: { role: string }) {
   switch (role) {
@@ -541,7 +541,7 @@ export default function ItemsTable({
                         {comp.special_price != null && comp.special_price !== comp.default_price ? (
                           <div>
                             <span className="text-xs text-gray-400 dark:text-slate-500 line-through">฿{fmt(comp.default_price ?? 0)}</span>
-                            <span className="text-sm text-[#F4511E] font-medium ml-1">฿{fmt(comp.special_price)}</span>
+                            <span className="text-sm text-primary font-medium ml-1">฿{fmt(comp.special_price)}</span>
                           </div>
                         ) : (
                           <span className="text-sm text-gray-600 dark:text-slate-300">฿{fmt(comp.default_price ?? 0)}</span>
@@ -802,7 +802,7 @@ export default function ItemsTable({
                         {comp.special_price != null && comp.special_price !== comp.default_price ? (
                           <div className="flex items-center gap-1">
                             <span className="text-[10px] text-gray-400 line-through">฿{fmt(comp.default_price ?? 0)}</span>
-                            <span className="text-xs text-[#F4511E] font-medium">฿{fmt(comp.special_price)}</span>
+                            <span className="text-xs text-primary font-medium">฿{fmt(comp.special_price)}</span>
                           </div>
                         ) : comp.default_price ? (
                           <div className="text-xs text-gray-500 dark:text-slate-400">฿{fmt(comp.default_price)}</div>

@@ -412,7 +412,7 @@ export default function BillOnlinePage() {
   if (loading || !mounted) {
     return (
       <div className="min-h-screen bg-[#1A1A2E] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
   }
@@ -661,7 +661,7 @@ export default function BillOnlinePage() {
           <div className="relative">
             <button
               onClick={() => setShowPrintMenu(!showPrintMenu)}
-              className="bg-[#F4511E] text-white px-3 py-1.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-1.5 text-sm font-medium"
+              className="bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-1.5 text-sm font-medium"
             >
               <Printer className="w-4 h-4" />
               พิมพ์
@@ -707,7 +707,7 @@ export default function BillOnlinePage() {
               </div>
             </div>
             <div className="text-right space-y-0.5">
-              <div className={`font-bold font-mono text-base ${dark ? 'text-white' : 'text-gray-900'} cursor-pointer hover:text-[#F4511E] transition-colors print:cursor-default print:hover:text-inherit`} onClick={() => navigator.clipboard.writeText(bill.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว'))} title="คัดลอก">{bill.order_number}</div>
+              <div className={`font-bold font-mono text-base ${dark ? 'text-white' : 'text-gray-900'} cursor-pointer hover:text-primary transition-colors print:cursor-default print:hover:text-inherit`} onClick={() => navigator.clipboard.writeText(bill.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว'))} title="คัดลอก">{bill.order_number}</div>
               <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-600'}`} suppressHydrationWarning>{formatDate(bill.order_date)}</div>
               <div className="flex items-center justify-end gap-1.5 mt-1 print:hidden">
                 {isExpired ? (
@@ -867,7 +867,7 @@ export default function BillOnlinePage() {
                     }
                   }}
                   disabled={savingDelivery || !deliveryName || !deliveryPhone || !deliveryAddress || !deliveryProvince || !deliveryPostalCode}
-                  className="w-full bg-[#F4511E] text-white py-2.5 rounded-lg font-medium text-sm hover:bg-[#E64A19] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full bg-primary text-white py-2.5 rounded-lg font-medium text-sm hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {savingDelivery ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                   {savingDelivery ? 'กำลังบันทึก...' : 'บันทึกข้อมูลจัดส่ง'}
@@ -958,7 +958,7 @@ export default function BillOnlinePage() {
                     {/* Branch header */}
                     <div className={`print:bg-transparent px-4 py-3 border-b print:border-gray-300 ${dark ? 'bg-[#1A1A2E] border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
                       <div className="flex items-start gap-2">
-                        <MapPin className="w-4 h-4 text-[#F4511E] print:text-black flex-shrink-0 mt-0.5" />
+                        <MapPin className="w-4 h-4 text-primary print:text-black flex-shrink-0 mt-0.5" />
                         <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
                           <span className={`font-bold text-base ${dark ? 'text-slate-200' : 'text-gray-800'}`}>{branch.address_name}</span>
                           {' — '}
@@ -998,7 +998,7 @@ export default function BillOnlinePage() {
               {bill.branches && bill.branches.length === 1 && !bill.customer?.name && (
                 <div className={`print:bg-transparent rounded-lg p-4 mb-4 print:p-0 print:mb-2 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
                   <div className={`flex items-center gap-2 text-base font-medium mb-0.5 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>
-                    <MapPin className="w-4 h-4 text-[#F4511E] print:text-black" />
+                    <MapPin className="w-4 h-4 text-primary print:text-black" />
                     ที่อยู่จัดส่ง
                   </div>
                   <div className={`text-sm ml-6 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
@@ -1049,7 +1049,7 @@ export default function BillOnlinePage() {
               )}
               <div className={`flex justify-between text-lg font-bold pt-2 border-t-2 ${dark ? 'border-slate-600' : 'border-gray-200'}`}>
                 <span className={dark ? 'text-white' : 'text-gray-900'}>ยอดรวมสุทธิ</span>
-                <span className="text-[#F4511E] print:text-black">฿{formatPrice(bill.total_amount)}</span>
+                <span className="text-primary print:text-black">฿{formatPrice(bill.total_amount)}</span>
               </div>
             </div>
           </div>
@@ -1061,7 +1061,7 @@ export default function BillOnlinePage() {
           <div className="print:hidden mt-4 lg:mt-0 lg:sticky lg:top-20 lg:self-start">
           <div className={`rounded-xl shadow-sm p-5 md:p-6 transition-colors space-y-4 ${dark ? 'bg-[#16213E] shadow-black/20' : 'bg-white'}`}>
             <h3 className={`font-bold text-lg flex items-center gap-2 ${dark ? 'text-white' : 'text-gray-900'}`}>
-              <CreditCard className="w-5 h-5 text-[#F4511E]" />
+              <CreditCard className="w-5 h-5 text-primary" />
               การชำระเงิน
             </h3>
             {/* Status: pending → show CTA or form */}
@@ -1081,13 +1081,13 @@ export default function BillOnlinePage() {
                       }
                       setShowPaymentForm(true);
                     }}
-                    className="w-full bg-[#F4511E] text-white py-4 rounded-xl font-bold text-lg hover:bg-[#D63B0E] transition-colors shadow-md flex items-center justify-center gap-2"
+                    className="w-full bg-primary text-white py-4 rounded-xl font-bold text-lg hover:bg-primary-hover transition-colors shadow-md flex items-center justify-center gap-2"
                   >
                     <Upload className="w-6 h-6" />
                     ชำระเงิน
                   </button>
                 ) : (
-                  <div className={`border-2 border-[#F4511E] rounded-xl p-5 space-y-4`}>
+                  <div className={`border-2 border-primary rounded-xl p-5 space-y-4`}>
                     {/* Single shared file input — outside conditional sections */}
                     <input
                       ref={fileInputRef}
@@ -1097,7 +1097,7 @@ export default function BillOnlinePage() {
                       className="hidden"
                     />
                     <h3 className={`font-bold text-lg flex items-center gap-2 ${dark ? 'text-white' : 'text-gray-900'}`}>
-                      <Upload className="w-5 h-5 text-[#F4511E]" />
+                      <Upload className="w-5 h-5 text-primary" />
                       ชำระเงิน
                     </h3>
 
@@ -1134,7 +1134,7 @@ export default function BillOnlinePage() {
                                 onClick={() => setPaymentMethod(m.key as typeof paymentMethod)}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 text-base font-medium transition-colors ${
                                   paymentMethod === m.key
-                                    ? 'border-[#F4511E] bg-[#F4511E]/10 text-[#F4511E]'
+                                    ? 'border-primary bg-primary/10 text-primary'
                                     : dark
                                       ? 'border-slate-600 text-slate-300 hover:border-slate-500'
                                       : 'border-gray-200 text-gray-600 hover:border-gray-300'
@@ -1150,11 +1150,11 @@ export default function BillOnlinePage() {
                         /* Fallback: original 2 buttons if no channels configured */
                         <div className="grid grid-cols-2 gap-2">
                           <button type="button" onClick={() => setPaymentMethod('bank_transfer')}
-                            className={`px-3 py-3 rounded-lg border-2 text-base font-medium transition-colors ${paymentMethod === 'bank_transfer' ? 'border-[#F4511E] bg-[#F4511E]/10 text-[#F4511E]' : dark ? 'border-slate-600 text-slate-300 hover:border-slate-500' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                            className={`px-3 py-3 rounded-lg border-2 text-base font-medium transition-colors ${paymentMethod === 'bank_transfer' ? 'border-primary bg-primary/10 text-primary' : dark ? 'border-slate-600 text-slate-300 hover:border-slate-500' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
                             โอนเงิน
                           </button>
                           <button type="button" onClick={() => setPaymentMethod('cash')}
-                            className={`px-3 py-3 rounded-lg border-2 text-base font-medium transition-colors ${paymentMethod === 'cash' ? 'border-[#F4511E] bg-[#F4511E]/10 text-[#F4511E]' : dark ? 'border-slate-600 text-slate-300 hover:border-slate-500' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                            className={`px-3 py-3 rounded-lg border-2 text-base font-medium transition-colors ${paymentMethod === 'cash' ? 'border-primary bg-primary/10 text-primary' : dark ? 'border-slate-600 text-slate-300 hover:border-slate-500' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
                             เงินสด
                           </button>
                         </div>
@@ -1239,7 +1239,7 @@ export default function BillOnlinePage() {
                             <button
                               type="button"
                               onClick={() => fileInputRef.current?.click()}
-                              className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}
+                              className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 hover:border-primary hover:text-primary transition-colors ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}
                             >
                               <Camera className="w-10 h-10" />
                               <span className="text-base">เลือกรูป / ถ่ายรูปสลิป</span>
@@ -1337,7 +1337,7 @@ export default function BillOnlinePage() {
                         <div className={`flex items-center justify-between p-3 rounded-lg border ${dark ? 'bg-[#1A1A2E] border-slate-600' : 'bg-orange-50 border-orange-200'}`}>
                           <span className="text-sm font-medium" style={{ color: dark ? '#94a3b8' : '#6b7280' }}>ยอดที่ต้องโอน</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-lg font-bold text-[#F4511E]">฿{formatPrice(bill.total_amount)}</span>
+                            <span className="text-lg font-bold text-primary">฿{formatPrice(bill.total_amount)}</span>
                             <button
                               type="button"
                               onClick={async () => {
@@ -1377,7 +1377,7 @@ export default function BillOnlinePage() {
                             <button
                               type="button"
                               onClick={() => fileInputRef.current?.click()}
-                              className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}
+                              className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 hover:border-primary hover:text-primary transition-colors ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}
                             >
                               <Camera className="w-10 h-10" />
                               <span className="text-base">เลือกรูป / ถ่ายรูปสลิป</span>
@@ -1443,7 +1443,7 @@ export default function BillOnlinePage() {
                           type="button"
                           onClick={handleGatewayPayment}
                           disabled={gatewayLoading}
-                          className="w-full bg-[#F4511E] text-white py-4 rounded-xl font-bold text-lg hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                          className="w-full bg-primary text-white py-4 rounded-xl font-bold text-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                           {gatewayLoading ? (
                             <>
@@ -1464,7 +1464,7 @@ export default function BillOnlinePage() {
                     {paymentMethod === 'cash' && (
                       <div className={`flex items-center justify-between p-3 rounded-lg border ${dark ? 'bg-[#1A1A2E] border-slate-600' : 'bg-orange-50 border-orange-200'}`}>
                         <span className="text-sm font-medium" style={{ color: dark ? '#94a3b8' : '#6b7280' }}>ยอดรวมสุทธิ</span>
-                        <span className="text-lg font-bold text-[#F4511E]">฿{formatPrice(bill.total_amount)}</span>
+                        <span className="text-lg font-bold text-primary">฿{formatPrice(bill.total_amount)}</span>
                       </div>
                     )}
 
@@ -1478,7 +1478,7 @@ export default function BillOnlinePage() {
                           placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
                           rows={2}
                           style={dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }}
-                          className="w-full px-3 py-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                          className="w-full px-3 py-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                         />
                       </div>
                     )}
@@ -1497,7 +1497,7 @@ export default function BillOnlinePage() {
                           type="button"
                           onClick={handleSubmitPayment}
                           disabled={submitting || compressingSlip}
-                          className="flex-1 bg-[#F4511E] text-white py-3 rounded-lg font-bold text-base hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                          className="flex-1 bg-primary text-white py-3 rounded-lg font-bold text-base hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                           {submitting ? (
                             <>

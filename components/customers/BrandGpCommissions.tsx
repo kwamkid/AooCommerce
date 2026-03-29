@@ -73,7 +73,7 @@ export default function BrandGpCommissions({ rows, onRowsChange, canEdit = false
   if (loadingBrands) {
     return (
       <div className="flex justify-center py-4">
-        <Loader2 className="w-5 h-5 text-[#F4511E] animate-spin" />
+        <Loader2 className="w-5 h-5 text-primary animate-spin" />
       </div>
     );
   }
@@ -106,7 +106,7 @@ export default function BrandGpCommissions({ rows, onRowsChange, canEdit = false
                 onChange={e => updateRow(idx, { gp_rate: e.target.value })}
                 placeholder="GP%"
                 disabled={!canEdit}
-                className="w-full px-2 py-2 pr-6 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-right bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#F4511E] disabled:opacity-50"
+                className="w-full px-2 py-2 pr-6 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-right bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
               />
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
             </div>
@@ -169,7 +169,7 @@ function AddBrandRow({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1 text-sm text-[#F4511E] hover:text-[#D63B0E] transition-colors mt-1"
+        className="flex items-center gap-1 text-sm text-primary hover:text-primary-hover transition-colors mt-1"
       >
         <Plus className="w-4 h-4" />
         เพิ่มแบรนด์
@@ -212,11 +212,11 @@ export function GpBaseRadio({
   return (
     <div className="flex items-center gap-2 text-xs flex-shrink-0">
       <label className={`flex items-center gap-1 ${disabled ? 'opacity-50' : 'cursor-pointer'}`}>
-        <input type="radio" name={name} checked={value === 'retail'} onChange={() => !disabled && onChange('retail')} className="accent-[#F4511E]" disabled={disabled} />
+        <input type="radio" name={name} checked={value === 'retail'} onChange={() => !disabled && onChange('retail')} className="accent-primary" disabled={disabled} />
         <span className="text-gray-600 dark:text-slate-400">ราคาปลีก</span>
       </label>
       <label className={`flex items-center gap-1 ${disabled ? 'opacity-50' : 'cursor-pointer'}`}>
-        <input type="radio" name={name} checked={value === 'discounted'} onChange={() => !disabled && onChange('discounted')} className="accent-[#F4511E]" disabled={disabled} />
+        <input type="radio" name={name} checked={value === 'discounted'} onChange={() => !disabled && onChange('discounted')} className="accent-primary" disabled={disabled} />
         <span className="text-gray-600 dark:text-slate-400">ราคาลด</span>
       </label>
     </div>

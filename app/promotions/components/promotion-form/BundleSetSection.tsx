@@ -58,7 +58,7 @@ export default function BundleSetSection({ hook }: Props) {
             รวมราคาปกติ: <span className="font-medium text-gray-900 dark:text-white">{totalDefaultPrice.toLocaleString()}</span> บาท
             {showBundleDiscount && parseFloat(form.discount_value) > 0 && (
               <span className="ml-2">
-                → หลังลด: <span className="font-medium text-[#F4511E]">
+                → หลังลด: <span className="font-medium text-primary">
                   {form.discount_type === 'percent'
                     ? `${(totalDefaultPrice * (1 - parseFloat(form.discount_value) / 100)).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
                     : `${(totalDefaultPrice - parseFloat(form.discount_value)).toLocaleString(undefined, { maximumFractionDigits: 2 })}`

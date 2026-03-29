@@ -123,7 +123,7 @@ export default function CreditNoteDetailPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -134,7 +134,7 @@ export default function CreditNoteDetailPage() {
       <Layout>
         <div className="text-center py-12">
           <p className="text-gray-500 dark:text-slate-400 mb-4">ไม่พบใบลดหนี้</p>
-          <button onClick={() => router.push('/credit-notes')} className="text-[#F4511E] hover:underline">
+          <button onClick={() => router.push('/credit-notes')} className="text-primary hover:underline">
             กลับไปหน้ารายการ
           </button>
         </div>

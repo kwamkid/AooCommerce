@@ -699,7 +699,7 @@ export default function DealerOrderForm({
   // ── Render ──────────────────────────────────────────────────
 
   if (loadingOrder) {
-    return <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-[#F4511E]" /></div>;
+    return <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
 
   return (
@@ -863,7 +863,7 @@ export default function DealerOrderForm({
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-base"
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base"
                   placeholder="หมายเหตุสำหรับลูกค้า, การจัดส่ง..."
                 />
               </div>
@@ -919,7 +919,7 @@ export default function DealerOrderForm({
             type="button"
             onClick={handleSubmit}
             disabled={submitting || !selectedCustomerId || items.length === 0}
-            className="bg-[#F4511E] text-white px-5 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50 text-sm font-medium"
+            className="bg-primary text-white px-5 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50 text-sm font-medium"
           >
             {submitting ? (
               <>

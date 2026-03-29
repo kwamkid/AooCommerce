@@ -118,7 +118,7 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังโหลด...</p>
         </div>
       </div>
@@ -177,7 +177,7 @@ export default function DashboardPage() {
             </h3>
             <Link
               href="/orders"
-              className="text-[#F4511E] hover:text-[#D63B0E] text-sm font-medium flex items-center"
+              className="text-primary hover:text-primary-hover text-sm font-medium flex items-center"
             >
               ดูทั้งหมด
               <ChevronRight className="w-4 h-4 ml-1" />
@@ -203,7 +203,7 @@ export default function DashboardPage() {
                     )}
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-[#F4511E]">
+                    <p className="text-sm font-semibold text-primary">
                       ฿{formatPrice(order.totalAmount)}
                     </p>
                   </div>

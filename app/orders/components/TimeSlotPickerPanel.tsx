@@ -93,7 +93,7 @@ export default function TimeSlotPickerPanel({
         {/* Header */}
         <div className="flex items-center gap-3 p-5 border-b border-gray-200 dark:border-slate-700">
           <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center flex-shrink-0">
-            <Clock className="w-5 h-5 text-[#F4511E]" />
+            <Clock className="w-5 h-5 text-primary" />
           </div>
           <div className="min-w-0">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -110,7 +110,7 @@ export default function TimeSlotPickerPanel({
           <button
             onClick={selectRecommendedAll}
             disabled={loading}
-            className="w-full text-sm text-[#F4511E] hover:text-[#D63B0E] font-medium py-2 px-3 rounded-lg border border-orange-200 dark:border-orange-800 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors disabled:opacity-50"
+            className="w-full text-sm text-primary hover:text-primary-hover font-medium py-2 px-3 rounded-lg border border-orange-200 dark:border-orange-800 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors disabled:opacity-50"
           >
             ใช้เวลาแนะนำทั้งหมด
           </button>
@@ -173,7 +173,7 @@ export default function TimeSlotPickerPanel({
                           disabled={loading}
                           className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors disabled:opacity-50 flex items-center justify-between ${
                             isSelected
-                              ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20'
+                              ? 'border-primary bg-orange-50 dark:bg-orange-900/20'
                               : slot.recommended
                                 ? 'border-orange-200 dark:border-orange-700 hover:bg-orange-50/50 dark:hover:bg-orange-900/10'
                                 : 'border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/50'
@@ -184,12 +184,12 @@ export default function TimeSlotPickerPanel({
                           </span>
                           <div className="flex items-center gap-1.5">
                             {slot.recommended && (
-                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-[#F4511E] text-white">
+                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary text-white">
                                 แนะนำ
                               </span>
                             )}
                             {isSelected && (
-                              <CheckCircle className="w-4 h-4 text-[#F4511E]" />
+                              <CheckCircle className="w-4 h-4 text-primary" />
                             )}
                           </div>
                         </button>
@@ -214,7 +214,7 @@ export default function TimeSlotPickerPanel({
           <button
             onClick={() => onConfirm(selections)}
             disabled={loading || !allSelected}
-            className="px-5 py-2.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center gap-2 text-sm font-medium"
+            className="px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center gap-2 text-sm font-medium"
           >
             {loading ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>

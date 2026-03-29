@@ -77,7 +77,7 @@ export default function EmojiStickerPicker({ platform, onEmojiSelect, onStickerS
       <div className="flex items-center border-b border-gray-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 rounded-t-lg">
         <button onClick={() => { setEmojiTab('emoji'); setEmojiSearch(''); }} className={`flex-1 py-2.5 text-sm font-medium transition-colors ${emojiTab === 'emoji' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700 dark:text-slate-400'}`}>😊 Emoji</button>
         {platform === 'line' && (
-          <button onClick={() => { setEmojiTab('sticker'); setEmojiSearch(''); }} className={`flex-1 py-2.5 text-sm font-medium transition-colors ${emojiTab === 'sticker' ? 'text-[#06C755] border-b-2 border-[#06C755]' : 'text-gray-500 hover:text-gray-700 dark:text-slate-400'}`}>🎭 Sticker</button>
+          <button onClick={() => { setEmojiTab('sticker'); setEmojiSearch(''); }} className={`flex-1 py-2.5 text-sm font-medium transition-colors ${emojiTab === 'sticker' ? 'text-line border-b-2 border-line' : 'text-gray-500 hover:text-gray-700 dark:text-slate-400'}`}>🎭 Sticker</button>
         )}
         <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 mr-1"><X className="w-4 h-4" /></button>
       </div>

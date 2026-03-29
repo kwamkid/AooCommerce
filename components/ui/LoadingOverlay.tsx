@@ -28,7 +28,7 @@ export default function LoadingOverlay({
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-[90vw] max-w-sm p-6 space-y-4 text-center">
         {/* Spinner */}
         <div className="flex justify-center">
-          <Loader2 className="w-10 h-10 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
         </div>
 
         {/* Title */}
@@ -48,7 +48,7 @@ export default function LoadingOverlay({
           <div className="space-y-1.5">
             <div className="w-full h-2.5 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
               <div
-                className="h-full bg-[#F4511E] rounded-full transition-all duration-300"
+                className="h-full bg-primary rounded-full transition-all duration-300"
                 style={{ width: `${Math.min(progress, 100)}%` }}
               />
             </div>

@@ -225,7 +225,7 @@ export default function FormSelect({
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                     placeholder={searchPlaceholder}
-                    className="w-full pl-8 pr-3 py-1.5 text-base border border-gray-200 dark:border-slate-600 rounded-md bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
+                    className="w-full pl-8 pr-3 py-1.5 text-base border border-gray-200 dark:border-slate-600 rounded-md bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
               </div>
@@ -246,7 +246,7 @@ export default function FormSelect({
                       : ''
                   } ${
                     o.id === value
-                      ? 'text-[#F4511E] font-medium'
+                      ? 'text-primary font-medium'
                       : 'text-gray-700 dark:text-slate-300'
                   }`}
                 >
@@ -257,7 +257,7 @@ export default function FormSelect({
                       <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{o.subtitle}</div>
                     )}
                   </div>
-                  {o.id === value && <Check className="w-4 h-4 text-[#F4511E] flex-shrink-0" />}
+                  {o.id === value && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
                 </button>
               ))}
               {allItems.length === 0 && (

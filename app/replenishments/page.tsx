@@ -650,7 +650,7 @@ function ReplenishmentsPageContent() {
           key: 'all',
           label: isPrinting && printingType === 'all' ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
           icon: isPrinting && printingType === 'all' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
-          className: 'text-[#F4511E] font-medium',
+          className: 'text-primary font-medium',
           onClick: () => handlePrintAll(r.id, true),
           disabled: isPrinting,
         },
@@ -709,7 +709,7 @@ function ReplenishmentsPageContent() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <ArrowUpFromLine className="w-8 h-8 text-[#F4511E]" />
+            <ArrowUpFromLine className="w-8 h-8 text-primary" />
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">เติมสินค้าตัวแทน</h1>
           </div>
           <div className="flex items-center gap-2">
@@ -723,7 +723,7 @@ function ReplenishmentsPageContent() {
             </button>
             <button
               onClick={() => router.push('/replenishments/new')}
-              className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2"
+              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />
               สร้าง<span className="hidden md:inline">ใบเติมสินค้า</span>
@@ -1046,7 +1046,7 @@ function ReplenishmentsPageContent() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !editShipSubmitting && setEditShipModalId(null)}>
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <Pencil className="w-5 h-5 text-[#F4511E]" /> แก้ไขข้อมูลขนส่ง
+              <Pencil className="w-5 h-5 text-primary" /> แก้ไขข้อมูลขนส่ง
             </h3>
 
             <div className="space-y-4">
@@ -1069,7 +1069,7 @@ function ReplenishmentsPageContent() {
                       value={editShipCarrier}
                       onChange={e => setEditShipCarrier(e.target.value)}
                       placeholder="เช่น Kerry, Flash, J&T"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
                   <div>
@@ -1079,7 +1079,7 @@ function ReplenishmentsPageContent() {
                       value={editShipTracking}
                       onChange={e => setEditShipTracking(e.target.value)}
                       placeholder="เลขพัสดุ"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
                 </>
@@ -1093,7 +1093,7 @@ function ReplenishmentsPageContent() {
                     value={editShipNotes}
                     onChange={e => setEditShipNotes(e.target.value)}
                     placeholder="เบอร์โทรติดต่อ Lalamove"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               )}
@@ -1106,7 +1106,7 @@ function ReplenishmentsPageContent() {
                     value={editShipNotes}
                     onChange={e => setEditShipNotes(e.target.value)}
                     placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               )}
@@ -1123,7 +1123,7 @@ function ReplenishmentsPageContent() {
               <button
                 onClick={handleEditShipping}
                 disabled={editShipSubmitting}
-                className="flex-1 px-4 py-2.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {editShipSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
                 บันทึก
@@ -1175,7 +1175,7 @@ export default function ReplenishmentsPage() {
     <Suspense fallback={
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     }>

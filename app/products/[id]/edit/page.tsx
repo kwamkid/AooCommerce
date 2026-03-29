@@ -587,7 +587,7 @@ export default function EditProductPage() {
       <Layout>
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
-            <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin mx-auto mb-3" />
+            <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-3" />
             <p className="text-gray-500 text-base">กำลังโหลดข้อมูล...</p>
           </div>
         </div>
@@ -716,7 +716,7 @@ export default function EditProductPage() {
                 onChange={e => { if (e.target.value.length <= 120) { setPlatformNameValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); } }}
                 maxLength={120}
                 rows={2}
-                className={`w-full px-2 py-1.5 text-base border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E] resize-none ${
+                className={`w-full px-2 py-1.5 text-base border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary resize-none ${
                   (platformNameValues[link.id] || '').length > 0 && (platformNameValues[link.id] || '').length < 20
                     ? 'border-red-400 dark:border-red-500'
                     : 'border-gray-300 dark:border-slate-600'
@@ -771,7 +771,7 @@ export default function EditProductPage() {
                 value={barcodeValues[link.id] || ''}
                 onChange={e => { setBarcodeValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
                 placeholder="-"
-                className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
               />
             </div>
           )}
@@ -787,7 +787,7 @@ export default function EditProductPage() {
                 min="0"
                 step="0.01"
                 placeholder="ไม่ได้ตั้ง"
-                className="flex-1 px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                className="flex-1 px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
               />
               {savingLink[link.id] && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
             </div>
@@ -807,7 +807,7 @@ export default function EditProductPage() {
                 min="0"
                 step="0.01"
                 placeholder="0"
-                className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
               />
               <p className="text-[11px] text-blue-500 dark:text-blue-400 mt-1 font-medium">
                 ราคาลดในระบบ: {formatPriceValue(systemDiscountPrice)}
@@ -825,7 +825,7 @@ export default function EditProductPage() {
               step="0.1"
               min="0"
               placeholder="0.5"
-              className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+              className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
             />
           </div>
         </div>
@@ -916,7 +916,7 @@ export default function EditProductPage() {
                   }}
                   maxLength={120}
                   rows={2}
-                  className={`w-full px-2 py-1.5 text-base border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E] resize-none ${
+                  className={`w-full px-2 py-1.5 text-base border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary resize-none ${
                     (platformNameValues[firstLink.id] || '').length > 0 && (platformNameValues[firstLink.id] || '').length < 20
                       ? 'border-red-400 dark:border-red-500'
                       : 'border-gray-300 dark:border-slate-600'
@@ -963,7 +963,7 @@ export default function EditProductPage() {
                 min="0"
                 step="0.1"
                 placeholder="0.5"
-                className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
               />
             </div>
           </div>
@@ -1021,7 +1021,7 @@ export default function EditProductPage() {
                             value={barcodeValues[link.id] || ''}
                             onChange={e => { setBarcodeValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
                             placeholder="-"
-                            className="w-32 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                            className="w-32 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
                           />
                         </td>
                       )}
@@ -1034,7 +1034,7 @@ export default function EditProductPage() {
                             min="0"
                             step="0.01"
                             placeholder="ไม่ได้ตั้ง"
-                            className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                            className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
                           />
                           {savingLink[link.id] && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
                         </div>
@@ -1051,7 +1051,7 @@ export default function EditProductPage() {
                             min="0"
                             step="0.01"
                             placeholder="0"
-                            className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#F4511E] focus:border-[#F4511E]"
+                            className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
                           />
                           <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-0.5 font-medium">
                             ราคาลดในระบบ: {formatPriceValue(systemDiscountPrice)}
@@ -1197,7 +1197,7 @@ export default function EditProductPage() {
                 onClick={() => setActiveTab('info')}
                 className={`px-4 py-2.5 text-base font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === 'info'
-                    ? 'border-[#F4511E] text-[#F4511E]'
+                    ? 'border-primary text-primary'
                     : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
                 }`}
               >
@@ -1211,7 +1211,7 @@ export default function EditProductPage() {
                   onClick={() => setActiveTab(accountId)}
                   className={`flex items-center gap-1.5 px-4 py-2.5 text-base font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === accountId
-                      ? 'border-[#F4511E] text-[#F4511E]'
+                      ? 'border-primary text-primary'
                       : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
                   }`}
                 >
@@ -1276,7 +1276,7 @@ export default function EditProductPage() {
                       type="button"
                       onClick={handleSaveAllLinks}
                       disabled={Object.values(savingLink).some(Boolean)}
-                      className="flex items-center gap-2 px-4 py-2.5 text-base font-medium text-white bg-[#F4511E] rounded-lg hover:bg-[#E64A19] disabled:opacity-50 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2.5 text-base font-medium text-white bg-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
                     >
                       {Object.values(savingLink).some(Boolean) && <Loader2 className="w-4 h-4 animate-spin" />}
                       บันทึก
@@ -1317,14 +1317,14 @@ export default function EditProductPage() {
                       value={mergeSearch}
                       onChange={e => setMergeSearch(e.target.value)}
                       placeholder="ค้นหาด้วย ชื่อ, รหัส, SKU..."
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-base focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-base focus:ring-2 focus:ring-primary focus:border-transparent"
                       autoFocus
                     />
                   </div>
 
                   {mergeLoadingProducts ? (
                     <div className="flex items-center justify-center py-8">
-                      <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+                      <Loader2 className="w-6 h-6 text-primary animate-spin" />
                     </div>
                   ) : (
                     <div className="space-y-1 max-h-[50vh] overflow-y-auto">
@@ -1368,16 +1368,16 @@ export default function EditProductPage() {
                   <div>
                     <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">เลือกสินค้าหลัก (ตัวที่จะเก็บไว้)</label>
                     <div className="space-y-2">
-                      <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${mergeMasterId === 'current' ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-700'}`}>
-                        <input type="radio" checked={mergeMasterId === 'current'} onChange={() => handleMasterChange('current')} className="accent-[#F4511E]" />
+                      <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${mergeMasterId === 'current' ? 'border-primary bg-orange-50 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-700'}`}>
+                        <input type="radio" checked={mergeMasterId === 'current'} onChange={() => handleMasterChange('current')} className="accent-primary" />
                         <div className="flex-1 min-w-0">
                           <span className="data-primary text-gray-900 dark:text-white">{product.name}</span>
                           <span className="ml-2 code-text text-gray-500">{product.code}</span>
                         </div>
                         <span className="data-muted text-gray-400">สินค้าปัจจุบัน</span>
                       </label>
-                      <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${mergeMasterId === 'source' ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-700'}`}>
-                        <input type="radio" checked={mergeMasterId === 'source'} onChange={() => handleMasterChange('source')} className="accent-[#F4511E]" />
+                      <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${mergeMasterId === 'source' ? 'border-primary bg-orange-50 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-700'}`}>
+                        <input type="radio" checked={mergeMasterId === 'source'} onChange={() => handleMasterChange('source')} className="accent-primary" />
                         <div className="flex-1 min-w-0">
                           <span className="data-primary text-gray-900 dark:text-white">{mergeSource.name}</span>
                           <span className="ml-2 code-text text-gray-500">{mergeSource.code}</span>
@@ -1411,7 +1411,7 @@ export default function EditProductPage() {
                               <td className="px-3 py-2">
                                 <button
                                   onClick={() => setMergeFieldChoices(prev => ({ ...prev, [f.key]: 'current' }))}
-                                  className={`text-xs px-2 py-1 rounded ${(mergeFieldChoices[f.key] || 'current') === 'current' ? 'bg-[#F4511E] text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400'}`}
+                                  className={`text-xs px-2 py-1 rounded ${(mergeFieldChoices[f.key] || 'current') === 'current' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400'}`}
                                 >
                                   {f.current}
                                 </button>
@@ -1419,7 +1419,7 @@ export default function EditProductPage() {
                               <td className="px-3 py-2">
                                 <button
                                   onClick={() => setMergeFieldChoices(prev => ({ ...prev, [f.key]: 'source' }))}
-                                  className={`text-xs px-2 py-1 rounded ${mergeFieldChoices[f.key] === 'source' ? 'bg-[#F4511E] text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400'}`}
+                                  className={`text-xs px-2 py-1 rounded ${mergeFieldChoices[f.key] === 'source' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400'}`}
                                 >
                                   {f.source}
                                 </button>
@@ -1512,7 +1512,7 @@ export default function EditProductPage() {
                     <button
                       onClick={executeMerge}
                       disabled={merging}
-                      className="flex items-center gap-2 px-4 py-2.5 text-base font-medium text-white bg-[#F4511E] rounded-lg hover:bg-[#E64A19] disabled:opacity-50 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2.5 text-base font-medium text-white bg-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
                     >
                       {merging && <Loader2 className="w-4 h-4 animate-spin" />}
                       ยืนยันการรวม
@@ -1537,7 +1537,7 @@ export default function EditProductPage() {
           <div className="bg-white dark:bg-slate-800 rounded-xl max-w-md w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <Merge className="w-5 h-5 text-[#F4511E]" />
+                <Merge className="w-5 h-5 text-primary" />
                 รวมสินค้าคืออะไร?
               </h3>
               <button onClick={() => setMergeHelpModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">

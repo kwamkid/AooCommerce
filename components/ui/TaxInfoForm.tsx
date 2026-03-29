@@ -40,7 +40,7 @@ export default function TaxInfoForm({
   address,
   onAddressChange,
   readOnly,
-  inputClassName = 'w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50',
+  inputClassName = 'w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50',
   labelClassName = 'block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1',
   required,
   taxIdError,
@@ -54,7 +54,7 @@ export default function TaxInfoForm({
             onClick={() => onChange({ tax_type: 'personal', tax_branch: '' })}
             className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 ${
               data.tax_type === 'personal'
-                ? 'bg-white dark:bg-slate-600 text-[#F4511E] shadow-sm'
+                ? 'bg-white dark:bg-slate-600 text-primary shadow-sm'
                 : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'
             }`}>
             <User className="w-3.5 h-3.5" />
@@ -64,7 +64,7 @@ export default function TaxInfoForm({
             onClick={() => onChange({ tax_type: 'corporate' })}
             className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 ${
               data.tax_type === 'corporate'
-                ? 'bg-white dark:bg-slate-600 text-[#F4511E] shadow-sm'
+                ? 'bg-white dark:bg-slate-600 text-primary shadow-sm'
                 : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'
             }`}>
             <Building2 className="w-3.5 h-3.5" />

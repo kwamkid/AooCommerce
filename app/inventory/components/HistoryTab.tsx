@@ -149,7 +149,7 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
     if (!referenceType) return <span className="text-gray-400 dark:text-slate-500">-</span>;
     if (referenceType === 'order') {
       return (
-        <span className="inline-flex items-center gap-1 text-[#F4511E] hover:text-[#D63B0E]">
+        <span className="inline-flex items-center gap-1 text-primary hover:text-primary-hover">
           <span className="text-xs">Order</span>
           {referenceId && (
             <a href={`/orders/${referenceId}`} className="text-xs underline inline-flex items-center gap-0.5">
@@ -224,7 +224,7 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
               value={search}
               onChange={e => handleSearch(e.target.value)}
               placeholder="ค้นหาสินค้า..."
-              className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+              className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
             />
           </div>
         </div>
@@ -232,7 +232,7 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
 
       {/* Table */}
       {loading ? (
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" /></div>
+        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
       ) : transactions.length === 0 ? (
         <div className="text-center py-16">
           <ArrowDownUp className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />

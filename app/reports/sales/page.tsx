@@ -256,7 +256,7 @@ export default function SalesReportPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังตรวจสอบสิทธิ์...</p>
         </div>
       </div>
@@ -270,7 +270,7 @@ export default function SalesReportPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <div className="flex items-center gap-3 mb-4 sm:mb-0">
-          <BarChart3 className="w-8 h-8 text-[#F4511E]" />
+          <BarChart3 className="w-8 h-8 text-primary" />
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">รายงานยอดขาย</h1>
             <p className="text-gray-600 dark:text-slate-400">วิเคราะห์ยอดขายตามช่วงเวลา</p>
@@ -280,7 +280,7 @@ export default function SalesReportPage() {
         <button
           onClick={exportToCSV}
           disabled={exporting || loading}
-          className="flex items-center gap-2 px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50"
         >
           {exporting ? (
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -388,7 +388,7 @@ export default function SalesReportPage() {
       <div className="data-table-wrap-shadow">
         {loading ? (
           <div className="p-8 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-[#F4511E]" />
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-primary" />
             <p className="text-gray-500 dark:text-slate-400">กำลังโหลดข้อมูล...</p>
           </div>
         ) : groupedData.length === 0 ? (

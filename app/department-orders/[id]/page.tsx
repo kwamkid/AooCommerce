@@ -322,11 +322,11 @@ export default function DepartmentOrderDetailPage() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-2">
-              <Building2 className="w-6 h-6 text-[#F4511E]" />
+              <Building2 className="w-6 h-6 text-primary" />
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                 {isViewOnly ? 'ใบส่งห้าง' : 'แก้ไขใบส่งห้าง'}
               </h1>
-              <span className="id-text text-[#F4511E]">{orderInfo.department_order_number}</span>
+              <span className="id-text text-primary">{orderInfo.department_order_number}</span>
               <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
                 {statusCfg.label}
               </span>

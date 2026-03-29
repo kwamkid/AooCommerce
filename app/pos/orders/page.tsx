@@ -219,7 +219,7 @@ function PosOrdersContent() {
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 onBlur={handleSearch}
                 placeholder="ค้นหาเลขที่บิล, ชื่อลูกค้า, เบอร์โทร..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
               />
             </div>
             <div className="flex items-center gap-2">
@@ -283,7 +283,7 @@ function PosOrdersContent() {
         {/* Orders list — full width, single column */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-[#F4511E]" />
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
         ) : orders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-gray-400">
@@ -338,7 +338,7 @@ export default function PosOrdersPage() {
     <Suspense fallback={
       <Layout>
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-[#F4511E]" />
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
         </div>
       </Layout>
     }>

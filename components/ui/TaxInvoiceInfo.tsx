@@ -54,7 +54,7 @@ export default function TaxInvoiceInfo({
                 <span>{billingAddress}</span>
                 {onEdit && (
                   <button type="button" onClick={() => setShowModal(true)}
-                    className="text-[#F4511E] hover:text-[#D63B0E] hover:underline transition-colors ml-1 flex-shrink-0">
+                    className="text-primary hover:text-primary-hover hover:underline transition-colors ml-1 flex-shrink-0">
                     แก้ไข
                   </button>
                 )}
@@ -62,7 +62,7 @@ export default function TaxInvoiceInfo({
             )}
             {!billingAddress && onEdit && (
               <button type="button" onClick={() => setShowModal(true)}
-                className="text-xs text-[#F4511E] hover:text-[#D63B0E] hover:underline transition-colors">
+                className="text-xs text-primary hover:text-primary-hover hover:underline transition-colors">
                 แก้ไข
               </button>
             )}
@@ -72,7 +72,7 @@ export default function TaxInvoiceInfo({
             <span className="text-orange-500 dark:text-orange-400">ยังไม่มีข้อมูลภาษี</span>
             {onEdit && (
               <button type="button" onClick={() => setShowModal(true)}
-                className="text-xs text-[#F4511E] hover:text-[#D63B0E] hover:underline transition-colors">
+                className="text-xs text-primary hover:text-primary-hover hover:underline transition-colors">
                 แก้ไข
               </button>
             )}

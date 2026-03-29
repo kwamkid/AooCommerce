@@ -139,7 +139,7 @@ export default function SearchableDropdown({
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder={searchPlaceholder || `ค้นหา${placeholder}...`}
-                className="w-full pl-8 pr-3 py-1.5 text-base border border-gray-200 dark:border-slate-600 rounded-md bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
+                className="w-full pl-8 pr-3 py-1.5 text-base border border-gray-200 dark:border-slate-600 rounded-md bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>
@@ -150,7 +150,7 @@ export default function SearchableDropdown({
               <button
                 onClick={() => handleSelect('all')}
                 className={`w-full flex items-center gap-3 px-3 py-2 text-base hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
-                  value === 'all' ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'
+                  value === 'all' ? 'bg-orange-50 dark:bg-orange-900/20 text-primary font-medium' : 'text-gray-700 dark:text-slate-300'
                 }`}
               >
                 <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
@@ -166,7 +166,7 @@ export default function SearchableDropdown({
                 key={o.id}
                 onClick={() => handleSelect(o.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2 text-base hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
-                  value === o.id ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'
+                  value === o.id ? 'bg-orange-50 dark:bg-orange-900/20 text-primary font-medium' : 'text-gray-700 dark:text-slate-300'
                 }`}
               >
                 {o.icon || (
@@ -194,7 +194,7 @@ export default function SearchableDropdown({
                   <button
                     onClick={() => handleSelect(o.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2 text-base hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
-                      value === o.id ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] font-medium' : 'text-gray-700 dark:text-slate-300'
+                      value === o.id ? 'bg-orange-50 dark:bg-orange-900/20 text-primary font-medium' : 'text-gray-700 dark:text-slate-300'
                     }`}
                   >
                     <div className="relative flex-shrink-0">

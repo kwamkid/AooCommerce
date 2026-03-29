@@ -261,7 +261,7 @@ export default function FeaturesPage() {
 
         {!featuresLoaded ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-7 h-7 animate-spin text-[#F4511E]" />
+            <Loader2 className="w-7 h-7 animate-spin text-primary" />
           </div>
         ) : (
           <>
@@ -281,7 +281,7 @@ export default function FeaturesPage() {
               return (
                 <div
                   key={feat.key}
-                  className={`card transition-all ${isEnabled ? 'ring-1 ring-[#F4511E]/20' : ''}`}
+                  className={`card transition-all ${isEnabled ? 'ring-1 ring-primary/20' : ''}`}
                 >
                   {/* Row: icon + label + toggle */}
                   <div className="flex items-center gap-4">
@@ -312,7 +312,7 @@ export default function FeaturesPage() {
                       disabled={!isOwnerOrAdmin}
                       onClick={() => toggleFeature(feat.key)}
                       className={`relative flex-shrink-0 inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        isEnabled ? 'bg-[#F4511E]' : 'bg-gray-300 dark:bg-slate-600'
+                        isEnabled ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
                       } ${!isOwnerOrAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -378,15 +378,15 @@ export default function FeaturesPage() {
                           disabled={!isOwnerOrAdmin}
                           className={`w-full flex flex-col gap-2 px-3 py-3 rounded-xl border-2 transition-all text-left outline-none focus:outline-none ${
                             isSelected
-                              ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20'
+                              ? 'border-primary bg-orange-50 dark:bg-orange-900/20'
                               : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
                           } ${!isOwnerOrAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <div className="flex items-center gap-2">
-                            <div className={`flex-shrink-0 ${isSelected ? 'text-[#F4511E]' : 'text-gray-400 dark:text-slate-500'}`}>{icon}</div>
-                            <span className={`text-base font-semibold flex-1 ${isSelected ? 'text-[#F4511E]' : 'text-gray-800 dark:text-slate-200'}`}>{label}</span>
+                            <div className={`flex-shrink-0 ${isSelected ? 'text-primary' : 'text-gray-400 dark:text-slate-500'}`}>{icon}</div>
+                            <span className={`text-base font-semibold flex-1 ${isSelected ? 'text-primary' : 'text-gray-800 dark:text-slate-200'}`}>{label}</span>
                             {isSelected && (
-                              <div className="w-4 h-4 bg-[#F4511E] rounded-full flex items-center justify-center flex-shrink-0">
+                              <div className="w-4 h-4 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
                                 <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
@@ -433,7 +433,7 @@ export default function FeaturesPage() {
                   type="button"
                   onClick={handleSave}
                   disabled={isSaving || !isDirty}
-                  className="px-6 py-2.5 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   บันทึก

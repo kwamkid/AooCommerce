@@ -44,7 +44,7 @@ export default function VariationPicker({ productName, variations, onSelect, onC
                 }`}
               >
                 <p className="text-gray-900 dark:text-white font-medium text-sm">{v.variation_label}</p>
-                <p className="text-[#F4511E] font-bold mt-1">฿{formatPrice(v.price)}</p>
+                <p className="text-primary font-bold mt-1">฿{formatPrice(v.price)}</p>
                 {noStockTracking ? null : (
                   <p className={`text-xs mt-1 ${outOfStock ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
                     {outOfStock ? 'หมด' : `คงเหลือ ${v.stock}`}

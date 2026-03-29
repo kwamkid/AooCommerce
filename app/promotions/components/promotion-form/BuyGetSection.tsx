@@ -52,7 +52,7 @@ export default function BuyGetSection({ hook }: Props) {
             {sub}
             <span className={sub ? 'ml-1' : ''}>| ฿{item.default_price.toLocaleString()}</span>
             {isBuyGetDiscount && item.special_price != null && item.special_price < item.default_price && (
-              <span className="ml-1 text-[#F4511E]">→ ฿{item.special_price.toLocaleString()}</span>
+              <span className="ml-1 text-primary">→ ฿{item.special_price.toLocaleString()}</span>
             )}
           </div>
         </div>
@@ -92,7 +92,7 @@ export default function BuyGetSection({ hook }: Props) {
           value={item.quantity}
           onChange={e => handleUpdateItem(item.key, 'quantity', Math.max(1, parseInt(e.target.value) || 1))}
           min={1}
-          className="w-16 h-[42px] px-2 text-right border border-gray-300 dark:border-slate-500 rounded-lg bg-transparent text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm"
+          className="w-16 h-[42px] px-2 text-right border border-gray-300 dark:border-slate-500 rounded-lg bg-transparent text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary text-sm"
         />
       )}
       <input
@@ -104,7 +104,7 @@ export default function BuyGetSection({ hook }: Props) {
         }}
         placeholder="ไม่จำกัด"
         min={0}
-        className="w-20 h-[42px] px-2 text-right border border-gray-300 dark:border-slate-500 rounded-lg bg-transparent text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-sm placeholder:text-gray-300 dark:placeholder:text-slate-600"
+        className="w-20 h-[42px] px-2 text-right border border-gray-300 dark:border-slate-500 rounded-lg bg-transparent text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary text-sm placeholder:text-gray-300 dark:placeholder:text-slate-600"
       />
     </>
   );

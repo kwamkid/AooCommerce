@@ -144,7 +144,7 @@ export default function PromotionReportPage() {
                 <Banknote className="w-4 h-4" />
                 <span className="text-sm">ยอดขายรวม</span>
               </div>
-              <p className="text-2xl font-bold text-[#F4511E]">฿{formatPrice(summary.total_sales)}</p>
+              <p className="text-2xl font-bold text-primary">฿{formatPrice(summary.total_sales)}</p>
             </div>
           </div>
         )}
@@ -207,7 +207,7 @@ export default function PromotionReportPage() {
                       <td className="px-4 py-3 text-right text-gray-900 dark:text-white font-medium">
                         {item.total_qty}
                       </td>
-                      <td className="px-4 py-3 text-right text-[#F4511E] font-bold">
+                      <td className="px-4 py-3 text-right text-primary font-bold">
                         ฿{formatPrice(item.total_sales)}
                       </td>
                     </tr>
@@ -255,7 +255,7 @@ export default function PromotionReportPage() {
                     </div>
                     <div className="text-right">
                       <div className="text-gray-500 dark:text-gray-400">ยอดขาย</div>
-                      <div className="font-bold text-[#F4511E]">฿{formatPrice(item.total_sales)}</div>
+                      <div className="font-bold text-primary">฿{formatPrice(item.total_sales)}</div>
                     </div>
                   </div>
                 </div>

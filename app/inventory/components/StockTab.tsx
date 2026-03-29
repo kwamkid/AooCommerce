@@ -403,7 +403,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
               value={searchInput}
               onChange={e => handleSearchInput(e.target.value)}
               placeholder="ค้นหาชื่อ, รหัส, SKU..."
-              className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+              className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
             />
           </div>
           {warehouses.length > 1 && (
@@ -425,7 +425,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             onClick={() => setParams({ hide_empty: hideEmpty ? null : '1' })}
             className={`h-[42px] px-2.5 border rounded-lg transition-colors flex items-center ${
               hideEmpty
-                ? 'border-[#F4511E] bg-[#F4511E]/10 text-[#F4511E]'
+                ? 'border-primary bg-primary/10 text-primary'
                 : 'border-gray-300 dark:border-slate-500 text-gray-400 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700/50'
             }`}
             title={hideEmpty ? 'แสดงสินค้าหมด/ว่าง' : 'ซ่อนสินค้าหมด/ว่าง'}
@@ -506,7 +506,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
               onClick={() => setParams({ stock: opt.value === 'all' ? null : opt.value })}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                 stockFilter === opt.value
-                  ? 'bg-[#F4511E] text-white'
+                  ? 'bg-primary text-white'
                   : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
               }`}
             >
@@ -566,7 +566,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
 
       {/* Table */}
       {loading ? (
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" /></div>
+        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
       ) : displayedItems.length === 0 ? (
         <div className="text-center py-16">
           <Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
@@ -705,7 +705,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 onClick={() => openAdjustModal(item)}
-                                className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-[#F4511E]/10 rounded-lg transition-colors"
+                                className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                                 title="ปรับ stock"
                               >
                                 <Pencil className="w-4 h-4" />
@@ -826,7 +826,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => openAdjustModal(item)}
-                              className="p-1.5 text-gray-400 hover:text-[#F4511E] hover:bg-[#F4511E]/10 rounded-lg transition-colors"
+                              className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                               title="ปรับ stock"
                             >
                               <Pencil className="w-4 h-4" />

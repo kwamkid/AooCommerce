@@ -35,7 +35,7 @@ export default function BrandsPage() {
     <Suspense fallback={
       <Layout title="แบรนด์" breadcrumbs={[{ label: 'ตั้งค่าระบบ', href: '/settings' }, { label: 'แบรนด์' }]}>
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-6 h-6 text-primary animate-spin" />
         </div>
       </Layout>
     }>
@@ -272,7 +272,7 @@ function BrandsPageInner() {
       <div className="max-w-3xl">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
         ) : (
           <div className="space-y-4">
@@ -289,7 +289,7 @@ function BrandsPageInner() {
                 value={searchInput}
                 onChange={e => handleSearchChange(e.target.value)}
                 placeholder="ค้นหาแบรนด์..."
-                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               />
             </div>
 
@@ -297,8 +297,8 @@ function BrandsPageInner() {
             {filteredBrands.map(brand => (
               <div key={brand.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
                 <div className="flex items-center gap-3 p-4">
-                  <div className="w-8 h-8 rounded-lg bg-[#F4511E]/10 flex items-center justify-center flex-shrink-0">
-                    <Award className="w-4 h-4 text-[#F4511E]" />
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Award className="w-4 h-4 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
                     {editingId === brand.id ? (
@@ -310,7 +310,7 @@ function BrandsPageInner() {
                             onChange={e => setEditingName(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') cancelEdit(); }}
                             placeholder="ชื่อแบรนด์"
-                            className="w-40 pl-3 pr-2 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                            className="w-40 pl-3 pr-2 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                             autoFocus
                           />
                           {features.supplier && (
@@ -323,7 +323,7 @@ function BrandsPageInner() {
                                 placeholder="ค้นหา Supplier..."
                                 selectedDisplay={
                                   editingSupplierId ? (
-                                    <div className="flex items-center gap-2 px-3 py-2.5 border border-[#F4511E]/30 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-base">
+                                    <div className="flex items-center gap-2 px-3 py-2.5 border border-primary/30 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-base">
                                       <Factory className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                                       <span className="truncate text-gray-900 dark:text-slate-200">{suppliers.find(s => s.id === editingSupplierId)?.name}</span>
                                     </div>
@@ -349,18 +349,18 @@ function BrandsPageInner() {
                                 value={editingGpRate}
                                 onChange={e => setEditingGpRate(e.target.value)}
                                 placeholder="เช่น 30"
-                                className="w-20 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-right bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
+                                className="w-20 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-right bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
                               />
                               <span className="text-xs text-gray-400">%</span>
                             </div>
                             <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">คิดจากราคา:</span>
                             <div className="flex items-center gap-2 text-sm">
                               <label className="flex items-center gap-1 cursor-pointer">
-                                <input type="radio" name={`gpbase_${brand.id}`} checked={editingGpBase === 'retail'} onChange={() => setEditingGpBase('retail')} className="accent-[#F4511E]" />
+                                <input type="radio" name={`gpbase_${brand.id}`} checked={editingGpBase === 'retail'} onChange={() => setEditingGpBase('retail')} className="accent-primary" />
                                 <span className="text-gray-700 dark:text-slate-300 text-xs">ราคาปลีก</span>
                               </label>
                               <label className="flex items-center gap-1 cursor-pointer">
-                                <input type="radio" name={`gpbase_${brand.id}`} checked={editingGpBase === 'discounted'} onChange={() => setEditingGpBase('discounted')} className="accent-[#F4511E]" />
+                                <input type="radio" name={`gpbase_${brand.id}`} checked={editingGpBase === 'discounted'} onChange={() => setEditingGpBase('discounted')} className="accent-primary" />
                                 <span className="text-gray-700 dark:text-slate-300 text-xs">ราคาลด</span>
                               </label>
                             </div>
@@ -369,7 +369,7 @@ function BrandsPageInner() {
                       </div>
                     ) : (
                       <div className="flex items-center gap-3">
-                        <Link href={`/settings/brands/${brand.id}`} className="font-medium text-gray-900 dark:text-white hover:text-[#F4511E] dark:hover:text-[#F4511E] transition-colors">
+                        <Link href={`/settings/brands/${brand.id}`} className="font-medium text-gray-900 dark:text-white hover:text-primary dark:hover:text-primary transition-colors">
                           {brand.name}
                         </Link>
                         {features.supplier && brand.supplier && (
@@ -400,7 +400,7 @@ function BrandsPageInner() {
                       </button>
                       <Link
                         href={`/settings/brands/${brand.id}`}
-                        className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
+                        className="p-1.5 text-gray-400 hover:text-primary transition-colors"
                         title="ดูรายละเอียด"
                       >
                         <ChevronRight className="w-4 h-4" />
@@ -415,7 +415,7 @@ function BrandsPageInner() {
             {showAddForm ? (
               <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
                 <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
-                  <Award className="w-4 h-4 text-[#F4511E]" />
+                  <Award className="w-4 h-4 text-primary" />
                   เพิ่มแบรนด์
                 </div>
                 <div>
@@ -426,7 +426,7 @@ function BrandsPageInner() {
                     onChange={e => setAddName(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') resetAddForm(); }}
                     placeholder="เช่น Nike, Samsung"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                     autoFocus
                   />
                 </div>
@@ -434,7 +434,7 @@ function BrandsPageInner() {
                   <button
                     onClick={handleAdd}
                     disabled={saving}
-                    className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                    className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
                   >
                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                     บันทึก
@@ -450,7 +450,7 @@ function BrandsPageInner() {
             ) : (
               <button
                 onClick={() => { cancelEdit(); setShowAddForm(true); }}
-                className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
                 เพิ่ม<span className="hidden md:inline">แบรนด์</span>

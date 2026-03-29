@@ -521,7 +521,7 @@ function DeptStoreReportsContent() {
         key: 'print_all',
         label: isPrinting ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
         icon: isPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
-        className: 'text-[#F4511E] font-medium',
+        className: 'text-primary font-medium',
         onClick: () => handlePrintAll(report),
         disabled: isPrinting,
       });
@@ -610,7 +610,7 @@ function DeptStoreReportsContent() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Building2 className="w-8 h-8 text-[#F4511E]" />
+            <Building2 className="w-8 h-8 text-primary" />
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">ยอดขายห้าง</h1>
           </div>
           <div className="flex items-center gap-2">
@@ -624,7 +624,7 @@ function DeptStoreReportsContent() {
             </button>
             <Link
               href="/department-store/reports/new"
-              className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2"
+              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />
               คีย์ยอดห้าง
@@ -731,7 +731,7 @@ function DeptStoreReportsContent() {
               key: 'docs', label: 'เอกสาร', headerClassName: 'whitespace-nowrap', cellClassName: 'whitespace-nowrap',
               render: (r) => r.doc_number || r.statement_number ? (
                 <div className="space-y-0.5">
-                  {r.doc_number && <p className="font-mono text-xs text-[#F4511E]">{r.doc_number}</p>}
+                  {r.doc_number && <p className="font-mono text-xs text-primary">{r.doc_number}</p>}
                   {r.statement_number && <p className="font-mono text-xs text-indigo-600 dark:text-indigo-400">{r.statement_number}</p>}
                 </div>
               ) : <span className="text-xs text-gray-300 dark:text-slate-600">-</span>,
@@ -837,7 +837,7 @@ function DeptStoreReportsContent() {
             <p>ยืนยัน &quot;พร้อมวางบิล&quot; ของ <span className="font-semibold">{billConfirm.customer?.name || '-'}</span></p>
             <p>รายงาน <span className="font-semibold">{billConfirm.report_number}</span></p>
             <p>งวด <span className="font-semibold">{formatPeriod(billConfirm.period_year, billConfirm.period_month)}</span></p>
-            <p>จำนวน <span className="font-semibold text-[#F4511E]">฿{formatAmount(billConfirm.our_amount)}</span></p>
+            <p>จำนวน <span className="font-semibold text-primary">฿{formatAmount(billConfirm.our_amount)}</span></p>
             <p className="text-sm text-gray-400 dark:text-slate-500 mt-2">ระบบจะหักสต๊อก + ออกใบแจ้งหนี้ (INV) และใบวางบิล (ST) อัตโนมัติ</p>
           </div>
         )}
@@ -848,7 +848,7 @@ function DeptStoreReportsContent() {
         open={!!paymentConfirm}
         onClose={() => !paymentLoading && setPaymentConfirm(null)}
         onConfirm={() => paymentConfirm && handleRecordPayment(paymentConfirm)}
-        icon={<Banknote className="w-6 h-6 text-[#F4511E]" />}
+        icon={<Banknote className="w-6 h-6 text-primary" />}
         title="ลูกค้าชำระแล้ว"
         confirmLabel={paymentLoading ? 'กำลังบันทึก...' : 'ยืนยันการชำระ'}
         confirmIcon={paymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
@@ -859,7 +859,7 @@ function DeptStoreReportsContent() {
             <p>ยืนยันการชำระเงินของ <span className="font-semibold">{paymentConfirm.customer?.name || '-'}</span></p>
             <p>รายงาน <span className="font-semibold">{paymentConfirm.report_number}</span></p>
             <p>งวด <span className="font-semibold">{formatPeriod(paymentConfirm.period_year, paymentConfirm.period_month)}</span></p>
-            <p>จำนวน <span className="font-semibold text-[#F4511E]">฿{formatAmount(paymentConfirm.our_amount)}</span></p>
+            <p>จำนวน <span className="font-semibold text-primary">฿{formatAmount(paymentConfirm.our_amount)}</span></p>
             <p className="text-sm text-gray-400 dark:text-slate-500 mt-2">ระบบจะออกใบกำกับภาษี/ใบเสร็จรับเงินอัตโนมัติ</p>
           </div>
         )}
@@ -918,7 +918,7 @@ export default function DeptStoreReportsPage() {
     <Suspense fallback={
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     }>

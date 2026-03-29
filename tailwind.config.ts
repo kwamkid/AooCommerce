@@ -16,8 +16,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        primary: '#F4511E',
+        primary: {
+          DEFAULT: '#F4511E',
+          hover: '#E64A19',
+        },
         secondary: '#1A1A2E',
+        shopee: '#EE4D2D',
+        line: '#06C755',
+        facebook: {
+          DEFAULT: '#1877F2',
+          hover: '#1565C0',
+        },
       },
       fontFamily: {
         sans: ['IBM Plex Sans Thai', 'sans-serif'],

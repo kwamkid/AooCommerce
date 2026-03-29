@@ -61,7 +61,7 @@ export default function QtyDiscountSection({ hook }: Props) {
           <h2 className="text-base font-semibold text-gray-700 dark:text-slate-300">ขั้นส่วนลด</h2>
           <button
             onClick={handleAddTier}
-            className="flex items-center gap-1 px-3 py-1.5 text-base font-medium text-[#F4511E] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+            className="flex items-center gap-1 px-3 py-1.5 text-base font-medium text-primary hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             เพิ่มขั้น
@@ -85,7 +85,7 @@ export default function QtyDiscountSection({ hook }: Props) {
                   value={tier.min_qty}
                   onChange={e => handleUpdateTier(tier.key, 'min_qty', Math.max(1, parseInt(e.target.value) || 1))}
                   min={1}
-                  className="w-20 h-[34px] px-2 text-center border border-gray-300 dark:border-slate-500 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                  className="w-20 h-[34px] px-2 text-center border border-gray-300 dark:border-slate-500 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <span className="text-base text-gray-500 dark:text-slate-400">ชิ้น</span>
                 <div className="w-40">
@@ -102,7 +102,7 @@ export default function QtyDiscountSection({ hook }: Props) {
                   onChange={e => handleUpdateTier(tier.key, 'discount_value', parseFloat(e.target.value) || 0)}
                   min={0}
                   placeholder="0"
-                  className="w-24 h-[34px] px-2 text-right border border-gray-300 dark:border-slate-500 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                  className="w-24 h-[34px] px-2 text-right border border-gray-300 dark:border-slate-500 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <button
                   onClick={() => handleRemoveTier(tier.key)}

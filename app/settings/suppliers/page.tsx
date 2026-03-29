@@ -228,7 +228,7 @@ export default function SuppliersPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -241,7 +241,7 @@ export default function SuppliersPage() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
-              <Factory className="w-8 h-8 mr-3 text-[#F4511E]" />
+              <Factory className="w-8 h-8 mr-3 text-primary" />
               ซัพพลายเออร์
             </h1>
             <p className="text-gray-600 dark:text-slate-400 mt-1">จัดการข้อมูลซัพพลายเออร์และผู้จัดจำหน่าย</p>
@@ -249,7 +249,7 @@ export default function SuppliersPage() {
 
           <button
             onClick={() => router.push('/settings/suppliers/new')}
-            className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center font-medium"
+            className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center font-medium"
           >
             <Plus className="w-5 h-5 mr-2" />
             เพิ่ม<span className="hidden md:inline">ซัพพลายเออร์</span>
@@ -506,7 +506,7 @@ export default function SuppliersPage() {
           open={!!regenerateTarget}
           onClose={() => setRegenerateTarget(null)}
           onConfirm={() => { if (regenerateTarget) handleRegenerateCode(regenerateTarget); setRegenerateTarget(null); }}
-          icon={<RefreshCw className="w-6 h-6 text-[#F4511E]" />}
+          icon={<RefreshCw className="w-6 h-6 text-primary" />}
           title="สร้างรหัส Portal ใหม่?"
           description="รหัสเดิมจะถูกยกเลิกทันที ซัพพลายเออร์ต้องใช้รหัสใหม่ในการเข้า Portal"
           confirmLabel="สร้างรหัสใหม่"
@@ -545,7 +545,7 @@ export default function SuppliersPage() {
             {searchTerm ? (
               <p className="text-gray-400 text-sm mt-2">ลองค้นหาด้วยคำอื่น</p>
             ) : (
-              <button onClick={() => router.push('/settings/suppliers/new')} className="mt-3 text-sm text-[#F4511E] hover:underline">
+              <button onClick={() => router.push('/settings/suppliers/new')} className="mt-3 text-sm text-primary hover:underline">
                 เพิ่มซัพพลายเออร์ตัวแรก
               </button>
             )}

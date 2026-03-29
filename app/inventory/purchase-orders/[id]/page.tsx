@@ -244,7 +244,7 @@ export default function PurchaseOrderDetailPage() {
 
   // ─── Loading ───
   if (authLoading || loading) {
-    return <Layout><div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" /></div></Layout>;
+    return <Layout><div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div></Layout>;
   }
   if (!po) return null;
 
@@ -311,7 +311,7 @@ export default function PurchaseOrderDetailPage() {
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5"><FileText className="w-4 h-4 inline mr-1.5 -mt-0.5" /> หมายเหตุ</label>
               <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3} placeholder="หมายเหตุสำหรับ PO นี้..."
-                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500" />
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500" />
             </div>
           )
         ) : po.notes ? (
@@ -329,7 +329,7 @@ export default function PurchaseOrderDetailPage() {
         {isEditable && (
           <div className="flex justify-end gap-3 pb-4">
             <button type="button" onClick={handleSave} disabled={!canSave}
-              className="bg-[#F4511E] text-white px-5 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
+              className="bg-primary text-white px-5 py-2.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
               {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> กำลังบันทึก...</> : <><Save className="w-4 h-4" /> บันทึก</>}
             </button>
           </div>

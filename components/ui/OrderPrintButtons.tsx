@@ -214,7 +214,7 @@ export default function OrderPrintButtons({
   visibleTypes.push({ key: 'label', label: 'ใบปะหน้า', icon: Package });
 
   if (!isRetail) {
-    visibleTypes.push({ key: 'all', label: 'พิมพ์ทั้งหมด', icon: Printer, color: 'text-[#F4511E] font-medium' });
+    visibleTypes.push({ key: 'all', label: 'พิมพ์ทั้งหมด', icon: Printer, color: 'text-primary font-medium' });
   }
 
   const handlePrint = async (type: PrintType) => {
@@ -284,7 +284,7 @@ export function getPrintMenuItems(
     items.push({ key: 'print_dn', label: 'ใบส่งสินค้า', icon: <FileText className="w-4 h-4" />, onClick: () => onPrint(orderId, 'dn') });
     items.push({
       key: 'print_all', label: 'พิมพ์ทั้งหมด', icon: <Printer className="w-4 h-4" />,
-      className: 'text-[#F4511E] font-medium',
+      className: 'text-primary font-medium',
       onClick: () => onPrint(orderId, 'all'),
     });
   }

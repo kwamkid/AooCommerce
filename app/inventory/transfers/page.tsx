@@ -214,7 +214,7 @@ export default function TransferListPage() {
         breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการโอนย้าย' }]}
       >
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-6 h-6 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -264,7 +264,7 @@ export default function TransferListPage() {
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="ค้นหา..."
-              className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+              className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:ring-2 focus:ring-primary/50 focus:border-primary"
             />
           </div>
           {warehouses.length > 1 && (
@@ -291,7 +291,7 @@ export default function TransferListPage() {
           )}
           <button
             onClick={() => router.push('/inventory/transfer')}
-            className="bg-[#F4511E] text-white p-2.5 md:px-4 md:py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap flex-shrink-0"
+            className="bg-primary text-white p-2.5 md:px-4 md:py-2.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap flex-shrink-0"
             title="สร้างใบโอนย้าย"
           >
             <Plus className="w-4 h-4" />

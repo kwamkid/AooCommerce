@@ -66,7 +66,7 @@ export default function FormFooter({ hook }: Props) {
       <button
         onClick={handleSubmit}
         disabled={saving}
-        className="flex items-center gap-2 px-5 py-2.5 text-base font-medium text-white bg-[#F4511E] rounded-lg hover:bg-[#E64A19] disabled:opacity-50 transition-colors"
+        className="flex items-center gap-2 px-5 py-2.5 text-base font-medium text-white bg-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
       >
         <Save className="w-4 h-4" />
         {saving ? 'กำลังบันทึก...' : 'บันทึก'}

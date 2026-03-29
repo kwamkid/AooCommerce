@@ -396,7 +396,7 @@ export default function UsersPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังตรวจสอบสิทธิ์...</p>
         </div>
       </div>
@@ -413,7 +413,7 @@ export default function UsersPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังโหลดข้อมูล...</p>
         </div>
       </div>
@@ -432,7 +432,7 @@ export default function UsersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center space-x-3">
-          <Shield className="w-8 h-8 text-[#F4511E]" />
+          <Shield className="w-8 h-8 text-primary" />
           <div>
             <p className="text-sm text-gray-500 dark:text-slate-400">จำนวนผู้ใช้ทั้งหมด</p>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">{users.length} คน</p>
@@ -452,7 +452,7 @@ export default function UsersPage() {
             });
             setShowModal(true);
           }}
-          className="flex items-center px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#F4511E]/90 font-medium transition-colors"
+          className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 font-medium transition-colors"
         >
           <Plus className="w-5 h-5 mr-2" />
           เพิ่ม<span className="hidden md:inline">ผู้ใช้ใหม่</span>
@@ -505,8 +505,8 @@ export default function UsersPage() {
             render: (user) => (
               <div className="flex items-center">
                 <div className="flex-shrink-0 h-10 w-10">
-                  <div className="h-10 w-10 rounded-full bg-[#F4511E]/20 flex items-center justify-center">
-                    <span className="text-[#F4511E] font-semibold">
+                  <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                    <span className="text-primary font-semibold">
                       {user.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -572,7 +572,7 @@ export default function UsersPage() {
               <div className="flex justify-end space-x-2">
                 <button
                   onClick={() => handleEditUser(user)}
-                  className="text-[#F4511E] hover:text-[#F4511E]/80 p-1"
+                  className="text-primary hover:text-primary/80 p-1"
                   title="แก้ไข"
                 >
                   <Edit2 className="w-4 h-4" />
@@ -683,7 +683,7 @@ export default function UsersPage() {
                       type="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                       required
                       disabled={!!editingUser}
                       placeholder="user@company.com"
@@ -698,7 +698,7 @@ export default function UsersPage() {
                       type="text"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                       required
                     />
                   </div>
@@ -712,7 +712,7 @@ export default function UsersPage() {
                         type="password"
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                         required
                         minLength={6}
                       />
@@ -749,7 +749,7 @@ export default function UsersPage() {
                       type="tel"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                       placeholder="0812345678"
                     />
                   </div>
@@ -770,7 +770,7 @@ export default function UsersPage() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#F4511E]/90 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                   >
                     {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                     {editingUser ? 'บันทึก' : 'เพิ่มผู้ใช้'}

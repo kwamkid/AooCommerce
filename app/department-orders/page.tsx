@@ -791,7 +791,7 @@ function DepartmentOrdersContent() {
           key: 'all',
           label: isPrinting && printingType === 'all' ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
           icon: isPrinting && printingType === 'all' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
-          className: 'text-[#F4511E] font-medium',
+          className: 'text-primary font-medium',
           onClick: () => handlePrintAll(r.id, true),
           disabled: isPrinting,
         },
@@ -826,7 +826,7 @@ function DepartmentOrdersContent() {
           key: 'taxdn',
           label: isPrinting && printingType === 'taxdn' ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
           icon: isPrinting && printingType === 'taxdn' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
-          className: 'text-[#F4511E] font-medium',
+          className: 'text-primary font-medium',
           onClick: () => handlePrintTaxDn(r.id),
           disabled: isPrinting,
         },
@@ -880,7 +880,7 @@ function DepartmentOrdersContent() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Building2 className="w-8 h-8 text-[#F4511E]" />
+            <Building2 className="w-8 h-8 text-primary" />
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">ส่งห้าง</h1>
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">Department Store Orders</p>
@@ -902,7 +902,7 @@ function DepartmentOrdersContent() {
             </button>
             <button
               onClick={() => router.push('/department-orders/new')}
-              className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2"
+              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2"
             >
               <Plus className="w-4 h-4" /> สร้างใบส่งห้าง
             </button>

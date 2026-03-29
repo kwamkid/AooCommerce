@@ -301,7 +301,7 @@ export default function EntitySearchInput({
     }
 
     return (
-      <div ref={containerRef} className="flex items-center gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg">
+      <div ref={containerRef} className="flex items-center gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-primary/30 rounded-lg">
         {selected.icon && <span className="flex-shrink-0">{selected.icon}</span>}
         <div className="flex-1 min-w-0">
           <div className="text-base font-medium text-gray-900 dark:text-slate-200 truncate">{selected.label}</div>
@@ -309,7 +309,7 @@ export default function EntitySearchInput({
             <div className="text-xs text-gray-500 dark:text-slate-400 truncate">{selected.subtitle}</div>
           )}
         </div>
-        <Check className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
+        <Check className="w-4 h-4 text-primary flex-shrink-0" />
         {!disabled && onClear && (
           <button
             type="button"
@@ -352,7 +352,7 @@ export default function EntitySearchInput({
           placeholder={placeholder}
           disabled={disabled}
           autoFocus={autoFocus}
-          className={`w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] transition-colors ${
+          className={`w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors ${
             disabled ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         />
@@ -388,7 +388,7 @@ export default function EntitySearchInput({
                   placeholder={placeholder}
                   autoComplete="off"
                   autoCorrect="off"
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                 />
               </div>
               <button

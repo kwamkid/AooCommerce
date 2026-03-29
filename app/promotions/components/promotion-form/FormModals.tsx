@@ -91,7 +91,7 @@ export default function FormModals({ hook }: Props) {
               <button
                 type="button"
                 onClick={confirmDialog.onConfirm}
-                className="px-4 py-2 text-sm font-medium text-white bg-[#F4511E] rounded-lg hover:bg-[#E64A19] transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-hover transition-colors"
               >
                 {confirmDialog.confirmLabel || 'ยืนยัน'}
               </button>
@@ -175,7 +175,7 @@ export default function FormModals({ hook }: Props) {
                     return hasNewPlatforms ? (
                       <button
                         onClick={() => { setShowSyncConfirm(false); setSyncResults(null); setShowPushModal(true); }}
-                        className="flex items-center gap-2 px-4 py-2 text-base font-medium text-[#F4511E] bg-white dark:bg-slate-700 border border-[#F4511E] rounded-lg hover:bg-orange-50 dark:hover:bg-slate-600 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 text-base font-medium text-primary bg-white dark:bg-slate-700 border border-primary rounded-lg hover:bg-orange-50 dark:hover:bg-slate-600 transition-colors"
                       >
                         <Send className="w-4 h-4" />
                         Push ร้านใหม่
@@ -184,7 +184,7 @@ export default function FormModals({ hook }: Props) {
                   })()}
                   <button
                     onClick={() => { setShowSyncConfirm(false); setSyncResults(null); router.push('/promotions'); }}
-                    className="px-5 py-2 text-base font-medium text-white bg-[#F4511E] rounded-lg hover:bg-[#E64A19] transition-colors"
+                    className="px-5 py-2 text-base font-medium text-white bg-primary rounded-lg hover:bg-primary-hover transition-colors"
                   >
                     ตกลง
                   </button>
@@ -273,7 +273,7 @@ export default function FormModals({ hook }: Props) {
                           }
                         }}
                         disabled={syncingShopee}
-                        className="flex items-center gap-2 px-4 py-2 text-base font-medium text-white bg-[#F4511E] rounded-lg hover:bg-[#E64A19] disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 text-base font-medium text-white bg-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
                       >
                         {syncingShopee ? (
                           <>
@@ -315,7 +315,7 @@ export default function FormModals({ hook }: Props) {
               onClick={() => { setSavedPromotionId(promotionId || null); setShowSyncConfirm(true); }}
               disabled={syncingShopee || !hasLocalChanges}
               title={!hasLocalChanges ? 'ไม่มีการเปลี่ยนแปลงที่ต้อง sync' : undefined}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#F4511E] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${syncingShopee ? 'animate-spin' : ''}`} />
               Sync ตอนนี้

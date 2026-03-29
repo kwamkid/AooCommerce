@@ -112,7 +112,7 @@ function RegisterForm() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังตรวจสอบ...</p>
         </div>
       </div>
@@ -134,8 +134,8 @@ function RegisterForm() {
         <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-5 sm:p-8 border border-white/10">
           {/* Invite Token Notice */}
           {inviteToken && (
-            <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-[#F4511E]/10 rounded-lg">
-              <p className="text-sm text-[#F4511E]">คุณได้รับคำเชิญเข้าร่วมบริษัท สมัครสมาชิกเพื่อตอบรับคำเชิญ</p>
+            <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-primary/10 rounded-lg">
+              <p className="text-sm text-primary">คุณได้รับคำเชิญเข้าร่วมบริษัท สมัครสมาชิกเพื่อตอบรับคำเชิญ</p>
             </div>
           )}
 
@@ -203,7 +203,7 @@ function RegisterForm() {
                     setFormData({ ...formData, name: e.target.value });
                     setValidationErrors({ ...validationErrors, name: '' });
                   }}
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                   placeholder="ชื่อของคุณ"
                   disabled={isLoading}
                 />
@@ -227,7 +227,7 @@ function RegisterForm() {
                     setFormData({ ...formData, email: e.target.value });
                     setValidationErrors({ ...validationErrors, email: '' });
                   }}
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                   placeholder="your@email.com"
                   disabled={isLoading}
                 />
@@ -251,7 +251,7 @@ function RegisterForm() {
                     setFormData({ ...formData, password: e.target.value });
                     setValidationErrors({ ...validationErrors, password: '' });
                   }}
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                   placeholder="อย่างน้อย 6 ตัวอักษร"
                   disabled={isLoading}
                 />
@@ -275,7 +275,7 @@ function RegisterForm() {
                     setFormData({ ...formData, confirmPassword: e.target.value });
                     setValidationErrors({ ...validationErrors, confirmPassword: '' });
                   }}
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                   placeholder="ยืนยันรหัสผ่านอีกครั้ง"
                   disabled={isLoading}
                 />
@@ -289,7 +289,7 @@ function RegisterForm() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
               {isLoading ? (
                 <>
@@ -305,7 +305,7 @@ function RegisterForm() {
           {/* Login Link */}
           <p className="text-center text-sm text-gray-400 mt-4 sm:mt-6">
             มีบัญชีอยู่แล้ว?{' '}
-            <Link href="/login" className="text-[#F4511E] hover:text-[#F4511E]/80 font-medium transition-colors">
+            <Link href="/login" className="text-primary hover:text-primary/80 font-medium transition-colors">
               เข้าสู่ระบบ
             </Link>
           </p>
@@ -321,7 +321,7 @@ export default function RegisterPage() {
       fallback={
         <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
           <div className="text-center">
-            <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-white">กำลังโหลด...</p>
           </div>
         </div>

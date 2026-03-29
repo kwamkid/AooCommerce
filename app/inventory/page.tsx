@@ -44,7 +44,7 @@ export default function InventoryPage() {
   const tabClass = (tab: TabKey) =>
     `flex items-center gap-2 px-4 py-2.5 text-base font-medium border-b-2 transition-colors ${
       activeTab === tab
-        ? 'border-[#F4511E] text-[#F4511E]'
+        ? 'border-primary text-primary'
         : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
     }`;
 
@@ -55,13 +55,13 @@ export default function InventoryPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <Package2 className="w-8 h-8 text-[#F4511E]" />
+              <Package2 className="w-8 h-8 text-primary" />
               สินค้าคงคลัง
             </h1>
             <p className="text-gray-600 dark:text-slate-400 mt-1 hidden md:block">จัดการสต็อกสินค้าและดูประวัติการเคลื่อนไหว</p>
           </div>
           <div className="flex gap-2">
-            <Link href="/inventory/receive" className="flex items-center gap-2 px-3 md:px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white rounded-lg text-sm font-medium transition-colors" title="รับเข้า">
+            <Link href="/inventory/receive" className="flex items-center gap-2 px-3 md:px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-medium transition-colors" title="รับเข้า">
               <ArrowDownToLine className="w-4 h-4" /> <span className="hidden md:inline">รับเข้า</span>
             </Link>
             <Link href="/inventory/issue" className="flex items-center gap-2 px-3 md:px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg text-sm font-medium transition-colors" title="เบิกออก">

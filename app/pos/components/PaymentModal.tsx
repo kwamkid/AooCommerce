@@ -140,7 +140,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
         <div className="bg-white dark:bg-[#1E293B] rounded-2xl p-8 shadow-xl dark:shadow-none">
-          <Loader2 className="w-8 h-8 animate-spin text-[#F4511E] mx-auto" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
           <p className="text-gray-500 dark:text-gray-400 mt-3 text-sm">กำลังโหลดช่องทางชำระเงิน...</p>
         </div>
       </div>
@@ -175,7 +175,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
           <p className="text-gray-500 dark:text-gray-400 text-sm text-center mb-4">สร้างช่องทางเริ่มต้น (เงินสด, โอนเงิน) เพื่อเริ่มใช้งาน</p>
           <button
             onClick={handleCreateDefaultChannels}
-            className="w-full py-3 bg-[#F4511E] hover:bg-[#D63B0E] text-white font-medium rounded-xl mb-2 flex items-center justify-center gap-2"
+            className="w-full py-3 bg-primary hover:bg-primary-hover text-white font-medium rounded-xl mb-2 flex items-center justify-center gap-2"
           >
             สร้างช่องทางชำระเงิน
           </button>
@@ -202,7 +202,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
         {/* Total */}
         <div className="text-center mb-6">
           <p className="text-gray-500 dark:text-gray-400 text-sm">ยอดรวม</p>
-          <p className="text-3xl font-bold text-[#F4511E]">฿{formatPrice(totalAmount)}</p>
+          <p className="text-3xl font-bold text-primary">฿{formatPrice(totalAmount)}</p>
         </div>
 
         {!splitMode ? (
@@ -215,7 +215,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
                   onClick={() => { setSelectedChannel(ch); setCashInput(''); setRefInput(''); }}
                   className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
                     selectedChannel?.id === ch.id
-                      ? 'bg-[#F4511E] text-white'
+                      ? 'bg-primary text-white'
                       : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/20'
                   }`}
                 >
@@ -234,7 +234,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
                     value={cashInput}
                     onChange={(e) => setCashInput(e.target.value)}
                     placeholder={formatPrice(totalAmount)}
-                    className="w-full px-4 py-3 bg-gray-50 dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-xl text-center font-bold focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-xl text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary"
                     autoFocus
                   />
                 </div>
@@ -252,7 +252,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
                   ))}
                   <button
                     onClick={() => setCashInput(String(totalAmount))}
-                    className="px-4 py-2 bg-[#F4511E]/10 dark:bg-[#F4511E]/20 rounded-lg text-[#F4511E] text-sm hover:bg-[#F4511E]/20 dark:hover:bg-[#F4511E]/30 active:scale-95"
+                    className="px-4 py-2 bg-primary/10 dark:bg-primary/20 rounded-lg text-primary text-sm hover:bg-primary/20 dark:hover:bg-primary/30 active:scale-95"
                   >
                     พอดี
                   </button>
@@ -313,7 +313,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
                     value={refInput}
                     onChange={(e) => setRefInput(e.target.value)}
                     placeholder="เลข Ref, Approval code..."
-                    className="w-full px-4 py-3 bg-gray-50 dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               </div>
@@ -331,7 +331,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
             <button
               onClick={handleConfirmSingle}
               disabled={!canConfirmSingle || loading}
-              className="w-full mt-3 py-4 bg-[#F4511E] hover:bg-[#D63B0E] text-white font-bold text-lg rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full mt-3 py-4 bg-primary hover:bg-primary-hover text-white font-bold text-lg rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <><Loader2 className="w-5 h-5 animate-spin" /> กำลังดำเนินการ...</>
@@ -364,7 +364,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
                     value={t.amount || ''}
                     onChange={(e) => updateSplitTender(idx, 'amount', Number(e.target.value) || 0)}
                     placeholder="จำนวนเงิน"
-                    className="flex-1 px-3 py-1.5 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-sm text-right focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
+                    className="flex-1 px-3 py-1.5 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-sm text-right focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                   <button onClick={() => removeSplitTender(idx)} className="text-gray-400 hover:text-red-500 dark:hover:text-red-400">
                     <Trash2 className="w-4 h-4" />
@@ -399,7 +399,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
               <button
                 onClick={() => onConfirm(tenders)}
                 disabled={!canConfirmSplit || loading}
-                className="flex-1 py-3 bg-[#F4511E] hover:bg-[#D63B0E] text-white font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'ยืนยัน'}
               </button>

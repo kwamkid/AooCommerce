@@ -236,7 +236,7 @@ export default function ShopeeLogsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <ScrollText className="w-8 h-8 text-[#F4511E]" />
+              <ScrollText className="w-8 h-8 text-primary" />
               Shopee Logs
             </h1>
             <p className="text-gray-600 dark:text-slate-400 mt-1">ประวัติการเชื่อมต่อกับ Shopee</p>
@@ -257,7 +257,7 @@ export default function ShopeeLogsPage() {
             onClick={() => { setStatusFilter('all'); setPage(1); }}
             className={`p-4 rounded-xl border text-left transition-all ${
               statusFilter === 'all'
-                ? 'border-[#F4511E] bg-[#F4511E]/5 dark:bg-[#F4511E]/10'
+                ? 'border-primary bg-primary/5 dark:bg-primary/10'
                 : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-gray-300'
             }`}
           >
@@ -301,7 +301,7 @@ export default function ShopeeLogsPage() {
                 onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
                 onBlur={handleSearch}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
@@ -317,7 +317,7 @@ export default function ShopeeLogsPage() {
                   onClick={() => { setDirectionFilter(opt.value); setPage(1); }}
                   className={`px-3 py-2 text-sm font-medium transition-colors ${
                     directionFilter === opt.value
-                      ? 'bg-[#F4511E] text-white'
+                      ? 'bg-primary text-white'
                       : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                   }`}
                 >
@@ -348,7 +348,7 @@ export default function ShopeeLogsPage() {
         <div className="data-table-wrap">
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-[#F4511E]" />
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
           ) : logs.length === 0 ? (
             <div className="text-center py-20 text-gray-500 dark:text-slate-400">

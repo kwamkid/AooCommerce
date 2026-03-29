@@ -491,7 +491,7 @@ export default function MembersPage() {
             key={option.value}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors border ${
               isSelected
-                ? 'bg-[#F4511E]/5 border-[#F4511E]/30 dark:bg-[#F4511E]/10 dark:border-[#F4511E]/40'
+                ? 'bg-primary/5 border-primary/30 dark:bg-primary/10 dark:border-primary/40'
                 : 'bg-gray-50 dark:bg-slate-700 border-transparent hover:bg-gray-100 dark:hover:bg-slate-600'
             } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
@@ -504,20 +504,20 @@ export default function MembersPage() {
             />
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
               isSelected
-                ? 'bg-[#F4511E] text-white'
+                ? 'bg-primary text-white'
                 : 'bg-gray-200 dark:bg-slate-600 text-gray-500 dark:text-slate-400'
             }`}>
               <Icon className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className={`text-sm font-medium ${isSelected ? 'text-[#F4511E] dark:text-[#FF7043]' : 'text-gray-700 dark:text-slate-300'}`}>
+              <p className={`text-sm font-medium ${isSelected ? 'text-primary dark:text-[#FF7043]' : 'text-gray-700 dark:text-slate-300'}`}>
                 {option.label}
               </p>
               <p className="text-xs text-gray-400 dark:text-slate-500">{option.desc}</p>
             </div>
             <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
               isSelected
-                ? 'bg-[#F4511E] border-[#F4511E]'
+                ? 'bg-primary border-primary'
                 : 'border-gray-300 dark:border-slate-500'
             }`}>
               {isSelected && <Check className="w-3 h-3 text-white" />}
@@ -559,8 +559,8 @@ export default function MembersPage() {
             aria-checked={accessEnabled}
             onClick={() => !disabled && onAccessChange(!accessEnabled)}
             disabled={disabled}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 ${
-              accessEnabled ? 'bg-[#F4511E]' : 'bg-gray-300 dark:bg-slate-600'
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+              accessEnabled ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
             } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           >
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
@@ -580,7 +580,7 @@ export default function MembersPage() {
                     key={wh.id}
                     className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
                       isChecked
-                        ? 'bg-[#F4511E]/5 dark:bg-[#F4511E]/10'
+                        ? 'bg-primary/5 dark:bg-primary/10'
                         : 'bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600'
                     } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
@@ -599,7 +599,7 @@ export default function MembersPage() {
                     />
                     <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                       isChecked
-                        ? 'bg-[#F4511E] border-[#F4511E]'
+                        ? 'bg-primary border-primary'
                         : 'border-gray-300 dark:border-slate-500'
                     }`}>
                       {isChecked && <Check className="w-3 h-3 text-white" />}
@@ -638,7 +638,7 @@ export default function MembersPage() {
     >
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-[#F4511E]" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
           <span className="ml-3 text-gray-500 dark:text-slate-400">กำลังโหลดข้อมูล...</span>
         </div>
       ) : (
@@ -648,7 +648,7 @@ export default function MembersPage() {
             <div className="p-5 sm:p-6 border-b border-gray-200 dark:border-slate-700">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                  <Users className="w-5 h-5 mr-2 text-[#F4511E]" />
+                  <Users className="w-5 h-5 mr-2 text-primary" />
                   สมาชิกปัจจุบัน ({activeMembers.length})
                 </h3>
                 <div className="flex items-center gap-3">
@@ -660,7 +660,7 @@ export default function MembersPage() {
                   {isOwnerOrAdmin && (
                     <button
                       onClick={openAddModal}
-                      className="flex items-center px-4 py-2 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors whitespace-nowrap"
+                      className="flex items-center px-4 py-2 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors whitespace-nowrap"
                     >
                       <Plus className="w-5 h-5 mr-1.5" />
                       เพิ่ม<span className="hidden md:inline">สมาชิก</span>
@@ -737,7 +737,7 @@ export default function MembersPage() {
                             <div className="flex items-center space-x-1">
                               <button
                                 onClick={() => handleOpenEditModal(member)}
-                                className="p-2 text-gray-400 hover:text-[#F4511E] hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                                 title="แก้ไขข้อมูล"
                               >
                                 <Edit2 className="w-4 h-4" />
@@ -781,7 +781,7 @@ export default function MembersPage() {
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm">
               <div className="p-5 sm:p-6 border-b border-gray-200 dark:border-slate-700">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                  <Clock className="w-5 h-5 mr-2 text-[#F4511E]" />
+                  <Clock className="w-5 h-5 mr-2 text-primary" />
                   คำเชิญที่รอการตอบรับ ({invitations.length})
                 </h3>
               </div>
@@ -825,7 +825,7 @@ export default function MembersPage() {
                           <div className="flex items-center space-x-1">
                             <button
                               onClick={() => copyInviteLink(invitation.token)}
-                              className="p-2 text-gray-400 hover:text-[#F4511E] hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                              className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                               title="คัดลอกลิงก์คำเชิญ"
                             >
                               <Link2 className="w-4 h-4" />
@@ -861,7 +861,7 @@ export default function MembersPage() {
               {/* Modal header */}
               <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 rounded-t-xl z-10">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
-                  <UserPlus className="w-5 h-5 mr-2 text-[#F4511E]" />
+                  <UserPlus className="w-5 h-5 mr-2 text-primary" />
                   เพิ่มสมาชิก
                 </h3>
                 <button
@@ -926,7 +926,7 @@ export default function MembersPage() {
                       type="button"
                       onClick={handleCreateLink}
                       disabled={isGeneratingLink}
-                      className="px-5 py-2.5 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                      className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                     >
                       {isGeneratingLink ? (
                         <Loader2 className="w-5 h-5 animate-spin mr-2" />
@@ -959,7 +959,7 @@ export default function MembersPage() {
                         navigator.clipboard.writeText(generatedLink);
                         showToast('คัดลอกลิงก์แล้ว');
                       }}
-                      className="px-4 py-2.5 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors flex items-center whitespace-nowrap"
+                      className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors flex items-center whitespace-nowrap"
                     >
                       <Copy className="w-4 h-4 mr-1.5" />
                       คัดลอก
@@ -980,7 +980,7 @@ export default function MembersPage() {
                         setGeneratedLink('');
                         handleLinkRoleChange(['sales']);
                       }}
-                      className="px-4 py-2.5 text-[#F4511E] bg-[#F4511E]/10 hover:bg-[#F4511E]/20 rounded-lg font-medium transition-colors flex items-center"
+                      className="px-4 py-2.5 text-primary bg-primary/10 hover:bg-primary/20 rounded-lg font-medium transition-colors flex items-center"
                     >
                       <Plus className="w-4 h-4 mr-1.5" />
                       สร้างลิงก์ใหม่
@@ -1027,7 +1027,7 @@ export default function MembersPage() {
                         type="text"
                         value={editingMember.name}
                         onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
-                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700"
+                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-slate-700"
                         required
                       />
                     </div>
@@ -1052,7 +1052,7 @@ export default function MembersPage() {
                         type="tel"
                         value={editingMember.phone}
                         onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
-                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent bg-white dark:bg-slate-700"
+                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-slate-700"
                         placeholder="0812345678"
                       />
                     </div>
@@ -1101,7 +1101,7 @@ export default function MembersPage() {
                   <button
                     type="submit"
                     disabled={isSaving}
-                    className="px-5 py-2.5 bg-[#F4511E] text-white rounded-lg hover:bg-[#F4511E]/90 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    className="px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                   >
                     {isSaving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                     บันทึก

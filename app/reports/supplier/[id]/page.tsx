@@ -202,7 +202,7 @@ export default function SnapshotDetailPage() {
   if (authLoading || loading) {
     return (
       <Layout title="รายงานซัพพลายเออร์">
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" /></div>
+        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
       </Layout>
     );
   }
@@ -265,7 +265,7 @@ export default function SnapshotDetailPage() {
             <button
               onClick={handlePrintPdf}
               disabled={generatingPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[#F4511E] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50"
             >
               {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
               {generatingPdf ? 'กำลังสร้าง...' : 'พิมพ์'}
@@ -411,7 +411,7 @@ export default function SnapshotDetailPage() {
               </div>
               <button
                 onClick={() => setGroupSales(!groupSales)}
-                className="text-xs text-[#F4511E] hover:underline"
+                className="text-xs text-primary hover:underline"
               >
                 {groupSales ? 'รวมทุกช่องทาง' : 'แยกช่องทาง+สาขา'}
               </button>

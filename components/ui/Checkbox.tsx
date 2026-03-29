@@ -20,7 +20,7 @@ export default function Checkbox({ checked, onChange, label, disabled, className
       }}
     >
       <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${
-        checked ? 'bg-[#F4511E]' : 'border-2 border-gray-300 dark:border-slate-500'
+        checked ? 'bg-primary' : 'border-2 border-gray-300 dark:border-slate-500'
       }`}>
         {checked && (
           <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>

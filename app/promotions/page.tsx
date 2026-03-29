@@ -236,7 +236,7 @@ function PromotionCard({
   return (
     <div
       onClick={onEdit}
-      className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 hover:border-[#F4511E]/40 dark:hover:border-[#F4511E]/40 hover:shadow-md transition-all cursor-pointer"
+      className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 hover:border-primary/40 dark:hover:border-primary/40 hover:shadow-md transition-all cursor-pointer"
     >
       {/* Header bar */}
       <div className={`flex items-center gap-2 px-4 py-2.5 ${statusCfg.headerBg}`}>
@@ -337,7 +337,7 @@ function PromotionCard({
                         : `฿${formatPrice(item.default_price)}`}
                     </span>
                     {item.special_price != null && item.special_price > 0 && (
-                      <span className="text-sm font-medium text-[#F4511E]">
+                      <span className="text-sm font-medium text-primary">
                         ฿{formatPrice(item.special_price)}
                       </span>
                     )}
@@ -378,7 +378,7 @@ function PromotionCard({
             ) : null
           ) : promo.promotion_type === 'bundle_set' && promo.discount_value ? (
             <div className="text-right">
-              <span className="text-lg font-semibold text-[#F4511E]">
+              <span className="text-lg font-semibold text-primary">
                 {promo.discount_type === 'percent' ? `ลด ${promo.discount_value}%` : `ลด ฿${formatPrice(promo.discount_value)}`}
               </span>
             </div>
@@ -527,7 +527,7 @@ function PromotionsPageContent() {
         </div>
         <Link
           href="/promotions/new"
-          className="flex items-center space-x-2 px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white rounded-lg font-semibold transition-colors"
+          className="flex items-center space-x-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold transition-colors"
         >
           <Plus className="w-5 h-5" />
           <span>สร้างโปรโมชั่น</span>
@@ -578,7 +578,7 @@ function PromotionsPageContent() {
       {/* Card list */}
       {loading && (
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F4511E]" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
       )}
 
@@ -728,7 +728,7 @@ export default function PromotionsPage() {
     <Layout>
       <Suspense fallback={
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F4511E]" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
       }>
         <PromotionsPageContent />

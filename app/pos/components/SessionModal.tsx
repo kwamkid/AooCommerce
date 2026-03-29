@@ -163,7 +163,7 @@ export default function SessionModal({
 
             {loadingTerminals ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-[#F4511E]" />
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
               </div>
             ) : terminals.length === 0 && !showCreateTerminal ? (
               /* No terminals — prompt to create */
@@ -174,7 +174,7 @@ export default function SessionModal({
                   <p className="text-gray-400 dark:text-gray-500 text-xs mb-3">สร้างจุดขายเพื่อเริ่มเปิดกะ</p>
                   <button
                     onClick={() => setShowCreateTerminal(true)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors"
                   >
                     <Plus className="w-4 h-4" />
                     สร้างจุดขาย
@@ -192,7 +192,7 @@ export default function SessionModal({
               <div className="space-y-4">
                 <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 space-y-3">
                   <p className="text-gray-900 dark:text-white font-medium text-sm flex items-center gap-2">
-                    <Plus className="w-4 h-4 text-[#F4511E]" />
+                    <Plus className="w-4 h-4 text-primary" />
                     สร้างจุดขายใหม่
                   </p>
 
@@ -203,7 +203,7 @@ export default function SessionModal({
                       value={newTerminalName}
                       onChange={(e) => setNewTerminalName(e.target.value)}
                       placeholder="เช่น สาขาสยาม, หน้าร้าน"
-                      className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                      className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
                       autoFocus
                     />
                   </div>
@@ -232,7 +232,7 @@ export default function SessionModal({
                   <button
                     onClick={handleCreateTerminal}
                     disabled={!newTerminalName.trim() || creatingTerminal}
-                    className="flex-1 py-3 bg-[#F4511E] hover:bg-[#D63B0E] text-white font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex-1 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {creatingTerminal ? <Loader2 className="w-5 h-5 animate-spin" /> : 'สร้าง'}
                   </button>
@@ -253,7 +253,7 @@ export default function SessionModal({
                         onClick={() => setSelectedTerminal(t.id)}
                         className={`p-3 rounded-xl text-left transition-all ${
                           selectedTerminal === t.id
-                            ? 'bg-[#F4511E]/10 dark:bg-[#F4511E]/20 border-2 border-[#F4511E]'
+                            ? 'bg-primary/10 dark:bg-primary/20 border-2 border-primary'
                             : 'bg-gray-50 dark:bg-white/5 border-2 border-transparent hover:bg-gray-100 dark:hover:bg-white/10'
                         }`}
                       >
@@ -294,7 +294,7 @@ export default function SessionModal({
                     value={openingFloat}
                     onChange={(e) => setOpeningFloat(e.target.value)}
                     placeholder="0"
-                    className="w-full px-4 py-3 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-lg text-center focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    className="w-full px-4 py-3 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-lg text-center focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
 
@@ -313,7 +313,7 @@ export default function SessionModal({
                       }
                     }}
                     disabled={!selectedTerminal || loading}
-                    className="flex-1 py-3 bg-[#F4511E] hover:bg-[#D63B0E] text-white font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex-1 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'เปิดกะ'}
                   </button>
@@ -368,7 +368,7 @@ export default function SessionModal({
                     value={closingCash}
                     onChange={(e) => setClosingCash(e.target.value)}
                     placeholder="0"
-                    className="w-full px-4 py-3 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-lg text-center focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                    className="w-full px-4 py-3 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-lg text-center focus:outline-none focus:ring-2 focus:ring-primary"
                     autoFocus
                   />
                 </div>
@@ -397,7 +397,7 @@ export default function SessionModal({
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={2}
-                    className="w-full px-3 py-2 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] resize-none"
+                    className="w-full px-3 py-2 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                     placeholder="เช่น เงินหาย, เงินเกิน..."
                   />
                 </div>

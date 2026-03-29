@@ -92,7 +92,7 @@ html, body {
 @layer components {
   /* Primary action button — bg orange */
   .btn-primary {
-    @apply bg-[#F4511E] text-white px-5 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50 text-sm font-medium;
+    @apply bg-primary text-white px-5 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50 text-sm font-medium;
   }
   /* Secondary / cancel button — border style */
   .btn-secondary {
@@ -162,7 +162,7 @@ html, body {
 
   /* ─── Focus Action Button (inline in table/card rows) ─── */
   .btn-focus-action {
-    @apply inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap bg-[#F4511E] hover:bg-[#E64A19];
+    @apply inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap bg-primary hover:bg-primary-hover;
   }
   .btn-focus-action.green {
     @apply bg-green-600 hover:bg-green-700;
@@ -181,7 +181,7 @@ html, body {
   }
   /* Primary ID with click-to-copy behavior */
   .id-text-clickable {
-    @apply font-mono text-sm font-semibold cursor-pointer hover:text-[#F4511E] transition-colors;
+    @apply font-mono text-sm font-semibold cursor-pointer hover:text-primary transition-colors;
   }
   /* Secondary code (SKU, barcode, product code, tracking#) */
   .code-text {

@@ -123,7 +123,7 @@ export default function ReceiptsPage() {
       alwaysVisible: true,
       render: (inv) => (
         <>
-          <span className="font-mono text-sm font-medium text-[#F4511E]">{inv.tax_invoice_number}</span>
+          <span className="font-mono text-sm font-medium text-primary">{inv.tax_invoice_number}</span>
           {inv.voided_at && (
             <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
           )}
@@ -144,7 +144,7 @@ export default function ReceiptsPage() {
         const link = getSourceLink(inv);
         return (
           <>
-            <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
+            <Link href={link.href} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
               {link.label} <ExternalLink className="w-3 h-3" />
             </Link>
             {inv.source_type !== 'order' && (
@@ -185,7 +185,7 @@ export default function ReceiptsPage() {
       stopPropagation: true,
       hideMobile: true,
       render: (inv) => (
-        <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors" title="พิมพ์">
+        <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-primary transition-colors" title="พิมพ์">
           <Printer className="w-4 h-4" />
         </button>
       ),
@@ -198,7 +198,7 @@ export default function ReceiptsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <Receipt className="w-8 h-8 text-[#F4511E]" />
+              <Receipt className="w-8 h-8 text-primary" />
               ใบเสร็จรับเงิน
             </h1>
             <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">REC-YYYYMM-NNNN — สำหรับร้านที่ไม่จด VAT</p>
@@ -210,7 +210,7 @@ export default function ReceiptsPage() {
             <select
               value={month}
               onChange={e => { setMonth(e.target.value); setPage(1); }}
-              className="h-[42px] px-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
+              className="h-[42px] px-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
             >
               {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -221,7 +221,7 @@ export default function ReceiptsPage() {
                 value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
                 placeholder="ค้นหาเลขที่, ชื่อ..."
-                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               />
             </div>
           </div>
@@ -248,18 +248,18 @@ export default function ReceiptsPage() {
               <>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm font-medium text-[#F4511E]">{inv.tax_invoice_number}</span>
+                    <span className="font-mono text-sm font-medium text-primary">{inv.tax_invoice_number}</span>
                     {inv.voided_at && (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
                     )}
                   </div>
-                  <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors" title="พิมพ์">
+                  <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-primary transition-colors" title="พิมพ์">
                     <Printer className="w-4 h-4" />
                   </button>
                 </div>
                 <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(inv.tax_invoice_date)}</div>
                 <div className="mt-1">
-                  <Link href={link.href} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
+                  <Link href={link.href} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
                     {link.label} <ExternalLink className="w-3 h-3" />
                   </Link>
                   {inv.source_type !== 'order' && (

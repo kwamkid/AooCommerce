@@ -48,7 +48,7 @@ export default function Layout({ children, title, breadcrumbs, noPadding }: Layo
                       {item.href ? (
                         <a
                           href={item.href}
-                          className="hover:text-[#F4511E] transition-colors"
+                          className="hover:text-primary transition-colors"
                         >
                           {item.label}
                         </a>

@@ -65,7 +65,7 @@ export default function PriceDiscountCombo({
             }}
             className={`${btnPx} ${h} ${fontSize} font-medium transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed ${
               isDiscount
-                ? 'bg-[#F4511E]/10 text-[#F4511E]'
+                ? 'bg-primary/10 text-primary'
                 : 'bg-gray-50 dark:bg-slate-700 text-gray-400 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-600'
             }`}
           >
@@ -84,7 +84,7 @@ export default function PriceDiscountCombo({
             }}
             className={`${btnPx} ${h} ${fontSize} font-medium border-l border-gray-300 dark:border-slate-500 transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed ${
               isFixPrice
-                ? 'bg-[#F4511E]/10 text-[#F4511E]'
+                ? 'bg-primary/10 text-primary'
                 : 'bg-gray-50 dark:bg-slate-700 text-gray-400 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-600'
             }`}
           >
@@ -104,7 +104,7 @@ export default function PriceDiscountCombo({
             placeholder={placeholder}
             min={0}
             disabled={disabled}
-            className={`${inputW} ${h} ${px} ${fontSize} text-right text-gray-900 dark:text-white bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#F4511E] border-none disabled:opacity-40 disabled:cursor-not-allowed`}
+            className={`${inputW} ${h} ${px} ${fontSize} text-right text-gray-900 dark:text-white bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary border-none disabled:opacity-40 disabled:cursor-not-allowed`}
           />
           <span className={`${btnPx} ${h} ${fontSize} font-medium border-l border-gray-300 dark:border-slate-500 bg-gray-50 dark:bg-slate-700 text-gray-400 dark:text-slate-500 flex items-center flex-shrink-0`}>
             ฿
@@ -121,7 +121,7 @@ export default function PriceDiscountCombo({
             min={0}
             max={mode === 'percent' ? 100 : undefined}
             disabled={disabled}
-            className={`${inputW} ${h} ${px} ${fontSize} text-right text-gray-900 dark:text-white bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#F4511E] border-none disabled:opacity-40 disabled:cursor-not-allowed`}
+            className={`${inputW} ${h} ${px} ${fontSize} text-right text-gray-900 dark:text-white bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary border-none disabled:opacity-40 disabled:cursor-not-allowed`}
           />
           <button
             type="button"

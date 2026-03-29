@@ -221,7 +221,7 @@ export default function StockIssuePage() {
     return (
       <Layout title="เบิกออกสินค้า" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการเบิกออก', href: '/inventory/issues' }, { label: 'เบิกออกสินค้า' }]}>
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-6 h-6 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -284,7 +284,7 @@ export default function StockIssuePage() {
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">หมายเหตุรวม</label>
             <textarea value={batchNotes} onChange={e => setBatchNotes(e.target.value)} rows={2}
               placeholder="หมายเหตุสำหรับการเบิกออกครั้งนี้ (ไม่บังคับ)..."
-              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
             />
           </div>
         )}
@@ -297,7 +297,7 @@ export default function StockIssuePage() {
               ยกเลิก
             </button>
             <button type="button" onClick={handleSubmit} disabled={!canSubmit || submitting}
-              className="bg-[#F4511E] text-white px-5 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
+              className="bg-primary text-white px-5 py-2.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
               {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />กำลังบันทึก...</> : <><PackageMinus className="w-4 h-4" />บันทึกเบิกออก</>}
             </button>
           </div>
@@ -308,7 +308,7 @@ export default function StockIssuePage() {
         open={showConfirm}
         onClose={() => setShowConfirm(false)}
         onConfirm={handleConfirmSubmit}
-        icon={<PackageMinus className="w-6 h-6 text-[#F4511E]" />}
+        icon={<PackageMinus className="w-6 h-6 text-primary" />}
         title="ยืนยันเบิกออกสินค้า"
         description="คุณต้องการเบิกออกสินค้าทั้งหมดใช่หรือไม่?"
         confirmLabel="ยืนยันเบิกออก"

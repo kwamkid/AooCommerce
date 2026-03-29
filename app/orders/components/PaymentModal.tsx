@@ -167,7 +167,7 @@ export default function PaymentModal({
         <div className="space-y-4">
           {totalAmount > 0 && (
             <p className="text-sm text-gray-600 dark:text-slate-400">
-              ยอดชำระ: <span className="font-semibold text-[#F4511E]">฿{totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+              ยอดชำระ: <span className="font-semibold text-primary">฿{totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
             </p>
           )}
 
@@ -182,7 +182,7 @@ export default function PaymentModal({
                 onClick={() => setPaymentMethod('cash')}
                 className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
                   paymentMethod === 'cash'
-                    ? 'border-[#F4511E] bg-[#F4511E] bg-opacity-10 text-[#F4511E] font-medium'
+                    ? 'border-primary bg-primary bg-opacity-10 text-primary font-medium'
                     : 'border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:border-gray-400'
                 }`}
               >
@@ -193,7 +193,7 @@ export default function PaymentModal({
                 onClick={() => setPaymentMethod('transfer')}
                 className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
                   paymentMethod === 'transfer'
-                    ? 'border-[#F4511E] bg-[#F4511E] bg-opacity-10 text-[#F4511E] font-medium'
+                    ? 'border-primary bg-primary bg-opacity-10 text-primary font-medium'
                     : 'border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:border-gray-400'
                 }`}
               >
@@ -213,7 +213,7 @@ export default function PaymentModal({
                 value={collectedBy}
                 onChange={(e) => setCollectedBy(e.target.value)}
                 placeholder="ระบุชื่อคนเก็บเงิน"
-                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
           )}
@@ -246,7 +246,7 @@ export default function PaymentModal({
                   <button
                     type="button"
                     onClick={() => slipFileInputRef.current?.click()}
-                    className="w-full border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg py-6 flex flex-col items-center gap-2 text-gray-400 dark:text-slate-500 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors"
+                    className="w-full border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg py-6 flex flex-col items-center gap-2 text-gray-400 dark:text-slate-500 hover:border-primary hover:text-primary transition-colors"
                   >
                     <Camera className="w-8 h-8" />
                     <span className="text-sm">เลือกรูป / ถ่ายรูปสลิป</span>
@@ -306,7 +306,7 @@ export default function PaymentModal({
               onChange={(e) => setNotes(e.target.value)}
               placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
               rows={2}
-              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
         </div>
@@ -323,7 +323,7 @@ export default function PaymentModal({
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {submitting ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>

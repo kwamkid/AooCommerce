@@ -398,7 +398,7 @@ export default function DateRangePicker({
         type="button"
         onClick={() => { if (!disabled && !readOnly) { setOpen(!open); if (!open) setSelectionPhase('idle'); } }}
         className={`w-full h-[42px] px-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm font-normal bg-white dark:bg-slate-700 text-left flex items-center gap-2 transition-colors ${
-          open ? 'ring-2 ring-[#F4511E] border-transparent' : 'hover:border-gray-400 dark:hover:border-slate-400'
+          open ? 'ring-2 ring-primary border-transparent' : 'hover:border-gray-400 dark:hover:border-slate-400'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
         <Calendar className={`w-4 h-4 flex-shrink-0 ${readOnly ? 'text-gray-400 dark:text-slate-500' : 'text-amber-500'}`} />

@@ -495,7 +495,7 @@ function EditReportContent() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -506,7 +506,7 @@ function EditReportContent() {
       <Layout>
         <div className="text-center py-12">
           <p className="text-gray-500 dark:text-slate-400 mb-4">ไม่พบรายงาน</p>
-          <Link href="/department-store/reports" className="text-[#F4511E] hover:underline">
+          <Link href="/department-store/reports" className="text-primary hover:underline">
             กลับไปหน้ารายการ
           </Link>
         </div>
@@ -531,7 +531,7 @@ function EditReportContent() {
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-[#F4511E]" />
+                <Building2 className="w-5 h-5 text-primary" />
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">{report.report_number}</h1>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.color} ${cfg.bg}`}>
                   {cfg.label}
@@ -601,8 +601,8 @@ function EditReportContent() {
         {/* Customer Info (read-only) */}
         {customer && (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
-              <div className="flex-1 min-w-0 flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg">
-                <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0 flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-primary/30 rounded-lg">
+                <CheckCircle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0 space-y-0.5 text-sm">
                   <div className="text-gray-900 dark:text-white font-medium text-base">{customer.name}</div>
                   {(() => {
@@ -689,7 +689,7 @@ function EditReportContent() {
                       onChange={e => setNotes(e.target.value)}
                       rows={3}
                       placeholder="หมายเหตุเพิ่มเติม..."
-                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] text-base"
+                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base"
                     />
                   ) : (
                     <p className="text-base text-gray-600 dark:text-slate-400">{notes || '-'}</p>

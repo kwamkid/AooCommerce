@@ -788,7 +788,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -801,7 +801,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           <div className="text-red-600 mb-4">{error}</div>
           <button
             onClick={() => router.push('/orders')}
-            className="text-[#F4511E] hover:underline"
+            className="text-primary hover:underline"
           >
             กลับไปหน้ารายการคำสั่งซื้อ
           </button>
@@ -825,7 +825,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             <div>
               <div className="flex items-center gap-3">
                 <h1
-                  className="text-2xl font-bold font-mono text-gray-900 dark:text-white print:text-black hover:text-[#F4511E] cursor-pointer transition-colors"
+                  className="text-2xl font-bold font-mono text-gray-900 dark:text-white print:text-black hover:text-primary cursor-pointer transition-colors"
                   onClick={() => { navigator.clipboard.writeText(orderNumber).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
                   title="คัดลอกเลขคำสั่งซื้อ"
                 >{orderNumber}</h1>
@@ -852,7 +852,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               )}
               {isPosOrder && receiptNumber && (
                 <p className="text-sm text-gray-500 mt-0.5">
-                  เลขที่ใบเสร็จ: <span className="font-mono cursor-pointer hover:text-[#F4511E] transition-colors" onClick={() => navigator.clipboard.writeText(receiptNumber).then(() => showToast('คัดลอกเลขที่ใบเสร็จแล้ว'))} title="คัดลอก">{receiptNumber}</span>
+                  เลขที่ใบเสร็จ: <span className="font-mono cursor-pointer hover:text-primary transition-colors" onClick={() => navigator.clipboard.writeText(receiptNumber).then(() => showToast('คัดลอกเลขที่ใบเสร็จแล้ว'))} title="คัดลอก">{receiptNumber}</span>
                 </p>
               )}
             </div>
@@ -1104,7 +1104,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 <button
                   onClick={handleOrderStatusClick}
                   disabled={updating}
-                  className="px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
                 >
                   {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />}
                   {updating ? 'กำลังดำเนินการ...' : `เปลี่ยนเป็น "${getOrderStatusLabel(getNextOrderStatus(orderStatus)!)}"`}
@@ -1268,7 +1268,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             </div>
             {fullOrderData?.customer && (
               <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
+                <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
                 <span className="data-primary text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
                 {fullOrderData.customer.phone && (
                   <span className="data-secondary text-gray-400 dark:text-slate-500">· {fullOrderData.customer.phone}</span>
@@ -1328,7 +1328,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             {/* Tax Invoice */}
             {fullOrderData?.tax_invoice_requested && (
               <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 space-y-1.5">
-                <span className="text-xs font-medium text-[#F4511E] bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded">ขอใบกำกับภาษี</span>
+                <span className="text-xs font-medium text-primary bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded">ขอใบกำกับภาษี</span>
                 {fullOrderData.tax_invoice_name && (
                   <div className="data-text text-gray-700 dark:text-slate-300">{fullOrderData.tax_invoice_name}</div>
                 )}
@@ -1480,7 +1480,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               {fullOrderData?.customer ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
+                    <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
                     <span className="data-primary text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
                   </div>
                   {fullOrderData.customer.phone && (
@@ -1497,7 +1497,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               )}
               {fullOrderData?.tax_invoice_requested && (
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 space-y-1.5">
-                  <span className="text-xs font-medium text-[#F4511E] bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded">ขอใบกำกับภาษี</span>
+                  <span className="text-xs font-medium text-primary bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded">ขอใบกำกับภาษี</span>
                   {fullOrderData.tax_invoice_name && (
                     <div className="data-text text-gray-700 dark:text-slate-300">{fullOrderData.tax_invoice_name}</div>
                   )}
@@ -1530,7 +1530,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             {fullOrderData?.customer ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
                   <span className="data-primary text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
                 </div>
                 {fullOrderData.customer.phone && (
@@ -1572,14 +1572,14 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                     <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ชื่อผู้รับ *</label>
                     <input type="text" value={deliveryForm.delivery_name}
                       onChange={e => { setDeliveryForm(f => ({ ...f, delivery_name: e.target.value })); setDeliveryErrors(prev => { const { name, ...rest } = prev; return rest; }); }}
-                      className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 ${deliveryErrors.name ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
+                      className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 ${deliveryErrors.name ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
                     {deliveryErrors.name && <p className="text-red-500 text-xs mt-1">{deliveryErrors.name}</p>}
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">เบอร์โทร *</label>
                     <input type="text" inputMode="tel" value={deliveryForm.delivery_phone}
                       onChange={e => { setDeliveryForm(f => ({ ...f, delivery_phone: e.target.value })); setDeliveryErrors(prev => { const { phone, ...rest } = prev; return rest; }); }}
-                      className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 ${deliveryErrors.phone ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
+                      className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 ${deliveryErrors.phone ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
                     {deliveryErrors.phone && <p className="text-red-500 text-xs mt-1">{deliveryErrors.phone}</p>}
                   </div>
                 </div>
@@ -1587,7 +1587,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">อีเมล</label>
                   <input type="text" inputMode="email" value={deliveryForm.delivery_email}
                     onChange={e => { setDeliveryForm(f => ({ ...f, delivery_email: e.target.value })); setDeliveryErrors(prev => { const { email, ...rest } = prev; return rest; }); }}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 ${deliveryErrors.email ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
+                    className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 ${deliveryErrors.email ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
                   {deliveryErrors.email && <p className="text-red-500 text-xs mt-1">{deliveryErrors.email}</p>}
                 </div>
                 <div>
@@ -1595,7 +1595,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   <textarea value={deliveryForm.delivery_address}
                     onChange={e => { setDeliveryForm(f => ({ ...f, delivery_address: e.target.value })); setDeliveryErrors(prev => { const { address, ...rest } = prev; return rest; }); }}
                     rows={2}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 ${deliveryErrors.address ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
+                    className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 ${deliveryErrors.address ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
                   {deliveryErrors.address && <p className="text-red-500 text-xs mt-1">{deliveryErrors.address}</p>}
                 </div>
                 <ThaiAddressInput
@@ -1628,7 +1628,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   <button
                     onClick={handleSaveDelivery}
                     disabled={savingDelivery || !deliveryForm.delivery_name || !deliveryForm.delivery_phone || !deliveryForm.delivery_address || !deliveryForm.delivery_province || !deliveryForm.delivery_postal_code}
-                    className="flex-1 py-2 bg-[#F4511E] text-white rounded-lg text-sm font-medium hover:bg-[#D63B0E] disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
+                    className="flex-1 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-hover disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
                   >
                     {savingDelivery && <Loader2 className="w-4 h-4 animate-spin" />}
                     บันทึก

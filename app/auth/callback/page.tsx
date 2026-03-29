@@ -75,7 +75,7 @@ export default function AuthCallbackPage() {
           </>
         ) : (
           <>
-            <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-white">กำลังเข้าสู่ระบบ...</p>
           </>
         )}

@@ -90,10 +90,10 @@ export default function OrderCard({
       onClick={() => window.open(`/orders/${order.id}`, '_blank')}
       className={`bg-white dark:bg-slate-800 rounded-xl border transition-all cursor-pointer overflow-hidden ${
         selected
-          ? 'border-[#F4511E] ring-1 ring-[#F4511E]/30'
+          ? 'border-primary ring-1 ring-primary/30'
           : isOnHold
           ? 'border-gray-300 dark:border-slate-600 opacity-70'
-          : 'border-gray-200 dark:border-slate-700 hover:border-[#F4511E]/40 dark:hover:border-[#F4511E]/40 hover:shadow-md'
+          : 'border-gray-200 dark:border-slate-700 hover:border-primary/40 dark:hover:border-primary/40 hover:shadow-md'
       }`}
     >
       {/* ── Header bar ── colored by order status, click to toggle checkbox */}
@@ -116,7 +116,7 @@ export default function OrderCard({
                   type="checkbox"
                   checked={selected || false}
                   readOnly
-                  className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E] pointer-events-none"
+                  className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-primary focus:ring-primary pointer-events-none"
                 />
               </div>
             )}

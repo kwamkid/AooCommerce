@@ -66,7 +66,7 @@ interface SupplierFormProps {
   compact?: boolean;
 }
 
-const inputClass = 'w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base sm:text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]';
+const inputClass = 'w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base sm:text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary';
 const labelClass = 'label';
 
 function BankLogo({ code, size = 'sm' }: { code: string; size?: 'sm' | 'md' }) {
@@ -213,7 +213,7 @@ export default function SupplierForm({
           {THAI_BANKS.map(b => (
             <button key={b.code} type="button"
               onClick={() => selectBank(b.code)}
-              className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors text-left ${form.bank_code === b.code ? 'bg-[#F4511E]/10' : ''}`}>
+              className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors text-left ${form.bank_code === b.code ? 'bg-primary/10' : ''}`}>
               {b.logo ? (
                 <img src={b.logo} alt={b.name_th} className="w-5 h-5 rounded-full flex-shrink-0 object-contain" />
               ) : (
@@ -253,11 +253,11 @@ export default function SupplierForm({
                   onClick={() => updateField('supplier_type', type.value)}
                   className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-center ${
                     isSelected
-                      ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20'
+                      ? 'border-primary bg-orange-50 dark:bg-orange-900/20'
                       : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
                   }`}>
-                  <Icon className={`w-5 h-5 flex-shrink-0 ${isSelected ? 'text-[#F4511E]' : 'text-gray-400'}`} />
-                  <div className={`text-xs font-medium ${isSelected ? 'text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>
+                  <Icon className={`w-5 h-5 flex-shrink-0 ${isSelected ? 'text-primary' : 'text-gray-400'}`} />
+                  <div className={`text-xs font-medium ${isSelected ? 'text-primary' : 'text-gray-700 dark:text-slate-300'}`}>
                     {type.value === 'cash' ? 'เงินสด' : type.value === 'credit' ? 'เครดิต' : 'ฝากขาย'}
                   </div>
                 </button>
@@ -272,7 +272,7 @@ export default function SupplierForm({
             <label className={labelClass}>เครดิต (วัน)</label>
             <input type="number" value={form.payment_terms}
               onChange={e => updateField('payment_terms', parseInt(e.target.value) || 0)}
-              className="w-32 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base sm:text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+              className="w-32 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base sm:text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               placeholder="30" min={0} />
           </div>
         )}
@@ -296,7 +296,7 @@ export default function SupplierForm({
             ยกเลิก
           </button>
           <button type="submit" disabled={busy}
-            className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2 text-sm">
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2 text-sm">
             {busy && <Loader2 className="w-4 h-4 animate-spin" />}
             {isEditing ? 'บันทึก' : 'เพิ่มซัพพลายเออร์'}
           </button>
@@ -314,7 +314,7 @@ export default function SupplierForm({
           {/* ข้อมูลทั่วไป */}
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 space-y-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Factory className="w-5 h-5 text-[#F4511E]" />
+              <Factory className="w-5 h-5 text-primary" />
               ข้อมูลทั่วไป
             </h2>
 
@@ -373,11 +373,11 @@ export default function SupplierForm({
                       onClick={() => updateField('supplier_type', type.value)}
                       className={`flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border-2 transition-all text-center ${
                         isSelected
-                          ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20'
+                          ? 'border-primary bg-orange-50 dark:bg-orange-900/20'
                           : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
                       }`}>
-                      <Icon className={`w-5 h-5 flex-shrink-0 ${isSelected ? 'text-[#F4511E]' : 'text-gray-400'}`} />
-                      <div className={`text-xs sm:text-sm font-medium ${isSelected ? 'text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>
+                      <Icon className={`w-5 h-5 flex-shrink-0 ${isSelected ? 'text-primary' : 'text-gray-400'}`} />
+                      <div className={`text-xs sm:text-sm font-medium ${isSelected ? 'text-primary' : 'text-gray-700 dark:text-slate-300'}`}>
                         {type.value === 'cash' ? 'เงินสด' : type.value === 'credit' ? 'เครดิต' : 'ฝากขาย'}
                       </div>
                       <div className="hidden sm:block text-xs text-gray-500 dark:text-slate-400">{type.desc}</div>
@@ -393,7 +393,7 @@ export default function SupplierForm({
                 <label className={labelClass}>เครดิต (วัน)</label>
                 <input type="number" value={form.payment_terms}
                   onChange={e => updateField('payment_terms', parseInt(e.target.value) || 0)}
-                  className="w-32 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base sm:text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                  className="w-32 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base sm:text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                   placeholder="30" min={0} />
               </div>
             )}
@@ -442,7 +442,7 @@ export default function SupplierForm({
           {/* แบรนด์ */}
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 space-y-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Tag className="w-5 h-5 text-[#F4511E]" />
+              <Tag className="w-5 h-5 text-primary" />
               แบรนด์
             </h2>
 
@@ -453,7 +453,7 @@ export default function SupplierForm({
                   const brand = allBrands.find(b => b.id === id);
                   if (!brand) return null;
                   return (
-                    <span key={id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] text-sm rounded-full border border-[#F4511E]/20">
+                    <span key={id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-50 dark:bg-orange-900/20 text-primary text-sm rounded-full border border-primary/20">
                       {brand.name}
                       <button type="button" onClick={() => removeBrandId(id)} className="hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded-full p-0.5">
                         <X className="w-3 h-3" />
@@ -504,7 +504,7 @@ export default function SupplierForm({
           ยกเลิก
         </button>
         <button type="submit" disabled={busy}
-          className="px-6 py-2.5 bg-[#F4511E] hover:bg-[#D63B0E] text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+          className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
           {busy && <Loader2 className="w-4 h-4 animate-spin" />}
           {isEditing ? 'บันทึก' : 'เพิ่มซัพพลายเออร์'}
         </button>

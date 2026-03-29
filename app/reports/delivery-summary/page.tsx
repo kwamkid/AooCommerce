@@ -202,7 +202,7 @@ function SortableDeliveryCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white dark:bg-slate-800 rounded-lg border overflow-hidden mb-3 ${isDragging ? 'border-[#F4511E] shadow-lg' : 'border-gray-200 dark:border-slate-700'}`}
+      className={`bg-white dark:bg-slate-800 rounded-lg border overflow-hidden mb-3 ${isDragging ? 'border-primary shadow-lg' : 'border-gray-200 dark:border-slate-700'}`}
     >
       {/* Card Header */}
       <div className="px-4 py-3 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 flex items-center justify-between flex-wrap gap-2">
@@ -215,7 +215,7 @@ function SortableDeliveryCard({
           >
             <GripVertical className="w-5 h-5" />
           </button>
-          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[#F4511E] text-white text-base font-bold flex-shrink-0">
+          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white text-base font-bold flex-shrink-0">
             {index + 1}
           </span>
           <div className="flex items-center gap-2">
@@ -985,7 +985,7 @@ export default function DeliverySummaryPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -999,7 +999,7 @@ export default function DeliverySummaryPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Truck className="w-8 h-8 text-[#F4511E]" />
+            <Truck className="w-8 h-8 text-primary" />
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">จัดของ & ส่ง</h1>
               <p className="text-sm text-gray-600 dark:text-slate-400">เตรียมสินค้าและจัดส่งตามวันที่</p>
@@ -1029,7 +1029,7 @@ export default function DeliverySummaryPage() {
                 onClick={() => setActiveTab('packing')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'packing'
-                    ? 'bg-[#F4511E] text-white shadow-sm'
+                    ? 'bg-primary text-white shadow-sm'
                     : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
@@ -1040,7 +1040,7 @@ export default function DeliverySummaryPage() {
                 onClick={() => setActiveTab('delivery')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'delivery'
-                    ? 'bg-[#F4511E] text-white shadow-sm'
+                    ? 'bg-primary text-white shadow-sm'
                     : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
@@ -1062,7 +1062,7 @@ export default function DeliverySummaryPage() {
                 <button
                   onClick={handleExportPackingPdf}
                   disabled={!reportData || reportData.productSummary.length === 0 || generatingPdf}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-[#F4511E] text-white hover:bg-[#D63B0E] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {generatingPdf ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /><span>กำลังสร้าง PDF...</span></>
@@ -1093,7 +1093,7 @@ export default function DeliverySummaryPage() {
 
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+            <Loader2 className="w-8 h-8 text-primary animate-spin" />
           </div>
         )}
 
@@ -1163,7 +1163,7 @@ export default function DeliverySummaryPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className="inline-flex items-center gap-1 bg-[#F4511E]/10 text-[#F4511E] px-3 py-1 rounded-full">
+                          <span className="inline-flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full">
                             <span className="text-lg font-bold">{product.totalQuantity}</span>
                             <span className="text-xs text-gray-600 dark:text-slate-400">ขวด</span>
                           </span>
@@ -1209,7 +1209,7 @@ export default function DeliverySummaryPage() {
                         </div>
                         <div className="text-xs text-gray-400 font-mono">{product.productCode}</div>
                       </div>
-                      <span className="inline-flex items-center gap-1 bg-[#F4511E]/10 text-[#F4511E] px-3 py-1 rounded-full flex-shrink-0">
+                      <span className="inline-flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full flex-shrink-0">
                         <span className="text-lg font-bold">{product.totalQuantity}</span>
                         <span className="text-xs text-gray-600 dark:text-slate-400">ขวด</span>
                       </span>
@@ -1312,7 +1312,7 @@ export default function DeliverySummaryPage() {
                   className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <Package className="w-5 h-5 text-[#F4511E]" />
+                    <Package className="w-5 h-5 text-primary" />
                     <span className="font-medium text-gray-900 dark:text-white">สรุปสินค้าทั้งหมด</span>
                     <span className="text-sm text-gray-500 dark:text-slate-400">({reportData.productSummary.length} รายการ)</span>
                   </div>
@@ -1399,7 +1399,7 @@ export default function DeliverySummaryPage() {
                   <div className="mt-6 pt-6 border-t dark:border-slate-700 space-y-4">
                     <h4 className="font-medium text-gray-900 dark:text-white">รายละเอียดการชำระเงิน</h4>
                     <p className="text-sm text-gray-600 dark:text-slate-400">
-                      ยอดชำระ: <span className="font-semibold text-[#F4511E]">
+                      ยอดชำระ: <span className="font-semibold text-primary">
                         ฿{formatPrice(statusUpdateModal.delivery?.totalAmount)}
                       </span>
                     </p>
@@ -1414,7 +1414,7 @@ export default function DeliverySummaryPage() {
                           onClick={() => setPaymentDetails({ ...paymentDetails, paymentMethod: 'cash' })}
                           className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
                             paymentDetails.paymentMethod === 'cash'
-                              ? 'border-[#F4511E] bg-[#F4511E] bg-opacity-10 text-[#F4511E] font-medium'
+                              ? 'border-primary bg-primary bg-opacity-10 text-primary font-medium'
                               : 'border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:border-gray-400 dark:hover:border-slate-500'
                           }`}
                         >
@@ -1425,7 +1425,7 @@ export default function DeliverySummaryPage() {
                           onClick={() => setPaymentDetails({ ...paymentDetails, paymentMethod: 'transfer' })}
                           className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
                             paymentDetails.paymentMethod === 'transfer'
-                              ? 'border-[#F4511E] bg-[#F4511E] bg-opacity-10 text-[#F4511E] font-medium'
+                              ? 'border-primary bg-primary bg-opacity-10 text-primary font-medium'
                               : 'border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:border-gray-400 dark:hover:border-slate-500'
                           }`}
                         >
@@ -1444,7 +1444,7 @@ export default function DeliverySummaryPage() {
                           value={paymentDetails.collectedBy}
                           onChange={(e) => setPaymentDetails({ ...paymentDetails, collectedBy: e.target.value })}
                           placeholder="ระบุชื่อคนเก็บเงิน"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                       </div>
                     )}
@@ -1459,7 +1459,7 @@ export default function DeliverySummaryPage() {
                             type="date"
                             value={paymentDetails.transferDate}
                             onChange={(e) => setPaymentDetails({ ...paymentDetails, transferDate: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                           />
                         </div>
                         <div>
@@ -1470,7 +1470,7 @@ export default function DeliverySummaryPage() {
                             type="time"
                             value={paymentDetails.transferTime}
                             onChange={(e) => setPaymentDetails({ ...paymentDetails, transferTime: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                           />
                         </div>
                       </div>
@@ -1483,7 +1483,7 @@ export default function DeliverySummaryPage() {
                         onChange={(e) => setPaymentDetails({ ...paymentDetails, notes: e.target.value })}
                         placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
                         rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                     </div>
                   </div>
@@ -1501,7 +1501,7 @@ export default function DeliverySummaryPage() {
                 <button
                   onClick={confirmStatusUpdate}
                   disabled={updatingStatus}
-                  className="px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#D63B0E] transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
                   {updatingStatus ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /><span>กำลังบันทึก...</span></>

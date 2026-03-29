@@ -126,9 +126,9 @@ function SortableHeader({
         <span className="inline-flex flex-col">
           {isActive ? (
             currentOrder === 'asc' ? (
-              <ArrowUp className="w-3 h-3 text-[#F4511E]" />
+              <ArrowUp className="w-3 h-3 text-primary" />
             ) : (
-              <ArrowDown className="w-3 h-3 text-[#F4511E]" />
+              <ArrowDown className="w-3 h-3 text-primary" />
             )
           ) : (
             <ArrowUpDown className="w-3 h-3 text-gray-300" />
@@ -339,7 +339,7 @@ export default function PaymentFollowupPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -352,7 +352,7 @@ export default function PaymentFollowupPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <DollarSign className="w-7 h-7 text-[#F4511E]" />
+              <DollarSign className="w-7 h-7 text-primary" />
               ติดตามหนี้
             </h1>
             <p className="text-gray-500 mt-1">ติดตามยอดค้างชำระจากลูกค้า</p>
@@ -408,7 +408,7 @@ export default function PaymentFollowupPage() {
             {/* All */}
             <button
               onClick={() => { setFilterDays(''); setCurrentPage(1); }}
-              className={`bg-white dark:bg-slate-800 rounded-lg border p-3 text-left transition-all hover:shadow-md ${filterDays === '' ? 'border-[#F4511E] ring-2 ring-[#F4511E]/20' : 'border-gray-200 dark:border-slate-700'}`}
+              className={`bg-white dark:bg-slate-800 rounded-lg border p-3 text-left transition-all hover:shadow-md ${filterDays === '' ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 dark:border-slate-700'}`}
             >
               <div className="text-xs text-gray-500 dark:text-slate-400 mb-1">ทั้งหมด</div>
               <div className="text-xl font-bold text-gray-900 dark:text-white">{summary.totalCustomers}</div>
@@ -490,7 +490,7 @@ export default function PaymentFollowupPage() {
         <div className="data-table-wrap hidden md:block">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
           ) : customers.length === 0 ? (
             <div className="text-center py-12">
@@ -709,7 +709,7 @@ export default function PaymentFollowupPage() {
         <div className="md:hidden">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
           ) : customers.length === 0 ? (
             <div className="text-center py-12">

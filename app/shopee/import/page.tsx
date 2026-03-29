@@ -303,7 +303,7 @@ function ShopeeImportContent() {
             {i > 0 && <ChevronRight className="w-4 h-4 text-gray-300 dark:text-slate-600 flex-shrink-0" />}
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap ${
               i < stepIndex ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-              i === stepIndex ? 'bg-[#EE4D2D] text-white' :
+              i === stepIndex ? 'bg-shopee text-white' :
               'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500'
             }`}>
               {i < stepIndex && <CheckCircle2 className="w-4 h-4" />}
@@ -386,7 +386,7 @@ function ShopeeImportContent() {
                     {item.is_linked ? (
                       <CheckCircle2 className="w-5 h-5 text-green-500" />
                     ) : (
-                      <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${isSelected(item.item_id) ? 'bg-[#F4511E]' : 'border-2 border-gray-300 dark:border-slate-500'}`}>
+                      <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${isSelected(item.item_id) ? 'bg-primary' : 'border-2 border-gray-300 dark:border-slate-500'}`}>
                         {isSelected(item.item_id) && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                       </div>
                     )}
@@ -480,7 +480,7 @@ function ShopeeImportContent() {
                   checked={copySkuToBarcode}
                   onChange={e => setCopySkuToBarcode(e.target.checked)}
                 />
-                <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${copySkuToBarcode ? 'bg-[#F4511E]' : 'border-2 border-gray-300 dark:border-slate-500'}`}>
+                <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${copySkuToBarcode ? 'bg-primary' : 'border-2 border-gray-300 dark:border-slate-500'}`}>
                   {copySkuToBarcode && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </div>
               </div>
@@ -522,7 +522,7 @@ function ShopeeImportContent() {
                         ...prev,
                         [item.item_id]: { action: 'create' },
                       }))}>
-                        <div className={`w-5 h-5 rounded-full flex-shrink-0 transition-colors ${config.action === 'create' ? 'border-[5px] border-[#F4511E]' : 'border-2 border-gray-300 dark:border-slate-500'}`} />
+                        <div className={`w-5 h-5 rounded-full flex-shrink-0 transition-colors ${config.action === 'create' ? 'border-[5px] border-primary' : 'border-2 border-gray-300 dark:border-slate-500'}`} />
                         <span className="text-sm flex items-center gap-1 text-gray-700 dark:text-slate-300 whitespace-nowrap">
                           <Plus className="w-3.5 h-3.5" />
                           สร้างใหม่
@@ -537,7 +537,7 @@ function ShopeeImportContent() {
                           setPickerForItemId(item.item_id);
                         }
                       }}>
-                        <div className={`w-5 h-5 rounded-full flex-shrink-0 transition-colors ${config.action === 'link' ? 'border-[5px] border-[#F4511E]' : 'border-2 border-gray-300 dark:border-slate-500'}`} />
+                        <div className={`w-5 h-5 rounded-full flex-shrink-0 transition-colors ${config.action === 'link' ? 'border-[5px] border-primary' : 'border-2 border-gray-300 dark:border-slate-500'}`} />
                         <span className="text-sm flex items-center gap-1 text-gray-700 dark:text-slate-300 whitespace-nowrap">
                           <Link2 className="w-3.5 h-3.5" />
                           ผูกกับสินค้าที่มี
@@ -640,7 +640,7 @@ function ShopeeImportContent() {
               </button>
               <button
                 onClick={() => router.push('/products')}
-                className="px-4 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors flex items-center gap-2"
+                className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors flex items-center gap-2"
               >
                 ดูสินค้าทั้งหมด
               </button>
@@ -699,7 +699,7 @@ function ShopeeImportContent() {
               <button
                 onClick={goToConfigure}
                 disabled={selectedItems.length === 0}
-                className="px-5 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 ถัดไป
                 <ChevronRight className="w-4 h-4" />
@@ -712,7 +712,7 @@ function ShopeeImportContent() {
                   const config = configs[item.item_id];
                   return config?.action === 'link' && !config.link_to_product_id;
                 })}
-                className="px-5 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 <Download className="w-4 h-4" />
                 นำเข้า {selectedItems.length} รายการ

@@ -157,9 +157,9 @@ export default function MonthYearPicker({
               onClick={() => handleSelect(m)}
               className={`px-2 py-2 rounded-md text-sm font-medium transition-colors ${
                 sel
-                  ? 'bg-[#F4511E] text-white'
+                  ? 'bg-primary text-white'
                   : cur
-                    ? 'bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] border border-[#F4511E]/30'
+                    ? 'bg-orange-50 dark:bg-orange-900/20 text-primary border border-primary/30'
                     : 'text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700'
               }`}
             >

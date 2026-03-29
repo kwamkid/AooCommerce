@@ -26,7 +26,7 @@ function NewReportPageContent() {
             <ArrowLeft className="w-5 h-5 text-gray-500" />
           </Link>
           <div className="flex items-center gap-2">
-            <ClipboardList className="w-6 h-6 text-[#F4511E]" />
+            <ClipboardList className="w-6 h-6 text-primary" />
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">คีย์ยอดตัวแทน</h1>
           </div>
         </div>

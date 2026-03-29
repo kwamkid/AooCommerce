@@ -33,7 +33,7 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
       type="button"
       onClick={() => !disabled && onChange(!checked)}
       className={`relative w-11 h-6 rounded-full transition-colors ${
-        checked ? 'bg-[#F4511E]' : 'bg-gray-300 dark:bg-slate-600'
+        checked ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
@@ -239,7 +239,7 @@ export default function WarehouseSettingsPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
         ) : stockConfig.stockEnabled ? (
           <div className="space-y-4">
@@ -274,15 +274,15 @@ export default function WarehouseSettingsPage() {
               <div key={wh.id} className="space-y-4">
                 <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden ${!wh.is_active ? 'opacity-60' : ''}`}>
                   <div className="flex items-center gap-3 p-4">
-                    <div className="w-10 h-10 rounded-lg bg-[#F4511E]/10 flex items-center justify-center flex-shrink-0">
-                      <Warehouse className="w-5 h-5 text-[#F4511E]" />
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Warehouse className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-gray-900 dark:text-white truncate">{wh.name}</p>
                         {wh.code && <span className="text-xs text-gray-400 dark:text-slate-500">({wh.code})</span>}
                         {wh.is_default && (
-                          <span className="px-1.5 py-0.5 text-xs bg-[#F4511E]/10 text-[#F4511E] rounded font-medium">หลัก</span>
+                          <span className="px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded font-medium">หลัก</span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
@@ -299,13 +299,13 @@ export default function WarehouseSettingsPage() {
                         <button
                           onClick={() => handleSetDefault(wh)}
                           title="ตั้งเป็นคลังหลัก"
-                          className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-primary transition-colors"
                         >
                           <StarOff className="w-4 h-4" />
                         </button>
                       )}
                       {wh.is_default && (
-                        <Star className="w-4 h-4 text-[#F4511E] fill-current" />
+                        <Star className="w-4 h-4 text-primary fill-current" />
                       )}
                       <Toggle checked={wh.is_active} onChange={() => handleToggleActive(wh)} />
                       <button
@@ -336,7 +336,7 @@ export default function WarehouseSettingsPage() {
             ) : !showForm ? (
               <button
                 onClick={() => { resetForm(); setShowForm(true); }}
-                className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
                 เพิ่ม<span className="hidden md:inline">คลังสินค้า</span>
@@ -353,7 +353,7 @@ export default function WarehouseSettingsPage() {
     return (
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
         <div className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
-          <Warehouse className="w-4 h-4 text-[#F4511E]" />
+          <Warehouse className="w-4 h-4 text-primary" />
           {editingId ? 'แก้ไขคลังสินค้า' : 'เพิ่มคลังสินค้า'}
         </div>
 
@@ -364,7 +364,7 @@ export default function WarehouseSettingsPage() {
             value={formName}
             onChange={e => setFormName(e.target.value)}
             placeholder="เช่น คลังหลัก, คลังสาขา 2"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
             autoFocus
           />
         </div>
@@ -376,7 +376,7 @@ export default function WarehouseSettingsPage() {
             value={formCode}
             onChange={e => setFormCode(e.target.value)}
             placeholder="เช่น WH01"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
           />
         </div>
 
@@ -387,7 +387,7 @@ export default function WarehouseSettingsPage() {
             value={formAddress}
             onChange={e => setFormAddress(e.target.value)}
             placeholder="ที่อยู่คลังสินค้า"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
           />
         </div>
 
@@ -395,7 +395,7 @@ export default function WarehouseSettingsPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             บันทึก

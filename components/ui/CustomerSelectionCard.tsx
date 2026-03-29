@@ -250,13 +250,13 @@ export default function CustomerSelectionCard({
                 value={newCustomerName}
                 onChange={(e) => onNewCustomerNameChange?.(e.target.value)}
                 placeholder="ชื่อลูกค้าใหม่"
-                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E]"
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
           ) : selectedCustomer ? (
             <div className="relative flex-1">
               <div
-                className={`flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-[#F4511E]/30 rounded-lg h-full ${shippingAddresses.length > 1 && isEditable ? 'cursor-pointer' : ''}`}
+                className={`flex items-start gap-2 px-3 py-2.5 bg-orange-50 dark:bg-orange-900/20 border border-primary/30 rounded-lg h-full ${shippingAddresses.length > 1 && isEditable ? 'cursor-pointer' : ''}`}
                 onClick={() => { if (shippingAddresses.length > 1 && isEditable) setShowAddressDropdown(!showAddressDropdown); }}
               >
                 <CustomerInfoCard
@@ -289,12 +289,12 @@ export default function CustomerSelectionCard({
                         onAddressSelect?.(addr.id, addr);
                         setShowAddressDropdown(false);
                       }} className={`w-full px-3 py-2.5 text-left flex items-center gap-2 transition-colors ${selectedAddressId === addr.id ? 'bg-orange-50 dark:bg-orange-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}>
-                        <MapPin className={`w-3.5 h-3.5 flex-shrink-0 ${selectedAddressId === addr.id ? 'text-[#F4511E]' : 'text-gray-400'}`} />
+                        <MapPin className={`w-3.5 h-3.5 flex-shrink-0 ${selectedAddressId === addr.id ? 'text-primary' : 'text-gray-400'}`} />
                         <div className="flex-1 min-w-0">
-                          <div className={`text-sm ${selectedAddressId === addr.id ? 'font-medium text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>{addr.address_name}</div>
+                          <div className={`text-sm ${selectedAddressId === addr.id ? 'font-medium text-primary' : 'text-gray-700 dark:text-slate-300'}`}>{addr.address_name}</div>
                           <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{[addr.address_line1, addr.district, addr.amphoe, addr.province].filter(Boolean).join(', ')}</div>
                         </div>
-                        {selectedAddressId === addr.id && <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0" />}
+                        {selectedAddressId === addr.id && <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />}
                       </button>
                     ))}
                     {onNewAddress && (
@@ -345,7 +345,7 @@ export default function CustomerSelectionCard({
             rows={2}
             disabled={!isEditable}
             placeholder="วางที่อยู่ยาวๆ ได้เลย — ระบบจะแยก ตำบล อำเภอ จังหวัด ให้อัตโนมัติ"
-            className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none"
+            className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none"
           />
         </div>
         )}
@@ -357,12 +357,12 @@ export default function CustomerSelectionCard({
               <div>
                 <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
                 <input type="text" inputMode="tel" value={delivery?.deliveryPhone || selectedCustomer?.phone || ''} onChange={(e) => onDeliveryChange?.({ deliveryPhone: e.target.value })} placeholder="0xx-xxx-xxxx" disabled={!isEditable}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" />
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800" />
               </div>
               <div>
                 <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
                 <input type="text" inputMode="email" value={delivery?.deliveryEmail || selectedCustomer?.email || ''} onChange={(e) => onDeliveryChange?.({ deliveryEmail: e.target.value })} placeholder="email@example.com" disabled={!isEditable}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#F4511E] disabled:bg-gray-100 dark:disabled:bg-slate-800" />
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800" />
               </div>
             </div>
 
@@ -414,33 +414,33 @@ export default function CustomerSelectionCard({
                 type="checkbox"
                 checked={taxInvoiceRequested}
                 onChange={(e) => onTaxInvoiceRequestedChange?.(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E] accent-[#F4511E]"
+                className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-primary focus:ring-primary accent-primary"
               />
-              <span className="text-base font-medium text-[#F4511E] dark:text-orange-400">ขอใบกำกับภาษี</span>
+              <span className="text-base font-medium text-primary dark:text-orange-400">ขอใบกำกับภาษี</span>
             </label>
             {taxInvoiceRequested && taxFields && onTaxFieldsChange && (
               <div className="mt-3 space-y-3">
                 <div>
                   <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">ชื่อบริษัท/ชื่อผู้เสียภาษี</label>
                   <input type="text" value={taxFields.taxName} onChange={(e) => onTaxFieldsChange({ ...taxFields, taxName: e.target.value })}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="บริษัท XXX จำกัด" />
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="บริษัท XXX จำกัด" />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">เลขประจำตัวผู้เสียภาษี</label>
                     <input type="text" value={taxFields.taxTaxId} onChange={(e) => onTaxFieldsChange({ ...taxFields, taxTaxId: e.target.value })}
-                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
+                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
                   </div>
                   <div>
                     <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">สาขา</label>
                     <input type="text" value={taxFields.taxBranch} onChange={(e) => onTaxFieldsChange({ ...taxFields, taxBranch: e.target.value })}
-                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E]" placeholder="สำนักงานใหญ่" />
+                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="สำนักงานใหญ่" />
                   </div>
                 </div>
                 <div>
                   <label className="block text-base text-gray-600 dark:text-slate-400 mb-1">ที่อยู่ออกบิล</label>
                   <textarea value={taxFields.taxAddress} onChange={(e) => onTaxFieldsChange({ ...taxFields, taxAddress: e.target.value })} rows={2}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F4511E] resize-none" placeholder="ที่อยู่สำหรับออกใบกำกับภาษี" />
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary resize-none" placeholder="ที่อยู่สำหรับออกใบกำกับภาษี" />
                 </div>
               </div>
             )}

@@ -50,8 +50,8 @@ export default function CustomerSearch({ selectedCustomer, onSelect, onClose }: 
     label: c.name,
     subtitle: c.customer_code + (c.phone ? ` • ${c.phone}` : ''),
     icon: (
-      <div className="w-8 h-8 rounded-full bg-[#F4511E]/10 dark:bg-[#F4511E]/20 flex items-center justify-center">
-        <User className="w-4 h-4 text-[#F4511E]" />
+      <div className="w-8 h-8 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center">
+        <User className="w-4 h-4 text-primary" />
       </div>
     ),
   }));
@@ -73,7 +73,7 @@ export default function CustomerSearch({ selectedCustomer, onSelect, onClose }: 
         <button
           onClick={() => { onSelect(null); onClose(); }}
           className={`w-full p-3 rounded-lg mb-3 text-left flex items-center gap-3 transition-colors ${
-            !selectedCustomer ? 'bg-[#F4511E]/10 dark:bg-[#F4511E]/20 border border-[#F4511E]' : 'bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20'
+            !selectedCustomer ? 'bg-primary/10 dark:bg-primary/20 border border-primary' : 'bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20'
           }`}
         >
           <User className="w-5 h-5 text-gray-500 dark:text-gray-400" />

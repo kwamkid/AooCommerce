@@ -154,7 +154,7 @@ export default function AdjustStockModal({ item, warehouses, initialWarehouseId,
                   value={newQty}
                   onChange={e => setNewQty(e.target.value)}
                   placeholder="กรอกจำนวนใหม่"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
                 {newQty !== '' && !isNaN(diff) && diff !== 0 && (
                   <p className={`mt-1 text-sm font-medium ${diff > 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -170,7 +170,7 @@ export default function AdjustStockModal({ item, warehouses, initialWarehouseId,
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   placeholder="เช่น นับ stock จริง, ของเสีย..."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
             </>
@@ -184,7 +184,7 @@ export default function AdjustStockModal({ item, warehouses, initialWarehouseId,
           <button
             onClick={handleSave}
             disabled={saving || !warehouseId || newQty === '' || loadingQty}
-            className="px-4 py-2 text-sm bg-[#F4511E] hover:bg-[#D63B0E] text-white rounded-lg font-medium disabled:opacity-50 transition-colors"
+            className="px-4 py-2 text-sm bg-primary hover:bg-primary-hover text-white rounded-lg font-medium disabled:opacity-50 transition-colors"
           >
             {saving ? 'กำลังบันทึก...' : 'บันทึก'}
           </button>

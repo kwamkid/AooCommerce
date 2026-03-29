@@ -122,7 +122,7 @@ export default function POReceivesSection({ receives, poItems }: Props) {
                   <button
                     type="button"
                     onClick={() => router.push(`/inventory/receives/${r.id}`)}
-                    className="mt-2 text-xs text-[#F4511E] hover:underline"
+                    className="mt-2 text-xs text-primary hover:underline"
                   >
                     ดูใบรับเข้า →
                   </button>

@@ -24,7 +24,7 @@ export default function CategoryTabs({ categories, brands, selectedCategoryId, s
         onClick={() => { onSelectCategory(null); onSelectBrand(null); }}
         className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
           !hasFilter
-            ? 'bg-[#F4511E] text-white'
+            ? 'bg-primary text-white'
             : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-white/20'
         }`}
       >
@@ -36,7 +36,7 @@ export default function CategoryTabs({ categories, brands, selectedCategoryId, s
           onClick={() => { onSelectCategory(selectedCategoryId === cat.id ? null : cat.id); onSelectBrand(null); }}
           className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
             selectedCategoryId === cat.id
-              ? 'bg-[#F4511E] text-white'
+              ? 'bg-primary text-white'
               : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-white/20'
           }`}
         >

@@ -84,7 +84,7 @@ export default function Pagination({
                 <button
                   key={page}
                   onClick={() => setPage(page as number)}
-                  className={`w-8 h-8 rounded text-sm font-medium ${currentPage === page ? 'bg-[#F4511E] text-white' : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300'}`}
+                  className={`w-8 h-8 rounded text-sm font-medium ${currentPage === page ? 'bg-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300'}`}
                 >
                   {page}
                 </button>

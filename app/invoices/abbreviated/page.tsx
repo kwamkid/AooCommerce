@@ -141,7 +141,7 @@ export default function AbbreviatedInvoicesPage() {
       render: (inv) => {
         const isVoided = !!inv.tax_invoice_voided_at;
         return (
-          <span className={`font-mono text-sm font-medium ${isVoided ? 'text-gray-400 line-through' : 'text-[#F4511E]'}`}>
+          <span className={`font-mono text-sm font-medium ${isVoided ? 'text-gray-400 line-through' : 'text-primary'}`}>
             {inv.tax_invoice_number}
           </span>
         );
@@ -158,7 +158,7 @@ export default function AbbreviatedInvoicesPage() {
       key: 'order_number',
       label: 'คำสั่งซื้อ',
       render: (inv) => (
-        <Link href={`/orders/${inv.id}`} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
+        <Link href={`/orders/${inv.id}`} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
           {inv.order_number || '-'} <ExternalLink className="w-3 h-3" />
         </Link>
       ),
@@ -209,14 +209,14 @@ export default function AbbreviatedInvoicesPage() {
         const canIssueFullInvoice = !isVoided;
         return (
           <div className="flex items-center justify-center gap-1">
-            <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors" title="พิมพ์">
+            <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-primary transition-colors" title="พิมพ์">
               <Printer className="w-4 h-4" />
             </button>
             {canIssueFullInvoice && (
               <div className="relative">
                 <button
                   onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === inv.doc_id ? null : inv.doc_id); }}
-                  className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
+                  className="p-1.5 text-gray-400 hover:text-primary transition-colors"
                   title="เพิ่มเติม"
                 >
                   <MoreHorizontal className="w-4 h-4" />
@@ -246,7 +246,7 @@ export default function AbbreviatedInvoicesPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <ReceiptText className="w-8 h-8 text-[#F4511E]" />
+              <ReceiptText className="w-8 h-8 text-primary" />
               ใบกำกับอย่างย่อ
             </h1>
             <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">ABB-YYYYMM-NNNN — ออกอัตโนมัติสำหรับออเดอร์ปลีก</p>
@@ -261,7 +261,7 @@ export default function AbbreviatedInvoicesPage() {
               onClick={() => { setVoidedFilter(tab.key); setPage(1); }}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 voidedFilter === tab.key
-                  ? 'border-[#F4511E] text-[#F4511E]'
+                  ? 'border-primary text-primary'
                   : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
               }`}
             >
@@ -275,7 +275,7 @@ export default function AbbreviatedInvoicesPage() {
             <select
               value={month}
               onChange={e => { setMonth(e.target.value); setPage(1); }}
-              className="h-[42px] px-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50"
+              className="h-[42px] px-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
             >
               {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -286,7 +286,7 @@ export default function AbbreviatedInvoicesPage() {
                 value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
                 placeholder="ค้นหาเลขที่, คำสั่งซื้อ..."
-                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               />
             </div>
           </div>
@@ -315,7 +315,7 @@ export default function AbbreviatedInvoicesPage() {
               <>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className={`font-mono text-sm font-medium ${isVoided ? 'text-gray-400 line-through' : 'text-[#F4511E]'}`}>
+                    <span className={`font-mono text-sm font-medium ${isVoided ? 'text-gray-400 line-through' : 'text-primary'}`}>
                       {inv.tax_invoice_number}
                     </span>
                     {isVoided ? (
@@ -325,14 +325,14 @@ export default function AbbreviatedInvoicesPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors" title="พิมพ์">
+                    <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-primary transition-colors" title="พิมพ์">
                       <Printer className="w-4 h-4" />
                     </button>
                     {canIssueFullInvoice && (
                       <div className="relative">
                         <button
                           onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === inv.doc_id ? null : inv.doc_id); }}
-                          className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-primary transition-colors"
                           title="เพิ่มเติม"
                         >
                           <MoreHorizontal className="w-4 h-4" />
@@ -354,7 +354,7 @@ export default function AbbreviatedInvoicesPage() {
                 </div>
                 <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(inv.tax_invoice_date)}</div>
                 <div className="mt-1">
-                  <Link href={`/orders/${inv.id}`} className="text-sm text-[#F4511E] hover:underline inline-flex items-center gap-1">
+                  <Link href={`/orders/${inv.id}`} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
                     {inv.order_number || '-'} <ExternalLink className="w-3 h-3" />
                   </Link>
                 </div>

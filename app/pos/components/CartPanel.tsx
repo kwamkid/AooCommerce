@@ -126,7 +126,7 @@ function DiscountPopover({ item, onUpdate }: { item: CartItem; onUpdate: (type: 
               onChange={(e) => setValue(Math.max(0, Number(e.target.value) || 0))}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
               placeholder="0"
-              className="flex-1 px-2 py-1.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-gray-700 rounded-l text-gray-900 dark:text-white text-sm text-right placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-[#F4511E] w-0"
+              className="flex-1 px-2 py-1.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-gray-700 rounded-l text-gray-900 dark:text-white text-sm text-right placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary w-0"
               min="0"
             />
             <button
@@ -138,7 +138,7 @@ function DiscountPopover({ item, onUpdate }: { item: CartItem; onUpdate: (type: 
           </div>
           <button
             onClick={handleSave}
-            className="w-full mt-2 py-1.5 bg-[#F4511E] text-white text-xs rounded-lg hover:bg-[#D63B0E] transition-colors font-medium"
+            className="w-full mt-2 py-1.5 bg-primary text-white text-xs rounded-lg hover:bg-primary-hover transition-colors font-medium"
           >
             ตกลง
           </button>
@@ -297,7 +297,7 @@ export default function CartPanel({
                 onUpdateOrderDiscount(v);
               }}
               placeholder="0"
-              className="w-20 px-2 py-1 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-gray-700 rounded-l text-gray-900 dark:text-white text-xs text-right placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-[#F4511E]"
+              className="w-20 px-2 py-1 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-gray-700 rounded-l text-gray-900 dark:text-white text-xs text-right placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary"
               min="0"
             />
             <button
@@ -335,7 +335,7 @@ export default function CartPanel({
         )}
         <div className="flex justify-between text-lg font-bold pt-1">
           <span className="text-gray-900 dark:text-white">ยอดชำระ</span>
-          <span className="text-[#F4511E]">฿{formatPrice(totalWithVAT)}</span>
+          <span className="text-primary">฿{formatPrice(totalWithVAT)}</span>
         </div>
       </div>
 
@@ -343,7 +343,7 @@ export default function CartPanel({
       <button
         onClick={onCheckout}
         disabled={items.length === 0 || totalWithVAT < 0}
-        className="w-full mt-3 py-4 bg-[#F4511E] hover:bg-[#D63B0E] text-white font-bold text-lg rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.98]"
+        className="w-full mt-3 py-4 bg-primary hover:bg-primary-hover text-white font-bold text-lg rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.98]"
       >
         ชำระเงิน
       </button>

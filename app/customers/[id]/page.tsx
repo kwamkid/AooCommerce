@@ -262,7 +262,7 @@ export default function CustomerEditPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -274,7 +274,7 @@ export default function CustomerEditPage() {
         <div className="text-center py-12">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <p className="text-gray-500 text-lg">ไม่พบข้อมูลลูกค้า</p>
-          <button onClick={() => router.push('/customers')} className="mt-4 text-[#F4511E] hover:underline">
+          <button onClick={() => router.push('/customers')} className="mt-4 text-primary hover:underline">
             กลับหน้ารายการลูกค้า
           </button>
         </div>
@@ -296,7 +296,7 @@ export default function CustomerEditPage() {
               กลับ
             </button>
             <div className="flex items-center gap-3">
-              <UserCircle className="w-8 h-8 text-[#F4511E]" />
+              <UserCircle className="w-8 h-8 text-primary" />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{customer.name}</h1>
                 <p className="data-secondary text-gray-500 dark:text-slate-400">รหัส: {customer.customer_code}</p>
@@ -426,7 +426,7 @@ export default function CustomerEditPage() {
                 form?.requestSubmit();
               }}
               disabled={saving}
-              className="bg-[#F4511E] text-white px-6 py-2.5 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center gap-2 disabled:opacity-50"
+              className="bg-primary text-white px-6 py-2.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {saving ? 'กำลังบันทึก...' : 'บันทึก'}

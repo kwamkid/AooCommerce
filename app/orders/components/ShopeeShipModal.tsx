@@ -181,11 +181,11 @@ export default function ShopeeShipModal({ orderId, orderSn, onClose, onSuccess, 
                     onClick={() => handleSelectMode(m.mode)}
                     className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
                       selectedMode === m.mode
-                        ? 'border-[#F4511E] bg-orange-50'
+                        ? 'border-primary bg-orange-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    <div className={`p-2 rounded-lg ${selectedMode === m.mode ? 'bg-[#F4511E] text-white' : 'bg-gray-100 text-gray-500'}`}>
+                    <div className={`p-2 rounded-lg ${selectedMode === m.mode ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500'}`}>
                       {m.mode === 'pickup' && <Truck className="w-5 h-5" />}
                       {m.mode === 'dropoff' && <MapPin className="w-5 h-5" />}
                       {m.mode === 'non_integrated' && <Package className="w-5 h-5" />}
@@ -196,7 +196,7 @@ export default function ShopeeShipModal({ orderId, orderSn, onClose, onSuccess, 
                       {m.mode === 'dropoff' && <p className="text-xs text-gray-500">นำพัสดุไปส่งที่จุดรับพัสดุ</p>}
                       {m.mode === 'non_integrated' && <p className="text-xs text-gray-500">จัดส่งด้วยขนส่งของคุณเอง</p>}
                     </div>
-                    {selectedMode === m.mode && <CheckCircle2 className="w-5 h-5 text-[#F4511E]" />}
+                    {selectedMode === m.mode && <CheckCircle2 className="w-5 h-5 text-primary" />}
                   </button>
 
                   {/* Pickup: time slot selection */}
@@ -212,7 +212,7 @@ export default function ShopeeShipModal({ orderId, orderSn, onClose, onSuccess, 
                             onClick={() => setSelectedTimeSlotId(ts.pickup_time_id)}
                             className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
                               selectedTimeSlotId === ts.pickup_time_id
-                                ? 'bg-[#F4511E] text-white'
+                                ? 'bg-primary text-white'
                                 : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
                             }`}
                           >
@@ -239,7 +239,7 @@ export default function ShopeeShipModal({ orderId, orderSn, onClose, onSuccess, 
                             onClick={() => setSelectedBranchId(b.branch_id)}
                             className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
                               selectedBranchId === b.branch_id
-                                ? 'bg-[#F4511E] text-white'
+                                ? 'bg-primary text-white'
                                 : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
                             }`}
                           >
@@ -269,7 +269,7 @@ export default function ShopeeShipModal({ orderId, orderSn, onClose, onSuccess, 
             <button
               onClick={handleShip}
               disabled={!canShip || shipping}
-              className="px-5 py-2 text-sm font-medium text-white bg-[#F4511E] rounded-lg hover:bg-[#E64A19] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-5 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {shipping ? (
                 <>

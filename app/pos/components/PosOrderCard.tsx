@@ -82,7 +82,7 @@ export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId }
     <div className={`bg-white dark:bg-slate-800 rounded-xl border transition-all overflow-hidden ${
       isVoided
         ? 'border-gray-200 dark:border-slate-700 opacity-60'
-        : 'border-gray-200 dark:border-slate-700 hover:border-[#F4511E]/40 dark:hover:border-[#F4511E]/40 hover:shadow-md'
+        : 'border-gray-200 dark:border-slate-700 hover:border-primary/40 dark:hover:border-primary/40 hover:shadow-md'
     }`}>
       {/* Header bar */}
       <div className={`px-4 py-2.5 ${statusCfg.headerBg}`}>
@@ -163,14 +163,14 @@ export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId }
           <div className="flex items-center gap-1 mt-0.5">
             <button
               onClick={() => onViewReceipt(order.id)}
-              className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
+              className="p-1.5 text-gray-400 hover:text-primary transition-colors"
               title="ดูใบเสร็จ"
             >
               <Eye className="w-4 h-4" />
             </button>
             <button
               onClick={() => onViewReceipt(order.id)}
-              className="p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors"
+              className="p-1.5 text-gray-400 hover:text-primary transition-colors"
               title="พิมพ์"
             >
               <Printer className="w-4 h-4" />

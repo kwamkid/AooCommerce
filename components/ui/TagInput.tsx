@@ -108,7 +108,7 @@ export default function TagInput({
       {/* Selected tags + input */}
       <div
         className={`flex flex-wrap items-center gap-1.5 min-h-[34px] px-2 py-1 border rounded-lg cursor-text transition-colors bg-white dark:bg-slate-800 ${
-          open ? 'ring-2 ring-[#F4511E] border-transparent' : 'border-gray-300 dark:border-slate-500'
+          open ? 'ring-2 ring-primary border-transparent' : 'border-gray-300 dark:border-slate-500'
         }`}
         onClick={() => { setOpen(true); inputRef.current?.focus(); }}
       >
@@ -149,7 +149,7 @@ export default function TagInput({
               type="button"
               onClick={handleCreate}
               disabled={creating}
-              className="w-full text-left px-3 py-2 text-base hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors text-[#F4511E] border-t border-gray-100 dark:border-slate-700"
+              className="w-full text-left px-3 py-2 text-base hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors text-primary border-t border-gray-100 dark:border-slate-700"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>สร้างแท็ก &quot;{search.trim()}&quot;</span>

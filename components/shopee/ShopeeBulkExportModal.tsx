@@ -314,8 +314,8 @@ export default function ShopeeBulkExportModal({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[#EE4D2D]/10 flex items-center justify-center">
-              <Upload className="w-4 h-4 text-[#EE4D2D]" />
+            <div className="w-8 h-8 rounded-lg bg-shopee/10 flex items-center justify-center">
+              <Upload className="w-4 h-4 text-shopee" />
             </div>
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">ส่งสินค้าไป Shopee</h3>
@@ -342,7 +342,7 @@ export default function ShopeeBulkExportModal({
                 {idx > 0 && <ChevronRight className="w-3 h-3 text-gray-400" />}
                 <span className={`text-xs font-medium px-2 py-0.5 rounded ${
                   isActive
-                    ? 'bg-[#EE4D2D] text-white'
+                    ? 'bg-shopee text-white'
                     : isPast
                       ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                       : 'text-gray-400 dark:text-slate-500'
@@ -372,7 +372,7 @@ export default function ShopeeBulkExportModal({
                       placeholder="ค้นหาสินค้า..."
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EE4D2D]/50"
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-shopee/50"
                     />
                   </div>
                 </div>
@@ -394,7 +394,7 @@ export default function ShopeeBulkExportModal({
                             key={product.product_id}
                             className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
                               isSelected
-                                ? 'bg-[#EE4D2D]/5 border border-[#EE4D2D]/30'
+                                ? 'bg-shopee/5 border border-shopee/30'
                                 : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
                             }`}
                             onClick={() => toggleProduct(product)}
@@ -418,7 +418,7 @@ export default function ShopeeBulkExportModal({
                             </div>
 
                             {isSelected ? (
-                              <Minus className="w-4 h-4 text-[#EE4D2D] flex-shrink-0" />
+                              <Minus className="w-4 h-4 text-shopee flex-shrink-0" />
                             ) : (
                               <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
                             )}
@@ -447,7 +447,7 @@ export default function ShopeeBulkExportModal({
                       {[...selectedProducts.values()].map(product => (
                         <div
                           key={product.product_id}
-                          className="flex items-center gap-2 p-2 bg-[#EE4D2D]/5 rounded-lg"
+                          className="flex items-center gap-2 p-2 bg-shopee/5 rounded-lg"
                         >
                           <div className="flex-1 min-w-0">
                             <p className="text-sm text-gray-900 dark:text-white truncate">{product.name}</p>
@@ -561,7 +561,7 @@ export default function ShopeeBulkExportModal({
                             }}
                             step="0.1"
                             min="0.01"
-                            className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EE4D2D]/50"
+                            className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-shopee/50"
                           />
                         </div>
                       </div>
@@ -591,7 +591,7 @@ export default function ShopeeBulkExportModal({
                 </div>
                 <div className="w-full h-2.5 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-[#EE4D2D] rounded-full transition-all duration-300 ease-out"
+                    className="h-full bg-shopee rounded-full transition-all duration-300 ease-out"
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
@@ -657,7 +657,7 @@ export default function ShopeeBulkExportModal({
                   setStep('configure');
                 }}
                 disabled={selectedCount === 0}
-                className="px-4 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 ถัดไป ({selectedCount})
                 <ChevronRight className="w-4 h-4" />
@@ -670,7 +670,7 @@ export default function ShopeeBulkExportModal({
                 <button
                   onClick={handleExport}
                   disabled={!allConfigured}
-                  className="px-4 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
                   <ShoppingBag className="w-4 h-4" />
                   ส่งไป Shopee ({selectedCount})

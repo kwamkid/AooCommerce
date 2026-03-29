@@ -285,7 +285,7 @@ export default function ShopeeCategoryPicker({ accountId, value, categoryName, o
             onClick={() => handleSelect(level, cat)}
             className={`w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-1.5 ${
               isInPath
-                ? 'bg-orange-50 dark:bg-orange-900/20 text-[#EE4D2D] font-medium'
+                ? 'bg-orange-50 dark:bg-orange-900/20 text-shopee font-medium'
                 : isSelected
                   ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-medium'
                   : 'text-gray-700 dark:text-slate-300'
@@ -314,7 +314,7 @@ export default function ShopeeCategoryPicker({ accountId, value, categoryName, o
           value
             ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 text-gray-900 dark:text-white'
             : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-500 dark:text-slate-400'
-        } hover:border-[#EE4D2D] focus:outline-none focus:ring-2 focus:ring-[#EE4D2D]/50`}
+        } hover:border-shopee focus:outline-none focus:ring-2 focus:ring-shopee/50`}
       >
         <span className="truncate">
           {value ? getSelectedName() : 'เลือกหมวดหมู่ Shopee...'}
@@ -363,7 +363,7 @@ export default function ShopeeCategoryPicker({ accountId, value, categoryName, o
               onChange={e => setSearch(e.target.value)}
               placeholder="ค้นหาหมวดหมู่..."
               autoFocus
-              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#EE4D2D] placeholder-gray-400"
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-shopee placeholder-gray-400"
             />
           </div>
 
@@ -439,7 +439,7 @@ export default function ShopeeCategoryPicker({ accountId, value, categoryName, o
                   <button
                     type="button"
                     onClick={() => setMobileLevel(mobileLevel - 1)}
-                    className="flex items-center gap-2 px-3 py-2.5 text-sm text-[#EE4D2D] font-medium border-b border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50"
+                    className="flex items-center gap-2 px-3 py-2.5 text-sm text-shopee font-medium border-b border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50"
                   >
                     <ChevronLeft className="w-4 h-4" />
                     <span>{getMobileBreadcrumb(mobileLevel)}</span>
@@ -460,7 +460,7 @@ export default function ShopeeCategoryPicker({ accountId, value, categoryName, o
                         onClick={() => handleSelect(mobileLevel, cat)}
                         className={`w-full text-left px-4 py-3 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2 ${
                           selectedPath[mobileLevel] === cat.category_id
-                            ? 'bg-orange-50 dark:bg-orange-900/20 text-[#EE4D2D] font-medium'
+                            ? 'bg-orange-50 dark:bg-orange-900/20 text-shopee font-medium'
                             : value === cat.category_id
                               ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-medium'
                               : 'text-gray-700 dark:text-slate-300'

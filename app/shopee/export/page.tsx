@@ -446,7 +446,7 @@ function ShopeeExportContent() {
           <p className="text-gray-500 dark:text-slate-400 mb-4">ไม่พบข้อมูลร้าน Shopee</p>
           <button
             onClick={() => router.push('/settings/integrations')}
-            className="text-sm text-[#EE4D2D] hover:underline"
+            className="text-sm text-shopee hover:underline"
           >
             กลับหน้า Marketplace
           </button>
@@ -482,8 +482,8 @@ function ShopeeExportContent() {
             {accountLogo ? (
               <img src={accountLogo} alt={accountName} className="w-10 h-10 rounded-lg object-cover" />
             ) : (
-              <div className="w-10 h-10 rounded-lg bg-[#EE4D2D]/10 flex items-center justify-center">
-                <Upload className="w-5 h-5 text-[#EE4D2D]" />
+              <div className="w-10 h-10 rounded-lg bg-shopee/10 flex items-center justify-center">
+                <Upload className="w-5 h-5 text-shopee" />
               </div>
             )}
             <div>
@@ -504,7 +504,7 @@ function ShopeeExportContent() {
                   {idx > 0 && <ChevronRight className="w-4 h-4 text-gray-400" />}
                   <span className={`text-sm font-medium px-3 py-1.5 rounded-full ${
                     isActive
-                      ? 'bg-[#EE4D2D] text-white'
+                      ? 'bg-shopee text-white'
                       : isPast
                         ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                         : 'text-gray-400 dark:text-slate-500 bg-gray-100 dark:bg-slate-700'
@@ -539,7 +539,7 @@ function ShopeeExportContent() {
                     placeholder="ค้นหา..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full h-full pl-8 pr-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#EE4D2D]/50"
+                    className="w-full h-full pl-8 pr-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-shopee/50"
                   />
                 </div>
                 {categories.length > 0 && (
@@ -567,7 +567,7 @@ function ShopeeExportContent() {
                 <button
                   onClick={addCheckedToSelected}
                   disabled={checkedCount === 0}
-                  className="px-4 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-30 flex items-center gap-1 flex-shrink-0"
+                  className="px-4 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-30 flex items-center gap-1 flex-shrink-0"
                 >
                   <Plus className="w-3 h-3" />
                   เพิ่ม{checkedCount > 0 ? ` (${checkedCount})` : ''}
@@ -593,7 +593,7 @@ function ShopeeExportContent() {
                         key={product.product_id}
                         className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors ${
                           isChecked
-                            ? 'bg-[#EE4D2D]/5'
+                            ? 'bg-shopee/5'
                             : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
                         }`}
                         onClick={() => toggleCheck(product.product_id)}
@@ -601,7 +601,7 @@ function ShopeeExportContent() {
                         {/* Checkbox */}
                         <div className={`w-4 h-4 rounded border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors ${
                           isChecked
-                            ? 'bg-[#EE4D2D] border-[#EE4D2D]'
+                            ? 'bg-shopee border-shopee'
                             : 'border-gray-300 dark:border-slate-500'
                         }`}>
                           {isChecked && (
@@ -649,7 +649,7 @@ function ShopeeExportContent() {
               >
                 <div className={`w-4 h-4 rounded border-[1.5px] flex items-center justify-center transition-colors ${
                   allPageChecked
-                    ? 'bg-[#EE4D2D] border-[#EE4D2D]'
+                    ? 'bg-shopee border-shopee'
                     : 'border-gray-300 dark:border-slate-500'
                 }`}>
                   {allPageChecked && (
@@ -708,7 +708,7 @@ function ShopeeExportContent() {
                     return (
                       <div
                         key={product.product_id}
-                        className="flex items-center gap-2.5 p-2.5 bg-[#EE4D2D]/5 rounded-lg"
+                        className="flex items-center gap-2.5 p-2.5 bg-shopee/5 rounded-lg"
                       >
                         {imgUrl ? (
                           <img src={imgUrl} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
@@ -799,7 +799,7 @@ function ShopeeExportContent() {
               onClick={() => setShowBulkEdit(!showBulkEdit)}
               className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
                 showBulkEdit
-                  ? 'bg-[#EE4D2D] text-white'
+                  ? 'bg-shopee text-white'
                   : 'border border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50'
               }`}
             >
@@ -810,7 +810,7 @@ function ShopeeExportContent() {
 
           {/* Bulk edit panel */}
           {showBulkEdit && (
-            <div className="bg-[#EE4D2D]/5 border border-[#EE4D2D]/20 rounded-lg p-4 mb-3">
+            <div className="bg-shopee/5 border border-shopee/20 rounded-lg p-4 mb-3">
               <p className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">ตั้งค่าสินค้าทั้งหมดพร้อมกัน</p>
               <div className="flex items-end gap-3">
                 <div className="flex-1 min-w-0">
@@ -830,13 +830,13 @@ function ShopeeExportContent() {
                     placeholder="0.5"
                     step="0.1"
                     min="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EE4D2D]/50"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-shopee/50"
                   />
                 </div>
                 <button
                   onClick={applyBulkConfig}
                   disabled={bulkCategoryId === null && !bulkWeight}
-                  className="px-4 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-30 flex-shrink-0"
+                  className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-30 flex-shrink-0"
                 >
                   ใช้กับทั้งหมด
                 </button>
@@ -928,7 +928,7 @@ function ShopeeExportContent() {
                       }}
                       step="0.1"
                       min="0.01"
-                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#EE4D2D]/50"
+                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-shopee/50"
                     />
                   </div>
                 );
@@ -956,7 +956,7 @@ function ShopeeExportContent() {
             </div>
             <div className="w-full h-3 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
               <div
-                className="h-full bg-[#EE4D2D] rounded-full transition-all duration-300 ease-out"
+                className="h-full bg-shopee rounded-full transition-all duration-300 ease-out"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -1010,7 +1010,7 @@ function ShopeeExportContent() {
                   setExportDone(false);
                   fetchLinkedProducts();
                 }}
-                className="px-4 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors flex items-center gap-2"
+                className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors flex items-center gap-2"
               >
                 ส่งสินค้าเพิ่ม
               </button>
@@ -1049,7 +1049,7 @@ function ShopeeExportContent() {
                   setStep('configure');
                 }}
                 disabled={selectedCount === 0}
-                className="px-5 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 ถัดไป ({selectedCount})
                 <ChevronRight className="w-4 h-4" />
@@ -1062,7 +1062,7 @@ function ShopeeExportContent() {
                 <button
                   onClick={handleExport}
                   disabled={!allConfigured}
-                  className="px-5 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="px-5 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
                   <ShoppingBag className="w-4 h-4" />
                   ส่งไป Shopee ({selectedCount})

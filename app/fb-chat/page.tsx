@@ -584,7 +584,7 @@ function FbChatPageContent() {
             isOutgoing
               ? isFailed
                 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                : 'bg-[#1877F2] text-white'
+                : 'bg-facebook text-white'
               : 'bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white'
           } ${isSending ? 'opacity-70' : ''}`}>
             {/* Image */}
@@ -643,7 +643,7 @@ function FbChatPageContent() {
           <div className="p-3 border-b border-gray-200 dark:border-slate-700">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <Facebook className="w-5 h-5 text-[#1877F2]" />
+                <Facebook className="w-5 h-5 text-facebook" />
                 <h2 className="font-semibold text-gray-900 dark:text-white">FB Chat</h2>
                 {totalUnread > 0 && (
                   <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
@@ -654,21 +654,21 @@ function FbChatPageContent() {
               <button
                 onClick={() => setFilterUnread(!filterUnread)}
                 className={`p-1.5 rounded-lg transition-colors ${
-                  filterUnread ? 'bg-[#1877F2]/10 text-[#1877F2]' : 'text-gray-400 hover:text-gray-600'
+                  filterUnread ? 'bg-facebook/10 text-facebook' : 'text-gray-400 hover:text-gray-600'
                 }`}
                 title="แสดงเฉพาะยังไม่อ่าน"
               >
                 <Bell className="w-4 h-4" />
               </button>
             </div>
-            <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาผู้ติดต่อ..." className="py-2" ringColor="focus:ring-[#1877F2]" />
+            <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาผู้ติดต่อ..." className="py-2" ringColor="focus:ring-facebook" />
           </div>
 
           {/* Contacts list */}
           <div className="flex-1 overflow-y-auto">
             {loadingContacts ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-5 h-5 text-[#1877F2] animate-spin" />
+                <Loader2 className="w-5 h-5 text-facebook animate-spin" />
               </div>
             ) : contacts.length === 0 ? (
               <div className="text-center py-8 text-gray-400 text-sm">
@@ -681,7 +681,7 @@ function FbChatPageContent() {
                     key={contact.id}
                     onClick={() => setSelectedContact(contact)}
                     className={`w-full flex items-center gap-3 px-3 py-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-100 dark:border-slate-700/50 ${
-                      selectedContact?.id === contact.id ? 'bg-[#1877F2]/5 dark:bg-[#1877F2]/10' : ''
+                      selectedContact?.id === contact.id ? 'bg-facebook/5 dark:bg-facebook/10' : ''
                     }`}
                   >
                     {/* Avatar */}
@@ -689,8 +689,8 @@ function FbChatPageContent() {
                       {contact.picture_url ? (
                         <img src={contact.picture_url} alt="" className="w-10 h-10 rounded-full object-cover" />
                       ) : (
-                        <div className="w-10 h-10 rounded-full bg-[#1877F2]/10 flex items-center justify-center">
-                          <User className="w-5 h-5 text-[#1877F2]" />
+                        <div className="w-10 h-10 rounded-full bg-facebook/10 flex items-center justify-center">
+                          <User className="w-5 h-5 text-facebook" />
                         </div>
                       )}
                       {contact.unread_count > 0 && (
@@ -718,7 +718,7 @@ function FbChatPageContent() {
                       </div>
                       <div className="flex items-center gap-1">
                         {contact.customer && (
-                          <span className="text-[10px] text-[#1877F2] bg-[#1877F2]/10 px-1 py-0.5 rounded flex-shrink-0">
+                          <span className="text-[10px] text-facebook bg-facebook/10 px-1 py-0.5 rounded flex-shrink-0">
                             {contact.customer.customer_code}
                           </span>
                         )}
@@ -761,8 +761,8 @@ function FbChatPageContent() {
                 {selectedContact.picture_url ? (
                   <img src={selectedContact.picture_url} alt="" className="w-8 h-8 rounded-full object-cover" />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-[#1877F2]/10 flex items-center justify-center">
-                    <User className="w-4 h-4 text-[#1877F2]" />
+                  <div className="w-8 h-8 rounded-full bg-facebook/10 flex items-center justify-center">
+                    <User className="w-4 h-4 text-facebook" />
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
@@ -770,7 +770,7 @@ function FbChatPageContent() {
                     {selectedContact.display_name}
                   </h3>
                   {selectedContact.customer ? (
-                    <p className="text-xs text-[#1877F2]">
+                    <p className="text-xs text-facebook">
                       {selectedContact.customer.name} ({selectedContact.customer.customer_code})
                     </p>
                   ) : (
@@ -789,7 +789,7 @@ function FbChatPageContent() {
                   ) : (
                     <button
                       onClick={() => { setShowLinkModal(true); setCustomers([]); }}
-                      className="p-2 text-gray-400 hover:text-[#1877F2] transition-colors"
+                      className="p-2 text-gray-400 hover:text-facebook transition-colors"
                       title="เชื่อมกับลูกค้า"
                     >
                       <LinkIcon className="w-4 h-4" />
@@ -812,7 +812,7 @@ function FbChatPageContent() {
                 )}
                 {loadingMessages ? (
                   <div className="flex items-center justify-center h-full">
-                    <Loader2 className="w-6 h-6 text-[#1877F2] animate-spin" />
+                    <Loader2 className="w-6 h-6 text-facebook animate-spin" />
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-gray-400 text-sm">
@@ -829,7 +829,7 @@ function FbChatPageContent() {
                 {showScrollButton && (
                   <button
                     onClick={scrollToBottom}
-                    className="absolute bottom-4 right-4 p-2 bg-white dark:bg-slate-700 rounded-full shadow-lg border border-gray-200 dark:border-slate-600 text-gray-500 hover:text-[#1877F2] transition-colors"
+                    className="absolute bottom-4 right-4 p-2 bg-white dark:bg-slate-700 rounded-full shadow-lg border border-gray-200 dark:border-slate-600 text-gray-500 hover:text-facebook transition-colors"
                   >
                     <ArrowDown className="w-4 h-4" />
                   </button>
@@ -842,7 +842,7 @@ function FbChatPageContent() {
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploadingImage}
-                    className="p-2 text-gray-400 hover:text-[#1877F2] transition-colors disabled:opacity-50"
+                    className="p-2 text-gray-400 hover:text-facebook transition-colors disabled:opacity-50"
                     title="ส่งรูปภาพ"
                   >
                     {uploadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
@@ -861,12 +861,12 @@ function FbChatPageContent() {
                     value={newMessage}
                     onChange={e => setNewMessage(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                    className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-full bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1877F2]"
+                    className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-full bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-facebook"
                   />
                   <button
                     onClick={() => sendMessage()}
                     disabled={!newMessage.trim()}
-                    className="p-2 text-white bg-[#1877F2] rounded-full hover:bg-[#1565C0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-2 text-white bg-facebook rounded-full hover:bg-facebook-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Send className="w-5 h-5" />
                   </button>
@@ -922,7 +922,7 @@ export default function FbChatPage() {
     <Suspense fallback={
       <Layout>
         <div className="flex items-center justify-center h-[calc(100vh-64px)]">
-          <Loader2 className="w-6 h-6 text-[#1877F2] animate-spin" />
+          <Loader2 className="w-6 h-6 text-facebook animate-spin" />
         </div>
       </Layout>
     }>

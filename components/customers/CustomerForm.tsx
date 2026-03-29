@@ -217,7 +217,7 @@ export function buildCustomerPayload(data: CustomerFormData, customerId?: string
   };
 }
 
-const inputFull = "w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E] bg-white dark:bg-slate-800 text-gray-900 dark:text-white";
+const inputFull = "w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-slate-800 text-gray-900 dark:text-white";
 const inputCompact = "w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white";
 const labelFull = "label";
 const labelCompact = "block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1";
@@ -354,7 +354,7 @@ export default function CustomerForm({
           className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors">
           {showMapSection ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           Google Maps & หมายเหตุจัดส่ง
-          {(formData.shipping_google_maps_link || formData.shipping_delivery_notes) && <span className="w-1.5 h-1.5 rounded-full bg-[#F4511E] ml-0.5" />}
+          {(formData.shipping_google_maps_link || formData.shipping_delivery_notes) && <span className="w-1.5 h-1.5 rounded-full bg-primary ml-0.5" />}
         </button>
         {showMapSection && (
           <div className="mt-3 space-y-3 pl-1">
@@ -506,9 +506,9 @@ export default function CustomerForm({
               <button key={opt.id} type="button"
                 disabled={lockCustomerType}
                 onClick={() => { const sub = SALE_TYPE_OPTIONS[opt.id]; setFormData(prev => ({ ...prev, customer_type: opt.id, sale_type: sub ? sub[0].id : '' })); }}
-                className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border-2 transition-all ${isSelected ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 shadow-sm' : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}>
-                <div className={isSelected ? 'text-[#F4511E]' : 'text-gray-400 dark:text-slate-500'}>{TYPE_ICONS[opt.icon]}</div>
-                <span className={`text-sm font-medium ${isSelected ? 'text-[#F4511E]' : 'text-gray-600 dark:text-slate-300'}`}>{opt.label}</span>
+                className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border-2 transition-all ${isSelected ? 'border-primary bg-orange-50 dark:bg-orange-900/20 shadow-sm' : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}>
+                <div className={isSelected ? 'text-primary' : 'text-gray-400 dark:text-slate-500'}>{TYPE_ICONS[opt.icon]}</div>
+                <span className={`text-sm font-medium ${isSelected ? 'text-primary' : 'text-gray-600 dark:text-slate-300'}`}>{opt.label}</span>
               </button>
             );
           })}
@@ -518,12 +518,12 @@ export default function CustomerForm({
             {SALE_TYPE_OPTIONS[formData.customer_type].map(opt => (
               <button key={opt.id} type="button" disabled={lockCustomerType}
                 onClick={() => setFormData(prev => ({ ...prev, sale_type: opt.id }))}
-                className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all ${formData.sale_type === opt.id ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20' : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'}`}>
-                <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${formData.sale_type === opt.id ? 'border-[#F4511E] bg-[#F4511E]' : 'border-gray-300 dark:border-slate-500'}`}>
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all ${formData.sale_type === opt.id ? 'border-primary bg-orange-50 dark:bg-orange-900/20' : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'}`}>
+                <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${formData.sale_type === opt.id ? 'border-primary bg-primary' : 'border-gray-300 dark:border-slate-500'}`}>
                   {formData.sale_type === opt.id && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-base font-medium ${formData.sale_type === opt.id ? 'text-[#F4511E]' : 'text-gray-700 dark:text-slate-300'}`}>{opt.label}</p>
+                  <p className={`text-base font-medium ${formData.sale_type === opt.id ? 'text-primary' : 'text-gray-700 dark:text-slate-300'}`}>{opt.label}</p>
                   <p className="text-sm text-gray-500 dark:text-slate-500 mt-0.5">{opt.desc}</p>
                 </div>
               </button>
@@ -574,7 +574,7 @@ export default function CustomerForm({
                     <div className="relative flex-shrink-0">
                       {lc.picture_url ? <img src={lc.picture_url} alt="" className="w-10 h-10 rounded-full object-cover" />
                         : <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center"><User className="w-5 h-5 text-gray-500 dark:text-slate-400" /></div>}
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-[#06C755]' : 'bg-[#1877F2]'}`}>
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-line' : 'bg-facebook'}`}>
                         {lc.platform === 'line' ? <MessageCircle className="w-2.5 h-2.5 text-white" /> : <Facebook className="w-2.5 h-2.5 text-white" />}
                       </div>
                     </div>
@@ -693,7 +693,7 @@ export default function CustomerForm({
             <button type="button" onClick={() => setShowExtraSection(prev => !prev)} className="w-full flex items-center justify-between p-6 text-left">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <User className="w-5 h-5" /> ข้อมูลเพิ่มเติม
-                {!showExtraSection && (formData.contact_person || formData.notes || (selectedTags && selectedTags.length > 0)) && <span className="w-1.5 h-1.5 rounded-full bg-[#F4511E]" />}
+                {!showExtraSection && (formData.contact_person || formData.notes || (selectedTags && selectedTags.length > 0)) && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
               </h3>
               {showExtraSection ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
             </button>
@@ -727,7 +727,7 @@ export default function CustomerForm({
           <button type="button" onClick={onCancel} disabled={isLoading}
             className="px-6 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 dark:bg-slate-900 text-gray-700 dark:text-slate-300">ยกเลิก</button>
           <button type="submit" disabled={isLoading}
-            className="bg-[#F4511E] text-white px-6 py-2.5 rounded-lg hover:bg-[#D63B0E] disabled:opacity-50 flex items-center gap-2">
+            className="bg-primary text-white px-6 py-2.5 rounded-lg hover:bg-primary-hover disabled:opacity-50 flex items-center gap-2">
             {isLoading ? (<><Loader2 className="w-4 h-4 animate-spin" />กำลังบันทึก...</>) : 'บันทึก'}
           </button>
         </div>

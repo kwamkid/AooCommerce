@@ -121,7 +121,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังโหลดข้อมูลคำเชิญ...</p>
         </div>
       </div>
@@ -144,7 +144,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
             <p className="text-gray-400 mb-6">{inviteError}</p>
             <Link
               href="/login"
-              className="inline-flex items-center px-6 py-3 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center px-6 py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors"
             >
               <LogIn className="w-5 h-5 mr-2" />
               ไปหน้าเข้าสู่ระบบ
@@ -201,7 +201,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
             )}
             <Link
               href="/login"
-              className="inline-flex items-center px-6 py-3 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center px-6 py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors"
             >
               <LogIn className="w-5 h-5 mr-2" />
               ไปหน้าเข้าสู่ระบบ
@@ -258,8 +258,8 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
                 className="w-20 h-20 rounded-lg object-cover mx-auto mb-4"
               />
             ) : (
-              <div className="w-20 h-20 rounded-lg bg-[#F4511E]/10 flex items-center justify-center mx-auto mb-4">
-                <Building2 className="w-10 h-10 text-[#F4511E]" />
+              <div className="w-20 h-20 rounded-lg bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <Building2 className="w-10 h-10 text-primary" />
               </div>
             )}
             <h2 className="text-xl font-semibold text-white mb-2">{invitation?.company?.name}</h2>
@@ -273,7 +273,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
                 <Shield className="w-4 h-4" />
                 <span className="text-sm">ตำแหน่ง</span>
               </div>
-              <span className="text-[#F4511E] font-medium">
+              <span className="text-primary font-medium">
                 {formatRoleLabels(invitation?.roles)}
               </span>
             </div>
@@ -293,7 +293,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
               <button
                 onClick={handleAccept}
                 disabled={isAccepting}
-                className="w-full py-3 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {isAccepting ? (
                   <>
@@ -349,7 +349,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
 
               <Link
                 href={`/register?invite_token=${token}`}
-                className="w-full py-3 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors flex items-center justify-center"
+                className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors flex items-center justify-center"
               >
                 <UserPlus className="w-5 h-5 mr-2" />
                 สมัครด้วยอีเมล
@@ -357,7 +357,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
 
               <p className="text-center text-sm text-gray-400 mt-1">
                 มีบัญชีอยู่แล้ว?{' '}
-                <Link href="/login" className="text-[#F4511E] hover:text-[#F4511E]/80 font-medium transition-colors">
+                <Link href="/login" className="text-primary hover:text-primary/80 font-medium transition-colors">
                   เข้าสู่ระบบ
                 </Link>
               </p>

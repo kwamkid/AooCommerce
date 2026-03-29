@@ -38,7 +38,7 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
       type="button"
       onClick={() => !disabled && onChange(!checked)}
       className={`relative w-11 h-6 rounded-full transition-colors ${
-        checked ? 'bg-[#F4511E]' : 'bg-gray-300 dark:bg-slate-600'
+        checked ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
@@ -51,7 +51,7 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
 // Step number circle
 function StepNumber({ number }: { number: number }) {
   return (
-    <div className="w-7 h-7 rounded-full bg-[#F4511E] flex items-center justify-center flex-shrink-0">
+    <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
       <span className="text-white text-sm font-bold">{number}</span>
     </div>
   );
@@ -549,7 +549,7 @@ export default function ChatChannelsPage() {
                   value={fbSearch}
                   onChange={e => setFbSearch(e.target.value)}
                   placeholder="ค้นหา Page..."
-                  className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#1877F2]/50 focus:border-[#1877F2]"
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-facebook/50 focus:border-facebook"
                 />
               </div>
             )}
@@ -589,7 +589,7 @@ export default function ChatChannelsPage() {
                     {page.picture_url ? (
                       <img src={page.picture_url} alt={page.name} className={`w-9 h-9 rounded-full ${isConnected ? 'grayscale' : ''}`} />
                     ) : (
-                      <div className="w-9 h-9 rounded-full bg-[#1877F2]/10 flex items-center justify-center">
+                      <div className="w-9 h-9 rounded-full bg-facebook/10 flex items-center justify-center">
                         <FbIcon size={16} />
                       </div>
                     )}
@@ -613,7 +613,7 @@ export default function ChatChannelsPage() {
                   {isConnected ? (
                     <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0 whitespace-nowrap">เชื่อมต่อแล้ว</span>
                   ) : selectedPageIds.has(page.id) ? (
-                    <div className="w-6 h-6 rounded-full bg-[#F4511E] flex items-center justify-center flex-shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
                       <Check className="w-4 h-4 text-white" />
                     </div>
                   ) : (
@@ -633,7 +633,7 @@ export default function ChatChannelsPage() {
                   if (pages.length > 0) handleSaveFbPages(pages);
                 }}
                 disabled={selectedPageIds.size === 0 || fbSavingPage}
-                className="px-4 py-2 bg-[#1877F2] hover:bg-[#1565C0] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 bg-facebook hover:bg-facebook-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {fbSavingPage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                 {fbSavingPage ? 'กำลังเชื่อมต่อ...' : `เชื่อมต่อ ${selectedPageIds.size > 0 ? selectedPageIds.size + ' ' : ''}Page`}
@@ -655,7 +655,7 @@ export default function ChatChannelsPage() {
             <button
               onClick={handleFbLogin}
               disabled={!fbSdkReady || fbLoading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#1877F2] hover:bg-[#1565C0] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-facebook hover:bg-facebook-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
             >
               {fbLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -673,7 +673,7 @@ export default function ChatChannelsPage() {
             <div className="flex items-center justify-between pt-1">
               <button
                 onClick={() => { setFbMode('manual'); setShowForm(true); }}
-                className="text-xs text-gray-400 dark:text-slate-500 hover:text-[#F4511E] transition-colors underline"
+                className="text-xs text-gray-400 dark:text-slate-500 hover:text-primary transition-colors underline"
               >
                 กรอกเอง (Manual)
               </button>
@@ -711,7 +711,7 @@ export default function ChatChannelsPage() {
             value={accountName}
             onChange={e => setAccountName(e.target.value)}
             placeholder={formPlatform === 'line' ? 'เช่น ร้านหลัก LINE OA' : 'เช่น Main Page'}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
           />
         </div>
 
@@ -727,7 +727,7 @@ export default function ChatChannelsPage() {
                     value={credentials[field.key] || ''}
                     onChange={e => setCredentials(prev => ({ ...prev, [field.key]: e.target.value }))}
                     placeholder={field.placeholder}
-                    className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                   />
                   <button
                     type="button"
@@ -745,9 +745,9 @@ export default function ChatChannelsPage() {
               <>
                 <button
                   onClick={() => setFormGuideOpen(!formGuideOpen)}
-                  className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 hover:text-[#F4511E] transition-colors"
+                  className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 hover:text-primary transition-colors"
                 >
-                  <Zap className="w-4 h-4 text-[#F4511E]" />
+                  <Zap className="w-4 h-4 text-primary" />
                   <span>วิธีหา Credentials</span>
                   {formGuideOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
@@ -758,7 +758,7 @@ export default function ChatChannelsPage() {
                       <StepNumber number={1} />
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white text-sm">สร้าง LINE Official Account</p>
-                        <a href="https://www.linebiz.com/th/entry/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-[#06C755] hover:underline">
+                        <a href="https://www.linebiz.com/th/entry/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-line hover:underline">
                           <ExternalLink className="w-3 h-3" /> สร้าง LINE OA
                         </a>
                       </div>
@@ -775,7 +775,7 @@ export default function ChatChannelsPage() {
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white text-sm">คัดลอก Channel Secret</p>
                         <p>
-                          <a href="https://developers.line.biz/console/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#06C755] hover:underline">
+                          <a href="https://developers.line.biz/console/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-line hover:underline">
                             <ExternalLink className="w-3 h-3" /> LINE Developers Console
                           </a>
                           {' '}&rarr; เลือก Channel &rarr; Basic settings &rarr; Channel secret &rarr; Copy
@@ -798,7 +798,7 @@ export default function ChatChannelsPage() {
             {formPlatform === 'facebook' && FB_APP_ID && !editingId && (
               <button
                 onClick={() => { setFbMode('oauth'); setShowForm(false); }}
-                className="text-xs text-gray-400 dark:text-slate-500 hover:text-[#1877F2] transition-colors underline"
+                className="text-xs text-gray-400 dark:text-slate-500 hover:text-facebook transition-colors underline"
               >
                 กลับไปใช้ Login with Facebook
               </button>
@@ -811,7 +811,7 @@ export default function ChatChannelsPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             บันทึก
@@ -842,7 +842,7 @@ export default function ChatChannelsPage() {
             onClick={() => { setActiveTab('line'); resetForm(); }}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'line'
-                ? 'border-[#06C755] text-[#06C755]'
+                ? 'border-line text-line'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
@@ -850,7 +850,7 @@ export default function ChatChannelsPage() {
             LINE
             {lineAccounts.length > 0 && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                activeTab === 'line' ? 'bg-[#06C755]/10 text-[#06C755]' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
+                activeTab === 'line' ? 'bg-line/10 text-line' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
               }`}>{lineAccounts.length}</span>
             )}
           </button>
@@ -858,7 +858,7 @@ export default function ChatChannelsPage() {
             onClick={() => { setActiveTab('facebook'); resetForm(); }}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'facebook'
-                ? 'border-[#1877F2] text-[#1877F2]'
+                ? 'border-facebook text-facebook'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
@@ -866,7 +866,7 @@ export default function ChatChannelsPage() {
             FB / IG
             {fbAccounts.length > 0 && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                activeTab === 'facebook' ? 'bg-[#1877F2]/10 text-[#1877F2]' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
+                activeTab === 'facebook' ? 'bg-facebook/10 text-facebook' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
               }`}>{fbAccounts.length}</span>
             )}
           </button>
@@ -874,7 +874,7 @@ export default function ChatChannelsPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
         ) : (
           <div className="space-y-4">
@@ -898,7 +898,7 @@ export default function ChatChannelsPage() {
                   {showAddButton && (
                     <button
                       onClick={startAdd}
-                      className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                      className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
                     >
                       <Plus className="w-4 h-4" />
                       เพิ่ม {tabConfig.label} Account
@@ -919,7 +919,7 @@ export default function ChatChannelsPage() {
               return (
                 <button
                   onClick={startAdd}
-                  className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                  className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
                   เพิ่ม {tabConfig.label} Account
@@ -1086,9 +1086,9 @@ export default function ChatChannelsPage() {
 
                 <button
                   onClick={() => setGuideOpen(prev => ({ ...prev, [account.id]: !prev[account.id] }))}
-                  className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 hover:text-[#F4511E] transition-colors"
+                  className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 hover:text-primary transition-colors"
                 >
-                  <Zap className="w-4 h-4 text-[#F4511E]" />
+                  <Zap className="w-4 h-4 text-primary" />
                   <span>วิธีตั้งค่า Webhook</span>
                   {guideOpen[account.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
@@ -1099,7 +1099,7 @@ export default function ChatChannelsPage() {
                       <StepNumber number={1} />
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white text-sm">เปิด LINE Developers Console</p>
-                        <a href="https://developers.line.biz/console/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-[#06C755] hover:underline">
+                        <a href="https://developers.line.biz/console/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-line hover:underline">
                           <ExternalLink className="w-3 h-3" /> เปิด LINE Developers
                         </a>
                         <p className="mt-1">เลือก Channel &rarr; แท็บ Messaging API &rarr; Webhook settings &rarr; Edit</p>

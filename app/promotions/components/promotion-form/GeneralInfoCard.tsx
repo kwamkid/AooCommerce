@@ -78,7 +78,7 @@ export default function GeneralInfoCard({ hook }: Props) {
                 disabled={isEdit}
                 className={`flex items-center gap-2.5 px-5 py-3 rounded-xl border-2 transition-all
                   ${form.promotion_type === opt.id
-                    ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/20 text-[#F4511E]'
+                    ? 'border-primary bg-orange-50 dark:bg-orange-900/20 text-primary'
                     : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 text-gray-600 dark:text-slate-400'}
                   ${isEdit ? 'cursor-not-allowed opacity-60' : ''}
                 `}
@@ -113,7 +113,7 @@ export default function GeneralInfoCard({ hook }: Props) {
                     onChange={e => { setForm(prev => ({ ...prev, name: e.target.value.slice(0, 25) })); setErrors(prev => { const { name: _, ...rest } = prev; return rest; }); }}
                     maxLength={25}
                     placeholder="ชื่อนี้จะแสดงบน Shopee/TikTok"
-                    className={`w-full h-[42px] px-3 pr-14 border rounded-lg bg-white dark:bg-slate-800 text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent ${errors.name ? 'border-red-400 ring-1 ring-red-400' : 'border-gray-300 dark:border-slate-500'}`}
+                    className={`w-full h-[42px] px-3 pr-14 border rounded-lg bg-white dark:bg-slate-800 text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent ${errors.name ? 'border-red-400 ring-1 ring-red-400' : 'border-gray-300 dark:border-slate-500'}`}
                   />
                   <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${form.name.length >= 25 ? 'text-red-400' : 'text-slate-400'}`}>
                     {form.name.length}/25
@@ -231,7 +231,7 @@ export default function GeneralInfoCard({ hook }: Props) {
                   value={form.description}
                   onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="แสดงในหน้ารายละเอียด + ส่งไป Shopee/TikTok"
-                  className="w-full flex-1 min-h-[120px] px-3 py-2 border border-gray-300 dark:border-slate-500 rounded-lg bg-white dark:bg-slate-800 text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent resize-none"
+                  className="w-full flex-1 min-h-[120px] px-3 py-2 border border-gray-300 dark:border-slate-500 rounded-lg bg-white dark:bg-slate-800 text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
                 />
               </div>
               <div>
@@ -315,14 +315,14 @@ function MarketplacePanel({ hook }: Props) {
                 onClick={() => setActivePlatformTab(p)}
                 className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors -mb-px ${
                   isActive
-                    ? 'border-[#F4511E] text-[#F4511E]'
+                    ? 'border-primary text-primary'
                     : 'border-transparent text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
                 }`}
               >
                 {meta.icon && <img src={meta.icon} alt="" className="w-4 h-4" />}
                 <span>{meta.label}</span>
                 {enabledCount > 0 && (
-                  <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-[#F4511E] text-white text-[10px] font-bold leading-none">{enabledCount}</span>
+                  <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-primary text-white text-[10px] font-bold leading-none">{enabledCount}</span>
                 )}
               </button>
             );
@@ -446,7 +446,7 @@ function MarketplacePanel({ hook }: Props) {
                                 type="number"
                                 defaultValue={currentPrice}
                                 placeholder="เว้นว่างใช้ค่าหลัก"
-                                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E] focus:border-transparent"
+                                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
                               />
                               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">{inputSuffix}</span>
                             </div>
@@ -541,7 +541,7 @@ function MarketplacePanel({ hook }: Props) {
                     });
                   }}
                   className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors flex-shrink-0 ${
-                    togglingShop === account.id ? 'bg-gray-300 opacity-50 cursor-wait' : isEnabled ? 'bg-[#F4511E]' : 'bg-gray-300'
+                    togglingShop === account.id ? 'bg-gray-300 opacity-50 cursor-wait' : isEnabled ? 'bg-primary' : 'bg-gray-300'
                   }`}
                 >
                   {togglingShop === account.id ? (
@@ -587,7 +587,7 @@ function MarketplacePanel({ hook }: Props) {
                       }
                       min={0}
                       max={form.discount_type === 'percent' ? 100 : undefined}
-                      className="w-20 h-[32px] px-2 text-sm border border-gray-300 dark:border-slate-500 rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#F4511E] focus:border-transparent disabled:opacity-40 disabled:cursor-not-allowed text-right"
+                      className="w-20 h-[32px] px-2 text-sm border border-gray-300 dark:border-slate-500 rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent disabled:opacity-40 disabled:cursor-not-allowed text-right"
                     />
                     <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">
                       {form.discount_type === 'percent' ? '%' : '฿'}

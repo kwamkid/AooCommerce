@@ -317,7 +317,7 @@ export default function TransferDetailPage() {
         ]}
       >
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-6 h-6 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -338,7 +338,7 @@ export default function TransferDetailPage() {
           <p className="text-gray-500 dark:text-slate-400">ไม่พบใบโอนย้ายนี้</p>
           <button
             onClick={() => router.push('/inventory/transfers')}
-            className="mt-4 text-[#F4511E] hover:underline text-sm"
+            className="mt-4 text-primary hover:underline text-sm"
           >
             กลับไปรายการโอนย้าย
           </button>
@@ -372,7 +372,7 @@ export default function TransferDetailPage() {
             <button
               onClick={handlePrint}
               disabled={generatingPdf}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-[#F4511E] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50"
             >
               {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
               {generatingPdf ? 'กำลังสร้าง...' : 'พิมพ์'}
@@ -520,14 +520,14 @@ export default function TransferDetailPage() {
               onChange={e => setNotes(e.target.value)}
               rows={2}
               placeholder="เพิ่มหมายเหตุ..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary"
             />
             {notesChanged && (
               <div className="flex justify-end mt-2">
                 <button
                   onClick={handleSaveNotes}
                   disabled={savingNotes}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-[#F4511E] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50"
                 >
                   {savingNotes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   {savingNotes ? 'กำลังบันทึก...' : 'บันทึก'}
@@ -626,7 +626,7 @@ export default function TransferDetailPage() {
                                   max={item.qty_sent}
                                   value={confirmedQtys[item.id] ?? item.qty_received ?? item.qty_sent}
                                   onChange={e => setConfirmedQtys(prev => ({ ...prev, [item.id]: Math.min(Math.max(0, parseInt(e.target.value) || 0), item.qty_sent) }))}
-                                  className="w-16 px-2 py-1 text-center border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                                  className="w-16 px-2 py-1 text-center border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary"
                                 />
                               ) : (
                                 <span className="text-gray-900 dark:text-white">{item.confirmed_quantity}</span>

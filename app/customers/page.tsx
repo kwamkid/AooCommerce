@@ -488,7 +488,7 @@ function CustomersPageContent() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -501,7 +501,7 @@ function CustomersPageContent() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
-              <UserCircle className="w-8 h-8 mr-3 text-[#F4511E]" />
+              <UserCircle className="w-8 h-8 mr-3 text-primary" />
               ลูกค้า
             </h1>
             <p className="text-gray-600 dark:text-slate-400 mt-1">จัดการข้อมูลลูกค้าและความสัมพันธ์</p>
@@ -517,7 +517,7 @@ function CustomersPageContent() {
             </button>
             <button
               onClick={() => router.push('/customers/new')}
-              className="bg-[#F4511E] text-white px-4 py-2 rounded-lg hover:bg-[#D63B0E] transition-colors flex items-center font-medium"
+              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center font-medium"
             >
               <Plus className="w-5 h-5 mr-2" />
               เพิ่ม<span className="hidden md:inline">ลูกค้า</span>
@@ -556,7 +556,7 @@ function CustomersPageContent() {
                     }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                       isActive
-                        ? 'bg-[#F4511E] text-white shadow-sm'
+                        ? 'bg-primary text-white shadow-sm'
                         : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
                     }`}
                   >
@@ -795,7 +795,7 @@ function CustomersPageContent() {
                     {isCol('branch') && (
                     <td className="px-3 py-3 text-center">
                       {customer.shipping_address_count && customer.shipping_address_count > 0 ? (
-                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#F4511E]/10 text-[#F4511E] text-sm font-semibold">
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-sm font-semibold">
                           {customer.shipping_address_count}
                         </span>
                       ) : (
@@ -1035,7 +1035,7 @@ function CustomersPageContent() {
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-slate-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <Tags className="w-5 h-5 text-[#F4511E]" />
+                <Tags className="w-5 h-5 text-primary" />
                 จัดการแท็ก
               </h3>
               <button onClick={() => setShowTagModal(false)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors">
@@ -1055,12 +1055,12 @@ function CustomersPageContent() {
                     if (e.key === 'Escape' && editingTag) { setEditingTag(null); setTagName(''); setTagColor(TAG_COLORS[0]); }
                   }}
                   placeholder={editingTag ? 'แก้ไขชื่อแท็ก...' : 'ชื่อแท็กใหม่...'}
-                  className="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#F4511E] focus:border-transparent outline-none"
+                  className="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                 />
                 <button
                   onClick={handleSaveTag}
                   disabled={!tagName.trim() || tagSaving}
-                  className="px-4 py-2 bg-[#F4511E] text-white rounded-lg text-base font-medium hover:bg-[#D63B0E] disabled:opacity-50 transition-colors whitespace-nowrap"
+                  className="px-4 py-2 bg-primary text-white rounded-lg text-base font-medium hover:bg-primary-hover disabled:opacity-50 transition-colors whitespace-nowrap"
                 >
                   {editingTag ? 'แก้ไข' : 'สร้าง'}
                 </button>
@@ -1130,7 +1130,7 @@ export default function CustomersPage() {
     <Suspense fallback={
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     }>

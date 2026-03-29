@@ -308,7 +308,7 @@ export default function SupplierPortalPage() {
   if (authChecking || !mounted) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white dark:bg-[#1A1A2E] transition-colors">
-        <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
   }
@@ -331,8 +331,8 @@ export default function SupplierPortalPage() {
         <div className="flex items-center justify-center min-h-screen px-4">
           <div className="w-full max-w-sm">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-[#F4511E]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Factory className="w-8 h-8 text-[#F4511E]" />
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Factory className="w-8 h-8 text-primary" />
               </div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">Supplier Portal</h1>
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">กรุณากรอกรหัสเข้าถึงเพื่อดูข้อมูล</p>
@@ -349,7 +349,7 @@ export default function SupplierPortalPage() {
                     type="text"
                     value={authCode}
                     onChange={e => { setAuthCode(e.target.value); setAuthError(''); }}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E] font-mono tracking-wider"
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary font-mono tracking-wider"
                     placeholder="SUP-XXXXXX"
                     autoFocus
                     autoComplete="off"
@@ -363,7 +363,7 @@ export default function SupplierPortalPage() {
               <button
                 type="submit"
                 disabled={authLoading || !authCode.trim()}
-                className="w-full py-2.5 bg-[#F4511E] hover:bg-[#D63B0E] text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {authLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
                 เข้าสู่ระบบ
@@ -378,7 +378,7 @@ export default function SupplierPortalPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white dark:bg-[#1A1A2E] transition-colors">
-        <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
   }
@@ -463,7 +463,7 @@ export default function SupplierPortalPage() {
             onClick={() => setTab(t.key)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
               tab === t.key
-                ? 'bg-white dark:bg-slate-700 text-[#F4511E] shadow-sm'
+                ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
                 : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
             }`}
           >
@@ -544,7 +544,7 @@ export default function SupplierPortalPage() {
           </div>
 
           {salesLoading ? (
-            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" /></div>
+            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
           ) : sales.length === 0 ? (
             <div className="text-center py-12 text-gray-400 dark:text-slate-500">
               <BarChart3 className="w-10 h-10 mx-auto mb-2 opacity-50" />
@@ -601,7 +601,7 @@ export default function SupplierPortalPage() {
                 <div
                   key={po.id}
                   onClick={() => router.push(`/supplier-portal/${supplierId}/purchase-orders/${po.id}`)}
-                  className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 cursor-pointer hover:border-[#F4511E]/50 transition-colors"
+                  className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 cursor-pointer hover:border-primary/50 transition-colors"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">{po.po_number}</span>
@@ -636,7 +636,7 @@ export default function SupplierPortalPage() {
                 <div
                   key={snap.id}
                   onClick={() => router.push(`/supplier-portal/${supplierId}/reports/${snap.id}`)}
-                  className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 cursor-pointer hover:border-[#F4511E]/50 transition-colors"
+                  className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 cursor-pointer hover:border-primary/50 transition-colors"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">

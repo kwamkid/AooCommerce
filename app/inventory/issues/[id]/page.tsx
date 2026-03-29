@@ -140,7 +140,7 @@ export default function IssueDetailPage() {
   if (authLoading || loading) {
     return (
       <Layout title="แก้ไขใบเบิกออก" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการเบิกออก', href: '/inventory/issues' }, { label: 'แก้ไข' }]}>
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" /></div>
+        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
       </Layout>
     );
   }
@@ -160,7 +160,7 @@ export default function IssueDetailPage() {
           <button
             onClick={handlePrint}
             disabled={generatingPdf}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[#F4511E] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50"
           >
             {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
             {generatingPdf ? 'กำลังสร้าง...' : 'พิมพ์'}
@@ -212,14 +212,14 @@ export default function IssueDetailPage() {
               onChange={e => setNotes(e.target.value)}
               rows={2}
               placeholder="เพิ่มหมายเหตุ..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary"
             />
             {notesChanged && (
               <div className="flex justify-end mt-2">
                 <button
                   onClick={handleSaveNotes}
                   disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[#F4511E] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   {saving ? 'กำลังบันทึก...' : 'บันทึก'}

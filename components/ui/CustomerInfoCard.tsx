@@ -44,8 +44,8 @@ export default function CustomerInfoCard({
   return (
     <div className="flex items-start gap-2">
       {loading
-        ? <Loader2 className="w-4 h-4 text-[#F4511E] flex-shrink-0 mt-0.5 animate-spin" />
-        : <CheckCircle className="w-4 h-4 text-[#F4511E] flex-shrink-0 mt-0.5" />
+        ? <Loader2 className="w-4 h-4 text-primary flex-shrink-0 mt-0.5 animate-spin" />
+        : <CheckCircle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
       }
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">

@@ -990,7 +990,7 @@ export default function ProcessingTab({
           const billUrl = `${window.location.origin}/bills/${order.id}`;
           navigator.clipboard.writeText(billUrl).then(() => { setToast('คัดลอกลิงก์บิลออนไลน์แล้ว'); setTimeout(() => setToast(''), 2500); });
         },
-        className: 'p-1.5 text-gray-400 hover:text-[#F4511E] transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
+        className: 'p-1.5 text-gray-400 hover:text-primary transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
       });
       menuItems.push({
         key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-4 h-4" />,
@@ -1081,7 +1081,7 @@ export default function ProcessingTab({
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-6 h-6 text-primary animate-spin" />
         </div>
       )}
 
@@ -1095,7 +1095,7 @@ export default function ProcessingTab({
                 type="checkbox"
                 checked={allGroupSelected}
                 onChange={toggleSelectGroup}
-                className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-[#F4511E] focus:ring-[#F4511E]"
+                className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-primary focus:ring-primary"
               />
               <span className="text-xs text-gray-400 dark:text-slate-500">
                 เลือกทั้งหมด{totalOrders > orders.length ? ` (${totalOrders})` : ''}
@@ -1259,7 +1259,7 @@ export default function ProcessingTab({
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เหตุผล (ไม่บังคับ)</label>
               <input type="text" value={holdReason} onChange={(e) => setHoldReason(e.target.value)} placeholder="ระบุเหตุผล เช่น รอสินค้า, รอลูกค้ายืนยัน..."
-                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F4511E]" />
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
             <div className="flex gap-3 justify-end">
               <button onClick={() => { setHoldModal(null); setHoldReason(''); }} disabled={actionLoading}

@@ -177,8 +177,8 @@ export default function ShopeeExportModal({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[#EE4D2D]/10 flex items-center justify-center">
-              <Upload className="w-4 h-4 text-[#EE4D2D]" />
+            <div className="w-8 h-8 rounded-lg bg-shopee/10 flex items-center justify-center">
+              <Upload className="w-4 h-4 text-shopee" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">ส่งสินค้าไป Shopee</h3>
           </div>
@@ -290,7 +290,7 @@ export default function ShopeeExportModal({
               onChange={e => setWeight(e.target.value)}
               step="0.1"
               min="0.01"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EE4D2D]/50"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-shopee/50"
             />
           </div>
         </div>
@@ -307,7 +307,7 @@ export default function ShopeeExportModal({
             <button
               onClick={handleExport}
               disabled={exporting || !selectedAccountId || !selectedCategoryId || !!linkedItemId}
-              className="px-4 py-2 text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#D63B0E] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+              className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
             >
               {exporting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

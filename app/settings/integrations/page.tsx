@@ -384,12 +384,12 @@ export default function IntegrationsPage() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex">
             <button
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-[#EE4D2D]"
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-shopee"
             >
               <ShoppingBag className="w-4 h-4" />
               Shopee
               {activeAccounts.length > 0 && (
-                <span className="text-xs px-1.5 py-0.5 rounded-lg bg-[#EE4D2D]/10 text-[#EE4D2D]">
+                <span className="text-xs px-1.5 py-0.5 rounded-lg bg-shopee/10 text-shopee">
                   {activeAccounts.length}
                 </span>
               )}
@@ -409,7 +409,7 @@ export default function IntegrationsPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
         ) : (
           <div className="space-y-4">
@@ -439,7 +439,7 @@ export default function IntegrationsPage() {
                         />
                       ) : (
                         <div className="w-10 h-10 rounded-lg bg-transparent flex items-center justify-center relative">
-                          <ShoppingBag className="w-5 h-5 text-[#EE4D2D]" />
+                          <ShoppingBag className="w-5 h-5 text-shopee" />
                           <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] text-gray-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">กดเพื่ออัพเดท</span>
                         </div>
                       )}
@@ -519,7 +519,7 @@ export default function IntegrationsPage() {
                               checked={account.auto_sync_stock !== false}
                               onChange={e => handleToggleSync(account.id, 'auto_sync_stock', e.target.checked)}
                             />
-                            <div className="w-9 h-5 bg-gray-300 dark:bg-slate-600 rounded-full peer-checked:bg-[#EE4D2D] transition-colors" />
+                            <div className="w-9 h-5 bg-gray-300 dark:bg-slate-600 rounded-full peer-checked:bg-shopee transition-colors" />
                             <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform" />
                           </div>
                           <span className="text-xs text-gray-700 dark:text-slate-300">Sync Stock อัตโนมัติ</span>
@@ -532,7 +532,7 @@ export default function IntegrationsPage() {
                               checked={account.auto_sync_product_info !== false}
                               onChange={e => handleToggleSync(account.id, 'auto_sync_product_info', e.target.checked)}
                             />
-                            <div className="w-9 h-5 bg-gray-300 dark:bg-slate-600 rounded-full peer-checked:bg-[#EE4D2D] transition-colors" />
+                            <div className="w-9 h-5 bg-gray-300 dark:bg-slate-600 rounded-full peer-checked:bg-shopee transition-colors" />
                             <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform" />
                           </div>
                           <span className="text-xs text-gray-700 dark:text-slate-300">Sync ชื่อ/ราคา อัตโนมัติ</span>
@@ -558,7 +558,7 @@ export default function IntegrationsPage() {
                         <button
                           onClick={() => handleSync(account.id)}
                           disabled={isSyncing || account.connection_status === 'expired'}
-                          className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-[#EE4D2D] text-[#EE4D2D] hover:bg-[#EE4D2D]/5"
+                          className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-shopee text-shopee hover:bg-shopee/5"
                         >
                           <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                           {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
@@ -588,7 +588,7 @@ export default function IntegrationsPage() {
                             router.push(`/shopee/export?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
                           }}
                           disabled={account.connection_status === 'expired'}
-                          className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-[#EE4D2D] text-[#EE4D2D] hover:bg-[#EE4D2D]/5"
+                          className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-shopee text-shopee hover:bg-shopee/5"
                         >
                           <Upload className="w-4 h-4" />
                           ส่งสินค้าไป Shopee
@@ -611,7 +611,7 @@ export default function IntegrationsPage() {
             <button
               onClick={handleConnect}
               disabled={connecting}
-              className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#EE4D2D] hover:text-[#EE4D2D] transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-shopee hover:text-shopee transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {connecting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

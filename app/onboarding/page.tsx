@@ -222,7 +222,7 @@ export default function OnboardingPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#F4511E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white">กำลังโหลด...</p>
         </div>
       </div>
@@ -289,7 +289,7 @@ export default function OnboardingPage() {
                     type="text"
                     value={profileName}
                     onChange={(e) => setProfileName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                     placeholder="ชื่อ-นามสกุลของคุณ"
                     required
                     disabled={savingName}
@@ -299,7 +299,7 @@ export default function OnboardingPage() {
               <button
                 type="submit"
                 disabled={savingName || !profileName.trim()}
-                className="w-full py-3 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {savingName ? (
                   <>
@@ -323,7 +323,7 @@ export default function OnboardingPage() {
                 <button
                   key={membership.company_id}
                   onClick={() => handleSelectCompany(membership.company_id)}
-                  className="w-full bg-white/10 backdrop-blur-md rounded-xl p-4 border border-[#F4511E]/20 hover:border-[#F4511E]/60 hover:bg-white/15 transition-all flex items-center gap-4 text-left group"
+                  className="w-full bg-white/10 backdrop-blur-md rounded-xl p-4 border border-primary/20 hover:border-primary/60 hover:bg-white/15 transition-all flex items-center gap-4 text-left group"
                 >
                   {/* Logo */}
                   {membership.company.logo_url ? (
@@ -333,8 +333,8 @@ export default function OnboardingPage() {
                       className="w-14 h-14 rounded-lg object-cover border border-white/10"
                     />
                   ) : (
-                    <div className="w-14 h-14 rounded-lg bg-[#F4511E]/20 flex items-center justify-center border border-[#F4511E]/30">
-                      <Building2 className="w-7 h-7 text-[#F4511E]" />
+                    <div className="w-14 h-14 rounded-lg bg-primary/20 flex items-center justify-center border border-primary/30">
+                      <Building2 className="w-7 h-7 text-primary" />
                     </div>
                   )}
 
@@ -352,7 +352,7 @@ export default function OnboardingPage() {
                   </div>
 
                   {/* Arrow */}
-                  <ChevronRight className="w-5 h-5 text-gray-500 group-hover:text-[#F4511E] transition-colors" />
+                  <ChevronRight className="w-5 h-5 text-gray-500 group-hover:text-primary transition-colors" />
                 </button>
               ))}
             </div>
@@ -360,10 +360,10 @@ export default function OnboardingPage() {
             {/* Create New Company Button */}
             <button
               onClick={() => setShowCreateForm(true)}
-              className="w-full bg-white/5 backdrop-blur-md rounded-xl p-4 border border-dashed border-gray-600 hover:border-[#F4511E]/50 hover:bg-white/10 transition-all flex items-center gap-4 text-left group"
+              className="w-full bg-white/5 backdrop-blur-md rounded-xl p-4 border border-dashed border-gray-600 hover:border-primary/50 hover:bg-white/10 transition-all flex items-center gap-4 text-left group"
             >
-              <div className="w-14 h-14 rounded-lg bg-white/5 flex items-center justify-center border border-gray-600 group-hover:border-[#F4511E]/30">
-                <Plus className="w-7 h-7 text-gray-400 group-hover:text-[#F4511E] transition-colors" />
+              <div className="w-14 h-14 rounded-lg bg-white/5 flex items-center justify-center border border-gray-600 group-hover:border-primary/30">
+                <Plus className="w-7 h-7 text-gray-400 group-hover:text-primary transition-colors" />
               </div>
               <div className="flex-1">
                 <h3 className="text-gray-300 font-semibold group-hover:text-white transition-colors">
@@ -384,7 +384,7 @@ export default function OnboardingPage() {
             </p>
             <button
               onClick={() => { setSkipped(false); setShowCreateForm(true); }}
-              className="w-full py-3 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors flex items-center justify-center"
+              className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors flex items-center justify-center"
             >
               <Plus className="w-5 h-5 mr-2" />
               สร้างบริษัทใหม่
@@ -394,7 +394,7 @@ export default function OnboardingPage() {
 
         {/* Create Company Form */}
         {!needsName && !skipped && showCreateForm && (
-          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-[#F4511E]/20">
+          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-primary/20">
             {/* Back button if has existing companies */}
             {companies.length > 0 && (
               <button
@@ -426,7 +426,7 @@ export default function OnboardingPage() {
                       <img
                         src={logoPreview}
                         alt="โลโก้"
-                        className="w-20 h-20 rounded-lg object-cover border-2 border-[#F4511E]/30"
+                        className="w-20 h-20 rounded-lg object-cover border-2 border-primary/30"
                       />
                       <button
                         type="button"
@@ -440,7 +440,7 @@ export default function OnboardingPage() {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-600 flex flex-col items-center justify-center text-gray-500 hover:border-[#F4511E]/50 hover:text-[#F4511E] transition-colors"
+                      className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-600 flex flex-col items-center justify-center text-gray-500 hover:border-primary/50 hover:text-primary transition-colors"
                     >
                       <Upload className="w-6 h-6 mb-1" />
                       <span className="text-xs">อัพโหลด</span>
@@ -471,7 +471,7 @@ export default function OnboardingPage() {
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                     placeholder="ชื่อร้านค้าหรือแบรนด์ของคุณ"
                     required
                     disabled={isLoading}
@@ -489,7 +489,7 @@ export default function OnboardingPage() {
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F4511E] focus:border-transparent transition-all resize-none"
+                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
                     placeholder="อธิบายเกี่ยวกับธุรกิจของคุณ"
                     rows={3}
                     disabled={isLoading}
@@ -501,7 +501,7 @@ export default function OnboardingPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 bg-[#F4511E] hover:bg-[#F4511E]/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {isLoading ? (
                   <>

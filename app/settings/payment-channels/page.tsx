@@ -42,7 +42,7 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
       type="button"
       onClick={() => !disabled && onChange(!checked)}
       className={`relative w-11 h-6 rounded-full transition-colors ${
-        checked ? 'bg-[#F4511E]' : 'bg-gray-300'
+        checked ? 'bg-primary' : 'bg-gray-300'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
@@ -397,14 +397,14 @@ export default function PaymentChannelsPage() {
       <div className="max-w-4xl">
         {/* Tab header */}
         <div className="border-b border-gray-200 dark:border-slate-700 mb-6">
-          <div className="px-1 py-2.5 text-base font-medium text-[#F4511E] border-b-2 border-[#F4511E] inline-block">
+          <div className="px-1 py-2.5 text-base font-medium text-primary border-b-2 border-primary inline-block">
             Bill Online
           </div>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-[#F4511E] animate-spin" />
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
         ) : (
           <div className="space-y-4">
@@ -530,12 +530,12 @@ export default function PaymentChannelsPage() {
                             onChange={e => setPromptPayId(e.target.value.replace(/[^0-9]/g, ''))}
                             placeholder="เบอร์โทร 10 หลัก หรือ เลขบัตร 13 หลัก"
                             maxLength={13}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                           />
                           <p className="text-xs text-gray-400 mt-1">เบอร์โทรศัพท์ 10 หลัก หรือ เลขประจำตัว/Tax ID 13 หลัก</p>
                         </div>
                         <div className="flex gap-2 pt-1">
-                          <button onClick={handleSavePromptPay} disabled={savingPromptPay} className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                          <button onClick={handleSavePromptPay} disabled={savingPromptPay} className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                             {savingPromptPay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                             บันทึก
                           </button>
@@ -547,7 +547,7 @@ export default function PaymentChannelsPage() {
                     ) : (
                       <button
                         onClick={() => { resetPromptPayForm(); setShowPromptPayForm(true); }}
-                        className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                        className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
                       >
                         <Plus className="w-4 h-4" />
                         เพิ่ม PromptPay QR
@@ -645,7 +645,7 @@ export default function PaymentChannelsPage() {
                                   key={b.code}
                                   type="button"
                                   onClick={() => { setBankForm(prev => ({ ...prev, bank_code: b.code })); setBankDropdownOpen(false); }}
-                                  className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left ${bankForm.bank_code === b.code ? 'bg-[#F4511E]/10' : ''}`}
+                                  className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left ${bankForm.bank_code === b.code ? 'bg-primary/10' : ''}`}
                                 >
                                   {b.logo ? <img src={b.logo} alt={b.name_th} className="w-5 h-5 rounded-full flex-shrink-0 object-contain" /> : <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: b.color }} />}
                                   <span className="text-sm text-gray-900 dark:text-white">{b.name_th}</span>
@@ -657,14 +657,14 @@ export default function PaymentChannelsPage() {
                         </div>
                         <div>
                           <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">เลขที่บัญชี</label>
-                          <input type="text" value={bankForm.account_number} onChange={e => setBankForm(prev => ({ ...prev, account_number: e.target.value }))} placeholder="xxx-x-xxxxx-x" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]" />
+                          <input type="text" value={bankForm.account_number} onChange={e => setBankForm(prev => ({ ...prev, account_number: e.target.value }))} placeholder="xxx-x-xxxxx-x" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
                         </div>
                         <div>
                           <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ชื่อบัญชี</label>
-                          <input type="text" value={bankForm.account_name} onChange={e => setBankForm(prev => ({ ...prev, account_name: e.target.value }))} placeholder="ชื่อ-สกุล หรือ ชื่อบริษัท" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]" />
+                          <input type="text" value={bankForm.account_name} onChange={e => setBankForm(prev => ({ ...prev, account_name: e.target.value }))} placeholder="ชื่อ-สกุล หรือ ชื่อบริษัท" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
                         </div>
                         <div className="flex gap-2 pt-1">
-                          <button onClick={handleSaveBank} disabled={savingBank} className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                          <button onClick={handleSaveBank} disabled={savingBank} className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                             {savingBank ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                             บันทึก
                           </button>
@@ -702,7 +702,7 @@ export default function PaymentChannelsPage() {
                           {bankDropdownOpen && (
                             <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                               {THAI_BANKS.map(b => (
-                                <button key={b.code} type="button" onClick={() => { setBankForm(prev => ({ ...prev, bank_code: b.code })); setBankDropdownOpen(false); }} className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left ${bankForm.bank_code === b.code ? 'bg-[#F4511E]/10' : ''}`}>
+                                <button key={b.code} type="button" onClick={() => { setBankForm(prev => ({ ...prev, bank_code: b.code })); setBankDropdownOpen(false); }} className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left ${bankForm.bank_code === b.code ? 'bg-primary/10' : ''}`}>
                                   {b.logo ? <img src={b.logo} alt={b.name_th} className="w-5 h-5 rounded-full flex-shrink-0 object-contain" /> : <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: b.color }} />}
                                   <span className="text-sm text-gray-900 dark:text-white">{b.name_th}</span>
                                   <span className="text-xs text-gray-400 ml-auto">{b.code}</span>
@@ -713,14 +713,14 @@ export default function PaymentChannelsPage() {
                         </div>
                         <div>
                           <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">เลขที่บัญชี</label>
-                          <input type="text" value={bankForm.account_number} onChange={e => setBankForm(prev => ({ ...prev, account_number: e.target.value }))} placeholder="xxx-x-xxxxx-x" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]" />
+                          <input type="text" value={bankForm.account_number} onChange={e => setBankForm(prev => ({ ...prev, account_number: e.target.value }))} placeholder="xxx-x-xxxxx-x" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
                         </div>
                         <div>
                           <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ชื่อบัญชี</label>
-                          <input type="text" value={bankForm.account_name} onChange={e => setBankForm(prev => ({ ...prev, account_name: e.target.value }))} placeholder="ชื่อ-สกุล หรือ ชื่อบริษัท" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]" />
+                          <input type="text" value={bankForm.account_name} onChange={e => setBankForm(prev => ({ ...prev, account_name: e.target.value }))} placeholder="ชื่อ-สกุล หรือ ชื่อบริษัท" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
                         </div>
                         <div className="flex gap-2 pt-1">
-                          <button onClick={handleSaveBank} disabled={savingBank} className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                          <button onClick={handleSaveBank} disabled={savingBank} className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                             {savingBank ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                             บันทึก
                           </button>
@@ -732,7 +732,7 @@ export default function PaymentChannelsPage() {
                     ) : (
                       <button
                         onClick={() => { resetBankForm(); setShowBankForm(true); }}
-                        className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                        className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
                       >
                         <Plus className="w-4 h-4" />
                         เพิ่มบัญชีธนาคาร
@@ -798,12 +798,12 @@ export default function PaymentChannelsPage() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
                               <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Merchant ID</label>
-                              <input type="text" value={gatewayForm.merchant_id} onChange={e => setGatewayForm(prev => ({ ...prev, merchant_id: e.target.value }))} placeholder="Merchant ID จาก Beam" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]" />
+                              <input type="text" value={gatewayForm.merchant_id} onChange={e => setGatewayForm(prev => ({ ...prev, merchant_id: e.target.value }))} placeholder="Merchant ID จาก Beam" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
                             </div>
                             <div>
                               <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">API Key</label>
                               <div className="relative">
-                                <input type={showApiKey ? 'text' : 'password'} value={gatewayForm.api_key} onChange={e => setGatewayForm(prev => ({ ...prev, api_key: e.target.value }))} placeholder="API Key จาก Beam" className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]" />
+                                <input type={showApiKey ? 'text' : 'password'} value={gatewayForm.api_key} onChange={e => setGatewayForm(prev => ({ ...prev, api_key: e.target.value }))} placeholder="API Key จาก Beam" className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
                                 <button type="button" onClick={() => setShowApiKey(!showApiKey)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:text-slate-400">
                                   {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
@@ -817,7 +817,7 @@ export default function PaymentChannelsPage() {
                             <div className="flex gap-2">
                               {(['sandbox', 'production'] as const).map(env => (
                                 <button key={env} type="button" onClick={() => setGatewayForm(prev => ({ ...prev, environment: env }))}
-                                  className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${gatewayForm.environment === env ? 'border-[#F4511E] bg-[#F4511E]/10 text-[#F4511E]' : 'border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-400 hover:border-gray-300'}`}>
+                                  className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${gatewayForm.environment === env ? 'border-primary bg-primary/10 text-primary' : 'border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-400 hover:border-gray-300'}`}>
                                   {env === 'sandbox' ? 'Sandbox (ทดสอบ)' : 'Production (ใช้งานจริง)'}
                                 </button>
                               ))}
@@ -911,7 +911,7 @@ export default function PaymentChannelsPage() {
                                             <div className="px-3 pb-3 pt-1 border-t border-gray-100 dark:border-slate-700 space-y-3">
                                               <div>
                                                 <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ยอดสั่งซื้อขั้นต่ำ (บาท)</label>
-                                                <input type="number" min="0" value={chConfig?.min_amount || 0} onChange={e => handleUpdateBeamChannel(ch.code, 'min_amount', Number(e.target.value))} className="w-40 px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]" />
+                                                <input type="number" min="0" value={chConfig?.min_amount || 0} onChange={e => handleUpdateBeamChannel(ch.code, 'min_amount', Number(e.target.value))} className="w-40 px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
                                               </div>
                                               <div>
                                                 <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ประเภทลูกค้าที่ใช้ได้</label>
@@ -921,7 +921,7 @@ export default function PaymentChannelsPage() {
                                                     const checked = types.includes(ct.value);
                                                     return (
                                                       <label key={ct.value} className="flex items-center gap-2 text-base cursor-pointer select-none" onClick={() => { const newTypes = checked ? types.filter((t: string) => t !== ct.value) : [...types, ct.value]; handleUpdateBeamChannel(ch.code, 'customer_types', newTypes); }}>
-                                                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#F4511E]' : 'border-2 border-gray-300 dark:border-slate-500'}`}>
+                                                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-primary' : 'border-2 border-gray-300 dark:border-slate-500'}`}>
                                                           {checked && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                                                         </div>
                                                         {ct.label}
@@ -937,7 +937,7 @@ export default function PaymentChannelsPage() {
                                                     const selected = (chConfig?.fee_payer || 'merchant') === fp.value;
                                                     return (
                                                       <label key={fp.value} className="flex items-center gap-2 text-base cursor-pointer select-none" onClick={() => handleUpdateBeamChannel(ch.code, 'fee_payer', fp.value)}>
-                                                        <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${selected ? 'border-[5px] border-[#F4511E]' : 'border-2 border-gray-300 dark:border-slate-500'}`} />
+                                                        <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${selected ? 'border-[5px] border-primary' : 'border-2 border-gray-300 dark:border-slate-500'}`} />
                                                         {fp.label}
                                                       </label>
                                                     );
@@ -959,7 +959,7 @@ export default function PaymentChannelsPage() {
                                                       const checked = plans.includes(opt.key);
                                                       return (
                                                         <label key={opt.key} className="flex items-center gap-2 text-base cursor-pointer select-none" onClick={() => { const newPlans = checked ? plans.filter((p: string) => p !== opt.key) : [...plans, opt.key]; handleUpdateBeamChannel(ch.code, 'installment_plans', newPlans); }}>
-                                                          <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#F4511E]' : 'border-2 border-gray-300 dark:border-slate-500'}`}>
+                                                          <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-primary' : 'border-2 border-gray-300 dark:border-slate-500'}`}>
                                                             {checked && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                                                           </div>
                                                           {opt.label}
@@ -982,7 +982,7 @@ export default function PaymentChannelsPage() {
                         )}
 
                         {/* Save button */}
-                        <button onClick={handleSaveGateway} disabled={savingGateway} className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                        <button onClick={handleSaveGateway} disabled={savingGateway} className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                           {savingGateway ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                           บันทึก
                         </button>
@@ -1009,12 +1009,12 @@ export default function PaymentChannelsPage() {
                       onChange={e => setPromptPayId(e.target.value.replace(/[^0-9]/g, ''))}
                       placeholder="เบอร์โทร 10 หลัก หรือ เลขบัตร 13 หลัก"
                       maxLength={13}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                     />
                     <p className="text-xs text-gray-400 mt-1">เบอร์โทรศัพท์ 10 หลัก หรือ เลขประจำตัว/Tax ID 13 หลัก</p>
                   </div>
                   <div className="flex gap-2 pt-1">
-                    <button onClick={handleSavePromptPay} disabled={savingPromptPay} className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                    <button onClick={handleSavePromptPay} disabled={savingPromptPay} className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                       {savingPromptPay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                       บันทึก
                     </button>
@@ -1026,7 +1026,7 @@ export default function PaymentChannelsPage() {
               ) : (
                 <button
                   onClick={() => { resetPromptPayForm(); setShowPromptPayForm(true); }}
-                  className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                  className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
                   เพิ่ม PromptPay QR
@@ -1054,7 +1054,7 @@ export default function PaymentChannelsPage() {
                     {bankDropdownOpen && (
                       <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                         {THAI_BANKS.map(b => (
-                          <button key={b.code} type="button" onClick={() => { setBankForm(prev => ({ ...prev, bank_code: b.code })); setBankDropdownOpen(false); }} className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left ${bankForm.bank_code === b.code ? 'bg-[#F4511E]/10' : ''}`}>
+                          <button key={b.code} type="button" onClick={() => { setBankForm(prev => ({ ...prev, bank_code: b.code })); setBankDropdownOpen(false); }} className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left ${bankForm.bank_code === b.code ? 'bg-primary/10' : ''}`}>
                             {b.logo ? <img src={b.logo} alt={b.name_th} className="w-5 h-5 rounded-full flex-shrink-0 object-contain" /> : <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: b.color }} />}
                             <span className="text-sm text-gray-900 dark:text-white">{b.name_th}</span>
                             <span className="text-xs text-gray-400 ml-auto">{b.code}</span>
@@ -1065,14 +1065,14 @@ export default function PaymentChannelsPage() {
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">เลขที่บัญชี</label>
-                    <input type="text" value={bankForm.account_number} onChange={e => setBankForm(prev => ({ ...prev, account_number: e.target.value }))} placeholder="xxx-x-xxxxx-x" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]" />
+                    <input type="text" value={bankForm.account_number} onChange={e => setBankForm(prev => ({ ...prev, account_number: e.target.value }))} placeholder="xxx-x-xxxxx-x" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ชื่อบัญชี</label>
-                    <input type="text" value={bankForm.account_name} onChange={e => setBankForm(prev => ({ ...prev, account_name: e.target.value }))} placeholder="ชื่อ-สกุล หรือ ชื่อบริษัท" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]" />
+                    <input type="text" value={bankForm.account_name} onChange={e => setBankForm(prev => ({ ...prev, account_name: e.target.value }))} placeholder="ชื่อ-สกุล หรือ ชื่อบริษัท" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
                   </div>
                   <div className="flex gap-2 pt-1">
-                    <button onClick={handleSaveBank} disabled={savingBank} className="px-4 py-2 bg-[#F4511E] hover:bg-[#D63B0E] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                    <button onClick={handleSaveBank} disabled={savingBank} className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                       {savingBank ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                       บันทึก
                     </button>
@@ -1084,7 +1084,7 @@ export default function PaymentChannelsPage() {
               ) : (
                 <button
                   onClick={() => { resetBankForm(); setShowBankForm(true); }}
-                  className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#F4511E] hover:text-[#F4511E] transition-colors flex items-center justify-center gap-2"
+                  className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
                   เพิ่มบัญชีธนาคาร

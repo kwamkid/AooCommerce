@@ -70,14 +70,14 @@ export default function ReturnNotesPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <RotateCcw className="w-8 h-8 text-[#F4511E]" />
+              <RotateCcw className="w-8 h-8 text-primary" />
               ใบรับคืนสินค้า
             </h1>
             <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">RN-YYYYMM-NNNN -- คืนสินค้าจากตัวแทน/ห้าง</p>
           </div>
           <Link
             href="/return-notes/new"
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#F4511E] text-white rounded-lg hover:bg-[#E64A19] transition-colors text-sm font-medium"
+            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium"
           >
             <Plus className="w-4 h-4" /> สร้างใบรับคืน
           </Link>
@@ -92,7 +92,7 @@ export default function ReturnNotesPage() {
                 value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
                 placeholder="ค้นหาเลขที่..."
-                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F4511E]/50 focus:border-[#F4511E]"
+                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               />
             </div>
           </div>
@@ -105,7 +105,7 @@ export default function ReturnNotesPage() {
             {
               key: 'rn_number', label: 'เลขที่', alwaysVisible: true,
               render: (row) => (
-                <Link href={`/return-notes/${row.id}`} className="font-mono text-sm font-medium text-[#F4511E] hover:underline" onClick={e => e.stopPropagation()}>
+                <Link href={`/return-notes/${row.id}`} className="font-mono text-sm font-medium text-primary hover:underline" onClick={e => e.stopPropagation()}>
                   {row.rn_number}
                 </Link>
               ),
@@ -167,7 +167,7 @@ export default function ReturnNotesPage() {
               <Link href={`/return-notes/${row.id}`} className="block">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm font-medium text-[#F4511E]">{row.rn_number}</span>
+                    <span className="font-mono text-sm font-medium text-primary">{row.rn_number}</span>
                     <span className="text-xs text-gray-400 dark:text-slate-500">{formatDate(row.rn_date)}</span>
                   </div>
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${badge.cls}`}>{badge.label}</span>

@@ -195,7 +195,7 @@ export default function PendingReportPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin" />
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       </Layout>
     );
@@ -208,7 +208,7 @@ export default function PendingReportPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <div className="flex items-center gap-3 mb-4 sm:mb-0">
-          <FileText className="w-8 h-8 text-[#F4511E]" />
+          <FileText className="w-8 h-8 text-primary" />
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">รายงานยอดค้างชำระ</h1>
             <p className="text-gray-600 dark:text-slate-400">ติดตามยอดค้างชำระจากลูกค้า</p>
@@ -289,7 +289,7 @@ export default function PendingReportPage() {
               onClick={() => setGroupBy('customer')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 groupBy === 'customer'
-                  ? 'bg-[#F4511E] text-white'
+                  ? 'bg-primary text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -300,7 +300,7 @@ export default function PendingReportPage() {
               onClick={() => setGroupBy('order')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 groupBy === 'order'
-                  ? 'bg-[#F4511E] text-white'
+                  ? 'bg-primary text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -315,7 +315,7 @@ export default function PendingReportPage() {
       {loading ? (
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-12">
           <div className="flex flex-col items-center justify-center">
-            <Loader2 className="w-8 h-8 text-[#F4511E] animate-spin mb-4" />
+            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
             <p className="text-gray-500 dark:text-slate-400">กำลังโหลดข้อมูล...</p>
           </div>
         </div>
