@@ -62,6 +62,8 @@ interface ReportData {
   invoice_number: string | null;
   invoice_date: string | null;
   vat_registered?: boolean;
+  discount_value?: number | null;
+  discount_type?: 'amount' | 'percent' | null;
   customer: ReportCustomer | null;
   items: {
     id: string;

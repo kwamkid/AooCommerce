@@ -401,7 +401,7 @@ function DepartmentOrdersContent() {
       const blob = await generatePackingPdf([{
         order_number: order.department_order_number,
         created_at: order.created_at,
-        customer_name: order.customer?.name || '',
+        customer: order.customer ? { name: order.customer.name, phone: order.customer.phone } : null,
         delivery_name: order.customer?.name || '',
         delivery_phone: order.customer?.phone || '',
         delivery_address: [
@@ -411,8 +411,6 @@ function DepartmentOrdersContent() {
           order.customer?.billing_province,
           order.customer?.billing_postal_code,
         ].filter(Boolean).join(' '),
-        tracking_number: order.tracking_number || '',
-        shipping_carrier: order.shipping_carrier || '',
         notes: order.notes || '',
         items: (order.items || []).map((i: any) => ({
           product_name: i.product_name,
@@ -663,7 +661,7 @@ function DepartmentOrdersContent() {
       const packingBlob = await generatePackingPdf([{
         order_number: order.department_order_number,
         created_at: order.created_at,
-        customer_name: order.customer?.name || '',
+        customer: order.customer ? { name: order.customer.name, phone: order.customer.phone } : null,
         delivery_name: order.customer?.name || '',
         delivery_phone: order.customer?.phone || '',
         delivery_address: [
@@ -673,8 +671,6 @@ function DepartmentOrdersContent() {
           order.customer?.billing_province,
           order.customer?.billing_postal_code,
         ].filter(Boolean).join(' '),
-        tracking_number: order.tracking_number || '',
-        shipping_carrier: order.shipping_carrier || '',
         notes: order.notes || '',
         items: (order.items || []).map((i: any) => ({
           product_name: i.product_name,

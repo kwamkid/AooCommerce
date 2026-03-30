@@ -842,7 +842,7 @@ export default function DealerOrderForm({
                 }
                 if (field === 'discount_type') {
                   // Reset discount value when toggling type
-                  setItems(prev => prev.map((it, i) => i === idx ? { ...it, discount_rate: 0, discount_type: value as string, unit_price: it.original_price } : it));
+                  setItems(prev => prev.map((it, i) => i === idx ? { ...it, discount_rate: 0, discount_type: value as 'percent' | 'amount', unit_price: it.original_price } : it));
                 }
               }}
               onRemove={isReadOnly ? undefined : removeItem}

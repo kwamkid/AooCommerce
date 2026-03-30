@@ -38,6 +38,7 @@ interface PromotionComponent {
 interface AbbreviatedInvoiceItem {
   product_name: string;
   product_code?: string;
+  sku?: string | null;
   variation_label?: string;
   quantity: number;
   unit_price: number;

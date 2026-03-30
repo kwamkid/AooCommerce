@@ -211,7 +211,6 @@ export default function StatementDetailPage() {
         paid_amount: statement.paid_amount,
         outstanding_amount: statement.outstanding_amount,
         tax_invoice_number: statement.tax_invoice_number,
-        invoice_number: statement.invoice_number || null,
         receipt_number: statement.receipt_number,
         notes: statement.notes,
         customer: statement.customer ? {

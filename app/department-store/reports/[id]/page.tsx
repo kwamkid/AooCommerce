@@ -50,6 +50,8 @@ interface ReportData {
   created_at: string;
   confirmed_at: string | null;
   notes: string | null;
+  discount_value?: number | null;
+  discount_type?: 'amount' | 'percent' | null;
   customer: ReportCustomer | null;
   items: {
     id: string;

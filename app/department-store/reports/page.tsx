@@ -217,9 +217,6 @@ function DeptStoreReportsContent() {
       // Always pass doc info from report API
       tax_invoice_number: r.tax_invoice_number || null,
       tax_invoice_date: r.tax_invoice_date || null,
-      invoice_number: r.invoice_number || null,
-      invoice_date: r.invoice_date || null,
-      document_subtype: r.document_subtype || null,
       vat_registered: r.vat_registered ?? false,
       ...(taxInvoiceOverride || {}),
     });
@@ -651,7 +648,7 @@ function DeptStoreReportsContent() {
             );
             return (
               <div key={tab.key} className="flex-shrink-0">
-                {'tooltip' in tab && tab.tooltip ? <Tooltip text={tab.tooltip}>{btn}</Tooltip> : btn}
+                {'tooltip' in tab && (tab as any).tooltip ? <Tooltip text={(tab as any).tooltip}>{btn}</Tooltip> : btn}
               </div>
             );
           })}

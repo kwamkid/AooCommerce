@@ -25,6 +25,7 @@ import { productDisplayName } from './product-display';
 interface CnItemData {
   product_name: string;
   product_code?: string | null;
+  sku?: string | null;
   variation_label?: string | null;
   quantity: number;
   unit_price: number;

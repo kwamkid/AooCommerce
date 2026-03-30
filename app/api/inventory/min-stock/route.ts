@@ -4,8 +4,8 @@ import { getStockConfig } from '@/lib/stock-utils';
 
 export async function PUT(request: NextRequest) {
   const auth = await checkAuthWithCompany(request);
-  if ('error' in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (!auth.isAuth || !auth.companyId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const stockConfig = await getStockConfig(auth.companyId!);
