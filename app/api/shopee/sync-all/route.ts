@@ -4,13 +4,16 @@ import { ShopeeAccountRow } from '@/lib/shopee/api';
 import { syncOrdersByTimeRange } from '@/lib/shopee/sync';
 import { logIntegration } from '@/lib/integration-logger';
 
-export async function POST(request: NextRequest) {
-  // Verify cron secret
-  const cronSecret = request.headers.get('x-cron-secret');
-  const expectedSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret || !expectedSecret || cronSecret !== expectedSecret) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+async function handleSyncAll(request: NextRequest) {
+  // Verify cron secret (supports both Authorization: Bearer and x-cron-secret headers)
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = request.headers.get('authorization') || '';
+    const xCronHeader = request.headers.get('x-cron-secret') || '';
+    const bearerToken = authHeader.replace(/^Bearer\s+/i, '');
+    if (bearerToken !== cronSecret && xCronHeader !== cronSecret) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   // Get all active accounts
@@ -103,4 +106,12 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ total_shops: (accounts || []).length, results });
+}
+
+export async function GET(request: NextRequest) {
+  return handleSyncAll(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handleSyncAll(request);
 }
