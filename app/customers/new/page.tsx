@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import CustomerForm, { CustomerFormData, buildCustomerPayload } from '@/components/customers/CustomerForm';
@@ -11,7 +11,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 
-export default function NewCustomerPage() {
+function NewCustomerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { userProfile, loading: authLoading } = useAuth();
@@ -160,5 +160,13 @@ export default function NewCustomerPage() {
         />
       </div>
     </Layout>
+  );
+}
+
+export default function NewCustomerPage() {
+  return (
+    <Suspense fallback={<Layout><div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div></Layout>}>
+      <NewCustomerContent />
+    </Suspense>
   );
 }
