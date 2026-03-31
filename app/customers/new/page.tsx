@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import CustomerForm, { CustomerFormData, buildCustomerPayload } from '@/components/customers/CustomerForm';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
@@ -13,8 +13,12 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function NewCustomerPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+
+  // Pre-select customer type from query param (e.g. ?type=department_store)
+  const presetType = searchParams.get('type') || '';
 
   const [saving, setSaving] = useState(false);
   const [allTags, setAllTags] = useState<Tag[]>([]);
@@ -152,6 +156,7 @@ export default function NewCustomerPage() {
           selectedTags={selectedTags}
           onTagsChange={setSelectedTags}
           onTagCreated={(tag) => setAllTags(prev => [...prev, tag])}
+          {...(presetType ? { initialData: { customer_type: presetType } } : {})}
         />
       </div>
     </Layout>

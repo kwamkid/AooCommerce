@@ -12,7 +12,7 @@ import { useCompany } from '@/lib/company-context';
 import { formatNumber } from '@/lib/utils/format';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
-import { productDisplayName } from '@/lib/product-display';
+import { productDisplayName, productSubtitle } from '@/lib/product-display';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import CustomerSelectionCard from '@/components/ui/CustomerSelectionCard';
 import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
@@ -782,7 +782,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               {item.image ? (
-                                <img src={item.image} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                                <img src={item.image} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setLightboxImage(item.image!)} />
                               ) : (
                                 <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                                   <Package className="w-4 h-4 text-gray-300" />
@@ -790,6 +790,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                               )}
                               <div className="min-w-0">
                                 <div className="font-medium text-gray-900 dark:text-white line-clamp-2">{productDisplayName(item)}</div>
+                                {productSubtitle(item) && <div className="text-xs text-gray-500 dark:text-slate-400 truncate">{productSubtitle(item)}</div>}
                                 <div className="text-xs text-amber-600 dark:text-amber-400">฿{formatNumber(item.unit_price)}</div>
                               </div>
                             </div>
@@ -848,7 +849,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               {item.image ? (
-                                <img src={item.image} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                                <img src={item.image} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setLightboxImage(item.image!)} />
                               ) : (
                                 <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                                   <Package className="w-4 h-4 text-gray-300" />
@@ -856,6 +857,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                               )}
                               <div className="min-w-0">
                                 <div className="font-medium text-gray-900 dark:text-white line-clamp-2">{productDisplayName(item)}</div>
+                                {productSubtitle(item) && <div className="text-xs text-gray-500 dark:text-slate-400 truncate">{productSubtitle(item)}</div>}
                                 <div className="text-xs text-amber-600 dark:text-amber-400">฿{formatNumber(item.unit_price)}</div>
                               </div>
                             </div>

@@ -260,10 +260,6 @@ export async function generateCreditNotePdf(data: CnData, vatRegistered = false)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const summaryRows: any[][] = [
     [
-      { text: 'จำนวนรายการ', fontSize: 10, alignment: 'right', color: '#666666' },
-      { text: `${data.items.length} รายการ`, fontSize: 10, alignment: 'right' },
-    ],
-    [
       { text: 'รวมสินค้า', fontSize: 10, alignment: 'right', color: '#666666' },
       { text: formatPdfPrice(data.subtotal), fontSize: 10, alignment: 'right' },
     ],

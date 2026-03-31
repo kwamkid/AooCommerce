@@ -155,10 +155,9 @@ export async function generateStatementPdf(data: StatementPdfData): Promise<Blob
     { text: '#', style: 'tableHeader', alignment: 'center' },
     { text: 'เลขที่ใบแจ้งหนี้', style: 'tableHeader' },
     { text: 'งวด', style: 'tableHeader', alignment: 'center' },
-    { text: 'จำนวนชิ้น', style: 'tableHeader', alignment: 'center' },
     { text: 'ยอดเงิน', style: 'tableHeader', alignment: 'right' },
   ];
-  const widths: (number | string)[] = [25, '*', 80, 60, 80];
+  const widths: (number | string)[] = [25, '*', 80, 80];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tableBody: any[][] = [headerCols];
@@ -168,7 +167,6 @@ export async function generateStatementPdf(data: StatementPdfData): Promise<Blob
       { text: String(idx + 1), alignment: 'center', fontSize: 10, color: '#666666' },
       { text: report.doc_number || report.report_number, fontSize: 10, color: '#333333' },
       { text: report.period_label, alignment: 'center', fontSize: 10, color: '#666666' },
-      { text: String(report.total_qty_sold), alignment: 'center', fontSize: 10 },
       { text: formatPdfPrice(report.our_amount), alignment: 'right', fontSize: 10, bold: true },
     ]);
   });
@@ -204,47 +202,10 @@ export async function generateStatementPdf(data: StatementPdfData): Promise<Blob
       { text: `${data.reports.length} รายงาน`, fontSize: 10, alignment: 'right' },
     ],
     [
-      { text: 'ยอดรวม', fontSize: 10, alignment: 'right', color: '#666666' },
-      { text: `฿${formatPdfPrice(data.total_amount)}`, fontSize: 10, alignment: 'right' },
+      { text: 'รวมเป็นเงิน', fontSize: 12, alignment: 'right', bold: true, color: THEME.primary },
+      { text: `฿${formatPdfPrice(data.total_amount)}`, fontSize: 12, alignment: 'right', bold: true, color: THEME.primary },
     ],
   ];
-
-  if (data.paid_amount > 0) {
-    summaryRows.push([
-      { text: 'ชำระแล้ว', fontSize: 10, alignment: 'right', color: '#666666' },
-      { text: `฿${formatPdfPrice(data.paid_amount)}`, fontSize: 10, alignment: 'right', color: '#15803d' },
-    ]);
-  }
-
-  if (data.outstanding_amount > 0) {
-    summaryRows.push([
-      { text: 'คงเหลือ', fontSize: 12, alignment: 'right', bold: true, color: THEME.primary },
-      { text: `฿${formatPdfPrice(data.outstanding_amount)}`, fontSize: 12, alignment: 'right', bold: true, color: THEME.primary },
-    ]);
-  } else {
-    summaryRows.push([
-      { text: 'คงเหลือ', fontSize: 12, alignment: 'right', bold: true, color: '#15803d' },
-      { text: 'ชำระครบแล้ว', fontSize: 12, alignment: 'right', bold: true, color: '#15803d' },
-    ]);
-  }
-
-  if (data.tax_invoice_number) {
-    summaryRows.push([
-      { text: 'ใบกำกับภาษี/ใบแจ้งหนี้', fontSize: 9, alignment: 'right', color: '#666666' },
-      { text: data.tax_invoice_number, fontSize: 9, alignment: 'right', color: '#333333' },
-    ]);
-  } else if (data.invoice_number) {
-    summaryRows.push([
-      { text: 'ใบแจ้งหนี้', fontSize: 9, alignment: 'right', color: '#666666' },
-      { text: data.invoice_number, fontSize: 9, alignment: 'right', color: '#333333' },
-    ]);
-  }
-  if (data.receipt_number) {
-    summaryRows.push([
-      { text: 'ใบเสร็จ', fontSize: 9, alignment: 'right', color: '#666666' },
-      { text: data.receipt_number, fontSize: 9, alignment: 'right', color: '#333333' },
-    ]);
-  }
 
   // Notes on left, summary on right
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

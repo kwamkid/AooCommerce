@@ -683,7 +683,9 @@ export default function DealerOrderForm({
   // ── Derived labels ──────────────────────────────────────────
 
   const resolvedSubmitLabel = submitLabel || (
-    isConsignment ? 'บันทึกรายงาน' : isDepartment ? 'สร้างใบส่งห้าง' : 'สร้างคำสั่งซื้อ'
+    isEditMode
+      ? 'บันทึกการแก้ไข'
+      : isConsignment ? 'บันทึกรายงาน' : isDepartment ? 'สร้างใบส่งห้าง' : 'สร้างคำสั่งซื้อ'
   );
   const resolvedSummaryTitle = summaryTitle || (
     isConsignment ? 'สรุปยอดขาย' : isDepartment ? 'สรุปใบส่งห้าง' : 'สรุปคำสั่งซื้อ'
@@ -694,7 +696,7 @@ export default function DealerOrderForm({
   const deptReadOnlyStatuses = ['shipped', 'pending_confirm', 'received', 'partial_received', 'cancelled'];
   const isReadOnly = isEditMode && (isDepartment
     ? deptReadOnlyStatuses.includes(orderStatus)
-    : ['completed', 'cancelled'].includes(orderStatus));
+    : ['processing', 'completed', 'cancelled'].includes(orderStatus));
 
   // ── Render ──────────────────────────────────────────────────
 
@@ -905,8 +907,8 @@ export default function DealerOrderForm({
         )}
       </div>{/* End 2-column wrapper */}
 
-      {/* Action Buttons — only show for create mode or editable orders */}
-      {hasProducts && !isReadOnly && !isEditMode && (
+      {/* Action Buttons — show for create mode and editable orders */}
+      {hasProducts && !isReadOnly && (
         <div className="flex justify-end gap-3">
           <button
             type="button"

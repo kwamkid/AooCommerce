@@ -10,10 +10,22 @@ import {
   ShopeeAccountRow,
   ShopeeCredentials,
   ShopeeItemFullDetail,
-  ShopeeItemAttribute,
 } from '@/lib/shopee/api';
 import { SyncProgressCallback } from '@/lib/shopee/sync';
 import { parallelLimit } from '@/lib/parallel';
+import {
+  getOrCreateVariationTypeIds,
+  buildVariationAttributes,
+  upsertProductImage,
+  findExistingLink,
+  upsertMarketplaceLink,
+  tryAutoMatchBySku,
+  reactivateProduct,
+  resolveShopeePrice,
+} from '@/lib/shopee/product-helpers';
+
+// Re-export getCategoryName for backward compatibility
+export { getCategoryName } from '@/lib/shopee/product-helpers';
 
 // --- Types ---
 
@@ -25,289 +37,7 @@ export interface ProductSyncResult {
   errors: string[];
 }
 
-// --- Helpers (reused patterns from shopee-sync.ts) ---
-
-const variationTypeCache: Record<string, string> = {};
-
-async function getOrCreateVariationTypeIds(companyId: string, tierVariationNames: string[]): Promise<string[]> {
-  const names = tierVariationNames.length > 0 ? tierVariationNames : ['ตัวเลือกสินค้า'];
-  const ids: string[] = [];
-
-  for (const name of names) {
-    const cacheKey = `${companyId}:${name}`;
-    if (variationTypeCache[cacheKey]) {
-      ids.push(variationTypeCache[cacheKey]);
-      continue;
-    }
-
-    const { data: existing } = await supabaseAdmin
-      .from('variation_types')
-      .select('id')
-      .eq('company_id', companyId)
-      .eq('name', name)
-      .eq('is_active', true)
-      .limit(1)
-      .single();
-
-    if (existing) {
-      variationTypeCache[cacheKey] = existing.id;
-      ids.push(existing.id);
-      continue;
-    }
-
-    const { data: globalExisting } = await supabaseAdmin
-      .from('variation_types')
-      .select('id, company_id')
-      .eq('name', name)
-      .eq('is_active', true)
-      .limit(1)
-      .single();
-
-    if (globalExisting) {
-      if (globalExisting.company_id !== companyId) {
-        await supabaseAdmin.from('variation_types').update({ company_id: companyId }).eq('id', globalExisting.id);
-      }
-      variationTypeCache[cacheKey] = globalExisting.id;
-      ids.push(globalExisting.id);
-      continue;
-    }
-
-    const { data: maxData } = await supabaseAdmin
-      .from('variation_types')
-      .select('sort_order')
-      .eq('company_id', companyId)
-      .order('sort_order', { ascending: false })
-      .limit(1)
-      .single();
-
-    const { data: newType, error } = await supabaseAdmin
-      .from('variation_types')
-      .insert({ company_id: companyId, name, sort_order: (maxData?.sort_order || 0) + 1 })
-      .select()
-      .single();
-
-    if (error || !newType) {
-      console.error(`[Product Sync] Failed to create variation type "${name}":`, error);
-      continue;
-    }
-
-    variationTypeCache[cacheKey] = newType.id;
-    ids.push(newType.id);
-  }
-
-  return ids;
-}
-
-function buildVariationAttributes(tierVariationNames: string[], modelName: string): Record<string, string> {
-  if (!modelName) return {};
-  if (tierVariationNames.length === 0) return { 'ตัวเลือกสินค้า': modelName };
-
-  const values = modelName.split(',').map(v => v.trim());
-  const attributes: Record<string, string> = {};
-  for (let i = 0; i < tierVariationNames.length; i++) {
-    attributes[tierVariationNames[i]] = values[i] || modelName;
-  }
-  return attributes;
-}
-
-async function upsertProductImage(companyId: string, productId: string | null, variationId: string | null, imageUrl: string, sortOrder: number = 0): Promise<void> {
-  if (!imageUrl) return;
-  try {
-    let query = supabaseAdmin.from('product_images').select('id, sort_order').eq('image_url', imageUrl).eq('company_id', companyId);
-    if (productId) query = query.eq('product_id', productId);
-    if (variationId) query = query.eq('variation_id', variationId);
-    const { data: existing } = await query.limit(1).single();
-    if (existing) {
-      // Update sort_order if it changed
-      if (existing.sort_order !== sortOrder) {
-        await supabaseAdmin.from('product_images').update({ sort_order: sortOrder }).eq('id', existing.id);
-      }
-      return;
-    }
-
-    await supabaseAdmin.from('product_images').insert({
-      company_id: companyId,
-      product_id: productId,
-      variation_id: variationId,
-      image_url: imageUrl,
-      storage_path: 'shopee-external',
-      sort_order: sortOrder,
-    });
-  } catch (e) {
-    console.error('[Product Sync] Failed to insert product image:', e);
-  }
-}
-
-// --- Link helpers ---
-
-async function findExistingLink(accountId: string, itemId: number, modelId: number) {
-  const { data } = await supabaseAdmin
-    .from('marketplace_product_links')
-    .select('id, product_id, variation_id')
-    .eq('account_id', accountId)
-    .eq('external_item_id', String(itemId))
-    .eq('external_model_id', String(modelId))
-    .limit(1)
-    .single();
-  return data;
-}
-
-// --- Category Name Lookup ---
-
-// Cache: accountId → Map<categoryId, fullPath>
-const categoryNameCache: Record<string, Map<number, string>> = {};
-
-export async function getCategoryName(accountId: string, categoryId: number): Promise<string> {
-  if (!categoryId) return '';
-
-  // Check memory cache
-  if (categoryNameCache[accountId]?.has(categoryId)) {
-    return categoryNameCache[accountId].get(categoryId)!;
-  }
-
-  // Load from DB cache if not loaded yet
-  if (!categoryNameCache[accountId]) {
-    categoryNameCache[accountId] = new Map();
-    const { data: cache } = await supabaseAdmin
-      .from('marketplace_category_cache')
-      .select('category_data')
-      .eq('account_id', accountId)
-      .single();
-
-    if (cache?.category_data) {
-      const categories = cache.category_data as Array<{
-        category_id: number;
-        parent_category_id: number;
-        display_category_name: string;
-      }>;
-
-      // Build a lookup map
-      const catMap = new Map(categories.map(c => [c.category_id, c]));
-
-      // Build full path for each category
-      for (const cat of categories) {
-        const path: string[] = [];
-        let current: typeof cat | undefined = cat;
-        while (current) {
-          path.unshift(current.display_category_name);
-          if (current.parent_category_id === 0) break;
-          current = catMap.get(current.parent_category_id);
-        }
-        categoryNameCache[accountId].set(cat.category_id, path.join(' > '));
-      }
-    }
-  }
-
-  return categoryNameCache[accountId].get(categoryId) || '';
-}
-
-async function createLink(params: {
-  companyId: string;
-  accountId: string;
-  accountName: string;
-  productId: string;
-  variationId: string | null;
-  itemId: number;
-  modelId: number;
-  sku: string;
-  status: string;
-  price: number;
-  primaryImage?: string;
-  categoryId?: number;
-  weight?: number;
-  platformProductName?: string;
-  brand?: { brand_id: number; original_brand_name: string; display_brand_name?: string };
-  attributes?: ShopeeItemAttribute[];
-}) {
-  // Lookup category name from cache
-  const categoryName = params.categoryId
-    ? await getCategoryName(params.accountId, params.categoryId)
-    : '';
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const upsertData: Record<string, any> = {
-    company_id: params.companyId,
-    platform: 'shopee',
-    account_id: params.accountId,
-    account_name: params.accountName,
-    product_id: params.productId,
-    variation_id: params.variationId,
-    external_item_id: String(params.itemId),
-    external_model_id: String(params.modelId),
-    external_sku: params.sku,
-    external_item_status: params.status,
-    platform_product_name: params.platformProductName || null,
-    platform_price: params.price || null,
-    platform_primary_image: params.primaryImage || null,
-    shopee_category_id: params.categoryId ? String(params.categoryId) : null,
-    shopee_category_name: categoryName || null,
-    weight: params.weight || null,
-    last_synced_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  // Store attributes from get_item_base_info directly (includes filled values)
-  if (params.attributes && params.attributes.length > 0) {
-    upsertData.shopee_attributes = params.attributes;
-  }
-  if (params.brand) {
-    upsertData.shopee_brand_id = params.brand.brand_id;
-    upsertData.shopee_brand_name = params.brand.display_brand_name || params.brand.original_brand_name;
-  }
-
-  upsertData.platform_data = {
-    category_id: upsertData.shopee_category_id ? Number(upsertData.shopee_category_id) : null,
-    category_name: upsertData.shopee_category_name || null,
-    attributes: upsertData.shopee_attributes || null,
-    brand_id: upsertData.shopee_brand_id || null,
-    brand_name: upsertData.shopee_brand_name || null,
-  };
-
-  await supabaseAdmin.from('marketplace_product_links').upsert(
-    upsertData,
-    { onConflict: 'account_id,external_item_id,external_model_id' }
-  );
-}
-
-// --- Auto-match by SKU ---
-
-async function tryAutoMatchBySku(companyId: string, sku: string): Promise<{ product_id: string; variation_id: string } | null> {
-  if (!sku) return null;
-
-  // First try active products
-  const { data } = await supabaseAdmin
-    .from('product_variations')
-    .select('id, product_id')
-    .eq('company_id', companyId)
-    .eq('sku', sku)
-    .eq('is_active', true)
-    .limit(1)
-    .single();
-
-  if (data) {
-    return { product_id: data.product_id, variation_id: data.id };
-  }
-
-  // Then try inactive products (previously deleted) — reactivate them
-  const { data: inactive } = await supabaseAdmin
-    .from('product_variations')
-    .select('id, product_id')
-    .eq('company_id', companyId)
-    .eq('sku', sku)
-    .eq('is_active', false)
-    .limit(1)
-    .single();
-
-  if (inactive) {
-    const now = new Date().toISOString();
-    await supabaseAdmin.from('products').update({ is_active: true, source: 'shopee', updated_at: now }).eq('id', inactive.product_id);
-    await supabaseAdmin.from('product_variations').update({ is_active: true, updated_at: now }).eq('product_id', inactive.product_id);
-    console.log(`[Product Sync] Reactivated inactive product ${inactive.product_id} matched by SKU "${sku}"`);
-    return { product_id: inactive.product_id, variation_id: inactive.id };
-  }
-
-  return null;
-}
+// --- Local-only helpers (product sync specific) ---
 
 // Also try matching by product code (for order-sync created products: SP-{item_id})
 async function tryMatchByProductCode(companyId: string, itemId: number): Promise<string | null> {
@@ -336,9 +66,7 @@ async function tryMatchByProductCode(companyId: string, itemId: number): Promise
     .single();
 
   if (inactive?.id) {
-    const now = new Date().toISOString();
-    await supabaseAdmin.from('products').update({ is_active: true, source: 'shopee', updated_at: now }).eq('id', inactive.id);
-    await supabaseAdmin.from('product_variations').update({ is_active: true, updated_at: now }).eq('product_id', inactive.id);
+    await reactivateProduct(inactive.id);
     console.log(`[Product Sync] Reactivated inactive product ${inactive.id} matched by code SP-${itemId}`);
     return inactive.id;
   }
@@ -442,69 +170,40 @@ async function processShopeeItem(
 ) {
   const primaryImage = item.images[0] || undefined;
 
+  const linkParams = (productId: string, variationId: string | null, modelId: number, sku: string, price: number, image?: string) => ({
+    companyId, accountId, accountName,
+    productId, variationId,
+    itemId: item.item_id, modelId,
+    sku, status: item.item_status, price,
+    primaryImage: image || primaryImage,
+    categoryId: item.category_id,
+    weight: item.weight,
+    platformProductName: item.item_name,
+    brand: item.brand,
+    attributes: item.attribute_list,
+  });
+
   if (item.has_model && item.models.length > 0) {
     // --- Variation product ---
-    // First, ensure parent product exists
-    const parentProductId = await ensureParentProduct(companyId, accountId, accountName, item, result);
+    const parentProductId = await ensureParentProduct(companyId, accountId, item, result);
     if (!parentProductId) return;
 
-    // Process each model (variation)
     for (const model of item.models) {
       const sku = model.model_sku || '';
       const existingLink = await findExistingLink(accountId, item.item_id, model.model_id);
 
       if (existingLink) {
-        // Update existing linked product
         await updateLinkedVariation(companyId, existingLink.variation_id, model, item);
-        await createLink({
-          companyId, accountId, accountName,
-          productId: existingLink.product_id,
-          variationId: existingLink.variation_id,
-          itemId: item.item_id, modelId: model.model_id,
-          sku, status: item.item_status, price: model.current_price,
-          primaryImage: model.image_url || primaryImage,
-          categoryId: item.category_id,
-          weight: item.weight,
-          platformProductName: item.item_name,
-          brand: item.brand,
-          attributes: item.attribute_list,
-        });
-        // Don't count as updated — counted at parent level
+        await upsertMarketplaceLink(linkParams(existingLink.product_id, existingLink.variation_id, model.model_id, sku, model.current_price, model.image_url || primaryImage));
       } else {
-        // Try auto-match by SKU
         const match = await tryAutoMatchBySku(companyId, sku);
         if (match) {
-          await createLink({
-            companyId, accountId, accountName,
-            productId: match.product_id,
-            variationId: match.variation_id,
-            itemId: item.item_id, modelId: model.model_id,
-            sku, status: item.item_status, price: model.current_price,
-            primaryImage: model.image_url || primaryImage,
-            categoryId: item.category_id,
-            weight: item.weight,
-            platformProductName: item.item_name,
-            brand: item.brand,
-            attributes: item.attribute_list,
-          });
+          await upsertMarketplaceLink(linkParams(match.product_id, match.variation_id, model.model_id, sku, model.current_price, model.image_url || primaryImage));
           result.links_created++;
         } else {
-          // Create variation under parent
           const variationId = await createVariation(companyId, parentProductId, item, model);
           if (variationId) {
-            await createLink({
-              companyId, accountId, accountName,
-              productId: parentProductId,
-              variationId,
-              itemId: item.item_id, modelId: model.model_id,
-              sku, status: item.item_status, price: model.current_price,
-              primaryImage: model.image_url || primaryImage,
-              categoryId: item.category_id,
-              weight: item.weight,
-              platformProductName: item.item_name,
-              brand: item.brand,
-              attributes: item.attribute_list,
-            });
+            await upsertMarketplaceLink(linkParams(parentProductId, variationId, model.model_id, sku, model.current_price, model.image_url || primaryImage));
             result.links_created++;
           }
         }
@@ -517,46 +216,18 @@ async function processShopeeItem(
     const existingLink = await findExistingLink(accountId, item.item_id, 0);
 
     if (existingLink) {
-      // Update existing
       await updateLinkedProduct(companyId, existingLink.product_id, item);
-      await createLink({
-        companyId, accountId, accountName,
-        productId: existingLink.product_id,
-        variationId: existingLink.variation_id,
-        itemId: item.item_id, modelId: 0,
-        sku, status: item.item_status, price: model?.current_price || 0,
-        primaryImage,
-        categoryId: item.category_id,
-        weight: item.weight,
-        platformProductName: item.item_name,
-        brand: item.brand,
-        attributes: item.attribute_list,
-      });
+      await upsertMarketplaceLink(linkParams(existingLink.product_id, existingLink.variation_id, 0, sku, model?.current_price || 0));
       result.products_updated++;
     } else {
-      // Try auto-match by SKU
       const match = await tryAutoMatchBySku(companyId, sku);
       if (match) {
-        await createLink({
-          companyId, accountId, accountName,
-          productId: match.product_id,
-          variationId: match.variation_id,
-          itemId: item.item_id, modelId: 0,
-          sku, status: item.item_status, price: model?.current_price || 0,
-          primaryImage,
-          categoryId: item.category_id,
-          weight: item.weight,
-          platformProductName: item.item_name,
-          brand: item.brand,
-          attributes: item.attribute_list,
-        });
+        await upsertMarketplaceLink(linkParams(match.product_id, match.variation_id, 0, sku, model?.current_price || 0));
         result.links_created++;
         result.products_updated++;
       } else {
-        // Try match by product code (SP-{item_id})
         const existingProductId = await tryMatchByProductCode(companyId, item.item_id);
         if (existingProductId) {
-          // Find its variation
           const { data: variation } = await supabaseAdmin
             .from('product_variations')
             .select('id')
@@ -565,23 +236,10 @@ async function processShopeeItem(
             .limit(1)
             .single();
 
-          await createLink({
-            companyId, accountId, accountName,
-            productId: existingProductId,
-            variationId: variation?.id || null,
-            itemId: item.item_id, modelId: 0,
-            sku, status: item.item_status, price: model?.current_price || 0,
-            primaryImage,
-            categoryId: item.category_id,
-            weight: item.weight,
-            platformProductName: item.item_name,
-            brand: item.brand,
-            attributes: item.attribute_list,
-          });
+          await upsertMarketplaceLink(linkParams(existingProductId, variation?.id || null, 0, sku, model?.current_price || 0));
           result.links_created++;
           result.products_updated++;
         } else {
-          // Create new simple product
           const productId = await createSimpleProduct(companyId, item, model);
           if (productId) {
             const { data: variation } = await supabaseAdmin
@@ -592,19 +250,7 @@ async function processShopeeItem(
               .limit(1)
               .single();
 
-            await createLink({
-              companyId, accountId, accountName,
-              productId,
-              variationId: variation?.id || null,
-              itemId: item.item_id, modelId: 0,
-              sku, status: item.item_status, price: model?.current_price || 0,
-              primaryImage,
-              categoryId: item.category_id,
-              weight: item.weight,
-              platformProductName: item.item_name,
-              brand: item.brand,
-              attributes: item.attribute_list,
-            });
+            await upsertMarketplaceLink(linkParams(productId, variation?.id || null, 0, sku, model?.current_price || 0));
             result.products_created++;
             result.links_created++;
           }
@@ -619,7 +265,6 @@ async function processShopeeItem(
 async function ensureParentProduct(
   companyId: string,
   accountId: string,
-  accountName: string,
   item: ShopeeItemFullDetail,
   result: ProductSyncResult
 ): Promise<string | null> {
@@ -656,7 +301,7 @@ async function ensureParentProduct(
     return existingParent.id;
   }
 
-  // Check if parent exists but is inactive (previously deleted) — reactivate
+  // Check if parent exists but is inactive — reactivate
   const { data: inactiveParent } = await supabaseAdmin
     .from('products')
     .select('id')
@@ -721,10 +366,7 @@ async function createVariation(
   const sku = model.model_sku || `SP-${item.item_id}-${model.model_id}`;
   const attributes = buildVariationAttributes(item.tierVariations, model.model_name);
 
-  // Use original_price as default_price, current_price as discount_price (if discounted)
-  const defaultPrice = model.original_price > 0 ? model.original_price : model.current_price;
-  const discountPrice = (model.original_price > 0 && model.current_price < model.original_price)
-    ? model.current_price : 0;
+  const { defaultPrice, discountPrice } = resolveShopeePrice(model.original_price, model.current_price);
 
   const { data, error } = await supabaseAdmin
     .from('product_variations')
@@ -765,7 +407,7 @@ async function createSimpleProduct(
   const simpleLabel = sku || item.item_name;
   const img = item.images[0] || null;
 
-  // Check for inactive product with same code (previously deleted) — reactivate instead of creating
+  // Check for inactive product with same code — reactivate instead of creating
   const { data: inactiveProduct } = await supabaseAdmin
     .from('products')
     .select('id')
@@ -782,7 +424,6 @@ async function createSimpleProduct(
     }).eq('id', inactiveProduct.id);
     await supabaseAdmin.from('product_variations').update({ is_active: true, updated_at: now }).eq('product_id', inactiveProduct.id);
     console.log(`[Product Sync] Reactivated inactive simple product "${item.item_name}" (${productCode})`);
-    // Update images
     for (let i = 0; i < item.images.length; i++) {
       await upsertProductImage(companyId, inactiveProduct.id, null, item.images[i], i);
     }
@@ -808,15 +449,11 @@ async function createSimpleProduct(
     return null;
   }
 
-  // Images (preserve Shopee order)
   for (let i = 0; i < item.images.length; i++) {
     await upsertProductImage(companyId, product.id, null, item.images[i], i);
   }
 
-  // Variation row — use original_price as default_price, current_price as discount if discounted
-  const simpleDefaultPrice = (model?.original_price && model.original_price > 0) ? model.original_price : (model?.current_price || 0);
-  const simpleDiscountPrice = (model?.original_price && model.original_price > 0 && model.current_price < model.original_price)
-    ? model.current_price : 0;
+  const { defaultPrice: simpleDefaultPrice, discountPrice: simpleDiscountPrice } = resolveShopeePrice(model?.original_price || 0, model?.current_price || 0);
 
   await supabaseAdmin.from('product_variations').insert({
     company_id: companyId,
@@ -835,7 +472,6 @@ async function createSimpleProduct(
 }
 
 async function updateLinkedProduct(companyId: string, productId: string, item: ShopeeItemFullDetail) {
-  // Check source — skip if user-edited
   const { data: product } = await supabaseAdmin
     .from('products')
     .select('source')
@@ -843,17 +479,15 @@ async function updateLinkedProduct(companyId: string, productId: string, item: S
     .single();
 
   if (product?.source === 'shopee_edited' || product?.source === 'manual') {
-    return; // Don't overwrite user edits
+    return;
   }
 
-  // Update product info
   await supabaseAdmin.from('products').update({
     name: item.item_name,
     image: item.images[0] || null,
     updated_at: new Date().toISOString(),
   }).eq('id', productId);
 
-  // Update images (preserve Shopee order)
   for (let i = 0; i < item.images.length; i++) {
     await upsertProductImage(companyId, productId, null, item.images[i], i);
   }
@@ -862,7 +496,6 @@ async function updateLinkedProduct(companyId: string, productId: string, item: S
 async function updateLinkedVariation(companyId: string, variationId: string | null, model: { model_sku: string; current_price: number; original_price: number; stock: number; image_url?: string }, item: ShopeeItemFullDetail) {
   if (!variationId) return;
 
-  // Check product source
   const { data: variation } = await supabaseAdmin
     .from('product_variations')
     .select('product_id')
@@ -877,14 +510,11 @@ async function updateLinkedVariation(companyId: string, variationId: string | nu
       .single();
 
     if (product?.source === 'shopee_edited' || product?.source === 'manual') {
-      return; // Don't overwrite
+      return;
     }
   }
 
-  // Update variation price (stock managed locally)
-  const updDefaultPrice = model.original_price > 0 ? model.original_price : model.current_price;
-  const updDiscountPrice = (model.original_price > 0 && model.current_price < model.original_price)
-    ? model.current_price : 0;
+  const { defaultPrice: updDefaultPrice, discountPrice: updDiscountPrice } = resolveShopeePrice(model.original_price, model.current_price);
 
   await supabaseAdmin.from('product_variations').update({
     default_price: updDefaultPrice,
@@ -911,7 +541,6 @@ export async function pushPriceToShopee(
   try {
     const creds = await ensureValidToken(account);
 
-    // Get all links for this product + account
     const { data: links } = await supabaseAdmin
       .from('marketplace_product_links')
       .select('id, external_item_id, external_model_id, variation_id, platform_price')
@@ -923,7 +552,6 @@ export async function pushPriceToShopee(
       return { success: false, updated_models: 0, errors: ['No linked items found'] };
     }
 
-    // Group by external_item_id
     const itemGroups = new Map<string, typeof links>();
     for (const link of links) {
       const group = itemGroups.get(link.external_item_id) || [];
@@ -931,7 +559,6 @@ export async function pushPriceToShopee(
       itemGroups.set(link.external_item_id, group);
     }
 
-    // Pre-fetch all variation prices in one query
     const priceVariationIds = links.filter(l => !l.platform_price && l.variation_id).map(l => l.variation_id) as string[];
     const priceMap = new Map<string, number>();
     if (priceVariationIds.length > 0) {
@@ -966,7 +593,6 @@ export async function pushPriceToShopee(
           errors.push(`Item ${externalItemId}: ${error}`);
         } else {
           updatedModels += priceList.length;
-          // Update timestamps
           const linkIds = groupLinks.map(l => l.id);
           await supabaseAdmin
             .from('marketplace_product_links')
@@ -1014,7 +640,6 @@ export async function pushStockToShopee(
       itemGroups.set(link.external_item_id, group);
     }
 
-    // Pre-fetch all inventory data in one query (instead of per-variation)
     const allVariationIds = links.map(l => l.variation_id).filter(Boolean) as string[];
     const inventoryMap = new Map<string, number>();
     if (allVariationIds.length > 0) {
@@ -1037,7 +662,6 @@ export async function pushStockToShopee(
         let stock = 0;
         if (link.variation_id) {
           stock = inventoryMap.get(link.variation_id) ?? 0;
-          // Fallback to legacy product_variations.stock if not in inventory table
           if (!inventoryMap.has(link.variation_id)) {
             const { data: variation } = await supabaseAdmin
               .from('product_variations')
@@ -1103,24 +727,17 @@ interface AttributeEntry {
   attribute_value_list: Array<{ value_id: number; original_value_name: string }>;
 }
 
-/**
- * Build attribute_list for category update.
- * 1. Start with existing attributes from the link (user's current data)
- * 2. For mandatory attrs in the new category that are missing, fill with N/A
- */
 async function buildAttributesForCategoryUpdate(
   creds: ShopeeCredentials,
   categoryId: number,
   existingAttributes: AttributeEntry[],
   companyId?: string
 ): Promise<AttributeEntry[]> {
-  // Build a map of existing attribute_id → entry (from the link's current shopee_attributes)
   const existingMap = new Map<number, AttributeEntry>();
   for (const attr of existingAttributes) {
     existingMap.set(attr.attribute_id, attr);
   }
 
-  // Try stored attributes from another link with same category (as reference)
   if (companyId) {
     try {
       const { data } = await supabaseAdmin
@@ -1133,7 +750,6 @@ async function buildAttributesForCategoryUpdate(
         .single();
 
       if (data?.shopee_attributes && Array.isArray(data.shopee_attributes)) {
-        // Merge: use existing values first, fill missing from stored reference
         const storedAttrs = data.shopee_attributes as AttributeEntry[];
         for (const sa of storedAttrs) {
           if (!existingMap.has(sa.attribute_id)) {
@@ -1144,7 +760,6 @@ async function buildAttributesForCategoryUpdate(
     } catch { /* no stored attrs */ }
   }
 
-  // Fetch mandatory attributes for the new category from API
   try {
     const { data, error } = await getShopeeCategoryAttributes(creds, categoryId);
     if (error || !data) return Array.from(existingMap.values());
@@ -1159,14 +774,12 @@ async function buildAttributesForCategoryUpdate(
     const result: AttributeEntry[] = [];
 
     for (const attr of attributes.filter(a => a.is_mandatory)) {
-      // Use existing value if we have it
       const existing = existingMap.get(attr.attribute_id);
       if (existing && existing.attribute_value_list?.length > 0) {
         result.push(existing);
         continue;
       }
 
-      // Otherwise fill with N/A
       const values = attr.attribute_value_list || [];
       if (values.length > 0) {
         result.push({
@@ -1196,7 +809,6 @@ export async function pushCategoryToShopee(
   try {
     const creds = await ensureValidToken(account);
 
-    // Get existing attributes from this link
     let existingAttributes: AttributeEntry[] = [];
     try {
       const { data: linkData } = await supabaseAdmin

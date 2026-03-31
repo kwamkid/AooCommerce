@@ -64,6 +64,8 @@ export interface DeptStoreReportPdfData {
   receipt_date?: string | null;
   /** Company VAT registered at time of issue */
   vat_registered?: boolean;
+  /** Document subtype override (receipt = ใบเสร็จรับเงิน) */
+  document_subtype?: 'tax_only' | 'tax_receipt' | 'tax_invoice' | 'receipt' | null;
   /** Voided document */
   voided_at?: string | null;
 }
@@ -94,18 +96,28 @@ export async function generateDepartmentStoreReportPdf(data: DeptStoreReportPdfD
   const periodStr = `${THAI_MONTHS[data.period_month]} ${data.period_year + 543}`;
   const statusLabel = STATUS_LABELS[data.status] || data.status;
 
-  // Determine document mode: tax invoice/receipt vs regular invoice
-  const isTaxInvoiceMode = !!(data.tax_invoice_number || data.receipt_number);
+  // Determine document mode
   const vatRegistered = data.vat_registered ?? false;
+  const subtype = data.document_subtype;
 
   let docTitle: string;
   let docTheme: string;
-  if (isTaxInvoiceMode) {
+  let docNumber: string | null = null;
+  let docDate: string | null = null;
+
+  if (subtype === 'receipt') {
+    docTitle = 'ใบเสร็จรับเงิน';
+    docTheme = '#15803d';
+    docNumber = data.receipt_number || null;
+    docDate = data.receipt_date || null;
+  } else if (data.tax_invoice_number || data.receipt_number) {
     docTitle = vatRegistered ? 'ใบกำกับภาษี/ใบเสร็จรับเงิน' : 'ใบเสร็จรับเงิน';
-    docTheme = '#15803d'; // green for paid
+    docTheme = '#15803d';
+    docNumber = data.tax_invoice_number || data.receipt_number || null;
+    docDate = data.tax_invoice_date || data.receipt_date || null;
   } else {
     docTitle = 'ใบแจ้งหนี้';
-    docTheme = THEME.primary; // orange
+    docTheme = THEME.primary;
   }
   const titleFontSize = docTitle.length > 14 ? 18 : 24;
 
@@ -121,30 +133,36 @@ export async function generateDepartmentStoreReportPdf(data: DeptStoreReportPdfD
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const infoBoxRows: any[] = [];
 
-  if (isTaxInvoiceMode) {
-    // Tax invoice / receipt mode — show document numbers
-    if (data.tax_invoice_number) {
+  if (docNumber) {
+    // Has document number — show as formal document
+    infoBoxRows.push([
+      { text: 'เลขที่', fontSize: 10, color: docTheme, bold: true },
+      { text: docNumber, fontSize: 10, bold: true },
+    ]);
+    if (docDate) {
       infoBoxRows.push([
-        { text: 'เลขที่', fontSize: 10, color: docTheme, bold: true },
-        { text: data.tax_invoice_number, fontSize: 10, bold: true },
+        { text: 'วันที่ออก', fontSize: 10, color: docTheme, bold: true },
+        { text: formatPdfDate(docDate), fontSize: 10 },
       ]);
-      if (data.tax_invoice_date) {
-        infoBoxRows.push([
-          { text: 'วันที่ออก', fontSize: 10, color: docTheme, bold: true },
-          { text: formatPdfDate(data.tax_invoice_date), fontSize: 10 },
-        ]);
-      }
     }
-    if (data.receipt_number && data.receipt_number !== data.tax_invoice_number) {
+    if (data.receipt_number && data.receipt_number !== docNumber) {
       infoBoxRows.push([
         { text: 'เลขใบเสร็จ', fontSize: 10, color: docTheme, bold: true },
         { text: data.receipt_number, fontSize: 10, bold: true },
       ]);
     }
-    infoBoxRows.push([
-      { text: 'อ้างอิง', fontSize: 10, color: docTheme, bold: true },
-      { text: data.report_number, fontSize: 10 },
-    ]);
+    // Receipt: reference = TAX number, otherwise = report number
+    if (subtype === 'receipt' && data.tax_invoice_number) {
+      infoBoxRows.push([
+        { text: 'อ้างอิง', fontSize: 10, color: docTheme, bold: true },
+        { text: data.tax_invoice_number, fontSize: 10 },
+      ]);
+    } else {
+      infoBoxRows.push([
+        { text: 'อ้างอิง', fontSize: 10, color: docTheme, bold: true },
+        { text: data.report_number, fontSize: 10 },
+      ]);
+    }
     infoBoxRows.push([
       { text: 'งวด', fontSize: 10, color: docTheme, bold: true },
       { text: periodStr, fontSize: 10 },
@@ -274,18 +292,9 @@ export async function generateDepartmentStoreReportPdf(data: DeptStoreReportPdfD
   // ═══════════════════════════════════════════════════
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const summaryRows: any[][] = [
-    [
-      { text: 'จำนวนรายการ', fontSize: 10, alignment: 'right', color: '#666666' },
-      { text: `${data.items.length} รายการ`, fontSize: 10, alignment: 'right' },
-    ],
-    [
-      { text: 'จำนวนชิ้น', fontSize: 10, alignment: 'right', color: '#666666' },
-      { text: `${data.total_qty_sold} ชิ้น`, fontSize: 10, alignment: 'right' },
-    ],
-  ];
+  const summaryRows: any[][] = [];
 
-  if (isTaxInvoiceMode && vatRegistered) {
+  if (!!docNumber && vatRegistered) {
     const totalWithVAT = data.our_amount;
     const subtotalExVAT = Math.round((totalWithVAT / 1.07) * 100) / 100;
     const vatAmt = totalWithVAT - subtotalExVAT;
@@ -361,7 +370,7 @@ export async function generateDepartmentStoreReportPdf(data: DeptStoreReportPdfD
     },
     content: withOriginalAndCopy(content),
     background: buildCornerTriangle(docTheme),
-    footer: buildSignatureFooter(companyName, isTaxInvoiceMode ? 'ผู้ออกเอกสาร' : 'ผู้ขาย', 'ห้างสรรพสินค้า'),
+    footer: buildSignatureFooter(companyName, !!docNumber ? 'ผู้ออกเอกสาร' : 'ผู้ขาย', 'ห้างสรรพสินค้า'),
   };
 
   if (data.voided_at) {

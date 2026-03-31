@@ -9,7 +9,7 @@ import { useToast } from '@/lib/toast-context';
 import {
   ClipboardList, Building2, Loader2, RefreshCw, CheckCircle2,
   AlertCircle, Clock, BadgeCheck, Copy, Receipt,
-  Plus, Package, XCircle, Eye, FileText, Printer,
+  Plus, Package, XCircle, Trash2, Eye, FileText, Printer,
   Banknote, Undo2,
 } from 'lucide-react';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
@@ -178,6 +178,7 @@ function DeptStoreReportsContent() {
     tax_invoice_date?: string | null;
     receipt_date?: string | null;
     vat_registered?: boolean;
+    document_subtype?: 'tax_only' | 'tax_receipt' | 'tax_invoice' | 'receipt' | null;
   }): Promise<Blob> => {
     const res = await apiFetch(`/api/department-store/reports/${reportId}`);
     if (!res.ok) throw new Error('fetch failed');
@@ -487,46 +488,9 @@ function DeptStoreReportsContent() {
 
     const items: ActionItem[] = [];
 
-    // Print: ใบกำกับภาษี/ใบแจ้งหนี้ or ใบแจ้งหนี้
-    if (['invoiced', 'billed', 'paid'].includes(report.status)) {
-      items.push({
-        key: 'invoice',
-        label: 'ใบแจ้งหนี้',
-        icon: isPrinting && printingType === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />,
-        suffix: dot('invoice'),
-        onClick: () => handlePrintInvoice(report.id),
-        disabled: isPrinting,
-        dividerBefore: true,
-      });
-    }
+    // === Print documents — ordered by flow (latest first) ===
 
-    // Print: ใบวางบิล (available when has statement_id)
-    if (report.statement_id && ['billed', 'paid'].includes(report.status)) {
-      items.push({
-        key: 'statement',
-        label: 'ใบวางบิล',
-        icon: isPrinting && printingType === 'statement' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />,
-        suffix: dot('statement'),
-        onClick: () => handlePrintStatement(report.id, report.statement_id!),
-        disabled: isPrinting,
-      });
-    }
-
-    // Print all (when both available) — merge into 1 PDF
-    if (report.statement_id && ['billed', 'paid'].includes(report.status)) {
-      items.push({
-        key: 'print_all',
-        label: isPrinting ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
-        icon: isPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
-        className: 'text-primary font-medium',
-        onClick: () => handlePrintAll(report),
-        disabled: isPrinting,
-      });
-    }
-
-    // Payment action removed — already shown as focus button (btn-focus-action indigo)
-
-    // Print receipt (paid only)
+    // Receipt (paid only — latest in flow)
     if (report.status === 'paid' && report.statement_id) {
       items.push({
         key: 'print_receipt',
@@ -538,17 +502,11 @@ function DeptStoreReportsContent() {
             if (!stRes.ok) throw new Error('fetch failed');
             const stData = await stRes.json();
             const st = stData.statement;
-            const { generatePaymentReceiptPdf } = await import('@/lib/payment-receipt-pdf');
-            const blob = await generatePaymentReceiptPdf({
-              receipt_number: st.receipt_number || 'REC-PENDING',
-              receipt_date: st.receipt_date || st.statement_date || new Date().toISOString().split('T')[0],
-              reference_number: report.doc_number || null,
-              statement_number: st.statement_number || null,
-              customer: report.customer ? {
-                name: report.customer.name,
-                phone: report.customer.phone || null,
-              } : null,
-              total_amount: report.our_amount,
+            const blob = await generateInvoiceBlob(report.id, {
+              receipt_number: st.receipt_number,
+              receipt_date: st.receipt_date,
+              tax_invoice_number: st.tax_invoice_number,
+              document_subtype: 'receipt',
             });
             showPdfPreview(blob, `ใบเสร็จรับเงิน`);
           } catch { showToast('ไม่สามารถพิมพ์ใบเสร็จได้', 'error'); }
@@ -557,7 +515,45 @@ function DeptStoreReportsContent() {
       });
     }
 
-    // Reverse payment action (paid with statement)
+    // Statement (billed/paid — issued at billing)
+    if (report.statement_id && ['billed', 'paid'].includes(report.status)) {
+      items.push({
+        key: 'statement',
+        label: 'ใบวางบิล',
+        icon: isPrinting && printingType === 'statement' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />,
+        suffix: dot('statement'),
+        onClick: () => handlePrintStatement(report.id, report.statement_id!),
+        disabled: isPrinting,
+      });
+    }
+
+    // Invoice (invoiced/billed/paid — issued at confirm)
+    if (['invoiced', 'billed', 'paid'].includes(report.status)) {
+      items.push({
+        key: 'invoice',
+        label: 'ใบแจ้งหนี้',
+        icon: isPrinting && printingType === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />,
+        suffix: dot('invoice'),
+        onClick: () => handlePrintInvoice(report.id),
+        disabled: isPrinting,
+      });
+    }
+
+    // Print all (merge)
+    if (report.statement_id && ['billed', 'paid'].includes(report.status)) {
+      items.push({
+        key: 'print_all',
+        label: isPrinting ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
+        icon: isPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+        className: 'text-primary font-medium',
+        onClick: () => handlePrintAll(report),
+        disabled: isPrinting,
+      });
+    }
+
+    // === Actions ===
+
+    // Reverse payment (paid)
     if (report.status === 'paid' && report.statement_id) {
       items.push({
         key: 'reverse_payment',
@@ -565,26 +561,28 @@ function DeptStoreReportsContent() {
         icon: <Undo2 className="w-4 h-4" />,
         onClick: () => setReverseConfirm(report),
         danger: true,
+        dividerBefore: true,
       });
     }
 
-    // Void (billed — cancel doc + report)
+    // Void (billed/invoiced)
     if (['billed', 'invoiced'].includes(report.status)) {
       items.push({
         key: 'void',
         label: 'ยกเลิก (Void)',
-        icon: <XCircle className="w-4 h-4" />,
+        icon: <Trash2 className="w-4 h-4" />,
         danger: true,
         dividerBefore: true,
         onClick: () => setVoidConfirm(report),
       });
     }
 
+    // Cancel (draft)
     if (report.status === 'draft') {
       items.push({
         key: 'cancel',
         label: 'ยกเลิกรายงาน',
-        icon: <XCircle className="w-4 h-4" />,
+        icon: <Trash2 className="w-4 h-4" />,
         danger: true,
         dividerBefore: true,
         onClick: async () => {
@@ -890,10 +888,10 @@ function DeptStoreReportsContent() {
         open={!!voidConfirm}
         onClose={() => !voidLoading && setVoidConfirm(null)}
         onConfirm={() => voidConfirm && handleVoidReport(voidConfirm)}
-        icon={<XCircle className="w-6 h-6 text-red-500" />}
+        icon={<Trash2 className="w-6 h-6 text-red-500" />}
         title="ยกเลิกรายงาน (Void)"
         confirmLabel={voidLoading ? 'กำลังดำเนินการ...' : 'ยืนยันยกเลิก'}
-        confirmIcon={voidLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+        confirmIcon={voidLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
         variant="danger"
         loading={voidLoading}
       >

@@ -9,8 +9,9 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import {
   ShoppingBag, Search, Plus, Package, Loader2, CreditCard,
-  Banknote, XCircle, Send, Printer, FileText, ClipboardList,
+  Banknote, XCircle, Trash2, Send, Printer, FileText, ClipboardList, X, UserPlus,
 } from 'lucide-react';
+import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
@@ -104,8 +105,11 @@ export default function DealerOrdersPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [paymentOrder, setPaymentOrder] = useState<WholesaleOrder | null>(null);
   const [shipOrder, setShipOrder] = useState<WholesaleOrder | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOverlay, setBulkOverlay] = useState<{ show: boolean; message: string; progress: number }>({ show: false, message: '', progress: 0 });
 
   const showStatusCol = statusFilter === 'all';
+  const isProcessingTab = statusFilter === 'processing';
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -176,6 +180,62 @@ export default function DealerOrdersPage() {
     }
   };
 
+  // Clear selection when tab changes
+  useEffect(() => { setSelectedIds(new Set()); }, [statusFilter]);
+
+  const handleBulkPrint = async (ids: string[], type: 'packing' | 'label') => {
+    if (!ids.length) return;
+    const label = type === 'packing' ? 'ใบจัดของ' : 'ใบปะหน้า';
+    setBulkOverlay({ show: true, message: `กำลังโหลดข้อมูล... (0/${ids.length})`, progress: 5 });
+    try {
+      const { showPdfPreview, mergePdfBlobs } = await import('@/lib/print-pdf');
+      // Fetch all order data
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allData: any[] = [];
+      for (let i = 0; i < ids.length; i++) {
+        setBulkOverlay({ show: true, message: `กำลังโหลดข้อมูล... (${i + 1}/${ids.length})`, progress: Math.round(((i + 1) / ids.length) * 60) });
+        try {
+          const res = await apiFetch(`/api/orders/${ids[i]}`);
+          if (res.ok) { const d = await res.json(); allData.push(d.order || d); }
+        } catch { /* skip */ }
+      }
+      if (!allData.length) { showToast('ไม่สามารถโหลดข้อมูลได้', 'error'); return; }
+
+      setBulkOverlay({ show: true, message: `กำลังสร้าง${label}...`, progress: 75 });
+      if (type === 'packing') {
+        const { generatePackingPdf } = await import('@/lib/orders-packing-pdf');
+        const blob = await generatePackingPdf(allData);
+        showPdfPreview(blob, `${label} ${allData.length} รายการ`);
+      } else {
+        const { generateShippingLabelPdf } = await import('@/lib/order-shipping-label-pdf');
+        const blobs: Blob[] = [];
+        for (const od of allData) {
+          try {
+            blobs.push(await generateShippingLabelPdf({ data: {
+              order_number: od.order_number,
+              created_at: od.created_at,
+              shipping_carrier: od.shipping_carrier || '',
+              tracking_number: od.tracking_number || '',
+              delivery_name: od.delivery_name || od.customer?.name || '',
+              delivery_phone: od.delivery_phone || od.customer?.phone || '',
+              delivery_address: od.delivery_address || '',
+              delivery_district: od.delivery_district || '',
+              delivery_amphoe: od.delivery_amphoe || '',
+              delivery_province: od.delivery_province || '',
+              delivery_postal_code: od.delivery_postal_code || '',
+              items: (od.items || []).map((i: any) => ({ product_name: i.product_name, variation_label: i.variation_label, quantity: i.quantity, sku: i.sku })),
+            } }));
+          } catch { /* skip */ }
+        }
+        if (!blobs.length) { showToast('ไม่สามารถสร้างเอกสารได้', 'error'); return; }
+        setBulkOverlay({ show: true, message: 'กำลังรวมเอกสาร...', progress: 90 });
+        const merged = blobs.length === 1 ? blobs[0] : await mergePdfBlobs(blobs);
+        showPdfPreview(merged, `${label} ${allData.length} รายการ`);
+      }
+    } catch { showToast('เกิดข้อผิดพลาด', 'error'); }
+    finally { setBulkOverlay({ show: false, message: '', progress: 0 }); }
+  };
+
   const getMenuItems = (order: WholesaleOrder): ActionItem[] => {
     const items: ActionItem[] = [];
     const canCancel = ['new', 'ready_to_ship', 'processing'].includes(order.order_status);
@@ -200,7 +260,7 @@ export default function DealerOrdersPage() {
 
     // === Cancel ===
     if (canCancel) {
-      items.push({ key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <XCircle className="w-4 h-4" />, danger: true, dividerBefore: true, onClick: (e) => { e?.stopPropagation(); handleAction(order, 'cancel'); } });
+      items.push({ key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <Trash2 className="w-4 h-4" />, danger: true, dividerBefore: true, onClick: (e) => { e?.stopPropagation(); handleAction(order, 'cancel'); } });
     }
 
     return items;
@@ -218,10 +278,16 @@ export default function DealerOrdersPage() {
             </h1>
             <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">ตัวแทนขายขาด (เงินสด / เครดิต)</p>
           </div>
-          <Link href="/dealer-orders/new"
-            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium">
-            <Plus className="w-4 h-4" /> สร้างคำสั่งซื้อ
-          </Link>
+          <div className="flex items-center gap-2">
+            <button onClick={() => router.push('/customers/new?type=wholesale_dealer')}
+              className="px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm font-medium">
+              <UserPlus className="w-4 h-4" /> เพิ่มตัวแทน
+            </button>
+            <Link href="/dealer-orders/new"
+              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium">
+              <Plus className="w-4 h-4" /> สร้างคำสั่งซื้อ
+            </Link>
+          </div>
         </div>
 
         {/* Status Tabs */}
@@ -334,6 +400,7 @@ export default function DealerOrdersPage() {
           loading={loading}
           getRowId={(r) => r.id}
           onRowClick={(r) => router.push(`/dealer-orders/${r.id}`)}
+          {...(isProcessingTab ? { selectedIds, onSelectionChange: setSelectedIds } : {})}
           rowClassName={(r) => r.order_status === 'cancelled' ? 'opacity-50' : ''}
           emptyMessage="ไม่มีคำสั่งซื้อ"
           emptyIcon={<Package className="w-12 h-12 text-gray-300" />}
@@ -364,7 +431,7 @@ export default function DealerOrdersPage() {
                     </span>
                     {canCancel && (
                       <ActionMenu items={[
-                        { key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <XCircle className="w-4 h-4" />, danger: true, onClick: (e) => { e.stopPropagation(); handleAction(order, 'cancel'); } },
+                        { key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: (e) => { e.stopPropagation(); handleAction(order, 'cancel'); } },
                       ]} />
                     )}
                   </div>
@@ -424,6 +491,32 @@ export default function DealerOrdersPage() {
         />
       )}
       {confirmDialog}
+
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-lg px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center gap-3 flex-wrap">
+            <button onClick={() => setSelectedIds(new Set())} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-500">
+              <X className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-medium text-gray-700 dark:text-slate-300">เลือก {selectedIds.size} รายการ</span>
+            <div className="flex items-center gap-2 ml-auto">
+              <button onClick={() => handleBulkPrint([...selectedIds], 'packing')}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
+                <ClipboardList className="w-4 h-4" />
+                ใบจัดของ ({selectedIds.size})
+              </button>
+              <button onClick={() => handleBulkPrint([...selectedIds], 'label')}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+                <Printer className="w-4 h-4" />
+                ใบปะหน้า ({selectedIds.size})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <LoadingOverlay isOpen={bulkOverlay.show} title={bulkOverlay.message} progress={bulkOverlay.progress} />
     </Layout>
   );
 }

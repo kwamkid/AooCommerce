@@ -14,7 +14,7 @@ import {
   ArrowUpFromLine, Plus, Loader2, RefreshCw,
   Package, Truck, CheckCircle2, XCircle, Clock,
   Send, Copy, Eye, X, AlertTriangle, Printer,
-  ClipboardList, FileText, User, Ban, Pencil,
+  ClipboardList, FileText, User, Ban, Pencil, UserPlus,
 } from 'lucide-react';
 import Tooltip from '@/components/ui/Tooltip';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
@@ -720,6 +720,10 @@ function ReplenishmentsPageContent() {
               title="รีเฟรช"
             >
               <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button onClick={() => router.push('/customers/new?type=consignment_dealer')}
+              className="px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm font-medium">
+              <UserPlus className="w-4 h-4" /> <span className="hidden md:inline">เพิ่มตัวแทน</span>
             </button>
             <button
               onClick={() => router.push('/replenishments/new')}

@@ -9,7 +9,7 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import {
   Store, Search, Plus, Package, Loader2, CreditCard,
-  Banknote, XCircle, Send, Printer, FileText, ClipboardList,
+  Banknote, XCircle, Trash2, Send, Printer, FileText, ClipboardList, UserPlus,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
@@ -200,7 +200,7 @@ export default function DeptWholesaleOrdersPage() {
 
     // === Cancel ===
     if (canCancel) {
-      items.push({ key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <XCircle className="w-4 h-4" />, danger: true, dividerBefore: true, onClick: (e) => { e?.stopPropagation(); handleAction(order, 'cancel'); } });
+      items.push({ key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <Trash2 className="w-4 h-4" />, danger: true, dividerBefore: true, onClick: (e) => { e?.stopPropagation(); handleAction(order, 'cancel'); } });
     }
 
     return items;
@@ -218,10 +218,16 @@ export default function DeptWholesaleOrdersPage() {
             </h1>
             <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">ห้างขายขาด (เงินสด / เครดิต)</p>
           </div>
-          <Link href="/dept-wholesale-orders/new"
-            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium">
-            <Plus className="w-4 h-4" /> สร้างคำสั่งซื้อ
-          </Link>
+          <div className="flex items-center gap-2">
+            <button onClick={() => router.push('/customers/new?type=wholesale_department')}
+              className="px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm font-medium">
+              <UserPlus className="w-4 h-4" /> เพิ่มลูกค้าห้าง
+            </button>
+            <Link href="/dept-wholesale-orders/new"
+              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium">
+              <Plus className="w-4 h-4" /> สร้างคำสั่งซื้อ
+            </Link>
+          </div>
         </div>
 
         {/* Status Tabs */}
@@ -364,7 +370,7 @@ export default function DeptWholesaleOrdersPage() {
                     </span>
                     {canCancel && (
                       <ActionMenu items={[
-                        { key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <XCircle className="w-4 h-4" />, danger: true, onClick: (e) => { e.stopPropagation(); handleAction(order, 'cancel'); } },
+                        { key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: (e) => { e.stopPropagation(); handleAction(order, 'cancel'); } },
                       ]} />
                     )}
                   </div>

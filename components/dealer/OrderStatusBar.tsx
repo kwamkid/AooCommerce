@@ -1,14 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, CheckCircle, X } from 'lucide-react';
+import { Loader2, CheckCircle, Trash2 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useRouter } from 'next/navigation';
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   new: { label: 'ใหม่', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-  processing: { label: 'กำลังจัดเตรียม', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+  ready_to_ship: { label: 'รอคอนเฟิร์ม', cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
+  processing: { label: 'ที่ต้องจัดส่ง', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
   shipping: { label: 'จัดส่งแล้ว', cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
   completed: { label: 'เสร็จสิ้น', cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
   cancelled: { label: 'ยกเลิก', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
@@ -77,7 +78,7 @@ export default function OrderStatusBar({ orderId, orderNumber, orderStatus, paym
         {!['completed', 'cancelled'].includes(orderStatus) && (
           <button onClick={handleCancel} disabled={updating}
             className="border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium flex items-center gap-1.5 disabled:opacity-50">
-            <X className="w-4 h-4" /> ยกเลิกออเดอร์
+            <Trash2 className="w-4 h-4" /> ยกเลิกออเดอร์
           </button>
         )}
       </div>

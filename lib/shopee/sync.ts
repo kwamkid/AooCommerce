@@ -1,11 +1,20 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemEnrichment, ShopeeItemEnrichment, getEscrowDetail, getPackageDetail, getPackageNumberList, getBuyerInvoiceInfo, BuyerInvoiceInfo } from '@/lib/shopee/api';
-import { getCategoryName } from '@/lib/shopee/product-sync';
+import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemFullDetails, ShopeeItemFullDetail, getEscrowDetail, getPackageDetail, getPackageNumberList, getBuyerInvoiceInfo, BuyerInvoiceInfo } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { reserveStock as reserveStockService, returnStock as returnStockService, unreserveStock as unreserveStockService, deductAndUnreserve } from '@/lib/stock-service';
 import { getStockConfig } from '@/lib/stock-utils';
+import {
+  ShopeeItemInfo,
+  getOrCreateVariationTypeIds,
+  buildVariationAttributes,
+  upsertProductImage,
+  upsertProductImages,
+  upsertMarketplaceLink,
+  backfillSiblingVariations,
+  resolveShopeePrice,
+} from '@/lib/shopee/product-helpers';
 
 // --- Sync Progress Types ---
 
@@ -605,10 +614,20 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     .eq('external_order_sn', shopeeOrder.order_sn)
     .single();
 
-  // Fetch item enrichment from Shopee Product APIs (images + tier_variation + model images)
   const uniqueItemIds = [...new Set((shopeeOrder.item_list || []).map(i => i.item_id))];
   const creds = await ensureValidToken(account);
-  const itemEnrichmentMap = await getItemEnrichment(creds, uniqueItemIds);
+
+  // Lazy-load item details: only fetch from Shopee Product API when needed (new order or missing items)
+  // For status-only updates on existing orders, this avoids 2+ unnecessary Shopee API calls
+  let _itemDetailMap: Map<number, ShopeeItemFullDetail> | null = null;
+  const getItemDetails = async () => {
+    if (!_itemDetailMap) {
+      _itemDetailMap = await getItemFullDetails(creds, uniqueItemIds);
+    }
+    return _itemDetailMap;
+  };
+  // Shorthand for use in existing code paths
+  let itemDetailMap = new Map<number, ShopeeItemFullDetail>();
 
   if (existing) {
     let statusUpdated = false;
@@ -838,7 +857,9 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     }
 
     // Re-create any soft-deleted products referenced by this order's items
-    const productsRecreated = await repairOrderProducts(companyId, existing.id, shopeeOrder, itemEnrichmentMap);
+    // Lazy-load item details only when needed for repair/backfill
+    itemDetailMap = await getItemDetails();
+    const productsRecreated = await repairOrderProducts(companyId, existing.id, shopeeOrder, itemDetailMap);
 
     // Repair: if order has no items but Shopee now provides item_list, create them
     const { count: existingItemCount } = await supabaseAdmin
@@ -873,8 +894,9 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
           ? `${item.item_name} - ${item.model_name}`
           : item.item_name;
 
-        const enrichment = itemEnrichmentMap.get(item.item_id);
-        const variationImageUrl = enrichment?.modelImageMap.get(item.model_sku) || item.image_info?.image_url || '';
+        const repairItemDetail = itemDetailMap.get(item.item_id);
+        const repairMatchedModel = repairItemDetail?.models.find(m => m.model_id === item.model_id);
+        const variationImageUrl = repairMatchedModel?.image_url || item.image_info?.image_url || '';
         const matched = await findOrCreateVariationBySku(companyId, sku, itemName, price, {
           shopeeItemId: item.item_id,
           shopeeItemName: item.item_name,
@@ -883,11 +905,11 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
           shopeeModelSku: item.model_sku,
           shopeeItemSku: item.item_sku,
           shopeeImageUrl: variationImageUrl,
-          tierVariationNames: enrichment?.tierVariations || [],
-          parentImageUrl: enrichment?.images?.[0] || '',
-          parentImages: enrichment?.images || [],
-          allModels: enrichment?.allModels || [],
-          enrichment: enrichment || undefined,
+          tierVariationNames: repairItemDetail?.tierVariations || [],
+          parentImageUrl: repairItemDetail?.images?.[0] || '',
+          parentImages: repairItemDetail?.images || [],
+          allModels: repairItemDetail?.models || [],
+          itemDetail: repairItemDetail || undefined,
           accountId: account.id,
           accountName: account.shop_name ?? undefined,
         });
@@ -985,13 +1007,12 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     let siblingsBackfilled = 0;
     for (const item of shopeeOrder.item_list || []) {
       if (item.model_id > 0 && item.model_name) {
-        const enrichment = itemEnrichmentMap.get(item.item_id);
+        const sibItemDetail = itemDetailMap.get(item.item_id);
         const itemSku = item.model_sku || item.item_sku || '';
-        if (enrichment?.allModels && enrichment.allModels.length > 0) {
+        if (sibItemDetail?.models && sibItemDetail.models.length > 0) {
           // Find the existing variation to get its product_id — check marketplace_product_links first
           let parentProductId: string | null = null;
 
-          // Try marketplace_product_links first (most accurate)
           const { data: mplLink } = await supabaseAdmin
             .from('marketplace_product_links')
             .select('product_id')
@@ -1023,11 +1044,11 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
                 shopeeModelSku: item.model_sku,
                 shopeeItemSku: item.item_sku,
                 shopeeImageUrl: '',
-                tierVariationNames: enrichment.tierVariations || [],
-                parentImageUrl: '',
-                parentImages: [],
-                allModels: enrichment.allModels,
-                enrichment,
+                tierVariationNames: sibItemDetail.tierVariations || [],
+                parentImageUrl: sibItemDetail.images?.[0] || '',
+                parentImages: sibItemDetail.images || [],
+                allModels: sibItemDetail.models,
+                itemDetail: sibItemDetail,
                 accountId: account.id,
                 accountName: account.shop_name ?? undefined,
               });
@@ -1044,6 +1065,9 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
   }
 
   // --- Create new order ---
+
+  // Ensure item details are loaded for new order creation
+  itemDetailMap = await getItemDetails();
 
   // Find or create customer (track if newly created for rollback)
   const { customerId, isNewCustomer, shippingAddressId } = await findOrCreateShopeeCustomer(companyId, shopeeOrder);
@@ -1081,8 +1105,10 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
       : item.item_name;
 
     // Try to match by SKU, pass Shopee item info for variation detection
-    const enrichment = itemEnrichmentMap.get(item.item_id);
-    const variationImageUrl = enrichment?.modelImageMap.get(item.model_sku) || item.image_info?.image_url || '';
+    const itemDetail = itemDetailMap.get(item.item_id);
+    // Find variation image: match model by model_id, fallback to order image
+    const matchedModel = itemDetail?.models.find(m => m.model_id === item.model_id);
+    const variationImageUrl = matchedModel?.image_url || item.image_info?.image_url || '';
     let matched;
     try {
       matched = await findOrCreateVariationBySku(companyId, sku, itemName, price, {
@@ -1093,11 +1119,11 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
         shopeeModelSku: item.model_sku,
         shopeeItemSku: item.item_sku,
         shopeeImageUrl: variationImageUrl,
-        tierVariationNames: enrichment?.tierVariations || [],
-        parentImageUrl: enrichment?.images?.[0] || '',
-        parentImages: enrichment?.images || [],
-        allModels: enrichment?.allModels || [],
-        enrichment: enrichment || undefined,
+        tierVariationNames: itemDetail?.tierVariations || [],
+        parentImageUrl: itemDetail?.images?.[0] || '',
+        parentImages: itemDetail?.images || [],
+        allModels: itemDetail?.models || [],
+        itemDetail: itemDetail || undefined,
         accountId: account.id,
         accountName: account.shop_name ?? undefined,
       });
@@ -1126,58 +1152,25 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     if (matched.isNewVariation) newlyCreatedVariationIds.push(matched.variation_id);
 
     // Upsert marketplace link so product is linked to Shopee item/model
-    // Include enrichment data from get_item_base_info (category, weight, name, status, image)
-    const categoryId = enrichment?.category_id;
-    let categoryName = '';
-    if (categoryId) {
-      try { categoryName = await getCategoryName(account.id, categoryId); } catch { /* ignore */ }
-    }
-
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const upsertData: Record<string, any> = {
-        company_id: companyId,
-        platform: 'shopee',
-        account_id: account.id,
-        account_name: account.shop_name || '',
-        product_id: matched.product_id,
-        variation_id: matched.variation_id || null,
-        external_item_id: String(item.item_id),
-        external_model_id: String(item.model_id || 0),
-        external_sku: item.model_sku || item.item_sku || '',
-        platform_price: price || null,
-        platform_product_name: enrichment?.item_name || null,
-        platform_primary_image: enrichment?.images?.[0] || null,
-        external_item_status: enrichment?.item_status || null,
-        shopee_category_id: categoryId ? String(categoryId) : null,
-        shopee_category_name: categoryName || null,
-        weight: enrichment?.weight || null,
-        last_synced_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      // Store attributes and brand from get_item_base_info directly (includes filled values)
-      if (enrichment?.attribute_list && enrichment.attribute_list.length > 0) {
-        upsertData.shopee_attributes = enrichment.attribute_list;
-      }
-      if (enrichment?.brand) {
-        upsertData.shopee_brand_id = enrichment.brand.brand_id;
-        upsertData.shopee_brand_name = enrichment.brand.display_brand_name || enrichment.brand.original_brand_name;
-      }
-
-      // Write structured platform_data alongside legacy shopee_* columns
-      upsertData.platform_data = {
-        category_id: upsertData.shopee_category_id ? Number(upsertData.shopee_category_id) : null,
-        category_name: upsertData.shopee_category_name || null,
-        attributes: upsertData.shopee_attributes || null,
-        brand_id: upsertData.shopee_brand_id || null,
-        brand_name: upsertData.shopee_brand_name || null,
-      };
-
-      await supabaseAdmin.from('marketplace_product_links').upsert(
-        upsertData,
-        { onConflict: 'account_id,external_item_id,external_model_id' }
-      );
+      await upsertMarketplaceLink({
+        companyId,
+        accountId: account.id,
+        accountName: account.shop_name || '',
+        productId: matched.product_id,
+        variationId: matched.variation_id || null,
+        itemId: item.item_id,
+        modelId: item.model_id || 0,
+        sku: item.model_sku || item.item_sku || '',
+        price: price || undefined,
+        platformProductName: itemDetail?.item_name || undefined,
+        primaryImage: itemDetail?.images?.[0] || undefined,
+        status: itemDetail?.item_status || undefined,
+        categoryId: itemDetail?.category_id || undefined,
+        weight: itemDetail?.weight || undefined,
+        brand: itemDetail?.brand || undefined,
+        attributes: itemDetail?.attribute_list || undefined,
+      });
     } catch (linkErr) {
       console.error(`[Shopee Sync] Failed to upsert marketplace link for item ${item.item_id}:`, linkErr);
     }
@@ -1585,7 +1578,7 @@ async function repairOrderProducts(
   companyId: string,
   orderId: string,
   shopeeOrder: ShopeeOrder,
-  itemEnrichmentMap: Map<number, ShopeeItemEnrichment>
+  itemDetailMap: Map<number, ShopeeItemFullDetail>
 ): Promise<number> {
   // Get order items
   const { data: orderItems } = await supabaseAdmin
@@ -1624,12 +1617,13 @@ async function repairOrderProducts(
       return false;
     });
 
-    // Get enrichment data (tier_variation names + parent images + model images)
-    const enrichment = shopeeItem ? itemEnrichmentMap.get(shopeeItem.item_id) : undefined;
-    const parentImageUrl = enrichment?.images?.[0] || '';
-    const tierVariationNames = enrichment?.tierVariations || [];
-    const variationImageUrl = shopeeItem ? (enrichment?.modelImageMap.get(shopeeItem.model_sku) || shopeeItem.image_info?.image_url || '') : '';
-    console.log(`[Shopee Sync] Repair enrichment for item ${shopeeItem?.item_id}: tierVariationNames=[${tierVariationNames.join(',')}], hasEnrichment=${!!enrichment}`);
+    // Get item detail data (tier_variation names + parent images + model images)
+    const itemDetail = shopeeItem ? itemDetailMap.get(shopeeItem.item_id) : undefined;
+    const parentImageUrl = itemDetail?.images?.[0] || '';
+    const tierVariationNames = itemDetail?.tierVariations || [];
+    const matchedModel = itemDetail?.models.find(m => m.model_id === shopeeItem?.model_id);
+    const variationImageUrl = matchedModel?.image_url || shopeeItem?.image_info?.image_url || '';
+    console.log(`[Shopee Sync] Repair item detail for item ${shopeeItem?.item_id}: tierVariationNames=[${tierVariationNames.join(',')}], hasDetail=${!!itemDetail}`);
 
     // Check product state
     const { data: product } = await supabaseAdmin
@@ -1672,8 +1666,8 @@ async function repairOrderProducts(
         await supabaseAdmin.from('product_variations').update({ is_active: true, updated_at: now }).eq('product_id', product.id);
       }
 
-      // Backfill parent images from get_item_base_info (all images)
-      const allParentImages = enrichment?.images || [];
+      // Backfill parent images from item detail (all images)
+      const allParentImages = itemDetail?.images || [];
       if (needsImage) {
         const img = parentImageUrl || shopeeItem!.image_info!.image_url;
         productUpdate.image = img;
@@ -1770,324 +1764,6 @@ async function repairOrderProducts(
   }
 
   return repaired;
-}
-
-// --- Variation Type Helper ---
-
-// Cache variation type ID per company to avoid repeated lookups
-const variationTypeCache: Record<string, string> = {};
-
-/**
- * Get or create variation type IDs from Shopee tier_variation names.
- * e.g. ["สี", "ขนาด"] → [uuid1, uuid2]
- * Falls back to "ตัวเลือกสินค้า" if no names provided.
- */
-async function getOrCreateVariationTypeIds(companyId: string, tierVariationNames: string[]): Promise<string[]> {
-  const names = tierVariationNames.length > 0 ? tierVariationNames : ['ตัวเลือกสินค้า'];
-  const ids: string[] = [];
-
-  for (const name of names) {
-    const cacheKey = `${companyId}:${name}`;
-    if (variationTypeCache[cacheKey]) {
-      ids.push(variationTypeCache[cacheKey]);
-      continue;
-    }
-
-    // Try to find existing for this company
-    const { data: existing } = await supabaseAdmin
-      .from('variation_types')
-      .select('id')
-      .eq('company_id', companyId)
-      .eq('name', name)
-      .eq('is_active', true)
-      .limit(1)
-      .single();
-
-    if (existing) {
-      variationTypeCache[cacheKey] = existing.id;
-      ids.push(existing.id);
-      continue;
-    }
-
-    // Check if it exists globally with a different company_id (seeded types)
-    // variation_types has UNIQUE(name) constraint globally
-    const { data: globalExisting } = await supabaseAdmin
-      .from('variation_types')
-      .select('id, company_id')
-      .eq('name', name)
-      .eq('is_active', true)
-      .limit(1)
-      .single();
-
-    if (globalExisting) {
-      // Claim it for this company so it shows up in the UI
-      if (globalExisting.company_id !== companyId) {
-        await supabaseAdmin
-          .from('variation_types')
-          .update({ company_id: companyId })
-          .eq('id', globalExisting.id);
-        console.log(`[Shopee Sync] Claimed variation type "${name}" (${globalExisting.id}) for company ${companyId}`);
-      }
-      variationTypeCache[cacheKey] = globalExisting.id;
-      ids.push(globalExisting.id);
-      continue;
-    }
-
-    // Create new
-    const { data: maxData } = await supabaseAdmin
-      .from('variation_types')
-      .select('sort_order')
-      .eq('company_id', companyId)
-      .order('sort_order', { ascending: false })
-      .limit(1)
-      .single();
-
-    const { data: newType, error } = await supabaseAdmin
-      .from('variation_types')
-      .insert({
-        company_id: companyId,
-        name,
-        sort_order: (maxData?.sort_order || 0) + 1,
-      })
-      .select()
-      .single();
-
-    if (error || !newType) {
-      console.error(`[Shopee Sync] Failed to create variation type "${name}":`, error);
-      continue;
-    }
-
-    variationTypeCache[cacheKey] = newType.id;
-    ids.push(newType.id);
-    console.log(`[Shopee Sync] Created variation type "${name}" → ${newType.id}`);
-  }
-
-  return ids;
-}
-
-/**
- * Build variation attributes from Shopee tier_variation names + model_name.
- * model_name can contain comma-separated values for multi-tier variations.
- * e.g. tierNames=["สี","ขนาด"], modelName="แดง,XL" → {"สี":"แดง","ขนาด":"XL"}
- * Falls back to {"ตัวเลือกสินค้า": modelName} if no tier names.
- */
-function buildVariationAttributes(tierVariationNames: string[], modelName: string): Record<string, string> {
-  if (!modelName) return {};
-
-  if (tierVariationNames.length === 0) {
-    return { 'ตัวเลือกสินค้า': modelName };
-  }
-
-  // Shopee model_name uses comma to separate multi-tier values
-  const values = modelName.split(',').map(v => v.trim());
-  const attributes: Record<string, string> = {};
-
-  for (let i = 0; i < tierVariationNames.length; i++) {
-    attributes[tierVariationNames[i]] = values[i] || modelName;
-  }
-
-  return attributes;
-}
-
-/**
- * Insert image into product_images table if not already present.
- * For Shopee external URLs, uses 'shopee-external' as storage_path.
- */
-async function upsertProductImage(
-  companyId: string,
-  productId: string | null,
-  variationId: string | null,
-  imageUrl: string,
-  sortOrder: number = 0
-): Promise<void> {
-  if (!imageUrl) return;
-
-  try {
-    // Check if image already exists to avoid duplicates
-    let query = supabaseAdmin
-      .from('product_images')
-      .select('id', { count: 'exact', head: true })
-      .eq('company_id', companyId)
-      .eq('image_url', imageUrl);
-
-    if (productId) query = query.eq('product_id', productId);
-    else query = query.is('product_id', null);
-    if (variationId) query = query.eq('variation_id', variationId);
-    else query = query.is('variation_id', null);
-
-    const { count } = await query;
-    if ((count || 0) > 0) return; // Already exists
-
-    const { error: insertErr } = await supabaseAdmin
-      .from('product_images')
-      .insert({
-        company_id: companyId,
-        product_id: productId,
-        variation_id: variationId,
-        image_url: imageUrl,
-        storage_path: 'shopee-external',
-        sort_order: sortOrder,
-      });
-
-    if (insertErr) {
-      console.error(`[Shopee Sync] upsertProductImage insert failed (product=${productId}, variation=${variationId}):`, insertErr.message);
-    }
-  } catch (e) {
-    console.error(`[Shopee Sync] upsertProductImage error (product=${productId}, variation=${variationId}):`, e instanceof Error ? e.message : e);
-  }
-}
-
-/** Batch insert multiple product images in parallel */
-async function upsertProductImages(
-  companyId: string,
-  productId: string | null,
-  variationId: string | null,
-  imageUrls: string[]
-): Promise<void> {
-  const urls = imageUrls.filter(Boolean);
-  if (urls.length === 0) return;
-  await Promise.all(urls.map(url => upsertProductImage(companyId, productId, variationId, url)));
-}
-
-// --- Product/Variation Matching ---
-
-interface ShopeeItemInfo {
-  shopeeItemId: number;
-  shopeeItemName: string;
-  shopeeModelId: number;
-  shopeeModelName: string;
-  shopeeModelSku: string;
-  shopeeItemSku: string;
-  shopeeImageUrl: string;  // per-item image from order detail
-  tierVariationNames: string[];  // e.g. ["สี", "ขนาด"] from get_item_base_info
-  parentImageUrl: string;  // first image from get_item_base_info (for parent product)
-  parentImages: string[];  // all images from get_item_base_info
-  allModels?: import('@/lib/shopee/api').ShopeeModelInfo[];  // ALL models from get_model_list
-  // Enrichment data for marketplace_product_links (passed through from getItemEnrichment)
-  enrichment?: ShopeeItemEnrichment;
-  accountId?: string;         // Shopee account ID for marketplace link
-  accountName?: string;       // Shopee account name for marketplace link
-}
-
-/**
- * Backfill missing sibling variations for an existing parent product.
- * Checks each model from allModels — if the variation SKU doesn't exist yet, creates it.
- */
-async function backfillSiblingVariations(
-  companyId: string,
-  parentId: string,
-  shopeeInfo: ShopeeItemInfo
-) {
-  if (!shopeeInfo.allModels || shopeeInfo.allModels.length === 0) return;
-
-  // Pre-compute category name for marketplace links
-  let sibCategoryName = '';
-  const sibCategoryId = shopeeInfo.enrichment?.category_id;
-  if (sibCategoryId && shopeeInfo.accountId) {
-    try { sibCategoryName = await getCategoryName(shopeeInfo.accountId, sibCategoryId); } catch { /* ignore */ }
-  }
-
-  let siblingCount = 0;
-  for (const model of shopeeInfo.allModels) {
-    const sibSku = model.model_sku || `SP-${shopeeInfo.shopeeItemId}-${model.model_id}`;
-
-    // Check if already exists
-    const { data: existingSib } = await supabaseAdmin
-      .from('product_variations')
-      .select('id')
-      .eq('company_id', companyId)
-      .eq('product_id', parentId)
-      .eq('sku', sibSku)
-      .limit(1)
-      .maybeSingle();
-
-    if (existingSib) continue;
-
-    try {
-      const sibAttributes = buildVariationAttributes(shopeeInfo.tierVariationNames, model.model_name);
-      const { data: sibVar } = await supabaseAdmin
-        .from('product_variations')
-        .insert({
-          company_id: companyId,
-          product_id: parentId,
-          variation_label: model.model_name,
-          sku: sibSku,
-          attributes: sibAttributes,
-          default_price: model.price || 0,
-          discount_price: 0,
-          stock: 0,
-          min_stock: 0,
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      // Insert sibling variation image
-      if (sibVar && model.image_url) {
-        await upsertProductImage(companyId, parentId, sibVar.id, model.image_url);
-      }
-
-      // Create marketplace_product_links for sibling (with full enrichment data)
-      if (sibVar && shopeeInfo.accountId) {
-        try {
-          const enrichData = shopeeInfo.enrichment;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const linkData: Record<string, any> = {
-            company_id: companyId,
-            platform: 'shopee',
-            account_id: shopeeInfo.accountId,
-            account_name: shopeeInfo.accountName || '',
-            product_id: parentId,
-            variation_id: sibVar.id,
-            external_item_id: String(shopeeInfo.shopeeItemId),
-            external_model_id: String(model.model_id || 0),
-            external_sku: model.model_sku || '',
-            platform_price: model.price || null,
-            platform_product_name: enrichData?.item_name || shopeeInfo.shopeeItemName || null,
-            platform_primary_image: enrichData?.images?.[0] || null,
-            external_item_status: enrichData?.item_status || null,
-            shopee_category_id: enrichData?.category_id ? String(enrichData.category_id) : null,
-            shopee_category_name: sibCategoryName || null,
-            weight: enrichData?.weight || null,
-            last_synced_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-          if (enrichData?.attribute_list && enrichData.attribute_list.length > 0) {
-            linkData.shopee_attributes = enrichData.attribute_list;
-          }
-          if (enrichData?.brand) {
-            linkData.shopee_brand_id = enrichData.brand.brand_id;
-            linkData.shopee_brand_name = enrichData.brand.display_brand_name || enrichData.brand.original_brand_name;
-          }
-
-          // Write structured platform_data alongside legacy shopee_* columns
-          linkData.platform_data = {
-            category_id: linkData.shopee_category_id ? Number(linkData.shopee_category_id) : null,
-            category_name: linkData.shopee_category_name || null,
-            attributes: linkData.shopee_attributes || null,
-            brand_id: linkData.shopee_brand_id || null,
-            brand_name: linkData.shopee_brand_name || null,
-          };
-
-          await supabaseAdmin.from('marketplace_product_links').upsert(
-            linkData,
-            { onConflict: 'account_id,external_item_id,external_model_id' }
-          );
-        } catch (linkErr) {
-          console.error(`[Shopee Sync] Failed to create marketplace link for sibling SKU=${sibSku}:`, linkErr);
-        }
-      }
-
-      siblingCount++;
-    } catch (sibErr) {
-      console.error(`[Shopee Sync] Failed to create sibling variation SKU=${sibSku}:`, sibErr);
-    }
-  }
-  if (siblingCount > 0) {
-    console.log(`[Shopee Sync] Backfilled ${siblingCount} sibling variations for parent product ${parentId}`);
-  }
 }
 
 /**
@@ -2316,8 +1992,12 @@ async function findOrCreateVariationBySku(
     }
 
     // Create variation child with attributes from tier_variation names
-    // price here is model_discounted_price from order — use as discount_price if original is higher
+    // Use original_price / current_price from item detail models for proper pricing
+    const matchedDetailModel = shopeeInfo.allModels?.find(m => m.model_id === shopeeInfo.shopeeModelId);
     const attributes = buildVariationAttributes(shopeeInfo.tierVariationNames, shopeeInfo.shopeeModelName);
+    const { defaultPrice: varDefaultPrice, discountPrice: varDiscountPrice } = matchedDetailModel
+      ? resolveShopeePrice(matchedDetailModel.original_price, matchedDetailModel.current_price)
+      : { defaultPrice: price, discountPrice: 0 };
     const { data: newVariation, error: variationError } = await supabaseAdmin
       .from('product_variations')
       .insert({
@@ -2326,8 +2006,8 @@ async function findOrCreateVariationBySku(
         variation_label: shopeeInfo.shopeeModelName,  // display name from attributes
         sku: variationSku,
         attributes,
-        default_price: price,
-        discount_price: 0,
+        default_price: varDefaultPrice,
+        discount_price: varDiscountPrice,
         stock: 0,
         min_stock: 0,
         is_active: true,

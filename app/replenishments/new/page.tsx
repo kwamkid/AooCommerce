@@ -59,7 +59,8 @@ function NewReplenishmentPageContent() {
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
 
   const isEdit = !!replenishmentId;
-  const title = viewMode ? 'ดูใบเติมสินค้า' : isEdit ? 'แก้ไขใบเติมสินค้า' : 'สร้างใบเติมสินค้า';
+  const status = formState?.status || '';
+  const title = viewMode ? 'ดูใบเติมสินค้า' : status === 'pending_confirm' ? 'คอนเฟิร์มรับของ' : isEdit ? 'แก้ไขใบเติมสินค้า' : 'สร้างใบเติมสินค้า';
 
   useEffect(() => {
     apiFetch('/api/warehouses')
@@ -224,7 +225,6 @@ function NewReplenishmentPageContent() {
     }
   }, [isEdit, formState?.warehouseId, selectedWarehouseId]);
 
-  const status = formState?.status || '';
   const statusCfg = STATUS_CONFIG[status];
 
   return (

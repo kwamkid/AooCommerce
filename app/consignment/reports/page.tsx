@@ -9,8 +9,8 @@ import { useToast } from '@/lib/toast-context';
 import {
   ClipboardList, Loader2, RefreshCw, CheckCircle2,
   AlertCircle, Clock, BadgeCheck, Copy, Receipt,
-  Plus, Package, XCircle, Eye, FileText, Printer,
-  Banknote, Undo2,
+  Plus, Package, XCircle, Trash2, Eye, FileText, Printer,
+  Banknote, Undo2, UserPlus,
 } from 'lucide-react';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { markPrinted as markPrintedDB } from '@/lib/print-tracking';
@@ -187,6 +187,7 @@ function ConsignmentReportsContent() {
     tax_invoice_date?: string | null;
     receipt_date?: string | null;
     vat_registered?: boolean;
+    document_subtype?: 'tax_only' | 'tax_receipt' | 'tax_invoice' | 'receipt' | null;
   }): Promise<Blob> => {
     const res = await apiFetch(`/api/consignment/reports/${reportId}`);
     if (!res.ok) throw new Error('fetch failed');
@@ -284,13 +285,11 @@ function ConsignmentReportsContent() {
         if (stRes.ok) {
           const stData = await stRes.json();
           const st = stData.statement;
-          if (st?.tax_invoice_number || st?.receipt_number) {
+          if (st?.tax_invoice_number) {
             taxOverride = {
               tax_invoice_number: st.tax_invoice_number,
-              receipt_number: st.receipt_number,
               tax_invoice_date: st.tax_invoice_date,
-              receipt_date: st.receipt_date,
-              vat_registered: !!st.tax_invoice_number,
+              vat_registered: true,
             };
           }
         }
@@ -333,13 +332,11 @@ function ConsignmentReportsContent() {
       const st = stData?.statement;
 
       const isPaid = st?.status === 'paid';
-      const taxOverride = isPaid && (st?.tax_invoice_number || st?.receipt_number)
+      const taxOverride = isPaid && st?.tax_invoice_number
         ? {
           tax_invoice_number: st.tax_invoice_number,
-          receipt_number: st.receipt_number,
           tax_invoice_date: st.tax_invoice_date,
-          receipt_date: st.receipt_date,
-          vat_registered: !!st.tax_invoice_number,
+          vat_registered: true,
         }
         : undefined;
 
@@ -465,6 +462,28 @@ function ConsignmentReportsContent() {
     }
   };
 
+  // Cancel confirm state
+  const [cancelConfirm, setCancelConfirm] = useState<ConsignmentReport | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
+
+  const handleCancelReport = async (report: ConsignmentReport) => {
+    setCancelLoading(true);
+    try {
+      const res = await apiFetch(`/api/consignment/reports/${report.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' }),
+      });
+      if (!res.ok) { const r = await res.json(); throw new Error(r.error || 'Failed'); }
+      showToast('ยกเลิกรายงานแล้ว', 'success');
+      setCancelConfirm(null);
+      fetchReports(true);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
   // Void confirm state
   const [voidConfirm, setVoidConfirm] = useState<ConsignmentReport | null>(null);
   const [voidLoading, setVoidLoading] = useState(false);
@@ -499,46 +518,9 @@ function ConsignmentReportsContent() {
 
     const items: ActionItem[] = [];
 
-    // Print: ใบกำกับภาษี/ใบแจ้งหนี้ or ใบแจ้งหนี้
-    if (['invoiced', 'billed', 'paid'].includes(report.status)) {
-      items.push({
-        key: 'invoice',
-        label: report.doc_type === 'tax_invoice' ? 'ใบกำกับภาษี/ใบแจ้งหนี้' : 'ใบแจ้งหนี้',
-        icon: isPrinting && printingType === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />,
-        suffix: dot('invoice'),
-        onClick: () => handlePrintInvoice(report.id),
-        disabled: isPrinting,
-        dividerBefore: true,
-      });
-    }
+    // === Print documents — ordered by flow (latest first) ===
 
-    // Print: ใบวางบิล (available when has statement_id)
-    if (report.statement_id && ['billed', 'paid'].includes(report.status)) {
-      items.push({
-        key: 'statement',
-        label: 'ใบวางบิล',
-        icon: isPrinting && printingType === 'statement' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />,
-        suffix: dot('statement'),
-        onClick: () => handlePrintStatement(report.id, report.statement_id!),
-        disabled: isPrinting,
-      });
-    }
-
-    // Print all (when both available) — merge into 1 PDF
-    if (report.statement_id && ['billed', 'paid'].includes(report.status)) {
-      items.push({
-        key: 'print_all',
-        label: isPrinting ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
-        icon: isPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
-        className: 'text-primary font-medium',
-        onClick: () => handlePrintAll(report),
-        disabled: isPrinting,
-      });
-    }
-
-    // Payment action removed — already shown as focus button (btn-focus-action indigo)
-
-    // Print receipt (paid only)
+    // Receipt (paid only — latest in flow)
     if (report.status === 'paid' && report.statement_id) {
       items.push({
         key: 'print_receipt',
@@ -550,17 +532,11 @@ function ConsignmentReportsContent() {
             if (!stRes.ok) throw new Error('fetch failed');
             const stData = await stRes.json();
             const st = stData.statement;
-            const { generatePaymentReceiptPdf } = await import('@/lib/payment-receipt-pdf');
-            const blob = await generatePaymentReceiptPdf({
-              receipt_number: st.receipt_number || 'REC-PENDING',
-              receipt_date: st.receipt_date || st.statement_date || new Date().toISOString().split('T')[0],
-              reference_number: report.doc_number || null,
-              statement_number: st.statement_number || null,
-              customer: report.customer ? {
-                name: report.customer.name,
-                phone: report.customer.phone || null,
-              } : null,
-              total_amount: report.our_amount,
+            const blob = await generateInvoiceBlob(report.id, {
+              receipt_number: st.receipt_number,
+              receipt_date: st.receipt_date,
+              tax_invoice_number: st.tax_invoice_number,
+              document_subtype: 'receipt',
             });
             showPdfPreview(blob, `ใบเสร็จรับเงิน`);
           } catch { showToast('ไม่สามารถพิมพ์ใบเสร็จได้', 'error'); }
@@ -569,7 +545,45 @@ function ConsignmentReportsContent() {
       });
     }
 
-    // Reverse payment action (paid with statement)
+    // Statement (billed/paid — issued at billing)
+    if (report.statement_id && ['billed', 'paid'].includes(report.status)) {
+      items.push({
+        key: 'statement',
+        label: 'ใบวางบิล',
+        icon: isPrinting && printingType === 'statement' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />,
+        suffix: dot('statement'),
+        onClick: () => handlePrintStatement(report.id, report.statement_id!),
+        disabled: isPrinting,
+      });
+    }
+
+    // Tax invoice / Invoice (invoiced/billed/paid — issued at confirm)
+    if (['invoiced', 'billed', 'paid'].includes(report.status)) {
+      items.push({
+        key: 'invoice',
+        label: report.doc_type === 'tax_invoice' ? 'ใบกำกับภาษี/ใบแจ้งหนี้' : 'ใบแจ้งหนี้',
+        icon: isPrinting && printingType === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />,
+        suffix: dot('invoice'),
+        onClick: () => handlePrintInvoice(report.id),
+        disabled: isPrinting,
+      });
+    }
+
+    // Print all (merge)
+    if (report.statement_id && ['billed', 'paid'].includes(report.status)) {
+      items.push({
+        key: 'print_all',
+        label: isPrinting ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
+        icon: isPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+        className: 'text-primary font-medium',
+        onClick: () => handlePrintAll(report),
+        disabled: isPrinting,
+      });
+    }
+
+    // === Actions ===
+
+    // Reverse payment (paid)
     if (report.status === 'paid' && report.statement_id) {
       items.push({
         key: 'reverse_payment',
@@ -577,10 +591,11 @@ function ConsignmentReportsContent() {
         icon: <Undo2 className="w-4 h-4" />,
         onClick: () => setReverseConfirm(report),
         danger: true,
+        dividerBefore: true,
       });
     }
 
-    // Draft actions
+    // Copy portal link (draft)
     if (report.status === 'draft' && report.report_token) {
       items.push({
         key: 'copy_link',
@@ -591,33 +606,27 @@ function ConsignmentReportsContent() {
       });
     }
 
-    // Void (billed/invoiced — cancel doc + report)
+    // Void (billed/invoiced)
     if (['billed', 'invoiced'].includes(report.status)) {
       items.push({
         key: 'void',
         label: 'ยกเลิก (Void)',
-        icon: <XCircle className="w-4 h-4" />,
+        icon: <Trash2 className="w-4 h-4" />,
         danger: true,
         dividerBefore: true,
         onClick: () => setVoidConfirm(report),
       });
     }
 
+    // Cancel (draft)
     if (report.status === 'draft') {
       items.push({
         key: 'cancel',
         label: 'ยกเลิกรายงาน',
-        icon: <XCircle className="w-4 h-4" />,
+        icon: <Trash2 className="w-4 h-4" />,
         danger: true,
         dividerBefore: report.status === 'draft' && !report.report_token,
-        onClick: async () => {
-          const res = await apiFetch(`/api/consignment/reports/${report.id}`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'cancel' }),
-          });
-          if (res.ok) { showToast('ยกเลิกรายงานแล้ว', 'success'); fetchReports(true); }
-          else showToast('เกิดข้อผิดพลาด', 'error');
-        },
+        onClick: () => setCancelConfirm(report),
       });
     }
 
@@ -641,6 +650,10 @@ function ConsignmentReportsContent() {
               title="รีเฟรช"
             >
               <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button onClick={() => router.push('/customers/new?type=consignment_dealer')}
+              className="px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm font-medium">
+              <UserPlus className="w-4 h-4" /> เพิ่มตัวแทน
             </button>
             <Link
               href="/consignment/reports/new"
@@ -908,15 +921,35 @@ function ConsignmentReportsContent() {
         )}
       </ConfirmDialog>
 
+      {/* Cancel Confirm Dialog */}
+      <ConfirmDialog
+        open={!!cancelConfirm}
+        onClose={() => !cancelLoading && setCancelConfirm(null)}
+        onConfirm={() => cancelConfirm && handleCancelReport(cancelConfirm)}
+        icon={<Trash2 className="w-6 h-6 text-red-500" />}
+        title="ยกเลิกรายงาน"
+        confirmLabel={cancelLoading ? 'กำลังดำเนินการ...' : 'ยืนยันยกเลิก'}
+        confirmIcon={cancelLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+        variant="danger"
+        loading={cancelLoading}
+      >
+        {cancelConfirm && (
+          <div className="text-base text-gray-600 dark:text-slate-300 mt-2 space-y-1 text-center">
+            <p>ยืนยันยกเลิกรายงาน <span className="font-semibold">{cancelConfirm.report_number}</span></p>
+            <p>ของ <span className="font-semibold">{cancelConfirm.customer?.name || '-'}</span></p>
+          </div>
+        )}
+      </ConfirmDialog>
+
       {/* Void Confirm Dialog */}
       <ConfirmDialog
         open={!!voidConfirm}
         onClose={() => !voidLoading && setVoidConfirm(null)}
         onConfirm={() => voidConfirm && handleVoidReport(voidConfirm)}
-        icon={<XCircle className="w-6 h-6 text-red-500" />}
+        icon={<Trash2 className="w-6 h-6 text-red-500" />}
         title="ยกเลิกรายงาน (Void)"
         confirmLabel={voidLoading ? 'กำลังดำเนินการ...' : 'ยืนยันยกเลิก'}
-        confirmIcon={voidLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+        confirmIcon={voidLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
         variant="danger"
         loading={voidLoading}
       >

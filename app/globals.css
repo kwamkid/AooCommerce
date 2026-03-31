@@ -249,6 +249,23 @@ html, body {
     color: #64748b;
   }
 
+  /* Disabled inputs — visually distinct in both light & dark */
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .dark input:disabled,
+  .dark select:disabled,
+  .dark textarea:disabled {
+    background-color: #1e293b;
+    border-color: #334155;
+    color: #64748b;
+    opacity: 1;
+    cursor: not-allowed;
+  }
+
   .dark select {
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
   }

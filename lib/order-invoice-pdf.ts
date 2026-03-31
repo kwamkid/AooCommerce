@@ -404,11 +404,6 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
   const summaryRows: any[][] = [];
 
   summaryRows.push([
-    { text: 'จำนวนรายการ', fontSize: 11, alignment: 'right', color: '#555555' },
-    { text: `${data.items.length}`, fontSize: 11, alignment: 'right' },
-  ]);
-
-  summaryRows.push([
     { text: 'ยอดรวมสินค้า', fontSize: 11, alignment: 'right', color: '#555555' },
     { text: formatPdfPrice(itemsTotal), fontSize: 11, alignment: 'right' },
   ]);

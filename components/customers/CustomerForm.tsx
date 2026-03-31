@@ -617,7 +617,7 @@ export default function CustomerForm({
             </div>
           )}
           {formData.customer_type === 'department_store' && (
-            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6"><DepartmentStoreSettings /></div>
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6"><DepartmentStoreSettings saleType={formData.sale_type} /></div>
           )}
 
           {/* สัญญาฝากขาย */}

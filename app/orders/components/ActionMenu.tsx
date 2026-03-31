@@ -79,9 +79,9 @@ export default function ActionMenu({ items }: { items: ActionItem[] }) {
             zIndex: 9999,
           }}
         >
-          {items.map((item) => (
+          {items.map((item, idx) => (
             <div key={item.key}>
-              {item.dividerBefore && <div className="border-t border-gray-200 dark:border-slate-700 my-1" />}
+              {idx > 0 && item.dividerBefore && <div className="border-t border-gray-200 dark:border-slate-700 my-1" />}
               <button
                 onClick={(e) => { e.stopPropagation(); if (item.disabled) return; setOpen(false); item.onClick?.(e); }}
                 className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2.5 whitespace-nowrap transition-colors ${

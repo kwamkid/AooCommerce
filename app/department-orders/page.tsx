@@ -14,9 +14,10 @@ import { useToast } from '@/lib/toast-context';
 import {
   Building2, Plus, Loader2, RefreshCw,
   Package, Truck, CheckCircle2,
-  Send, Copy, UserPlus, Ban,
-  ClipboardList, FileText, Printer,
+  Send, Copy, UserPlus, Ban, Trash2,
+  ClipboardList, FileText, Printer, X,
 } from 'lucide-react';
+import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import Tooltip from '@/components/ui/Tooltip';
 import DataTable from '@/components/ui/DataTable';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
@@ -141,6 +142,77 @@ function DepartmentOrdersContent() {
   // Printing state
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [printingType, setPrintingType] = useState<string | null>(null);
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOverlay, setBulkOverlay] = useState<{ show: boolean; message: string; progress: number }>({ show: false, message: '', progress: 0 });
+  const isDraftTab = activeStatus === 'draft';
+
+  // Clear selection on tab change
+  useEffect(() => { setSelectedIds(new Set()); }, [activeStatus]);
+
+  const handleBulkPrint = async (ids: string[], type: 'packing' | 'label') => {
+    if (!ids.length) return;
+    const label = type === 'packing' ? 'ใบจัดของ' : 'ใบปะหน้า';
+    setBulkOverlay({ show: true, message: `กำลังโหลดข้อมูล... (0/${ids.length})`, progress: 5 });
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allOrders: any[] = [];
+      for (let i = 0; i < ids.length; i++) {
+        setBulkOverlay({ show: true, message: `กำลังโหลดข้อมูล... (${i + 1}/${ids.length})`, progress: Math.round(((i + 1) / ids.length) * 60) });
+        try {
+          const order = await fetchOrderForPdf(ids[i]);
+          if (order) allOrders.push(order);
+        } catch { /* skip */ }
+      }
+      if (!allOrders.length) { showToast('ไม่สามารถโหลดข้อมูลได้', 'error'); return; }
+
+      setBulkOverlay({ show: true, message: `กำลังสร้าง${label}...`, progress: 75 });
+      if (type === 'packing') {
+        const { generatePackingPdf } = await import('@/lib/orders-packing-pdf');
+        const packingData = allOrders.map(order => ({
+          order_number: order.department_order_number,
+          created_at: order.created_at,
+          customer: order.customer ? { name: order.customer.name, phone: order.customer.phone } : null,
+          delivery_name: order.customer?.name || '',
+          delivery_phone: order.customer?.phone || '',
+          delivery_address: [order.customer?.billing_address, order.customer?.billing_district, order.customer?.billing_amphoe, order.customer?.billing_province, order.customer?.billing_postal_code].filter(Boolean).join(' '),
+          notes: order.notes || '',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          items: (order.items || []).map((i: any) => ({ product_name: i.product_name, variation_label: i.variation_label, quantity: i.quantity, image: i.image || null, barcode: i.barcode || null, sku: i.sku || null })),
+        }));
+        const blob = await generatePackingPdf(packingData);
+        showPdfPreview(blob, `${label} ${allOrders.length} รายการ`);
+      } else {
+        const { generateReplenishmentLabelPdf } = await import('@/lib/order-shipping-label-pdf');
+        const blobs: Blob[] = [];
+        for (const order of allOrders) {
+          try {
+            blobs.push(await generateReplenishmentLabelPdf({ data: {
+              order_number: order.department_order_number,
+              created_at: order.created_at,
+              shipping_carrier: order.shipping_carrier || '',
+              tracking_number: order.tracking_number || '',
+              delivery_name: order.customer?.name || '',
+              delivery_phone: order.customer?.phone || '',
+              delivery_address: order.customer?.billing_address || '',
+              delivery_district: order.customer?.billing_district || '',
+              delivery_amphoe: order.customer?.billing_amphoe || '',
+              delivery_province: order.customer?.billing_province || '',
+              delivery_postal_code: order.customer?.billing_postal_code || '',
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              items: (order.items || []).map((i: any) => ({ product_name: i.product_name, variation_label: i.variation_label, quantity: i.quantity })),
+            } }));
+          } catch { /* skip */ }
+        }
+        if (!blobs.length) { showToast('ไม่สามารถสร้างเอกสารได้', 'error'); return; }
+        setBulkOverlay({ show: true, message: 'กำลังรวมเอกสาร...', progress: 90 });
+        const merged = blobs.length === 1 ? blobs[0] : await mergePdfBlobs(blobs);
+        showPdfPreview(merged, `${label} ${allOrders.length} รายการ`);
+      }
+    } catch { showToast('เกิดข้อผิดพลาด', 'error'); }
+    finally { setBulkOverlay({ show: false, message: '', progress: 0 }); }
+  };
 
   const fetchData = useCallback(async (showRefresh = false) => {
     if (showRefresh) setIsRefreshing(true); else setIsLoading(true);
@@ -794,7 +866,7 @@ function DepartmentOrdersContent() {
         {
           key: 'cancel',
           label: 'ยกเลิก',
-          icon: <Ban className="w-4 h-4" />,
+          icon: <Trash2 className="w-4 h-4" />,
           onClick: () => setCancelId(r.id),
           danger: true,
           dividerBefore: true,
@@ -858,7 +930,7 @@ function DepartmentOrdersContent() {
           {
             key: 'void',
             label: 'ยกเลิก (Void)',
-            icon: <Ban className="w-4 h-4" />,
+            icon: <Trash2 className="w-4 h-4" />,
             onClick: () => setVoidId(r.id),
             danger: true,
             dividerBefore: true,
@@ -1088,6 +1160,7 @@ function DepartmentOrdersContent() {
           loading={isLoading}
           getRowId={(r) => r.id}
           onRowClick={(r) => router.push(`/department-orders/${r.id}`)}
+          {...(isDraftTab ? { selectedIds, onSelectionChange: setSelectedIds } : {})}
           rowClassName={(r) => r.status === 'cancelled' ? 'opacity-50' : ''}
           emptyMessage="ไม่มีรายการ"
           currentPage={currentPage}
@@ -1211,6 +1284,32 @@ function DepartmentOrdersContent() {
           </div>
         )}
       </div>
+
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-lg px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center gap-3 flex-wrap">
+            <button onClick={() => setSelectedIds(new Set())} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-500">
+              <X className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-medium text-gray-700 dark:text-slate-300">เลือก {selectedIds.size} รายการ</span>
+            <div className="flex items-center gap-2 ml-auto">
+              <button onClick={() => handleBulkPrint([...selectedIds], 'packing')}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
+                <ClipboardList className="w-4 h-4" />
+                ใบจัดของ ({selectedIds.size})
+              </button>
+              <button onClick={() => handleBulkPrint([...selectedIds], 'label')}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+                <Printer className="w-4 h-4" />
+                ใบปะหน้า ({selectedIds.size})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <LoadingOverlay isOpen={bulkOverlay.show} title={bulkOverlay.message} progress={bulkOverlay.progress} />
     </Layout>
   );
 }

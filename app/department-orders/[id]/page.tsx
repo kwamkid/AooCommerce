@@ -13,7 +13,7 @@ import DealerOrderForm from '@/components/dealer/DealerOrderForm';
 import ReplenishmentForm from '@/components/replenishments/ReplenishmentForm';
 import {
   ArrowLeft, Building2, Loader2, Send, Copy, CheckCircle2,
-  XCircle, Printer,
+  XCircle, Trash2, Printer,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -355,7 +355,7 @@ export default function DepartmentOrderDetailPage() {
 
             {status === 'draft' && (
               <button onClick={() => setShowCancelConfirm(true)} className="btn-danger flex items-center gap-2">
-                <XCircle className="w-4 h-4" /> ยกเลิก
+                <Trash2 className="w-4 h-4" /> ยกเลิก
               </button>
             )}
 
