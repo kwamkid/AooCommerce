@@ -161,6 +161,33 @@ marketplace_accounts → marketplace_product_links → product_variations
 
 ## Marketplace
 
+### Architecture Overview
+- **Multi-tenant SaaS** — หลายร้านค้าใช้ระบบเดียวกัน
+- **Multi-platform** — Shopee ✅ | TikTok, Lazada, LINE Shopping → planned
+- **Shared product helpers** — `lib/shopee/product-helpers.ts` (ใช้ร่วมระหว่าง order sync + product sync)
+
+### Order Sync Mechanism (Shopee)
+
+**3 ทางที่ orders เข้าระบบ:**
+| ทาง | Route | กลไก |
+|-----|-------|------|
+| Webhook (real-time) | `/api/shopee/webhook` | Shopee push → save `shopee_webhook_log` → async `syncSingleOrder()` |
+| Cron Polling (safety net) | `/api/shopee/sync-all` | ทุก 15 นาที ดูด order ตาม `last_sync_at` |
+| Webhook Retry | `/api/shopee/webhook/retry` | ทุก 5 นาที retry webhook ที่ fail (max 3 ครั้ง → dead letter) |
+
+**Cron Jobs (cron-job.org):**
+| Job | URL | Schedule |
+|-----|-----|----------|
+| Shopee Webhook Retry | `GET /api/shopee/webhook/retry` | `*/5 * * * *` |
+| Shopee Sync All | `GET /api/shopee/sync-all` | `*/15 * * * *` |
+
+**Auth:** ทั้ง 2 routes รองรับ `Authorization: Bearer {CRON_SECRET}` และ `x-cron-secret` header
+
+### Shopee Shared Helpers (`lib/shopee/product-helpers.ts`)
+- ใช้ร่วมระหว่าง `sync.ts` (order sync) และ `product-sync.ts` (product import)
+- Functions: `getOrCreateVariationTypeIds`, `buildVariationAttributes`, `upsertProductImage`, `upsertProductImages`, `getCategoryName`, `findExistingLink`, `upsertMarketplaceLink`, `tryAutoMatchBySku`, `resolveShopeePrice`, `reactivateProduct`, `backfillSiblingVariations`
+- **ห้ามสร้าง helper ซ้ำ** ใน sync.ts หรือ product-sync.ts — ใช้จาก product-helpers.ts เสมอ
+
 ### Shopee Status Mapping (`lib/shopee/sync.ts` → `mapShopeeStatus()`)
 | Shopee | → order_status | → payment_status |
 |---|---|---|
@@ -175,7 +202,7 @@ marketplace_accounts → marketplace_product_links → product_variations
 1. `marketplace_product_links` (external_item_id + external_model_id)
 2. SKU match
 3. Product Code match
-4. สร้างใหม่อัตโนมัติ
+4. สร้างใหม่อัตโนมัติ (+ backfill ALL variations ถ้าเป็น variation product)
 
 ### Marketplace Label Printing
 - ใช้ `printOrder(orderId, 'marketplace_label', { source })` จาก `OrderPrintButtons`
@@ -189,6 +216,12 @@ marketplace_accounts → marketplace_product_links → product_variations
 ### API Docs (Local — ดูก่อน web search!)
 - **Shopee v2**: `api_doc_knowledge/Shopee/_INDEX.md`
 - **TikTok**: `api_doc_knowledge/Tiktok/tiktok_shop_api_documentation.md`
+
+### Scale & Queue Strategy
+- **ปัจจุบัน**: Vercel serverless + Supabase — รองรับได้หลักพัน orders/วัน ไม่ต้อง queue
+- **เมื่อ scale ขึ้น** (10+ ร้าน, หลาย marketplace): เพิ่ม **Upstash QStash** หรือ **BullMQ + Redis**
+- **Architecture เป้าหมาย**: Webhook → save log → Queue → Worker (controlled concurrency, rate limit per platform, retry + dead letter)
+- **จุดที่ต้องเปลี่ยน**: แค่ webhook route — เพิ่มยิง queue แทน `after()` async
 
 ---
 
