@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     if (action === 'disable') {
       // Find existing deal
       const { data: deal } = await supabaseAdmin
-        .from('shopee_deals')
+        .from('marketplace_deals')
         .select('*')
         .eq('promotion_id', promotion_id)
         .eq('account_id', account_id)
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Remove deal record from DB
-      await supabaseAdmin.from('shopee_deals').delete().eq('id', deal.id);
+      await supabaseAdmin.from('marketplace_deals').delete().eq('id', deal.id);
 
       // Update platform record
       await supabaseAdmin
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
     if (action === 'enable') {
       // Check if there's still an active deal (could happen if end hasn't propagated yet)
       const { data: existingDeal } = await supabaseAdmin
-        .from('shopee_deals')
+        .from('marketplace_deals')
         .select('id, external_deal_id, status, deal_type')
         .eq('promotion_id', promotion_id)
         .eq('account_id', account_id)
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
           }
 
           // Deal is expired on Shopee — clean up stale record
-          await supabaseAdmin.from('shopee_deals').delete().eq('id', existingDeal.id);
+          await supabaseAdmin.from('marketplace_deals').delete().eq('id', existingDeal.id);
         }
       }
 

@@ -16,8 +16,9 @@ import {
 import FormSelect from '@/components/ui/FormSelect';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 
-interface ShopeeAccount {
+interface MarketplaceAccount {
   id: string;
+  platform: 'shopee' | 'tiktok';
   shop_id: number;
   shop_name: string | null;
   is_active: boolean;
@@ -33,13 +34,19 @@ interface ShopeeAccount {
   created_at: string;
 }
 
+// Keep ShopeeAccount as alias for backwards compat
+type ShopeeAccount = MarketplaceAccount;
+
 export default function IntegrationsPage() {
   const router = useRouter();
   const { userProfile } = useAuth();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
+  const [activeTab, setActiveTab] = useState<'shopee' | 'tiktok'>('shopee');
   const [accounts, setAccounts] = useState<ShopeeAccount[]>([]);
+  const [tiktokAccounts, setTiktokAccounts] = useState<MarketplaceAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tiktokLoading, setTiktokLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
@@ -64,8 +71,25 @@ export default function IntegrationsPage() {
     }
   }, []);
 
+  const fetchTiktokAccounts = useCallback(async () => {
+    try {
+      // TikTok accounts are stored in the same marketplace_accounts table
+      // Reuse shopee accounts endpoint but filter by platform (or use dedicated endpoint)
+      const res = await apiFetch('/api/shopee/accounts?platform=tiktok');
+      if (res.ok) {
+        const data = await res.json();
+        setTiktokAccounts(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch TikTok accounts:', error);
+    } finally {
+      setTiktokLoading(false);
+    }
+  }, []);
+
   useFetchOnce(() => {
     fetchAccounts();
+    fetchTiktokAccounts();
   }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')));
 
   useEffect(() => {
@@ -74,11 +98,17 @@ export default function IntegrationsPage() {
       showToast('เชื่อมต่อ Shopee สำเร็จ', 'success');
       fetchAccounts();
       window.history.replaceState({}, '', '/settings/integrations');
+    } else if (params.get('tiktok') === 'connected') {
+      showToast('เชื่อมต่อ TikTok Shop สำเร็จ', 'success');
+      fetchTiktokAccounts();
+      setActiveTab('tiktok');
+      window.history.replaceState({}, '', '/settings/integrations');
     } else if (params.get('error')) {
       const err = params.get('error');
       const messages: Record<string, string> = {
         shopee_auth_failed: 'เชื่อมต่อ Shopee ไม่สำเร็จ กรุณาลองใหม่',
-        missing_params: 'ข้อมูลจาก Shopee ไม่ครบ กรุณาลองใหม่',
+        tiktok_auth_failed: 'เชื่อมต่อ TikTok Shop ไม่สำเร็จ กรุณาลองใหม่',
+        missing_params: 'ข้อมูลไม่ครบ กรุณาลองใหม่',
         no_shops: 'ไม่พบร้านค้าในบัญชีนี้',
       };
       showToast(messages[err || ''] || 'เกิดข้อผิดพลาด', 'error');
@@ -86,10 +116,11 @@ export default function IntegrationsPage() {
     }
   }, [showToast]);
 
-  const handleConnect = async () => {
+  const handleConnect = async (platform: 'shopee' | 'tiktok' = 'shopee') => {
     setConnecting(true);
+    const apiUrl = platform === 'tiktok' ? '/api/tiktok/oauth/auth-url' : '/api/shopee/oauth/auth-url';
     try {
-      const res = await apiFetch('/api/shopee/oauth/auth-url');
+      const res = await apiFetch(apiUrl);
       if (res.ok) {
         const { url } = await res.json();
         window.location.href = url;
@@ -289,6 +320,41 @@ export default function IntegrationsPage() {
     }
   };
 
+  const handleTiktokSync = async (accountId: string) => {
+    setSyncingId(accountId);
+    setSyncProgress(10);
+    setSyncPhaseLabel('กำลัง Sync TikTok Shop...');
+    const days = syncRange[accountId] || 1;
+    try {
+      const res = await apiFetch('/api/tiktok/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: accountId, days_back: days }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        showToast(data.error || 'Sync ไม่สำเร็จ', 'error');
+        return;
+      }
+      const result = await res.json();
+      setSyncProgress(100);
+      setSyncPhaseLabel('เสร็จสิ้น');
+      await new Promise(r => setTimeout(r, 500));
+      const parts: string[] = [];
+      if (result.orders_created > 0) parts.push(`คำสั่งซื้อใหม่ ${result.orders_created}`);
+      if (result.orders_updated > 0) parts.push(`อัพเดทคำสั่งซื้อ ${result.orders_updated}`);
+      const summary = parts.length > 0 ? parts.join(', ') : 'ไม่มีข้อมูลใหม่';
+      showToast(`Sync สำเร็จ: ${summary}`, 'success');
+      fetchTiktokAccounts();
+    } catch {
+      showToast('เกิดข้อผิดพลาดในการ sync', 'error');
+    } finally {
+      setSyncingId(null);
+      setSyncProgress(0);
+      setSyncPhaseLabel('');
+    }
+  };
+
   const handleDisconnect = async (accountId: string) => {
     const ok = await confirm({ title: 'ต้องการยกเลิกการเชื่อมต่อร้านนี้?', variant: 'danger' }); if (!ok) return;
     setDisconnectingId(accountId);
@@ -370,6 +436,7 @@ export default function IntegrationsPage() {
   }
 
   const activeAccounts = accounts.filter(a => a.is_active);
+  const activeTiktokAccounts = tiktokAccounts.filter(a => a.is_active);
 
   return (
     <Layout
@@ -380,11 +447,16 @@ export default function IntegrationsPage() {
       ]}
     >
       <div className="max-w-3xl">
-        {/* Shopee Tab Header */}
+        {/* Platform Tabs */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex">
+          <div className="flex border-b border-gray-200 dark:border-slate-700">
             <button
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-shopee"
+              onClick={() => setActiveTab('shopee')}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'shopee'
+                  ? 'text-shopee border-shopee'
+                  : 'text-gray-500 dark:text-slate-400 border-transparent hover:text-gray-700 dark:hover:text-slate-200'
+              }`}
             >
               <ShoppingBag className="w-4 h-4" />
               Shopee
@@ -395,19 +467,26 @@ export default function IntegrationsPage() {
               )}
             </button>
             <button
-              disabled
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-400 dark:text-slate-500 cursor-not-allowed"
+              onClick={() => setActiveTab('tiktok')}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'tiktok'
+                  ? 'text-gray-900 dark:text-white border-gray-900 dark:border-white'
+                  : 'text-gray-500 dark:text-slate-400 border-transparent hover:text-gray-700 dark:hover:text-slate-200'
+              }`}
             >
               <ShoppingBag className="w-4 h-4" />
               TikTok Shop
-              <span className="text-[10px] px-1.5 py-0.5 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500">
-                Soon
-              </span>
+              {activeTiktokAccounts.length > 0 && (
+                <span className="text-xs px-1.5 py-0.5 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300">
+                  {activeTiktokAccounts.length}
+                </span>
+              )}
             </button>
           </div>
         </div>
 
-        {loading ? (
+        {/* ===== SHOPEE TAB ===== */}
+        {activeTab === 'shopee' && (loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
@@ -607,9 +686,9 @@ export default function IntegrationsPage() {
               );
             })}
 
-            {/* Add Button */}
+            {/* Add Shopee Button */}
             <button
-              onClick={handleConnect}
+              onClick={() => handleConnect('shopee')}
               disabled={connecting}
               className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-shopee hover:text-shopee transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
@@ -621,7 +700,136 @@ export default function IntegrationsPage() {
               {connecting ? 'กำลังเชื่อมต่อ...' : 'เชื่อมต่อร้าน Shopee'}
             </button>
           </div>
-        )}
+        ))}
+
+        {/* ===== TIKTOK TAB ===== */}
+        {activeTab === 'tiktok' && (tiktokLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {activeTiktokAccounts.map(account => {
+              const isExpanded = expandedId === account.id;
+              const isSyncing = syncingId === account.id;
+              const isDisconnecting = disconnectingId === account.id;
+              const region = (account.metadata?.region as string) || '';
+
+              return (
+                <div key={account.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
+                  {/* Card Header */}
+                  <div className="flex items-center gap-3 p-4">
+                    <div className="w-10 h-10 rounded-lg bg-black flex items-center justify-center flex-shrink-0">
+                      <ShoppingBag className="w-5 h-5 text-white" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900 dark:text-white truncate">
+                          {account.shop_name || `TikTok Shop #${account.shop_id}`}
+                        </p>
+                        {region && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 uppercase">
+                            {region}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
+                        {account.connection_status === 'connected' ? (
+                          <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            เชื่อมต่อแล้ว
+                          </span>
+                        ) : account.connection_status === 'expired' ? (
+                          <span className="text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            Token หมดอายุ
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 flex items-center gap-1">
+                            <XCircle className="w-3 h-3" />
+                            ยกเลิกแล้ว
+                          </span>
+                        )}
+                        <span className="ml-1">#{account.shop_id}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => setExpandedId(isExpanded ? null : account.id)}
+                        className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                      >
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded Section */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-gray-100 dark:border-slate-700 pt-3">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
+                        <span>Shop ID: {account.shop_id}</span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          Sync ล่าสุด: {formatDate(account.last_sync_at)}
+                        </span>
+                        <span>เชื่อมต่อเมื่อ: {formatDate(account.created_at)}</span>
+                      </div>
+
+                      {/* Sync Controls */}
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <div className="w-44">
+                          <FormSelect
+                            value={String(syncRange[account.id] || 1)}
+                            onChange={value => setSyncRange(prev => ({ ...prev, [account.id]: parseInt(value) }))}
+                            options={[
+                              { id: '1', label: 'ย้อนหลัง 1 วัน' },
+                              { id: '3', label: 'ย้อนหลัง 3 วัน' },
+                              { id: '7', label: 'ย้อนหลัง 7 วัน' },
+                              { id: '15', label: 'ย้อนหลัง 15 วัน' },
+                              { id: '30', label: 'ย้อนหลัง 30 วัน' },
+                            ]}
+                            searchThreshold={99}
+                          />
+                        </div>
+                        <button
+                          onClick={() => handleTiktokSync(account.id)}
+                          disabled={isSyncing || account.connection_status === 'expired'}
+                          className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-gray-800 dark:border-white text-gray-800 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700"
+                        >
+                          <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                          {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
+                        </button>
+                        <button
+                          onClick={() => handleDisconnect(account.id)}
+                          disabled={isDisconnecting}
+                          className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center disabled:opacity-50"
+                        >
+                          {isDisconnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Add TikTok Button */}
+            <button
+              onClick={() => handleConnect('tiktok')}
+              disabled={connecting}
+              className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-gray-800 hover:text-gray-800 dark:hover:border-white dark:hover:text-white transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {connecting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4" />
+              )}
+              {connecting ? 'กำลังเชื่อมต่อ...' : 'เชื่อมต่อ TikTok Shop'}
+            </button>
+          </div>
+        ))}
       </div>
 
       {/* Loading Overlay for sync operations */}

@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     // === SAVE TO DB IMMEDIATELY ===
     const { data: webhookLog } = await supabaseAdmin
-      .from('shopee_webhook_log')
+      .from('marketplace_webhook_log')
       .insert({
         shop_id: shopId,
         company_id: account?.company_id || null,
@@ -125,7 +125,7 @@ async function processWebhook(
     // On failure: schedule retry with exponential backoff (30s, 60s, 120s)
     if (status === 'failed') {
       const { data: current } = await supabaseAdmin
-        .from('shopee_webhook_log')
+        .from('marketplace_webhook_log')
         .select('retry_count, max_retries')
         .eq('id', logId)
         .single();
@@ -141,7 +141,7 @@ async function processWebhook(
       }
     }
     await supabaseAdmin
-      .from('shopee_webhook_log')
+      .from('marketplace_webhook_log')
       .update(update)
       .eq('id', logId);
   };
@@ -149,7 +149,7 @@ async function processWebhook(
   try {
     if (logId) {
       await supabaseAdmin
-        .from('shopee_webhook_log')
+        .from('marketplace_webhook_log')
         .update({ processing_status: 'processing' })
         .eq('id', logId);
     }

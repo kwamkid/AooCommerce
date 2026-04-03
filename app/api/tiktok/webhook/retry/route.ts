@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee/api';
-import { syncSingleOrder } from '@/lib/shopee/webhook-processor';
+import { TikTokAccountRow } from '@/lib/tiktok/api';
+import { syncSingleOrder } from '@/lib/tiktok/webhook-processor';
 import { logIntegration } from '@/lib/integration-logger';
 
 export const maxDuration = 60;
 
 /**
- * Queue worker: retry failed/pending webhooks.
- * Called by cron job (Vercel cron or external) every 30-60 seconds.
+ * Queue worker: retry failed TikTok webhooks.
+ * Called by cron job every 5 minutes.
  * Protected by CRON_SECRET header.
  */
 export async function GET(request: NextRequest) {
-  // Verify cron secret (supports both Authorization: Bearer and x-cron-secret headers)
+  // Verify cron secret
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const authHeader = request.headers.get('authorization') || '';
@@ -25,24 +25,23 @@ export async function GET(request: NextRequest) {
 
   const startTime = Date.now();
 
-  // Pick up failed Shopee webhooks ready for retry (limit 10 per run to avoid timeout)
-  // Filter by push_code (Shopee uses numeric codes 3, 4, 14 etc. — not prefixed with 'tiktok_')
-  // Also filter by account platform to ensure we only process Shopee webhooks
+  // Pick up failed webhooks that are TikTok-related (push_label starts with tiktok_ or is ORDER_STATUS_CHANGE etc.)
+  // We identify TikTok webhooks by checking the account platform
   const { data: jobs } = await supabaseAdmin
     .from('marketplace_webhook_log')
     .select('*, marketplace_accounts!account_id(platform)')
     .eq('processing_status', 'failed')
     .lte('next_retry_at', new Date().toISOString())
     .order('next_retry_at', { ascending: true })
-    .limit(20);
+    .limit(10);
 
-  // Filter to Shopee only (platform = 'shopee' or null for legacy)
-  const shopeeJobs = (jobs || []).filter((j: any) => {
+  // Filter to TikTok only
+  const tiktokJobs = (jobs || []).filter((j: any) => {
     const platform = j.marketplace_accounts?.platform;
-    return !platform || platform === 'shopee';
-  }).slice(0, 10);
+    return platform === 'tiktok';
+  });
 
-  if (shopeeJobs.length === 0) {
+  if (tiktokJobs.length === 0) {
     return NextResponse.json({ processed: 0, duration_ms: Date.now() - startTime });
   }
 
@@ -50,7 +49,7 @@ export async function GET(request: NextRequest) {
   let succeeded = 0;
   let failed = 0;
 
-  for (const job of shopeeJobs) {
+  for (const job of tiktokJobs) {
     const jobStart = Date.now();
 
     // Mark as processing
@@ -60,7 +59,7 @@ export async function GET(request: NextRequest) {
       .eq('id', job.id);
 
     // Look up account
-    let account: ShopeeAccountRow | null = null;
+    let account: TikTokAccountRow | null = null;
     if (job.account_id) {
       const { data } = await supabaseAdmin
         .from('marketplace_accounts')
@@ -68,7 +67,7 @@ export async function GET(request: NextRequest) {
         .eq('id', job.account_id)
         .eq('is_active', true)
         .single();
-      account = data as ShopeeAccountRow | null;
+      account = data as TikTokAccountRow | null;
     }
 
     if (!account) {
@@ -85,17 +84,17 @@ export async function GET(request: NextRequest) {
       continue;
     }
 
-    const payload = job.raw_payload as { shop_id?: number; code?: number; data?: Record<string, unknown> };
+    const payload = job.raw_payload as { type?: number; data?: Record<string, unknown> };
     const pushCode = job.push_code;
 
     try {
-      if (pushCode === 3 || pushCode === 14) {
-        const orderSn = (payload.data?.ordersn as string) || '';
-        if (orderSn) {
-          await syncSingleOrder(account, orderSn, (payload.data?.status as string) || undefined);
+      // Order-related webhooks (type 1, 2, 4, 12)
+      if ([1, 2, 4, 12].includes(pushCode)) {
+        const orderId = (payload.data?.order_id as string) || '';
+        if (orderId) {
+          await syncSingleOrder(account, orderId, (payload.data?.order_status as string) || undefined);
         }
       }
-      // Tracking (code 4) — handled by original webhook, skip on retry since tracking updates are idempotent
 
       await supabaseAdmin
         .from('marketplace_webhook_log')
@@ -143,10 +142,10 @@ export async function GET(request: NextRequest) {
   }
 
   // Log the queue worker run
-  if (shopeeJobs.length > 0 && shopeeJobs[0].company_id) {
+  if (tiktokJobs.length > 0 && tiktokJobs[0].company_id) {
     logIntegration({
-      company_id: shopeeJobs[0].company_id,
-      integration: 'shopee',
+      company_id: tiktokJobs[0].company_id,
+      integration: 'tiktok',
       direction: 'outgoing',
       action: 'webhook_queue_retry',
       status: failed > 0 ? 'error' : 'success',

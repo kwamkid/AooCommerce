@@ -1,0 +1,86 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase-admin';
+import { TikTokAccountRow } from '@/lib/tiktok/api';
+import { syncOrdersByTimeRange } from '@/lib/tiktok/sync';
+import { logIntegration } from '@/lib/integration-logger';
+
+export const maxDuration = 120;
+
+/**
+ * Cron: sync all active TikTok accounts.
+ * Called every 15 minutes by cron job.
+ * GET with CRON_SECRET header.
+ */
+export async function GET(request: NextRequest) {
+  // Verify cron secret
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = request.headers.get('authorization') || '';
+    const xCronHeader = request.headers.get('x-cron-secret') || '';
+    const bearerToken = authHeader.replace(/^Bearer\s+/i, '');
+    if (bearerToken !== cronSecret && xCronHeader !== cronSecret) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  }
+
+  const startTime = Date.now();
+
+  // Load all active TikTok accounts
+  const { data: accounts, error } = await supabaseAdmin
+    .from('marketplace_accounts')
+    .select('*')
+    .eq('platform', 'tiktok')
+    .eq('is_active', true);
+
+  if (error || !accounts || accounts.length === 0) {
+    return NextResponse.json({ message: 'No active TikTok accounts', duration_ms: Date.now() - startTime });
+  }
+
+  // Return immediately, process in background
+  const response = NextResponse.json({
+    message: `Syncing ${accounts.length} TikTok account(s)`,
+    accounts: accounts.map(a => ({ id: a.id, shop_name: a.shop_name })),
+  });
+
+  after(async () => {
+    for (const account of accounts) {
+      const typedAccount = account as TikTokAccountRow;
+      const timeTo = Math.floor(Date.now() / 1000);
+      // Sync from last_sync_at or 30 minutes back
+      const lastSync = account.last_sync_at ? Math.floor(new Date(account.last_sync_at).getTime() / 1000) : (timeTo - 30 * 60);
+      const timeFrom = Math.max(lastSync - 60, timeTo - 24 * 60 * 60); // At most 24h back, overlap 60s
+
+      try {
+        const result = await syncOrdersByTimeRange(typedAccount, timeFrom, timeTo);
+
+        logIntegration({
+          company_id: account.company_id,
+          integration: 'tiktok',
+          account_id: account.id,
+          account_name: account.shop_name,
+          direction: 'outgoing',
+          action: 'sync_orders_poll',
+          status: result.errors.length > 0 ? 'error' : 'success',
+          error_message: result.errors[0] || undefined,
+          reference_label: `Poll: ${result.orders_created} new, ${result.orders_updated} updated`,
+          duration_ms: Date.now() - startTime,
+        });
+      } catch (err) {
+        console.error(`[TikTok Sync-All] Error syncing account ${account.id}:`, err);
+        logIntegration({
+          company_id: account.company_id,
+          integration: 'tiktok',
+          account_id: account.id,
+          account_name: account.shop_name,
+          direction: 'outgoing',
+          action: 'sync_orders_poll',
+          status: 'error',
+          error_message: err instanceof Error ? err.message : 'Unknown error',
+        });
+      }
+    }
+  });
+
+  return response;
+}

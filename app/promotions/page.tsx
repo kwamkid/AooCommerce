@@ -61,7 +61,7 @@ interface PromotionItem {
   discount_type?: string | null;
   discount_value?: number | null;
   updated_at: string;
-  shopee_deals?: { account_id: string; status: string; shop_name: string; updated_at: string }[];
+  marketplace_deals?: { account_id: string; status: string; shop_name: string; updated_at: string }[];
 }
 
 // ─── Constants ──────────────────────────────────────────
@@ -212,13 +212,13 @@ function PromotionCard({
   onImageClick: (url: string) => void;
 }) {
   const statusCfg = STATUS_COLORS[promo.status] || STATUS_COLORS.inactive;
-  const hasShopeeDeals = (promo.shopee_deals || []).length > 0;
+  const hasShopeeDeals = (promo.marketplace_deals || []).length > 0;
 
   // Check if local promotion was updated after the last Shopee sync
   const isOutOfSync = hasShopeeDeals && (() => {
     const promoTime = new Date(promo.updated_at).getTime();
     const latestSyncTime = Math.max(
-      ...promo.shopee_deals!.map(d => new Date(d.updated_at).getTime())
+      ...promo.marketplace_deals!.map(d => new Date(d.updated_at).getTime())
     );
     return promoTime > latestSyncTime;
   })();
@@ -282,7 +282,7 @@ function PromotionCard({
                       <span>มีการแก้ไขที่ยังไม่ sync</span>
                     </div>
                   )}
-                  {promo.shopee_deals!.map((d, i) => (
+                  {promo.marketplace_deals!.map((d, i) => (
                     <div key={i} className="flex items-center gap-1.5 py-0.5">
                       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${d.status === 'ongoing' ? 'bg-green-400' : d.status === 'upcoming' ? 'bg-blue-400' : 'bg-gray-400'}`} />
                       <span className="truncate">{d.shop_name}</span>
@@ -501,7 +501,7 @@ function PromotionsPageContent() {
     const id = deleteTarget.id;
     try {
       // If has shopee deals and user wants to delete them
-      if (alsoDeleteShopee && (deleteTarget.shopee_deals || []).length > 0) {
+      if (alsoDeleteShopee && (deleteTarget.marketplace_deals || []).length > 0) {
         setDeletingShopee(true);
         await apiFetch(`/api/shopee/deals?promotion_id=${id}`, { method: 'DELETE' });
         setDeletingShopee(false);
@@ -650,7 +650,7 @@ function PromotionsPageContent() {
             </p>
 
             {(() => {
-              const deals = deleteTarget.shopee_deals || [];
+              const deals = deleteTarget.marketplace_deals || [];
               const ongoingDeals = deals.filter(d => d.status === 'ongoing');
               const hasOngoing = ongoingDeals.length > 0;
               if (deals.length === 0) return null;
@@ -681,7 +681,7 @@ function PromotionsPageContent() {
             })()}
 
             <div className="flex flex-col gap-2">
-              {(deleteTarget.shopee_deals || []).length > 0 && (
+              {(deleteTarget.marketplace_deals || []).length > 0 && (
                 <button
                   onClick={() => handleDeleteConfirm(true)}
                   disabled={deletingShopee}
@@ -701,12 +701,12 @@ function PromotionsPageContent() {
                 onClick={() => handleDeleteConfirm(false)}
                 disabled={deletingShopee}
                 className={`w-full px-4 py-2.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
-                  (deleteTarget.shopee_deals || []).length > 0
+                  (deleteTarget.marketplace_deals || []).length > 0
                     ? 'text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600'
                     : 'text-white bg-red-600 hover:bg-red-700'
                 }`}
               >
-                {(deleteTarget.shopee_deals || []).length > 0 ? 'ลบเฉพาะในระบบ (เก็บ Shopee ไว้)' : 'ยืนยันลบ'}
+                {(deleteTarget.marketplace_deals || []).length > 0 ? 'ลบเฉพาะในระบบ (เก็บ Shopee ไว้)' : 'ยืนยันลบ'}
               </button>
               <button
                 onClick={() => setDeleteTarget(null)}

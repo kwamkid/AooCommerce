@@ -255,11 +255,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Fetch shopee_deals for all promotions (to show sync status) with shop names
+    // Fetch marketplace_deals for all promotions (to show sync status) with shop names
     let dealsMap: Record<string, { account_id: string; status: string; shop_name: string; updated_at: string }[]> = {};
     if (promotionIds.length > 0) {
       const { data: allDeals } = await supabaseAdmin
-        .from('shopee_deals')
+        .from('marketplace_deals')
         .select('promotion_id, account_id, status, updated_at, marketplace_accounts(shop_name)')
         .in('promotion_id', promotionIds);
 
@@ -315,7 +315,7 @@ export async function GET(req: NextRequest) {
         image: itemImageMap[item.variation_id] || (item.product_id ? productNameMap[item.product_id]?.image : null) || null,
       })),
       tiers: tiersMap[p.id] || [],
-      shopee_deals: dealsMap[p.id] || [],
+      marketplace_deals: dealsMap[p.id] || [],
     }));
 
     return NextResponse.json({

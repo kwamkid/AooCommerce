@@ -238,8 +238,8 @@ export function usePromotionForm(promotionId?: string) {
             return [...dbPlatforms, ...kept];
           });
         }
-        if (data.shopee_deals && Array.isArray(data.shopee_deals)) {
-          setShopeeDeals(data.shopee_deals);
+        if (data.marketplace_deals && Array.isArray(data.marketplace_deals)) {
+          setShopeeDeals(data.marketplace_deals);
         }
         if (['buy_get_free', 'buy_get_discount'].includes(data.promotion_type)) {
           const yRole = data.promotion_type === 'buy_get_free' ? 'gift' : 'discounted';
@@ -758,7 +758,7 @@ export function usePromotionForm(promotionId?: string) {
         const refreshRes = await apiFetch(`/api/promotions/${pid}`);
         if (refreshRes.ok) {
           const refreshData = await refreshRes.json();
-          setShopeeDeals(refreshData.shopee_deals || []);
+          setShopeeDeals(refreshData.marketplace_deals || []);
         }
       } catch { /* silent */ }
 

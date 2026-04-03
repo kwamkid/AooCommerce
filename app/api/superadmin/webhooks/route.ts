@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const dateTo = params.get('date_to');
 
     let query = supabaseAdmin
-      .from('shopee_webhook_log')
+      .from('marketplace_webhook_log')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false });
 
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     // Get status counts for filter badges
     const { data: countData } = await supabaseAdmin
-      .from('shopee_webhook_log')
+      .from('marketplace_webhook_log')
       .select('processing_status')
       .limit(10000);
 

@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     if (body.action === 'seed') {
       const defaults = getBuiltInDefaults();
       const { error } = await supabaseAdmin
-        .from('shopee_error_translations')
+        .from('marketplace_error_translations')
         .upsert(
           defaults.map(d => ({
             error_key: d.error_key,
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data, error } = await supabaseAdmin
-      .from('shopee_error_translations')
+      .from('marketplace_error_translations')
       .insert({
         error_key: error_key.trim(),
         is_regex: is_regex || false,
@@ -107,7 +107,7 @@ export async function PUT(request: NextRequest) {
     if (updates.sort_order !== undefined) updateData.sort_order = updates.sort_order;
 
     const { error } = await supabaseAdmin
-      .from('shopee_error_translations')
+      .from('marketplace_error_translations')
       .update(updateData)
       .eq('id', id);
 
@@ -136,7 +136,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { error } = await supabaseAdmin
-      .from('shopee_error_translations')
+      .from('marketplace_error_translations')
       .delete()
       .eq('id', id);
 

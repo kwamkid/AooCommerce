@@ -180,12 +180,13 @@ export async function POST(request: NextRequest) {
         const ct = cust.customer_type;
         const st = cust.sale_type || '';
         if (ct === 'consignment_dealer') flowType = 'c_consign';
-        else if (ct === 'department_store') flowType = 'd_statement';
-        else if (ct === 'wholesale_department') flowType = 'd_statement';
+        else if (ct === 'department_store') flowType = 'd_consign';
+        else if (ct === 'wholesale_department' || ct === 'wholesale_dealer' || ct === 'corporate') {
+          flowType = st === 'wholesale_credit' ? 'w_credit' : 'w_cash';
+        }
         else if (st === 'wholesale_credit') flowType = 'w_credit';
         else if (st === 'wholesale_cash') flowType = 'w_cash';
-        else if (ct === 'wholesale_dealer') flowType = st === 'wholesale_credit' ? 'w_credit' : 'w_cash';
-        else if (ct === 'credit' || ct === 'corporate') flowType = 'w_credit';
+        else if (ct === 'credit') flowType = 'w_credit';
         // retail, dropship, affiliate → r_retail (default)
       }
     }

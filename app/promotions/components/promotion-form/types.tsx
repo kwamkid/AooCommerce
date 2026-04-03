@@ -19,9 +19,10 @@ export interface PlatformPrice {
   is_enabled: boolean;
 }
 
-export interface ShopeeDeal {
+export interface MarketplaceDeal {
   id: string;
   account_id: string;
+  platform: string;
   deal_type: string;
   external_deal_id: number;
   status: string;
@@ -29,6 +30,9 @@ export interface ShopeeDeal {
   end_time: string | null;
   updated_at: string;
 }
+
+/** @deprecated Use MarketplaceDeal instead */
+export type ShopeeDeal = MarketplaceDeal;
 
 export interface PromotionItemForm {
   key: string;

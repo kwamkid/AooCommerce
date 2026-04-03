@@ -1337,9 +1337,9 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     }
 
     if (allShopeePromotionIds.size > 0) {
-      // Query shopee_deals to map external_deal_id → promotion_id
+      // Query marketplace_deals to map external_deal_id → promotion_id
       const { data: deals } = await supabaseAdmin
-        .from('shopee_deals')
+        .from('marketplace_deals')
         .select('external_deal_id, promotion_id')
         .eq('account_id', account.id)
         .in('external_deal_id', Array.from(allShopeePromotionIds));

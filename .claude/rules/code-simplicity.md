@@ -197,6 +197,14 @@ const columns: DataTableColumn<Order>[] = [
 | `deals.ts` | Promotion push |
 | `errors.ts` | Error translation |
 
+### TikTok Integration (`lib/tiktok/`)
+| File | ใช้สำหรับ |
+|------|----------|
+| `api.ts` | TikTok API client (signing, OAuth, token management, endpoints) |
+| `sync.ts` | Order sync (manual + polling) + `mapTikTokStatus()` |
+| `webhook-processor.ts` | Webhook order sync (shared with retry) |
+| `errors.ts` | Error translation (TikTok → Thai messages) |
+
 ---
 
 ## 5. Key API Routes (ใช้ existing routes — ห้ามสร้าง duplicate)
@@ -237,6 +245,17 @@ const columns: DataTableColumn<Order>[] = [
 | `/api/shopee/products/export` | Export product to Shopee |
 | `/api/shopee/products/import` | Import from Shopee |
 | `/api/shopee/webhook` | Webhook endpoint |
+
+### TikTok Routes
+| Route | ใช้สำหรับ |
+|-------|----------|
+| `/api/tiktok/oauth/auth-url` | Generate OAuth URL |
+| `/api/tiktok/oauth/callback` | OAuth callback (token exchange) |
+| `/api/tiktok/webhook` | Webhook endpoint |
+| `/api/tiktok/webhook/retry` | Retry failed webhooks |
+| `/api/tiktok/sync` | Manual sync by account |
+| `/api/tiktok/sync-all` | Cron: sync all TikTok accounts |
+| `/api/tiktok/sync-order` | Sync single order |
 
 ---
 

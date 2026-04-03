@@ -74,7 +74,7 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch promotion detail (has platforms + shopee_deals)
+      // Fetch promotion detail (has platforms + marketplace_deals)
       const [promoRes, accountsRes] = await Promise.all([
         apiFetch(`/api/promotions/${promotionId}`),
         apiFetch('/api/promotions/marketplace-accounts'),
@@ -84,7 +84,7 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
       const accountsData = await accountsRes.json();
 
       const platforms: Platform[] = promoData.platforms || [];
-      const deals: ShopeeDeal[] = promoData.shopee_deals || [];
+      const deals: ShopeeDeal[] = promoData.marketplace_deals || [];
       const accounts: MarketplaceAccount[] = accountsData.accounts || [];
 
       // Build account name map

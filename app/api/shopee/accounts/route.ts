@@ -9,11 +9,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: accounts, error } = await supabaseAdmin
+    // Support ?platform=tiktok to filter by platform (default: shopee)
+    const platformParam = new URL(request.url).searchParams.get('platform') || 'shopee';
+
+    let query = supabaseAdmin
       .from('marketplace_accounts')
-      .select('id, company_id, shop_id, shop_name, is_active, last_sync_at, last_product_sync_at, access_token_expires_at, refresh_token_expires_at, auto_sync_stock, auto_sync_product_info, metadata, created_at, updated_at')
+      .select('id, company_id, platform, shop_id, shop_name, is_active, last_sync_at, last_product_sync_at, access_token_expires_at, refresh_token_expires_at, auto_sync_stock, auto_sync_product_info, metadata, created_at, updated_at')
       .eq('company_id', companyId)
       .order('created_at', { ascending: false });
+
+    // Filter by platform
+    if (platformParam === 'tiktok') {
+      query = query.eq('platform', 'tiktok');
+    } else {
+      // Default to shopee (includes legacy accounts without platform field)
+      query = query.or('platform.eq.shopee,platform.is.null');
+    }
+
+    const { data: accounts, error } = await query;
 
     if (error) throw error;
 
@@ -25,7 +38,7 @@ export async function GET(request: NextRequest) {
         .from('marketplace_product_links')
         .select('account_id')
         .in('account_id', accountIds)
-        .eq('platform', 'shopee')
+        .eq('platform', platformParam)
         .eq('sync_enabled', true);
 
       if (countRows) {

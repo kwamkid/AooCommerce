@@ -1049,7 +1049,7 @@ export async function POST(req: NextRequest) {
           // ─── Step 5: Save to DB ───
           send({ step: 'save_db', status: 'in_progress', message: 'บันทึกข้อมูล...' });
 
-          await supabaseAdmin.from('shopee_deals').insert({
+          await supabaseAdmin.from('marketplace_deals').insert({
             company_id: companyId,
             promotion_id: promotion_id,
             account_id: account_id,
@@ -1203,7 +1203,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const { data: deals, error } = await supabaseAdmin
-      .from('shopee_deals')
+      .from('marketplace_deals')
       .select(`
         *,
         marketplace_accounts(shop_name, shop_id)
@@ -1288,9 +1288,9 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // Get all existing shopee_deals for this promotion
+    // Get all existing marketplace_deals for this promotion
     const { data: existingDeals } = await supabaseAdmin
-      .from('shopee_deals')
+      .from('marketplace_deals')
       .select('*, marketplace_accounts(shop_name)')
       .eq('promotion_id', promotion_id)
       .eq('company_id', companyId)
@@ -1358,7 +1358,7 @@ export async function PATCH(req: NextRequest) {
           }
 
           // Remove deal record — no longer synced
-          await supabaseAdmin.from('shopee_deals')
+          await supabaseAdmin.from('marketplace_deals')
             .delete()
             .eq('id', deal.id);
 
@@ -1429,7 +1429,7 @@ export async function PATCH(req: NextRequest) {
 
           // Update DB status to match Shopee
           if (deal.status !== realStatus && realStatus !== 'no_deal') {
-            await supabaseAdmin.from('shopee_deals').update({ status: realStatus }).eq('id', deal.id);
+            await supabaseAdmin.from('marketplace_deals').update({ status: realStatus }).eq('id', deal.id);
           }
 
           // 1. Update deal settings
@@ -1591,7 +1591,7 @@ export async function PATCH(req: NextRequest) {
 
           // Update DB status to match Shopee
           if (deal.status !== realStatus && realStatus !== 'no_deal') {
-            await supabaseAdmin.from('shopee_deals').update({ status: realStatus }).eq('id', deal.id);
+            await supabaseAdmin.from('marketplace_deals').update({ status: realStatus }).eq('id', deal.id);
           }
 
           if (isOngoing) {
@@ -1705,7 +1705,7 @@ export async function PATCH(req: NextRequest) {
 
         // Update DB record
         await supabaseAdmin
-          .from('shopee_deals')
+          .from('marketplace_deals')
           .update({
             start_time: promotion.start_date,
             end_time: promotion.end_date,
@@ -1788,9 +1788,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'promotion_id required' }, { status: 400 });
     }
 
-    // Get all shopee_deals for this promotion
+    // Get all marketplace_deals for this promotion
     const { data: deals } = await supabaseAdmin
-      .from('shopee_deals')
+      .from('marketplace_deals')
       .select('*, marketplace_accounts(shop_name)')
       .eq('promotion_id', promotionId)
       .eq('company_id', companyId);
@@ -1814,7 +1814,7 @@ export async function DELETE(req: NextRequest) {
 
         if (!account) {
           // No account found — just clean up DB record
-          await supabaseAdmin.from('shopee_deals').delete().eq('id', deal.id);
+          await supabaseAdmin.from('marketplace_deals').delete().eq('id', deal.id);
           results.push({ account_id: deal.account_id, shop_name: shopName, success: true });
           continue;
         }
@@ -1856,7 +1856,7 @@ export async function DELETE(req: NextRequest) {
         }
 
         // Remove DB record
-        await supabaseAdmin.from('shopee_deals').delete().eq('id', deal.id);
+        await supabaseAdmin.from('marketplace_deals').delete().eq('id', deal.id);
 
         results.push({ account_id: deal.account_id, shop_name: shopName, success: true });
 

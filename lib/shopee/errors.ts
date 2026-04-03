@@ -67,7 +67,7 @@ async function loadTranslations(): Promise<ErrorTranslation[]> {
 
   try {
     const { data } = await supabaseAdmin
-      .from('shopee_error_translations')
+      .from('marketplace_error_translations')
       .select('*')
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
@@ -99,7 +99,7 @@ export function invalidateErrorCache() {
 export async function getAllTranslations(): Promise<ErrorTranslation[]> {
   try {
     const { data } = await supabaseAdmin
-      .from('shopee_error_translations')
+      .from('marketplace_error_translations')
       .select('*')
       .order('sort_order', { ascending: true });
 

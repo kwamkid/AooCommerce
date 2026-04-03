@@ -163,7 +163,7 @@ marketplace_accounts → marketplace_product_links → product_variations
 
 ### Architecture Overview
 - **Multi-tenant SaaS** — หลายร้านค้าใช้ระบบเดียวกัน
-- **Multi-platform** — Shopee ✅ | TikTok, Lazada, LINE Shopping → planned
+- **Multi-platform** — Shopee ✅ | TikTok ✅ | Lazada, LINE Shopping → planned
 - **Shared product helpers** — `lib/shopee/product-helpers.ts` (ใช้ร่วมระหว่าง order sync + product sync)
 
 ### Order Sync Mechanism (Shopee)
@@ -198,11 +198,79 @@ marketplace_accounts → marketplace_product_links → product_variations
 | COMPLETED | completed | paid |
 | CANCELLED | cancelled | cancelled |
 
-### Product Matching Priority (Order Sync)
+### Product Matching Priority (Order Sync — ใช้ร่วม Shopee + TikTok)
 1. `marketplace_product_links` (external_item_id + external_model_id)
 2. SKU match
 3. Product Code match
 4. สร้างใหม่อัตโนมัติ (+ backfill ALL variations ถ้าเป็น variation product)
+
+### Order Sync Mechanism (TikTok)
+
+**3 ทางที่ orders เข้าระบบ (เหมือน Shopee):**
+| ทาง | Route | กลไก |
+|-----|-------|------|
+| Webhook (real-time) | `/api/tiktok/webhook` | TikTok push → save `marketplace_webhook_log` → async `syncSingleOrder()` |
+| Cron Polling (safety net) | `/api/tiktok/sync-all` | ทุก 15 นาที ดูด order ตาม `last_sync_at` |
+| Webhook Retry | `/api/tiktok/webhook/retry` | ทุก 5 นาที retry webhook ที่ fail (max 3 ครั้ง → dead letter) |
+
+**Cron Jobs (cron-job.org) — เพิ่มจาก Shopee:**
+| Job | URL | Schedule |
+|-----|-----|----------|
+| TikTok Webhook Retry | `GET /api/tiktok/webhook/retry` | `*/5 * * * *` |
+| TikTok Sync All | `GET /api/tiktok/sync-all` | `*/15 * * * *` |
+
+### TikTok Status Mapping (`lib/tiktok/sync.ts` → `mapTikTokStatus()`)
+| TikTok | → order_status | → payment_status |
+|---|---|---|
+| UNPAID | new | pending |
+| ON_HOLD | ready_to_ship | paid |
+| AWAITING_SHIPMENT | ready_to_ship | paid |
+| PARTIALLY_SHIPPING | processing | paid |
+| AWAITING_COLLECTION | processing | paid |
+| IN_TRANSIT | shipping | paid |
+| DELIVERED | shipping | paid |
+| COMPLETED | completed | paid |
+| CANCELLED | cancelled | cancelled |
+
+### TikTok Integration Files (`lib/tiktok/`)
+| File | ใช้สำหรับ |
+|------|----------|
+| `api.ts` | API client (signing, OAuth, token management, endpoints) |
+| `sync.ts` | Order sync (manual + polling) + `mapTikTokStatus()` |
+| `webhook-processor.ts` | Webhook order sync (shared with retry) |
+| `errors.ts` | Error translation (TikTok → Thai messages) |
+
+### TikTok API Routes (`app/api/tiktok/`)
+| Route | ใช้สำหรับ |
+|-------|----------|
+| `/api/tiktok/oauth/auth-url` | Generate OAuth URL |
+| `/api/tiktok/oauth/callback` | OAuth callback (token exchange + shop setup) |
+| `/api/tiktok/webhook` | Webhook endpoint + background processing |
+| `/api/tiktok/webhook/retry` | Retry failed TikTok webhooks |
+| `/api/tiktok/sync` | Manual sync by account |
+| `/api/tiktok/sync-all` | Cron: sync all active TikTok accounts |
+| `/api/tiktok/sync-order` | Sync single order by ID |
+
+### TikTok Sign Algorithm
+```
+1. Extract all query params EXCEPT 'sign', 'access_token'
+2. Sort alphabetically by key
+3. Concat {key}{value} pairs (no separator)
+4. Prepend request PATH
+5. If not GET and not multipart, append request BODY
+6. Wrap: APP_SECRET + string + APP_SECRET
+7. HMAC-SHA256(APP_SECRET, wrapped_string) → hex lowercase
+```
+
+### TikTok vs Shopee Key Differences
+| | Shopee | TikTok |
+|---|---|---|
+| Shop identifier | `shop_id` (number) | `shop_cipher` (encrypted string) |
+| Auth header | Query param `access_token` | Header `x-tts-access-token` |
+| API versioning | `/api/v2/...` | `/{resource}/{YYYYMM}/...` |
+| Order ID | `order_sn` (string) | `id` (string, 18 digits) |
+| Webhook auth | HMAC(url + body, partner_key) | HMAC(app_key + body, app_secret) in `Authorization` header |
+| Token exchange | Partner-level → shop tokens | Seller auth → get shops via `/authorization/202309/shops` |
 
 ### Marketplace Label Printing
 - ใช้ `printOrder(orderId, 'marketplace_label', { source })` จาก `OrderPrintButtons`
@@ -215,7 +283,7 @@ marketplace_accounts → marketplace_product_links → product_variations
 
 ### API Docs (Local — ดูก่อน web search!)
 - **Shopee v2**: `api_doc_knowledge/Shopee/_INDEX.md`
-- **TikTok**: `api_doc_knowledge/Tiktok/tiktok_shop_api_documentation.md`
+- **TikTok**: ` api_doc_knowledge/Tiktok/_INDEX.md` (19 categories, 233 endpoints)
 
 ### Scale & Queue Strategy
 - **ปัจจุบัน**: Vercel serverless + Supabase — รองรับได้หลักพัน orders/วัน ไม่ต้อง queue

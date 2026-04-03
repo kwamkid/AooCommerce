@@ -217,7 +217,7 @@ export async function GET(
 
     // Get shopee deals and auto-fix stale statuses based on time
     const { data: shopeDeals } = await supabaseAdmin
-      .from('shopee_deals')
+      .from('marketplace_deals')
       .select('*')
       .eq('promotion_id', id);
 
@@ -233,7 +233,7 @@ export async function GET(
       }
       // Update DB if status is stale
       if (correctStatus !== deal.status) {
-        supabaseAdmin.from('shopee_deals').update({ status: correctStatus }).eq('id', deal.id).then(() => {});
+        supabaseAdmin.from('marketplace_deals').update({ status: correctStatus }).eq('id', deal.id).then(() => {});
       }
       return { ...deal, status: correctStatus };
     });
@@ -243,7 +243,7 @@ export async function GET(
       items: mappedItems,
       tiers: tiers || [],
       platforms: platforms || [],
-      shopee_deals: fixedDeals,
+      marketplace_deals: fixedDeals,
     });
   } catch (err) {
     console.error('GET /api/promotions/[id] error:', err);
