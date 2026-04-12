@@ -434,6 +434,8 @@ function ProductsPageContent() {
   const handleExport = async () => {
     setExporting(true);
     try {
+      const ExcelJS = (await import('exceljs')).default;
+
       const params = new URLSearchParams({ include_shop_options: '0' });
       if (debouncedSearch) params.set('search', debouncedSearch);
       if (categoryFilter !== '') params.set('category_id', categoryFilter);
@@ -444,59 +446,128 @@ function ProductsPageContent() {
       const data = await response.json();
       const allProducts: ProductItem[] = data.products || [];
 
-      // Apply client-side type filter
       const filtered = typeFilter
         ? allProducts.filter(p => p.product_type === typeFilter)
         : allProducts;
 
-      const headers = ['product_id (ห้ามแก้)', 'variation_id (ห้ามแก้)', 'รหัสสินค้า', 'ชื่อสินค้า', 'ประเภท', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย', 'สถานะ'];
-      const escapeCSV = (val: string) => {
-        if (val.includes(',') || val.includes('"') || val.includes('\n')) return `"${val.replace(/"/g, '""')}"`;
-        return val;
-      };
-      const rows: string[] = [headers.join(',')];
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('สินค้า');
+
+      // Headers
+      const headers = ['product_id', 'variation_id', 'รหัสสินค้า', 'ชื่อสินค้า', 'ประเภท', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย', 'สถานะ'];
+      const headerRow = ws.addRow(headers);
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4511E' } };
+        cell.alignment = { horizontal: 'center' };
+      });
+
+      // ID column styles
+      const grayFill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF0F0F0' } };
+      const grayFont = { color: { argb: 'FF999999' }, size: 9 };
+
+      // Data rows
+      type RowData = { productId: string; variationId: string; isParent: boolean; values: (string | number)[] };
+      const dataRows: RowData[] = [];
 
       for (const product of filtered) {
-        if (product.variations.length <= 1) {
+        const isMulti = product.variations.length > 1;
+        if (!isMulti) {
           const v = product.variations[0];
-          rows.push([
-            product.product_id,
-            v?.variation_id || '',
-            escapeCSV(product.code || ''),
-            escapeCSV(product.name),
-            product.product_type === 'simple' ? 'สินค้าปกติ' : 'สินค้าย่อย',
-            escapeCSV(v?.variation_label || '-'),
-            escapeCSV(v?.sku || ''),
-            escapeCSV(v?.barcode || ''),
-            String(v?.default_price ?? ''),
-            String(v?.discount_price ?? ''),
-            product.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
-          ].join(','));
+          dataRows.push({
+            productId: product.product_id,
+            variationId: v?.variation_id || '',
+            isParent: true,
+            values: [
+              product.product_id, v?.variation_id || '',
+              product.code || '', product.name,
+              'สินค้าปกติ', v?.variation_label || '-',
+              v?.sku || '', v?.barcode || '',
+              v?.default_price ?? 0, v?.discount_price ?? 0,
+              product.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
+            ],
+          });
         } else {
-          for (const v of product.variations) {
-            rows.push([
-              product.product_id,
-              v.variation_id || '',
-              escapeCSV(product.code || ''),
-              escapeCSV(product.name),
-              'สินค้าย่อย',
-              escapeCSV(v.variation_label || '-'),
-              escapeCSV(v.sku || ''),
-              escapeCSV(v.barcode || ''),
-              String(v.default_price ?? ''),
-              String(v.discount_price ?? ''),
-              v.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
-            ].join(','));
+          for (let i = 0; i < product.variations.length; i++) {
+            const v = product.variations[i];
+            const isFirst = i === 0;
+            dataRows.push({
+              productId: product.product_id,
+              variationId: v.variation_id || '',
+              isParent: isFirst,
+              values: [
+                product.product_id, v.variation_id || '',
+                isFirst ? (product.code || '') : '', isFirst ? product.name : '',
+                isFirst ? `สินค้าย่อย (${product.variations.length})` : '',
+                v.variation_label || '-',
+                v.sku || '', v.barcode || '',
+                v.default_price ?? 0, v.discount_price ?? 0,
+                v.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
+              ],
+            });
           }
         }
       }
 
-      const csvContent = '\ufeff' + rows.join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      for (const row of dataRows) {
+        const excelRow = ws.addRow(row.values);
+        // Lock + gray ID columns (A, B)
+        excelRow.getCell(1).fill = grayFill;
+        excelRow.getCell(1).font = grayFont;
+        excelRow.getCell(1).protection = { locked: true };
+        excelRow.getCell(2).fill = grayFill;
+        excelRow.getCell(2).font = grayFont;
+        excelRow.getCell(2).protection = { locked: true };
+
+        // Parent row: bold name
+        if (row.isParent) {
+          excelRow.getCell(4).font = { bold: true };
+        } else {
+          // Child row: indent variation label
+          excelRow.getCell(6).alignment = { indent: 2 };
+          excelRow.getCell(6).font = { color: { argb: 'FF666666' } };
+        }
+      }
+
+      // Column widths
+      ws.columns = [
+        { width: 12 }, // product_id (narrow, gray)
+        { width: 12 }, // variation_id (narrow, gray)
+        { width: 16 }, // รหัสสินค้า
+        { width: 35 }, // ชื่อสินค้า
+        { width: 14 }, // ประเภท
+        { width: 20 }, // ตัวเลือก
+        { width: 16 }, // SKU
+        { width: 16 }, // Barcode
+        { width: 12 }, // ราคาปกติ
+        { width: 12 }, // ราคาขาย
+        { width: 10 }, // สถานะ
+      ];
+
+      // Protect sheet — only ID columns locked, rest editable
+      ws.protect('', {
+        selectLockedCells: true,
+        selectUnlockedCells: true,
+        formatCells: true,
+        sort: true,
+        autoFilter: true,
+      });
+      // Unlock all cells first, then lock only ID columns
+      ws.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.protection = { locked: false };
+        });
+        // Re-lock ID columns
+        row.getCell(1).protection = { locked: true };
+        row.getCell(2).protection = { locked: true };
+      });
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       const date = new Date().toISOString().slice(0, 10);
-      link.download = `products-${date}.csv`;
+      link.download = `products-${date}.xlsx`;
       link.click();
       URL.revokeObjectURL(link.href);
       showToast(`ส่งออกสินค้า ${filtered.length} รายการสำเร็จ`);

@@ -118,70 +118,79 @@ export default function ImportProductsPage() {
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<ImportResult[]>([]);
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      const rows = parseCSV(text);
-
-      if (rows.length < 2) {
-        showToast('ไฟล์ไม่มีข้อมูล (ต้องมีอย่างน้อย header + 1 แถว)', 'error');
-        return;
-      }
-
-      const dataRows = rows.slice(1);
-      const parsed: ParsedRow[] = dataRows.map((cols, i) => {
-        const row: ParsedRow = {
-          product_id: cols[0] || '',
-          variation_id: cols[1] || '',
-          code: cols[2] || '',
-          name: cols[3] || '',
-          variation_label: cols[4] || '-',
-          sku: cols[5] || '',
-          barcode: cols[6] || '',
-          default_price: parseFloat(cols[7] || '0') || 0,
-          discount_price: parseFloat(cols[8] || '0') || 0,
-          rowNum: i + 2,
-        };
-        if (!row.code) row.error = 'ไม่มีรหัสสินค้า';
-        else if (!row.name) row.error = 'ไม่มีชื่อสินค้า';
-        return row;
+    let rows: string[][];
+    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+      const ExcelJS = (await import('exceljs')).default;
+      const wb = new ExcelJS.Workbook();
+      const buffer = await file.arrayBuffer();
+      await wb.xlsx.load(buffer);
+      const ws = wb.worksheets[0];
+      rows = [];
+      ws.eachRow((row) => {
+        const vals = (row.values as (string | number | null)[]).slice(1).map(v => String(v ?? ''));
+        if (vals.some(v => v)) rows.push(vals);
       });
+    } else {
+      const text = await file.text();
+      rows = parseCSV(text);
+    }
 
-      setParsedRows(parsed);
+    if (rows.length < 2) {
+      showToast('ไฟล์ไม่มีข้อมูล (ต้องมีอย่างน้อย header + 1 แถว)', 'error');
+      return;
+    }
 
-      // Group by product_id (update) or code (create)
-      const groupMap = new Map<string, GroupedProduct>();
-      for (const row of parsed) {
-        if (row.error) continue;
-        const key = row.product_id || `new:${row.code}`;
-        if (!groupMap.has(key)) {
-          groupMap.set(key, {
-            key,
-            product_id: row.product_id || undefined,
-            code: row.code,
-            name: row.name,
-            action: row.product_id ? 'update' : 'create',
-            variations: [],
-          });
-        }
-        groupMap.get(key)!.variations.push({
-          variation_id: row.variation_id || undefined,
-          variation_label: row.variation_label || '-',
-          sku: row.sku,
-          barcode: row.barcode,
-          default_price: row.default_price,
-          discount_price: row.discount_price,
+    const dataRows = rows.slice(1);
+    const parsed: ParsedRow[] = dataRows.map((cols, i) => {
+      const row: ParsedRow = {
+        product_id: cols[0] || '',
+        variation_id: cols[1] || '',
+        code: cols[2] || '',
+        name: cols[3] || '',
+        variation_label: cols[4] || '-',
+        sku: cols[5] || '',
+        barcode: cols[6] || '',
+        default_price: parseFloat(cols[7] || '0') || 0,
+        discount_price: parseFloat(cols[8] || '0') || 0,
+        rowNum: i + 2,
+      };
+      if (!row.code) row.error = 'ไม่มีรหัสสินค้า';
+      else if (!row.name) row.error = 'ไม่มีชื่อสินค้า';
+      return row;
+    });
+
+    setParsedRows(parsed);
+
+    const groupMap = new Map<string, GroupedProduct>();
+    for (const row of parsed) {
+      if (row.error) continue;
+      const key = row.product_id || `new:${row.code}`;
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          key,
+          product_id: row.product_id || undefined,
+          code: row.code,
+          name: row.name,
+          action: row.product_id ? 'update' : 'create',
+          variations: [],
         });
       }
+      groupMap.get(key)!.variations.push({
+        variation_id: row.variation_id || undefined,
+        variation_label: row.variation_label || '-',
+        sku: row.sku,
+        barcode: row.barcode,
+        default_price: row.default_price,
+        discount_price: row.discount_price,
+      });
+    }
 
-      setGrouped(Array.from(groupMap.values()));
-      setStep('preview');
-    };
-    reader.readAsText(file, 'UTF-8');
+    setGrouped(Array.from(groupMap.values()));
+    setStep('preview');
   };
 
   const handleImport = async () => {
@@ -272,9 +281,9 @@ export default function ImportProductsPage() {
               </div>
 
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">อัพโหลดไฟล์ CSV</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">อัพโหลดไฟล์ Excel หรือ CSV</h2>
                 <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">
-                  Export จากหน้าสินค้า แก้ไขแล้ว Import กลับ หรือดาวน์โหลด Template สำหรับสร้างใหม่
+                  Export จากหน้าสินค้า (.xlsx) แก้ไขแล้ว Import กลับ หรือดาวน์โหลด Template สำหรับสร้างใหม่
                 </p>
               </div>
 
@@ -291,9 +300,9 @@ export default function ImportProductsPage() {
                   className="flex items-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold transition-colors"
                 >
                   <Upload className="w-4 h-4" />
-                  เลือกไฟล์ CSV
+                  เลือกไฟล์
                 </button>
-                <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="hidden" />
+                <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} className="hidden" />
               </div>
 
               <div className="text-left bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4 text-sm text-gray-600 dark:text-slate-400">
