@@ -144,6 +144,29 @@ export default function ImportProductsPage() {
       return;
     }
 
+    // Validate header format
+    const header = rows[0];
+    if (header.length < 9) {
+      showToast(`ไฟล์ผิด format — ต้องมีอย่างน้อย 9 columns แต่พบแค่ ${header.length} columns\n\nใช้ Template หรือไฟล์ที่ Export จากระบบ`, 'error');
+      return;
+    }
+
+    // Check if header looks like our format (column 3 = product name or Thai header)
+    const col3 = (header[2] || '').toLowerCase();
+    const col4 = (header[3] || '').toLowerCase();
+    const looksLikeOurFormat = col3.includes('รหัส') || col3.includes('product') || col3.includes('code') || col4.includes('ชื่อ') || col4.includes('name');
+    const looksLikeOldCsvFormat = (header[0] || '').toLowerCase().includes('รหัส');
+
+    if (looksLikeOldCsvFormat && !col3.includes('รหัส')) {
+      showToast('ไฟล์นี้เป็น CSV format เก่า (ไม่มี product_id, variation_id)\n\nกรุณา Export ใหม่จากระบบ หรือดาวน์โหลด Template', 'error');
+      return;
+    }
+
+    if (!looksLikeOurFormat && !header[0]?.includes('product')) {
+      showToast('ไฟล์ผิด format — ไม่ตรงกับ Template\n\nColumn ต้องเป็น: product_id, variation_id, รหัสสินค้า, ชื่อสินค้า, ตัวเลือก, SKU, Barcode, ราคาปกติ, ราคาขาย', 'error');
+      return;
+    }
+
     const dataRows = rows.slice(1);
     const parsed: ParsedRow[] = dataRows.map((cols, i) => {
       const row: ParsedRow = {
