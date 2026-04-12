@@ -234,34 +234,36 @@ export async function syncOrdersByOrderSn(
 
       // Fetch buyer invoice info for all orders in this batch (1 API call)
       let invoiceMap: Record<string, BuyerInvoiceInfo> = {};
-      try {
-        const orderSnList = orders.map(o => o.order_sn);
-        const { invoices, error: invoiceError } = await getBuyerInvoiceInfo(creds, orderSnList);
-        if (invoiceError) {
-          console.warn(`[Shopee Sync] get_buyer_invoice_info error: ${invoiceError} — continuing without invoice data`);
+      const orderSnList = orders.map(o => o.order_sn);
+      if (orderSnList.length > 0) {
+        try {
+          const { invoices, error: invoiceError } = await getBuyerInvoiceInfo(creds, orderSnList);
+          if (invoiceError) {
+            console.warn(`[Shopee Sync] get_buyer_invoice_info error: ${invoiceError} — continuing without invoice data`);
+          }
+          for (const inv of invoices) {
+            invoiceMap[inv.order_sn] = inv;
+          }
+          // Log the buyer invoice API call
+          logIntegration({
+            company_id: account.company_id,
+            integration: 'shopee',
+            account_id: account.id,
+            account_name: account.shop_name,
+            direction: 'outgoing',
+            action: 'get_buyer_invoice_info',
+            method: 'POST',
+            api_path: '/api/v2/order/get_buyer_invoice_info',
+            request_body: { order_sns: orderSnList },
+            response_body: { count: invoices.length, requested_count: invoices.filter(i => i.is_requested).length },
+            status: invoiceError ? 'error' : 'success',
+            error_message: invoiceError || undefined,
+            reference_type: 'order',
+            reference_label: `Batch ${orderSnList.length} orders`,
+          });
+        } catch (e) {
+          console.warn(`[Shopee Sync] get_buyer_invoice_info failed:`, e);
         }
-        for (const inv of invoices) {
-          invoiceMap[inv.order_sn] = inv;
-        }
-        // Log the buyer invoice API call
-        logIntegration({
-          company_id: account.company_id,
-          integration: 'shopee',
-          account_id: account.id,
-          account_name: account.shop_name,
-          direction: 'outgoing',
-          action: 'get_buyer_invoice_info',
-          method: 'POST',
-          api_path: '/api/v2/order/get_buyer_invoice_info',
-          request_body: { order_sns: orderSnList },
-          response_body: { count: invoices.length, requested_count: invoices.filter(i => i.is_requested).length },
-          status: invoiceError ? 'error' : 'success',
-          error_message: invoiceError || undefined,
-          reference_type: 'order',
-          reference_label: `Batch ${orderSnList.length} orders`,
-        });
-      } catch (e) {
-        console.warn(`[Shopee Sync] get_buyer_invoice_info failed:`, e);
       }
 
       // Process orders in parallel (concurrency=3) for ~3x speedup

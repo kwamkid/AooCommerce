@@ -289,6 +289,12 @@ export async function ensureValidToken(account: ShopeeAccountRow): Promise<Shope
 
   const refreshExpiresAt = account.refresh_token_expires_at ? new Date(account.refresh_token_expires_at) : null;
   if (refreshExpiresAt && refreshExpiresAt.getTime() < now.getTime()) {
+    // Auto-deactivate so cron jobs stop hammering Shopee with doomed requests,
+    // which would otherwise tank our partner API success rate.
+    await supabaseAdmin
+      .from('marketplace_accounts')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', account.id);
     throw new Error('Refresh token expired. Shop needs to re-authorize.');
   }
 
@@ -1243,12 +1249,18 @@ export async function updateStock(
 export async function updateItemInfo(
   creds: ShopeeCredentials,
   itemId: number,
-  updates: { item_name?: string; description?: string; category_id?: number; attribute_list?: Array<{ attribute_id: number; attribute_value_list: Array<{ value_id: number; original_value_name: string }> }> }
+  updates: { item_name?: string; description?: string; category_id?: number | string; attribute_list?: Array<{ attribute_id: number; attribute_value_list: Array<{ value_id: number; original_value_name: string }> }> }
 ): Promise<{ data: unknown; error?: string }> {
-  return shopeeApiRequest(creds, 'POST', '/api/v2/product/update_item', {}, {
-    item_id: itemId,
+  // Coerce category_id to number — Postgres bigint columns deserialize as string in JS,
+  // and Shopee's Go backend rejects quoted numbers with "cannot unmarshal string into uint64".
+  const body: Record<string, unknown> = {
+    item_id: Number(itemId),
     ...updates,
-  });
+  };
+  if (updates.category_id !== undefined && updates.category_id !== null) {
+    body.category_id = Number(updates.category_id);
+  }
+  return shopeeApiRequest(creds, 'POST', '/api/v2/product/update_item', {}, body);
 }
 
 // ============================================
@@ -1564,6 +1576,11 @@ export async function getBuyerInvoiceInfo(
   creds: ShopeeCredentials,
   orderSns: string[]
 ): Promise<{ invoices: BuyerInvoiceInfo[]; error?: string }> {
+  // Shopee rejects empty queries array with "Empty request params." — short-circuit
+  // before making a doomed API call that would ding our success rate.
+  if (!orderSns || orderSns.length === 0) {
+    return { invoices: [] };
+  }
   const queries = orderSns.map(sn => ({ order_sn: sn }));
   const { data, error } = await shopeeApiRequest(
     creds,

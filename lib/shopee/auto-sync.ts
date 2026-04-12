@@ -216,9 +216,11 @@ async function _doInfoSync(productId: string, productName: string): Promise<void
  * Fire-and-forget: trigger category sync to Shopee for a specific link.
  * Fetches mandatory attributes and fills N/A defaults.
  */
-export function triggerShopeeCategorySync(linkId: string, categoryId: number): void {
+export function triggerShopeeCategorySync(linkId: string, categoryId: number | string): void {
   if (!linkId || !categoryId) return;
-  _doCategorySync(linkId, categoryId).catch(err => {
+  const numericId = Number(categoryId);
+  if (!Number.isFinite(numericId) || numericId <= 0) return;
+  _doCategorySync(linkId, numericId).catch(err => {
     console.error('[Shopee Auto-Sync] Category sync error:', err);
   });
 }

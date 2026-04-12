@@ -16,18 +16,57 @@ async function handleSyncAll(request: NextRequest) {
     }
   }
 
-  // Get all active accounts
+  // Get all active accounts (shopee platform only)
   const { data: accounts } = await supabaseAdmin
     .from('marketplace_accounts')
     .select('*')
     .eq('is_active', true)
+    .or('platform.eq.shopee,platform.is.null')
     .not('refresh_token', 'is', null);
 
-  const results: { shop_id: number; orders_created: number; orders_updated: number; products_created: number; customers_created: number; errors: string[] }[] = [];
+  const results: { shop_id: number; orders_created: number; orders_updated: number; products_created: number; customers_created: number; errors: string[]; skipped?: boolean }[] = [];
 
   const now = Math.floor(Date.now() / 1000);
+  const nowIso = new Date().toISOString();
 
-  for (const account of (accounts || []) as ShopeeAccountRow[]) {
+  // Auto-deactivate accounts where refresh_token is expired — prevents wasteful
+  // API calls that tank our Shopee partner success rate (Shopee warns <90%).
+  const expiredAccountIds = (accounts || [])
+    .filter(a => a.refresh_token_expires_at && new Date(a.refresh_token_expires_at).getTime() < Date.now())
+    .map(a => a.id);
+
+  if (expiredAccountIds.length > 0) {
+    await supabaseAdmin
+      .from('marketplace_accounts')
+      .update({ is_active: false, updated_at: nowIso })
+      .in('id', expiredAccountIds);
+
+    for (const account of (accounts || []).filter(a => expiredAccountIds.includes(a.id))) {
+      logIntegration({
+        company_id: account.company_id,
+        integration: 'shopee',
+        account_id: account.id,
+        account_name: account.shop_name,
+        direction: 'outgoing',
+        action: 'account_auto_deactivated',
+        status: 'error',
+        error_message: `Refresh token expired at ${account.refresh_token_expires_at}. Shop auto-deactivated — please reconnect.`,
+      });
+      results.push({
+        shop_id: account.shop_id,
+        orders_created: 0,
+        orders_updated: 0,
+        products_created: 0,
+        customers_created: 0,
+        errors: ['Refresh token expired — shop auto-deactivated'],
+        skipped: true,
+      });
+    }
+  }
+
+  const activeAccounts = (accounts || []).filter(a => !expiredAccountIds.includes(a.id));
+
+  for (const account of activeAccounts as ShopeeAccountRow[]) {
     try {
       // Sync from last_sync_at or last 15 minutes
       const lastSync = account.last_sync_at
@@ -105,7 +144,12 @@ async function handleSyncAll(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ total_shops: (accounts || []).length, results });
+  return NextResponse.json({
+    total_shops: (accounts || []).length,
+    active_shops: activeAccounts.length,
+    deactivated_shops: expiredAccountIds.length,
+    results,
+  });
 }
 
 export async function GET(request: NextRequest) {

@@ -20,13 +20,29 @@ export async function POST(request: NextRequest) {
     .from('marketplace_accounts')
     .select('*')
     .eq('is_active', true)
+    .or('platform.eq.shopee,platform.is.null')
     .not('refresh_token', 'is', null)
     .lt('access_token_expires_at', cutoff.toISOString());
+
+  // Skip + auto-deactivate accounts where refresh_token itself is already expired
+  // (calling refreshAccessToken on these would just add errors to our API stats).
+  const expiredIds = (accounts || [])
+    .filter(a => a.refresh_token_expires_at && new Date(a.refresh_token_expires_at).getTime() < now.getTime())
+    .map(a => a.id);
+
+  if (expiredIds.length > 0) {
+    await supabaseAdmin
+      .from('marketplace_accounts')
+      .update({ is_active: false, updated_at: now.toISOString() })
+      .in('id', expiredIds);
+  }
+
+  const refreshable = (accounts || []).filter(a => !expiredIds.includes(a.id));
 
   let refreshed = 0;
   const errors: string[] = [];
 
-  for (const account of accounts || []) {
+  for (const account of refreshable) {
     try {
       const tokens = await refreshAccessToken(account.refresh_token, account.shop_id);
 
@@ -50,5 +66,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ refreshed, total: (accounts || []).length, errors });
+  return NextResponse.json({
+    refreshed,
+    total: (accounts || []).length,
+    deactivated: expiredIds.length,
+    errors,
+  });
 }

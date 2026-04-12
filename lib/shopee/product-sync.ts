@@ -732,7 +732,7 @@ async function buildAttributesForCategoryUpdate(
   categoryId: number,
   existingAttributes: AttributeEntry[],
   companyId?: string
-): Promise<AttributeEntry[]> {
+): Promise<{ attributes: AttributeEntry[]; missingMandatory: string[] }> {
   const existingMap = new Map<number, AttributeEntry>();
   for (const attr of existingAttributes) {
     existingMap.set(attr.attribute_id, attr);
@@ -762,7 +762,7 @@ async function buildAttributesForCategoryUpdate(
 
   try {
     const { data, error } = await getShopeeCategoryAttributes(creds, categoryId);
-    if (error || !data) return Array.from(existingMap.values());
+    if (error || !data) return { attributes: Array.from(existingMap.values()), missingMandatory: [] };
 
     const response = data as { attribute_list?: Array<{
       attribute_id: number;
@@ -772,6 +772,7 @@ async function buildAttributesForCategoryUpdate(
     }> };
     const attributes = response.attribute_list || [];
     const result: AttributeEntry[] = [];
+    const missingMandatory: string[] = [];
 
     for (const attr of attributes.filter(a => a.is_mandatory)) {
       const existing = existingMap.get(attr.attribute_id);
@@ -782,20 +783,21 @@ async function buildAttributesForCategoryUpdate(
 
       const values = attr.attribute_value_list || [];
       if (values.length > 0) {
+        // Auto-pick first preset value — safe for DROP_DOWN types
         result.push({
           attribute_id: attr.attribute_id,
           attribute_value_list: [{ value_id: values[0].value_id, original_value_name: values[0].original_value_name }],
         });
       } else {
-        result.push({
-          attribute_id: attr.attribute_id,
-          attribute_value_list: [{ value_id: 0, original_value_name: 'N/A' }],
-        });
+        // No preset values available AND no existing value — we can't safely auto-fill
+        // this attribute. Record it so the caller can skip the update with a clear error
+        // instead of sending value_id:0 which Shopee rejects.
+        missingMandatory.push(attr.original_attribute_name);
       }
     }
-    return result;
+    return { attributes: result, missingMandatory };
   } catch {
-    return Array.from(existingMap.values());
+    return { attributes: Array.from(existingMap.values()), missingMandatory: [] };
   }
 }
 
@@ -821,10 +823,17 @@ export async function pushCategoryToShopee(
       }
     } catch { /* no existing attrs */ }
 
-    const attributeList = await buildAttributesForCategoryUpdate(creds, categoryId, existingAttributes, companyId);
+    const { attributes: attributeList, missingMandatory } = await buildAttributesForCategoryUpdate(creds, categoryId, existingAttributes, companyId);
+
+    if (missingMandatory.length > 0) {
+      return {
+        success: false,
+        error: `หมวดหมู่นี้ต้องระบุ attribute ที่จำเป็น: ${missingMandatory.join(', ')} — กรุณาตั้งค่าใน Shopee Seller Center ก่อน`,
+      };
+    }
 
     const { error } = await updateItemInfo(creds, itemId, {
-      category_id: categoryId,
+      category_id: Number(categoryId),
       attribute_list: attributeList,
     });
     if (error) return { success: false, error };

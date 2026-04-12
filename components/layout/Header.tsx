@@ -1,13 +1,14 @@
 // Path: src/components/layout/Header.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useFeatures } from '@/lib/features-context';
+import { apiFetch } from '@/lib/api-client';
 import {
   Bell,
   User,
@@ -18,9 +19,9 @@ import {
   Clock,
   CheckCircle,
   ScrollText,
+  ShoppingBag,
 } from 'lucide-react';
 
-// Notification interface
 interface Notification {
   id: string;
   type: 'warning' | 'info' | 'success';
@@ -28,6 +29,21 @@ interface Notification {
   message: string;
   time: string;
   read: boolean;
+  href?: string;
+}
+
+interface MarketplaceHealth {
+  expired_count: number;
+  inactive_count: number;
+  error_count: number;
+  total_issues: number;
+  issues: Array<{
+    account_id: string;
+    shop_name: string | null;
+    platform: string;
+    type: 'expired' | 'disconnected';
+    message: string;
+  }>;
 }
 
 export default function Header() {
@@ -37,33 +53,35 @@ export default function Header() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // Initialize notifications with mock data (ในระบบจริงจะดึงจาก database)
-  const [notifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'warning',
-      title: 'วัตถุดิบใกล้หมด',
-      message: 'ส้มเขียวหวาน เหลือ 30 kg',
-      time: '10 นาทีที่แล้ว',
-      read: false
-    },
-    {
-      id: '2',
-      type: 'info',
-      title: 'ออเดอร์ใหม่',
-      message: 'SO241107001 จากร้านส้มตำป้าหนอย',
-      time: '1 ชั่วโมงที่แล้ว',
-      read: false
-    },
-    {
-      id: '3',
-      type: 'success',
-      title: 'QC ผ่าน',
-      message: 'Batch OJ250724001 ผ่านการตรวจสอบ',
-      time: '2 ชั่วโมงที่แล้ว',
-      read: true
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  const fetchMarketplaceHealth = useCallback(async () => {
+    if (!features.marketplace_sync) return;
+    try {
+      const res = await apiFetch('/api/marketplace/health');
+      if (!res.ok) return;
+      const data: MarketplaceHealth = await res.json();
+      const items: Notification[] = data.issues.map(issue => ({
+        id: `mp-${issue.account_id}`,
+        type: 'warning',
+        title: issue.type === 'expired' ? 'Token Shopee หมดอายุ' : 'ร้านถูกปิดการเชื่อมต่อ',
+        message: `${issue.shop_name || 'Shop'} — ${issue.message}`,
+        time: '',
+        read: false,
+        href: '/settings/integrations',
+      }));
+      setNotifications(items);
+    } catch (e) {
+      console.error('Failed to fetch marketplace health:', e);
     }
-  ]);
+  }, [features.marketplace_sync]);
+
+  useEffect(() => {
+    fetchMarketplaceHealth();
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchMarketplaceHealth, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchMarketplaceHealth]);
 
   const [currentTime, setCurrentTime] = useState('');
 
@@ -149,7 +167,9 @@ export default function Header() {
             >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
               )}
             </button>
 
@@ -165,13 +185,8 @@ export default function Header() {
 
                 <div className="max-h-96 overflow-y-auto">
                   {notifications.length > 0 ? (
-                    notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={`p-4 border-b border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${
-                          !notification.read ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''
-                        }`}
-                      >
+                    notifications.map((notification) => {
+                      const content = (
                         <div className="flex items-start space-x-3">
                           {getNotificationIcon(notification.type)}
                           <div className="flex-1">
@@ -181,27 +196,38 @@ export default function Header() {
                             <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
                               {notification.message}
                             </p>
-                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
-                              {notification.time}
-                            </p>
+                            {notification.time && (
+                              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
+                                {notification.time}
+                              </p>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                      const className = `block p-4 border-b border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${
+                        !notification.read ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''
+                      }`;
+                      return notification.href ? (
+                        <Link
+                          key={notification.id}
+                          href={notification.href}
+                          onClick={() => setShowNotifications(false)}
+                          className={className}
+                        >
+                          {content}
+                        </Link>
+                      ) : (
+                        <div key={notification.id} className={className}>
+                          {content}
+                        </div>
+                      );
+                    })
                   ) : (
                     <div className="p-8 text-center text-gray-500 dark:text-slate-400">
                       ไม่มีการแจ้งเตือน
                     </div>
                   )}
                 </div>
-
-                {notifications.length > 0 && (
-                  <div className="p-3 border-t border-gray-200 dark:border-slate-700">
-                    <button className="w-full text-center text-sm text-primary hover:text-primary/80 font-medium">
-                      ดูทั้งหมด
-                    </button>
-                  </div>
-                )}
               </div>
             )}
           </div>

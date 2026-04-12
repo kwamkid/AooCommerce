@@ -37,14 +37,50 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: 'No active TikTok accounts', duration_ms: Date.now() - startTime });
   }
 
+  // Auto-deactivate accounts with expired refresh token — prevents futile API calls
+  // that get counted against our platform success rate.
+  const expiredIds = accounts
+    .filter(a => a.refresh_token_expires_at && new Date(a.refresh_token_expires_at).getTime() < Date.now())
+    .map(a => a.id);
+
+  if (expiredIds.length > 0) {
+    await supabaseAdmin
+      .from('marketplace_accounts')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .in('id', expiredIds);
+
+    for (const account of accounts.filter(a => expiredIds.includes(a.id))) {
+      logIntegration({
+        company_id: account.company_id,
+        integration: 'tiktok',
+        account_id: account.id,
+        account_name: account.shop_name,
+        direction: 'outgoing',
+        action: 'account_auto_deactivated',
+        status: 'error',
+        error_message: `Refresh token expired at ${account.refresh_token_expires_at}. Shop auto-deactivated — please reconnect.`,
+      });
+    }
+  }
+
+  const activeAccounts = accounts.filter(a => !expiredIds.includes(a.id));
+  if (activeAccounts.length === 0) {
+    return NextResponse.json({
+      message: `All ${accounts.length} TikTok accounts have expired — auto-deactivated`,
+      deactivated_shops: expiredIds.length,
+      duration_ms: Date.now() - startTime,
+    });
+  }
+
   // Return immediately, process in background
   const response = NextResponse.json({
-    message: `Syncing ${accounts.length} TikTok account(s)`,
-    accounts: accounts.map(a => ({ id: a.id, shop_name: a.shop_name })),
+    message: `Syncing ${activeAccounts.length} TikTok account(s)`,
+    deactivated_shops: expiredIds.length,
+    accounts: activeAccounts.map(a => ({ id: a.id, shop_name: a.shop_name })),
   });
 
   after(async () => {
-    for (const account of accounts) {
+    for (const account of activeAccounts) {
       const typedAccount = account as TikTokAccountRow;
       const timeTo = Math.floor(Date.now() / 1000);
       // Sync from last_sync_at or 30 minutes back
