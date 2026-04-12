@@ -304,6 +304,34 @@ marketplace_accounts → marketplace_product_links → product_variations
 
 ---
 
+## Product Import/Export (เพิ่มเมื่อ 2026-04-12)
+- **Export CSV**: ปุ่ม Export ในหน้าสินค้า — export ตาม filter พร้อม product_id/variation_id
+- **Import CSV**: `/products/import` — สร้างใหม่ (ไม่มี ID) + อัพเดท (มี ID) + auto sync Shopee
+- **API**: `/api/products/bulk-import` — batch upsert, ตรวจ field ที่เปลี่ยนก่อน update, trigger marketplace price sync
+
+## Shopee API Success Rate Fixes (เพิ่มเมื่อ 2026-04-12)
+
+### Auto-deactivate expired shops
+- `sync-all`, `refresh-tokens`, `ensureValidToken` — ถ้า refresh_token หมดอายุ → set `is_active=false` อัตโนมัติ
+- ป้องกัน cron ยิง API เปล่าที่ทำให้ success rate ตก
+
+### mass_ship_order fix (ออเดอร์หาย)
+- **ปัญหา**: กดรับ 5 ออเดอร์ เหลือ 3 — เพราะ code assume success สำหรับ unsplit orders
+- **แก้**: ส่ง package_number เสมอ + ไม่ assume success ถ้าไม่อยู่ใน success_list + เพิ่ม detailed logging
+
+### update_item category fix
+- coerce `category_id` เป็น Number (Postgres bigint → string → Shopee reject)
+- skip push ถ้า mandatory attribute auto-fill ไม่ได้
+
+### get_buyer_invoice_info fix
+- skip API call ถ้า order list ว่าง
+
+### Header Notification
+- `/api/marketplace/health` — คืน expired/disconnected shop count
+- Header bell badge แสดง counter จำนวนร้านที่มีปัญหา (poll ทุก 5 นาที)
+
+---
+
 ## File References
 - **todo.md** — งานที่ยังไม่ได้ทำ (ไม่ sync git)
 - **memory/** — Claude memory files (auto-loaded)
