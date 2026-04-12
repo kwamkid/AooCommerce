@@ -436,38 +436,26 @@ function ProductsPageContent() {
     try {
       const ExcelJS = (await import('exceljs')).default;
 
-      const params = new URLSearchParams({ include_shop_options: '0' });
-      if (debouncedSearch) params.set('search', debouncedSearch);
-      if (categoryFilter !== '') params.set('category_id', categoryFilter);
-      if (brandFilter !== '') params.set('brand_id', brandFilter);
-      if (shopAccountFilter !== 'all') params.set('shop_account_id', shopAccountFilter);
+      // Single RPC call: products + shops + marketplace links
+      const exportRes = await apiFetch('/api/products/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          search: debouncedSearch || undefined,
+          category_id: categoryFilter || undefined,
+          brand_id: brandFilter || undefined,
+          shop_account_id: shopAccountFilter !== 'all' ? shopAccountFilter : undefined,
+        }),
+      });
+      const exportData = await exportRes.json();
+      const allProducts: ProductItem[] = exportData.products || [];
+      const activeShops: { id: string; shop_name: string; platform: string }[] = exportData.shops || [];
 
-      // Fetch products + marketplace links in parallel
-      const [productRes, linksRes] = await Promise.all([
-        apiFetch(`/api/products?${params.toString()}`),
-        apiFetch('/api/shopee/accounts'),
-      ]);
-      const data = await productRes.json();
-      const allProducts: ProductItem[] = data.products || [];
-      const accounts: { id: string; shop_name: string; platform: string; is_active: boolean }[] = await linksRes.json();
-
-      // Get active shop accounts for columns
-      const activeShops = accounts.filter(a => a.is_active);
-
-      // Fetch marketplace_product_links for all variations
-      const allVarIds = allProducts.flatMap(p => p.variations.map(v => v.variation_id).filter(Boolean));
       type LinkInfo = { variation_id: string; account_id: string; platform_price: number | null; platform_discount_price: number | null };
       const linkMap = new Map<string, Map<string, LinkInfo>>();
-
-      if (allVarIds.length > 0 && activeShops.length > 0) {
-        const linkRes = await apiFetch(`/api/products/export-links?variation_ids=${allVarIds.join(',')}`);
-        if (linkRes.ok) {
-          const linkData: LinkInfo[] = await linkRes.json();
-          for (const link of linkData) {
-            if (!linkMap.has(link.variation_id)) linkMap.set(link.variation_id, new Map());
-            linkMap.get(link.variation_id)!.set(link.account_id, link);
-          }
-        }
+      for (const link of (exportData.links || []) as LinkInfo[]) {
+        if (!linkMap.has(link.variation_id)) linkMap.set(link.variation_id, new Map());
+        linkMap.get(link.variation_id)!.set(link.account_id, link);
       }
 
       const filtered = typeFilter
