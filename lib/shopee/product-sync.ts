@@ -679,10 +679,22 @@ export async function pushStockToShopee(
       }
 
       if (stockList.length > 0) {
-        const { error } = await updateStock(creds, parseInt(externalItemId), stockList);
+        const { data: stockResult, error } = await updateStock(creds, parseInt(externalItemId), stockList);
         if (error) {
           errors.push(`Item ${externalItemId}: ${error}`);
+          // Log detailed failure for debugging Shopee 44% success rate issue
+          console.warn(`[Shopee Stock] update_stock FAIL item=${externalItemId}:`, {
+            error,
+            stockList: stockList.map(s => ({ model_id: s.model_id, stock: s.seller_stock[0]?.stock })),
+          });
         } else {
+          // Check for partial failure in response (failure_list)
+          const resp = stockResult as { failure_list?: { model_id: number; fail_message: string }[] } | null;
+          if (resp?.failure_list && resp.failure_list.length > 0) {
+            const failMsgs = resp.failure_list.map(f => `model_id=${f.model_id}: ${f.fail_message}`);
+            errors.push(`Item ${externalItemId} partial fail: ${failMsgs.join('; ')}`);
+            console.warn(`[Shopee Stock] update_stock PARTIAL FAIL item=${externalItemId}:`, failMsgs);
+          }
           updatedModels += stockList.length;
           const linkIds = groupLinks.map(l => l.id);
           await supabaseAdmin

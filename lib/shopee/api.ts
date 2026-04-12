@@ -672,10 +672,18 @@ export async function massShipOrder(
     fail_list?: { package_number: string; fail_reason: string }[];
   };
 
-  return {
-    successList: response?.success_list || [],
-    failList: response?.fail_list || [],
-  };
+  const successList = response?.success_list || [];
+  const failList = response?.fail_list || [];
+
+  // Log detailed results for debugging — this API had 0% success historically
+  if (failList.length > 0) {
+    console.warn(`[Shopee API] mass_ship_order: ${successList.length} success, ${failList.length} fail`, {
+      fail_reasons: failList.map(f => `${f.package_number}: ${f.fail_reason}`),
+      sent_packages: packages.length,
+    });
+  }
+
+  return { successList, failList };
 }
 
 export interface ShippingDocumentParameterItem {

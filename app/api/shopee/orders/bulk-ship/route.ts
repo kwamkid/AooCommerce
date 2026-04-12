@@ -279,15 +279,11 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const isAdvancePackage = pkgInfos[0]?.advance_package === true;
-
         for (const pkgInfo of pkgInfos) {
           const channelId = pkgInfo.logistics_channel_id || 0;
-          // Only include package_number for split orders (advance_package=true)
-          // Unsplit orders: omit package_number per Shopee API doc
-          const massShipPkg: MassShipPackage = isAdvancePackage
-            ? { package_number: pkgInfo.package_number }
-            : {};
+          // Always include package_number — Shopee returns it in success_list/fail_list
+          // and we need it to match results back to orders.
+          const massShipPkg: MassShipPackage = { package_number: pkgInfo.package_number };
 
           if (!channelGroups.has(channelId)) channelGroups.set(channelId, []);
           channelGroups.get(channelId)!.push({ pkg: massShipPkg, order, sp });
@@ -350,25 +346,25 @@ export async function POST(request: NextRequest) {
         const successPns = new Set(successList.map(s => s.package_number));
         const failPnMap = new Map(failList.map(f => [f.package_number, f.fail_reason]));
 
+        // Log full response for debugging
+        console.log(`[Shopee Bulk Ship] Channel ${channelId}: sent ${items.length} pkgs, successList=${JSON.stringify(successList)}, failList=${JSON.stringify(failList)}`);
+
         for (const item of items) {
           const pn = item.pkg.package_number;
           if (pn && successPns.has(pn)) {
             orderSuccessSet.add(item.order.id);
           } else if (pn && failPnMap.has(pn)) {
             const reason = failPnMap.get(pn)!;
-            // Already shipped is OK
             if (reason.includes('already shipped') || reason.includes('order_status_error')) {
               orderSuccessSet.add(item.order.id);
             } else {
               orderErrorMap.set(item.order.id, `รับออเดอร์ไม่สำเร็จ: ${reason}`);
             }
-          } else if (!pn) {
-            // Unsplit order (no package_number) — if mass_ship didn't error, assume success
-            orderSuccessSet.add(item.order.id);
+          } else {
+            // Package not in success_list or fail_list — treat as fail (do NOT assume success)
+            orderErrorMap.set(item.order.id, `รับออเดอร์ไม่สำเร็จ: ไม่พบผลลัพธ์จาก Shopee (package: ${pn || 'N/A'})`);
           }
         }
-
-        console.log(`[Shopee Bulk Ship] Channel ${channelId}: ${successList.length} success, ${failList.length} fail`);
       }
 
       // Step 5: Fallback — individual ship_order for orders without package_number
@@ -447,7 +443,7 @@ export async function POST(request: NextRequest) {
     const needsTimeSlotCount = results.filter(r => r.needs_time_slot).length;
     const errorCount = results.filter(r => !r.success && !r.needs_time_slot).length;
 
-    // Log each processed order to integration_logs
+    // Log each processed order to integration_logs with full detail
     for (const r of results) {
       if (r.needs_time_slot) continue;
       const order = orderMap.get(r.order_id);
@@ -466,13 +462,15 @@ export async function POST(request: NextRequest) {
         action: 'accept_order',
         method: 'POST',
         api_path: '/api/v2/logistics/mass_ship_order',
-        request_body: { order_sn: r.order_sn },
-        response_body: r.success ? { success: true } : { error: r.error },
+        request_body: { order_sn: r.order_sn, order_id: r.order_id },
+        response_body: r.success
+          ? { success: true, external_status: 'PROCESSED' }
+          : { success: false, error: r.error },
         status: r.success ? 'success' : 'error',
         error_message: r.error || undefined,
         reference_type: 'order',
         reference_id: r.order_sn,
-        reference_label: r.order_sn,
+        reference_label: `${r.order_sn} → ${r.success ? 'PROCESSED' : 'FAILED'}`,
       });
     }
 
