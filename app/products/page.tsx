@@ -473,6 +473,7 @@ function ProductsPageContent() {
       for (const product of filtered) {
         const isMulti = product.variations.length > 1;
         if (!isMulti) {
+          // Simple product: single row with all info
           const v = product.variations[0];
           dataRows.push({
             productId: product.product_id,
@@ -488,18 +489,28 @@ function ProductsPageContent() {
             ],
           });
         } else {
-          for (let i = 0; i < product.variations.length; i++) {
-            const v = product.variations[i];
-            const isFirst = i === 0;
+          // Variable product: parent row (name only) + child rows (each variation)
+          dataRows.push({
+            productId: product.product_id,
+            variationId: '',
+            isParent: true,
+            values: [
+              product.product_id, '',
+              product.code || '', product.name,
+              `สินค้าย่อย (${product.variations.length})`, '',
+              '', '', '', '',
+              product.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
+            ],
+          });
+          for (const v of product.variations) {
             dataRows.push({
               productId: product.product_id,
               variationId: v.variation_id || '',
-              isParent: isFirst,
+              isParent: false,
               values: [
                 product.product_id, v.variation_id || '',
-                isFirst ? (product.code || '') : '', isFirst ? product.name : '',
-                isFirst ? `สินค้าย่อย (${product.variations.length})` : '',
-                v.variation_label || '-',
+                '', '',
+                '', v.variation_label || '-',
                 v.sku || '', v.barcode || '',
                 v.default_price ?? 0, v.discount_price ?? 0,
                 v.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
