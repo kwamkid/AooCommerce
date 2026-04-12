@@ -567,7 +567,8 @@ function ProductsPageContent() {
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       const date = new Date().toISOString().slice(0, 10);
-      link.download = `products-${date}.xlsx`;
+      const filterLabel = hasActiveFilters ? 'filter' : 'all';
+      link.download = `${filterLabel}-product-${filtered.length}-${date}.xlsx`;
       link.click();
       URL.revokeObjectURL(link.href);
       showToast(`ส่งออกสินค้า ${filtered.length} รายการสำเร็จ`);
