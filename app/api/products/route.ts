@@ -350,7 +350,7 @@ export async function GET(request: NextRequest) {
     // Pagination params
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
-    const paginate = searchParams.has('page'); // Only paginate if page param is provided
+    const paginate = searchParams.has('page') || searchParams.has('limit');
 
     // Step 1: Get paginated product IDs from the products table directly
     let productsBaseQuery = supabaseAdmin

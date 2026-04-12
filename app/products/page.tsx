@@ -26,6 +26,8 @@ import {
   Award,
   AlertCircle,
   FilterX,
+  Download,
+  Upload,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
@@ -157,6 +159,7 @@ function ProductsPageContent() {
   // Helper to update URL params
   const setParams = useCallback((updates: Record<string, string>) => {
     const params = new URLSearchParams(searchParams.toString());
+    const hasExplicitPage = 'page' in updates;
     let pageReset = false;
     for (const [k, v] of Object.entries(updates)) {
       if (k !== 'page') pageReset = true;
@@ -164,7 +167,10 @@ function ProductsPageContent() {
       if (v === defaults[k] || v === '') params.delete(k);
       else params.set(k, v);
     }
-    if (pageReset) params.delete('page');
+    // Auto-reset page to 1 when filters change, but only if page wasn't explicitly passed
+    if (pageReset && !hasExplicitPage) params.delete('page');
+    // Always keep page param so API paginates (page=1 means "page 1", not "no pagination")
+    if (!params.has('page')) params.set('page', '1');
     const qs = params.toString();
     router.replace(qs ? `?${qs}` : '/products', { scroll: false });
   }, [searchParams, router]);
@@ -218,6 +224,7 @@ function ProductsPageContent() {
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [bulkBrandId, setBulkBrandId] = useState('');
   const [bulkBrandSaving, setBulkBrandSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
 
   // Lightbox state
@@ -424,6 +431,79 @@ function ProductsPageContent() {
     }
   }, [error]);
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({ include_shop_options: '0' });
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (categoryFilter !== '') params.set('category_id', categoryFilter);
+      if (brandFilter !== '') params.set('brand_id', brandFilter);
+      if (shopAccountFilter !== 'all') params.set('shop_account_id', shopAccountFilter);
+
+      const response = await apiFetch(`/api/products?${params.toString()}`);
+      const data = await response.json();
+      const allProducts: ProductItem[] = data.products || [];
+
+      // Apply client-side type filter
+      const filtered = typeFilter
+        ? allProducts.filter(p => p.product_type === typeFilter)
+        : allProducts;
+
+      const headers = ['รหัสสินค้า', 'ชื่อสินค้า', 'ประเภท', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย', 'สถานะ'];
+      const escapeCSV = (val: string) => {
+        if (val.includes(',') || val.includes('"') || val.includes('\n')) return `"${val.replace(/"/g, '""')}"`;
+        return val;
+      };
+      const rows: string[] = [headers.join(',')];
+
+      for (const product of filtered) {
+        if (product.variations.length <= 1) {
+          const v = product.variations[0];
+          rows.push([
+            escapeCSV(product.code || ''),
+            escapeCSV(product.name),
+            product.product_type === 'simple' ? 'สินค้าปกติ' : 'สินค้าย่อย',
+            escapeCSV(v?.variation_label || '-'),
+            escapeCSV(v?.sku || ''),
+            escapeCSV(v?.barcode || ''),
+            String(v?.default_price ?? ''),
+            String(v?.discount_price ?? ''),
+            product.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
+          ].join(','));
+        } else {
+          for (const v of product.variations) {
+            rows.push([
+              escapeCSV(product.code || ''),
+              escapeCSV(product.name),
+              'สินค้าย่อย',
+              escapeCSV(v.variation_label || '-'),
+              escapeCSV(v.sku || ''),
+              escapeCSV(v.barcode || ''),
+              String(v.default_price ?? ''),
+              String(v.discount_price ?? ''),
+              v.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
+            ].join(','));
+          }
+        }
+      }
+
+      const csvContent = '\ufeff' + rows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      const date = new Date().toISOString().slice(0, 10);
+      link.download = `products-${date}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      showToast(`ส่งออกสินค้า ${filtered.length} รายการสำเร็จ`);
+    } catch (err) {
+      console.error('Export error:', err);
+      showToast('ส่งออกไม่สำเร็จ', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
@@ -448,13 +528,30 @@ function ProductsPageContent() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">สินค้า</h1>
             <p className="text-gray-600 dark:text-slate-400 mt-1">จัดการสินค้า (สินค้าปกติ หรือ สินค้าย่อย)</p>
           </div>
-          <button
-            onClick={() => router.push('/products/new')}
-            className="flex items-center space-x-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>เพิ่ม<span className="hidden md:inline">สินค้า</span></span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg transition-colors text-sm"
+            >
+              {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              <span className="hidden md:inline">Export</span>
+            </button>
+            <button
+              onClick={() => router.push('/products/import')}
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg transition-colors text-sm"
+            >
+              <Upload className="w-4 h-4" />
+              <span className="hidden md:inline">Import</span>
+            </button>
+            <button
+              onClick={() => router.push('/products/new')}
+              className="flex items-center space-x-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              <span>เพิ่ม<span className="hidden md:inline">สินค้า</span></span>
+            </button>
+          </div>
         </div>
 
 
@@ -801,7 +898,7 @@ function ProductsPageContent() {
                 startIdx={startIndex}
                 endIdx={Math.min(startIndex + rowsPerPage, totalFiltered)}
                 recordsPerPage={rowsPerPage}
-                setRecordsPerPage={(v: number) => setParams({ limit: String(v) })}
+                setRecordsPerPage={(v: number) => setParams({ limit: String(v), page: '1' })}
                 setPage={(p: number) => setParams({ page: String(p) })}
                 loadTime={loadTime}
               >
@@ -931,7 +1028,7 @@ function ProductsPageContent() {
                 startIdx={startIndex}
                 endIdx={Math.min(startIndex + rowsPerPage, totalFiltered)}
                 recordsPerPage={rowsPerPage}
-                setRecordsPerPage={(v: number) => setParams({ limit: String(v) })}
+                setRecordsPerPage={(v: number) => setParams({ limit: String(v), page: '1' })}
                 setPage={(p: number) => setParams({ page: String(p) })}
               />
             </div>
