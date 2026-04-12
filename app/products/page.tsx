@@ -449,7 +449,7 @@ function ProductsPageContent() {
         ? allProducts.filter(p => p.product_type === typeFilter)
         : allProducts;
 
-      const headers = ['product_id', 'variation_id', 'รหัสสินค้า', 'ชื่อสินค้า', 'ประเภท', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย', 'สถานะ'];
+      const headers = ['product_id (ห้ามแก้)', 'variation_id (ห้ามแก้)', 'รหัสสินค้า', 'ชื่อสินค้า', 'ประเภท', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย', 'สถานะ'];
       const escapeCSV = (val: string) => {
         if (val.includes(',') || val.includes('"') || val.includes('\n')) return `"${val.replace(/"/g, '""')}"`;
         return val;

@@ -87,7 +87,7 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
-const TEMPLATE_HEADERS = ['product_id', 'variation_id', 'รหัสสินค้า', 'ชื่อสินค้า', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย'];
+const TEMPLATE_HEADERS = ['product_id (ห้ามแก้)', 'variation_id (ห้ามแก้)', 'รหัสสินค้า', 'ชื่อสินค้า', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย'];
 
 function downloadTemplate() {
   const rows = [
@@ -304,6 +304,9 @@ export default function ImportProductsPage() {
                   <li><strong>รหัสซ้ำ</strong> — ถ้ารหัสสินค้าเดียวกันมีหลายแถว จะรวมเป็นสินค้าย่อย (variation)</li>
                   <li><strong>ถ้ามีราคาเปลี่ยน</strong> — ระบบจะ sync ไป Shopee/TikTok อัตโนมัติ</li>
                 </ul>
+                <div className="mt-3 p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-300">
+                  <strong>product_id</strong> และ <strong>variation_id</strong> คือ ID ของระบบ — <strong>ห้ามแก้ไข!</strong> ใช้เพื่อระบุว่าจะอัพเดทสินค้าตัวไหน ถ้าลบออกระบบจะสร้างสินค้าใหม่แทน (ทุกสินค้ามี variation_id รวมถึงสินค้าปกติ เพราะราคาและ SKU เก็บในตาราง variation)
+                </div>
               </div>
             </div>
           </div>
