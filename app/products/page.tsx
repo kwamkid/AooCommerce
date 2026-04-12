@@ -470,10 +470,16 @@ function ProductsPageContent() {
       type RowData = { productId: string; variationId: string; isParent: boolean; values: (string | number)[] };
       const dataRows: RowData[] = [];
 
+      // For simple products, if variation_label = SKU/code/barcode, show "-" instead
+      const cleanVariationLabel = (label: string | undefined, sku?: string, barcode?: string, code?: string) => {
+        if (!label || label === '-') return '-';
+        if (label === sku || label === barcode || label === code) return '-';
+        return label;
+      };
+
       for (const product of filtered) {
         const isMulti = product.variations.length > 1;
         if (!isMulti) {
-          // Simple product: single row with all info
           const v = product.variations[0];
           dataRows.push({
             productId: product.product_id,
@@ -482,14 +488,13 @@ function ProductsPageContent() {
             values: [
               product.product_id, v?.variation_id || '',
               product.code || '', product.name,
-              'สินค้าปกติ', v?.variation_label || '-',
+              'สินค้าปกติ', cleanVariationLabel(v?.variation_label, v?.sku, v?.barcode, product.code),
               v?.sku || '', v?.barcode || '',
               v?.default_price ?? 0, v?.discount_price ?? 0,
               product.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
             ],
           });
         } else {
-          // Variable product: parent row (name only) + child rows (each variation)
           dataRows.push({
             productId: product.product_id,
             variationId: '',
@@ -530,13 +535,8 @@ function ProductsPageContent() {
         excelRow.getCell(2).font = grayFont;
         excelRow.getCell(2).protection = { locked: true };
 
-        // Parent row: bold name
         if (row.isParent) {
           excelRow.getCell(4).font = { bold: true };
-        } else {
-          // Child row: indent variation label
-          excelRow.getCell(6).alignment = { indent: 2 };
-          excelRow.getCell(6).font = { color: { argb: 'FF666666' } };
         }
       }
 
