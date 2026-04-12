@@ -449,7 +449,7 @@ function ProductsPageContent() {
         ? allProducts.filter(p => p.product_type === typeFilter)
         : allProducts;
 
-      const headers = ['รหัสสินค้า', 'ชื่อสินค้า', 'ประเภท', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย', 'สถานะ'];
+      const headers = ['product_id', 'variation_id', 'รหัสสินค้า', 'ชื่อสินค้า', 'ประเภท', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย', 'สถานะ'];
       const escapeCSV = (val: string) => {
         if (val.includes(',') || val.includes('"') || val.includes('\n')) return `"${val.replace(/"/g, '""')}"`;
         return val;
@@ -460,6 +460,8 @@ function ProductsPageContent() {
         if (product.variations.length <= 1) {
           const v = product.variations[0];
           rows.push([
+            product.product_id,
+            v?.variation_id || '',
             escapeCSV(product.code || ''),
             escapeCSV(product.name),
             product.product_type === 'simple' ? 'สินค้าปกติ' : 'สินค้าย่อย',
@@ -473,6 +475,8 @@ function ProductsPageContent() {
         } else {
           for (const v of product.variations) {
             rows.push([
+              product.product_id,
+              v.variation_id || '',
               escapeCSV(product.code || ''),
               escapeCSV(product.name),
               'สินค้าย่อย',

@@ -8,10 +8,12 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
   Upload, Download, ArrowLeft, FileSpreadsheet,
-  Check, X, Loader2, AlertCircle,
+  Check, Loader2, AlertCircle, RefreshCw, Plus, Pencil,
 } from 'lucide-react';
 
 interface ParsedRow {
+  product_id: string;
+  variation_id: string;
   code: string;
   name: string;
   variation_label: string;
@@ -24,17 +26,26 @@ interface ParsedRow {
 }
 
 interface GroupedProduct {
+  key: string;
+  product_id?: string;
   code: string;
   name: string;
-  product_type: 'simple' | 'variation';
+  action: 'create' | 'update';
   variations: {
+    variation_id?: string;
     variation_label: string;
     sku: string;
     barcode: string;
     default_price: number;
     discount_price: number;
   }[];
-  errors: string[];
+}
+
+interface ImportResult {
+  code: string;
+  name: string;
+  action: 'created' | 'updated' | 'error';
+  error?: string;
 }
 
 function parseCSV(text: string): string[][] {
@@ -76,15 +87,14 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
-const TEMPLATE_HEADERS = ['รหัสสินค้า', 'ชื่อสินค้า', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย'];
+const TEMPLATE_HEADERS = ['product_id', 'variation_id', 'รหัสสินค้า', 'ชื่อสินค้า', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย'];
 
 function downloadTemplate() {
   const rows = [
     TEMPLATE_HEADERS.join(','),
-    'P001,เสื้อยืดสีขาว,ขาว S,SKU-001,8850001,350,299',
-    'P001,เสื้อยืดสีขาว,ขาว M,SKU-002,8850002,350,299',
-    'P001,เสื้อยืดสีขาว,ขาว L,SKU-003,8850003,350,299',
-    'P002,กางเกงยีนส์,-,SKU-004,8850004,890,790',
+    ',,P001,เสื้อยืดสีขาว,ขาว S,SKU-001,8850001,350,299',
+    ',,P001,เสื้อยืดสีขาว,ขาว M,SKU-002,8850002,350,299',
+    ',,P002,กางเกงยีนส์,-,SKU-004,8850004,890,790',
   ];
   const csv = '\ufeff' + rows.join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -106,7 +116,7 @@ export default function ImportProductsPage() {
   const [grouped, setGrouped] = useState<GroupedProduct[]>([]);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [results, setResults] = useState<{ code: string; name: string; success: boolean; error?: string }[]>([]);
+  const [results, setResults] = useState<ImportResult[]>([]);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -122,17 +132,18 @@ export default function ImportProductsPage() {
         return;
       }
 
-      // Skip header row
       const dataRows = rows.slice(1);
       const parsed: ParsedRow[] = dataRows.map((cols, i) => {
         const row: ParsedRow = {
-          code: cols[0] || '',
-          name: cols[1] || '',
-          variation_label: cols[2] || '-',
-          sku: cols[3] || '',
-          barcode: cols[4] || '',
-          default_price: parseFloat(cols[5] || '0') || 0,
-          discount_price: parseFloat(cols[6] || '0') || 0,
+          product_id: cols[0] || '',
+          variation_id: cols[1] || '',
+          code: cols[2] || '',
+          name: cols[3] || '',
+          variation_label: cols[4] || '-',
+          sku: cols[5] || '',
+          barcode: cols[6] || '',
+          default_price: parseFloat(cols[7] || '0') || 0,
+          discount_price: parseFloat(cols[8] || '0') || 0,
           rowNum: i + 2,
         };
         if (!row.code) row.error = 'ไม่มีรหัสสินค้า';
@@ -142,34 +153,29 @@ export default function ImportProductsPage() {
 
       setParsedRows(parsed);
 
-      // Group by product code
+      // Group by product_id (update) or code (create)
       const groupMap = new Map<string, GroupedProduct>();
       for (const row of parsed) {
         if (row.error) continue;
-        if (!groupMap.has(row.code)) {
-          groupMap.set(row.code, {
+        const key = row.product_id || `new:${row.code}`;
+        if (!groupMap.has(key)) {
+          groupMap.set(key, {
+            key,
+            product_id: row.product_id || undefined,
             code: row.code,
             name: row.name,
-            product_type: 'simple',
+            action: row.product_id ? 'update' : 'create',
             variations: [],
-            errors: [],
           });
         }
-        const g = groupMap.get(row.code)!;
-        g.variations.push({
+        groupMap.get(key)!.variations.push({
+          variation_id: row.variation_id || undefined,
           variation_label: row.variation_label || '-',
           sku: row.sku,
           barcode: row.barcode,
           default_price: row.default_price,
           discount_price: row.discount_price,
         });
-      }
-
-      // Determine product_type
-      for (const [, g] of groupMap) {
-        if (g.variations.length > 1) {
-          g.product_type = 'variation';
-        }
       }
 
       setGrouped(Array.from(groupMap.values()));
@@ -181,64 +187,65 @@ export default function ImportProductsPage() {
   const handleImport = async () => {
     setImporting(true);
     setStep('importing');
-    const importResults: typeof results = [];
+    setProgress(10);
 
-    for (let i = 0; i < grouped.length; i++) {
-      const product = grouped[i];
-      setProgress(Math.round(((i + 1) / grouped.length) * 100));
+    try {
+      const items = grouped.flatMap(g =>
+        g.variations.map(v => ({
+          product_id: g.product_id,
+          variation_id: v.variation_id,
+          code: g.code,
+          name: g.name,
+          product_type: g.variations.length > 1 ? 'variation' : 'simple',
+          variation_label: v.variation_label,
+          sku: v.sku,
+          barcode: v.barcode,
+          default_price: v.default_price,
+          discount_price: v.discount_price,
+        }))
+      );
 
-      try {
-        const body: Record<string, unknown> = {
-          code: product.code,
-          name: product.name,
-          product_type: product.product_type,
-        };
+      setProgress(30);
 
-        if (product.product_type === 'simple') {
-          const v = product.variations[0];
-          body.variation_label = v.variation_label || '-';
-          body.default_price = v.default_price;
-          body.discount_price = v.discount_price || 0;
-          body.sku = v.sku || undefined;
-          body.barcode = v.barcode || undefined;
-        } else {
-          body.variations = product.variations.map(v => ({
-            variation_label: v.variation_label,
-            default_price: v.default_price,
-            discount_price: v.discount_price || 0,
-            sku: v.sku || undefined,
-            barcode: v.barcode || undefined,
-          }));
-        }
+      const res = await apiFetch('/api/products/bulk-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      });
 
-        const res = await apiFetch('/api/products', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
+      setProgress(90);
+      const data = await res.json();
 
-        if (res.ok) {
-          importResults.push({ code: product.code, name: product.name, success: true });
-        } else {
-          const data = await res.json();
-          importResults.push({ code: product.code, name: product.name, success: false, error: data.error || 'Unknown error' });
-        }
-      } catch (err) {
-        importResults.push({ code: product.code, name: product.name, success: false, error: err instanceof Error ? err.message : 'Unknown' });
+      if (!res.ok) {
+        showToast(data.error || 'นำเข้าไม่สำเร็จ', 'error');
+        setStep('upload');
+        return;
       }
-    }
 
-    setResults(importResults);
-    setImporting(false);
-    setStep('done');
-    const successCount = importResults.filter(r => r.success).length;
-    showToast(`นำเข้าสำเร็จ ${successCount}/${importResults.length} สินค้า`);
+      setResults(data.results || []);
+      setProgress(100);
+      setStep('done');
+
+      const { created, updated, errors } = data.summary || {};
+      const parts: string[] = [];
+      if (created > 0) parts.push(`สร้างใหม่ ${created}`);
+      if (updated > 0) parts.push(`อัพเดท ${updated}`);
+      if (errors > 0) parts.push(`ล้มเหลว ${errors}`);
+      showToast(parts.join(', ') || 'เสร็จสิ้น');
+    } catch (err) {
+      console.error('Import error:', err);
+      showToast('นำเข้าไม่สำเร็จ', 'error');
+      setStep('upload');
+    } finally {
+      setImporting(false);
+    }
   };
 
   const errorRows = parsedRows.filter(r => r.error);
-  const validCount = grouped.length;
-  const successCount = results.filter(r => r.success).length;
-  const failCount = results.filter(r => !r.success).length;
+  const createCount = grouped.filter(g => g.action === 'create').length;
+  const updateCount = grouped.filter(g => g.action === 'update').length;
+  const successCount = results.filter(r => r.action !== 'error').length;
+  const failCount = results.filter(r => r.action === 'error').length;
 
   if (!userProfile) return null;
 
@@ -252,7 +259,7 @@ export default function ImportProductsPage() {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">นำเข้าสินค้า</h1>
-            <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">อัพโหลดไฟล์ CSV เพื่อสร้างสินค้าหลายรายการพร้อมกัน</p>
+            <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">อัพโหลดไฟล์ CSV เพื่อสร้างหรืออัพเดทสินค้า</p>
           </div>
         </div>
 
@@ -267,7 +274,7 @@ export default function ImportProductsPage() {
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">อัพโหลดไฟล์ CSV</h2>
                 <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">
-                  ดาวน์โหลด template ด้านล่าง กรอกข้อมูลสินค้า แล้วอัพโหลด
+                  Export จากหน้าสินค้า แก้ไขแล้ว Import กลับ หรือดาวน์โหลด Template สำหรับสร้างใหม่
                 </p>
               </div>
 
@@ -279,7 +286,6 @@ export default function ImportProductsPage() {
                   <Download className="w-4 h-4" />
                   ดาวน์โหลด Template
                 </button>
-
                 <button
                   onClick={() => fileRef.current?.click()}
                   className="flex items-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold transition-colors"
@@ -287,23 +293,16 @@ export default function ImportProductsPage() {
                   <Upload className="w-4 h-4" />
                   เลือกไฟล์ CSV
                 </button>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".csv"
-                  onChange={handleFile}
-                  className="hidden"
-                />
+                <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="hidden" />
               </div>
 
               <div className="text-left bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4 text-sm text-gray-600 dark:text-slate-400">
-                <p className="font-medium text-gray-800 dark:text-slate-300 mb-2">รูปแบบไฟล์ CSV:</p>
+                <p className="font-medium text-gray-800 dark:text-slate-300 mb-2">วิธีใช้:</p>
                 <ul className="space-y-1 list-disc list-inside">
-                  <li><strong>รหัสสินค้า</strong> — ถ้าซ้ำกันจะรวมเป็นสินค้าย่อย (variation)</li>
-                  <li><strong>ชื่อสินค้า</strong> — ชื่อหลักของสินค้า</li>
-                  <li><strong>ตัวเลือก</strong> — เช่น "แดง S", "น้ำเงิน M" (ใส่ - ถ้าไม่มี)</li>
-                  <li><strong>SKU / Barcode</strong> — ไม่บังคับ</li>
-                  <li><strong>ราคาปกติ / ราคาขาย</strong> — ตัวเลข (ราคาขาย=ราคาลด)</li>
+                  <li><strong>สร้างใหม่</strong> — ปล่อย product_id, variation_id ว่าง ระบบจะสร้างสินค้าใหม่</li>
+                  <li><strong>อัพเดท</strong> — ใส่ product_id + variation_id (ได้จาก Export) → อัพเดทราคา, SKU, ชื่อ</li>
+                  <li><strong>รหัสซ้ำ</strong> — ถ้ารหัสสินค้าเดียวกันมีหลายแถว จะรวมเป็นสินค้าย่อย (variation)</li>
+                  <li><strong>ถ้ามีราคาเปลี่ยน</strong> — ระบบจะ sync ไป Shopee/TikTok อัตโนมัติ</li>
                 </ul>
               </div>
             </div>
@@ -313,20 +312,26 @@ export default function ImportProductsPage() {
         {/* Step: Preview */}
         {step === 'preview' && (
           <div className="space-y-4">
-            {/* Summary */}
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-4 text-sm">
                   <span className="text-gray-600 dark:text-slate-400">
-                    <strong className="text-gray-900 dark:text-white">{parsedRows.length}</strong> แถวข้อมูล
+                    <strong className="text-gray-900 dark:text-white">{parsedRows.length}</strong> แถว
                   </span>
-                  <span className="text-gray-600 dark:text-slate-400">
-                    → <strong className="text-emerald-600">{validCount}</strong> สินค้าที่จะสร้าง
-                  </span>
-                  {errorRows.length > 0 && (
-                    <span className="text-red-600">
-                      <strong>{errorRows.length}</strong> แถวมีปัญหา
+                  {createCount > 0 && (
+                    <span className="flex items-center gap-1 text-emerald-600">
+                      <Plus className="w-3.5 h-3.5" />
+                      <strong>{createCount}</strong> สร้างใหม่
                     </span>
+                  )}
+                  {updateCount > 0 && (
+                    <span className="flex items-center gap-1 text-blue-600">
+                      <Pencil className="w-3.5 h-3.5" />
+                      <strong>{updateCount}</strong> อัพเดท
+                    </span>
+                  )}
+                  {errorRows.length > 0 && (
+                    <span className="text-red-600"><strong>{errorRows.length}</strong> ข้าม</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -338,16 +343,15 @@ export default function ImportProductsPage() {
                   </button>
                   <button
                     onClick={handleImport}
-                    disabled={validCount === 0}
+                    disabled={grouped.length === 0}
                     className="px-4 py-2 text-sm bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    นำเข้า {validCount} สินค้า
+                    นำเข้า {grouped.length} สินค้า
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Error rows */}
             {errorRows.length > 0 && (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-red-700 dark:text-red-400 text-sm font-medium mb-2">
@@ -363,30 +367,44 @@ export default function ImportProductsPage() {
               </div>
             )}
 
-            {/* Products preview */}
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="data-thead">
                   <tr>
+                    <th className="data-th w-16">Action</th>
                     <th className="data-th">รหัส</th>
                     <th className="data-th">ชื่อสินค้า</th>
-                    <th className="data-th">ประเภท</th>
                     <th className="data-th text-center">ตัวเลือก</th>
-                    <th className="data-th text-right">ราคา</th>
+                    <th className="data-th text-right">ราคาปกติ</th>
+                    <th className="data-th text-right">ราคาขาย</th>
                   </tr>
                 </thead>
                 <tbody className="data-tbody">
                   {grouped.map(product => (
-                    <tr key={product.code} className="data-tr">
+                    <tr key={product.key} className="data-tr">
+                      <td className="px-5 py-3">
+                        {product.action === 'create' ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">
+                            <Plus className="w-3 h-3" /> ใหม่
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
+                            <Pencil className="w-3 h-3" /> แก้ไข
+                          </span>
+                        )}
+                      </td>
                       <td className="px-5 py-3 font-mono text-xs text-gray-500 dark:text-slate-400">{product.code}</td>
                       <td className="px-5 py-3 font-medium text-gray-900 dark:text-white">{product.name}</td>
-                      <td className="px-5 py-3 text-gray-500 dark:text-slate-400">
-                        {product.product_type === 'simple' ? 'ปกติ' : `ย่อย (${product.variations.length})`}
+                      <td className="px-5 py-3 text-center text-gray-600 dark:text-slate-400 text-xs">
+                        {product.variations.length === 1
+                          ? product.variations[0].variation_label
+                          : `${product.variations.length} ตัวเลือก`
+                        }
                       </td>
-                      <td className="px-5 py-3 text-center text-gray-600 dark:text-slate-400">
-                        {product.variations.map(v => v.variation_label).join(', ')}
+                      <td className="px-5 py-3 text-right text-gray-700 dark:text-slate-300">
+                        {product.variations[0]?.default_price || 0}
                       </td>
-                      <td className="px-5 py-3 text-right text-gray-900 dark:text-white">
+                      <td className="px-5 py-3 text-right text-gray-900 dark:text-white font-medium">
                         {product.variations[0]?.discount_price || product.variations[0]?.default_price || 0}
                       </td>
                     </tr>
@@ -419,11 +437,18 @@ export default function ImportProductsPage() {
                   : <AlertCircle className="w-8 h-8 text-amber-600" />
                 }
               </div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                นำเข้าเสร็จสิ้น
-              </h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">นำเข้าเสร็จสิ้น</h2>
               <div className="flex items-center justify-center gap-6 text-sm">
-                <span className="text-emerald-600 font-medium">{successCount} สำเร็จ</span>
+                {results.filter(r => r.action === 'created').length > 0 && (
+                  <span className="text-emerald-600 font-medium">
+                    {results.filter(r => r.action === 'created').length} สร้างใหม่
+                  </span>
+                )}
+                {results.filter(r => r.action === 'updated').length > 0 && (
+                  <span className="text-blue-600 font-medium">
+                    {results.filter(r => r.action === 'updated').length} อัพเดท
+                  </span>
+                )}
                 {failCount > 0 && <span className="text-red-600 font-medium">{failCount} ล้มเหลว</span>}
               </div>
               <div className="flex items-center justify-center gap-3 pt-2">
@@ -442,15 +467,14 @@ export default function ImportProductsPage() {
               </div>
             </div>
 
-            {/* Failed items */}
             {failCount > 0 && (
               <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
                 <div className="px-5 py-3 border-b border-gray-100 dark:border-slate-700">
                   <h3 className="font-medium text-red-600">รายการที่ล้มเหลว</h3>
                 </div>
                 <div className="divide-y divide-gray-100 dark:divide-slate-700">
-                  {results.filter(r => !r.success).map(r => (
-                    <div key={r.code} className="px-5 py-3 flex items-center justify-between text-sm">
+                  {results.filter(r => r.action === 'error').map((r, i) => (
+                    <div key={i} className="px-5 py-3 flex items-center justify-between text-sm">
                       <div>
                         <span className="font-mono text-xs text-gray-400 mr-2">{r.code}</span>
                         <span className="text-gray-900 dark:text-white">{r.name}</span>
