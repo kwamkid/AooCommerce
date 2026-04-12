@@ -442,9 +442,33 @@ function ProductsPageContent() {
       if (brandFilter !== '') params.set('brand_id', brandFilter);
       if (shopAccountFilter !== 'all') params.set('shop_account_id', shopAccountFilter);
 
-      const response = await apiFetch(`/api/products?${params.toString()}`);
-      const data = await response.json();
+      // Fetch products + marketplace links in parallel
+      const [productRes, linksRes] = await Promise.all([
+        apiFetch(`/api/products?${params.toString()}`),
+        apiFetch('/api/shopee/accounts'),
+      ]);
+      const data = await productRes.json();
       const allProducts: ProductItem[] = data.products || [];
+      const accounts: { id: string; shop_name: string; platform: string; is_active: boolean }[] = await linksRes.json();
+
+      // Get active shop accounts for columns
+      const activeShops = accounts.filter(a => a.is_active);
+
+      // Fetch marketplace_product_links for all variations
+      const allVarIds = allProducts.flatMap(p => p.variations.map(v => v.variation_id).filter(Boolean));
+      type LinkInfo = { variation_id: string; account_id: string; platform_price: number | null; platform_discount_price: number | null };
+      const linkMap = new Map<string, Map<string, LinkInfo>>();
+
+      if (allVarIds.length > 0 && activeShops.length > 0) {
+        const linkRes = await apiFetch(`/api/products/export-links?variation_ids=${allVarIds.join(',')}`);
+        if (linkRes.ok) {
+          const linkData: LinkInfo[] = await linkRes.json();
+          for (const link of linkData) {
+            if (!linkMap.has(link.variation_id)) linkMap.set(link.variation_id, new Map());
+            linkMap.get(link.variation_id)!.set(link.account_id, link);
+          }
+        }
+      }
 
       const filtered = typeFilter
         ? allProducts.filter(p => p.product_type === typeFilter)
@@ -453,8 +477,10 @@ function ProductsPageContent() {
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('สินค้า');
 
-      // Headers
-      const headers = ['product_id', 'variation_id', 'รหัสสินค้า', 'ชื่อสินค้า', 'ประเภท', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย', 'สถานะ'];
+      // Build dynamic headers: base columns + marketplace shop columns
+      const baseHeaders = ['product_id', 'variation_id', 'รหัสสินค้า', 'ชื่อสินค้า', 'ประเภท', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย', 'สถานะ'];
+      const shopHeaders = activeShops.map(s => `ราคา ${s.shop_name || s.id}`);
+      const headers = [...baseHeaders, ...shopHeaders];
       const headerRow = ws.addRow(headers);
       headerRow.eachCell((cell) => {
         cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -477,6 +503,14 @@ function ProductsPageContent() {
         return label;
       };
 
+      const getShopPrices = (varId?: string) =>
+        activeShops.map(shop => {
+          if (!varId) return '';
+          const link = linkMap.get(varId)?.get(shop.id);
+          if (!link) return '';
+          return link.platform_discount_price || link.platform_price || '';
+        });
+
       for (const product of filtered) {
         const isMulti = product.variations.length > 1;
         if (!isMulti) {
@@ -492,6 +526,7 @@ function ProductsPageContent() {
               v?.sku || '', v?.barcode || '',
               v?.default_price ?? 0, v?.discount_price ?? 0,
               product.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
+              ...getShopPrices(v?.variation_id),
             ],
           });
         } else {
@@ -505,6 +540,7 @@ function ProductsPageContent() {
               `สินค้าย่อย (${product.variations.length})`, '',
               '', '', '', '',
               product.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
+              ...activeShops.map(() => ''),
             ],
           });
           for (const v of product.variations) {
@@ -519,6 +555,7 @@ function ProductsPageContent() {
                 v.sku || '', v.barcode || '',
                 v.default_price ?? 0, v.discount_price ?? 0,
                 v.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
+                ...getShopPrices(v.variation_id),
               ],
             });
           }
@@ -542,8 +579,8 @@ function ProductsPageContent() {
 
       // Column widths
       ws.columns = [
-        { width: 12 }, // product_id (narrow, gray)
-        { width: 12 }, // variation_id (narrow, gray)
+        { width: 12 }, // product_id
+        { width: 12 }, // variation_id
         { width: 16 }, // รหัสสินค้า
         { width: 35 }, // ชื่อสินค้า
         { width: 14 }, // ประเภท
@@ -553,6 +590,7 @@ function ProductsPageContent() {
         { width: 12 }, // ราคาปกติ
         { width: 12 }, // ราคาขาย
         { width: 10 }, // สถานะ
+        ...activeShops.map(() => ({ width: 14 })),
       ];
 
       // Protect sheet — only ID columns locked, rest editable
