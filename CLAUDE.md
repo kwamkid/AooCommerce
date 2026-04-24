@@ -304,10 +304,15 @@ marketplace_accounts → marketplace_product_links → product_variations
 
 ---
 
-## Product Import/Export (เพิ่มเมื่อ 2026-04-12)
-- **Export CSV**: ปุ่ม Export ในหน้าสินค้า — export ตาม filter พร้อม product_id/variation_id
-- **Import CSV**: `/products/import` — สร้างใหม่ (ไม่มี ID) + อัพเดท (มี ID) + auto sync Shopee
-- **API**: `/api/products/bulk-import` — batch upsert, ตรวจ field ที่เปลี่ยนก่อน update, trigger marketplace price sync
+## Product Import/Export (อัพเดท 2026-04-13)
+- **Export Excel (.xlsx)**: ปุ่ม Export ในหน้าสินค้า — RPC `export_products` (1 query: products+shops+links)
+  - ID columns (A,B) สีเทา + locked ห้ามแก้ | Parent row bold | Child rows แยกชัด
+  - ราคา marketplace แยกทุกร้าน (dynamic columns) | ชื่อไฟล์ตาม filter: `{all|filter}-product-{count}-{date}.xlsx`
+- **Import (Excel/CSV)**: `/products/import` — dry-run preview แสดงเฉพาะสิ่งที่เปลี่ยน
+  - RPC `bulk_upsert_products` (1 query แทน N×2) | dry-run เทียบ diff ใน SQL แล้ว rollback
+  - มี ID → update | ไม่มี → create | ราคาเปลี่ยน → auto sync Shopee
+  - Format validation ตั้งแต่เลือกไฟล์ (column count, header check, old format detection)
+- **API**: `/api/products/export` (POST, RPC) | `/api/products/bulk-import` (POST, RPC+dry_run)
 
 ## Shopee API Success Rate Fixes (เพิ่มเมื่อ 2026-04-12)
 

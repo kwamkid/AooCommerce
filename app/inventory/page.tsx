@@ -7,7 +7,7 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import {
   Package2, Warehouse, ClipboardList, Activity,
-  ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight,
+  ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, FileSpreadsheet,
 } from 'lucide-react';
 import { WarehouseItem, TabKey } from './components/types';
 import StockTab from './components/StockTab';
@@ -69,6 +69,9 @@ export default function InventoryPage() {
             </Link>
             <Link href="/inventory/transfer" className="flex items-center gap-2 px-3 md:px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg text-sm font-medium transition-colors" title="โอนย้าย">
               <ArrowLeftRight className="w-4 h-4" /> <span className="hidden md:inline">โอนย้าย</span>
+            </Link>
+            <Link href="/inventory/bulk-stock-update" className="flex items-center gap-2 px-3 md:px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg text-sm font-medium transition-colors" title="อัพเดท Stock แบบ Bulk">
+              <FileSpreadsheet className="w-4 h-4" /> <span className="hidden md:inline">Bulk</span>
             </Link>
           </div>
         </div>

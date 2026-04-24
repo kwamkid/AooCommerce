@@ -619,7 +619,16 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                       )}
                       {visibleColumns.has('product') && (
                         <td className="px-2 py-2">
-                          <div className="data-primary text-gray-900 dark:text-white line-clamp-2">{displayName}</div>
+                          <a
+                            href={`/products/${item.product_id}/edit`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="data-primary text-gray-900 dark:text-white line-clamp-2 hover:text-[#F4511E] hover:underline cursor-pointer"
+                            title="เปิดแก้ไขสินค้าในแท็บใหม่"
+                          >
+                            {displayName}
+                          </a>
                           <div className="data-secondary text-gray-400 dark:text-slate-500">{getProductSubtitle(item)}</div>
                         </td>
                       )}
@@ -780,7 +789,16 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                       {/* Row 1: Name + Status */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-900 dark:text-white text-[15px] line-clamp-2">{displayName}</p>
+                          <a
+                            href={`/products/${item.product_id}/edit`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="font-semibold text-gray-900 dark:text-white text-[15px] line-clamp-2 hover:text-[#F4511E] hover:underline cursor-pointer block"
+                            title="เปิดแก้ไขสินค้าในแท็บใหม่"
+                          >
+                            {displayName}
+                          </a>
                           <p className="text-xs text-gray-400 dark:text-slate-500">{getProductSubtitle(item)}</p>
                         </div>
                         <div className="flex-shrink-0">{getStockBadge(item)}</div>

@@ -643,15 +643,33 @@ export async function pushStockToShopee(
     const allVariationIds = links.map(l => l.variation_id).filter(Boolean) as string[];
     const inventoryMap = new Map<string, number>();
     if (allVariationIds.length > 0) {
-      const { data: inventoryRows } = await supabaseAdmin
-        .from('inventory')
-        .select('variation_id, quantity, reserved_quantity')
-        .in('variation_id', allVariationIds);
-      if (inventoryRows) {
-        for (const inv of inventoryRows) {
-          const current = inventoryMap.get(inv.variation_id) || 0;
-          inventoryMap.set(inv.variation_id, current + (inv.quantity || 0) - (inv.reserved_quantity || 0));
+      // Push stock ไป Shopee จะใช้แค่ default warehouse (is_default=true) เท่านั้น
+      // เพื่อกันไม่ให้ stock ที่อยู่คลังฝากขาย/คลังสาขา รวมเข้าไปด้วย
+      // คลังแรกที่สร้าง API auto-set is_default=true ให้เสมอ ดังนั้นจะเจอเสมอ
+      const { data: defaultWh } = await supabaseAdmin
+        .from('warehouses')
+        .select('id')
+        .eq('company_id', account.company_id)
+        .eq('is_active', true)
+        .eq('is_default', true)
+        .limit(1)
+        .maybeSingle();
+
+      const warehouseId = defaultWh?.id;
+
+      if (warehouseId) {
+        const { data: inventoryRows } = await supabaseAdmin
+          .from('inventory')
+          .select('variation_id, quantity, reserved_quantity')
+          .eq('warehouse_id', warehouseId)
+          .in('variation_id', allVariationIds);
+        if (inventoryRows) {
+          for (const inv of inventoryRows) {
+            inventoryMap.set(inv.variation_id, (inv.quantity || 0) - (inv.reserved_quantity || 0));
+          }
         }
+      } else {
+        console.warn(`[Shopee Stock] No warehouse found for company ${account.company_id} — stock push will send 0`);
       }
     }
 
