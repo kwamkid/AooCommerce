@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('warehouses')
-      .select('*')
+      .select('*, customer:customers(id, name, customer_type)')
       .eq('company_id', auth.companyId)
       .order('is_default', { ascending: false })
       .order('created_at', { ascending: true });

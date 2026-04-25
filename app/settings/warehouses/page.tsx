@@ -8,7 +8,7 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Plus, Check, X, Edit2, Trash2, Warehouse, Star, StarOff, AlertTriangle
+  Loader2, Plus, Check, X, Edit2, Trash2, Warehouse, Star, StarOff, AlertTriangle, Info, Users
 } from 'lucide-react';
 
 interface WarehouseItem {
@@ -19,6 +19,9 @@ interface WarehouseItem {
   is_default: boolean;
   is_active: boolean;
   created_at: string;
+  warehouse_type?: 'internal' | 'consignment';
+  customer_id?: string | null;
+  customer?: { id: string; name: string; customer_type: string } | null;
 }
 
 interface StockConfig {
@@ -67,7 +70,7 @@ export default function WarehouseSettingsPage() {
 
   const fetchWarehouses = async () => {
     try {
-      const response = await apiFetch('/api/warehouses?active=false');
+      const response = await apiFetch('/api/warehouses?active=false&include_consignment=true');
       if (!response.ok) throw new Error('Failed to fetch');
       const data = await response.json();
       setWarehouses(data.warehouses || []);
@@ -212,10 +215,12 @@ export default function WarehouseSettingsPage() {
     );
   }
 
-  const activeWarehouses = warehouses.filter(w => w.is_active);
+  const internalWarehouses = warehouses.filter(w => (w.warehouse_type || 'internal') === 'internal');
+  const consignmentWarehouses = warehouses.filter(w => w.warehouse_type === 'consignment');
+  const activeInternal = internalWarehouses.filter(w => w.is_active);
   const limitText = stockConfig.maxWarehouses === null
     ? 'ไม่จำกัด'
-    : `${activeWarehouses.length}/${stockConfig.maxWarehouses}`;
+    : `${activeInternal.length}/${stockConfig.maxWarehouses}`;
 
   return (
     <Layout
@@ -262,86 +267,69 @@ export default function WarehouseSettingsPage() {
               </div>
             </div>
 
-            {/* Header with count */}
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500 dark:text-slate-400">
-                ใช้งาน {limitText} คลัง
-              </p>
+            {/* Info banner — explain auto-create consignment warehouses */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex items-start gap-3">
+              <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                <p className="font-medium">สร้างเฉพาะคลังภายในของร้านเท่านั้น</p>
+                <p className="text-blue-700 dark:text-blue-300">
+                  เช่น คลังหลัก, คลังสาขา, หน้าร้าน ไม่ต้องสร้างคลังสำหรับตัวแทน/ห้างฝากขาย
+                  — ระบบจะสร้างคลังให้อัตโนมัติเมื่อคุณเพิ่มลูกค้าแบบ <strong>ตัวแทนฝากขาย</strong> หรือ <strong>ห้างฝากขาย</strong>
+                </p>
+              </div>
             </div>
 
-            {/* Warehouse Cards */}
-            {warehouses.map(wh => (
-              <div key={wh.id} className="space-y-4">
-                <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden ${!wh.is_active ? 'opacity-60' : ''}`}>
-                  <div className="flex items-center gap-3 p-4">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Warehouse className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900 dark:text-white truncate">{wh.name}</p>
-                        {wh.code && <span className="text-xs text-gray-400 dark:text-slate-500">({wh.code})</span>}
-                        {wh.is_default && (
-                          <span className="px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded font-medium">หลัก</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
-                        {wh.is_active ? (
-                          <span className="text-green-600 dark:text-green-400">เปิดใช้งาน</span>
-                        ) : (
-                          <span className="text-gray-400">ปิดใช้งาน</span>
-                        )}
-                        {wh.address && <span className="ml-1 truncate max-w-[200px]">• {wh.address}</span>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {!wh.is_default && wh.is_active && (
-                        <button
-                          onClick={() => handleSetDefault(wh)}
-                          title="ตั้งเป็นคลังหลัก"
-                          className="p-1.5 text-gray-400 hover:text-primary transition-colors"
-                        >
-                          <StarOff className="w-4 h-4" />
-                        </button>
-                      )}
-                      {wh.is_default && (
-                        <Star className="w-4 h-4 text-primary fill-current" />
-                      )}
-                      <Toggle checked={wh.is_active} onChange={() => handleToggleActive(wh)} />
-                      <button
-                        onClick={() => startEdit(wh)}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={async () => { const ok = await confirm({ title: 'ต้องการลบคลังนี้?', variant: 'danger' }); if (ok) handleDelete(wh.id); }}
-                        disabled={deletingId === wh.id}
-                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                      >
-                        {deletingId === wh.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Inline edit form */}
-                {editingId === wh.id && showForm && renderForm()}
+            {/* Internal Warehouses Section */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                  <Warehouse className="w-4 h-4 text-primary" />
+                  คลังภายใน
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-slate-400">
+                  ใช้งาน {limitText} คลัง
+                </p>
               </div>
-            ))}
 
-            {/* Add button or form */}
-            {showForm && !editingId ? (
-              renderForm()
-            ) : !showForm ? (
-              <button
-                onClick={() => { resetForm(); setShowForm(true); }}
-                className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                เพิ่ม<span className="hidden md:inline">คลังสินค้า</span>
-              </button>
-            ) : null}
+              {internalWarehouses.length === 0 && !showForm && (
+                <div className="bg-gray-50 dark:bg-slate-700/30 rounded-lg p-4 text-center text-sm text-gray-500 dark:text-slate-400 mb-3">
+                  ยังไม่มีคลังภายใน — กดปุ่มด้านล่างเพื่อสร้างคลังแรก
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {internalWarehouses.map(wh => renderWarehouseCard(wh))}
+
+                {showForm && !editingId ? (
+                  renderForm()
+                ) : !showForm ? (
+                  <button
+                    onClick={() => { resetForm(); setShowForm(true); }}
+                    className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    เพิ่ม<span className="hidden md:inline">คลังภายใน</span>
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Consignment Warehouses Section (read-only) */}
+            {consignmentWarehouses.length > 0 && (
+              <div className="pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <Users className="w-4 h-4 text-amber-600" />
+                    คลังฝากขาย
+                    <span className="text-xs text-gray-400 dark:text-slate-500 font-normal">(สร้างอัตโนมัติจากลูกค้า)</span>
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{consignmentWarehouses.length} คลัง</p>
+                </div>
+                <div className="space-y-2">
+                  {consignmentWarehouses.map(wh => renderConsignmentCard(wh))}
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
       </div>
@@ -349,13 +337,108 @@ export default function WarehouseSettingsPage() {
     </Layout>
   );
 
+  function renderWarehouseCard(wh: WarehouseItem) {
+    return (
+      <div key={wh.id} className="space-y-4">
+        <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden ${!wh.is_active ? 'opacity-60' : ''}`}>
+          <div className="flex items-center gap-3 p-4">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Warehouse className="w-5 h-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="font-medium text-gray-900 dark:text-white truncate">{wh.name}</p>
+                {wh.code && <span className="text-xs text-gray-400 dark:text-slate-500">({wh.code})</span>}
+                {wh.is_default && (
+                  <span className="px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded font-medium">หลัก</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
+                {wh.is_active ? (
+                  <span className="text-green-600 dark:text-green-400">เปิดใช้งาน</span>
+                ) : (
+                  <span className="text-gray-400">ปิดใช้งาน</span>
+                )}
+                {wh.address && <span className="ml-1 truncate max-w-[200px]">• {wh.address}</span>}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {!wh.is_default && wh.is_active && (
+                <button
+                  onClick={() => handleSetDefault(wh)}
+                  title="ตั้งเป็นคลังหลัก"
+                  className="p-1.5 text-gray-400 hover:text-primary transition-colors"
+                >
+                  <StarOff className="w-4 h-4" />
+                </button>
+              )}
+              {wh.is_default && (
+                <Star className="w-4 h-4 text-primary fill-current" />
+              )}
+              <Toggle checked={wh.is_active} onChange={() => handleToggleActive(wh)} />
+              <button
+                onClick={() => startEdit(wh)}
+                className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={async () => { const ok = await confirm({ title: 'ต้องการลบคลังนี้?', variant: 'danger' }); if (ok) handleDelete(wh.id); }}
+                disabled={deletingId === wh.id}
+                className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+              >
+                {deletingId === wh.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {editingId === wh.id && showForm && renderForm()}
+      </div>
+    );
+  }
+
+  function renderConsignmentCard(wh: WarehouseItem) {
+    const customerLabel = wh.customer?.customer_type === 'department_store' ? 'ห้างฝากขาย' : 'ตัวแทนฝากขาย';
+    return (
+      <div key={wh.id} className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden ${!wh.is_active ? 'opacity-60' : ''}`}>
+        <div className="flex items-center gap-3 p-4">
+          <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+            <Users className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-medium text-gray-900 dark:text-white truncate">{wh.name}</p>
+              <span className="px-1.5 py-0.5 text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded font-medium">
+                {customerLabel}
+              </span>
+            </div>
+            <div className="text-xs text-gray-500 dark:text-slate-400">
+              สร้างอัตโนมัติ — แก้ไขได้ที่หน้าลูกค้า
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function renderForm() {
     return (
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
         <div className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
           <Warehouse className="w-4 h-4 text-primary" />
-          {editingId ? 'แก้ไขคลังสินค้า' : 'เพิ่มคลังสินค้า'}
+          {editingId ? 'แก้ไขคลังสินค้า' : 'เพิ่มคลังภายใน'}
         </div>
+
+        {!editingId && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+            <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>
+              สร้างคลังภายในของร้านเท่านั้น (คลังหลัก, สาขา ฯลฯ)
+              <strong> ไม่ต้องสร้างคลังสำหรับตัวแทน/ห้างฝากขาย</strong> — ระบบจะสร้างให้อัตโนมัติเมื่อเพิ่มลูกค้าประเภทดังกล่าว
+            </span>
+          </div>
+        )}
 
         <div>
           <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ชื่อคลัง *</label>
