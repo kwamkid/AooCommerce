@@ -71,6 +71,7 @@ export interface UserProfile {
   email: string;
   name: string;
   roles: CompanyRole[];
+  canViewCost?: boolean;
   lineUserId?: string;
   phone?: string;
   avatar?: string;

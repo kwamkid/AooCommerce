@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
         .select(`
           company_id,
           roles,
+          can_view_cost,
           company:companies (
             id, name, slug, logo_url, is_active, business_type, vat_registered
           )

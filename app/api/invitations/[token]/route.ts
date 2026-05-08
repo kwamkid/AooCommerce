@@ -99,6 +99,7 @@ export async function POST(
       user_id: user.id,
       roles: invitation.roles,
       invited_by: invitation.invited_by,
+      can_view_cost: invitation.can_view_cost === true,
       ...(Array.isArray(invitation.warehouse_ids)
         ? { warehouse_ids: invitation.warehouse_ids }
         : {}),

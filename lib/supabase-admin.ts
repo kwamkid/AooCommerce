@@ -16,6 +16,40 @@ export interface AuthResult {
   userId?: string;
   companyId?: string;
   companyRoles?: string[];
+  canViewCost?: boolean;
+}
+
+const TRANSIENT_ERROR_CODES = ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_SOCKET'];
+
+function isTransientFetchError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { name?: string; message?: string; code?: string; cause?: { code?: string; errno?: number } };
+  if (e.name === 'TypeError' && e.message?.includes('fetch failed')) return true;
+  if (e.code && TRANSIENT_ERROR_CODES.includes(e.code)) return true;
+  if (e.cause?.code && TRANSIENT_ERROR_CODES.includes(e.cause.code)) return true;
+  return false;
+}
+
+/**
+ * Verify a Supabase auth token with retry on transient network errors
+ * (ECONNRESET, fetch failed, etc.). Returns null if invalid/expired (no retry).
+ */
+async function verifyAuthToken(token: string): Promise<{ id: string } | null> {
+  const delays = [0, 100, 300];
+  let lastErr: unknown;
+  for (const delay of delays) {
+    if (delay > 0) await new Promise(r => setTimeout(r, delay));
+    try {
+      const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+      if (error || !user) return null;
+      return user;
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientFetchError(err)) throw err;
+    }
+  }
+  console.error('[verifyAuthToken] All retries exhausted:', lastErr);
+  return null;
 }
 
 /**
@@ -30,8 +64,8 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
     }
 
     const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !user) {
+    const user = await verifyAuthToken(token);
+    if (!user) {
       return { isAuth: false };
     }
 
@@ -40,7 +74,7 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
     if (companyId) {
       const { data: membership } = await supabaseAdmin
         .from('company_members')
-        .select('roles')
+        .select('roles, can_view_cost')
         .eq('user_id', user.id)
         .eq('company_id', companyId)
         .eq('is_active', true)
@@ -55,13 +89,14 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
         userId: user.id,
         companyId,
         companyRoles: membership.roles,
+        canViewCost: membership.can_view_cost === true,
       };
     }
 
     // No company header — get user's default (first) company
     const { data: membership } = await supabaseAdmin
       .from('company_members')
-      .select('company_id, roles')
+      .select('company_id, roles, can_view_cost')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .order('joined_at', { ascending: true })
@@ -73,6 +108,7 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
       userId: user.id,
       companyId: membership?.company_id || undefined,
       companyRoles: membership?.roles || undefined,
+      canViewCost: membership?.can_view_cost === true,
     };
   } catch {
     return { isAuth: false };
@@ -129,8 +165,8 @@ export async function checkSuperAdmin(request: NextRequest): Promise<{ isAuth: b
     }
 
     const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !user) {
+    const user = await verifyAuthToken(token);
+    if (!user) {
       return { isAuth: false, isSuperAdmin: false };
     }
 
@@ -161,8 +197,8 @@ export async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean
     }
 
     const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !user) {
+    const user = await verifyAuthToken(token);
+    if (!user) {
       return { isAuth: false };
     }
 

@@ -11,6 +11,7 @@ interface ImportItem {
   barcode?: string;
   default_price?: number;
   discount_price?: number;
+  cost_price?: number;
 }
 
 export async function POST(request: NextRequest) {
@@ -19,6 +20,8 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const canEditCost = auth.canViewCost === true;
 
     const { items, dry_run = false } = (await request.json()) as {
       items: ImportItem[];
@@ -29,11 +32,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No items to import' }, { status: 400 });
     }
 
+    // Strip cost_price from payload if user lacks permission (defense-in-depth)
+    const sanitizedItems = canEditCost
+      ? items
+      : items.map(({ cost_price: _cost_price, ...rest }) => rest);
+
     const { data, error } = await supabaseAdmin.rpc('bulk_upsert_products', {
       p_company_id: auth.companyId,
       p_user_id: auth.userId,
-      p_items: items,
+      p_items: sanitizedItems,
       p_dry_run: dry_run,
+      p_can_edit_cost: canEditCost,
     });
 
     if (error) {

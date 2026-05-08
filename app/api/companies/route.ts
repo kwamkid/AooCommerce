@@ -116,11 +116,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: companyError.message }, { status: 500 });
     }
 
-    // Add creator as owner
+    // Add creator as owner (owner always sees cost)
     await supabaseAdmin.from('company_members').insert({
       company_id: company.id,
       user_id: auth.userId,
       roles: ['owner'],
+      can_view_cost: true,
     });
 
     // Assign Free package to the new company

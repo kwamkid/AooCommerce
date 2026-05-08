@@ -21,6 +21,7 @@ interface ParsedRow {
   barcode: string;
   default_price: number;
   discount_price: number;
+  cost_price?: number;
   rowNum: number;
   error?: string;
 }
@@ -75,16 +76,20 @@ const FIELD_LABELS: Record<string, string> = {
   barcode: 'Barcode',
   default_price: 'ราคาปกติ',
   discount_price: 'ราคาขาย',
+  cost_price: 'ราคาทุน',
   new_product: 'สินค้าใหม่',
 };
 
-function downloadTemplate() {
-  const headers = ['product_id (ห้ามแก้)', 'variation_id (ห้ามแก้)', 'รหัสสินค้า', 'ชื่อสินค้า', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย'];
+function downloadTemplate(includeCost: boolean) {
+  const baseHeaders = ['product_id (ห้ามแก้)', 'variation_id (ห้ามแก้)', 'รหัสสินค้า', 'ชื่อสินค้า', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย'];
+  const headers = includeCost ? [...baseHeaders, 'ราคาทุน'] : baseHeaders;
+  const tail = (price: string, discount: string, cost: string) =>
+    includeCost ? `${price},${discount},${cost}` : `${price},${discount}`;
   const rows = [
     headers.join(','),
-    ',,P001,เสื้อยืดสีขาว,ขาว S,SKU-001,8850001,350,299',
-    ',,P001,เสื้อยืดสีขาว,ขาว M,SKU-002,8850002,350,299',
-    ',,P002,กางเกงยีนส์,-,SKU-004,8850004,890,790',
+    `,,P001,เสื้อยืดสีขาว,ขาว S,SKU-001,8850001,${tail('350', '299', '180')}`,
+    `,,P001,เสื้อยืดสีขาว,ขาว M,SKU-002,8850002,${tail('350', '299', '180')}`,
+    `,,P002,กางเกงยีนส์,-,SKU-004,8850004,${tail('890', '790', '450')}`,
   ];
   const csv = '\ufeff' + rows.join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -100,6 +105,8 @@ export default function ImportProductsPage() {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const canEditCost = userProfile?.canViewCost === true;
 
   const [step, setStep] = useState<'upload' | 'checking' | 'preview' | 'importing' | 'done'>('upload');
   const [parsedItems, setParsedItems] = useState<Record<string, unknown>[]>([]);
@@ -155,6 +162,12 @@ export default function ImportProductsPage() {
       return;
     }
 
+    // Find cost_price column index by header (flexible — works whether column exists or not)
+    const costColIdx = header.findIndex(h => {
+      const v = (h || '').toLowerCase().trim();
+      return v.includes('ราคาทุน') || v === 'cost_price' || v === 'cost';
+    });
+
     // Parse rows
     const dataRows = rows.slice(1);
     const errors: ParsedRow[] = [];
@@ -178,7 +191,7 @@ export default function ImportProductsPage() {
         continue;
       }
 
-      items.push({
+      const item: Record<string, unknown> = {
         product_id: cols[0] || undefined,
         variation_id: cols[1] || undefined,
         code,
@@ -188,7 +201,17 @@ export default function ImportProductsPage() {
         barcode: cols[6] || '',
         default_price: parseFloat(cols[7] || '0') || 0,
         discount_price: parseFloat(cols[8] || '0') || 0,
-      });
+      };
+
+      // Only include cost_price if user has permission AND column is present
+      if (canEditCost && costColIdx >= 0) {
+        const costStr = cols[costColIdx];
+        if (costStr !== undefined && costStr !== '') {
+          item.cost_price = parseFloat(costStr) || 0;
+        }
+      }
+
+      items.push(item);
     }
 
     setParsedItems(items);
@@ -298,7 +321,7 @@ export default function ImportProductsPage() {
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                <button onClick={() => downloadTemplate(canEditCost)} className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg transition-colors">
                   <Download className="w-4 h-4" /> ดาวน์โหลด Template
                 </button>
                 <button onClick={() => fileRef.current?.click()} className="flex items-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold transition-colors">

@@ -8,6 +8,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const canViewCost = auth.canViewCost === true;
+
     const body = await request.json();
 
     const { data, error } = await supabaseAdmin.rpc('export_products', {
@@ -16,6 +18,7 @@ export async function POST(request: NextRequest) {
       p_category_id: body.category_id || null,
       p_brand_id: body.brand_id || null,
       p_shop_account_id: body.shop_account_id || null,
+      p_include_cost: canViewCost,
     });
 
     if (error) {
@@ -23,7 +26,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(data || { products: [], shops: [], links: [] });
+    return NextResponse.json({
+      ...(data || { products: [], shops: [], links: [] }),
+      can_view_cost: canViewCost,
+    });
   } catch (error) {
     console.error('Export error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

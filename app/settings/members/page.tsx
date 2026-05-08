@@ -14,7 +14,7 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import {
   Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check,
   Loader2, CheckCircle, Clock, Copy, Phone,
-  Plus, Link2, Monitor,
+  Plus, Link2, Monitor, DollarSign,
   Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package,
 } from 'lucide-react';
 import Checkbox from '@/components/ui/Checkbox';
@@ -23,6 +23,7 @@ interface Member {
   id: string;
   roles: string[];
   is_active: boolean;
+  can_view_cost?: boolean;
   joined_at: string;
   created_at: string;
   user: {
@@ -38,6 +39,7 @@ interface Invitation {
   id: string;
   email: string | null;
   roles: string[];
+  can_view_cost?: boolean;
   status: string;
   token: string;
   expires_at: string;
@@ -80,6 +82,7 @@ interface EditMemberForm {
   roles: string[];
   phone: string;
   is_active: boolean;
+  can_view_cost: boolean;
   warehouseAccess: boolean;
   warehouse_ids: string[];
   terminal_ids: string[];
@@ -134,6 +137,7 @@ export default function MembersPage() {
   const [linkRoles, setLinkRoles] = useState<string[]>(['sales']);
   const [linkWarehouseAccess, setLinkWarehouseAccess] = useState(true);
   const [linkWarehouseIds, setLinkWarehouseIds] = useState<string[]>([]);
+  const [linkCanViewCost, setLinkCanViewCost] = useState(false);
   const [generatedLink, setGeneratedLink] = useState('');
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
 
@@ -229,6 +233,7 @@ export default function MembersPage() {
     const preset = getRolePreset(['sales']);
     setLinkWarehouseAccess(preset.warehouseAccess);
     setLinkWarehouseIds(preset.warehouseIds);
+    setLinkCanViewCost(false);
     setGeneratedLink('');
     setShowAddModal(true);
   };
@@ -239,6 +244,8 @@ export default function MembersPage() {
     const preset = getRolePreset(newRoles);
     setLinkWarehouseAccess(preset.warehouseAccess);
     setLinkWarehouseIds(preset.warehouseIds);
+    // owner/admin always see cost — auto-enable
+    if (isExclusiveRole(newRoles)) setLinkCanViewCost(true);
   };
 
   const handleEditRoleChange = (newRoles: string[]) => {
@@ -249,6 +256,8 @@ export default function MembersPage() {
       roles: newRoles,
       warehouseAccess: preset.warehouseAccess,
       warehouse_ids: preset.warehouseIds,
+      // owner/admin always see cost
+      can_view_cost: isExclusiveRole(newRoles) ? true : editingMember.can_view_cost,
     });
   };
 
@@ -275,6 +284,7 @@ export default function MembersPage() {
           roles: linkRoles,
           warehouse_ids: warehouseIdsToSend,
           terminal_ids: terminalIdsToSend,
+          can_view_cost: linkCanViewCost,
         }),
       });
 
@@ -326,6 +336,7 @@ export default function MembersPage() {
       roles: member.roles,
       phone: member.user.phone || '',
       is_active: member.is_active,
+      can_view_cost: member.can_view_cost === true,
       warehouseAccess: true,
       warehouse_ids: [],
       terminal_ids: [],
@@ -365,6 +376,7 @@ export default function MembersPage() {
           roles: editingMember.roles,
           phone: editingMember.phone || null,
           is_active: editingMember.is_active,
+          can_view_cost: editingMember.can_view_cost,
         }),
       });
 
@@ -470,13 +482,19 @@ export default function MembersPage() {
   );
 
   // Role badges component (multiple)
-  const RoleBadges = ({ roles }: { roles: string[] }) => (
+  const RoleBadges = ({ roles, canViewCost }: { roles: string[]; canViewCost?: boolean }) => (
     <div className="flex flex-wrap gap-1">
       {roles.map(role => (
         <span key={role} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium border ${ROLE_COLORS[role] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
           {ROLE_LABELS[role] || role}
         </span>
       ))}
+      {canViewCost && !isExclusiveRole(roles) && (
+        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium border bg-emerald-50 text-emerald-700 border-emerald-200" title="ดูต้นทุนได้">
+          <DollarSign className="w-3 h-3" />
+          ต้นทุน
+        </span>
+      )}
     </div>
   );
 
@@ -701,7 +719,7 @@ export default function MembersPage() {
                         </div>
                         {/* Role badges on mobile (below name) */}
                         <div className="mt-1.5 sm:hidden">
-                          <RoleBadges roles={member.roles} />
+                          <RoleBadges roles={member.roles} canViewCost={member.can_view_cost} />
                         </div>
                       </div>
                     </div>
@@ -731,7 +749,7 @@ export default function MembersPage() {
                         <>
                           {/* Role badges on desktop */}
                           <div className="hidden sm:block">
-                            <RoleBadges roles={member.roles} />
+                            <RoleBadges roles={member.roles} canViewCost={member.can_view_cost} />
                           </div>
                           {isOwnerOrAdmin && !member.roles.includes('owner') && member.user?.id !== userProfile?.id && (
                             <div className="flex items-center space-x-1">
@@ -806,7 +824,7 @@ export default function MembersPage() {
                           </p>
                           {/* Role badges on mobile */}
                           <div className="mt-1.5 sm:hidden flex flex-wrap gap-1">
-                            <RoleBadges roles={invitation.roles} />
+                            <RoleBadges roles={invitation.roles} canViewCost={invitation.can_view_cost} />
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
                               รอตอบรับ
                             </span>
@@ -816,7 +834,7 @@ export default function MembersPage() {
                       <div className="flex items-center space-x-3 flex-shrink-0">
                         {/* Role badges + status on desktop */}
                         <div className="hidden sm:flex items-center space-x-2">
-                          <RoleBadges roles={invitation.roles} />
+                          <RoleBadges roles={invitation.roles} canViewCost={invitation.can_view_cost} />
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
                             รอตอบรับ
                           </span>
@@ -851,13 +869,12 @@ export default function MembersPage() {
 
       {/* Add Member Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen p-4">
-            <div
-              className="fixed inset-0 bg-black/50 transition-opacity"
-              onClick={() => setShowAddModal(false)}
-            />
-            <div className="relative bg-white dark:bg-slate-800 rounded-xl max-w-2xl w-full shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 transition-opacity"
+            onClick={() => setShowAddModal(false)}
+          />
+          <div className="relative bg-white dark:bg-slate-800 rounded-xl max-w-2xl w-full shadow-xl max-h-[90vh] overflow-y-auto">
               {/* Modal header */}
               <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 rounded-t-xl z-10">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
@@ -879,7 +896,7 @@ export default function MembersPage() {
                   </p>
 
                   {/* 2-column layout */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 items-start">
                     {/* Left: Roles */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
@@ -889,28 +906,63 @@ export default function MembersPage() {
                       <RoleCheckboxes selectedRoles={linkRoles} onChange={handleLinkRoleChange} disabled={isGeneratingLink} />
                     </div>
 
-                    {/* Right: Warehouse Permissions */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                        <Warehouse className="w-4 h-4 inline mr-1 -mt-0.5" />
-                        สิทธิ์คลัง / POS
-                      </label>
-                      {isExclusiveRole(linkRoles) ? (
-                        <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                          <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                            <Check className="w-4 h-4" />
-                            เข้าถึงทุกคลังอัตโนมัติ
-                          </p>
-                        </div>
-                      ) : (
-                        <WarehousePermissions
-                          accessEnabled={linkWarehouseAccess}
-                          onAccessChange={setLinkWarehouseAccess}
-                          selectedIds={linkWarehouseIds}
-                          onChange={setLinkWarehouseIds}
-                          disabled={isGeneratingLink}
-                        />
-                      )}
+                    {/* Right: Warehouse Permissions + Cost Permission */}
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                          <Warehouse className="w-4 h-4 inline mr-1 -mt-0.5" />
+                          สิทธิ์คลัง / POS
+                        </label>
+                        {isExclusiveRole(linkRoles) ? (
+                          <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                            <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                              <Check className="w-4 h-4" />
+                              เข้าถึงทุกคลังอัตโนมัติ
+                            </p>
+                          </div>
+                        ) : (
+                          <WarehousePermissions
+                            accessEnabled={linkWarehouseAccess}
+                            onAccessChange={setLinkWarehouseAccess}
+                            selectedIds={linkWarehouseIds}
+                            onChange={setLinkWarehouseIds}
+                            disabled={isGeneratingLink}
+                          />
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                          <DollarSign className="w-4 h-4 inline mr-1 -mt-0.5" />
+                          สิทธิ์ดูต้นทุน
+                        </label>
+                        {isExclusiveRole(linkRoles) ? (
+                          <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                            <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                              <Check className="w-4 h-4" />
+                              เห็นต้นทุนอัตโนมัติ
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                            <span className="text-sm text-gray-700 dark:text-slate-300">เห็นราคาทุนสินค้า</span>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={linkCanViewCost}
+                              onClick={() => !isGeneratingLink && setLinkCanViewCost(!linkCanViewCost)}
+                              disabled={isGeneratingLink}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                                linkCanViewCost ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
+                              } ${isGeneratingLink ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            >
+                              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                                linkCanViewCost ? 'translate-x-6' : 'translate-x-1'
+                              }`} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -990,18 +1042,16 @@ export default function MembersPage() {
               )}
             </div>
           </div>
-        </div>
       )}
 
       {/* Edit Member Modal */}
       {showEditModal && editingMember && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen p-4">
-            <div
-              className="fixed inset-0 bg-black/50 transition-opacity"
-              onClick={() => { setShowEditModal(false); setEditingMember(null); }}
-            />
-            <div className="relative bg-white dark:bg-slate-800 rounded-xl max-w-2xl w-full shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 transition-opacity"
+            onClick={() => { setShowEditModal(false); setEditingMember(null); }}
+          />
+          <div className="relative bg-white dark:bg-slate-800 rounded-xl max-w-2xl w-full shadow-xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 rounded-t-xl z-10">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
                   แก้ไขข้อมูลสมาชิก
@@ -1016,7 +1066,7 @@ export default function MembersPage() {
 
               <form onSubmit={handleSaveEdit}>
                 {/* 2-column layout */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 items-start">
                   {/* Left: Profile + Roles */}
                   <div className="space-y-4">
                     <div>
@@ -1066,27 +1116,61 @@ export default function MembersPage() {
                     </div>
                   </div>
 
-                  {/* Right: Warehouse Permissions */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      <Warehouse className="w-4 h-4 inline mr-1 -mt-0.5" />
-                      สิทธิ์คลัง / POS
-                    </label>
-                    {isExclusiveRole(editingMember.roles) ? (
-                      <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                        <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                          <Check className="w-4 h-4" />
-                          เข้าถึงทุกคลังอัตโนมัติ
-                        </p>
-                      </div>
-                    ) : (
-                      <WarehousePermissions
-                        accessEnabled={editingMember.warehouseAccess}
-                        onAccessChange={(v) => setEditingMember({ ...editingMember, warehouseAccess: v })}
-                        selectedIds={editingMember.warehouse_ids}
-                        onChange={(ids) => setEditingMember({ ...editingMember, warehouse_ids: ids })}
-                      />
-                    )}
+                  {/* Right: Warehouse Permissions + Cost Permission */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                        <Warehouse className="w-4 h-4 inline mr-1 -mt-0.5" />
+                        สิทธิ์คลัง / POS
+                      </label>
+                      {isExclusiveRole(editingMember.roles) ? (
+                        <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                          <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                            <Check className="w-4 h-4" />
+                            เข้าถึงทุกคลังอัตโนมัติ
+                          </p>
+                        </div>
+                      ) : (
+                        <WarehousePermissions
+                          accessEnabled={editingMember.warehouseAccess}
+                          onAccessChange={(v) => setEditingMember({ ...editingMember, warehouseAccess: v })}
+                          selectedIds={editingMember.warehouse_ids}
+                          onChange={(ids) => setEditingMember({ ...editingMember, warehouse_ids: ids })}
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                        <DollarSign className="w-4 h-4 inline mr-1 -mt-0.5" />
+                        สิทธิ์ดูต้นทุน
+                      </label>
+                      {isExclusiveRole(editingMember.roles) ? (
+                        <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                          <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                            <Check className="w-4 h-4" />
+                            เห็นต้นทุนอัตโนมัติ
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                          <span className="text-sm text-gray-700 dark:text-slate-300">เห็นราคาทุนสินค้า</span>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={editingMember.can_view_cost}
+                            onClick={() => setEditingMember({ ...editingMember, can_view_cost: !editingMember.can_view_cost })}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer ${
+                              editingMember.can_view_cost ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
+                            }`}
+                          >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                              editingMember.can_view_cost ? 'translate-x-6' : 'translate-x-1'
+                            }`} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1110,7 +1194,6 @@ export default function MembersPage() {
               </form>
             </div>
           </div>
-        </div>
       )}
       {confirmDialog}
     </Layout>

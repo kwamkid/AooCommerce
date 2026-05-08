@@ -271,7 +271,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { id, name, roles, phone, is_active } = await request.json();
+    const { id, name, roles, phone, is_active, can_view_cost } = await request.json();
 
     if (!id) {
       return NextResponse.json(
@@ -323,9 +323,18 @@ export async function PUT(request: NextRequest) {
       }
     }
     if (roles && Array.isArray(roles) && roles.length > 0) {
+      // owner/admin always see cost, otherwise honor the flag
+      const isExclusive = roles.includes('owner') || roles.includes('admin');
+      const resolvedCanViewCost = isExclusive ? true : can_view_cost === true;
+
+      const memberUpdate: Record<string, unknown> = { roles };
+      if (typeof can_view_cost === 'boolean' || isExclusive) {
+        memberUpdate.can_view_cost = resolvedCanViewCost;
+      }
+
       await supabaseAdmin
         .from('company_members')
-        .update({ roles })
+        .update(memberUpdate)
         .eq('company_id', companyId)
         .eq('user_id', id);
 

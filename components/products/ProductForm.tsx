@@ -146,8 +146,8 @@ export default function ProductForm({
   const { features } = useFeatures();
   const { showToast } = useToast();
 
-  // Only owner/admin can see/edit cost price
-  const canViewCost = userProfile?.roles?.some(r => r === 'owner' || r === 'admin') ?? false;
+  // Cost permission is per-member (owner/admin always have it, others by toggle)
+  const canViewCost = userProfile?.canViewCost === true;
 
   const [variationTypes, setVariationTypes] = useState<VariationTypeItem[]>([]);
   const [saving, setSaving] = useState(false);

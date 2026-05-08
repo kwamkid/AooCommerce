@@ -10,6 +10,7 @@ import { UserProfile, CompanyRole } from '@/types';
 interface CompanyMembershipRaw {
   company_id: string;
   roles: string[];
+  can_view_cost?: boolean;
   company: {
     id: string;
     name: string;
@@ -125,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: data.email || authUser.email || '',
         name: data.name || authUser.email?.split('@')[0] || 'User',
         roles: effectiveRoles,
+        canViewCost: currentMembership?.can_view_cost === true,
         phone: data.phone || undefined,
         isActive: data.is_active ?? true,
         createdAt: new Date(data.created_at),
@@ -166,6 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               email: cached.profile.email || currentSession.user.email || '',
               name: cached.profile.name || currentSession.user.email?.split('@')[0] || 'User',
               roles: effectiveRoles,
+              canViewCost: currentMembership?.can_view_cost === true,
               phone: cached.profile.phone || undefined,
               isActive: cached.profile.is_active ?? true,
               createdAt: new Date(cached.profile.created_at),

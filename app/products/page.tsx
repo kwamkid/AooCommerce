@@ -62,6 +62,7 @@ interface ProductItem {
     barcode?: string;
     default_price: number;
     discount_price: number;
+    cost_price?: number | null;
     is_active: boolean;
   }[];
 }
@@ -450,6 +451,7 @@ function ProductsPageContent() {
       const exportData = await exportRes.json();
       const allProducts: ProductItem[] = exportData.products || [];
       const activeShops: { id: string; shop_name: string; platform: string }[] = exportData.shops || [];
+      const canViewCost: boolean = exportData.can_view_cost === true;
 
       type LinkInfo = { variation_id: string; account_id: string; platform_price: number | null; platform_discount_price: number | null };
       const linkMap = new Map<string, Map<string, LinkInfo>>();
@@ -465,8 +467,13 @@ function ProductsPageContent() {
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('สินค้า');
 
-      // Build dynamic headers: base columns + marketplace shop columns
-      const baseHeaders = ['product_id', 'variation_id', 'รหัสสินค้า', 'ชื่อสินค้า', 'ประเภท', 'ตัวเลือก', 'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย', 'สถานะ'];
+      // Build dynamic headers: base columns + (cost if allowed) + marketplace shop columns
+      const baseHeaders = [
+        'product_id', 'variation_id', 'รหัสสินค้า', 'ชื่อสินค้า', 'ประเภท', 'ตัวเลือก',
+        'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย',
+        ...(canViewCost ? ['ราคาทุน'] : []),
+        'สถานะ',
+      ];
       const shopHeaders = activeShops.map(s => `ราคา ${s.shop_name || s.id}`);
       const headers = [...baseHeaders, ...shopHeaders];
       const headerRow = ws.addRow(headers);
@@ -513,6 +520,7 @@ function ProductsPageContent() {
               'สินค้าปกติ', cleanVariationLabel(v?.variation_label, v?.sku, v?.barcode, product.code),
               v?.sku || '', v?.barcode || '',
               v?.default_price ?? 0, v?.discount_price ?? 0,
+              ...(canViewCost ? [v?.cost_price ?? 0] : []),
               product.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
               ...getShopPrices(v?.variation_id),
             ],
@@ -527,6 +535,7 @@ function ProductsPageContent() {
               product.code || '', product.name,
               `สินค้าย่อย (${product.variations.length})`, '',
               '', '', '', '',
+              ...(canViewCost ? [''] : []),
               product.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
               ...activeShops.map(() => ''),
             ],
@@ -542,6 +551,7 @@ function ProductsPageContent() {
                 '', v.variation_label || '-',
                 v.sku || '', v.barcode || '',
                 v.default_price ?? 0, v.discount_price ?? 0,
+                ...(canViewCost ? [v.cost_price ?? 0] : []),
                 v.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
                 ...getShopPrices(v.variation_id),
               ],
@@ -577,6 +587,7 @@ function ProductsPageContent() {
         { width: 16 }, // Barcode
         { width: 12 }, // ราคาปกติ
         { width: 12 }, // ราคาขาย
+        ...(canViewCost ? [{ width: 12 }] : []), // ราคาทุน
         { width: 10 }, // สถานะ
         ...activeShops.map(() => ({ width: 14 })),
       ];

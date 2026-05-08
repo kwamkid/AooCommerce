@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, validateRoles } from '@/lib/supabase-admin';
 
+// owner/admin always implicitly see cost; for other roles, honor the flag
+function resolveCanViewCost(roles: string[] | undefined, requested: unknown): boolean {
+  if (Array.isArray(roles) && (roles.includes('owner') || roles.includes('admin'))) return true;
+  return requested === true;
+}
+
 // GET - List company members
 export async function GET(request: NextRequest) {
   try {
@@ -12,7 +18,7 @@ export async function GET(request: NextRequest) {
     // Get company members
     const { data: memberRows, error } = await supabaseAdmin
       .from('company_members')
-      .select('id, user_id, roles, is_active, joined_at, created_at')
+      .select('id, user_id, roles, is_active, can_view_cost, joined_at, created_at')
       .eq('company_id', auth.companyId)
       .order('joined_at', { ascending: true });
 
@@ -42,6 +48,7 @@ export async function GET(request: NextRequest) {
       id: m.id,
       roles: m.roles,
       is_active: m.is_active,
+      can_view_cost: m.can_view_cost === true,
       joined_at: m.joined_at,
       created_at: m.created_at,
       user: userMap[m.user_id] || { id: m.user_id, email: '', name: 'Unknown', phone: null, avatar: null },
@@ -75,7 +82,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์เชิญสมาชิก' }, { status: 403 });
     }
 
-    const { email, roles, warehouse_ids, terminal_ids } = await request.json();
+    const { email, roles, warehouse_ids, terminal_ids, can_view_cost } = await request.json();
 
     const rolesError = validateRoles(roles);
     if (rolesError) {
@@ -152,6 +159,7 @@ export async function POST(request: NextRequest) {
         ...(email ? { email } : {}),
         roles,
         invited_by: auth.userId,
+        can_view_cost: resolveCanViewCost(roles, can_view_cost),
         ...(Array.isArray(warehouse_ids) ? { warehouse_ids } : {}),
         ...(Array.isArray(terminal_ids) ? { terminal_ids } : {}),
       })
@@ -181,7 +189,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขตำแหน่ง' }, { status: 403 });
     }
 
-    const { memberId, roles } = await request.json();
+    const { memberId, roles, can_view_cost } = await request.json();
 
     if (!memberId) {
       return NextResponse.json({ error: 'Missing member ID' }, { status: 400 });
@@ -205,7 +213,10 @@ export async function PUT(request: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from('company_members')
-      .update({ roles })
+      .update({
+        roles,
+        can_view_cost: resolveCanViewCost(roles, can_view_cost),
+      })
       .eq('id', memberId)
       .eq('company_id', auth.companyId)
       .select()

@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
         invited_by: invitation.invited_by,
         terminal_ids: invitation.terminal_ids ?? null,
         warehouse_ids: invitation.warehouse_ids ?? null,
+        can_view_cost: invitation.can_view_cost === true,
       });
     }
 
