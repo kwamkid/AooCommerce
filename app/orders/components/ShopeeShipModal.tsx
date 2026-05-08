@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Package, Truck, MapPin, Clock, X, Loader2, CheckCircle2 } from 'lucide-react';
+import { Package, Truck, MapPin, Clock, Loader2, CheckCircle2 } from 'lucide-react';
+import Modal from '@/components/ui/Modal';
 
 interface TimeSlot {
   pickup_time_id: string;
@@ -144,21 +145,49 @@ export default function ShopeeShipModal({ orderId, orderSn, onClose, onSuccess, 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !shipping && onClose()}>
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <div>
-            <h3 className="font-semibold text-lg">รับออเดอร์ Shopee</h3>
-            <p className="text-sm text-gray-500">{orderSn}</p>
-          </div>
-          <button onClick={onClose} disabled={shipping} className="p-1 hover:bg-gray-100 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
+    <Modal
+      open={true}
+      onClose={onClose}
+      size="lg"
+      disableBackdropClose={shipping}
+      title={
+        <div>
+          <h3 className="font-semibold text-lg">รับออเดอร์ Shopee</h3>
+          <p className="text-sm text-gray-500 font-normal">{orderSn}</p>
         </div>
-
-        {/* Content */}
-        <div className="p-5">
+      }
+      footer={
+        !loading && !error && modes.length > 0 ? (
+          <div className="px-5 py-4 bg-gray-50 flex justify-end gap-3">
+            <button
+              onClick={onClose}
+              disabled={shipping}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              ยกเลิก
+            </button>
+            <button
+              onClick={handleShip}
+              disabled={!canShip || shipping}
+              className="px-5 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {shipping ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  กำลังรับออเดอร์...
+                </>
+              ) : (
+                <>
+                  <Package className="w-4 h-4" />
+                  รับออเดอร์
+                </>
+              )}
+            </button>
+          </div>
+        ) : undefined
+      }
+    >
+      <div className="p-5">
           {loading ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -256,36 +285,6 @@ export default function ShopeeShipModal({ orderId, orderSn, onClose, onSuccess, 
           )}
         </div>
 
-        {/* Footer */}
-        {!loading && !error && modes.length > 0 && (
-          <div className="px-5 py-4 border-t bg-gray-50 rounded-b-xl flex justify-end gap-3">
-            <button
-              onClick={onClose}
-              disabled={shipping}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              ยกเลิก
-            </button>
-            <button
-              onClick={handleShip}
-              disabled={!canShip || shipping}
-              className="px-5 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {shipping ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  กำลังรับออเดอร์...
-                </>
-              ) : (
-                <>
-                  <Package className="w-4 h-4" />
-                  รับออเดอร์
-                </>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+    </Modal>
   );
 }

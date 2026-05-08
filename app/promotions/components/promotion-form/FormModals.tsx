@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import {
   X,
   CheckCircle2,
@@ -11,6 +10,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
+import Modal from '@/components/ui/Modal';
 import PushDealModal from '../PushDealModal';
 import type { UsePromotionFormReturn } from './usePromotionForm';
 
@@ -39,13 +39,6 @@ export default function FormModals({ hook }: Props) {
     promotionId,
   } = hook;
 
-  useEffect(() => {
-    if (!lightboxSrc) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [lightboxSrc]);
-
   return (
     <>
       {/* Lightbox */}
@@ -71,9 +64,14 @@ export default function FormModals({ hook }: Props) {
       )}
 
       {/* Confirm Dialog */}
-      {confirmDialog && (
-        <div className="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-sm w-full p-6">
+      <Modal
+        open={!!confirmDialog}
+        onClose={() => setConfirmDialog(null)}
+        size="sm"
+        hideCloseButton
+      >
+        {confirmDialog && (
+          <div className="p-6">
             <p className="text-base font-semibold text-gray-900 dark:text-white mb-1">{confirmDialog.message}</p>
             {confirmDialog.detail && (
               <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">{confirmDialog.detail}</p>
@@ -97,8 +95,8 @@ export default function FormModals({ hook }: Props) {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Push Deal Modal */}
       {showPushModal && (promotionId || savedPromotionId) && (
@@ -139,9 +137,15 @@ export default function FormModals({ hook }: Props) {
       )}
 
       {/* Sync Confirm Dialog */}
-      {showSyncConfirm && (
-        <div className="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4" onClick={() => { if (!syncingShopee) { setShowSyncConfirm(false); router.push('/promotions'); } }}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+      <Modal
+        open={showSyncConfirm}
+        onClose={() => { if (!syncingShopee) { setShowSyncConfirm(false); router.push('/promotions'); } }}
+        size="md"
+        hideCloseButton
+        disableBackdropClose={syncingShopee}
+      >
+        {showSyncConfirm && (
+          <div className="p-6">
             {syncResults ? (
               <>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">ผลลัพธ์การ Sync</h3>
@@ -293,8 +297,8 @@ export default function FormModals({ hook }: Props) {
               })()
             )}
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Shopee Sync Status (edit mode only) */}
       {isEdit && shopeeDeals.length > 0 && (

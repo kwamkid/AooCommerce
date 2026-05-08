@@ -5,11 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
-import { Loader2, Search, Package2, Pencil, Eye, EyeOff, ClipboardList, X, Warehouse, FilterX, Layers } from 'lucide-react';
+import { Loader2, Search, Package2, Pencil, Eye, EyeOff, ClipboardList, Warehouse, FilterX, Layers } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
 import AdjustStockModal from './AdjustStockModal';
+import Modal from '@/components/ui/Modal';
 import {
   InventoryItem, WarehouseItem, StockColumnKey,
   STOCK_COLUMN_CONFIGS, STOCK_COLUMNS_STORAGE_KEY,
@@ -880,26 +881,21 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
       )}
 
       {/* Image Lightbox */}
-      {lightboxImage && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70"
-          onClick={() => setLightboxImage(null)}
-          role="dialog"
-        >
-          <button
-            onClick={() => setLightboxImage(null)}
-            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
-          >
-            <X className="w-6 h-6" />
-          </button>
-          <img
-            src={lightboxImage}
-            alt="Product"
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      <Modal
+        open={!!lightboxImage}
+        onClose={() => setLightboxImage(null)}
+        size="3xl"
+      >
+        {lightboxImage && (
+          <div className="p-4 flex items-center justify-center">
+            <img
+              src={lightboxImage}
+              alt="Product"
+              className="max-w-full max-h-[80vh] object-contain rounded-lg"
+            />
+          </div>
+        )}
+      </Modal>
 
       {/* Adjust Modal */}
       {adjustItem && (

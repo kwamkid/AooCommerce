@@ -2,10 +2,11 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { X, User } from 'lucide-react';
+import { User } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import type { EntitySearchOption } from '@/components/ui/EntitySearchInput';
+import Modal from '@/components/ui/Modal';
 
 interface Customer {
   id: string;
@@ -57,18 +58,8 @@ export default function CustomerSearch({ selectedCustomer, onSelect, onClose }: 
   }));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 w-full max-w-md mx-4 max-h-[80vh] flex flex-col shadow-xl dark:shadow-none"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">เลือกลูกค้า</h3>
-          <button onClick={onClose} className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <Modal open onClose={onClose} size="md" title="เลือกลูกค้า">
+      <div className="p-6">
         {/* Walk-in button */}
         <button
           onClick={() => { onSelect(null); onClose(); }}
@@ -96,6 +87,6 @@ export default function CustomerSearch({ selectedCustomer, onSelect, onClose }: 
           emptyMessage="พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหา"
         />
       </div>
-    </div>
+    </Modal>
   );
 }

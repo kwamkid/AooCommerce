@@ -14,6 +14,7 @@ import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ItemsTable, { type TableItem as OrderTableItem, type PromotionComponent } from '@/components/ui/ItemsTable';
 import PromotionSelectModal, { type PromoData, type PromoItemData, type PromotionSelectResult } from '@/components/ui/PromotionSelectModal';
+import Modal from '@/components/ui/Modal';
 import { calculateQtyDiscount, type PromotionTier } from '@/lib/promotions';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
@@ -29,7 +30,6 @@ import {
   Plus,
   Loader2,
   MapPin,
-  X,
   Save,
   Copy,
   ChevronDown,
@@ -1974,9 +1974,14 @@ export default function OrderForm({
         </div>
       )}
       {/* Address Conflict Dialog */}
-      {addressConflict && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-sm w-full p-5">
+      <Modal
+        open={!!addressConflict}
+        onClose={() => setAddressConflict(null)}
+        size="sm"
+        hideCloseButton
+      >
+        {addressConflict && (
+          <div className="p-5">
             <h3 className="text-base font-bold text-gray-900 dark:text-slate-100 mb-2">ที่อยู่ไม่ตรงกับ &quot;{addressConflict.addressName}&quot;</h3>
             <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">ที่อยู่ที่กรอกไม่ตรงกับที่อยู่เดิม ต้องการดำเนินการอย่างไร?</p>
             <div className="space-y-2">
@@ -2006,27 +2011,17 @@ export default function OrderForm({
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Success Modal with Bill Online */}
-      {showSuccessModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          onClick={() => { setShowSuccessModal(false); if (!onSuccess) router.push('/orders?status=new'); }}
-          onKeyDown={(e) => { if (e.key === 'Escape') { setShowSuccessModal(false); if (!onSuccess) router.push('/orders?status=new'); } }}
-          tabIndex={-1}
-          ref={(el) => el?.focus()}
-        >
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md mx-4 w-full relative" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => { setShowSuccessModal(false); if (!onSuccess) router.push('/orders?status=new'); }}
-              className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="text-center">
+      <Modal
+        open={showSuccessModal}
+        onClose={() => { setShowSuccessModal(false); if (!onSuccess) router.push('/orders?status=new'); }}
+        size="md"
+      >
+        <div className="p-6">
+          <div className="text-center">
               <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle className="w-10 h-10 text-green-600" />
               </div>
@@ -2095,9 +2090,8 @@ export default function OrderForm({
                 </button>
               </div>
             </div>
-          </div>
         </div>
-      )}
+      </Modal>
     </form>
 
     {/* Promotion Select Modal */}

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef, DragEvent } from 'react';
-import { Package, Plus, Trash2, X, Loader2, GripVertical } from 'lucide-react';
+import { Package, Plus, Trash2, Loader2, GripVertical } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import FormSelect from '@/components/ui/FormSelect';
+import Modal from '@/components/ui/Modal';
 
 interface OrderItem {
   id: string;
@@ -241,8 +242,6 @@ export default function SplitParcelModal({
     }
   };
 
-  if (!show) return null;
-
   // Unassigned items (items not fully distributed)
   const unassignedItems = orderItems.filter(item => {
     const assigned = assignedQty.get(item.id) || 0;
@@ -250,31 +249,46 @@ export default function SplitParcelModal({
   });
 
   return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
-              แบ่งกล่อง
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              {orderNumber} — {orderItems.length} รายการ, {totalRequired} ชิ้น
-            </p>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+    <Modal
+      open={show}
+      onClose={onClose}
+      size="2xl"
+      title={
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+            แบ่งกล่อง
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 font-normal">
+            {orderNumber} — {orderItems.length} รายการ, {totalRequired} ชิ้น
+          </p>
         </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+      }
+      footer={
+        <div className="px-5 py-4 flex items-center justify-between">
+          <div className="text-sm text-gray-500">
+            {parcels.length} กล่อง, {totalAssigned}/{totalRequired} ชิ้น
+            {isShopee && <span className="text-xs text-gray-400 ml-2">(Shopee max 5)</span>}
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            >
+              ยกเลิก
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={!isValid || loading}
+              className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg flex items-center gap-2"
+            >
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              แบ่งกล่อง
+            </button>
+          </div>
+        </div>
+      }
+    >
+      <div className="px-5 py-4 space-y-4">
           {error && (
             <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm">
               {error}
@@ -454,30 +468,6 @@ export default function SplitParcelModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-          <div className="text-sm text-gray-500">
-            {parcels.length} กล่อง, {totalAssigned}/{totalRequired} ชิ้น
-            {isShopee && <span className="text-xs text-gray-400 ml-2">(Shopee max 5)</span>}
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-            >
-              ยกเลิก
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={!isValid || loading}
-              className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg flex items-center gap-2"
-            >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              แบ่งกล่อง
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

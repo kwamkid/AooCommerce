@@ -8,6 +8,7 @@ import {
   ChevronRight, CheckCircle2, XCircle, ShoppingBag,
   AlertTriangle,
 } from 'lucide-react';
+import Modal from '@/components/ui/Modal';
 import ShopeeCategoryPicker from './ShopeeCategoryPicker';
 
 interface ProductItem {
@@ -300,33 +301,79 @@ export default function ShopeeBulkExportModal({
     }
   };
 
-  if (!isOpen) return null;
-
   const selectedCount = selectedProducts.size;
   const progressPercent = exportTotal > 0 ? Math.round((exportProgress / exportTotal) * 100) : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-shopee/10 flex items-center justify-center">
-              <Upload className="w-4 h-4 text-shopee" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">ส่งสินค้าไป Shopee</h3>
-              <p className="text-xs text-gray-500 dark:text-slate-400">{accountName}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200">
-            <X className="w-5 h-5" />
-          </button>
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      size="4xl"
+      icon={
+        <div className="w-8 h-8 rounded-lg bg-shopee/10 flex items-center justify-center">
+          <Upload className="w-4 h-4 text-shopee" />
         </div>
+      }
+      title={
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">ส่งสินค้าไป Shopee</h3>
+          <p className="text-xs text-gray-500 dark:text-slate-400 font-normal">{accountName}</p>
+        </div>
+      }
+      footer={
+        <div className="flex items-center justify-between p-4">
+          <div>
+            {step === 'configure' && (
+              <button
+                onClick={() => setStep('select')}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
+              >
+                ย้อนกลับ
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {step !== 'exporting' && (
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
+              >
+                {step === 'done' ? 'ปิด' : 'ยกเลิก'}
+              </button>
+            )}
 
+            {step === 'select' && (
+              <button
+                onClick={() => {
+                  prefillFromExistingLinks();
+                  setStep('configure');
+                }}
+                disabled={selectedCount === 0}
+                className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                ถัดไป ({selectedCount})
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
+
+            {step === 'configure' && (() => {
+              const allConfigured = [...selectedProducts.keys()].every(pid => productConfigs[pid]?.categoryId);
+              return (
+                <button
+                  onClick={handleExport}
+                  disabled={!allConfigured}
+                  className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  <ShoppingBag className="w-4 h-4" />
+                  ส่งไป Shopee ({selectedCount})
+                </button>
+              );
+            })()}
+          </div>
+        </div>
+      }
+    >
+      <div className="flex flex-col">
         {/* Step indicator */}
         <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-slate-700/30 border-b border-gray-200 dark:border-slate-700 flex-shrink-0">
           {['เลือกสินค้า', 'ตั้งค่า', 'กำลังส่ง'].map((label, idx) => {
@@ -355,7 +402,7 @@ export default function ShopeeBulkExportModal({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-hidden">
+        <div>
           {/* Step 1: Select Products (dual-pane) */}
           {step === 'select' && (
             <div className="flex flex-col md:flex-row h-full" style={{ minHeight: '400px' }}>
@@ -628,58 +675,7 @@ export default function ShopeeBulkExportModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-slate-700 flex-shrink-0">
-          <div>
-            {step === 'configure' && (
-              <button
-                onClick={() => setStep('select')}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
-              >
-                ย้อนกลับ
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {step !== 'exporting' && (
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
-              >
-                {step === 'done' ? 'ปิด' : 'ยกเลิก'}
-              </button>
-            )}
-
-            {step === 'select' && (
-              <button
-                onClick={() => {
-                  prefillFromExistingLinks();
-                  setStep('configure');
-                }}
-                disabled={selectedCount === 0}
-                className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                ถัดไป ({selectedCount})
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            )}
-
-            {step === 'configure' && (() => {
-              const allConfigured = [...selectedProducts.keys()].every(pid => productConfigs[pid]?.categoryId);
-              return (
-                <button
-                  onClick={handleExport}
-                  disabled={!allConfigured}
-                  className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  <ShoppingBag className="w-4 h-4" />
-                  ส่งไป Shopee ({selectedCount})
-                </button>
-              );
-            })()}
-          </div>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

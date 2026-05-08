@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
-  Loader2, X, Package, Save, Settings, ChevronDown, Clock, CheckCircle, MapPin, FileText, Receipt,
+  Loader2, Package, Save, Settings, ChevronDown, Clock, CheckCircle, MapPin, FileText, Receipt,
   QrCode, Copy, Camera, Link2, AlertTriangle, Eye, Printer,
 } from 'lucide-react';
+import Modal from '@/components/ui/Modal';
 import { useCompany } from '@/lib/company-context';
 import { formatNumber } from '@/lib/utils/format';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
@@ -1121,26 +1122,21 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
       )}
 
       {/* Image Lightbox */}
-      {lightboxImage && (
-        <div
-          className="fixed inset-0 z-[300] bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setLightboxImage(null)}
-        >
-          <button
-            type="button"
-            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
-            onClick={() => setLightboxImage(null)}
-          >
-            <X className="w-6 h-6 text-white" />
-          </button>
-          <img
-            src={lightboxImage}
-            alt="Product"
-            className="max-w-full max-h-[85vh] object-contain rounded-lg"
-            onClick={e => e.stopPropagation()}
-          />
-        </div>
-      )}
+      <Modal
+        open={!!lightboxImage}
+        onClose={() => setLightboxImage(null)}
+        size="3xl"
+      >
+        {lightboxImage && (
+          <div className="p-4 flex items-center justify-center">
+            <img
+              src={lightboxImage}
+              alt="Product"
+              className="max-w-full max-h-[80vh] object-contain rounded-lg"
+            />
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

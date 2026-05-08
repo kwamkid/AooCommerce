@@ -2,8 +2,9 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Gift, Tag, Minus, Plus, Package, ShoppingCart } from 'lucide-react';
+import { Gift, Minus, Plus, Package, ShoppingCart } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
+import Modal from './Modal';
 
 // ── Types ──────────────────────────────────────────────
 
@@ -178,29 +179,56 @@ export default function PromotionSelectModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div
-        className="relative mx-4 w-full max-w-lg bg-white dark:bg-[#1E293B] rounded-2xl shadow-2xl overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Gift className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h3 className="text-gray-900 dark:text-white font-bold">{promotion.name}</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{TYPE_LABELS[type] || type}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+    <Modal
+      open={true}
+      onClose={onClose}
+      size="lg"
+      icon={
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <Gift className="w-5 h-5 text-primary" />
         </div>
-
-        {/* Body */}
-        <div className="px-5 py-4 max-h-[60vh] overflow-y-auto space-y-4">
+      }
+      title={
+        <div>
+          <h3 className="text-gray-900 dark:text-white font-bold">{promotion.name}</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 font-normal">{TYPE_LABELS[type] || type}</p>
+        </div>
+      }
+      footer={
+        <div className="px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">ราคารวม</p>
+            <p className="text-xl font-bold text-primary">฿{formatPrice(Math.round(getDisplayPrice() * 100) / 100)}</p>
+            {(() => {
+              const full = getFullPrice();
+              const promo = getDisplayPrice();
+              const savings = Math.round((full - promo) * 100) / 100;
+              return savings > 0 ? (
+                <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                  ประหยัด ฿{formatPrice(savings)} <span className="text-gray-400 line-through ml-1">฿{formatPrice(full)}</span>
+                </p>
+              ) : null;
+            })()}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+            >
+              ยกเลิก
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-medium text-sm rounded-lg transition-colors active:scale-[0.98]"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              เพิ่มลงรายการ
+            </button>
+          </div>
+        </div>
+      }
+    >
+      <div className="px-5 py-4 space-y-4">
 
           {/* === bundle_set / buy_get_free: show all items === */}
           {(type === 'bundle_set' || type === 'buy_get_free') && (
@@ -400,41 +428,7 @@ export default function PromotionSelectModal({
               )}
             </>
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700/50 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">ราคารวม</p>
-            <p className="text-xl font-bold text-primary">฿{formatPrice(Math.round(getDisplayPrice() * 100) / 100)}</p>
-            {(() => {
-              const full = getFullPrice();
-              const promo = getDisplayPrice();
-              const savings = Math.round((full - promo) * 100) / 100;
-              return savings > 0 ? (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                  ประหยัด ฿{formatPrice(savings)} <span className="text-gray-400 line-through ml-1">฿{formatPrice(full)}</span>
-                </p>
-              ) : null;
-            })()}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
-            >
-              ยกเลิก
-            </button>
-            <button
-              onClick={handleConfirm}
-              className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-medium text-sm rounded-lg transition-colors active:scale-[0.98]"
-            >
-              <ShoppingCart className="w-4 h-4" />
-              เพิ่มลงรายการ
-            </button>
-          </div>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

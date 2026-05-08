@@ -7,6 +7,7 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { ImagePlus, X, Loader2, GripVertical, ChevronLeft, ChevronRight } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
+import Modal from './Modal';
 
 export interface ProductImage {
   id?: string;
@@ -501,70 +502,62 @@ export default function ImageUploader({
       />
 
       {/* Lightbox */}
-      {lightboxIndex !== null && images[lightboxIndex] && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80"
-          onClick={() => setLightboxIndex(null)}
-        >
-          {/* Close */}
-          <button
-            onClick={() => setLightboxIndex(null)}
-            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
-          >
-            <X className="w-6 h-6" />
-          </button>
-
-          {/* Counter */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/70 text-sm bg-black/40 px-3 py-1 rounded-full">
-            {lightboxIndex + 1} / {images.length}
-          </div>
-
-          {/* Prev */}
-          {lightboxIndex > 0 && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1); }}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
-            >
-              <ChevronLeft className="w-8 h-8" />
-            </button>
-          )}
-
-          {/* Next */}
-          {lightboxIndex < images.length - 1 && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1); }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
-            >
-              <ChevronRight className="w-8 h-8" />
-            </button>
-          )}
-
-          {/* Image */}
-          <img
-            src={images[lightboxIndex].image_url}
-            alt={`รูปที่ ${lightboxIndex + 1}`}
-            className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-
-          {/* Thumbnails */}
-          {images.length > 1 && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 bg-black/40 rounded-lg p-2 max-w-[90vw] overflow-x-auto">
-              {images.map((img, i) => (
+      <Modal
+        open={lightboxIndex !== null && !!images[lightboxIndex!]}
+        onClose={() => setLightboxIndex(null)}
+        size="3xl"
+        title={lightboxIndex !== null ? `รูปที่ ${lightboxIndex + 1} / ${images.length}` : undefined}
+      >
+        {lightboxIndex !== null && images[lightboxIndex] && (
+          <div className="p-4">
+            <div className="relative flex items-center justify-center">
+              {/* Prev */}
+              {lightboxIndex > 0 && (
                 <button
-                  key={img.id || `thumb-${i}`}
-                  onClick={(e) => { e.stopPropagation(); setLightboxIndex(i); }}
-                  className={`w-12 h-12 rounded-md overflow-hidden flex-shrink-0 border-2 transition-all ${
-                    i === lightboxIndex ? 'border-white scale-110' : 'border-transparent opacity-60 hover:opacity-100'
-                  }`}
+                  onClick={() => setLightboxIndex(lightboxIndex - 1)}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 text-white p-2 rounded-full bg-black/40 hover:bg-black/60 transition-colors z-10"
                 >
-                  <img src={img.image_url} alt="" className="w-full h-full object-cover" />
+                  <ChevronLeft className="w-6 h-6" />
                 </button>
-              ))}
+              )}
+
+              {/* Next */}
+              {lightboxIndex < images.length - 1 && (
+                <button
+                  onClick={() => setLightboxIndex(lightboxIndex + 1)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-white p-2 rounded-full bg-black/40 hover:bg-black/60 transition-colors z-10"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              )}
+
+              {/* Image */}
+              <img
+                src={images[lightboxIndex].image_url}
+                alt={`รูปที่ ${lightboxIndex + 1}`}
+                className="max-w-full max-h-[70vh] object-contain rounded-lg"
+              />
             </div>
-          )}
-        </div>
-      )}
+
+            {/* Thumbnails */}
+            {images.length > 1 && (
+              <div className="mt-4 flex gap-2 justify-center flex-wrap">
+                {images.map((img, i) => (
+                  <button
+                    key={img.id || `thumb-${i}`}
+                    onClick={() => setLightboxIndex(i)}
+                    className={`w-12 h-12 rounded-md overflow-hidden flex-shrink-0 border-2 transition-all ${
+                      i === lightboxIndex ? 'border-primary scale-110' : 'border-gray-200 dark:border-slate-600 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <img src={img.image_url} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
       {confirmDialog}
     </div>
   );

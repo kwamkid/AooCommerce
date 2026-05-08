@@ -1,8 +1,8 @@
 // Path: app/pos/components/VariationPicker.tsx
 'use client';
 
-import { X } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
+import Modal from '@/components/ui/Modal';
 import { PosProduct } from './ProductGrid';
 
 interface VariationPickerProps {
@@ -14,18 +14,8 @@ interface VariationPickerProps {
 
 export default function VariationPicker({ productName, variations, onSelect, onClose }: VariationPickerProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto shadow-xl dark:shadow-none"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{productName}</h3>
-          <button onClick={onClose} className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <Modal open onClose={onClose} size="md" title={productName}>
+      <div className="p-6">
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">เลือกตัวเลือก</p>
 
         <div className="grid grid-cols-2 gap-3">
@@ -55,6 +45,6 @@ export default function VariationPicker({ productName, variations, onSelect, onC
           })}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

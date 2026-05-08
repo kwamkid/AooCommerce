@@ -5,6 +5,7 @@ import { apiFetch } from '@/lib/api-client';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import { Loader2, Search, Warehouse, ArrowDownUp, ExternalLink, X, Package2 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import Modal from '@/components/ui/Modal';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
 import {
@@ -451,26 +452,21 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
       )}
 
       {/* Image Lightbox */}
-      {lightboxImage && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70"
-          onClick={() => setLightboxImage(null)}
-          role="dialog"
-        >
-          <button
-            onClick={() => setLightboxImage(null)}
-            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
-          >
-            <X className="w-6 h-6" />
-          </button>
-          <img
-            src={lightboxImage}
-            alt="Product"
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      <Modal
+        open={!!lightboxImage}
+        onClose={() => setLightboxImage(null)}
+        size="3xl"
+      >
+        {lightboxImage && (
+          <div className="p-4 flex items-center justify-center">
+            <img
+              src={lightboxImage}
+              alt="Product"
+              className="max-w-full max-h-[80vh] object-contain rounded-lg"
+            />
+          </div>
+        )}
+      </Modal>
     </>
   );
 }
