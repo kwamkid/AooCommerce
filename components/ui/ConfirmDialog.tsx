@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useCallback, ReactNode } from 'react';
-import { X } from 'lucide-react';
+import type { ReactNode } from 'react';
+import Modal from './Modal';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -41,34 +41,13 @@ export default function ConfirmDialog({
   confirmIcon,
   loading,
 }: ConfirmDialogProps) {
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose();
-  }, [onClose]);
-
-  useEffect(() => {
-    if (!open) return;
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, handleKeyDown]);
-
-  if (!open) return null;
-
   const confirmBtnClass = variant === 'danger'
     ? 'bg-red-600 text-white hover:bg-red-700'
     : 'bg-primary text-white hover:bg-primary-hover';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded-lg"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
+    <Modal open={open} onClose={onClose} size="md" hideCloseButton>
+      <div className="p-6">
         <div className="text-center mb-5">
           {icon && (
             <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center mx-auto mb-3">
@@ -102,6 +81,6 @@ export default function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
