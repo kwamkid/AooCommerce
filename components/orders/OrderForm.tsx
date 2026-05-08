@@ -1232,47 +1232,6 @@ export default function OrderForm({
       const branch = branchOrders[0];
       const addrId = selectedAddressId && selectedAddressId !== 'new' ? selectedAddressId : branch?.shipping_address_id;
 
-      const items = (branch?.products || []).map(product => {
-        // For promotion rows: use first component's real variation_id
-        let variationId = product.variation_id;
-        if (product.promotion_id && product.promotion_components?.length) {
-          const realComp = product.promotion_components.find(c => c.variation_id);
-          if (realComp) variationId = realComp.variation_id;
-        }
-
-        return {
-          variation_id: variationId,
-          product_id: product.product_id || undefined,
-          product_code: product.product_code || undefined,
-          product_name: product.product_name,
-          variation_label: product.variation_label || undefined,
-          quantity: product.quantity,
-          unit_price: product.unit_price,
-          discount_value: product.discount_value,
-          discount_type: product.discount_type,
-          promotion_id: product.promotion_id || undefined,
-          promotion_components: product.promotion_id && product.promotion_components?.length
-            ? product.promotion_components.map(c => ({
-                variation_id: c.variation_id,
-                product_name: c.product_name,
-                product_code: c.product_code,
-                sku: c.sku,
-                barcode: c.barcode,
-                image: c.image,
-                role: c.role,
-                quantity: c.quantity,
-                default_price: c.default_price,
-                special_price: c.special_price,
-              }))
-            : undefined,
-          shipments: selectedCustomer && addrId ? [{
-            shipping_address_id: addrId,
-            quantity: product.quantity,
-            shipping_fee: branch.shipping_fee || 0
-          }] : []
-        };
-      });
-
       // Determine primary shipping_address_id
       const primaryAddressId = selectedCustomer ? (addrId || undefined) : undefined;
 
@@ -1350,6 +1309,48 @@ export default function OrderForm({
       }
 
       const finalAddressId = resolvedShippingAddressId || primaryAddressId;
+
+      // Build items AFTER customer/address resolution so shipments get the right id
+      const items = (branch?.products || []).map(product => {
+        // For promotion rows: use first component's real variation_id
+        let variationId = product.variation_id;
+        if (product.promotion_id && product.promotion_components?.length) {
+          const realComp = product.promotion_components.find(c => c.variation_id);
+          if (realComp) variationId = realComp.variation_id;
+        }
+
+        return {
+          variation_id: variationId,
+          product_id: product.product_id || undefined,
+          product_code: product.product_code || undefined,
+          product_name: product.product_name,
+          variation_label: product.variation_label || undefined,
+          quantity: product.quantity,
+          unit_price: product.unit_price,
+          discount_value: product.discount_value,
+          discount_type: product.discount_type,
+          promotion_id: product.promotion_id || undefined,
+          promotion_components: product.promotion_id && product.promotion_components?.length
+            ? product.promotion_components.map(c => ({
+                variation_id: c.variation_id,
+                product_name: c.product_name,
+                product_code: c.product_code,
+                sku: c.sku,
+                barcode: c.barcode,
+                image: c.image,
+                role: c.role,
+                quantity: c.quantity,
+                default_price: c.default_price,
+                special_price: c.special_price,
+              }))
+            : undefined,
+          shipments: resolvedCustomerId && finalAddressId ? [{
+            shipping_address_id: finalAddressId,
+            quantity: product.quantity,
+            shipping_fee: branch?.shipping_fee || 0,
+          }] : [],
+        };
+      });
 
       const orderData: any = {
         ...(resolvedCustomerId ? { customer_id: resolvedCustomerId } : {}),
