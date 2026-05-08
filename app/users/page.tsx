@@ -27,6 +27,7 @@ import {
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 // User interface
 interface User {
@@ -35,6 +36,7 @@ interface User {
   name: string;
   roles: string[];
   phone?: string;
+  avatar?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -504,13 +506,7 @@ export default function UsersPage() {
             alwaysVisible: true,
             render: (user) => (
               <div className="flex items-center">
-                <div className="flex-shrink-0 h-10 w-10">
-                  <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
-                    <span className="text-primary font-semibold">
-                      {user.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                </div>
+                <UserAvatar src={user.avatar} name={user.name} email={user.email} size="md" />
                 <div className="ml-4">
                   <div className="text-sm font-medium text-gray-900 dark:text-white">
                     {user.name}

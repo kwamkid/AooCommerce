@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import Checkbox from '@/components/ui/Checkbox';
 import Modal from '@/components/ui/Modal';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 interface Member {
   id: string;
@@ -695,10 +696,12 @@ export default function MembersPage() {
                 <div key={member.id} className="p-4 sm:p-5 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
                   <div className="flex items-start sm:items-center justify-between gap-3">
                     <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
-                      {/* Avatar */}
-                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#1A1A2E] flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
-                        {member.user?.name?.charAt(0)?.toUpperCase() || member.user?.email?.charAt(0)?.toUpperCase() || '?'}
-                      </div>
+                      <UserAvatar
+                        src={member.user?.avatar}
+                        name={member.user?.name}
+                        email={member.user?.email}
+                        size="lg"
+                      />
                       <div className="min-w-0">
                         <p className="data-primary text-gray-900 dark:text-white truncate">
                           {member.user?.name || 'ไม่ระบุชื่อ'}

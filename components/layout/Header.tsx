@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import ThemeToggle from '@/components/ThemeToggle';
+import UserAvatar from '@/components/ui/UserAvatar';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import {
@@ -241,11 +242,12 @@ export default function Header() {
               }}
               className="flex items-center space-x-2 p-2 text-white lg:text-gray-700 lg:dark:text-slate-200 hover:bg-white/10 lg:hover:bg-gray-100 lg:dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
-              <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-white font-semibold text-sm">
-                  {userProfile?.name.charAt(0).toUpperCase()}
-                </span>
-              </div>
+              <UserAvatar
+                src={userProfile?.avatar}
+                name={userProfile?.name}
+                email={userProfile?.email}
+                size="sm"
+              />
               <span className="hidden lg:block font-medium text-sm">
                 {userProfile?.name}
               </span>
