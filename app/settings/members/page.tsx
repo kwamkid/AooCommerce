@@ -18,6 +18,7 @@ import {
   Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package,
 } from 'lucide-react';
 import Checkbox from '@/components/ui/Checkbox';
+import Modal from '@/components/ui/Modal';
 
 interface Member {
   id: string;
@@ -868,333 +869,301 @@ export default function MembersPage() {
       )}
 
       {/* Add Member Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/50 transition-opacity"
-            onClick={() => setShowAddModal(false)}
-          />
-          <div className="relative bg-white dark:bg-slate-800 rounded-xl max-w-2xl w-full shadow-xl max-h-[90vh] overflow-y-auto">
-              {/* Modal header */}
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 rounded-t-xl z-10">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
-                  <UserPlus className="w-5 h-5 mr-2 text-primary" />
-                  เพิ่มสมาชิก
-                </h3>
-                <button
-                  onClick={() => setShowAddModal(false)}
-                  className="text-gray-400 hover:text-gray-500"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+      <Modal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        title="เพิ่มสมาชิก"
+        icon={<UserPlus className="w-5 h-5 text-primary" />}
+        size="2xl"
+        footer={!generatedLink ? (
+          <div className="flex justify-end space-x-3 p-5">
+            <button
+              type="button"
+              onClick={() => setShowAddModal(false)}
+              className="px-4 py-2.5 text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg font-medium transition-colors"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateLink}
+              disabled={isGeneratingLink}
+              className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            >
+              {isGeneratingLink ? (
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              ) : (
+                <Link2 className="w-4 h-4 mr-2" />
+              )}
+              สร้างลิงก์
+            </button>
+          </div>
+        ) : (
+          <div className="flex justify-end space-x-3 p-5">
+            <button
+              type="button"
+              onClick={() => setShowAddModal(false)}
+              className="px-4 py-2.5 text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg font-medium transition-colors"
+            >
+              ปิด
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setGeneratedLink('');
+                handleLinkRoleChange(['sales']);
+              }}
+              className="px-4 py-2.5 text-primary bg-primary/10 hover:bg-primary/20 rounded-lg font-medium transition-colors flex items-center"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              สร้างลิงก์ใหม่
+            </button>
+          </div>
+        )}
+      >
+        {!generatedLink ? (
+          <>
+            <p className="text-sm text-gray-500 dark:text-slate-400 px-5 pt-4">
+              สร้างลิงก์เชิญเพื่อให้ผู้ใช้สมัครและเข้าร่วมบริษัท
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 items-start">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                  <Shield className="w-4 h-4 inline mr-1 -mt-0.5" />
+                  ตำแหน่ง *
+                </label>
+                <RoleCheckboxes selectedRoles={linkRoles} onChange={handleLinkRoleChange} disabled={isGeneratingLink} />
               </div>
 
-              {!generatedLink ? (
-                <>
-                  <p className="text-sm text-gray-500 dark:text-slate-400 px-5 pt-4">
-                    สร้างลิงก์เชิญเพื่อให้ผู้ใช้สมัครและเข้าร่วมบริษัท
-                  </p>
-
-                  {/* 2-column layout */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 items-start">
-                    {/* Left: Roles */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                        <Shield className="w-4 h-4 inline mr-1 -mt-0.5" />
-                        ตำแหน่ง *
-                      </label>
-                      <RoleCheckboxes selectedRoles={linkRoles} onChange={handleLinkRoleChange} disabled={isGeneratingLink} />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                    <Warehouse className="w-4 h-4 inline mr-1 -mt-0.5" />
+                    สิทธิ์คลัง / POS
+                  </label>
+                  {isExclusiveRole(linkRoles) ? (
+                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                        <Check className="w-4 h-4" />
+                        เข้าถึงทุกคลังอัตโนมัติ
+                      </p>
                     </div>
-
-                    {/* Right: Warehouse Permissions + Cost Permission */}
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                          <Warehouse className="w-4 h-4 inline mr-1 -mt-0.5" />
-                          สิทธิ์คลัง / POS
-                        </label>
-                        {isExclusiveRole(linkRoles) ? (
-                          <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                            <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                              <Check className="w-4 h-4" />
-                              เข้าถึงทุกคลังอัตโนมัติ
-                            </p>
-                          </div>
-                        ) : (
-                          <WarehousePermissions
-                            accessEnabled={linkWarehouseAccess}
-                            onAccessChange={setLinkWarehouseAccess}
-                            selectedIds={linkWarehouseIds}
-                            onChange={setLinkWarehouseIds}
-                            disabled={isGeneratingLink}
-                          />
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                          <DollarSign className="w-4 h-4 inline mr-1 -mt-0.5" />
-                          สิทธิ์ดูต้นทุน
-                        </label>
-                        {isExclusiveRole(linkRoles) ? (
-                          <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                            <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                              <Check className="w-4 h-4" />
-                              เห็นต้นทุนอัตโนมัติ
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
-                            <span className="text-sm text-gray-700 dark:text-slate-300">เห็นราคาทุนสินค้า</span>
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={linkCanViewCost}
-                              onClick={() => !isGeneratingLink && setLinkCanViewCost(!linkCanViewCost)}
-                              disabled={isGeneratingLink}
-                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                                linkCanViewCost ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
-                              } ${isGeneratingLink ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                            >
-                              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
-                                linkCanViewCost ? 'translate-x-6' : 'translate-x-1'
-                              }`} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end space-x-3 px-5 pb-5">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddModal(false)}
-                      className="px-4 py-2.5 text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg font-medium transition-colors"
-                    >
-                      ยกเลิก
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCreateLink}
+                  ) : (
+                    <WarehousePermissions
+                      accessEnabled={linkWarehouseAccess}
+                      onAccessChange={setLinkWarehouseAccess}
+                      selectedIds={linkWarehouseIds}
+                      onChange={setLinkWarehouseIds}
                       disabled={isGeneratingLink}
-                      className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                    >
-                      {isGeneratingLink ? (
-                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                      ) : (
-                        <Link2 className="w-4 h-4 mr-2" />
-                      )}
-                      สร้างลิงก์
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="p-5 space-y-4">
-                  <div className="text-center py-2">
-                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
-                    <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">สร้างลิงก์เชิญสำเร็จ</p>
-                    <p className="text-sm text-gray-500 dark:text-slate-400">คัดลอกลิงก์ด้านล่างเพื่อส่งให้สมาชิก</p>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={generatedLink}
-                      readOnly
-                      className="flex-1 px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white bg-gray-50 dark:bg-slate-700 text-sm"
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
                     />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(generatedLink);
-                        showToast('คัดลอกลิงก์แล้ว');
-                      }}
-                      className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors flex items-center whitespace-nowrap"
-                    >
-                      <Copy className="w-4 h-4 mr-1.5" />
-                      คัดลอก
-                    </button>
-                  </div>
-
-                  <div className="flex justify-end space-x-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddModal(false)}
-                      className="px-4 py-2.5 text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg font-medium transition-colors"
-                    >
-                      ปิด
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setGeneratedLink('');
-                        handleLinkRoleChange(['sales']);
-                      }}
-                      className="px-4 py-2.5 text-primary bg-primary/10 hover:bg-primary/20 rounded-lg font-medium transition-colors flex items-center"
-                    >
-                      <Plus className="w-4 h-4 mr-1.5" />
-                      สร้างลิงก์ใหม่
-                    </button>
-                  </div>
+                  )}
                 </div>
-              )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                    <DollarSign className="w-4 h-4 inline mr-1 -mt-0.5" />
+                    สิทธิ์ดูต้นทุน
+                  </label>
+                  {isExclusiveRole(linkRoles) ? (
+                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                        <Check className="w-4 h-4" />
+                        เห็นต้นทุนอัตโนมัติ
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                      <span className="text-sm text-gray-700 dark:text-slate-300">เห็นราคาทุนสินค้า</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={linkCanViewCost}
+                        onClick={() => !isGeneratingLink && setLinkCanViewCost(!linkCanViewCost)}
+                        disabled={isGeneratingLink}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                          linkCanViewCost ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
+                        } ${isGeneratingLink ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                          linkCanViewCost ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="p-5 space-y-4">
+            <div className="text-center py-2">
+              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+              <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">สร้างลิงก์เชิญสำเร็จ</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">คัดลอกลิงก์ด้านล่างเพื่อส่งให้สมาชิก</p>
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={generatedLink}
+                readOnly
+                className="flex-1 px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white bg-gray-50 dark:bg-slate-700 text-sm"
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(generatedLink);
+                  showToast('คัดลอกลิงก์แล้ว');
+                }}
+                className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors flex items-center whitespace-nowrap"
+              >
+                <Copy className="w-4 h-4 mr-1.5" />
+                คัดลอก
+              </button>
             </div>
           </div>
-      )}
+        )}
+      </Modal>
 
       {/* Edit Member Modal */}
-      {showEditModal && editingMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/50 transition-opacity"
-            onClick={() => { setShowEditModal(false); setEditingMember(null); }}
-          />
-          <div className="relative bg-white dark:bg-slate-800 rounded-xl max-w-2xl w-full shadow-xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 rounded-t-xl z-10">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  แก้ไขข้อมูลสมาชิก
-                </h3>
-                <button
-                  onClick={() => { setShowEditModal(false); setEditingMember(null); }}
-                  className="text-gray-400 hover:text-gray-500"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+      <Modal
+        open={showEditModal && editingMember !== null}
+        onClose={() => { setShowEditModal(false); setEditingMember(null); }}
+        title="แก้ไขข้อมูลสมาชิก"
+        size="2xl"
+        footer={
+          <div className="flex justify-end space-x-3 p-5">
+            <button
+              type="button"
+              onClick={() => { setShowEditModal(false); setEditingMember(null); }}
+              className="px-4 py-2.5 text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg font-medium transition-colors"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              form="edit-member-form"
+              disabled={isSaving}
+              className="px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            >
+              {isSaving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              บันทึก
+            </button>
+          </div>
+        }
+      >
+        {editingMember && (
+          <form id="edit-member-form" onSubmit={handleSaveEdit}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 items-start">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    ชื่อ-นามสกุล
+                  </label>
+                  <input
+                    type="text"
+                    value={editingMember.name}
+                    onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-slate-700"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                    <Shield className="w-4 h-4 inline mr-1 -mt-0.5" />
+                    ตำแหน่ง
+                  </label>
+                  <RoleCheckboxes
+                    selectedRoles={editingMember.roles}
+                    onChange={handleEditRoleChange}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    <Phone className="w-4 h-4 inline mr-1 -mt-0.5" />
+                    เบอร์โทร
+                  </label>
+                  <input
+                    type="tel"
+                    value={editingMember.phone}
+                    onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-slate-700"
+                    placeholder="0812345678"
+                  />
+                </div>
+
+                <div>
+                  <Checkbox
+                    checked={editingMember.is_active}
+                    onChange={(v) => setEditingMember({ ...editingMember, is_active: v })}
+                    label="เปิดใช้งาน"
+                  />
+                </div>
               </div>
 
-              <form onSubmit={handleSaveEdit}>
-                {/* 2-column layout */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 items-start">
-                  {/* Left: Profile + Roles */}
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                        ชื่อ-นามสกุล
-                      </label>
-                      <input
-                        type="text"
-                        value={editingMember.name}
-                        onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
-                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-slate-700"
-                        required
-                      />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                    <Warehouse className="w-4 h-4 inline mr-1 -mt-0.5" />
+                    สิทธิ์คลัง / POS
+                  </label>
+                  {isExclusiveRole(editingMember.roles) ? (
+                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                        <Check className="w-4 h-4" />
+                        เข้าถึงทุกคลังอัตโนมัติ
+                      </p>
                     </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                        <Shield className="w-4 h-4 inline mr-1 -mt-0.5" />
-                        ตำแหน่ง
-                      </label>
-                      <RoleCheckboxes
-                        selectedRoles={editingMember.roles}
-                        onChange={handleEditRoleChange}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                        <Phone className="w-4 h-4 inline mr-1 -mt-0.5" />
-                        เบอร์โทร
-                      </label>
-                      <input
-                        type="tel"
-                        value={editingMember.phone}
-                        onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
-                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-slate-700"
-                        placeholder="0812345678"
-                      />
-                    </div>
-
-                    <div>
-                      <Checkbox
-                        checked={editingMember.is_active}
-                        onChange={(v) => setEditingMember({ ...editingMember, is_active: v })}
-                        label="เปิดใช้งาน"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Right: Warehouse Permissions + Cost Permission */}
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                        <Warehouse className="w-4 h-4 inline mr-1 -mt-0.5" />
-                        สิทธิ์คลัง / POS
-                      </label>
-                      {isExclusiveRole(editingMember.roles) ? (
-                        <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                          <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                            <Check className="w-4 h-4" />
-                            เข้าถึงทุกคลังอัตโนมัติ
-                          </p>
-                        </div>
-                      ) : (
-                        <WarehousePermissions
-                          accessEnabled={editingMember.warehouseAccess}
-                          onAccessChange={(v) => setEditingMember({ ...editingMember, warehouseAccess: v })}
-                          selectedIds={editingMember.warehouse_ids}
-                          onChange={(ids) => setEditingMember({ ...editingMember, warehouse_ids: ids })}
-                        />
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                        <DollarSign className="w-4 h-4 inline mr-1 -mt-0.5" />
-                        สิทธิ์ดูต้นทุน
-                      </label>
-                      {isExclusiveRole(editingMember.roles) ? (
-                        <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                          <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                            <Check className="w-4 h-4" />
-                            เห็นต้นทุนอัตโนมัติ
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
-                          <span className="text-sm text-gray-700 dark:text-slate-300">เห็นราคาทุนสินค้า</span>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={editingMember.can_view_cost}
-                            onClick={() => setEditingMember({ ...editingMember, can_view_cost: !editingMember.can_view_cost })}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer ${
-                              editingMember.can_view_cost ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
-                            }`}
-                          >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
-                              editingMember.can_view_cost ? 'translate-x-6' : 'translate-x-1'
-                            }`} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  ) : (
+                    <WarehousePermissions
+                      accessEnabled={editingMember.warehouseAccess}
+                      onAccessChange={(v) => setEditingMember({ ...editingMember, warehouseAccess: v })}
+                      selectedIds={editingMember.warehouse_ids}
+                      onChange={(ids) => setEditingMember({ ...editingMember, warehouse_ids: ids })}
+                    />
+                  )}
                 </div>
 
-                <div className="flex justify-end space-x-3 px-5 pb-5">
-                  <button
-                    type="button"
-                    onClick={() => { setShowEditModal(false); setEditingMember(null); }}
-                    className="px-4 py-2.5 text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg font-medium transition-colors"
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                  >
-                    {isSaving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                    บันทึก
-                  </button>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                    <DollarSign className="w-4 h-4 inline mr-1 -mt-0.5" />
+                    สิทธิ์ดูต้นทุน
+                  </label>
+                  {isExclusiveRole(editingMember.roles) ? (
+                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                        <Check className="w-4 h-4" />
+                        เห็นต้นทุนอัตโนมัติ
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                      <span className="text-sm text-gray-700 dark:text-slate-300">เห็นราคาทุนสินค้า</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={editingMember.can_view_cost}
+                        onClick={() => setEditingMember({ ...editingMember, can_view_cost: !editingMember.can_view_cost })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer ${
+                          editingMember.can_view_cost ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                          editingMember.can_view_cost ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </form>
+              </div>
             </div>
-          </div>
-      )}
+          </form>
+        )}
+      </Modal>
       {confirmDialog}
     </Layout>
   );
