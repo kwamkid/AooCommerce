@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import TaxInfoForm, { type TaxType } from '@/components/ui/TaxInfoForm';
+import Modal from '@/components/ui/Modal';
 
 interface TaxInvoiceModalProps {
   orderId: string;
@@ -103,51 +104,13 @@ export default function TaxInvoiceModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-slate-700">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">
-            ออกใบกำกับภาษี — {orderNumber}
-          </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-5 py-4">
-          {prefilling ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-              <span className="ml-2 text-sm text-gray-500">กำลังโหลดข้อมูล...</span>
-            </div>
-          ) : (
-            <>
-              {hasAbbrev && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2 mb-4">
-                  ระบบจะยกเลิกใบกำกับอย่างย่อที่ออกไปแล้ว และออกใบกำกับภาษีแทน
-                </p>
-              )}
-
-              <TaxInfoForm
-                data={{ tax_type: taxType, tax_company_name: name, tax_id: taxId, tax_branch: branch }}
-                onChange={(patch) => {
-                  if (patch.tax_type !== undefined) setTaxType(patch.tax_type);
-                  if (patch.tax_company_name !== undefined) setName(patch.tax_company_name);
-                  if (patch.tax_id !== undefined) setTaxId(patch.tax_id);
-                  if (patch.tax_branch !== undefined) setBranch(patch.tax_branch);
-                }}
-                showAddress
-                address={address}
-                onAddressChange={setAddress}
-              />
-            </>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 dark:border-slate-700">
+    <Modal
+      open={true}
+      onClose={onClose}
+      title={`ออกใบกำกับภาษี — ${orderNumber}`}
+      size="md"
+      footer={
+        <div className="flex justify-end gap-2 px-5 py-4">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
             ยกเลิก
           </button>
@@ -160,7 +123,37 @@ export default function TaxInvoiceModal({
             {hasAbbrev ? 'ออกใบกำกับภาษี (ยกเลิก ABB)' : 'บันทึก'}
           </button>
         </div>
+      }
+    >
+      <div className="px-5 py-4">
+        {prefilling ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+            <span className="ml-2 text-sm text-gray-500">กำลังโหลดข้อมูล...</span>
+          </div>
+        ) : (
+          <>
+            {hasAbbrev && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2 mb-4">
+                ระบบจะยกเลิกใบกำกับอย่างย่อที่ออกไปแล้ว และออกใบกำกับภาษีแทน
+              </p>
+            )}
+
+            <TaxInfoForm
+              data={{ tax_type: taxType, tax_company_name: name, tax_id: taxId, tax_branch: branch }}
+              onChange={(patch) => {
+                if (patch.tax_type !== undefined) setTaxType(patch.tax_type);
+                if (patch.tax_company_name !== undefined) setName(patch.tax_company_name);
+                if (patch.tax_id !== undefined) setTaxId(patch.tax_id);
+                if (patch.tax_branch !== undefined) setBranch(patch.tax_branch);
+              }}
+              showAddress
+              address={address}
+              onAddressChange={setAddress}
+            />
+          </>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }

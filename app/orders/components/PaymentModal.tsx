@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import TimePicker from '@/components/ui/TimePicker';
+import Modal from '@/components/ui/Modal';
 
 export interface PaymentModalProps {
   show: boolean;
@@ -21,7 +22,7 @@ export interface PaymentModalProps {
 export default function PaymentModal({
   show,
   orderId,
-  orderNumber,
+  orderNumber: _orderNumber,
   totalAmount,
   defaultPaymentMethod = 'cash',
   onClose,
@@ -143,27 +144,37 @@ export default function PaymentModal({
     }
   };
 
-  if (!show) return null;
-
   return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      onClick={handleClose}
-    >
-      <div
-        className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            รายละเอียดการชำระเงิน
-          </h3>
-          <button onClick={handleClose} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-            <X className="w-5 h-5 text-gray-400" />
+    <Modal
+      open={show}
+      onClose={handleClose}
+      title="รายละเอียดการชำระเงิน"
+      size="lg"
+      disableBackdropClose={submitting}
+      footer={
+        <div className="flex gap-3 justify-end p-5">
+          <button
+            onClick={handleClose}
+            disabled={submitting}
+            className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
+          >
+            ยกเลิก
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {submitting ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>
+            ) : (
+              <span>ยืนยัน</span>
+            )}
           </button>
         </div>
-
+      }
+    >
+      <div className="p-5">
         <div className="space-y-4">
           {totalAmount > 0 && (
             <p className="text-sm text-gray-600 dark:text-slate-400">
@@ -310,29 +321,7 @@ export default function PaymentModal({
             />
           </div>
         </div>
-
-        {/* Actions */}
-        <div className="flex gap-3 justify-end mt-6">
-          <button
-            onClick={handleClose}
-            disabled={submitting}
-            className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
-          >
-            ยกเลิก
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            {submitting ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>
-            ) : (
-              <span>ยืนยัน</span>
-            )}
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

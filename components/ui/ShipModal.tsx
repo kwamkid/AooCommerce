@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Loader2, Send } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import Modal from './Modal';
 
 const SHIPPING_METHODS = [
   { id: 'own_vehicle', label: 'รถเราเอง' },
@@ -47,11 +48,28 @@ export default function ShipModal({ orderNumber, customerName, onSubmit, onClose
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !submitting && onClose()}>
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1 flex items-center gap-2">
-          <Send className="w-5 h-5 text-primary" /> จัดส่งสินค้า
-        </h3>
+    <Modal
+      open={true}
+      onClose={onClose}
+      title="จัดส่งสินค้า"
+      icon={<Send className="w-5 h-5 text-primary" />}
+      size="md"
+      disableBackdropClose={submitting}
+      footer={
+        <div className="flex gap-3 p-5">
+          <button onClick={onClose} disabled={submitting}
+            className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+            ยกเลิก
+          </button>
+          <button onClick={handleSubmit} disabled={submitting}
+            className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            จัดส่ง
+          </button>
+        </div>
+      }
+    >
+      <div className="p-5">
         <p className="text-sm text-gray-500 dark:text-slate-400 mb-5">{orderNumber} — {customerName}</p>
 
         <div className="space-y-4">
@@ -100,19 +118,7 @@ export default function ShipModal({ orderNumber, customerName, onSubmit, onClose
             </div>
           )}
         </div>
-
-        <div className="flex gap-3 mt-6">
-          <button onClick={onClose} disabled={submitting}
-            className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
-            ยกเลิก
-          </button>
-          <button onClick={handleSubmit} disabled={submitting}
-            className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            จัดส่ง
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

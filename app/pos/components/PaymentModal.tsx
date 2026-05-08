@@ -2,8 +2,9 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { X, Loader2, Plus, Trash2, Download } from 'lucide-react';
+import { Loader2, Plus, Trash2, Download } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import Modal from '@/components/ui/Modal';
 import { QRCodeSVG } from 'qrcode.react';
 import generatePayload from 'promptpay-qr';
 import { formatPrice } from '@/lib/utils/format';
@@ -138,12 +139,12 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
 
   if (loadingChannels) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-        <div className="bg-white dark:bg-[#1E293B] rounded-2xl p-8 shadow-xl dark:shadow-none">
+      <Modal open={true} onClose={onClose} hideCloseButton size="sm" disableBackdropClose>
+        <div className="p-8 text-center">
           <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
           <p className="text-gray-500 dark:text-gray-400 mt-3 text-sm">กำลังโหลดช่องทางชำระเงิน...</p>
         </div>
-      </div>
+      </Modal>
     );
   }
 
@@ -169,8 +170,8 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
 
   if (channels.length === 0) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
-        <div className="bg-white dark:bg-[#1E293B] rounded-2xl p-8 max-w-sm mx-4 shadow-xl dark:shadow-none" onClick={e => e.stopPropagation()}>
+      <Modal open={true} onClose={onClose} hideCloseButton size="sm">
+        <div className="p-8">
           <p className="text-gray-900 dark:text-white text-center mb-2">ยังไม่มีช่องทางชำระเงิน POS</p>
           <p className="text-gray-500 dark:text-gray-400 text-sm text-center mb-4">สร้างช่องทางเริ่มต้น (เงินสด, โอนเงิน) เพื่อเริ่มใช้งาน</p>
           <button
@@ -181,24 +182,13 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
           </button>
           <button onClick={onClose} className="w-full py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-white rounded-xl hover:bg-gray-200 dark:hover:bg-white/20 text-sm">ปิด</button>
         </div>
-      </div>
+      </Modal>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto shadow-xl dark:shadow-none"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">ชำระเงิน</h3>
-          <button onClick={onClose} className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
+    <Modal open={true} onClose={onClose} title="ชำระเงิน" size="lg">
+      <div className="p-6">
         {/* Total */}
         <div className="text-center mb-6">
           <p className="text-gray-500 dark:text-gray-400 text-sm">ยอดรวม</p>
@@ -407,6 +397,6 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

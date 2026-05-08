@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Loader2, Monitor, DollarSign, Warehouse, Plus } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import Modal from '@/components/ui/Modal';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 
@@ -155,12 +156,15 @@ export default function SessionModal({
   const sessionLocationName = session?.terminal?.name || session?.warehouse?.name || '';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto shadow-xl dark:shadow-none">
+    <Modal
+      open={true}
+      onClose={onCancel}
+      title={mode === 'open' ? 'เปิดกะ' : 'ปิดกะ'}
+      size="md"
+    >
+      <div className="p-6">
         {mode === 'open' ? (
           <>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">เปิดกะ</h3>
-
             {loadingTerminals ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -324,8 +328,6 @@ export default function SessionModal({
         ) : (
           /* Close shift */
           <>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">ปิดกะ</h3>
-
             {session && (
               <div className="space-y-4">
                 {/* Summary */}
@@ -423,6 +425,6 @@ export default function SessionModal({
           </>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }
