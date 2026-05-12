@@ -1308,6 +1308,35 @@ export default function OrderForm({
         }
       }
 
+      // Auto-create shipping address for existing customer that has no address yet
+      // (e.g. marketplace placeholder customers like "Lazada" before they have a real address)
+      if (resolvedCustomerId && !primaryAddressId && !resolvedShippingAddressId && snapshotAddress) {
+        try {
+          const addrRes = await apiFetch('/api/shipping-addresses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              customer_id: resolvedCustomerId,
+              address_name: 'ที่อยู่หลัก',
+              contact_person: snapshotName || selectedCustomer?.name || '',
+              phone: snapshotPhone || undefined,
+              address_line1: snapshotAddress,
+              district: snapshotDistrict || undefined,
+              amphoe: snapshotAmphoe || undefined,
+              province: snapshotProvince || undefined,
+              postal_code: snapshotPostalCode || undefined,
+              is_default: true,
+            }),
+          });
+          if (addrRes.ok) {
+            const addrResult = await addrRes.json();
+            resolvedShippingAddressId = addrResult.address?.id || addrResult.id;
+          }
+        } catch (err) {
+          console.error('Auto-create address for existing customer error:', err);
+        }
+      }
+
       const finalAddressId = resolvedShippingAddressId || primaryAddressId;
 
       // Build items AFTER customer/address resolution so shipments get the right id
