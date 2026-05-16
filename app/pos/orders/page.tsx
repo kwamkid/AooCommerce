@@ -315,6 +315,7 @@ function PosOrdersContent() {
             recordsPerPage={recordsPerPage}
             setRecordsPerPage={(v) => setParams({ limit: String(v), page: '1' })}
             setPage={(p) => setParams({ page: String(p) })}
+            onLimitChange={(limit, page) => setParams({ limit: String(limit), page: String(page) })}
           />
         )}
       </div>

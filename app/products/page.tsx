@@ -1024,6 +1024,7 @@ function ProductsPageContent() {
                 recordsPerPage={rowsPerPage}
                 setRecordsPerPage={(v: number) => setParams({ limit: String(v), page: '1' })}
                 setPage={(p: number) => setParams({ page: String(p) })}
+                onLimitChange={(limit, page) => setParams({ limit: String(limit), page: String(page) })}
                 loadTime={loadTime}
               >
                 <ColumnSettingsDropdown
@@ -1154,6 +1155,7 @@ function ProductsPageContent() {
                 recordsPerPage={rowsPerPage}
                 setRecordsPerPage={(v: number) => setParams({ limit: String(v), page: '1' })}
                 setPage={(p: number) => setParams({ page: String(p) })}
+                onLimitChange={(limit, page) => setParams({ limit: String(limit), page: String(page) })}
               />
             </div>
       </div>

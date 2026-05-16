@@ -27,8 +27,16 @@ interface PaginationProps {
   startIdx: number;
   endIdx: number;
   recordsPerPage: number;
+  /** Setter for records-per-page. Page reset is the caller's responsibility
+   *  if `onLimitChange` is not provided — but using `onLimitChange` is preferred
+   *  because it delivers the new limit and the reset page in a single update
+   *  (avoids stale-snapshot bugs when the state lives in the URL). */
   setRecordsPerPage: (v: number) => void;
   setPage: (v: number) => void;
+  /** Preferred handler: receives both the new limit and the page to reset to
+   *  (always 1) in one call. When provided, the records-per-page dropdown uses
+   *  this instead of calling setRecordsPerPage + setPage separately. */
+  onLimitChange?: (limit: number, page: number) => void;
   loadTime?: number | null;
   children?: ReactNode;
 }
@@ -42,6 +50,7 @@ export default function Pagination({
   recordsPerPage,
   setRecordsPerPage,
   setPage,
+  onLimitChange,
   loadTime,
   children,
 }: PaginationProps) {
@@ -51,16 +60,22 @@ export default function Pagination({
     <div className="data-pagination">
       <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
         <span>{startIdx + 1} - {endIdx} จาก {totalRecords} รายการ</span>
-        <div className="mx-1 w-[70px]">
+        <div className="mx-1 w-[90px]">
           <FormSelect
             value={String(recordsPerPage)}
-            onChange={(val) => { setRecordsPerPage(Number(val)); setPage(1); }}
+            onChange={(val) => {
+              const next = Number(val);
+              if (onLimitChange) onLimitChange(next, 1);
+              else { setRecordsPerPage(next); setPage(1); }
+            }}
             options={[
               { id: '20', label: '20' },
               { id: '50', label: '50' },
               { id: '100', label: '100' },
+              { id: '200', label: '200' },
             ]}
             searchThreshold={99}
+            portal
           />
         </div>
         <span>/หน้า</span>

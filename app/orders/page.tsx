@@ -44,8 +44,8 @@ import {
   CreatedByOption,
   ORDER_STATUS_CONFIG,
   PLATFORM_ICONS,
-  SHIPPING_CARRIERS,
 } from './components/types';
+import { useCarriers } from '@/lib/carrier-lookup';
 
 // Tab components
 import ReadyToShipTab from './components/ReadyToShipTab';
@@ -99,6 +99,8 @@ function OrdersPageContent() {
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
   const { confirmDialog, confirm } = useConfirmDialog();
+  const { active: activeCarriers } = useCarriers();
+  const carrierOptions = activeCarriers.map(c => ({ id: c.code, label: c.name }));
 
   // === Derive filter values from URL search params ===
   const statusFilter = (() => {
@@ -1064,6 +1066,11 @@ function OrdersPageContent() {
                 const qs = params.toString();
                 router.replace(qs ? `?${qs}` : '/orders', { scroll: false });
               }}
+              onLimitChange={(limit) => {
+                // setParams auto-deletes page when filter (non-page) changes,
+                // which is exactly "reset to page 1". Single call = no stale closure.
+                setParams({ limit: String(limit) });
+              }}
             />
           )}
         </>
@@ -1115,7 +1122,7 @@ function OrdersPageContent() {
                       <FormSelect
                         value={shippingDetails.carrier}
                         onChange={(val) => setShippingDetails({ ...shippingDetails, carrier: val })}
-                        options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
+                        options={carrierOptions}
                         placeholder="-- เลือกขนส่ง --"
                         searchThreshold={99}
                       />

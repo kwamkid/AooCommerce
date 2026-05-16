@@ -618,6 +618,7 @@ function PromotionsPageContent() {
           recordsPerPage={rowsPerPage}
           setRecordsPerPage={(v: number) => setParams({ limit: String(v) })}
           setPage={(p: number) => setParams({ page: String(p) })}
+          onLimitChange={(limit) => setParams({ limit: String(limit) })}
           loadTime={loadTime}
         />
       )}

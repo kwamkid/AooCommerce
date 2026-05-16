@@ -747,6 +747,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             recordsPerPage={recordsPerPage}
             setRecordsPerPage={v => setParams({ limit: String(v) })}
             setPage={v => setParams({ page: v > 1 ? String(v) : null })}
+            onLimitChange={limit => setParams({ limit: String(limit) })}
             loadTime={loadTime}
           >
             <ColumnSettingsDropdown
@@ -875,6 +876,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             recordsPerPage={recordsPerPage}
             setRecordsPerPage={v => setParams({ limit: String(v) })}
             setPage={v => setParams({ page: v > 1 ? String(v) : null })}
+            onLimitChange={limit => setParams({ limit: String(limit) })}
             loadTime={loadTime}
           />
         </div>

@@ -56,6 +56,10 @@ export interface DataTableProps<T> {
   recordsPerPage: number;
   onPageChange: (page: number) => void;
   onRecordsPerPageChange: (limit: number) => void;
+  /** Preferred: combined handler for limit + page reset in one call (avoids
+   *  stale closure issues when state is URL-based). When provided, used
+   *  instead of onRecordsPerPageChange + onPageChange(1). */
+  onLimitChange?: (limit: number, page: number) => void;
   loadTime?: number | null;
 
   // ── Selection (optional) ──
@@ -87,6 +91,7 @@ export default function DataTable<T>({
   recordsPerPage,
   onPageChange,
   onRecordsPerPageChange,
+  onLimitChange,
   loadTime,
   selectedIds,
   onSelectionChange,
@@ -189,6 +194,7 @@ export default function DataTable<T>({
           startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
           setRecordsPerPage={onRecordsPerPageChange}
           setPage={onPageChange}
+          onLimitChange={onLimitChange}
           loadTime={loadTime}
         >
           {paginationChildren}
@@ -233,6 +239,7 @@ export default function DataTable<T>({
           startIdx={startIdx} endIdx={endIdx} recordsPerPage={recordsPerPage}
           setRecordsPerPage={onRecordsPerPageChange}
           setPage={onPageChange}
+          onLimitChange={onLimitChange}
           loadTime={loadTime}
         >
           <ColumnSettingsDropdown configs={configs} visible={visibleColumns} toggle={toggleColumn} dropUp />
