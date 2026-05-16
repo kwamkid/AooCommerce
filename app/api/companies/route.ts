@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
       description: 'ช่วงวันติดตามลูกค้า',
     });
 
-    // Seed default variation types
+    // Seed default variation types (kept here — not exposed in wizard)
     const variationTypes = [
       { name: 'ความจุ', sort_order: 1, company_id: company.id },
       { name: 'รูปทรง', sort_order: 2, company_id: company.id },
@@ -162,29 +162,15 @@ export async function POST(request: NextRequest) {
     ];
     await supabaseAdmin.from('variation_types').insert(variationTypes);
 
-    // Seed default payment channels
-    await supabaseAdmin.from('payment_channels').insert([
-      {
-        company_id: company.id,
-        channel_group: 'bill_online',
-        type: 'cash',
-        name: 'เงินสด',
-        is_active: true,
-        sort_order: 0,
-        config: { description: 'รับเงินสดจากลูกค้า / จ่ายหน้าร้าน' },
-      },
-      {
-        company_id: company.id,
-        channel_group: 'bill_online',
-        type: 'payment_gateway',
-        name: 'ชำระออนไลน์',
-        is_active: false,
-        sort_order: 99,
-        config: {},
-      },
-    ]);
+    // payment_channels, warehouses, carriers, business_channels are seeded by
+    // the onboarding wizard at /onboarding/setup based on user choices.
+    // The client should redirect there after a successful create.
 
-    return NextResponse.json({ success: true, company });
+    return NextResponse.json({
+      success: true,
+      company,
+      redirect_to: `/onboarding/setup?company=${company.id}`,
+    });
   } catch (error) {
     console.error('Create company error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -1,7 +1,9 @@
 // Path: components/layout/Layout.tsx
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useCompany } from '@/lib/company-context';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
@@ -16,8 +18,21 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, title, breadcrumbs, noPadding }: LayoutProps) {
-  // ไม่มี loading check ใดๆ - ให้ page component จัดการเอง
-  
+  const router = useRouter();
+  const pathname = usePathname();
+  const { currentCompany, loading } = useCompany();
+
+  // Redirect to onboarding wizard if the active company hasn't completed it.
+  // Layout-level guard (rather than middleware) because session lives in localStorage,
+  // not cookies — middleware can't see it. Skip when loading or already on /onboarding.
+  useEffect(() => {
+    if (loading) return;
+    if (!currentCompany) return;
+    if (pathname?.startsWith('/onboarding')) return;
+    if (currentCompany.onboarding_completed_at) return;
+    router.replace('/onboarding/setup');
+  }, [loading, currentCompany, pathname, router]);
+
   return (
     <div className="flex h-dvh bg-gray-50 dark:bg-slate-950 overflow-hidden print:block print:h-auto print:bg-white print:overflow-visible">
       {/* Sidebar — hidden on print */}

@@ -843,6 +843,10 @@ export default function Sidebar() {
                       <Warehouse className="w-4 h-4" />
                       <span className="text-[16px] font-medium">คลังสินค้า</span>
                     </Link>
+                    <Link href="/settings/carriers" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/carriers' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                      <Truck className="w-4 h-4" />
+                      <span className="text-[16px] font-medium">ขนส่ง</span>
+                    </Link>
                     <Link href="/settings/features" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/features' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
                       <Handshake className="w-4 h-4" />
                       <span className="text-[16px] font-medium">Feature เสริม</span>

@@ -96,6 +96,9 @@ import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
 - **ที่อยู่ออกบิล** = `billing_address` (textarea เดียว, ในส่วนข้อมูลภาษี)
 - ถ้า billing ว่าง → `buildCustomerPayload()` join shipping fields
 - ลูกค้าที่มี order แล้ว → lock customer_type (ห้ามเปลี่ยน)
+- **Order shipments**: `/api/orders` POST บังคับ `shipments[]` ต้องมีอย่างน้อย 1 entry per item (error: "Each item must have at least one shipment")
+  - `OrderForm.doSave()` auto-create shipping_address ใน 2 เคส (ก่อน build items): (1) new customer mode + no selectedCustomer, (2) **existing customer ที่ยังไม่มี shipping_address** (เช่น marketplace placeholder customers อย่าง "Lazada") + ผู้ใช้กรอก delivery fields
+  - ดู `components/orders/OrderForm.tsx` ใน `doSave()` — ห้ามลบ branch ทั้งสอง ไม่งั้น order save fail สำหรับลูกค้าที่ไม่มี address record
 
 ### Weighted Average Cost (WAC)
 - `product_variations.cost_price` = WAC

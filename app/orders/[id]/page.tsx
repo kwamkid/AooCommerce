@@ -46,7 +46,8 @@ import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
-import { PLATFORM_ICONS, SHIPPING_CARRIERS, getTrackingUrl } from '../components/types';
+import { PLATFORM_ICONS, getTrackingUrl, getCarrierLabel } from '../components/types';
+import { useCarriers } from '@/lib/carrier-lookup';
 import FormSelect from '@/components/ui/FormSelect';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 
@@ -128,6 +129,8 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
   const { confirmDialog, confirm } = useConfirmDialog();
+  const { active: activeCarriers } = useCarriers();
+  const carrierOptions = activeCarriers.map(c => ({ id: c.code, label: c.name }));
 
   // Order header info (loaded separately from OrderForm)
   const [orderNumber, setOrderNumber] = useState('');
@@ -1201,7 +1204,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                     <Truck className="w-4 h-4 text-gray-400 dark:text-slate-500" />
                     {fullOrderData.shipping_carrier && (
                       <span className="text-gray-700 dark:text-slate-300">
-                        {SHIPPING_CARRIERS.find(c => c.value === fullOrderData.shipping_carrier)?.label || fullOrderData.shipping_carrier}
+                        {getCarrierLabel(fullOrderData.shipping_carrier)}
                       </span>
                     )}
                     {fullOrderData.tracking_number && (
@@ -1224,7 +1227,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                       <button
                         onClick={() => {
                           const text = trackUrl
-                            ? `${SHIPPING_CARRIERS.find(c => c.value === fullOrderData.shipping_carrier)?.label || fullOrderData.shipping_carrier}: ${fullOrderData.tracking_number}\nติดตามพัสดุ: ${trackUrl}`
+                            ? `${getCarrierLabel(fullOrderData.shipping_carrier)}: ${fullOrderData.tracking_number}\nติดตามพัสดุ: ${trackUrl}`
                             : fullOrderData.tracking_number;
                           navigator.clipboard.writeText(text);
                           showToast('คัดลอกข้อมูลพัสดุแล้ว');
@@ -1673,7 +1676,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   <FormSelect
                     value={shipCarrier}
                     onChange={(val) => setShipCarrier(val)}
-                    options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
+                    options={carrierOptions}
                     placeholder="-- เลือกขนส่ง --"
                     searchThreshold={99}
                   />

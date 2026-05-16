@@ -195,9 +195,11 @@ export default function OnboardingPage() {
         });
       }
 
-      // Set as current company and navigate with full reload
+      // Set as current company and send to the setup wizard.
+      // The server returns redirect_to (currently /onboarding/setup) — fall back
+      // defensively so a server change doesn't strand new companies.
       localStorage.setItem('aoo-current-company-id', result.company.id);
-      window.location.href = '/dashboard';
+      window.location.href = result.redirect_to || '/onboarding/setup';
     } catch {
       setError('เกิดข้อผิดพลาดในการสร้างบริษัท');
       setIsLoading(false);

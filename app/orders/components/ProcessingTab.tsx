@@ -36,10 +36,10 @@ import Pagination from '@/app/components/Pagination';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import {
   Order,
-  SHIPPING_CARRIERS,
 } from './types';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import FormSelect from '@/components/ui/FormSelect';
+import { useCarriers } from '@/lib/carrier-lookup';
 
 interface ProcessingTabProps {
   /** Carrier counts from parent's initial fetch: { "SPX Express": 14, "__none__": 3, ... } */
@@ -88,6 +88,8 @@ export default function ProcessingTab({
   const { showToast } = useToast();
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
+  const { active: activeCarriers } = useCarriers();
+  const carrierOptions = activeCarriers.map(c => ({ id: c.code, label: c.name }));
 
   // Sub-tab state
   const [activeCarrierGroup, setActiveCarrierGroup] = useState<string>('');
@@ -1285,7 +1287,7 @@ export default function ProcessingTab({
                 <FormSelect
                   value={shipCarrier}
                   onChange={(val) => setShipCarrier(val)}
-                  options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
+                  options={carrierOptions}
                   placeholder="-- เลือกขนส่ง --"
                   searchThreshold={99}
                 />
@@ -1339,7 +1341,7 @@ export default function ProcessingTab({
                 <FormSelect
                   value=""
                   onChange={(val) => { if (!val) return; setBulkShipItems(prev => prev.map(item => ({ ...item, shipping_carrier: val }))); }}
-                  options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
+                  options={carrierOptions}
                   placeholder="-- เลือก --"
                   searchThreshold={99}
                   portal
@@ -1367,7 +1369,7 @@ export default function ProcessingTab({
                       <FormSelect
                         value={item.shipping_carrier}
                         onChange={(val) => { setBulkShipItems(prev => { const next = [...prev]; next[idx] = { ...next[idx], shipping_carrier: val }; return next; }); }}
-                        options={SHIPPING_CARRIERS.map(c => ({ id: c.value, label: c.label }))}
+                        options={carrierOptions}
                         placeholder="ขนส่ง"
                         searchThreshold={99}
                         portal

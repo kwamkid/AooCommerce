@@ -11,6 +11,8 @@ interface Company {
   is_active: boolean;
   business_type?: string;
   vat_registered?: boolean;
+  onboarding_completed_at?: string | null;
+  business_channels?: string[];
 }
 
 interface CompanyMembership {

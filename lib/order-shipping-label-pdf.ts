@@ -28,6 +28,7 @@ import {
   formatPdfDate,
 } from './pdf-utils';
 import { cleanVariationLabel } from './product-display';
+import { resolveCarrierLabel } from './carrier-lookup';
 
 // ─── Interfaces ──────────────────────────────────────────
 
@@ -43,7 +44,10 @@ export interface ShippingLabelData {
   order_number: string;
   order_date?: string;
   created_at: string;
+  /** Carrier code stored in DB (kept for back-compat with old orders that hold a free-form name) */
   shipping_carrier?: string;
+  /** Resolved display label from the carriers table; falls back to shipping_carrier raw value */
+  carrier_label?: string;
   tracking_number?: string;
   delivery_name?: string;
   delivery_phone?: string;
@@ -64,21 +68,6 @@ export interface ShippingLabelData {
 }
 
 // ─── Helpers ─────────────────────────────────────────────
-
-const SHIPPING_CARRIERS: Record<string, string> = {
-  thai_post: 'ไปรษณีย์ไทย',
-  kerry: 'Kerry Express',
-  flash: 'Flash Express',
-  'j&t': 'J&T Express',
-  scg: 'SCG Express',
-  ninja: 'Ninja Van',
-  best: 'BEST Express',
-  dhl: 'DHL',
-  grab: 'Grab Express',
-  lalamove: 'Lalamove',
-  self: 'จัดส่งเอง',
-  other: 'อื่นๆ',
-};
 
 const SOURCE_LABELS: Record<string, string> = {
   line: 'LINE',
@@ -142,7 +131,12 @@ export async function generateShippingLabelPdf({ data, company, pageSizeOverride
 
   const totalQty = data.items.reduce((s, i) => s + i.quantity, 0);
   const dateStr = formatPdfDate(data.order_date || data.created_at);
-  const carrierLabel = data.shipping_carrier ? (SHIPPING_CARRIERS[data.shipping_carrier] || data.shipping_carrier) : '';
+  // Resolve carrier display label: prefer caller-provided label, otherwise look up via the
+  // carriers table. Final fallback is the raw stored value (back-compat with old orders
+  // that hold a free-form name in shipping_carrier).
+  const carrierLabel = data.carrier_label
+    ? data.carrier_label
+    : (data.shipping_carrier ? await resolveCarrierLabel(data.shipping_carrier) : '');
 
   // Source label — only show when there's a channel name or non-manual source
   const sourceLabel = data.source && data.source !== 'manual' ? (SOURCE_LABELS[data.source] || data.source) : '';

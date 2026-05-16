@@ -13,9 +13,9 @@ import {
   ORDER_STATUS_CONFIG,
   PAYMENT_STATUS_CONFIG,
   PLATFORM_ICONS,
-  SHIPPING_CARRIERS,
   relativeTime,
   getDeadlineInfo,
+  getCarrierLabel,
 } from './types';
 import PrintStatusDots from './PrintStatusDots';
 
@@ -40,11 +40,6 @@ function ChannelBadge({ channel }: { channel: Order['channel'] }) {
       </div>
     </div>
   );
-}
-
-// Carrier display name
-function getCarrierLabel(carrier: string): string {
-  return SHIPPING_CARRIERS.find(c => c.value === carrier)?.label || carrier;
 }
 
 interface OrderCardProps {
