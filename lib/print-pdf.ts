@@ -108,35 +108,76 @@ export function printWithPreOpen(produceBlob: () => Promise<Blob>, title = 'PDF'
     });
 }
 
+/** True for iOS (Safari, Chrome-on-iOS, etc — all use WebKit). */
+function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /iPad|iPhone|iPod/.test(ua) || (ua.includes('Mac') && typeof document !== 'undefined' && 'ontouchend' in document);
+}
+
+/** Read a Blob into a base64 data URL. Used as a last-resort on iOS Safari where
+ *  blob: URLs do not render reliably across documents. */
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
 /**
- * Show the generated PDF. On mobile, swaps the location of a pre-opened blank tab
- * (caller should pass `preOpenPrintWindow()` result). On desktop, loads into a hidden
- * iframe and fires the print dialog.
+ * Show the generated PDF. On mobile, fills a pre-opened blank tab with an HTML
+ * shell that embeds the PDF (Android uses Blob URL; iOS uses a base64 data URL
+ * because blob: cross-document navigation is unreliable in iOS Safari).
+ * On desktop, loads into a hidden iframe and fires the print dialog.
  */
 export function showPdfPreview(blob: Blob, title = 'PDF', preopened?: Window | null) {
-  const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
-
-  // Mobile path — Blob URL into a real tab (the only thing iOS Safari handles reliably).
+  // Mobile path — render inside the pre-opened tab using an <embed>/<iframe>.
   if (isMobilePrint()) {
-    const win = preopened ?? window.open(url, '_blank');
-    if (win) {
+    const win = preopened ?? (typeof window !== 'undefined' ? window.open('', '_blank') : null);
+
+    const renderInto = (win: Window, src: string) => {
+      const html = `<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title.replace(/[<>"']/g, '')}</title>
+<style>html,body{margin:0;padding:0;height:100%;background:#525659}
+.pdf{position:fixed;inset:0;width:100%;height:100%;border:none}</style>
+</head><body>
+<iframe class="pdf" src="${src}"></iframe>
+</body></html>`;
       try {
-        win.location.href = url;
-        win.document.title = title;
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
       } catch {
-        // Cross-document write may be restricted on some browsers; navigating already worked.
+        // Cross-origin write blocked — fall back to direct navigation.
+        win.location.href = src;
+      }
+    };
+
+    if (win) {
+      if (isIOS()) {
+        // iOS Safari: blob: URLs across documents render blank. Use data URL.
+        blobToDataUrl(blob).then(dataUrl => renderInto(win, dataUrl))
+          .catch(() => { win.document.write('โหลด PDF ไม่สำเร็จ'); });
+      } else {
+        // Android: blob URL works fine inside an iframe.
+        const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+        renderInto(win, url);
+        setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
       }
     } else {
       // Popup blocked or pre-open failed — fall back to navigating current tab.
-      // (Not ideal — loses app state — but better than silent failure.)
+      const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
       window.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
     }
-    // Don't revoke immediately: the new tab still needs the URL. Revoke after 5 min.
-    setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
     return;
   }
 
   // Desktop path — hidden iframe + browser print dialog.
+  const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
   cleanup();
   currentUrl = url;
 
