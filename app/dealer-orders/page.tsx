@@ -19,6 +19,7 @@ import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
 import PaymentModal from '@/app/orders/components/PaymentModal';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import { printOrder, type PrintType } from '@/components/ui/OrderPrintButtons';
+import { preOpenPrintWindow } from '@/lib/print-pdf';
 
 interface WholesaleOrder {
   id: string;
@@ -171,13 +172,19 @@ export default function DealerOrdersPage() {
 
   const totalPages = Math.ceil(total / recordsPerPage);
 
-  const handlePrint = async (orderId: string, type: PrintType) => {
-    try {
-      await printOrder(orderId, type);
-    } catch (err) {
-      showToast('ไม่สามารถพิมพ์เอกสารได้', 'error');
-      console.error('Print error:', err);
-    }
+  const handlePrint = (orderId: string, type: PrintType) => {
+    // Open the print tab synchronously inside this click handler so mobile
+    // browsers (iOS Safari) don't treat it as a blocked popup.
+    const printWindow = preOpenPrintWindow();
+    (async () => {
+      try {
+        await printOrder(orderId, type, { printWindow });
+      } catch (err) {
+        printWindow?.close();
+        showToast('ไม่สามารถพิมพ์เอกสารได้', 'error');
+        console.error('Print error:', err);
+      }
+    })();
   };
 
   // Clear selection when tab changes

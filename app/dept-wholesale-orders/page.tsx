@@ -18,6 +18,7 @@ import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
 import PaymentModal from '@/app/orders/components/PaymentModal';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import { printOrder, type PrintType } from '@/components/ui/OrderPrintButtons';
+import { preOpenPrintWindow } from '@/lib/print-pdf';
 
 interface WholesaleOrder {
   id: string;
@@ -167,13 +168,17 @@ export default function DeptWholesaleOrdersPage() {
 
   const totalPages = Math.ceil(total / recordsPerPage);
 
-  const handlePrint = async (orderId: string, type: PrintType) => {
-    try {
-      await printOrder(orderId, type);
-    } catch (err) {
-      showToast('ไม่สามารถพิมพ์เอกสารได้', 'error');
-      console.error('Print error:', err);
-    }
+  const handlePrint = (orderId: string, type: PrintType) => {
+    const printWindow = preOpenPrintWindow();
+    (async () => {
+      try {
+        await printOrder(orderId, type, { printWindow });
+      } catch (err) {
+        printWindow?.close();
+        showToast('ไม่สามารถพิมพ์เอกสารได้', 'error');
+        console.error('Print error:', err);
+      }
+    })();
   };
 
   const getMenuItems = (order: WholesaleOrder): ActionItem[] => {

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Printer, FileText, ClipboardList, Package, Loader2 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { showPdfPreview } from '@/lib/print-pdf';
+import { showPdfPreview, preOpenPrintWindow } from '@/lib/print-pdf';
 import { type MarketplacePlatform } from '@/lib/marketplace/types';
 
 // ── Types ──────────────────────────────────────────────────
@@ -54,9 +54,15 @@ export async function printOrder(
     preloadedData?: Record<string, unknown>;
     source?: string;        // order source (shopee, tiktok, etc.)
     onProgress?: (msg: string) => void;
+    /** Pre-opened tab from a click handler (call preOpenPrintWindow()
+     *  synchronously before invoking printOrder). Required on mobile to
+     *  bypass iOS Safari popup blocker. */
+    printWindow?: Window | null;
   },
 ): Promise<void> {
-  const { preloadedData, source, onProgress } = opts || {};
+  const { preloadedData, source, onProgress, printWindow } = opts || {};
+  // If caller didn't pre-open, try now (works only on desktop / first user-gesture frame).
+  const win = printWindow ?? preOpenPrintWindow();
 
   // Marketplace label — dispatch to platform API
   if (type === 'marketplace_label') {
@@ -76,7 +82,7 @@ export async function printOrder(
       throw new Error(err.error || `ไม่สามารถพิมพ์ใบปะหน้า ${PLATFORM_LABELS[platform]} ได้`);
     }
     const blob = await res.blob();
-    showPdfPreview(blob, `ใบปะหน้า ${PLATFORM_LABELS[platform]}`);
+    showPdfPreview(blob, `ใบปะหน้า ${PLATFORM_LABELS[platform]}`, win);
     return;
   }
 
@@ -97,27 +103,27 @@ export async function printOrder(
     onProgress?.('กำลังสร้างใบกำกับภาษี...');
     const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
     const blob = await generateFullInvoicePdf(orderData);
-    showPdfPreview(blob, `ใบกำกับภาษี ${orderNumber}`);
+    showPdfPreview(blob, `ใบกำกับภาษี ${orderNumber}`, win);
   } else if (type === 'dn') {
     onProgress?.('กำลังสร้างใบส่งสินค้า...');
     const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
     const blob = await generateFullInvoicePdf({ ...orderData, tax_invoice_doc_type: 'dn' });
-    showPdfPreview(blob, `ใบส่งสินค้า ${orderNumber}`);
+    showPdfPreview(blob, `ใบส่งสินค้า ${orderNumber}`, win);
   } else if (type === 'packing') {
     onProgress?.('กำลังสร้างใบจัดของ...');
     const { generatePackingPdf } = await import('@/lib/orders-packing-pdf');
     const blob = await generatePackingPdf([orderData]);
-    showPdfPreview(blob, `ใบจัดของ ${orderNumber}`);
+    showPdfPreview(blob, `ใบจัดของ ${orderNumber}`, win);
   } else if (type === 'label') {
     onProgress?.('กำลังสร้างใบปะหน้า...');
     const { generateShippingLabelPdf } = await import('@/lib/order-shipping-label-pdf');
     const blob = await generateShippingLabelPdf({ data: orderData });
-    showPdfPreview(blob, `ใบปะหน้า ${orderNumber}`);
+    showPdfPreview(blob, `ใบปะหน้า ${orderNumber}`, win);
   } else if (type === 'abbreviated') {
     onProgress?.('กำลังสร้างใบเสร็จ...');
     const { generateOrderInvoicePdf } = await import('@/lib/order-invoice-pdf');
     const blob = await generateOrderInvoicePdf({ data: orderData });
-    showPdfPreview(blob, `ใบเสร็จ ${orderNumber}`);
+    showPdfPreview(blob, `ใบเสร็จ ${orderNumber}`, win);
   } else if (type === 'all') {
     onProgress?.('กำลังสร้างเอกสารทั้งหมด...');
     const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
@@ -131,7 +137,7 @@ export async function printOrder(
       generateShippingLabelPdf({ data: orderData }),
     ]);
     const merged = await mergePdfBlobs(blobs);
-    showPdfPreview(merged, `เอกสารทั้งหมด ${orderNumber}`);
+    showPdfPreview(merged, `เอกสารทั้งหมด ${orderNumber}`, win);
   }
 }
 
@@ -148,6 +154,8 @@ export async function printAndTrack(
     preloadedData?: Record<string, unknown>;
     source?: string;
     onProgress?: (msg: string) => void;
+    /** Pre-opened mobile print tab — see printOrder docs */
+    printWindow?: Window | null;
   },
 ): Promise<void> {
   await printOrder(orderId, type, opts);

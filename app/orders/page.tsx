@@ -54,7 +54,7 @@ import OrderCard from './components/OrderCard';
 import ActionMenu, { ActionItem } from './components/ActionMenu';
 import PaymentModal from './components/PaymentModal';
 import TaxInvoiceModal from './components/TaxInvoiceModal';
-import { showPdfPreview } from '@/lib/print-pdf';
+import { showPdfPreview, preOpenPrintWindow } from '@/lib/print-pdf';
 import { markOrdersPrinted, updateLocalPrintStatus } from '@/lib/print-tracking';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { printAndTrack, type PrintType } from '@/components/ui/OrderPrintButtons';
@@ -411,11 +411,14 @@ function OrdersPageContent() {
    * Supports all print types including marketplace labels
    */
   const handlePrint = async (orderId: string, type: PrintType, opts?: { source?: string }) => {
+    // Synchronously open mobile print tab from the click handler (iOS popup-safe).
+    const printWindow = preOpenPrintWindow();
     setPdfLoading(true);
     try {
       await printAndTrack(orderId, type, {
         source: opts?.source,
         onProgress: (msg) => setPdfMessage(msg),
+        printWindow,
       });
       // Update local print status for UI indicators
       const trackType = type === 'marketplace_label' ? 'label'
@@ -425,6 +428,7 @@ function OrdersPageContent() {
         updateLocalPrintStatus(setOrders, [orderId], trackType as 'label' | 'packing' | 'invoice');
       }
     } catch (err) {
+      printWindow?.close();
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
       setPdfLoading(false);
