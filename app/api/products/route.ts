@@ -437,17 +437,25 @@ export async function GET(request: NextRequest) {
     const productIds = productRows.map(p => p.id);
 
     // Step 2: Fetch variations + images + shop options ALL in parallel
+    // Override Supabase JS default 1000-row cap — variations can be ~1 row per
+    // variation per product, images can be several rows per variation. Without
+    // these ranges, products beyond row 1000 lose their variation/image data
+    // and get silently dropped by the .filter(Boolean) below.
+    const variationsRange = Math.max(productIds.length * 20, 10000);
+    const imagesRange = Math.max(productIds.length * 50, 10000);
     const includeShopOptions = searchParams.has('include_shop_options');
     const [viewResult, imagesResult, shopLinksResult, shopAccountsResult] = await Promise.all([
       supabaseAdmin
         .from('products_with_variations')
         .select('*')
-        .in('product_id', productIds),
+        .in('product_id', productIds)
+        .range(0, variationsRange - 1),
       supabaseAdmin
         .from('product_images')
         .select('product_id, variation_id, image_url, sort_order')
         .in('product_id', productIds)
-        .order('sort_order', { ascending: true }),
+        .order('sort_order', { ascending: true })
+        .range(0, imagesRange - 1),
       // Shop options: fetch links + accounts in parallel with product data
       includeShopOptions
         ? supabaseAdmin
