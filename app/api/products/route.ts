@@ -352,79 +352,101 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const paginate = searchParams.has('page') || searchParams.has('limit');
 
-    // Step 1: Get paginated product IDs from the products table directly
-    let productsBaseQuery = supabaseAdmin
-      .from('products')
-      .select('id', { count: 'exact' })
-      .eq('company_id', auth.companyId)
-      .eq('is_active', true);
-
-    if (sourceFilter) {
-      if (sourceFilter === 'shopee') {
-        productsBaseQuery = productsBaseQuery.in('source', ['shopee', 'shopee_edited']);
-      } else {
-        productsBaseQuery = productsBaseQuery.eq('source', sourceFilter);
-      }
-    }
-    if (categoryFilter) {
-      productsBaseQuery = productsBaseQuery.eq('category_id', categoryFilter);
-    }
-    if (brandFilter) {
-      productsBaseQuery = productsBaseQuery.eq('brand_id', brandFilter);
-    }
+    // Step 1: Get paginated product IDs from the products table directly.
+    //
+    // Resolve async pre-filters first so the query builder can be rebuilt on
+    // each page (Supabase Cloud enforces a 1000-row cap per response — to
+    // return more we have to fire several .range() pages and concatenate).
+    let varProductIds: string[] = [];
     if (searchQuery) {
-      // Also search in product_variations (sku, barcode) to find variation products
       const { data: varMatches } = await supabaseAdmin
         .from('product_variations')
         .select('product_id')
         .eq('company_id', auth.companyId)
         .or(`sku.ilike.%${searchQuery}%,barcode.ilike.%${searchQuery}%`);
-      const varProductIds = [...new Set((varMatches || []).map(v => v.product_id).filter(Boolean))];
-      if (varProductIds.length > 0) {
-        // Match by name/code OR by variation sku/barcode
-        productsBaseQuery = productsBaseQuery.or(`name.ilike.%${searchQuery}%,code.ilike.%${searchQuery}%,id.in.(${varProductIds.join(',')})`);
-      } else {
-        productsBaseQuery = productsBaseQuery.or(`name.ilike.%${searchQuery}%,code.ilike.%${searchQuery}%`);
-      }
+      varProductIds = [...new Set((varMatches || []).map(v => v.product_id).filter(Boolean))];
     }
 
-    // Shop account filter — find product IDs linked to this shop
+    let linkedProductIds: string[] = [];
     if (shopAccountFilter) {
       const { data: linkedProducts } = await supabaseAdmin
         .from('marketplace_product_links')
         .select('product_id')
         .eq('account_id', shopAccountFilter);
-      const linkedProductIds = [...new Set((linkedProducts || []).map(lp => lp.product_id).filter(Boolean))];
+      linkedProductIds = [...new Set((linkedProducts || []).map(lp => lp.product_id).filter(Boolean))];
       if (linkedProductIds.length === 0) {
-        // No products linked to this shop
         return NextResponse.json({
           products: [],
           ...(paginate ? { total: 0, page, limit } : {}),
           shopOptions: [],
         });
       }
-      productsBaseQuery = productsBaseQuery.in('id', linkedProductIds);
     }
 
-    productsBaseQuery = productsBaseQuery.order('name', { ascending: true });
+    const buildBaseQuery = () => {
+      let q = supabaseAdmin
+        .from('products')
+        .select('id', { count: 'exact' })
+        .eq('company_id', auth.companyId)
+        .eq('is_active', true);
 
-    if (paginate) {
-      const offset = (page - 1) * limit;
-      productsBaseQuery = productsBaseQuery.range(offset, offset + limit - 1);
-    } else {
-      // Override Supabase default 1000-row cap when no pagination is requested,
-      // otherwise pages that load all products for client-side search (product picker,
-      // ItemsTable, etc.) silently miss anything beyond the first 1000 by name.
-      productsBaseQuery = productsBaseQuery.range(0, 9999);
-    }
+      if (sourceFilter) {
+        if (sourceFilter === 'shopee') {
+          q = q.in('source', ['shopee', 'shopee_edited']);
+        } else {
+          q = q.eq('source', sourceFilter);
+        }
+      }
+      if (categoryFilter) q = q.eq('category_id', categoryFilter);
+      if (brandFilter) q = q.eq('brand_id', brandFilter);
+      if (searchQuery) {
+        if (varProductIds.length > 0) {
+          q = q.or(`name.ilike.%${searchQuery}%,code.ilike.%${searchQuery}%,id.in.(${varProductIds.join(',')})`);
+        } else {
+          q = q.or(`name.ilike.%${searchQuery}%,code.ilike.%${searchQuery}%`);
+        }
+      }
+      if (shopAccountFilter) q = q.in('id', linkedProductIds);
 
-    const { data: productRows, error: productError, count: totalCount } = await productsBaseQuery;
+      return q.order('name', { ascending: true });
+    };
 
-    if (productError) {
+    // Supabase Cloud caps responses at 1000 rows regardless of .range() —
+    // fetch the first page (also gets the exact total), then fire additional
+    // 1000-row pages in parallel until we have everything the caller asked for.
+    const SUPABASE_PAGE_CAP = 1000;
+    const desiredOffset = paginate ? (page - 1) * limit : 0;
+    const desiredEnd = paginate ? desiredOffset + limit - 1 : Number.MAX_SAFE_INTEGER;
+
+    const firstStart = desiredOffset;
+    const firstEnd = Math.min(firstStart + SUPABASE_PAGE_CAP - 1, desiredEnd);
+    const firstPageResult = await buildBaseQuery().range(firstStart, firstEnd);
+
+    if (firstPageResult.error) {
       return NextResponse.json(
-        { error: productError.message },
+        { error: firstPageResult.error.message },
         { status: 500 }
       );
+    }
+
+    const totalCount = firstPageResult.count || 0;
+    let productRows = firstPageResult.data || [];
+    const effectiveEnd = Math.min(desiredEnd, totalCount - 1);
+
+    if (productRows.length > 0 && firstEnd < effectiveEnd) {
+      const additionalStarts: number[] = [];
+      for (let start = firstEnd + 1; start <= effectiveEnd; start += SUPABASE_PAGE_CAP) {
+        additionalStarts.push(start);
+      }
+      const additionalPages = await Promise.all(
+        additionalStarts.map(start => {
+          const end = Math.min(start + SUPABASE_PAGE_CAP - 1, effectiveEnd);
+          return buildBaseQuery().range(start, end);
+        })
+      );
+      for (const r of additionalPages) {
+        if (r.data) productRows = productRows.concat(r.data);
+      }
     }
 
     if (!productRows || productRows.length === 0) {
@@ -437,25 +459,39 @@ export async function GET(request: NextRequest) {
     const productIds = productRows.map(p => p.id);
 
     // Step 2: Fetch variations + images + shop options ALL in parallel
-    // Override Supabase JS default 1000-row cap — variations can be ~1 row per
-    // variation per product, images can be several rows per variation. Without
-    // these ranges, products beyond row 1000 lose their variation/image data
-    // and get silently dropped by the .filter(Boolean) below.
-    const variationsRange = Math.max(productIds.length * 20, 10000);
-    const imagesRange = Math.max(productIds.length * 50, 10000);
+    // .in('product_id', [...]) with thousands of UUIDs blows past PostgREST's
+    // URL length limit (~8KB) and also Supabase JS's default 1000-row response
+    // cap. Chunk into batches of 200 IDs and parallelize so each request stays
+    // small enough on both axes.
+    const ID_CHUNK = 200;
+    const productIdChunks: string[][] = [];
+    for (let i = 0; i < productIds.length; i += ID_CHUNK) {
+      productIdChunks.push(productIds.slice(i, i + ID_CHUNK));
+    }
+    const chunkedFetch = async <T>(
+      run: (ids: string[]) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+    ): Promise<{ data: T[]; error: { message: string } | null }> => {
+      const results = await Promise.all(productIdChunks.map(c => Promise.resolve(run(c))));
+      const firstError = results.find(r => r.error)?.error ?? null;
+      const data = results.flatMap(r => r.data ?? []);
+      return { data, error: firstError };
+    };
+
     const includeShopOptions = searchParams.has('include_shop_options');
     const [viewResult, imagesResult, shopLinksResult, shopAccountsResult] = await Promise.all([
-      supabaseAdmin
-        .from('products_with_variations')
-        .select('*')
-        .in('product_id', productIds)
-        .range(0, variationsRange - 1),
-      supabaseAdmin
-        .from('product_images')
-        .select('product_id, variation_id, image_url, sort_order')
-        .in('product_id', productIds)
-        .order('sort_order', { ascending: true })
-        .range(0, imagesRange - 1),
+      chunkedFetch<any>(ids =>
+        supabaseAdmin
+          .from('products_with_variations')
+          .select('*')
+          .in('product_id', ids)
+      ),
+      chunkedFetch<any>(ids =>
+        supabaseAdmin
+          .from('product_images')
+          .select('product_id, variation_id, image_url, sort_order')
+          .in('product_id', ids)
+          .order('sort_order', { ascending: true })
+      ),
       // Shop options: fetch links + accounts in parallel with product data
       includeShopOptions
         ? supabaseAdmin
