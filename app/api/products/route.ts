@@ -411,6 +411,11 @@ export async function GET(request: NextRequest) {
     if (paginate) {
       const offset = (page - 1) * limit;
       productsBaseQuery = productsBaseQuery.range(offset, offset + limit - 1);
+    } else {
+      // Override Supabase default 1000-row cap when no pagination is requested,
+      // otherwise pages that load all products for client-side search (product picker,
+      // ItemsTable, etc.) silently miss anything beyond the first 1000 by name.
+      productsBaseQuery = productsBaseQuery.range(0, 9999);
     }
 
     const { data: productRows, error: productError, count: totalCount } = await productsBaseQuery;
