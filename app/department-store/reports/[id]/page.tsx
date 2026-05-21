@@ -180,7 +180,7 @@ function EditReportContent() {
   useEffect(() => {
     if (!report) return;
     setLoadingProducts(true);
-    apiFetch('/api/products?limit=999&active=true')
+    apiFetch('/api/products?limit=9999&active=true')
       .then(r => r.json())
       .then(result => {
         const flat: ProductSearchItem[] = [];

@@ -191,7 +191,7 @@ export default function DealerOrderForm({
   useEffect(() => {
     if (isEditMode && isReadOnly) { setLoadingProducts(false); return; }
     setLoadingProducts(true);
-    apiFetch('/api/products?limit=999&active=true')
+    apiFetch('/api/products?limit=9999&active=true')
       .then(r => r.json())
       .then(result => {
         const flat: ProductSearchItem[] = [];
@@ -322,7 +322,7 @@ export default function DealerOrderForm({
           // Fetch product default prices for GP recalc
           if (gpCtx && orderItems.length > 0) {
             try {
-              const prodRes = await apiFetch('/api/products?limit=999&active=true');
+              const prodRes = await apiFetch('/api/products?limit=9999&active=true');
               if (prodRes.ok) {
                 const prodData = await prodRes.json();
                 for (const p of prodData.products || []) {

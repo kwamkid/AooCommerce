@@ -195,7 +195,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   useEffect(() => {
     {
       setLoadingProducts(true);
-      apiFetch('/api/products?limit=999&active=true')
+      apiFetch('/api/products?limit=9999&active=true')
         .then(r => r.json())
         .then(result => {
           const flat: ProductSearchItem[] = [];
