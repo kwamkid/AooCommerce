@@ -490,10 +490,28 @@ export async function exportProductToShopee(
       };
     }
 
-    // 1. Fetch product
+    // 1. Fetch product (and per-platform description from any existing link in another shop
+    //    so re-exports to a new shop carry the description forward)
     const product = await fetchProductForExport(productId, companyId);
     if (!product) {
       return { success: false, error: 'ไม่พบสินค้า', product_name: '' };
+    }
+
+    // Prefer the most recently used platform_description from ANY existing Shopee link
+    // for this product — that's the closest thing to "what we already pushed to Shopee".
+    // Falls back to product.description.
+    const { data: anyExistingShopeeLink } = await supabaseAdmin
+      .from('marketplace_product_links')
+      .select('platform_description')
+      .eq('company_id', companyId)
+      .eq('product_id', productId)
+      .eq('platform', 'shopee')
+      .not('platform_description', 'is', null)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (anyExistingShopeeLink?.platform_description) {
+      product.description = anyExistingShopeeLink.platform_description;
     }
 
     if (product.variations.length === 0) {
@@ -701,6 +719,7 @@ export async function exportProductToShopee(
         external_model_id: '0',
         external_sku: firstVar?.sku || '',
         external_item_status: 'NORMAL',
+        platform_description: product.description || null,
         platform_price: (firstVar?.discount_price && firstVar.discount_price > 0) ? firstVar.discount_price : (firstVar?.default_price || null),
         shopee_category_id: options.shopee_category_id,
         shopee_category_name: options.shopee_category_name || null,
@@ -741,6 +760,7 @@ export async function exportProductToShopee(
           external_model_id: realModelId !== undefined ? String(realModelId) : String(i),
           external_sku: v.sku || '',
           external_item_status: 'NORMAL',
+          platform_description: product.description || null,
           platform_price: (v.discount_price && v.discount_price > 0) ? v.discount_price : (v.default_price || null),
           shopee_category_id: options.shopee_category_id,
           shopee_category_name: options.shopee_category_name || null,

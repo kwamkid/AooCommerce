@@ -14,6 +14,7 @@ import {
   upsertMarketplaceLink,
   backfillSiblingVariations,
   resolveShopeePrice,
+  upsertShopeeProduct,
 } from '@/lib/shopee/product-helpers';
 
 // --- Sync Progress Types ---
@@ -1903,7 +1904,79 @@ async function findOrCreateVariationBySku(
     }
   }
 
-  // 2. Not found — detect if variation or simple product
+  // 2. Not found — delegate to shared upsertShopeeProduct() which handles:
+  //   - find/create parent (incl. reactivate soft-deleted)
+  //   - create the specific child variation + sibling backfill (so all variations come in)
+  //   - write platform_description / platform_description_images on links
+  // We still need to return the *specific* variation matching shopeeInfo.shopeeModelId, so we
+  // synthesize a ShopeeItemFullDetail from shopeeInfo (preferring shopeeInfo.itemDetail when set)
+  // and then look up the resulting link.
+  if (shopeeInfo.accountId) {
+    const itemDetail: ShopeeItemFullDetail = shopeeInfo.itemDetail ? {
+      ...shopeeInfo.itemDetail,
+    } : {
+      item_id: shopeeInfo.shopeeItemId,
+      item_name: shopeeInfo.shopeeItemName || productName,
+      item_sku: shopeeInfo.shopeeItemSku || '',
+      item_status: 'NORMAL',
+      images: shopeeInfo.parentImages?.length
+        ? shopeeInfo.parentImages
+        : (shopeeInfo.parentImageUrl ? [shopeeInfo.parentImageUrl] : (shopeeInfo.shopeeImageUrl ? [shopeeInfo.shopeeImageUrl] : [])),
+      has_model: shopeeInfo.shopeeModelId > 0,
+      models: shopeeInfo.allModels && shopeeInfo.allModels.length > 0
+        ? shopeeInfo.allModels
+        : [{
+            model_id: shopeeInfo.shopeeModelId || 0,
+            model_sku: shopeeInfo.shopeeModelSku || sku,
+            model_name: shopeeInfo.shopeeModelName || '',
+            tier_index: [],
+            current_price: price,
+            original_price: price,
+            stock: 0,
+            image_url: shopeeInfo.shopeeImageUrl || undefined,
+          }],
+      tierVariations: shopeeInfo.tierVariationNames || [],
+    };
+
+    const upsertRes = await upsertShopeeProduct(
+      companyId,
+      shopeeInfo.accountId,
+      shopeeInfo.accountName || '',
+      itemDetail,
+    );
+
+    // Find the specific variation for this ordered model_id via the link we just upserted
+    const { data: link } = await supabaseAdmin
+      .from('marketplace_product_links')
+      .select('variation_id, product_id')
+      .eq('account_id', shopeeInfo.accountId)
+      .eq('external_item_id', String(shopeeInfo.shopeeItemId))
+      .eq('external_model_id', String(shopeeInfo.shopeeModelId || 0))
+      .limit(1)
+      .maybeSingle();
+
+    const finalVariationId = link?.variation_id || upsertRes.variationIds[0];
+    if (!finalVariationId) {
+      throw new Error(`Failed to resolve variation after upsertShopeeProduct for item=${shopeeInfo.shopeeItemId} model=${shopeeInfo.shopeeModelId}`);
+    }
+
+    // Attach image from this specific order item if we have one and the variation row didn't get it
+    if (shopeeInfo.shopeeImageUrl) {
+      await upsertProductImage(companyId, upsertRes.productId, finalVariationId, shopeeInfo.shopeeImageUrl);
+    }
+
+    return {
+      variation_id: finalVariationId,
+      product_id: upsertRes.productId,
+      product_code: shopeeInfo.shopeeItemSku || `SP-${shopeeInfo.shopeeItemId}`,
+      isNewProduct: upsertRes.isNewProduct,
+      isNewVariation: upsertRes.variationsCreated > 0,
+    };
+  }
+
+  // Fallback path (no accountId) — keep the legacy inline behavior for callers that
+  // don't go through the marketplace account flow. This is the same code that ran before
+  // we introduced upsertShopeeProduct.
   const isVariation = shopeeInfo.shopeeModelId > 0 && !!shopeeInfo.shopeeModelName;
 
   if (isVariation) {

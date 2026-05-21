@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
         external_sku,
         external_item_status,
         platform_product_name,
+        platform_description,
+        platform_description_images,
         platform_price,
         platform_discount_price,
         platform_barcode,
@@ -204,13 +206,25 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { link_id, platform_product_name, platform_price, platform_discount_price, platform_barcode, platform_primary_image, shopee_category_id, shopee_category_name, weight } = await request.json();
+    const {
+      link_id,
+      platform_product_name,
+      platform_description,
+      platform_price,
+      platform_discount_price,
+      platform_barcode,
+      platform_primary_image,
+      shopee_category_id,
+      shopee_category_name,
+      weight,
+    } = await request.json();
     if (!link_id) {
       return NextResponse.json({ error: 'Missing link_id' }, { status: 400 });
     }
 
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (platform_product_name !== undefined) updateData.platform_product_name = platform_product_name ?? null;
+    if (platform_description !== undefined) updateData.platform_description = platform_description ?? null;
     if (platform_price !== undefined) updateData.platform_price = platform_price ?? null;
     if (platform_discount_price !== undefined) updateData.platform_discount_price = platform_discount_price ?? null;
     if (platform_barcode !== undefined) updateData.platform_barcode = platform_barcode ?? null;

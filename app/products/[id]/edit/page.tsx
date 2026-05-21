@@ -30,6 +30,8 @@ interface MarketplaceLink {
   external_sku: string | null;
   external_item_status: string | null;
   platform_product_name: string | null;
+  platform_description: string | null;
+  platform_description_images: string[] | null;
   platform_price: number | null;
   platform_discount_price: number | null;
   platform_barcode: string | null;
@@ -128,6 +130,7 @@ export default function EditProductPage() {
 
   // Platform fields local state — track edited values per link
   const [platformNameValues, setPlatformNameValues] = useState<Record<string, string>>({});
+  const [platformDescriptionValues, setPlatformDescriptionValues] = useState<Record<string, string>>({});
   const [priceValues, setPriceValues] = useState<Record<string, string>>({});
   const [discountValues, setDiscountValues] = useState<Record<string, string>>({});
   const [barcodeValues, setBarcodeValues] = useState<Record<string, string>>({});
@@ -186,6 +189,7 @@ export default function EditProductPage() {
         setMarketplaceLinks(links);
         if (links.length > 0) {
           const platNames: Record<string, string> = {};
+          const platDescriptions: Record<string, string> = {};
           const prices: Record<string, string> = {};
           const discounts: Record<string, string> = {};
           const barcodes: Record<string, string> = {};
@@ -194,6 +198,7 @@ export default function EditProductPage() {
           const weights: Record<string, string> = {};
           links.forEach((l: MarketplaceLink) => {
             platNames[l.id] = l.platform_product_name || product?.name || '';
+            platDescriptions[l.id] = l.platform_description || '';
             prices[l.id] = l.platform_price?.toString() || '';
             discounts[l.id] = l.platform_discount_price?.toString() || '';
             barcodes[l.id] = l.platform_barcode || '';
@@ -202,6 +207,7 @@ export default function EditProductPage() {
             weights[l.id] = l.weight?.toString() || '';
           });
           setPlatformNameValues(platNames);
+          setPlatformDescriptionValues(platDescriptions);
           setPriceValues(prices);
           setDiscountValues(discounts);
           setBarcodeValues(barcodes);
@@ -256,6 +262,7 @@ export default function EditProductPage() {
         const data = await res.json();
         setMarketplaceLinks(data.links || []);
         const platNames: Record<string, string> = {};
+        const platDescriptions: Record<string, string> = {};
         const prices: Record<string, string> = {};
         const discounts: Record<string, string> = {};
         const barcodes: Record<string, string> = {};
@@ -264,6 +271,7 @@ export default function EditProductPage() {
         const weights: Record<string, string> = {};
         (data.links || []).forEach((l: MarketplaceLink) => {
           platNames[l.id] = l.platform_product_name || product?.name || '';
+          platDescriptions[l.id] = l.platform_description || '';
           prices[l.id] = l.platform_price?.toString() || '';
           discounts[l.id] = l.platform_discount_price?.toString() || '';
           barcodes[l.id] = l.platform_barcode || '';
@@ -272,6 +280,7 @@ export default function EditProductPage() {
           weights[l.id] = l.weight?.toString() || '';
         });
         setPlatformNameValues(platNames);
+        setPlatformDescriptionValues(platDescriptions);
         setPriceValues(prices);
         setDiscountValues(discounts);
         setBarcodeValues(barcodes);
@@ -361,6 +370,7 @@ export default function EditProductPage() {
       const results = await Promise.all(
         linkIds.map(async (linkId) => {
           const platNameVal = platformNameValues[linkId];
+          const platDescVal = platformDescriptionValues[linkId];
           const priceVal = priceValues[linkId];
           const discountVal = discountValues[linkId];
           const barcodeVal = barcodeValues[linkId];
@@ -368,6 +378,7 @@ export default function EditProductPage() {
           const catNameVal = categoryNameValues[linkId];
           const weightVal = weightValues[linkId];
           const platName = platNameVal?.trim() || null;
+          const platDesc = (platDescVal ?? '').trim() ? platDescVal : null;
           const numPrice = priceVal?.trim() === '' ? null : parseFloat(priceVal);
           const numDiscount = discountVal?.trim() === '' ? null : parseFloat(discountVal);
           const barcode = barcodeVal?.trim() || null;
@@ -380,6 +391,7 @@ export default function EditProductPage() {
             body: JSON.stringify({
               link_id: linkId,
               platform_product_name: platName,
+              platform_description: platDesc,
               platform_price: numPrice,
               platform_discount_price: numDiscount,
               platform_barcode: barcode,
@@ -740,6 +752,33 @@ export default function EditProductPage() {
               </p>
             )}
           </div>
+
+          {/* Platform description — full width textarea */}
+          <div>
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+              คำอธิบายสินค้า ({link.platform === 'shopee' ? 'Shopee' : link.platform})
+            </label>
+            <textarea
+              value={platformDescriptionValues[link.id] || ''}
+              onChange={e => { setPlatformDescriptionValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
+              rows={6}
+              placeholder="คำอธิบายสินค้าสำหรับร้านนี้ — ใช้ตอนส่งสินค้าออกไปยัง Shopee"
+              className="w-full px-3 py-2 text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary resize-y"
+            />
+            {Array.isArray(link.platform_description_images) && link.platform_description_images.length > 0 && (
+              <div className="mt-2">
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">
+                  รูปประกอบ description (เก็บไว้ ref ตอน export ไปร้านอื่น — ไม่แสดงในรูปสินค้าหลัก)
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  {link.platform_description_images.map((url, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={i} src={url} alt="" className="w-16 h-16 object-cover rounded border border-gray-200 dark:border-slate-700" />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Category — full width */}
@@ -934,6 +973,41 @@ export default function EditProductPage() {
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 font-mono break-all">
                 Item ID: {firstLink.external_item_id}
               </p>
+            </div>
+
+            {/* Platform description — shared across all variations of this item */}
+            <div>
+              <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+                คำอธิบายสินค้า ({firstLink.platform === 'shopee' ? 'Shopee' : firstLink.platform})
+              </label>
+              <textarea
+                value={platformDescriptionValues[firstLink.id] || ''}
+                onChange={e => {
+                  const val = e.target.value;
+                  setPlatformDescriptionValues(prev => {
+                    const next = { ...prev };
+                    links.forEach(l => { next[l.id] = val; });
+                    return next;
+                  });
+                  links.forEach(l => markDirty(l.id));
+                }}
+                rows={6}
+                placeholder="คำอธิบายสินค้าสำหรับร้านนี้ — ใช้ตอนส่งสินค้าออกไปยัง Shopee"
+                className="w-full px-3 py-2 text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary resize-y"
+              />
+              {Array.isArray(firstLink.platform_description_images) && firstLink.platform_description_images.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">
+                    รูปประกอบ description (เก็บไว้ ref ตอน export ไปร้านอื่น — ไม่แสดงในรูปสินค้าหลัก)
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {firstLink.platform_description_images.map((url, i) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={i} src={url} alt="" className="w-16 h-16 object-cover rounded border border-gray-200 dark:border-slate-700" />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

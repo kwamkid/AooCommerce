@@ -1060,6 +1060,8 @@ export interface ShopeeItemFullDetail {
   weight?: number; // in kg
   brand?: { brand_id: number; original_brand_name: string; display_brand_name?: string };
   attribute_list?: ShopeeItemAttribute[];  // Attributes with filled values
+  description?: string;          // Flattened plain text (works for both normal + extended)
+  descriptionImages?: string[];  // Image URLs from extended description (kept separate from product images)
 }
 
 export interface ShopeeModelDetail {
@@ -1071,6 +1073,45 @@ export interface ShopeeModelDetail {
   original_price: number;
   stock: number;
   image_url?: string;
+}
+
+/**
+ * Extract description text + image URLs from a Shopee item.
+ * - description_type === 'normal' (default): use `description` field directly (plain text, no images).
+ * - description_type === 'extended' (whitelist sellers): walk description_info.extended_description.field_list,
+ *   join all text blocks as the text body, collect image URLs separately.
+ */
+function extractShopeeDescription(item: {
+  description?: string;
+  description_type?: string;
+  description_info?: {
+    extended_description?: {
+      field_list?: Array<{
+        field_type?: string;
+        text?: string;
+        image_info?: { image_url?: string };
+      }>;
+    };
+  };
+}): { text: string; images: string[] } {
+  const isExtended = (item.description_type || '').toLowerCase() === 'extended'
+    || (!item.description && !!item.description_info?.extended_description?.field_list?.length);
+
+  if (isExtended) {
+    const fields = item.description_info?.extended_description?.field_list || [];
+    const textParts: string[] = [];
+    const images: string[] = [];
+    for (const f of fields) {
+      if (f.field_type === 'image' && f.image_info?.image_url) {
+        images.push(f.image_info.image_url);
+      } else if (f.field_type === 'text' && f.text) {
+        textParts.push(f.text);
+      }
+    }
+    return { text: textParts.join('\n\n').trim(), images };
+  }
+
+  return { text: (item.description || '').trim(), images: [] };
 }
 
 export async function getItemFullDetails(
@@ -1108,10 +1149,22 @@ export async function getItemFullDetails(
         stock_info_v2?: { summary_info?: { total_available_stock?: number } };
         brand?: { brand_id: number; original_brand_name: string; display_brand_name?: string };
         attribute_list?: ShopeeItemAttribute[];
+        description?: string;
+        description_type?: string;
+        description_info?: {
+          extended_description?: {
+            field_list?: Array<{
+              field_type?: string;
+              text?: string;
+              image_info?: { image_url?: string };
+            }>;
+          };
+        };
       }> })?.item_list || [];
 
       for (const item of items) {
         const images = item.image?.image_url_list || [];
+        const { text: descText, images: descImages } = extractShopeeDescription(item);
         const detail: ShopeeItemFullDetail = {
           item_id: item.item_id,
           item_name: item.item_name || '',
@@ -1125,6 +1178,8 @@ export async function getItemFullDetails(
           weight: item.weight,
           brand: item.brand,
           attribute_list: item.attribute_list,
+          description: descText,
+          descriptionImages: descImages,
         };
 
         // For simple items (no model), extract price/stock from base info
