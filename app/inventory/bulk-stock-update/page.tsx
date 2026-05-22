@@ -6,13 +6,11 @@ import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
-import FormSelect from '@/components/ui/FormSelect';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import {
   Upload, Download, ArrowLeft, FileSpreadsheet,
-  Check, Loader2, AlertCircle, Pencil, ArrowRight, PackagePlus, Edit3,
+  Check, Loader2, AlertCircle, Pencil, ArrowRight, ShieldAlert, Star,
 } from 'lucide-react';
-
-type Mode = 'receive' | 'adjust';
 
 interface Warehouse {
   id: string;
@@ -21,63 +19,39 @@ interface Warehouse {
   is_default?: boolean;
 }
 
+interface Brand {
+  id: string;
+  name: string;
+}
+
 interface ParsedItem {
   product_id?: string;
   variation_id?: string;
-  sku?: string;
-  barcode?: string;
-  name?: string;
+  warehouse_id: string;
   quantity: number;
-  unit_cost: number;
   rowNum: number;
 }
 
 interface ResultRow {
   rowNum: number;
+  warehouse_id: string;
+  warehouse_name: string;
   product_name: string;
   variation_label: string;
   sku: string;
   action: 'updated' | 'unchanged' | 'error';
   from?: number;
   to?: number;
-  unit_cost?: number;
   error?: string;
 }
 
 interface RunResponse {
-  mode: Mode;
   dry_run: boolean;
   results: ResultRow[];
   summary: { total: number; updated: number; unchanged: number; errors: number };
-  receive_number?: string;
 }
 
-function parseCSV(text: string): string[][] {
-  const rows: string[][] = [];
-  let current = '';
-  let inQuotes = false;
-  let row: string[] = [];
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (inQuotes) {
-      if (ch === '"' && text[i + 1] === '"') { current += '"'; i++; }
-      else if (ch === '"') { inQuotes = false; }
-      else { current += ch; }
-    } else {
-      if (ch === '"') { inQuotes = true; }
-      else if (ch === ',') { row.push(current.trim()); current = ''; }
-      else if (ch === '\n' || (ch === '\r' && text[i + 1] === '\n')) {
-        row.push(current.trim());
-        if (row.some(c => c)) rows.push(row);
-        row = []; current = '';
-        if (ch === '\r') i++;
-      } else { current += ch; }
-    }
-  }
-  row.push(current.trim());
-  if (row.some(c => c)) rows.push(row);
-  return rows;
-}
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default function BulkStockUpdatePage() {
   const router = useRouter();
@@ -86,8 +60,9 @@ export default function BulkStockUpdatePage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [warehouseId, setWarehouseId] = useState('');
-  const [mode, setMode] = useState<Mode>('receive');
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [warehouseIds, setWarehouseIds] = useState<string[]>([]);
+  const [brandIds, setBrandIds] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [exporting, setExporting] = useState(false);
 
@@ -95,34 +70,54 @@ export default function BulkStockUpdatePage() {
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const [dryRun, setDryRun] = useState<RunResponse | null>(null);
   const [finalRun, setFinalRun] = useState<RunResponse | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Load warehouses
+  // Load warehouses + brands
   useEffect(() => {
     if (!userProfile) return;
     (async () => {
       try {
-        const res = await apiFetch('/api/warehouses?active=true');
-        const data = await res.json();
-        const list: Warehouse[] = data.warehouses || [];
-        setWarehouses(list);
-        const def = list.find(w => w.is_default) || list[0];
-        if (def) setWarehouseId(def.id);
+        const [whRes, brRes] = await Promise.all([
+          apiFetch('/api/warehouses?active=true'),
+          apiFetch('/api/brands'),
+        ]);
+        const whData = await whRes.json();
+        const brData = await brRes.json();
+        const whList: Warehouse[] = whData.warehouses || [];
+        setWarehouses(whList);
+        setBrands(brData.data || []);
+        const def = whList.find(w => w.is_default) || whList[0];
+        if (def) setWarehouseIds([def.id]);
       } catch (err) {
-        console.error('load warehouses error:', err);
+        console.error('load options error:', err);
       }
     })();
   }, [userProfile]);
 
-  const warehouseName = useMemo(() => warehouses.find(w => w.id === warehouseId)?.name || '', [warehouses, warehouseId]);
+  const selectedWarehouses = useMemo(
+    () => warehouseIds.map(id => warehouses.find(w => w.id === id)).filter((w): w is Warehouse => !!w),
+    [warehouseIds, warehouses]
+  );
+
+  const toggleWarehouse = (id: string) => {
+    setWarehouseIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const toggleBrand = (id: string) => {
+    setBrandIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
 
   const handleExport = async () => {
-    if (!warehouseId) {
-      showToast('กรุณาเลือกคลังสินค้าก่อน', 'error');
+    if (warehouseIds.length === 0) {
+      showToast('กรุณาเลือกคลังอย่างน้อย 1 คลัง', 'error');
       return;
     }
     setExporting(true);
     try {
-      const res = await apiFetch(`/api/inventory/bulk-stock-update/export?warehouse_id=${warehouseId}`);
+      const params = new URLSearchParams();
+      params.set('warehouse_ids', warehouseIds.join(','));
+      if (brandIds.length > 0) params.set('brand_ids', brandIds.join(','));
+
+      const res = await apiFetch(`/api/inventory/bulk-stock-update/export?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) {
         showToast(data.error || 'Export ไม่สำเร็จ', 'error');
@@ -131,75 +126,158 @@ export default function BulkStockUpdatePage() {
 
       const ExcelJS = (await import('exceljs')).default;
       const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet('bulk-stock');
+      const ws = wb.addWorksheet('bulk-stock', {
+        properties: { defaultColWidth: 14 },
+      });
 
-      const headers = [
+      const exportWarehouses: Warehouse[] = data.warehouses || [];
+      type Item = {
+        product_id: string;
+        variation_id: string;
+        product_code: string;
+        product_name: string;
+        brand_name: string;
+        variation_label: string;
+        sku: string;
+        barcode: string;
+        stocks: Record<string, number>;
+      };
+      const items: Item[] = data.items || [];
+
+      // Fixed info columns (cols 1..8)
+      const infoHeaders = [
         'product_id (ห้ามแก้)',
         'variation_id (ห้ามแก้)',
         'รหัสสินค้า',
         'ชื่อสินค้า',
+        'แบรนด์',
         'ตัวเลือก',
         'SKU',
         'Barcode',
-        'Stock ปัจจุบัน',
-        mode === 'receive' ? 'จำนวนรับเข้า' : 'Stock ใหม่',
-        'ต้นทุน/หน่วย (WAC)',
       ];
-      const headerRow = ws.addRow(headers);
+      const infoColCount = infoHeaders.length;
+
+      // === Row 1: hidden warehouse_id metadata ===
+      // Cells in info range are empty; each warehouse pair (current, ใหม่) gets the wh_id in the FIRST cell
+      const idRow: (string | null)[] = Array(infoColCount).fill(null);
+      for (const wh of exportWarehouses) {
+        idRow.push(wh.id); // current column carries the wh_id
+        idRow.push(null);  // "ใหม่" column empty
+      }
+      const idRowRef = ws.addRow(idRow);
+      idRowRef.height = 4; // very small — visible but unobtrusive
+      idRowRef.eachCell({ includeEmpty: true }, cell => {
+        cell.font = { color: { argb: 'FFD0D0D0' }, size: 6 };
+        cell.alignment = { horizontal: 'left' };
+      });
+
+      // === Row 2: visible headers ===
+      const visibleHeaders: string[] = [...infoHeaders];
+      for (const wh of exportWarehouses) {
+        const label = wh.code ? `${wh.name} (${wh.code})` : wh.name;
+        visibleHeaders.push(`${label}\nStock ปัจจุบัน`);
+        visibleHeaders.push(`${label}\nStock ใหม่ (กรอกที่นี่)`);
+      }
+      const headerRow = ws.addRow(visibleHeaders);
+      headerRow.height = 36;
       headerRow.eachCell(cell => {
         cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4511E' } };
-        cell.alignment = { horizontal: 'center' };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       });
+      // Highlight editable "Stock ใหม่" columns in header with a different shade
+      for (let i = 0; i < exportWarehouses.length; i++) {
+        const editableColIdx = infoColCount + i * 2 + 2; // 1-based
+        const cell = headerRow.getCell(editableColIdx);
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF15803D' } };
+      }
 
       const grayFill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF0F0F0' } };
       const grayFont = { color: { argb: 'FF999999' }, size: 9 };
+      const readonlyFont = { color: { argb: 'FF666666' }, size: 10 };
 
-      type Item = {
-        product_id: string; variation_id: string;
-        product_code: string; product_name: string; variation_label: string;
-        sku: string; barcode: string; current_quantity: number;
-      };
-      const items: Item[] = data.items || [];
-
+      // === Data rows ===
       for (const it of items) {
-        const row = ws.addRow([
+        const rowVals: (string | number)[] = [
           it.product_id,
           it.variation_id,
           it.product_code,
           it.product_name,
+          it.brand_name,
           it.variation_label,
           it.sku,
           it.barcode,
-          it.current_quantity,
-          '',
-          '',
-        ]);
-        // Gray + lock ID columns
+        ];
+        for (const wh of exportWarehouses) {
+          rowVals.push(it.stocks[wh.id] ?? 0); // current
+          rowVals.push(''); // new (empty, editable)
+        }
+        const row = ws.addRow(rowVals);
+
+        // Lock & gray ID columns (1, 2)
         for (const col of [1, 2]) {
           const cell = row.getCell(col);
           cell.fill = grayFill;
           cell.font = grayFont;
+          cell.protection = { locked: true };
         }
-        // Gray for read-only columns (code, name, variation, sku, barcode, current stock)
-        for (const col of [3, 4, 5, 6, 7, 8]) {
-          row.getCell(col).font = { color: { argb: 'FF666666' }, size: 10 };
+        // Read-only info columns (3..8)
+        for (let col = 3; col <= infoColCount; col++) {
+          const cell = row.getCell(col);
+          cell.font = readonlyFont;
+          cell.protection = { locked: true };
+        }
+        // Per-warehouse cells: lock "current", unlock "ใหม่"
+        for (let i = 0; i < exportWarehouses.length; i++) {
+          const currentCol = infoColCount + i * 2 + 1; // 1-based
+          const newCol = infoColCount + i * 2 + 2;
+          const currentCell = row.getCell(currentCol);
+          currentCell.font = readonlyFont;
+          currentCell.fill = grayFill;
+          currentCell.protection = { locked: true };
+          currentCell.alignment = { horizontal: 'right' };
+
+          const newCell = row.getCell(newCol);
+          newCell.protection = { locked: false };
+          newCell.alignment = { horizontal: 'right' };
         }
       }
 
       // Column widths
-      ws.columns = [
-        { width: 38 }, { width: 38 }, { width: 15 }, { width: 34 }, { width: 18 },
-        { width: 18 }, { width: 18 }, { width: 14 }, { width: 14 }, { width: 14 },
-      ];
-      ws.views = [{ state: 'frozen', ySplit: 1 }];
+      const colWidths = [38, 38, 15, 34, 18, 18, 18, 18];
+      for (const wh of exportWarehouses) {
+        void wh;
+        colWidths.push(15, 15);
+      }
+      ws.columns = colWidths.map(w => ({ width: w }));
+
+      // Freeze rows 1 & 2 + cols A & B
+      ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 2 }];
+
+      // Protect the sheet (no password) — locked cells become read-only
+      await ws.protect('', {
+        selectLockedCells: true,
+        selectUnlockedCells: true,
+        formatCells: false,
+        formatColumns: false,
+        formatRows: false,
+        insertRows: false,
+        deleteRows: false,
+        insertColumns: false,
+        deleteColumns: false,
+        sort: false,
+        autoFilter: false,
+      });
 
       const buf = await wb.xlsx.writeBuffer();
       const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       const date = new Date().toISOString().split('T')[0];
-      link.download = `stock-${warehouseName || 'warehouse'}-${date}.xlsx`;
+      const fname = exportWarehouses.length === 1
+        ? `stock-${exportWarehouses[0].name}-${date}.xlsx`
+        : `stock-${exportWarehouses.length}wh-${date}.xlsx`;
+      link.download = fname;
       link.click();
       URL.revokeObjectURL(link.href);
     } catch (err) {
@@ -213,62 +291,80 @@ export default function BulkStockUpdatePage() {
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!warehouseId) {
-      showToast('กรุณาเลือกคลังสินค้าก่อน', 'error');
+
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      showToast('รองรับเฉพาะไฟล์ Excel (.xlsx)', 'error');
       if (fileRef.current) fileRef.current.value = '';
       return;
     }
 
-    let rows: string[][];
-    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-      const ExcelJS = (await import('exceljs')).default;
-      const wb = new ExcelJS.Workbook();
-      await wb.xlsx.load(await file.arrayBuffer());
-      const ws = wb.worksheets[0];
-      rows = [];
-      ws.eachRow(row => {
-        const vals = (row.values as (string | number | null)[]).slice(1).map(v => String(v ?? ''));
-        if (vals.some(v => v)) rows.push(vals);
-      });
-    } else {
-      rows = parseCSV(await file.text());
-    }
-
-    if (rows.length < 2) {
-      showToast('ไฟล์ไม่มีข้อมูล (ต้องมี header + อย่างน้อย 1 แถว)', 'error');
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await file.arrayBuffer());
+    const ws = wb.worksheets[0];
+    if (!ws) {
+      showToast('ไฟล์ว่างเปล่า', 'error');
       return;
     }
 
-    const header = rows[0];
-    if (header.length < 9) {
-      showToast(`ไฟล์ผิด format — ต้องมีอย่างน้อย 9 คอลัมน์ แต่พบ ${header.length}`, 'error');
+    const rows: string[][] = [];
+    ws.eachRow({ includeEmpty: true }, row => {
+      const vals = (row.values as (string | number | null)[]).slice(1).map(v => v === null || v === undefined ? '' : String(v));
+      rows.push(vals);
+    });
+
+    if (rows.length < 3) {
+      showToast('ไฟล์ไม่ถูก format — ต้องมีอย่างน้อย 3 แถว (ID row + header + data)', 'error');
       return;
     }
 
+    // Row 1 (index 0) = hidden warehouse_id metadata
+    // Row 2 (index 1) = visible header
+    // Row 3+ = data
+    const idRow = rows[0];
+    const dataRows = rows.slice(2);
+
+    // Detect warehouse_id columns — UUIDs in row 1
+    const colToWarehouse = new Map<number, string>(); // col index → warehouse_id
+    for (let col = 0; col < idRow.length; col++) {
+      const v = (idRow[col] || '').trim();
+      if (UUID_RE.test(v)) {
+        colToWarehouse.set(col, v);
+      }
+    }
+
+    if (colToWarehouse.size === 0) {
+      showToast('ไม่พบ warehouse ID ในไฟล์ — โปรด export ใหม่จากระบบนี้', 'error');
+      return;
+    }
+
+    // For each warehouse column, the "ใหม่" column is the NEXT column
     const items: ParsedItem[] = [];
-    const dataRows = rows.slice(1);
-    for (let i = 0; i < dataRows.length; i++) {
-      const c = dataRows[i];
-      const qtyRaw = c[8];
-      if (qtyRaw === undefined || qtyRaw === '' || qtyRaw === null) continue;
-      const qty = Number(qtyRaw);
-      if (!Number.isFinite(qty)) continue;
+    for (let r = 0; r < dataRows.length; r++) {
+      const c = dataRows[r];
+      const rowNum = r + 3; // 1-based row number in Excel
+      const productId = (c[0] || '').trim();
+      const variationId = (c[1] || '').trim();
+      if (!variationId) continue;
 
-      const item: ParsedItem = {
-        product_id: c[0]?.trim() || undefined,
-        variation_id: c[1]?.trim() || undefined,
-        name: c[3]?.trim() || undefined,
-        sku: c[5]?.trim() || undefined,
-        barcode: c[6]?.trim() || undefined,
-        quantity: qty,
-        unit_cost: Number(c[9] || '0') || 0,
-        rowNum: i + 2,
-      };
-      items.push(item);
+      for (const [col, warehouseId] of colToWarehouse) {
+        const newCol = col + 1; // "ใหม่" cell
+        const raw = (c[newCol] || '').trim();
+        if (raw === '') continue;
+        const qty = Number(raw);
+        if (!Number.isFinite(qty)) continue;
+        items.push({
+          product_id: productId || undefined,
+          variation_id: variationId,
+          warehouse_id: warehouseId,
+          quantity: qty,
+          rowNum,
+        });
+      }
     }
 
     if (items.length === 0) {
-      showToast('ไม่พบรายการที่อัพเดท (ใส่จำนวนในคอลัมน์ที่ 9)', 'error');
+      showToast('ไม่พบรายการที่กรอก Stock ใหม่ — ใส่ค่าในคอลัมน์ "Stock ใหม่" อย่างน้อย 1 ช่อง', 'error');
       return;
     }
 
@@ -279,7 +375,7 @@ export default function BulkStockUpdatePage() {
       const res = await apiFetch('/api/inventory/bulk-stock-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, warehouse_id: warehouseId, items, notes, dry_run: true }),
+        body: JSON.stringify({ items, notes, dry_run: true }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -296,13 +392,14 @@ export default function BulkStockUpdatePage() {
     }
   };
 
-  const handleImport = async () => {
+  const handleConfirmImport = async () => {
+    setConfirmOpen(false);
     setStep('importing');
     try {
       const res = await apiFetch('/api/inventory/bulk-stock-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, warehouse_id: warehouseId, items: parsedItems, notes, dry_run: false }),
+        body: JSON.stringify({ items: parsedItems, notes, dry_run: false }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -334,6 +431,21 @@ export default function BulkStockUpdatePage() {
   const changedResults = dryRun?.results.filter(r => r.action !== 'unchanged') || [];
   const finalChanged = finalRun?.results.filter(r => r.action !== 'unchanged') || [];
 
+  // Per-warehouse breakdown for preview
+  const previewByWarehouse = useMemo(() => {
+    if (!dryRun) return [];
+    const map = new Map<string, { name: string; updated: number; unchanged: number; errors: number }>();
+    for (const r of dryRun.results) {
+      const key = r.warehouse_id;
+      const cur = map.get(key) || { name: r.warehouse_name, updated: 0, unchanged: 0, errors: 0 };
+      if (r.action === 'updated') cur.updated++;
+      else if (r.action === 'unchanged') cur.unchanged++;
+      else cur.errors++;
+      map.set(key, cur);
+    }
+    return Array.from(map.entries()).map(([id, v]) => ({ id, ...v }));
+  }, [dryRun]);
+
   if (!userProfile) return null;
 
   return (
@@ -346,69 +458,84 @@ export default function BulkStockUpdatePage() {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">อัพเดท Stock แบบ Bulk</h1>
-            <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">อัพโหลด Excel เพื่ออัพเดทจำนวน stock หลายรายการในคราวเดียว</p>
+            <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">Export Excel → กรอก Stock ใหม่ → อัพโหลดกลับ (รองรับหลายคลังในไฟล์เดียว)</p>
           </div>
         </div>
 
         {/* Step: Upload */}
         {step === 'upload' && (
           <div className="space-y-4">
-            {/* Setup card */}
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-5 space-y-5">
-              {/* Mode selector */}
+              {/* Warehouses multi-select */}
               <div>
-                <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-2">โหมดการอัพเดท</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setMode('receive')}
-                    className={`flex items-start gap-3 p-4 border-2 rounded-lg text-left transition ${mode === 'receive'
-                      ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/10'
-                      : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'}`}
-                  >
-                    <PackagePlus className={`w-6 h-6 shrink-0 ${mode === 'receive' ? 'text-[#F4511E]' : 'text-gray-400'}`} />
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-white">รับของเข้าคลัง (Receive)</div>
-                      <div className="text-sm text-gray-500 mt-0.5">บวกจำนวนเข้า stock + คำนวณ WAC ใหม่ (กระทบต้นทุน)</div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode('adjust')}
-                    className={`flex items-start gap-3 p-4 border-2 rounded-lg text-left transition ${mode === 'adjust'
-                      ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-900/10'
-                      : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'}`}
-                  >
-                    <Edit3 className={`w-6 h-6 shrink-0 ${mode === 'adjust' ? 'text-[#F4511E]' : 'text-gray-400'}`} />
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-white">ปรับยอด Stock (Adjust)</div>
-                      <div className="text-sm text-gray-500 mt-0.5">ตั้งค่า stock ใหม่เลย (nuke & set) ไม่กระทบต้นทุน</div>
-                    </div>
-                  </button>
+                <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-2">
+                  เลือกคลัง <span className="text-red-500">*</span>
+                  <span className="ml-2 text-sm text-gray-400">(เลือกได้หลายคลัง — แต่ละคลังจะเป็น 2 คอลัมน์)</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {warehouses.map(w => {
+                    const selected = warehouseIds.includes(w.id);
+                    return (
+                      <button
+                        key={w.id}
+                        type="button"
+                        onClick={() => toggleWarehouse(w.id)}
+                        className={`px-3 py-2 rounded-lg border text-sm font-medium transition flex items-center gap-1.5 ${
+                          selected
+                            ? 'bg-orange-50 border-[#F4511E] text-[#F4511E] dark:bg-orange-900/20'
+                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 dark:bg-slate-700/50 dark:border-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        {w.is_default && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />}
+                        {w.name}
+                        {w.code && <span className="text-xs text-gray-400">({w.code})</span>}
+                        {selected && <Check className="w-3.5 h-3.5" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Warehouse + Notes */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">คลังสินค้า *</label>
-                  <FormSelect
-                    value={warehouseId}
-                    onChange={v => setWarehouseId(v)}
-                    options={warehouses.map(w => ({ id: w.id, label: w.name }))}
-                    placeholder="เลือกคลัง"
-                  />
+              {/* Brands multi-select */}
+              <div>
+                <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-2">
+                  กรองตามแบรนด์
+                  <span className="ml-2 text-sm text-gray-400">({brandIds.length === 0 ? 'ทุกแบรนด์' : `เลือก ${brandIds.length}`})</span>
+                </label>
+                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                  {brands.map(b => {
+                    const selected = brandIds.includes(b.id);
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => toggleBrand(b.id)}
+                        className={`px-2.5 py-1.5 rounded-lg border text-sm transition ${
+                          selected
+                            ? 'bg-blue-50 border-blue-400 text-blue-700 dark:bg-blue-900/20'
+                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 dark:bg-slate-700/50 dark:border-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        {b.name}
+                      </button>
+                    );
+                  })}
+                  {brands.length === 0 && (
+                    <span className="text-sm text-gray-400">ยังไม่มีแบรนด์ในระบบ</span>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">หมายเหตุ</label>
-                  <input
-                    type="text"
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    placeholder={mode === 'receive' ? 'เช่น สต็อกต้นเดือน' : 'เช่น ตรวจนับประจำเดือน'}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">หมายเหตุ</label>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="เช่น ตรวจนับประจำเดือน"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
               </div>
             </div>
 
@@ -419,46 +546,38 @@ export default function BulkStockUpdatePage() {
                   <FileSpreadsheet className="w-8 h-8 text-gray-400" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Export → แก้ไข → อัพโหลดกลับ</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Export → กรอก Stock ใหม่ → อัพโหลดกลับ</h2>
                   <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">
-                    Export สินค้าในคลัง → กรอกจำนวน {mode === 'receive' ? 'รับเข้า' : 'stock ใหม่'}{mode === 'receive' ? ' และต้นทุน' : ''} → อัพโหลดกลับ
+                    Mode: <strong>Adjust</strong> — ระบบจะตั้ง Stock เป็นค่าที่กรอก (overwrite)
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                   <button
                     onClick={handleExport}
-                    disabled={exporting || !warehouseId}
+                    disabled={exporting || warehouseIds.length === 0}
                     className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg disabled:opacity-50"
                   >
                     {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                    Export สินค้าในคลัง
+                    Export สินค้า
                   </button>
                   <button
                     onClick={() => fileRef.current?.click()}
-                    disabled={!warehouseId}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-[#F4511E] hover:bg-[#E64A19] text-white rounded-lg font-semibold disabled:opacity-50"
+                    className="flex items-center gap-2 px-6 py-2.5 bg-[#F4511E] hover:bg-[#E64A19] text-white rounded-lg font-semibold"
                   >
                     <Upload className="w-4 h-4" /> อัพโหลดไฟล์
                   </button>
-                  <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} className="hidden" />
+                  <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="hidden" />
                 </div>
                 <div className="text-left bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4 text-sm text-gray-600 dark:text-slate-400">
                   <p className="font-medium text-gray-800 dark:text-slate-300 mb-2">วิธีใช้:</p>
                   <ul className="space-y-1 list-disc list-inside">
-                    <li>กด Export จะได้ไฟล์ Excel ของสินค้าทั้งหมดในคลัง + stock ปัจจุบัน</li>
-                    {mode === 'receive' ? (
-                      <>
-                        <li>กรอก <strong>จำนวนรับเข้า</strong> (คอลัมน์ที่ 9) — ปล่อยว่างถ้าไม่รับ</li>
-                        <li>กรอก <strong>ต้นทุน/หน่วย</strong> (คอลัมน์ที่ 10) — ถ้ากรอกจะคำนวณ WAC ใหม่</li>
-                      </>
-                    ) : (
-                      <li>กรอก <strong>Stock ใหม่</strong> (คอลัมน์ที่ 9) — ระบบจะตั้งเป็นจำนวนนี้เลย</li>
-                    )}
-                    <li>อัพโหลดกลับ → ระบบจะแสดง preview ก่อนบันทึกจริง</li>
+                    <li>กด Export → ได้ไฟล์ Excel ของสินค้าในคลังที่เลือก (1 คลัง = 2 คอลัมน์: ปัจจุบัน + ใหม่)</li>
+                    <li>กรอก <strong>Stock ใหม่</strong> ในคอลัมน์สีเขียว — ปล่อยว่างถ้าไม่อัพเดท</li>
+                    <li>อัพโหลดกลับ → ระบบจะแสดง preview ทุกรายการก่อนบันทึก</li>
+                    <li>ระบบจะ <strong>ตั้ง Stock เป็นค่าที่กรอก</strong> (ไม่ใช่บวกเพิ่ม)</li>
                   </ul>
                   <div className="mt-3 p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-300">
-                    <strong>หน้านี้ไม่สร้างสินค้าใหม่</strong> — ถ้ามีแถวที่ไม่พบ product_id/variation_id ในระบบ จะถูกข้ามและแจ้ง error<br/>
-                    <strong>product_id / variation_id</strong> = ID ของระบบ — <strong>ห้ามแก้ไข!</strong>
+                    <strong>คอลัมน์ ID ถูก lock ไว้</strong> — ห้าม unlock & แก้ ถ้า ID ไม่ตรง แถวนั้นจะถูก skip
                   </div>
                 </div>
               </div>
@@ -478,11 +597,12 @@ export default function BulkStockUpdatePage() {
         {/* Step: Preview */}
         {step === 'preview' && dryRun && (
           <div className="space-y-4">
+            {/* Summary bar */}
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <span className="px-2.5 py-1 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 rounded-lg font-medium">
-                    {mode === 'receive' ? 'รับเข้า' : 'ปรับยอด'} · {warehouseName}
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-lg font-medium border border-amber-200 dark:border-amber-800">
+                    <ShieldAlert className="w-3.5 h-3.5" /> โปรดตรวจสอบ — Stock เป็นข้อมูลสำคัญ
                   </span>
                   {dryRun.summary.updated > 0 && (
                     <span className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg font-medium">
@@ -503,14 +623,27 @@ export default function BulkStockUpdatePage() {
                     เลือกไฟล์ใหม่
                   </button>
                   <button
-                    onClick={handleImport}
+                    onClick={() => setConfirmOpen(true)}
                     disabled={dryRun.summary.updated === 0}
                     className="px-4 py-2 text-sm bg-[#F4511E] hover:bg-[#E64A19] text-white rounded-lg font-semibold disabled:opacity-50 flex items-center gap-1.5"
                   >
-                    บันทึก <ArrowRight className="w-4 h-4" />
+                    ยืนยันบันทึก <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
+
+              {/* Per-warehouse breakdown */}
+              {previewByWarehouse.length > 1 && (
+                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 flex flex-wrap gap-2">
+                  {previewByWarehouse.map(w => (
+                    <span key={w.id} className="text-sm px-2.5 py-1 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600">
+                      <strong>{w.name}</strong>:{' '}
+                      <span className="text-blue-600">{w.updated} อัพเดท</span>
+                      {w.errors > 0 && <span className="text-red-600 ml-1">· {w.errors} error</span>}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {changedResults.length > 0 ? (
@@ -520,10 +653,10 @@ export default function BulkStockUpdatePage() {
                     <tr>
                       <th className="data-th w-20">Action</th>
                       <th className="data-th">สินค้า</th>
+                      <th className="data-th">คลัง</th>
                       <th className="data-th">SKU</th>
                       <th className="data-th text-right">จาก</th>
                       <th className="data-th text-right">เป็น</th>
-                      {mode === 'receive' && <th className="data-th text-right">ต้นทุน</th>}
                     </tr>
                   </thead>
                   <tbody className="data-tbody">
@@ -547,17 +680,13 @@ export default function BulkStockUpdatePage() {
                             <div className="text-xs text-gray-400 dark:text-slate-500">{r.variation_label}</div>
                           )}
                           {r.action === 'error' && r.error && (
-                            <div className="text-xs text-red-500 mt-0.5">{r.error}</div>
+                            <div className="text-xs text-red-500 mt-0.5">แถวที่ {r.rowNum}: {r.error}</div>
                           )}
                         </td>
+                        <td className="px-5 py-3 text-gray-600 dark:text-slate-400">{r.warehouse_name}</td>
                         <td className="px-5 py-3 font-mono text-xs text-gray-500">{r.sku || '-'}</td>
                         <td className="px-5 py-3 text-right text-gray-500 dark:text-slate-400">{r.from ?? '-'}</td>
                         <td className="px-5 py-3 text-right font-medium text-emerald-600">{r.to ?? '-'}</td>
-                        {mode === 'receive' && (
-                          <td className="px-5 py-3 text-right text-gray-600">
-                            {r.unit_cost ? `฿${r.unit_cost.toLocaleString()}` : '-'}
-                          </td>
-                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -590,11 +719,6 @@ export default function BulkStockUpdatePage() {
                   : <AlertCircle className="w-8 h-8 text-amber-600" />}
               </div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">บันทึกเสร็จสิ้น</h2>
-              {finalRun.receive_number && (
-                <p className="text-sm text-gray-500 dark:text-slate-400">
-                  ใบรับเข้า: <span className="font-mono font-medium">{finalRun.receive_number}</span>
-                </p>
-              )}
               <div className="flex flex-wrap items-center justify-center gap-4 text-sm">
                 {finalRun.summary.updated > 0 && <span className="text-blue-600 font-medium">{finalRun.summary.updated} อัพเดท</span>}
                 {finalRun.summary.unchanged > 0 && <span className="text-gray-400">{finalRun.summary.unchanged} ไม่เปลี่ยน</span>}
@@ -625,6 +749,7 @@ export default function BulkStockUpdatePage() {
                         {r.variation_label && r.variation_label !== '-' && (
                           <span className="text-xs text-gray-400">({r.variation_label})</span>
                         )}
+                        <span className="text-xs text-gray-400">— {r.warehouse_name}</span>
                       </div>
                       {r.action === 'error' ? (
                         <span className="text-red-500 text-xs">{r.error}</span>
@@ -639,6 +764,23 @@ export default function BulkStockUpdatePage() {
           </div>
         )}
       </div>
+
+      {/* Confirm dialog */}
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleConfirmImport}
+        icon={<ShieldAlert className="w-12 h-12 text-amber-500" />}
+        title="ยืนยันการปรับ Stock"
+        description={
+          dryRun
+            ? `ระบบจะปรับ Stock ${dryRun.summary.updated} รายการ ใน ${previewByWarehouse.length} คลัง — การกระทำนี้ไม่สามารถยกเลิกได้`
+            : ''
+        }
+        confirmLabel="ยืนยันบันทึก"
+        cancelLabel="ตรวจสอบอีกครั้ง"
+        variant="primary"
+      />
     </Layout>
   );
 }

@@ -1,30 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, hasAnyRole } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
-import { addStock, adjustStock, updateWeightedAverageCost } from '@/lib/stock-service';
-
-type Mode = 'receive' | 'adjust';
+import { adjustStock } from '@/lib/stock-service';
 
 interface BulkItem {
   product_id?: string;
   variation_id?: string;
-  sku?: string;
-  barcode?: string;
-  name?: string;
+  warehouse_id?: string;
   quantity?: number;
-  unit_cost?: number;
   rowNum?: number;
 }
 
 interface ResultRow {
   rowNum: number;
+  warehouse_id: string;
+  warehouse_name: string;
   product_name: string;
   variation_label: string;
   sku: string;
   action: 'updated' | 'unchanged' | 'error';
   from?: number;
   to?: number;
-  unit_cost?: number;
   error?: string;
 }
 
@@ -44,36 +40,32 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const mode: Mode = body.mode;
-    const warehouse_id: string = body.warehouse_id;
     const items: BulkItem[] = Array.isArray(body.items) ? body.items : [];
     const notes: string | null = body.notes || null;
     const dry_run: boolean = !!body.dry_run;
 
-    if (mode !== 'receive' && mode !== 'adjust') {
-      return NextResponse.json({ error: 'mode ต้องเป็น receive หรือ adjust' }, { status: 400 });
-    }
-    if (!warehouse_id) {
-      return NextResponse.json({ error: 'กรุณาเลือกคลังสินค้า' }, { status: 400 });
-    }
     if (items.length === 0) {
       return NextResponse.json({ error: 'ไม่มีข้อมูลนำเข้า' }, { status: 400 });
     }
 
-    // Verify warehouse
-    const { data: warehouse } = await supabaseAdmin
-      .from('warehouses')
-      .select('id, name')
-      .eq('id', warehouse_id)
-      .eq('company_id', auth.companyId)
-      .eq('is_active', true)
-      .single();
-
-    if (!warehouse) {
-      return NextResponse.json({ error: 'ไม่พบคลังสินค้า' }, { status: 404 });
+    // Collect all warehouse_ids referenced in items
+    const requestedWarehouseIds = [...new Set(items.map(i => i.warehouse_id).filter((v): v is string => !!v))];
+    if (requestedWarehouseIds.length === 0) {
+      return NextResponse.json({ error: 'แต่ละรายการต้องระบุคลัง' }, { status: 400 });
     }
 
-    // Pre-fetch all variations for company — index by id, sku, barcode
+    // Verify warehouses
+    const { data: warehouses } = await supabaseAdmin
+      .from('warehouses')
+      .select('id, name')
+      .eq('company_id', auth.companyId)
+      .in('id', requestedWarehouseIds)
+      .eq('is_active', true);
+
+    const warehouseMap = new Map<string, { id: string; name: string }>();
+    for (const w of warehouses || []) warehouseMap.set(w.id, w);
+
+    // Pre-fetch all variations for company
     const { data: allVariations } = await supabaseAdmin
       .from('product_variations')
       .select('id, product_id, variation_label, sku, barcode, product:products(id, name, company_id)')
@@ -90,63 +82,58 @@ export async function POST(request: NextRequest) {
 
     const variations = (allVariations || []) as unknown as VariationRow[];
     const byId = new Map<string, VariationRow>();
-    const bySku = new Map<string, VariationRow>();
-    const byBarcode = new Map<string, VariationRow>();
-    for (const v of variations) {
-      byId.set(v.id, v);
-      if (v.sku) bySku.set(v.sku.trim(), v);
-      if (v.barcode) byBarcode.set(v.barcode.trim(), v);
-    }
+    for (const v of variations) byId.set(v.id, v);
 
-    // Pre-fetch current stock in this warehouse
+    // Pre-fetch current stock for all (variation_id, warehouse_id) referenced
     const { data: invRows } = await supabaseAdmin
       .from('inventory')
-      .select('variation_id, quantity')
+      .select('variation_id, warehouse_id, quantity')
       .eq('company_id', auth.companyId)
-      .eq('warehouse_id', warehouse_id);
+      .in('warehouse_id', requestedWarehouseIds);
     const stockMap = new Map<string, number>();
-    for (const r of (invRows || [])) stockMap.set(r.variation_id, r.quantity || 0);
+    for (const r of invRows || []) {
+      stockMap.set(`${r.variation_id}|${r.warehouse_id}`, r.quantity || 0);
+    }
 
-    // Resolve each item to a variation row (read-only)
+    // Resolve each item — read-only validation
     type Resolved = {
       rowNum: number;
+      warehouse_id: string;
+      warehouse_name: string;
       variation: VariationRow | null;
       quantity: number;
-      unit_cost: number;
       error?: string;
     };
+
     const resolved: Resolved[] = items.map((item, idx) => {
-      const rowNum = item.rowNum ?? idx + 2;
-      let variation: VariationRow | null = null;
-
-      // บังคับใช้ variation_id เท่านั้น — ไม่ยอมรับ SKU/Barcode fallback
-      // เพราะหน้านี้ไม่สร้างสินค้าใหม่ และ ID ที่ถูกต้องคือ match เดียวที่แน่นอน
-      if (item.variation_id && byId.has(item.variation_id)) {
-        variation = byId.get(item.variation_id)!;
-      }
-
+      const rowNum = item.rowNum ?? idx + 3; // +3 because: row 1=ID, row 2=header, row 3+=data
+      const warehouseId = item.warehouse_id || '';
+      const wh = warehouseMap.get(warehouseId);
+      const warehouseName = wh?.name || warehouseId || '-';
       const qty = Number(item.quantity);
-      const uc = Number(item.unit_cost) || 0;
 
-      if (!item.variation_id) {
-        return { rowNum, variation: null, quantity: qty, unit_cost: uc, error: 'ไม่มี variation_id (ห้ามลบคอลัมน์ ID)' };
+      if (!warehouseId) {
+        return { rowNum, warehouse_id: warehouseId, warehouse_name: warehouseName, variation: null, quantity: qty, error: 'ไม่มี warehouse_id (ห้ามลบ row หัวคลัง)' };
       }
+      if (!wh) {
+        return { rowNum, warehouse_id: warehouseId, warehouse_name: warehouseName, variation: null, quantity: qty, error: 'ไม่พบคลังนี้ในระบบ — ตรวจว่า warehouse_id ไม่ถูกแก้' };
+      }
+      if (!item.variation_id) {
+        return { rowNum, warehouse_id: warehouseId, warehouse_name: warehouseName, variation: null, quantity: qty, error: 'ไม่มี variation_id (ห้ามลบคอลัมน์ ID)' };
+      }
+      const variation = byId.get(item.variation_id) || null;
       if (!variation) {
-        return { rowNum, variation: null, quantity: qty, unit_cost: uc, error: 'ไม่พบ variation_id นี้ในระบบ — ตรวจว่า ID ไม่ถูกแก้' };
+        return { rowNum, warehouse_id: warehouseId, warehouse_name: warehouseName, variation: null, quantity: qty, error: 'ไม่พบ variation_id นี้ในระบบ — ตรวจว่า ID ไม่ถูกแก้' };
       }
       if (item.product_id && item.product_id !== variation.product_id) {
-        return { rowNum, variation, quantity: qty, unit_cost: uc, error: 'product_id ไม่ตรงกับ variation_id' };
+        return { rowNum, warehouse_id: warehouseId, warehouse_name: warehouseName, variation, quantity: qty, error: 'product_id ไม่ตรงกับ variation_id' };
       }
       if (!Number.isFinite(qty) || qty < 0) {
-        return { rowNum, variation, quantity: qty, unit_cost: uc, error: 'จำนวนไม่ถูกต้อง' };
+        return { rowNum, warehouse_id: warehouseId, warehouse_name: warehouseName, variation, quantity: qty, error: 'จำนวนไม่ถูกต้อง' };
       }
-      if (mode === 'receive' && qty === 0) {
-        return { rowNum, variation, quantity: qty, unit_cost: uc, error: 'receive: จำนวนต้องมากกว่า 0' };
-      }
-      return { rowNum, variation, quantity: qty, unit_cost: uc };
+      return { rowNum, warehouse_id: warehouseId, warehouse_name: warehouseName, variation, quantity: qty };
     });
 
-    // Build result preview (dry_run) or execute
     const results: ResultRow[] = [];
 
     if (dry_run) {
@@ -154,6 +141,8 @@ export async function POST(request: NextRequest) {
         if (r.error || !r.variation) {
           results.push({
             rowNum: r.rowNum,
+            warehouse_id: r.warehouse_id,
+            warehouse_name: r.warehouse_name,
             product_name: r.variation?.product?.name || '-',
             variation_label: r.variation?.variation_label || '-',
             sku: r.variation?.sku || '-',
@@ -162,62 +151,37 @@ export async function POST(request: NextRequest) {
           });
           continue;
         }
-        const current = stockMap.get(r.variation.id) || 0;
-        const to = mode === 'receive' ? current + r.quantity : r.quantity;
-        const changed = to !== current || (mode === 'receive' && r.unit_cost > 0);
+        const current = stockMap.get(`${r.variation.id}|${r.warehouse_id}`) || 0;
+        const to = r.quantity;
         results.push({
           rowNum: r.rowNum,
+          warehouse_id: r.warehouse_id,
+          warehouse_name: r.warehouse_name,
           product_name: r.variation.product?.name || '-',
           variation_label: r.variation.variation_label || '-',
           sku: r.variation.sku || '-',
-          action: changed ? 'updated' : 'unchanged',
+          action: to !== current ? 'updated' : 'unchanged',
           from: current,
           to,
-          unit_cost: mode === 'receive' ? r.unit_cost : undefined,
         });
       }
 
-      const summary = {
-        total: results.length,
-        updated: results.filter(r => r.action === 'updated').length,
-        unchanged: results.filter(r => r.action === 'unchanged').length,
-        errors: results.filter(r => r.action === 'error').length,
-      };
-      return NextResponse.json({ dry_run: true, mode, results, summary });
+      return NextResponse.json({
+        dry_run: true,
+        results,
+        summary: buildSummary(results),
+      });
     }
 
     // ===== EXECUTE =====
-
-    let receiveHeaderId: string | null = null;
-    let receiveNumber: string | null = null;
-    if (mode === 'receive') {
-      const { data: rvNum } = await supabaseAdmin.rpc('generate_receive_number', { p_company_id: auth.companyId });
-      receiveNumber = rvNum || `RV-${Date.now()}`;
-      const { data: receive, error: headerErr } = await supabaseAdmin
-        .from('inventory_receives')
-        .insert({
-          company_id: auth.companyId,
-          receive_number: receiveNumber,
-          warehouse_id,
-          notes: notes || 'Bulk receive จากการนำเข้าไฟล์',
-          created_by: auth.userId,
-        })
-        .select('id, receive_number')
-        .single();
-      if (headerErr || !receive) {
-        console.error('Create receive header error:', headerErr);
-        return NextResponse.json({ error: 'ไม่สามารถสร้างใบรับเข้าได้' }, { status: 500 });
-      }
-      receiveHeaderId = receive.id;
-      receiveNumber = receive.receive_number;
-    }
-
     const touchedVariations = new Set<string>();
 
     for (const r of resolved) {
       if (r.error || !r.variation) {
         results.push({
           rowNum: r.rowNum,
+          warehouse_id: r.warehouse_id,
+          warehouse_name: r.warehouse_name,
           product_name: r.variation?.product?.name || '-',
           variation_label: r.variation?.variation_label || '-',
           sku: r.variation?.sku || '-',
@@ -228,87 +192,52 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const current = stockMap.get(r.variation.id) || 0;
+        const current = stockMap.get(`${r.variation.id}|${r.warehouse_id}`) || 0;
 
-        if (mode === 'receive') {
-          // Insert receive item
-          if (receiveHeaderId) {
-            const itemInsert: Record<string, unknown> = {
-              receive_id: receiveHeaderId,
-              variation_id: r.variation.id,
-              quantity: r.quantity,
-            };
-            if (r.unit_cost > 0) itemInsert.unit_cost = r.unit_cost;
-            await supabaseAdmin.from('inventory_receive_items').insert(itemInsert);
-          }
-
-          const result = await addStock({
-            supabase: supabaseAdmin,
-            companyId: auth.companyId,
-            warehouseId: warehouse_id,
-            variationId: r.variation.id,
-            qty: r.quantity,
-            referenceType: 'receive',
-            referenceId: receiveHeaderId || '',
-            notes: notes || `Bulk receive ${receiveNumber}`,
-            createdBy: auth.userId,
-            unitCost: r.unit_cost > 0 ? r.unit_cost : undefined,
-          });
-
-          if (r.unit_cost > 0) {
-            await updateWeightedAverageCost(supabaseAdmin, auth.companyId, r.variation.id, r.quantity, r.unit_cost);
-          }
-
+        if (r.quantity === current) {
           results.push({
             rowNum: r.rowNum,
+            warehouse_id: r.warehouse_id,
+            warehouse_name: r.warehouse_name,
             product_name: r.variation.product?.name || '-',
             variation_label: r.variation.variation_label || '-',
             sku: r.variation.sku || '-',
-            action: 'updated',
+            action: 'unchanged',
             from: current,
-            to: result.balanceAfter,
-            unit_cost: r.unit_cost > 0 ? r.unit_cost : undefined,
+            to: r.quantity,
           });
-        } else {
-          // adjust
-          if (r.quantity === current) {
-            results.push({
-              rowNum: r.rowNum,
-              product_name: r.variation.product?.name || '-',
-              variation_label: r.variation.variation_label || '-',
-              sku: r.variation.sku || '-',
-              action: 'unchanged',
-              from: current,
-              to: r.quantity,
-            });
-            continue;
-          }
-          const result = await adjustStock({
-            supabase: supabaseAdmin,
-            companyId: auth.companyId,
-            warehouseId: warehouse_id,
-            variationId: r.variation.id,
-            newQuantity: r.quantity,
-            referenceType: 'manual',
-            referenceId: '',
-            notes: notes || `Bulk adjust เป็น ${r.quantity}`,
-            createdBy: auth.userId,
-          });
-          results.push({
-            rowNum: r.rowNum,
-            product_name: r.variation.product?.name || '-',
-            variation_label: r.variation.variation_label || '-',
-            sku: r.variation.sku || '-',
-            action: 'updated',
-            from: current,
-            to: result.balanceAfter,
-          });
+          continue;
         }
+
+        const result = await adjustStock({
+          supabase: supabaseAdmin,
+          companyId: auth.companyId,
+          warehouseId: r.warehouse_id,
+          variationId: r.variation.id,
+          newQuantity: r.quantity,
+          referenceType: 'manual',
+          referenceId: '',
+          notes: notes || `Bulk adjust เป็น ${r.quantity}`,
+          createdBy: auth.userId,
+        });
+        results.push({
+          rowNum: r.rowNum,
+          warehouse_id: r.warehouse_id,
+          warehouse_name: r.warehouse_name,
+          product_name: r.variation.product?.name || '-',
+          variation_label: r.variation.variation_label || '-',
+          sku: r.variation.sku || '-',
+          action: 'updated',
+          from: current,
+          to: result.balanceAfter,
+        });
         touchedVariations.add(r.variation.id);
       } catch (err) {
         console.error('Bulk item error:', err);
         results.push({
           rowNum: r.rowNum,
+          warehouse_id: r.warehouse_id,
+          warehouse_name: r.warehouse_name,
           product_name: r.variation.product?.name || '-',
           variation_label: r.variation.variation_label || '-',
           sku: r.variation.sku || '-',
@@ -328,23 +257,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const summary = {
-      total: results.length,
-      updated: results.filter(r => r.action === 'updated').length,
-      unchanged: results.filter(r => r.action === 'unchanged').length,
-      errors: results.filter(r => r.action === 'error').length,
-    };
-
     return NextResponse.json({
       dry_run: false,
-      mode,
-      receive_id: receiveHeaderId,
-      receive_number: receiveNumber,
       results,
-      summary,
+      summary: buildSummary(results),
     });
   } catch (error) {
     console.error('Bulk stock update error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+function buildSummary(results: ResultRow[]) {
+  return {
+    total: results.length,
+    updated: results.filter(r => r.action === 'updated').length,
+    unchanged: results.filter(r => r.action === 'unchanged').length,
+    errors: results.filter(r => r.action === 'error').length,
+  };
 }
