@@ -7,9 +7,10 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
 import {
   Upload, Download, ArrowLeft, FileSpreadsheet,
-  Check, Loader2, AlertCircle, Pencil, ArrowRight, ShieldAlert, Star,
+  Check, Loader2, AlertCircle, Pencil, ArrowRight, ShieldAlert, Star, Warehouse, Tag,
 } from 'lucide-react';
 
 interface Warehouse {
@@ -94,17 +95,17 @@ export default function BulkStockUpdatePage() {
     })();
   }, [userProfile]);
 
-  const selectedWarehouses = useMemo(
-    () => warehouseIds.map(id => warehouses.find(w => w.id === id)).filter((w): w is Warehouse => !!w),
-    [warehouseIds, warehouses]
-  );
+  const warehouseOptions = useMemo(() => warehouses.map(w => ({
+    id: w.id,
+    label: w.name,
+    subtitle: w.code || undefined,
+    icon: w.is_default ? <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" /> : undefined,
+  })), [warehouses]);
 
-  const toggleWarehouse = (id: string) => {
-    setWarehouseIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
-  const toggleBrand = (id: string) => {
-    setBrandIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
+  const brandOptions = useMemo(() => brands.map(b => ({
+    id: b.id,
+    label: b.name,
+  })), [brands]);
 
   const handleExport = async () => {
     if (warehouseIds.length === 0) {
@@ -470,60 +471,33 @@ export default function BulkStockUpdatePage() {
               <div>
                 <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-2">
                   เลือกคลัง <span className="text-red-500">*</span>
-                  <span className="ml-2 text-sm text-gray-400">(เลือกได้หลายคลัง — แต่ละคลังจะเป็น 2 คอลัมน์)</span>
+                  <span className="ml-2 text-sm text-gray-400">(เลือกได้หลายคลัง — แต่ละคลังจะเป็น 2 คอลัมน์ในไฟล์)</span>
                 </label>
-                <div className="flex flex-wrap gap-2">
-                  {warehouses.map(w => {
-                    const selected = warehouseIds.includes(w.id);
-                    return (
-                      <button
-                        key={w.id}
-                        type="button"
-                        onClick={() => toggleWarehouse(w.id)}
-                        className={`px-3 py-2 rounded-lg border text-sm font-medium transition flex items-center gap-1.5 ${
-                          selected
-                            ? 'bg-orange-50 border-[#F4511E] text-[#F4511E] dark:bg-orange-900/20'
-                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 dark:bg-slate-700/50 dark:border-slate-600 dark:text-slate-300'
-                        }`}
-                      >
-                        {w.is_default && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />}
-                        {w.name}
-                        {w.code && <span className="text-xs text-gray-400">({w.code})</span>}
-                        {selected && <Check className="w-3.5 h-3.5" />}
-                      </button>
-                    );
-                  })}
-                </div>
+                <MultiSelectSearch
+                  value={warehouseIds}
+                  onChange={setWarehouseIds}
+                  options={warehouseOptions}
+                  placeholder="เลือกคลัง..."
+                  searchPlaceholder="ค้นหาคลัง (ชื่อหรือรหัส)..."
+                  icon={<Warehouse className="w-4 h-4" />}
+                />
               </div>
 
               {/* Brands multi-select */}
               <div>
                 <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-2">
                   กรองตามแบรนด์
-                  <span className="ml-2 text-sm text-gray-400">({brandIds.length === 0 ? 'ทุกแบรนด์' : `เลือก ${brandIds.length}`})</span>
+                  <span className="ml-2 text-sm text-gray-400">{brandIds.length === 0 ? '(ทุกแบรนด์)' : `(เลือก ${brandIds.length})`}</span>
                 </label>
-                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                  {brands.map(b => {
-                    const selected = brandIds.includes(b.id);
-                    return (
-                      <button
-                        key={b.id}
-                        type="button"
-                        onClick={() => toggleBrand(b.id)}
-                        className={`px-2.5 py-1.5 rounded-lg border text-sm transition ${
-                          selected
-                            ? 'bg-blue-50 border-blue-400 text-blue-700 dark:bg-blue-900/20'
-                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 dark:bg-slate-700/50 dark:border-slate-600 dark:text-slate-300'
-                        }`}
-                      >
-                        {b.name}
-                      </button>
-                    );
-                  })}
-                  {brands.length === 0 && (
-                    <span className="text-sm text-gray-400">ยังไม่มีแบรนด์ในระบบ</span>
-                  )}
-                </div>
+                <MultiSelectSearch
+                  value={brandIds}
+                  onChange={setBrandIds}
+                  options={brandOptions}
+                  placeholder="ทุกแบรนด์ (กดเพื่อเลือกกรอง)"
+                  emptyLabel="ทุกแบรนด์ (ไม่กรอง)"
+                  searchPlaceholder="ค้นหาแบรนด์..."
+                  icon={<Tag className="w-4 h-4" />}
+                />
               </div>
 
               {/* Notes */}
