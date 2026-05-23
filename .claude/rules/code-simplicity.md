@@ -12,6 +12,7 @@
 | ต้องการ | ใช้ | ห้าม |
 |---------|-----|------|
 | Dropdown | `FormSelect` | native `<select>` |
+| Multi-select dropdown + search (chips trigger, checkbox list) | `MultiSelectSearch` | chip-toggle list เรียงยาว / สร้าง multi-select dropdown เอง |
 | ค้นหาลูกค้า/สินค้า | `EntitySearchInput` | สร้าง search dropdown เอง |
 | ค้นหาสินค้า (พร้อมราคา/รูป/variation) | `ProductSearchInput` | สร้าง product picker เอง |
 | ตารางสินค้าในฟอร์ม | `ItemsTable` | สร้าง items table เอง |
