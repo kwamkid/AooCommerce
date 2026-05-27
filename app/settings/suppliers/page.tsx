@@ -14,7 +14,6 @@ import { apiFetch } from '@/lib/api-client';
 import {
   Factory,
   Plus,
-  Loader2,
   Phone,
   Trash2,
   Copy,
@@ -25,9 +24,12 @@ import {
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
-import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
+import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getBankByCode } from '@/lib/constants/banks';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 
 // (Column toggle handled by DataTable)
 
@@ -217,7 +219,7 @@ export default function SuppliersPage() {
   if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
     return (
       <Layout>
-        <div className="text-center py-16 text-gray-500 dark:text-slate-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+        <NoPermissionCard />
       </Layout>
     );
   }
@@ -227,33 +229,31 @@ export default function SuppliersPage() {
   if (authLoading || loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <Container size="full">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+            <h1 className="heading-1 flex items-center">
               <Factory className="w-8 h-8 mr-3 text-primary" />
               ซัพพลายเออร์
             </h1>
-            <p className="text-gray-600 dark:text-slate-400 mt-1">จัดการข้อมูลซัพพลายเออร์และผู้จัดจำหน่าย</p>
+            <p className="page-subtitle">จัดการข้อมูลซัพพลายเออร์และผู้จัดจำหน่าย</p>
           </div>
 
-          <button
+          <Button
+            variant="primary"
             onClick={() => router.push('/settings/suppliers/new')}
-            className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center font-medium"
+            icon={<Plus className="w-5 h-5" />}
           >
-            <Plus className="w-5 h-5 mr-2" />
             เพิ่ม<span className="hidden md:inline">ซัพพลายเออร์</span>
-          </button>
+          </Button>
         </div>
 
         {/* Filters and Search */}
@@ -282,14 +282,15 @@ export default function SuppliersPage() {
               <button onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors">
                 clear all
               </button>
-              <button
+              <Button
+                variant="danger"
+                size="sm"
                 onClick={() => setBulkDeleteOpen(true)}
-                disabled={bulkDeleting}
-                className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm rounded-lg font-medium transition-colors"
+                loading={bulkDeleting}
+                icon={<Trash2 className="w-4 h-4" />}
               >
-                <Trash2 className="w-4 h-4" />
                 {bulkDeleting ? 'กำลังลบ...' : `ลบ ${selectedIds.size} รายการ`}
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -551,7 +552,7 @@ export default function SuppliersPage() {
             )}
           </div>
         )}
-      </div>
+      </Container>
     </Layout>
   );
 }

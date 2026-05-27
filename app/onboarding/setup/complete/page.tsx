@@ -3,15 +3,22 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Package, Users, ShoppingCart, ArrowRight } from 'lucide-react';
-import { apiFetch } from '@/lib/api-client';
+import { useAuth } from '@/lib/auth-context';
+import { clearWizardState } from '@/components/onboarding/wizard-storage';
 
 export default function OnboardingCompletePage() {
   const router = useRouter();
+  const { refreshProfile } = useAuth();
 
-  // Defensive: if user landed here without going through Step 4 (e.g. browser
-  // back/forward), make sure the flag is set so middleware doesn't bounce them.
+  // /api/onboarding/finalize on the payment step already creates the company +
+  // marks onboarding_completed_at. We just refresh the profile/companies cache
+  // so Layout sees the new company (AuthProvider caches /api/auth/me for 30 min
+  // in sessionStorage) and clear the wizard-step sessionStorage so a future
+  // "create another company" starts clean.
   useEffect(() => {
-    apiFetch('/api/onboarding/complete', { method: 'POST' }).catch(() => {});
+    refreshProfile().catch(() => {});
+    clearWizardState();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

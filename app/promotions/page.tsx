@@ -8,7 +8,11 @@ import { apiFetch } from '@/lib/api-client';
 import SearchInput from '@/components/ui/SearchInput';
 import SearchableDropdown from '@/components/ui/SearchableDropdown';
 import Pagination from '@/app/components/Pagination';
-import SharedActionMenu, { type ActionItem as SharedActionItem } from '@/app/orders/components/ActionMenu';
+import SharedActionMenu, { type ActionItem as SharedActionItem } from '@/components/ui/ActionMenu';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
+import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import {
   Plus,
   Edit2,
@@ -518,12 +522,12 @@ function PromotionsPageContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <Container size="full">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">โปรโมชั่น</h1>
-          <p className="text-gray-600 dark:text-slate-400 mt-1">จัดการโปรโมชั่นสินค้า</p>
+          <h1 className="heading-1">โปรโมชั่น</h1>
+          <p className="page-subtitle">จัดการโปรโมชั่นสินค้า</p>
         </div>
         <Link
           href="/promotions/new"
@@ -576,16 +580,10 @@ function PromotionsPageContent() {
       </div>
 
       {/* Card list */}
-      {loading && (
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-        </div>
-      )}
+      {loading && <LoadingCard />}
 
       {!loading && promotions.length === 0 && (
-        <div className="text-center py-20 text-gray-500 dark:text-slate-400">
-          {hasActiveFilters ? 'ไม่พบโปรโมชั่นที่ตรงกับเงื่อนไข' : 'ยังไม่มีโปรโมชั่น'}
-        </div>
+        <EmptyCard title={hasActiveFilters ? 'ไม่พบโปรโมชั่นที่ตรงกับเงื่อนไข' : 'ยังไม่มีโปรโมชั่น'} />
       )}
 
       {!loading && promotions.length > 0 && (
@@ -640,12 +638,15 @@ function PromotionsPageContent() {
       )}
 
       {/* Delete Confirm Dialog */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4" onClick={() => !deletingShopee && setDeleteTarget(null)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              ลบโปรโมชั่น
-            </h3>
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => !deletingShopee && setDeleteTarget(null)}
+        title="ลบโปรโมชั่น"
+        size="md"
+        disableBackdropClose={deletingShopee}
+      >
+        {deleteTarget && (
+          <>
             <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
               ต้องการลบ <span className="font-medium text-gray-900 dark:text-white">&quot;{deleteTarget.name}&quot;</span> ?
             </p>
@@ -683,55 +684,43 @@ function PromotionsPageContent() {
 
             <div className="flex flex-col gap-2">
               {(deleteTarget.marketplace_deals || []).length > 0 && (
-                <button
+                <Button
+                  variant="danger"
+                  fullWidth
+                  loading={deletingShopee}
                   onClick={() => handleDeleteConfirm(true)}
-                  disabled={deletingShopee}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                 >
-                  {deletingShopee ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      กำลังลบจาก Shopee...
-                    </>
-                  ) : (
-                    'ลบทั้งหมด (รวม Shopee)'
-                  )}
-                </button>
+                  {deletingShopee ? 'กำลังลบจาก Shopee...' : 'ลบทั้งหมด (รวม Shopee)'}
+                </Button>
               )}
-              <button
-                onClick={() => handleDeleteConfirm(false)}
+              <Button
+                variant={(deleteTarget.marketplace_deals || []).length > 0 ? 'secondary' : 'danger'}
+                fullWidth
                 disabled={deletingShopee}
-                className={`w-full px-4 py-2.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
-                  (deleteTarget.marketplace_deals || []).length > 0
-                    ? 'text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600'
-                    : 'text-white bg-red-600 hover:bg-red-700'
-                }`}
+                onClick={() => handleDeleteConfirm(false)}
               >
                 {(deleteTarget.marketplace_deals || []).length > 0 ? 'ลบเฉพาะในระบบ (เก็บ Shopee ไว้)' : 'ยืนยันลบ'}
-              </button>
-              <button
-                onClick={() => setDeleteTarget(null)}
+              </Button>
+              <Button
+                variant="ghost"
+                fullWidth
                 disabled={deletingShopee}
-                className="w-full px-4 py-2 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors disabled:opacity-50"
+                onClick={() => setDeleteTarget(null)}
               >
                 ยกเลิก
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
-      )}
-    </div>
+          </>
+        )}
+      </Modal>
+    </Container>
   );
 }
 
 export default function PromotionsPage() {
   return (
     <Layout>
-      <Suspense fallback={
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-        </div>
-      }>
+      <Suspense fallback={<LoadingCard />}>
         <PromotionsPageContent />
       </Suspense>
     </Layout>

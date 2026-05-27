@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import ActionMenu, { ActionItem } from '@/app/orders/components/ActionMenu';
+import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
 import { getStatusInfo } from './types';
 import {
   ArrowLeft, ClipboardList, Send, Clock, CheckCircle2, XCircle, AlertTriangle,

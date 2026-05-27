@@ -6,15 +6,17 @@ import Layout from '@/components/layout/Layout';
 import Modal from '@/components/ui/Modal';
 import SearchInput from '@/components/ui/SearchInput';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
-import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
+import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
   Truck,
   Plus,
-  Loader2,
   Pencil,
   Trash2,
   Power,
@@ -190,9 +192,7 @@ export default function CarriersSettingsPage() {
   if (authLoading || loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }
@@ -200,7 +200,7 @@ export default function CarriersSettingsPage() {
   if (!isAdmin) {
     return (
       <Layout>
-        <div className="text-center py-16 text-gray-500 dark:text-slate-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+        <NoPermissionCard />
       </Layout>
     );
   }
@@ -297,23 +297,19 @@ export default function CarriersSettingsPage() {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <Container size="full">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+            <h1 className="heading-1 flex items-center">
               <Truck className="w-8 h-8 mr-3 text-primary" />
               ขนส่ง
             </h1>
-            <p className="text-gray-600 dark:text-slate-400 mt-1">จัดการรายชื่อบริษัทขนส่งและลิงก์ติดตามพัสดุ</p>
+            <p className="page-subtitle">จัดการรายชื่อบริษัทขนส่งและลิงก์ติดตามพัสดุ</p>
           </div>
-          <button
-            onClick={openCreate}
-            className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center font-medium"
-          >
-            <Plus className="w-5 h-5 mr-2" />
+          <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={openCreate}>
             เพิ่ม<span className="hidden md:inline">ขนส่ง</span>
-          </button>
+          </Button>
         </div>
 
         {/* Search */}
@@ -377,21 +373,23 @@ export default function CarriersSettingsPage() {
           disableBackdropClose={submitting}
           footer={
             <div className="flex gap-3 p-5">
-              <button
+              <Button
+                variant="secondary"
+                fullWidth
                 onClick={() => setModalMode(null)}
                 disabled={submitting}
-                className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
               >
                 ยกเลิก
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                fullWidth
                 onClick={handleSubmit}
+                loading={submitting}
                 disabled={submitting || !formName.trim() || (modalMode === 'create' && !formCode.trim())}
-                className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                 บันทึก
-              </button>
+              </Button>
             </div>
           }
         >
@@ -479,7 +477,7 @@ export default function CarriersSettingsPage() {
           loading={deleting}
           icon={<Trash2 className="w-6 h-6 text-red-600" />}
         />
-      </div>
+      </Container>
     </Layout>
   );
 }

@@ -3,13 +3,15 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
+import { LoadingCard } from '@/components/ui/StateCard';
 import CustomerForm, { CustomerFormData, buildCustomerPayload } from '@/components/customers/CustomerForm';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import { Tag } from '@/components/ui/TagBadge';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
-import { ArrowLeft, Loader2 } from 'lucide-react';
 
 function NewCustomerContent() {
   const router = useRouter();
@@ -123,9 +125,9 @@ function NewCustomerContent() {
   if (authLoading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <Container size="2xl">
+          <LoadingCard />
+        </Container>
       </Layout>
     );
   }
@@ -134,20 +136,9 @@ function NewCustomerContent() {
 
   return (
     <Layout>
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.push('/customers')}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">เพิ่มลูกค้าใหม่</h1>
-        </div>
+      <Container size="2xl" gap="sm">
+        <PageHeader title="เพิ่มลูกค้าใหม่" backHref="/customers" />
 
-        {/* Form */}
         <CustomerForm
           onSubmit={handleCreateCustomer}
           onCancel={() => router.push('/customers')}
@@ -158,14 +149,20 @@ function NewCustomerContent() {
           onTagCreated={(tag) => setAllTags(prev => [...prev, tag])}
           {...(presetType ? { initialData: { customer_type: presetType } } : {})}
         />
-      </div>
+      </Container>
     </Layout>
   );
 }
 
 export default function NewCustomerPage() {
   return (
-    <Suspense fallback={<Layout><div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div></Layout>}>
+    <Suspense fallback={
+      <Layout>
+        <Container size="2xl">
+          <LoadingCard />
+        </Container>
+      </Layout>
+    }>
       <NewCustomerContent />
     </Suspense>
   );

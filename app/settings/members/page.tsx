@@ -20,6 +20,10 @@ import {
 import Checkbox from '@/components/ui/Checkbox';
 import Modal from '@/components/ui/Modal';
 import UserAvatar from '@/components/ui/UserAvatar';
+import Container from '@/components/ui/Container';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface Member {
   id: string;
@@ -657,17 +661,14 @@ export default function MembersPage() {
       ]}
     >
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <span className="ml-3 text-gray-500 dark:text-slate-400">กำลังโหลดข้อมูล...</span>
-        </div>
+        <LoadingCard />
       ) : (
-        <div className="space-y-6 max-w-5xl">
+        <Container size="5xl">
           {/* Members List */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm">
+          <Card padding="none">
             <div className="p-5 sm:p-6 border-b border-gray-200 dark:border-slate-700">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                <h3 className="heading-3 flex items-center">
                   <Users className="w-5 h-5 mr-2 text-primary" />
                   สมาชิกปัจจุบัน ({activeMembers.length})
                 </h3>
@@ -678,13 +679,13 @@ export default function MembersPage() {
                     </div>
                   )}
                   {isOwnerOrAdmin && (
-                    <button
+                    <Button
                       onClick={openAddModal}
-                      className="flex items-center px-4 py-2 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors whitespace-nowrap"
+                      icon={<Plus className="w-5 h-5" />}
+                      className="whitespace-nowrap"
                     >
-                      <Plus className="w-5 h-5 mr-1.5" />
                       เพิ่ม<span className="hidden md:inline">สมาชิก</span>
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -796,13 +797,13 @@ export default function MembersPage() {
                 </div>
               )}
             </div>
-          </div>
+          </Card>
 
           {/* Pending Invitations */}
           {invitations.length > 0 && (
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm">
+            <Card padding="none">
               <div className="p-5 sm:p-6 border-b border-gray-200 dark:border-slate-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                <h3 className="heading-3 flex items-center">
                   <Clock className="w-5 h-5 mr-2 text-primary" />
                   คำเชิญที่รอการตอบรับ ({invitations.length})
                 </h3>
@@ -866,9 +867,9 @@ export default function MembersPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
           )}
-        </div>
+        </Container>
       )}
 
       {/* Add Member Modal */}

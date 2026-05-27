@@ -10,11 +10,14 @@ import { useToast } from '@/lib/toast-context';
 import { type FeatureFlags, PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS, detectPreset, type BusinessPreset } from '@/lib/features';
 import {
   CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory,
-  PackageCheck, Loader2, Save, ChevronDown, ChevronUp,
-  CreditCard, Truck, Store, Layers, Users, Warehouse, Building,
+  PackageCheck, Save, ChevronDown, ChevronUp, Loader2,
+  CreditCard, Truck, Store, Layers, Users, Warehouse, Building, Lock,
 } from 'lucide-react';
+import { featureLockReason } from '@/lib/package-features';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import GpOverridePanel from '@/components/customers/GpOverridePanel';
+import Button from '@/components/ui/Button';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 
 // Feature icons for showing inside preset chips
 const FEATURE_ICONS: Partial<Record<keyof FeatureFlags, React.ReactNode>> = {
@@ -64,7 +67,7 @@ interface FeatureSection {
 
 export default function FeaturesPage() {
   const { currentCompany, companyRoles } = useCompany();
-  const { features: currentFeatures, fetched: featuresFetched, refreshFeatures } = useFeatures();
+  const { features: currentFeatures, gates, fetched: featuresFetched, refreshFeatures } = useFeatures();
   const { showToast } = useToast();
 
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(currentFeatures);
@@ -115,6 +118,8 @@ export default function FeaturesPage() {
   };
 
   const toggleFeature = (key: keyof FeatureFlags) => {
+    // Package-gated features can't be turned on
+    if (featureLockReason(key, gates)) return;
     setFeatureFlags(prev => {
       if (key === 'delivery_date') {
         const dd = prev.delivery_date;
@@ -186,6 +191,13 @@ export default function FeaturesPage() {
 
   // ---- Feature list ----
   const FEATURES: FeatureSection[] = [
+    {
+      key: 'stock',
+      label: 'ระบบคลังสินค้า',
+      description: 'ติดตามสต็อก, รับเข้า, ย้ายคลัง, แยกตามสาขา',
+      icon: <Warehouse className="w-5 h-5" />,
+      color: 'text-emerald-600',
+    },
     {
       key: 'product_brand',
       label: 'แบรนด์สินค้า',
@@ -272,6 +284,8 @@ export default function FeaturesPage() {
             {FEATURES.map((feat) => {
               const isEnabled = getFeatureValue(feat.key);
               const isOpen = openSection === feat.key;
+              const lockReason = featureLockReason(feat.key, gates);
+              const isLocked = lockReason !== null;
 
               // Consignment settings inline
               const hasInlineSettings = feat.key === 'consignment' && isEnabled;
@@ -281,7 +295,7 @@ export default function FeaturesPage() {
               return (
                 <div
                   key={feat.key}
-                  className={`card transition-all ${isEnabled ? 'ring-1 ring-primary/20' : ''}`}
+                  className={`card transition-all ${isEnabled ? 'ring-1 ring-primary/20' : ''} ${isLocked ? 'opacity-70' : ''}`}
                 >
                   {/* Row: icon + label + toggle */}
                   <div className="flex items-center gap-4">
@@ -289,10 +303,20 @@ export default function FeaturesPage() {
                       {feat.icon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-base font-medium ${isEnabled ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-slate-300'}`}>
-                        {feat.label}
+                      <div className="flex items-center gap-2">
+                        <p className={`text-base font-medium ${isEnabled ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-slate-300'}`}>
+                          {feat.label}
+                        </p>
+                        {isLocked && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50">
+                            <Lock className="w-3 h-3" />
+                            ต้องอัปเกรด
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">
+                        {isLocked ? lockReason : feat.description}
                       </p>
-                      <p className="text-sm text-gray-500 dark:text-slate-400">{feat.description}</p>
                     </div>
 
                     {/* Expand button (only when enabled + has settings) */}
@@ -309,11 +333,12 @@ export default function FeaturesPage() {
                     {/* Toggle */}
                     <button
                       type="button"
-                      disabled={!isOwnerOrAdmin}
+                      disabled={!isOwnerOrAdmin || isLocked}
                       onClick={() => toggleFeature(feat.key)}
+                      title={isLocked ? lockReason : undefined}
                       className={`relative flex-shrink-0 inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                         isEnabled ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
-                      } ${!isOwnerOrAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      } ${(!isOwnerOrAdmin || isLocked) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>

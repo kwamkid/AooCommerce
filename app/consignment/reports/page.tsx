@@ -18,9 +18,13 @@ import Pagination from '@/app/components/Pagination';
 import Tooltip from '@/components/ui/Tooltip';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Link from 'next/link';
-import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
-import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
+import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
+import { getBadgeColor } from '@/lib/status-tab-colors';
+import StatusTabs from '@/components/ui/StatusTabs';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface ConsignmentReport {
   id: string;
@@ -53,14 +57,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   cancelled: { label: 'ยกเลิก',     color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100/50 dark:bg-red-900/20' },
 };
 
-const STATUS_TABS = [
-  { key: 'all',      label: 'ทั้งหมด',       ...getTabColor('all') },
-  { key: 'draft',    label: 'ร่าง',          ...getTabColor('draft') },
-  { key: 'received', label: 'รอยืนยัน',     ...getTabColor('received'),
-    tooltip: 'ตัวแทนรายงานยอดขายแล้ว รอ Admin ตรวจสอบและยืนยัน', hideIfZero: true },
-  { key: 'billed',   label: 'วางบิลแล้ว',   ...getTabColor('billed') },
-  { key: 'paid',     label: 'ชำระแล้ว',      ...getTabColor('paid') },
-  { key: 'overdue',  label: 'เกินกำหนด',    ...getTabColor('overdue') },
+const STATUS_TABS: { key: string; label: string; colorKey?: string; hideIfZero?: boolean; tooltip?: string }[] = [
+  { key: 'all',      label: 'ทั้งหมด' },
+  { key: 'draft',    label: 'ร่าง' },
+  { key: 'received', label: 'รอยืนยัน', hideIfZero: true, tooltip: 'ตัวแทนรายงานยอดขายแล้ว — รอ admin ยืนยัน' },
+  { key: 'billed',   label: 'วางบิลแล้ว' },
+  { key: 'paid',     label: 'ชำระแล้ว' },
+  { key: 'overdue',  label: 'เกินกำหนด' },
 ];
 
 const THAI_MONTHS = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
@@ -635,26 +638,24 @@ function ConsignmentReportsContent() {
 
   return (
     <Layout>
-      <div className="space-y-4">
+      <Container size="full" gap="sm">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ClipboardList className="w-8 h-8 text-primary" />
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">ยอดขายตัวแทน</h1>
+            <h1 className="heading-1">ยอดขายตัวแทน</h1>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => fetchReports(true)}
               disabled={isRefreshing}
-              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-white transition-colors disabled:opacity-50"
               title="รีเฟรช"
-            >
-              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </button>
-            <button onClick={() => router.push('/customers/new?type=consignment_dealer')}
-              className="px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm font-medium">
-              <UserPlus className="w-4 h-4" /> เพิ่มตัวแทน
-            </button>
+              icon={<RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
+            />
+            <Button variant="secondary" icon={<UserPlus className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=consignment_dealer')}>
+              เพิ่มตัวแทน
+            </Button>
             <Link
               href="/consignment/reports/new"
               className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2"
@@ -666,29 +667,15 @@ function ConsignmentReportsContent() {
         </div>
 
         {/* Status Tabs */}
-        <div className="flex gap-2 flex-wrap">
-          {STATUS_TABS.map(tab => {
-            const count = getTabCount(tab.key);
-            const isActive = activeStatus === tab.key;
-            if ('hideIfZero' in tab && tab.hideIfZero && count === 0 && !isActive) return null;
-            const btn = (
-              <button
-                onClick={() => setParams({ status: tab.key })}
-                className={`rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
-                  isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
-                }`}
-              >
-                <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
-                <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
-              </button>
-            );
-            return (
-              <div key={tab.key} className="flex-shrink-0">
-                {'tooltip' in tab && tab.tooltip ? <Tooltip text={tab.tooltip}>{btn}</Tooltip> : btn}
-              </div>
-            );
+        <StatusTabs
+          activeKey={activeStatus}
+          onSelect={(k) => setParams({ status: k })}
+          tabs={STATUS_TABS.map(t => {
+            const count = getTabCount(t.key);
+            const isActive = activeStatus === t.key;
+            return { ...t, count, hidden: !!t.hideIfZero && count === 0 && !isActive };
           })}
-        </div>
+        />
 
         {/* Search */}
         <div className="flex items-center gap-2">
@@ -852,7 +839,7 @@ function ConsignmentReportsContent() {
             );
           }}
         />
-      </div>
+      </Container>
 
       {/* Ready to Bill Confirm Dialog */}
       <ConfirmDialog
@@ -970,9 +957,7 @@ export default function ConsignmentReportsPage() {
   return (
     <Suspense fallback={
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     }>
       <ConsignmentReportsContent />

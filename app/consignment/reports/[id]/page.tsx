@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import { LoadingCard } from '@/components/ui/StateCard';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
@@ -621,9 +623,9 @@ function EditReportContent() {
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <Container size="full">
+          <LoadingCard />
+        </Container>
       </Layout>
     );
   }
@@ -631,12 +633,14 @@ function EditReportContent() {
   if (!report) {
     return (
       <Layout>
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-slate-400 mb-4">ไม่พบรายงาน</p>
-          <Link href="/consignment/reports" className="text-primary hover:underline">
-            กลับไปหน้ารายการ
-          </Link>
-        </div>
+        <Container size="full">
+          <div className="text-center py-12">
+            <p className="text-gray-500 dark:text-slate-400 mb-4">ไม่พบรายงาน</p>
+            <Link href="/consignment/reports" className="text-primary hover:underline">
+              กลับไปหน้ารายการ
+            </Link>
+          </div>
+        </Container>
       </Layout>
     );
   }
@@ -646,7 +650,7 @@ function EditReportContent() {
 
   return (
     <Layout>
-      <div className="space-y-4">
+      <Container size="full" gap="sm">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
@@ -864,7 +868,7 @@ function EditReportContent() {
             </div>
           )}
         </div>
-      </div>
+      </Container>
       {/* Ready to Bill Confirm Dialog */}
       <ConfirmDialog
         open={billConfirmOpen}
@@ -893,9 +897,9 @@ export default function EditConsignmentReportPage() {
   return (
     <Suspense fallback={
       <Layout>
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-        </div>
+        <Container size="full">
+          <LoadingCard />
+        </Container>
       </Layout>
     }>
       <EditReportContent />

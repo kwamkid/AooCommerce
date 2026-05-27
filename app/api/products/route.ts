@@ -346,6 +346,8 @@ export async function GET(request: NextRequest) {
     const brandFilter = searchParams.get('brand_id');
     const searchQuery = searchParams.get('search');
     const shopAccountFilter = searchParams.get('shop_account_id');
+    // status filter: '' (default) = active only, 'inactive' = only closed, 'all' = both
+    const statusFilter = searchParams.get('status') || '';
 
     // Pagination params
     const page = parseInt(searchParams.get('page') || '1', 10);
@@ -387,8 +389,10 @@ export async function GET(request: NextRequest) {
       let q = supabaseAdmin
         .from('products')
         .select('id', { count: 'exact' })
-        .eq('company_id', auth.companyId)
-        .eq('is_active', true);
+        .eq('company_id', auth.companyId);
+
+      if (statusFilter === 'inactive') q = q.eq('is_active', false);
+      else if (statusFilter !== 'all') q = q.eq('is_active', true);
 
       if (sourceFilter) {
         if (sourceFilter === 'shopee') {

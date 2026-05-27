@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import { Coins, QrCode, Building2, Check, Plus, Trash2 } from 'lucide-react';
 import WizardShell from '@/components/onboarding/WizardShell';
 import FormSelect from '@/components/ui/FormSelect';
+import { useWizardState, WIZARD_KEYS } from '@/components/onboarding/wizard-storage';
 import { apiFetch } from '@/lib/api-client';
 import { THAI_BANKS } from '@/lib/constants/banks';
 
@@ -13,82 +13,40 @@ interface BankRow {
   account_name: string;
 }
 
-export default function OnboardingPaymentPage() {
-  // Prefill: cash on, others off
-  const [cashOn, setCashOn] = useState(true);
+interface PaymentFormState {
+  cashOn: boolean;
+  promptpayOn: boolean;
+  promptpayId: string;
+  promptpayName: string;
+  bankOn: boolean;
+  banks: BankRow[];
+}
 
-  const [promptpayOn, setPromptpayOn] = useState(false);
-  const [promptpayId, setPromptpayId] = useState('');
-  const [promptpayName, setPromptpayName] = useState('');
+const INITIAL: PaymentFormState = {
+  cashOn: true,
+  promptpayOn: false,
+  promptpayId: '',
+  promptpayName: '',
+  bankOn: false,
+  banks: [{ bank_code: '', account_number: '', account_name: '' }],
+};
 
-  const [bankOn, setBankOn] = useState(false);
-  const [banks, setBanks] = useState<BankRow[]>([{ bank_code: '', account_number: '', account_name: '' }]);
-
-  const bankOptions = THAI_BANKS
-    .filter(b => b.code !== 'PROMPTPAY')
-    .map(b => ({ id: b.code, label: b.name_th }));
-
-  const addBank = () => setBanks([...banks, { bank_code: '', account_number: '', account_name: '' }]);
-  const removeBank = (idx: number) => setBanks(banks.filter((_, i) => i !== idx));
-  const updateBank = (idx: number, patch: Partial<BankRow>) =>
-    setBanks(banks.map((b, i) => (i === idx ? { ...b, ...patch } : b)));
-
-  const validate = (): string | null => {
-    if (promptpayOn && !promptpayId.trim()) return 'กรุณากรอกหมายเลขพร้อมเพย์';
-    if (bankOn) {
-      const filled = banks.filter(b => b.bank_code || b.account_number);
-      for (const b of filled) {
-        if (!b.bank_code) return 'กรุณาเลือกธนาคาร';
-        if (!b.account_number.trim()) return 'กรุณากรอกเลขบัญชี';
-      }
-    }
-    return null;
-  };
-
-  const handleNext = async () => {
-    const err = validate();
-    if (err) throw new Error(err);
-
-    const body = {
-      cash: cashOn,
-      promptpay: promptpayOn && promptpayId.trim()
-        ? { id: promptpayId.trim(), name: promptpayName.trim() }
-        : null,
-      banks: bankOn
-        ? banks.filter(b => b.bank_code && b.account_number.trim())
-        : [],
-    };
-
-    const res = await apiFetch('/api/onboarding/payment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      throw new Error(j.error || 'บันทึกไม่สำเร็จ');
-    }
-
-    // Mark wizard complete on the way to /complete page so the user can't get
-    // redirected back here mid-flight by middleware on a slow connection.
-    await apiFetch('/api/onboarding/complete', { method: 'POST' });
-  };
-
-  const ToggleRow = ({
-    icon,
-    title,
-    subtitle,
-    on,
-    onChange,
-    children,
-  }: {
-    icon: React.ReactNode;
-    title: string;
-    subtitle: string;
-    on: boolean;
-    onChange: (next: boolean) => void;
-    children?: React.ReactNode;
-  }) => (
+function ToggleRow({
+  icon,
+  title,
+  subtitle,
+  on,
+  onChange,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  on: boolean;
+  onChange: (next: boolean) => void;
+  children?: React.ReactNode;
+}) {
+  return (
     <div
       className={`rounded-xl border-2 transition-all ${
         on ? 'border-primary bg-primary/5 dark:bg-primary/10' : 'border-gray-200 dark:border-slate-700'
@@ -119,9 +77,126 @@ export default function OnboardingPaymentPage() {
       )}
     </div>
   );
+}
+
+export default function OnboardingPaymentPage() {
+  // Prefill: cash on, others off. Persisted to sessionStorage across back/forward.
+  const [form, setForm] = useWizardState<PaymentFormState>(WIZARD_KEYS.payment, INITIAL);
+  const { cashOn, promptpayOn, promptpayId, promptpayName, bankOn, banks } = form;
+  const patch = (p: Partial<PaymentFormState>) => setForm(prev => ({ ...prev, ...p }));
+  const setCashOn = (v: boolean) => patch({ cashOn: v });
+  const setPromptpayOn = (v: boolean) => patch({ promptpayOn: v });
+  const setPromptpayId = (v: string) => patch({ promptpayId: v });
+  const setPromptpayName = (v: string) => patch({ promptpayName: v });
+  const setBankOn = (v: boolean) => patch({ bankOn: v });
+
+  const bankOptions = THAI_BANKS
+    .filter(b => b.code !== 'PROMPTPAY')
+    .map(b => ({ id: b.code, label: b.name_th }));
+
+  const addBank = () => patch({ banks: [...banks, { bank_code: '', account_number: '', account_name: '' }] });
+  const removeBank = (idx: number) => patch({ banks: banks.filter((_, i) => i !== idx) });
+  const updateBank = (idx: number, p: Partial<BankRow>) =>
+    patch({ banks: banks.map((b, i) => (i === idx ? { ...b, ...p } : b)) });
+
+  const validate = (): string | null => {
+    if (promptpayOn && !promptpayId.trim()) return 'กรุณากรอกหมายเลขพร้อมเพย์';
+    if (bankOn) {
+      const filled = banks.filter(b => b.bank_code || b.account_number);
+      for (const b of filled) {
+        if (!b.bank_code) return 'กรุณาเลือกธนาคาร';
+        if (!b.account_number.trim()) return 'กรุณากรอกเลขบัญชี';
+      }
+    }
+    return null;
+  };
+
+  // Read every wizard step's sessionStorage payload — used to assemble the
+  // single /api/onboarding/finalize request that creates the company + applies
+  // all settings atomically. If a step's storage is missing, fall back to
+  // safe defaults (user can revisit and edit before clicking "เสร็จสิ้น").
+  const readWizardState = <T,>(key: string, fallback: T): T => {
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return fallback;
+      return JSON.parse(raw) as T;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const handleNext = async () => {
+    const err = validate();
+    if (err) throw new Error(err);
+
+    const company = readWizardState<{ name: string; description: string; logoDataUrl: string | null; logoFileName: string | null; logoMimeType: string | null }>(
+      WIZARD_KEYS.company,
+      { name: '', description: '', logoDataUrl: null, logoFileName: null, logoMimeType: null },
+    );
+    if (!company.name?.trim()) {
+      throw new Error('ยังไม่ได้กรอกชื่อบริษัท — กลับไปขั้นตอนแรก');
+    }
+
+    const channels = readWizardState<string[]>(WIZARD_KEYS.channels, ['retail']);
+    const warehouseForm = readWizardState<{ useWarehouse: boolean; name: string; address: string; district: string; amphoe: string; province: string; postalCode: string; phone: string }>(
+      WIZARD_KEYS.warehouse,
+      { useWarehouse: true, name: 'คลังหลัก', address: '', district: '', amphoe: '', province: '', postalCode: '', phone: '' },
+    );
+    const carrierCodes = readWizardState<string[]>(WIZARD_KEYS.carriers, ['thai_post', 'kerry', 'flash', 'j&t']);
+
+    const finalizeBody = {
+      company: {
+        name: company.name.trim(),
+        description: company.description?.trim() || null,
+        logoDataUrl: company.logoDataUrl,
+        logoFileName: company.logoFileName,
+        logoMimeType: company.logoMimeType,
+      },
+      channels,
+      warehouse: warehouseForm.useWarehouse
+        ? {
+            use_warehouse: true,
+            name: warehouseForm.name.trim() || 'คลังหลัก',
+            address: warehouseForm.address.trim() || null,
+            district: warehouseForm.district.trim() || null,
+            amphoe: warehouseForm.amphoe.trim() || null,
+            province: warehouseForm.province.trim() || null,
+            postal_code: warehouseForm.postalCode.trim() || null,
+            phone: warehouseForm.phone.trim() || null,
+          }
+        : { use_warehouse: false },
+      carriers: carrierCodes,
+      payment: {
+        cash: cashOn,
+        promptpay: promptpayOn && promptpayId.trim()
+          ? { id: promptpayId.trim(), name: promptpayName.trim() }
+          : null,
+        banks: bankOn
+          ? banks.filter(b => b.bank_code && b.account_number.trim())
+          : [],
+      },
+    };
+
+    const res = await apiFetch('/api/onboarding/finalize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(finalizeBody),
+    });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(result.error || 'สร้างบริษัทไม่สำเร็จ');
+
+    // Point the rest of the app at the freshly-created company so /complete +
+    // /dashboard pick it up after the AuthProvider cache is refreshed.
+    if (result.company?.id) {
+      try {
+        localStorage.setItem('aoo-current-company-id', result.company.id);
+        sessionStorage.removeItem('aoo-auth-cache');
+      } catch { /* ignore */ }
+    }
+  };
 
   return (
-    <WizardShell step={4} onNext={handleNext}>
+    <WizardShell step={5} onNext={handleNext} finishLabel="สร้างบริษัท">
       <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">รับเงินยังไง?</h2>
       <p className="text-gray-600 dark:text-slate-400 mb-6">เลือกช่องทางที่ใช้รับเงิน — เพิ่ม/แก้ไขภายหลังได้</p>
 
@@ -145,6 +220,8 @@ export default function OnboardingPaymentPage() {
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเลขพร้อมเพย์</label>
             <input
               type="text"
+              name="wizard_promptpay_id"
+              autoComplete="off"
               value={promptpayId}
               onChange={e => setPromptpayId(e.target.value)}
               placeholder="เบอร์โทร หรือ เลขประจำตัวผู้เสียภาษี"
@@ -155,6 +232,8 @@ export default function OnboardingPaymentPage() {
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อบัญชี</label>
             <input
               type="text"
+              name="wizard_promptpay_name"
+              autoComplete="off"
               value={promptpayName}
               onChange={e => setPromptpayName(e.target.value)}
               placeholder="ชื่อ-นามสกุล หรือ ชื่อบริษัท"

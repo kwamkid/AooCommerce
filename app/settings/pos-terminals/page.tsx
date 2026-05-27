@@ -3,6 +3,10 @@
 
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import Toggle from '@/components/ui/Toggle';
 import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
@@ -55,21 +59,6 @@ function getChannelIcon(type: string) {
   return MoreHorizontal;
 }
 
-function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={() => !disabled && onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors ${
-        checked ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-    >
-      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-        checked ? 'translate-x-5' : 'translate-x-0'
-      }`} />
-    </button>
-  );
-}
 
 export default function PosTerminalsPage() {
   const { userProfile } = useAuth();
@@ -391,7 +380,7 @@ export default function PosTerminalsPage() {
   if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
     return (
       <Layout title="เครื่อง POS">
-        <div className="text-center py-16 text-gray-500 dark:text-slate-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+        <NoPermissionCard />
       </Layout>
     );
   }
@@ -417,9 +406,7 @@ export default function PosTerminalsPage() {
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-primary animate-spin" />
-          </div>
+          <LoadingCard />
         ) : features.pos ? (
           <div>
             {/* ══════ Tab Bar ══════ */}
@@ -463,7 +450,7 @@ export default function PosTerminalsPage() {
                   {terminals.map((t) => {
                     return (
                       <div key={t.id} className="space-y-3">
-                        <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden ${!t.is_active ? 'opacity-60' : ''}`}>
+                        <Card padding="none" className={`overflow-hidden ${!t.is_active ? 'opacity-60' : ''}`}>
                           <div className="flex items-center gap-3 p-4">
                             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                               <Monitor className="w-5 h-5 text-primary" />
@@ -508,7 +495,7 @@ export default function PosTerminalsPage() {
                               </button>
                             </div>
                           </div>
-                        </div>
+                        </Card>
 
                         {editingId === t.id && showForm && renderTerminalForm()}
                       </div>
@@ -544,9 +531,7 @@ export default function PosTerminalsPage() {
                 </div>
 
                 {loadingChannels ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-5 h-5 text-primary animate-spin" />
-                  </div>
+                  <LoadingCard compact />
                 ) : (
                   <div className="space-y-3">
                     {channels.map((ch, idx) => {
@@ -558,7 +543,7 @@ export default function PosTerminalsPage() {
                       const isEditing = editingChannelId === ch.id && showChannelForm;
                       return (
                         <div key={ch.id}>
-                          <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden ${!ch.is_active ? 'opacity-60' : ''}`}>
+                          <Card padding="none" className={`overflow-hidden ${!ch.is_active ? 'opacity-60' : ''}`}>
                             <div className="flex items-center gap-3 p-4">
                               <div className="flex flex-col flex-shrink-0">
                                 <button
@@ -620,7 +605,7 @@ export default function PosTerminalsPage() {
                                 {renderChannelFormInline()}
                               </div>
                             )}
-                          </div>
+                          </Card>
                         </div>
                       );
                     })}
@@ -649,7 +634,7 @@ export default function PosTerminalsPage() {
 
   function renderTerminalForm() {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
+      <Card padding="md" className="space-y-3">
         <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
           <Monitor className="w-4 h-4 text-primary" />
           {editingId ? 'แก้ไขจุดขาย' : 'เพิ่มจุดขาย'}
@@ -707,7 +692,7 @@ export default function PosTerminalsPage() {
             <X className="w-4 h-4" /> ยกเลิก
           </button>
         </div>
-      </div>
+      </Card>
     );
   }
 
@@ -792,7 +777,7 @@ export default function PosTerminalsPage() {
 
   function renderChannelForm() {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
+      <Card padding="md" className="space-y-3">
         <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
           <CreditCard className="w-4 h-4 text-green-600" />
           {editingChannelId ? 'แก้ไขช่องทาง' : 'เพิ่มช่องทางชำระเงิน'}
@@ -898,7 +883,7 @@ export default function PosTerminalsPage() {
             <X className="w-4 h-4" /> ยกเลิก
           </button>
         </div>
-      </div>
+      </Card>
     );
   }
 }

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import Modal from '@/components/ui/Modal';
+import ImageLightbox from '@/components/ui/ImageLightbox';
 import PushDealModal from '../PushDealModal';
 import type { UsePromotionFormReturn } from './usePromotionForm';
 
@@ -41,27 +42,7 @@ export default function FormModals({ hook }: Props) {
 
   return (
     <>
-      {/* Lightbox */}
-      {lightboxSrc && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70"
-          onClick={() => setLightboxSrc(null)}
-          role="dialog"
-        >
-          <button
-            onClick={() => setLightboxSrc(null)}
-            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
-          >
-            <X className="w-6 h-6" />
-          </button>
-          <img
-            src={lightboxSrc}
-            alt="Product"
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          />
-        </div>
-      )}
+      <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} alt="Product" />
 
       {/* Confirm Dialog */}
       <Modal

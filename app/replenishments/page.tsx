@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
 import FormSelect from '@/components/ui/FormSelect';
-import ActionMenu, { ActionItem } from '@/app/orders/components/ActionMenu';
-import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
+import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
+import { getBadgeColor } from '@/lib/status-tab-colors';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -17,7 +17,12 @@ import {
   ClipboardList, FileText, User, Ban, Pencil, UserPlus,
 } from 'lucide-react';
 import Tooltip from '@/components/ui/Tooltip';
+import StatusTabs from '@/components/ui/StatusTabs';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
+import { LoadingCard } from '@/components/ui/StateCard';
 import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/replenishment-pdf';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateReplenishmentLabelPdf } from '@/lib/order-shipping-label-pdf';
@@ -57,13 +62,12 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 };
 
 const STATUS_TABS = [
-  { key: 'all',            label: 'ทั้งหมด',       ...getTabColor('all') },
-  { key: 'pending',        label: 'ที่ต้องจัดส่ง', ...getTabColor('pending') },
-  { key: 'shipped',        label: 'กำลังส่ง',       ...getTabColor('shipped') },
-  { key: 'pending_confirm',label: 'รอยืนยัน',       ...getTabColor('pending_confirm'),
-    tooltip: 'ตัวแทนแจ้งรับของแล้ว แต่จำนวนไม่ตรง รอ Admin ตรวจสอบและยืนยัน' },
-  { key: 'received',       label: 'รับแล้ว',         ...getTabColor('completed') },
-  { key: 'cancelled',      label: 'ยกเลิก',          ...getTabColor('cancelled') },
+  { key: 'all',             label: 'ทั้งหมด' },
+  { key: 'pending',         label: 'ที่ต้องจัดส่ง' },
+  { key: 'shipped',         label: 'กำลังส่ง' },
+  { key: 'pending_confirm', label: 'รอยืนยัน', tooltip: 'ตัวแทนแจ้งรับของแล้ว — รอ admin ยืนยัน' },
+  { key: 'received',        label: 'รับแล้ว', colorKey: 'completed' },
+  { key: 'cancelled',       label: 'ยกเลิก' },
 ];
 
 const SHIPPING_METHODS = [
@@ -705,70 +709,36 @@ function ReplenishmentsPageContent() {
 
   return (
     <Layout>
-      <div className="space-y-4">
+      <Container size="full" gap="sm">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ArrowUpFromLine className="w-8 h-8 text-primary" />
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">เติมสินค้าตัวแทน</h1>
+            <h1 className="heading-1">เติมสินค้าตัวแทน</h1>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => fetchData(true)}
               disabled={isRefreshing}
-              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-white transition-colors disabled:opacity-50"
               title="รีเฟรช"
-            >
-              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </button>
-            <button onClick={() => router.push('/customers/new?type=consignment_dealer')}
-              className="px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm font-medium">
-              <UserPlus className="w-4 h-4" /> <span className="hidden md:inline">เพิ่มตัวแทน</span>
-            </button>
-            <button
-              onClick={() => router.push('/replenishments/new')}
-              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
+              icon={<RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
+            />
+            <Button variant="secondary" icon={<UserPlus className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=consignment_dealer')}>
+              <span className="hidden md:inline">เพิ่มตัวแทน</span>
+            </Button>
+            <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={() => router.push('/replenishments/new')}>
               สร้าง<span className="hidden md:inline">ใบเติมสินค้า</span>
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Status Tabs */}
-        <div className="flex gap-2 flex-wrap">
-          {STATUS_TABS.map(tab => {
-            const count = getTabCount(tab.key);
-            const isActive = activeStatus === tab.key;
-            return (
-              <div key={tab.key} className="flex-shrink-0">
-                {'tooltip' in tab && tab.tooltip ? (
-                  <Tooltip text={tab.tooltip}>
-                    <button
-                      onClick={() => handleStatusChange(tab.key)}
-                      className={`rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
-                        isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
-                      }`}
-                    >
-                      <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
-                      <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
-                    </button>
-                  </Tooltip>
-                ) : (
-                  <button
-                    onClick={() => handleStatusChange(tab.key)}
-                    className={`rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
-                      isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
-                    }`}
-                  >
-                    <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
-                    <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <StatusTabs
+          activeKey={activeStatus}
+          onSelect={handleStatusChange}
+          tabs={STATUS_TABS.map(t => ({ ...t, count: getTabCount(t.key) }))}
+        />
 
         {/* Search */}
         <div className="flex items-center gap-2">
@@ -990,7 +960,7 @@ function ReplenishmentsPageContent() {
             );
           }}
         />
-      </div>
+      </Container>
 
       {/* Ship Modal */}
       {shipModalId && (() => {
@@ -1046,96 +1016,87 @@ function ReplenishmentsPageContent() {
       })()}
 
       {/* Edit Shipping Modal */}
-      {editShipModalId && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !editShipSubmitting && setEditShipModalId(null)}>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <Pencil className="w-5 h-5 text-primary" /> แก้ไขข้อมูลขนส่ง
-            </h3>
+      <Modal
+        open={!!editShipModalId}
+        onClose={() => !editShipSubmitting && setEditShipModalId(null)}
+        title="แก้ไขข้อมูลขนส่ง"
+        icon={<Pencil className="w-5 h-5 text-primary" />}
+        size="md"
+        disableBackdropClose={editShipSubmitting}
+        footer={
+          <div className="flex gap-3 w-full">
+            <Button variant="secondary" fullWidth onClick={() => setEditShipModalId(null)} disabled={editShipSubmitting}>
+              ยกเลิก
+            </Button>
+            <Button variant="primary" fullWidth onClick={handleEditShipping} loading={editShipSubmitting} icon={<Pencil className="w-4 h-4" />}>
+              บันทึก
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">วิธีส่ง</label>
+            <FormSelect
+              value={editShipMethod}
+              onChange={setEditShipMethod}
+              options={SHIPPING_METHODS}
+              placeholder="เลือกวิธีส่ง"
+            />
+          </div>
 
-            <div className="space-y-4">
+          {editShipMethod === 'courier' && (
+            <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">วิธีส่ง</label>
-                <FormSelect
-                  value={editShipMethod}
-                  onChange={setEditShipMethod}
-                  options={SHIPPING_METHODS}
-                  placeholder="เลือกวิธีส่ง"
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อขนส่ง</label>
+                <input
+                  type="text"
+                  value={editShipCarrier}
+                  onChange={e => setEditShipCarrier(e.target.value)}
+                  placeholder="เช่น Kerry, Flash, J&T"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เลข Tracking</label>
+                <input
+                  type="text"
+                  value={editShipTracking}
+                  onChange={e => setEditShipTracking(e.target.value)}
+                  placeholder="เลขพัสดุ"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </>
+          )}
 
-              {editShipMethod === 'courier' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อขนส่ง</label>
-                    <input
-                      type="text"
-                      value={editShipCarrier}
-                      onChange={e => setEditShipCarrier(e.target.value)}
-                      placeholder="เช่น Kerry, Flash, J&T"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เลข Tracking</label>
-                    <input
-                      type="text"
-                      value={editShipTracking}
-                      onChange={e => setEditShipTracking(e.target.value)}
-                      placeholder="เลขพัสดุ"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                </>
-              )}
-
-              {editShipMethod === 'lalamove' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทรคนขับ / รายละเอียด</label>
-                  <input
-                    type="text"
-                    value={editShipNotes}
-                    onChange={e => setEditShipNotes(e.target.value)}
-                    placeholder="เบอร์โทรติดต่อ Lalamove"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              )}
-
-              {editShipMethod === 'own_vehicle' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุ</label>
-                  <input
-                    type="text"
-                    value={editShipNotes}
-                    onChange={e => setEditShipNotes(e.target.value)}
-                    placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              )}
+          {editShipMethod === 'lalamove' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทรคนขับ / รายละเอียด</label>
+              <input
+                type="text"
+                value={editShipNotes}
+                onChange={e => setEditShipNotes(e.target.value)}
+                placeholder="เบอร์โทรติดต่อ Lalamove"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+              />
             </div>
+          )}
 
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setEditShipModalId(null)}
-                disabled={editShipSubmitting}
-                className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleEditShipping}
-                disabled={editShipSubmitting}
-                className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {editShipSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
-                บันทึก
-              </button>
+          {editShipMethod === 'own_vehicle' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุ</label>
+              <input
+                type="text"
+                value={editShipNotes}
+                onChange={e => setEditShipNotes(e.target.value)}
+                placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+              />
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </Modal>
 
       {/* Lightbox */}
       {lightboxSrc && (
@@ -1145,31 +1106,25 @@ function ReplenishmentsPageContent() {
       )}
 
       {/* Cancel Confirm Modal */}
-      {cancelId && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !cancelSubmitting && setCancelId(null)}>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">ยืนยันยกเลิก</h3>
-            <p className="text-sm text-gray-600 dark:text-slate-400 mb-6">ต้องการยกเลิกใบเติมสินค้านี้หรือไม่?</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setCancelId(null)}
-                disabled={cancelSubmitting}
-                className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                ไม่
-              </button>
-              <button
-                onClick={handleCancel}
-                disabled={cancelSubmitting}
-                className="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {cancelSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                ยกเลิก
-              </button>
-            </div>
+      <Modal
+        open={!!cancelId}
+        onClose={() => !cancelSubmitting && setCancelId(null)}
+        title="ยืนยันยกเลิก"
+        size="sm"
+        disableBackdropClose={cancelSubmitting}
+        footer={
+          <div className="flex gap-3 w-full">
+            <Button variant="secondary" fullWidth onClick={() => setCancelId(null)} disabled={cancelSubmitting}>
+              ไม่
+            </Button>
+            <Button variant="danger" fullWidth onClick={handleCancel} loading={cancelSubmitting}>
+              ยกเลิก
+            </Button>
           </div>
-        </div>
-      )}
+        }
+      >
+        <p className="text-sm text-gray-600 dark:text-slate-400">ต้องการยกเลิกใบเติมสินค้านี้หรือไม่?</p>
+      </Modal>
     </Layout>
   );
 }
@@ -1178,9 +1133,7 @@ export default function ReplenishmentsPage() {
   return (
     <Suspense fallback={
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     }>
       <ReplenishmentsPageContent />

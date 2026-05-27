@@ -3,6 +3,12 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
+import FormInput from '@/components/ui/FormInput';
+import { useFormValidation } from '@/lib/useFormValidation';
+import { LoadingCard } from '@/components/ui/StateCard';
 import {
   ArrowLeft, ArrowUpFromLine, Warehouse, Send, Copy, CheckCircle2,
   Loader2, Printer, XCircle,
@@ -81,8 +87,11 @@ function NewReplenishmentPageContent() {
     setShipNotes('');
   };
 
+  const shipForm = useFormValidation();
+
   const handleShip = async () => {
     if (!replenishmentId) return;
+    if (!shipForm.validateAll()) return;
     setShipSubmitting(true);
     try {
       const res = await apiFetch(`/api/replenishments/${replenishmentId}`, {
@@ -229,19 +238,20 @@ function NewReplenishmentPageContent() {
 
   return (
     <Layout>
-      <div className="space-y-4">
+      <Container size="full" gap="sm">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <Link
               href="/replenishments"
               className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+              aria-label="ย้อนกลับ"
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-2">
               <ArrowUpFromLine className="w-6 h-6 text-primary" />
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
+              <h1 className="heading-2">{title}</h1>
               {isEdit && formState?.replenishmentNumber && (
                 <span className="id-text text-primary">
                   {formState.replenishmentNumber}
@@ -258,48 +268,60 @@ function NewReplenishmentPageContent() {
           {/* Action buttons */}
           {isEdit && formState && (
             <div className="flex items-center gap-2 flex-wrap">
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={formState.printing ? undefined : <Printer className="w-4 h-4" />}
+                loading={formState.printing}
                 onClick={formState.handlePrint}
-                disabled={formState.printing}
-                className="btn-secondary flex items-center gap-2"
               >
-                {formState.printing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
                 พิมพ์
-              </button>
+              </Button>
 
               {status === 'shipped' && formState.receiveToken && (
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Copy className="w-4 h-4" />}
                   onClick={copyReceiveLink}
-                  className="btn-secondary flex items-center gap-2 !border-amber-300 dark:!border-amber-700 !bg-amber-50 dark:!bg-amber-900/20 !text-amber-700 dark:!text-amber-400 hover:!bg-amber-100 dark:hover:!bg-amber-900/30"
+                  className="!border-amber-300 dark:!border-amber-700 !bg-amber-50 dark:!bg-amber-900/20 !text-amber-700 dark:!text-amber-400 hover:!bg-amber-100 dark:hover:!bg-amber-900/30"
                 >
-                  <Copy className="w-4 h-4" />
                   คัดลอกลิงก์รับสินค้า
-                </button>
+                </Button>
               )}
 
               {status === 'pending' && !viewMode && (
-                <button onClick={() => setShowShipModal(true)} className="btn-primary">
-                  <Send className="w-4 h-4" />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={<Send className="w-4 h-4" />}
+                  onClick={() => setShowShipModal(true)}
+                >
                   จัดส่ง
-                </button>
+                </Button>
               )}
 
               {status === 'pending_confirm' && (
-                <button
+                <Button
+                  variant="success"
+                  size="sm"
+                  icon={formState.confirmSubmitting ? undefined : <CheckCircle2 className="w-4 h-4" />}
+                  loading={formState.confirmSubmitting}
                   onClick={formState.handleConfirm}
-                  disabled={formState.confirmSubmitting}
-                  className="btn-success"
                 >
-                  {formState.confirmSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                   ยืนยัน
-                </button>
+                </Button>
               )}
 
               {status === 'pending' && !viewMode && (
-                <button onClick={() => setShowCancelConfirm(true)} className="btn-danger flex items-center gap-2">
-                  <XCircle className="w-4 h-4" />
+                <Button
+                  variant="danger"
+                  size="sm"
+                  icon={<XCircle className="w-4 h-4" />}
+                  onClick={() => setShowCancelConfirm(true)}
+                >
                   ยกเลิก
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -329,132 +351,127 @@ function NewReplenishmentPageContent() {
           viewMode={viewMode}
           onLoad={setFormState}
         />
-      </div>
+      </Container>
 
       {/* Ship Modal */}
-      {showShipModal && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => !shipSubmitting && setShowShipModal(false)}
-        >
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <Send className="w-5 h-5 text-primary" /> จัดส่งสินค้า
-            </h3>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">วิธีส่ง</label>
-                <FormSelect
-                  value={shipMethod}
-                  onChange={setShipMethod}
-                  options={SHIPPING_METHODS}
-                  placeholder="เลือกวิธีส่ง"
-                />
-              </div>
-
-              {shipMethod === 'courier' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อขนส่ง</label>
-                    <input
-                      type="text"
-                      value={shipCarrier}
-                      onChange={e => setShipCarrier(e.target.value)}
-                      placeholder="เช่น Kerry, Flash, J&T"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เลข Tracking</label>
-                    <input
-                      type="text"
-                      value={shipTracking}
-                      onChange={e => setShipTracking(e.target.value)}
-                      placeholder="เลขพัสดุ"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                </>
-              )}
-
-              {shipMethod === 'lalamove' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทรคนขับ / รายละเอียด</label>
-                  <input
-                    type="text"
-                    value={shipNotes}
-                    onChange={e => setShipNotes(e.target.value)}
-                    placeholder="เบอร์โทรติดต่อ Lalamove"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              )}
-
-              {shipMethod === 'own_vehicle' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุ</label>
-                  <input
-                    type="text"
-                    value={shipNotes}
-                    onChange={e => setShipNotes(e.target.value)}
-                    placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => { setShowShipModal(false); resetShipForm(); }}
-                disabled={shipSubmitting}
-                className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleShip}
-                disabled={shipSubmitting}
-                className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {shipSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                จัดส่ง
-              </button>
-            </div>
+      <Modal
+        open={showShipModal}
+        onClose={() => !shipSubmitting && setShowShipModal(false)}
+        title={
+          <span className="flex items-center gap-2">
+            <Send className="w-5 h-5 text-primary" /> จัดส่งสินค้า
+          </span>
+        }
+        size="md"
+        footer={
+          <div className="flex gap-3 p-4">
+            <Button
+              variant="secondary"
+              fullWidth
+              disabled={shipSubmitting}
+              onClick={() => { setShowShipModal(false); resetShipForm(); }}
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              variant="primary"
+              fullWidth
+              loading={shipSubmitting}
+              icon={!shipSubmitting ? <Send className="w-4 h-4" /> : undefined}
+              onClick={handleShip}
+            >
+              จัดส่ง
+            </Button>
           </div>
+        }
+      >
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="field-label">วิธีส่ง</label>
+            <FormSelect
+              value={shipMethod}
+              onChange={setShipMethod}
+              options={SHIPPING_METHODS}
+              placeholder="เลือกวิธีส่ง"
+            />
+          </div>
+
+          {shipMethod === 'courier' && (
+            <>
+              <FormInput
+                ref={shipForm.register('carrier')}
+                label="ชื่อขนส่ง"
+                required
+                requiredMessage="กรุณาระบุชื่อขนส่ง"
+                type="text"
+                value={shipCarrier}
+                onChange={e => setShipCarrier(e.target.value)}
+                placeholder="เช่น Kerry, Flash, J&T"
+              />
+              <FormInput
+                label="เลข Tracking"
+                type="text"
+                value={shipTracking}
+                onChange={e => setShipTracking(e.target.value)}
+                placeholder="เลขพัสดุ (ไม่บังคับ)"
+              />
+            </>
+          )}
+
+          {shipMethod === 'lalamove' && (
+            <FormInput
+              ref={shipForm.register('lalamove')}
+              label="เบอร์โทรคนขับ / รายละเอียด"
+              required
+              requiredMessage="กรุณาระบุเบอร์โทรหรือรายละเอียด"
+              type="text"
+              value={shipNotes}
+              onChange={e => setShipNotes(e.target.value)}
+              placeholder="เบอร์โทรติดต่อ Lalamove"
+            />
+          )}
+
+          {shipMethod === 'own_vehicle' && (
+            <FormInput
+              label="หมายเหตุ"
+              type="text"
+              value={shipNotes}
+              onChange={e => setShipNotes(e.target.value)}
+              placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
+            />
+          )}
         </div>
-      )}
+      </Modal>
 
       {/* Cancel Confirm Modal */}
-      {showCancelConfirm && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => !cancelSubmitting && setShowCancelConfirm(false)}
-        >
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">ยืนยันยกเลิก</h3>
-            <p className="text-sm text-gray-600 dark:text-slate-400 mb-6">ต้องการยกเลิกใบเติมสินค้านี้หรือไม่?</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowCancelConfirm(false)}
-                disabled={cancelSubmitting}
-                className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                ไม่
-              </button>
-              <button
-                onClick={handleCancel}
-                disabled={cancelSubmitting}
-                className="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {cancelSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                ยืนยันยกเลิก
-              </button>
-            </div>
+      <Modal
+        open={showCancelConfirm}
+        onClose={() => !cancelSubmitting && setShowCancelConfirm(false)}
+        title="ยืนยันยกเลิก"
+        size="sm"
+        footer={
+          <div className="flex gap-3 p-4">
+            <Button
+              variant="secondary"
+              fullWidth
+              disabled={cancelSubmitting}
+              onClick={() => setShowCancelConfirm(false)}
+            >
+              ไม่
+            </Button>
+            <Button
+              variant="danger"
+              fullWidth
+              loading={cancelSubmitting}
+              onClick={handleCancel}
+            >
+              ยืนยันยกเลิก
+            </Button>
           </div>
-        </div>
-      )}
+        }
+      >
+        <p className="p-6 text-sm text-gray-600 dark:text-slate-400">ต้องการยกเลิกใบเติมสินค้านี้หรือไม่?</p>
+      </Modal>
     </Layout>
   );
 }
@@ -463,9 +480,9 @@ export default function NewReplenishmentPage() {
   return (
     <Suspense fallback={
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <Container size="full">
+          <LoadingCard />
+        </Container>
       </Layout>
     }>
       <NewReplenishmentPageContent />

@@ -13,9 +13,12 @@ import {
 } from 'lucide-react';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FormSelect from '@/components/ui/FormSelect';
-import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
+import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
-import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import { getBadgeColor } from '@/lib/status-tab-colors';
+import StatusTabs from '@/components/ui/StatusTabs';
 import PaymentModal from '@/app/orders/components/PaymentModal';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import { printOrder, type PrintType } from '@/components/ui/OrderPrintButtons';
@@ -43,12 +46,12 @@ function formatMoney(n: number) {
 }
 
 const STATUS_TABS = [
-  { key: 'all', label: 'ทั้งหมด', ...getTabColor('all') },
-  { key: 'new', label: 'ใหม่', ...getTabColor('new') },
-  { key: 'ready_to_ship', label: 'รอคอนเฟิร์ม', ...getTabColor('ready_to_ship') },
-  { key: 'processing', label: 'ที่ต้องจัดส่ง', ...getTabColor('processing') },
-  { key: 'completed', label: 'สำเร็จ', ...getTabColor('completed') },
-  { key: 'cancelled', label: 'ยกเลิก', ...getTabColor('cancelled') },
+  { key: 'all', label: 'ทั้งหมด' },
+  { key: 'new', label: 'ใหม่' },
+  { key: 'ready_to_ship', label: 'รอคอนเฟิร์ม' },
+  { key: 'processing', label: 'ที่ต้องจัดส่ง' },
+  { key: 'completed', label: 'สำเร็จ' },
+  { key: 'cancelled', label: 'ยกเลิก' },
 ];
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
@@ -275,21 +278,20 @@ export default function DealerOrdersPage() {
 
   return (
     <Layout>
-      <div className="space-y-4">
+      <Container size="full" gap="sm">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <h1 className="heading-1 flex items-center gap-3">
               <ShoppingBag className="w-8 h-8 text-primary" />
               คำสั่งซื้อตัวแทนขายขาด
             </h1>
-            <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">ตัวแทนขายขาด (เงินสด / เครดิต)</p>
+            <p className="page-subtitle">ตัวแทนขายขาด (เงินสด / เครดิต)</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => router.push('/customers/new?type=wholesale_dealer')}
-              className="px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm font-medium">
-              <UserPlus className="w-4 h-4" /> เพิ่มตัวแทน
-            </button>
+            <Button variant="secondary" icon={<UserPlus className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=wholesale_dealer')}>
+              เพิ่มตัวแทน
+            </Button>
             <Link href="/dealer-orders/new"
               className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium">
               <Plus className="w-4 h-4" /> สร้างคำสั่งซื้อ
@@ -298,19 +300,11 @@ export default function DealerOrdersPage() {
         </div>
 
         {/* Status Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {STATUS_TABS.map(s => {
-            const isActive = statusFilter === s.key;
-            const count = statusCounts[s.key] || 0;
-            return (
-              <button key={s.key} onClick={() => { setStatusFilter(s.key); setPage(1); }}
-                className={`flex-shrink-0 rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${isActive ? `${s.active} text-white shadow-md` : `${s.inactive} hover:opacity-80`}`}>
-                <div className={`text-xs font-medium ${isActive ? 'text-white/80' : s.labelColor}`}>{s.label}</div>
-                <div className={`text-xl font-bold ${isActive ? 'text-white' : s.countColor}`}>{count}</div>
-              </button>
-            );
-          })}
-        </div>
+        <StatusTabs
+          activeKey={statusFilter}
+          onSelect={(k) => { setStatusFilter(k); setPage(1); }}
+          tabs={STATUS_TABS.map(t => ({ ...t, count: statusCounts[t.key] || 0 }))}
+        />
 
         {/* Search + Flow filter */}
         <div className="data-filter-card">
@@ -469,7 +463,7 @@ export default function DealerOrdersPage() {
             );
           }}
         />
-      </div>
+      </Container>
       {shipOrder && (
         <ShipModal
           orderNumber={shipOrder.order_number}
@@ -508,16 +502,12 @@ export default function DealerOrdersPage() {
             </button>
             <span className="text-sm font-medium text-gray-700 dark:text-slate-300">เลือก {selectedIds.size} รายการ</span>
             <div className="flex items-center gap-2 ml-auto">
-              <button onClick={() => handleBulkPrint([...selectedIds], 'packing')}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
-                <ClipboardList className="w-4 h-4" />
+              <Button variant="primary" icon={<ClipboardList className="w-4 h-4" />} onClick={() => handleBulkPrint([...selectedIds], 'packing')}>
                 ใบจัดของ ({selectedIds.size})
-              </button>
-              <button onClick={() => handleBulkPrint([...selectedIds], 'label')}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
-                <Printer className="w-4 h-4" />
+              </Button>
+              <Button variant="primary" icon={<Printer className="w-4 h-4" />} onClick={() => handleBulkPrint([...selectedIds], 'label')}>
                 ใบปะหน้า ({selectedIds.size})
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -4,6 +4,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
+import PageHeader from '@/components/ui/PageHeader';
+import { LoadingCard } from '@/components/ui/StateCard';
+import Alert from '@/components/ui/Alert';
+import FormInput from '@/components/ui/FormInput';
 import ProductForm, { type ProductItem, type FormOptions } from '@/components/products/ProductForm';
 import { type ProductImage } from '@/components/ui/ImageUploader';
 import { useAuth } from '@/lib/auth-context';
@@ -597,12 +604,9 @@ export default function EditProductPage() {
   if (authLoading || loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-3" />
-            <p className="text-gray-500 text-base">กำลังโหลดข้อมูล...</p>
-          </div>
-        </div>
+        <Container size="4xl">
+          <LoadingCard />
+        </Container>
       </Layout>
     );
   }
@@ -610,21 +614,10 @@ export default function EditProductPage() {
   if (error || !product) {
     return (
       <Layout>
-        <div className="max-w-4xl space-y-4">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => router.push('/products')}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">แก้ไขสินค้า</h1>
-          </div>
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-base">
-            {error || 'ไม่พบสินค้า'}
-          </div>
-        </div>
+        <Container size="4xl" gap="sm">
+          <PageHeader title="แก้ไขสินค้า" backHref="/products" />
+          <Alert tone="danger">{error || 'ไม่พบสินค้า'}</Alert>
+        </Container>
       </Layout>
     );
   }
@@ -1028,18 +1021,16 @@ export default function EditProductPage() {
 
           {/* Weight */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">น้ำหนัก (kg)</label>
-              <input
-                type="number"
-                value={weightValues[firstLink.id] || ''}
-                onChange={e => { setWeightValues(prev => ({ ...prev, [firstLink.id]: e.target.value })); markDirty(firstLink.id); }}
-                min="0"
-                step="0.1"
-                placeholder="0.5"
-                className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
-              />
-            </div>
+            <FormInput
+              label="น้ำหนัก"
+              type="number"
+              value={weightValues[firstLink.id] || ''}
+              onChange={e => { setWeightValues(prev => ({ ...prev, [firstLink.id]: e.target.value })); markDirty(firstLink.id); }}
+              min="0"
+              step="0.1"
+              placeholder="0.5"
+              postfix="kg"
+            />
           </div>
 
         </div>
@@ -1202,7 +1193,7 @@ export default function EditProductPage() {
 
   return (
     <Layout>
-      <div className="space-y-4 max-w-4xl">
+      <Container size="4xl" gap="sm">
         {/* Hidden file input for image upload */}
         <input
           ref={imageInputRef}
@@ -1220,47 +1211,46 @@ export default function EditProductPage() {
         />
 
         {/* Header */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <button
-              type="button"
-              onClick={() => router.push('/products')}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors flex-shrink-0"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white whitespace-nowrap">แก้ไขสินค้า</h1>
-            <span className="text-sm text-gray-400 font-mono truncate hidden sm:inline">{product.code}</span>
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button
-              type="button"
-              onClick={openMergeModal}
-              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-base text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-              title="รวมกับสินค้าอื่น"
-            >
-              <Merge className="w-4 h-4" />
-              <span className="hidden sm:inline">รวมกับสินค้าอื่น</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMergeHelpModal(true)}
-              className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
-              title="ดูคำอธิบาย"
-            >
-              <HelpCircle className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleDeleteProduct}
-              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-base text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-              title="ลบสินค้า"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span className="hidden sm:inline">ลบสินค้า</span>
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          title={
+            <span className="flex items-center gap-2 min-w-0">
+              <span className="whitespace-nowrap">แก้ไขสินค้า</span>
+              <span className="text-sm text-gray-400 font-mono truncate hidden sm:inline">{product.code}</span>
+            </span>
+          }
+          backHref="/products"
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Merge className="w-4 h-4" />}
+                onClick={openMergeModal}
+                title="รวมกับสินค้าอื่น"
+              >
+                <span className="hidden sm:inline">รวมกับสินค้าอื่น</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<HelpCircle className="w-4 h-4" />}
+                onClick={() => setMergeHelpModal(true)}
+                title="ดูคำอธิบาย"
+                aria-label="ดูคำอธิบาย"
+              />
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<Trash2 className="w-4 h-4" />}
+                onClick={handleDeleteProduct}
+                title="ลบสินค้า"
+                className="!bg-transparent !border !border-red-300 dark:!border-red-700 !text-red-600 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-900/20"
+              >
+                <span className="hidden sm:inline">ลบสินค้า</span>
+              </Button>
+            </>
+          }
+        />
 
         {/* Tab Bar — only show if product has marketplace links */}
         {hasTabs && (
@@ -1339,62 +1329,69 @@ export default function EditProductPage() {
                 {/* Save / Cancel buttons — show when dirty */}
                 {dirtyLinks.size > 0 && (
                   <div className="flex items-center justify-end gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={handleCancelChanges}
-                      className="px-4 py-2 text-base font-medium text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
-                    >
+                    <Button variant="secondary" onClick={handleCancelChanges}>
                       ยกเลิก
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="primary"
+                      loading={Object.values(savingLink).some(Boolean)}
                       onClick={handleSaveAllLinks}
-                      disabled={Object.values(savingLink).some(Boolean)}
-                      className="flex items-center gap-2 px-4 py-2.5 text-base font-medium text-white bg-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
                     >
-                      {Object.values(savingLink).some(Boolean) && <Loader2 className="w-4 h-4 animate-spin" />}
                       บันทึก
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
             );
           })()
         )}
-      </div>
+      </Container>
 
       {/* ====== Merge Modal ====== */}
-      {mergeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={closeMergeModal}>
-          <div
-            className="bg-white dark:bg-slate-800 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {mergeStep === 1 ? 'เลือกสินค้าที่จะรวม' : 'ตั้งค่าการรวมสินค้า'}
-              </h3>
-              <button onClick={closeMergeModal} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-
-            <div className="px-6 py-4">
+      <Modal
+        open={mergeModal}
+        onClose={closeMergeModal}
+        title={mergeStep === 1 ? 'เลือกสินค้าที่จะรวม' : 'ตั้งค่าการรวมสินค้า'}
+        size="2xl"
+        footer={
+          <div className="flex items-center justify-between px-6 py-4">
+            {mergeStep === 2 ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setMergeStep(1); setMergeSource(null); }}
+                >
+                  ← ย้อนกลับ
+                </Button>
+                <div className="flex gap-2">
+                  <Button variant="secondary" onClick={closeMergeModal}>ยกเลิก</Button>
+                  <Button variant="primary" loading={merging} onClick={executeMerge}>
+                    ยืนยันการรวม
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="ml-auto">
+                <Button variant="secondary" onClick={closeMergeModal}>ยกเลิก</Button>
+              </div>
+            )}
+          </div>
+        }
+      >
+        <>
+          <div className="px-6 py-4">
               {/* Step 1: Search & Select */}
               {mergeStep === 1 && (
                 <div className="space-y-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      value={mergeSearch}
-                      onChange={e => setMergeSearch(e.target.value)}
-                      placeholder="ค้นหาด้วย ชื่อ, รหัส, SKU..."
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-base focus:ring-2 focus:ring-primary focus:border-transparent"
-                      autoFocus
-                    />
-                  </div>
+                  <FormInput
+                    type="text"
+                    value={mergeSearch}
+                    onChange={e => setMergeSearch(e.target.value)}
+                    placeholder="ค้นหาด้วย ชื่อ, รหัส, SKU..."
+                    icon={<Search className="w-4 h-4" />}
+                    autoFocus
+                  />
 
                   {mergeLoadingProducts ? (
                     <div className="flex items-center justify-center py-8">
@@ -1567,93 +1564,55 @@ export default function EditProductPage() {
                   })()}
                 </div>
               )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-slate-700">
-              {mergeStep === 2 ? (
-                <>
-                  <button
-                    onClick={() => { setMergeStep(1); setMergeSource(null); }}
-                    className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200"
-                  >
-                    ← ย้อนกลับ
-                  </button>
-                  <div className="flex gap-2">
-                    <button onClick={closeMergeModal} className="px-4 py-2 text-base text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">
-                      ยกเลิก
-                    </button>
-                    <button
-                      onClick={executeMerge}
-                      disabled={merging}
-                      className="flex items-center gap-2 px-4 py-2.5 text-base font-medium text-white bg-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
-                    >
-                      {merging && <Loader2 className="w-4 h-4 animate-spin" />}
-                      ยืนยันการรวม
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="ml-auto">
-                  <button onClick={closeMergeModal} className="px-4 py-2 text-base text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">
-                    ยกเลิก
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
-        </div>
-      )}
+        </>
+      </Modal>
 
       {/* Merge Help Modal */}
-      {mergeHelpModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setMergeHelpModal(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl max-w-md w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <Merge className="w-5 h-5 text-primary" />
-                รวมสินค้าคืออะไร?
-              </h3>
-              <button onClick={() => setMergeHelpModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="text-base text-gray-600 dark:text-slate-300 space-y-3">
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white mb-1">ใช้เมื่อไหร่?</p>
-                <p>เมื่อมีสินค้าซ้ำกันในระบบ เช่น Sync จาก Shopee มาแล้วสร้างสินค้าใหม่ เพราะ SKU ไม่ตรงกัน ทำให้ข้อมูลกระจาย</p>
-              </div>
-
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white mb-1">ทำงานยังไง?</p>
-                <ul className="list-disc pl-4 space-y-1">
-                  <li>เลือก <strong>สินค้าหลัก</strong> (master) ที่จะเก็บไว้</li>
-                  <li>เลือกว่าจะใช้ข้อมูล (ชื่อ, รหัส, รูป) จากตัวไหน</li>
-                  <li>จับคู่ variation ที่ตรงกัน หรือย้ายเป็น variation ใหม่</li>
-                </ul>
-              </div>
-
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white mb-1">ข้อมูลอะไรจะถูกย้าย?</p>
-                <ul className="list-disc pl-4 space-y-1">
-                  <li>ประวัติการขาย (order items)</li>
-                  <li>ประวัติรับเข้า / เบิกออก / โอนย้าย</li>
-                  <li>เชื่อมต่อ Marketplace (Shopee, etc.)</li>
-                  <li>รูปภาพสินค้า</li>
-                </ul>
-              </div>
-
-              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg p-3 text-amber-800 dark:text-amber-300">
-                <p className="font-medium mb-1">Stock</p>
-                <p>ระบบจะเก็บ stock ของสินค้าหลัก (master) ไว้ เพราะเป็นสินค้าตัวเดียวกัน stock ไม่ควรบวกกัน</p>
-              </div>
-
-              <p className="text-xs text-gray-400 dark:text-slate-500">สินค้าที่ถูกรวมเข้ามา (ไม่ใช่ master) จะถูกปิดการใช้งานอัตโนมัติ</p>
-            </div>
+      <Modal
+        open={mergeHelpModal}
+        onClose={() => setMergeHelpModal(false)}
+        title={
+          <span className="flex items-center gap-2">
+            <Merge className="w-5 h-5 text-primary" />
+            รวมสินค้าคืออะไร?
+          </span>
+        }
+        size="md"
+      >
+        <div className="px-6 py-4 text-base text-gray-600 dark:text-slate-300 space-y-3">
+          <div>
+            <p className="font-medium text-gray-900 dark:text-white mb-1">ใช้เมื่อไหร่?</p>
+            <p>เมื่อมีสินค้าซ้ำกันในระบบ เช่น Sync จาก Shopee มาแล้วสร้างสินค้าใหม่ เพราะ SKU ไม่ตรงกัน ทำให้ข้อมูลกระจาย</p>
           </div>
+
+          <div>
+            <p className="font-medium text-gray-900 dark:text-white mb-1">ทำงานยังไง?</p>
+            <ul className="list-disc pl-4 space-y-1">
+              <li>เลือก <strong>สินค้าหลัก</strong> (master) ที่จะเก็บไว้</li>
+              <li>เลือกว่าจะใช้ข้อมูล (ชื่อ, รหัส, รูป) จากตัวไหน</li>
+              <li>จับคู่ variation ที่ตรงกัน หรือย้ายเป็น variation ใหม่</li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="font-medium text-gray-900 dark:text-white mb-1">ข้อมูลอะไรจะถูกย้าย?</p>
+            <ul className="list-disc pl-4 space-y-1">
+              <li>ประวัติการขาย (order items)</li>
+              <li>ประวัติรับเข้า / เบิกออก / โอนย้าย</li>
+              <li>เชื่อมต่อ Marketplace (Shopee, etc.)</li>
+              <li>รูปภาพสินค้า</li>
+            </ul>
+          </div>
+
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg p-3 text-amber-800 dark:text-amber-300">
+            <p className="font-medium mb-1">Stock</p>
+            <p>ระบบจะเก็บ stock ของสินค้าหลัก (master) ไว้ เพราะเป็นสินค้าตัวเดียวกัน stock ไม่ควรบวกกัน</p>
+          </div>
+
+          <p className="text-xs text-gray-400 dark:text-slate-500">สินค้าที่ถูกรวมเข้ามา (ไม่ใช่ master) จะถูกปิดการใช้งานอัตโนมัติ</p>
         </div>
-      )}
+      </Modal>
 
       {confirmDialog}
     </Layout>

@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { Truck, Check } from 'lucide-react';
 import WizardShell from '@/components/onboarding/WizardShell';
-import { apiFetch } from '@/lib/api-client';
+import { useWizardState, WIZARD_KEYS } from '@/components/onboarding/wizard-storage';
 
 interface CarrierItem {
   code: string;
@@ -27,28 +26,23 @@ const CARRIERS: CarrierItem[] = [
 
 export default function OnboardingCarriersPage() {
   // Prefill: top 4 popular ticked. self/other always seeded server-side.
-  const [selected, setSelected] = useState<Set<string>>(
-    new Set(CARRIERS.filter(c => c.popular).map(c => c.code))
+  const [selectedList, setSelectedList] = useWizardState<string[]>(
+    WIZARD_KEYS.carriers,
+    CARRIERS.filter(c => c.popular).map(c => c.code),
   );
+  const selected = new Set(selectedList);
 
   const toggle = (code: string) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(code)) next.delete(code); else next.add(code);
-      return next;
+    setSelectedList(prev => {
+      const set = new Set(prev);
+      if (set.has(code)) set.delete(code); else set.add(code);
+      return Array.from(set);
     });
   };
 
   const handleNext = async () => {
-    const res = await apiFetch('/api/onboarding/carriers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codes: Array.from(selected) }),
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      throw new Error(j.error || 'บันทึกไม่สำเร็จ');
-    }
+    // sessionStorage already has the selection; finalize writes the carriers
+    // table on the last wizard step.
   };
 
   const popular = CARRIERS.filter(c => c.popular);
@@ -85,7 +79,7 @@ export default function OnboardingCarriersPage() {
   };
 
   return (
-    <WizardShell step={3} onNext={handleNext}>
+    <WizardShell step={4} onNext={handleNext}>
       <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">ใช้ขนส่งอะไรบ้าง?</h2>
       <p className="text-gray-600 dark:text-slate-400 mb-6">เลือกที่ใช้บ่อย — เพิ่มภายหลังได้ที่ ตั้งค่า {'>'} ขนส่ง</p>
 

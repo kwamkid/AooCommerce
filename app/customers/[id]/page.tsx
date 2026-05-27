@@ -4,6 +4,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
+import { LoadingCard } from '@/components/ui/StateCard';
+import Alert from '@/components/ui/Alert';
 import { useAuth } from '@/lib/auth-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useToast } from '@/lib/toast-context';
@@ -261,9 +266,9 @@ export default function CustomerEditPage() {
   if (authLoading || loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <Container size="2xl">
+          <LoadingCard />
+        </Container>
       </Layout>
     );
   }
@@ -271,52 +276,52 @@ export default function CustomerEditPage() {
   if (!customer || !formData) {
     return (
       <Layout>
-        <div className="text-center py-12">
-          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <p className="text-gray-500 text-lg">ไม่พบข้อมูลลูกค้า</p>
-          <button onClick={() => router.push('/customers')} className="mt-4 text-primary hover:underline">
-            กลับหน้ารายการลูกค้า
-          </button>
-        </div>
+        <Container size="2xl">
+          <div className="text-center py-12">
+            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <p className="text-gray-500 text-lg">ไม่พบข้อมูลลูกค้า</p>
+            <Button variant="ghost" onClick={() => router.push('/customers')} className="mt-4">
+              กลับหน้ารายการลูกค้า
+            </Button>
+          </div>
+        </Container>
       </Layout>
     );
   }
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <Container size="2xl">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <button
-              onClick={() => router.push('/customers')}
-              className="flex items-center text-gray-600 hover:text-gray-900 mb-2 text-sm"
-            >
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              กลับ
-            </button>
-            <div className="flex items-center gap-3">
-              <UserCircle className="w-8 h-8 text-primary" />
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{customer.name}</h1>
-                <p className="data-secondary text-gray-500 dark:text-slate-400">รหัส: {customer.customer_code}</p>
-              </div>
+        <div>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<ArrowLeft className="w-4 h-4" />}
+            onClick={() => router.push('/customers')}
+            className="mb-2"
+          >
+            กลับ
+          </Button>
+          <div className="flex items-center gap-3">
+            <UserCircle className="w-8 h-8 text-primary" />
+            <div>
+              <h1 className="heading-2">{customer.name}</h1>
+              <p className="subtitle-text text-gray-500 dark:text-slate-400">รหัส: {customer.customer_code}</p>
             </div>
           </div>
         </div>
 
         {!canEdit && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
-            คุณสามารถดูข้อมูลได้อย่างเดียว (ต้องเป็น Admin หรือ Manager เพื่อแก้ไข)
-          </div>
+          <Alert tone="warning">คุณสามารถดูข้อมูลได้อย่างเดียว (ต้องเป็น Admin หรือ Manager เพื่อแก้ไข)</Alert>
         )}
 
         {/* Portal ตัวแทน — แสดงเฉพาะ consignment_dealer ที่มี portal_token */}
         {customer.customer_type === 'consignment_dealer' && customer.portal_token && (
-          <div className="p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm space-y-3">
+          <Card padding="sm" className="space-y-3">
             <div className="flex items-center gap-2">
               <Link2 className="w-4 h-4 text-amber-500" />
-              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Portal ตัวแทน</h3>
+              <h3 className="heading-4">Portal ตัวแทน</h3>
             </div>
 
             {/* Portal link row */}
@@ -326,24 +331,24 @@ export default function CustomerEditPage() {
                   ? `${window.location.origin}/portal/consignment/${customer.portal_token}`
                   : `/portal/consignment/${customer.portal_token}`}
               </code>
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Copy className="w-3.5 h-3.5" />}
                 onClick={() => {
                   const url = `${window.location.origin}/portal/consignment/${customer.portal_token}`;
                   navigator.clipboard.writeText(url).then(() => {
                     showToast('คัดลอกลิงก์แล้ว', 'success');
                   });
                 }}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg transition-colors whitespace-nowrap"
               >
-                <Copy className="w-3.5 h-3.5" />
                 คัดลอก
-              </button>
+              </Button>
               <a
                 href={`/portal/consignment/${customer.portal_token}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 rounded-lg transition-colors whitespace-nowrap"
+                className="btn btn-sm btn-secondary !bg-amber-50 dark:!bg-amber-500/10 !text-amber-600 dark:!text-amber-400 hover:!bg-amber-100 dark:hover:!bg-amber-500/20 !border-amber-200 dark:!border-amber-500/20"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 เปิด
@@ -363,31 +368,31 @@ export default function CustomerEditPage() {
                   <span className="text-xs text-gray-400 dark:text-slate-500 italic">ยังไม่มีรหัส</span>
                 )}
               </div>
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={regeneratingCode ? undefined : <RefreshCw className="w-3.5 h-3.5" />}
+                loading={regeneratingCode}
                 onClick={handleRegenerateCode}
-                disabled={regeneratingCode}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
               >
-                {regeneratingCode ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                 สร้างรหัสใหม่
-              </button>
+              </Button>
               {customer.portal_access_code && (
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Copy className="w-3.5 h-3.5" />}
                   onClick={() => {
                     navigator.clipboard.writeText(customer.portal_access_code!).then(() => {
                       showToast('คัดลอกรหัสแล้ว', 'success');
                     });
                   }}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg transition-colors whitespace-nowrap"
                 >
-                  <Copy className="w-3.5 h-3.5" />
                   คัดลอกรหัส
-                </button>
+                </Button>
               )}
             </div>
-          </div>
+          </Card>
         )}
 
         {/* Customer Form */}
@@ -413,27 +418,27 @@ export default function CustomerEditPage() {
         {/* Bottom Buttons */}
         {canEdit && (
           <div className="flex justify-end gap-3">
-            <button
-              onClick={() => router.push('/customers')}
+            <Button
+              variant="secondary"
               disabled={saving}
-              className="px-6 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
+              onClick={() => router.push('/customers')}
             >
               ยกเลิก
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
+              loading={saving}
+              icon={!saving ? <Save className="w-4 h-4" /> : undefined}
               onClick={() => {
                 const form = document.getElementById('customer-edit-form-wrapper')?.querySelector('form');
                 form?.requestSubmit();
               }}
-              disabled={saving}
-              className="bg-primary text-white px-6 py-2.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50"
             >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {saving ? 'กำลังบันทึก...' : 'บันทึก'}
-            </button>
+            </Button>
           </div>
         )}
-      </div>
+      </Container>
       {confirmDialog}
     </Layout>
   );

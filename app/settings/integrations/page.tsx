@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
+import Container from '@/components/ui/Container';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 
 interface MarketplaceAccount {
   id: string;
@@ -430,7 +432,7 @@ export default function IntegrationsPage() {
   if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
     return (
       <Layout title="Marketplace">
-        <div className="text-center py-16 text-gray-500 dark:text-slate-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+        <NoPermissionCard />
       </Layout>
     );
   }
@@ -446,7 +448,7 @@ export default function IntegrationsPage() {
         { label: 'Marketplace' },
       ]}
     >
-      <div className="max-w-3xl">
+      <Container size="2xl" gap="none">
         {/* Platform Tabs */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex border-b border-gray-200 dark:border-slate-700">
@@ -487,9 +489,7 @@ export default function IntegrationsPage() {
 
         {/* ===== SHOPEE TAB ===== */}
         {activeTab === 'shopee' && (loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-primary animate-spin" />
-          </div>
+          <LoadingCard />
         ) : (
           <div className="space-y-4">
             {/* Account Cards */}
@@ -704,9 +704,7 @@ export default function IntegrationsPage() {
 
         {/* ===== TIKTOK TAB ===== */}
         {activeTab === 'tiktok' && (tiktokLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-primary animate-spin" />
-          </div>
+          <LoadingCard />
         ) : (
           <div className="space-y-4">
             {activeTiktokAccounts.map(account => {
@@ -830,7 +828,7 @@ export default function IntegrationsPage() {
             </button>
           </div>
         ))}
-      </div>
+      </Container>
 
       {/* Loading Overlay for sync operations */}
       <LoadingOverlay

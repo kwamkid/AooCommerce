@@ -11,6 +11,9 @@ export interface FeatureFlags {
   parcel_splitting: boolean;
   supplier: boolean;
   department_store: boolean;
+  // Inventory / warehouse system. Gated by package — when the active package
+  // has stock_enabled=false (e.g. Free) the toggle is locked off.
+  stock: boolean;
 }
 
 export type BusinessPreset = 'delivery' | 'ecommerce' | 'ecommerce_brand' | 'omnichannel' | 'omnichannel_brand' | 'wholesale' | 'distribution';
@@ -46,6 +49,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     parcel_splitting: false,
     supplier: false,
     department_store: false,
+    stock: true,
   },
   ecommerce: {
     delivery_date: { enabled: false, required: false },
@@ -57,6 +61,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     parcel_splitting: false,
     supplier: false,
     department_store: false,
+    stock: true,
   },
   ecommerce_brand: {
     delivery_date: { enabled: false, required: false },
@@ -68,6 +73,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     parcel_splitting: false,
     supplier: false,
     department_store: false,
+    stock: true,
   },
   omnichannel: {
     delivery_date: { enabled: false, required: false },
@@ -79,6 +85,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     parcel_splitting: false,
     supplier: true,
     department_store: false,
+    stock: true,
   },
   omnichannel_brand: {
     delivery_date: { enabled: false, required: false },
@@ -90,6 +97,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     parcel_splitting: false,
     supplier: true,
     department_store: true,
+    stock: true,
   },
   wholesale: {
     delivery_date: { enabled: false, required: false },
@@ -101,6 +109,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     parcel_splitting: false,
     supplier: true,
     department_store: true,
+    stock: true,
   },
   distribution: {
     delivery_date: { enabled: false, required: false },
@@ -112,6 +121,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     parcel_splitting: false,
     supplier: true,
     department_store: false,
+    stock: true,
   },
 };
 
@@ -132,7 +142,8 @@ export function detectPreset(f: FeatureFlags): BusinessPreset | null {
       f.product_brand === defaults.product_brand &&
       f.parcel_splitting === defaults.parcel_splitting &&
       f.supplier === defaults.supplier &&
-      f.department_store === defaults.department_store;
+      f.department_store === defaults.department_store &&
+      f.stock === defaults.stock;
     if (match) return key;
   }
   return null;
@@ -167,6 +178,7 @@ export function parseFeatures(settings: Record<string, unknown> | null | undefin
     parcel_splitting: stored.parcel_splitting ?? DEFAULT_FEATURES.parcel_splitting,
     supplier: stored.supplier ?? DEFAULT_FEATURES.supplier,
     department_store: stored.department_store ?? DEFAULT_FEATURES.department_store,
+    stock: stored.stock ?? DEFAULT_FEATURES.stock,
   };
 
   // Derive preset from features — not stored separately

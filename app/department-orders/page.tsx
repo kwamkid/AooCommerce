@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
 import FormSelect from '@/components/ui/FormSelect';
-import ActionMenu, { ActionItem } from '@/app/orders/components/ActionMenu';
-import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
+import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
+import { getBadgeColor } from '@/lib/status-tab-colors';
+import StatusTabs from '@/components/ui/StatusTabs';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
@@ -57,13 +58,12 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 };
 
 const STATUS_TABS = [
-  { key: 'all',             label: 'ทั้งหมด',       ...getTabColor('all') },
-  { key: 'draft',           label: 'ที่ต้องจัดส่ง', ...getTabColor('pending') },
-  { key: 'shipped',         label: 'กำลังส่ง',       ...getTabColor('shipped') },
-  { key: 'pending_confirm', label: 'รอยืนยัน',       ...getTabColor('pending_confirm'),
-    tooltip: 'ผู้รับแจ้งรับของแล้ว แต่จำนวนไม่ตรง รอ Admin ตรวจสอบและยืนยัน' },
-  { key: 'received',        label: 'รับแล้ว',         ...getTabColor('completed') },
-  { key: 'cancelled',       label: 'ยกเลิก',          ...getTabColor('cancelled') },
+  { key: 'all',             label: 'ทั้งหมด' },
+  { key: 'draft',           label: 'ที่ต้องจัดส่ง', colorKey: 'pending' },
+  { key: 'shipped',         label: 'กำลังส่ง' },
+  { key: 'pending_confirm', label: 'รอยืนยัน', tooltip: 'ผู้รับแจ้งรับของแล้ว — รอ admin ยืนยัน' },
+  { key: 'received',        label: 'รับแล้ว', colorKey: 'completed' },
+  { key: 'cancelled',       label: 'ยกเลิก' },
 ];
 
 function formatDate(dateStr: string): string {
@@ -978,39 +978,11 @@ function DepartmentOrdersContent() {
         </div>
 
         {/* Status Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {STATUS_TABS.map(tab => {
-            const count = getTabCount(tab.key);
-            const isActive = activeStatus === tab.key;
-            return (
-              <div key={tab.key} className="flex-shrink-0">
-                {'tooltip' in tab && tab.tooltip ? (
-                  <Tooltip text={tab.tooltip}>
-                    <button
-                      onClick={() => handleStatusChange(tab.key)}
-                      className={`rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
-                        isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
-                      }`}
-                    >
-                      <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
-                      <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
-                    </button>
-                  </Tooltip>
-                ) : (
-                  <button
-                    onClick={() => handleStatusChange(tab.key)}
-                    className={`rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
-                      isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
-                    }`}
-                  >
-                    <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
-                    <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <StatusTabs
+          activeKey={activeStatus}
+          onSelect={handleStatusChange}
+          tabs={STATUS_TABS.map(t => ({ ...t, count: getTabCount(t.key) }))}
+        />
 
         {/* Search */}
         <div className="flex items-center gap-2">

@@ -6,9 +6,13 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import Card from '@/components/ui/Card';
+import Badge from '@/components/ui/Badge';
+import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
-import { BarChart3, ShoppingCart, Package, Banknote, Loader2, Tag } from 'lucide-react';
+import { BarChart3, ShoppingCart, Package, Banknote, Tag } from 'lucide-react';
 
 interface ReportItem {
   id: string;
@@ -87,17 +91,17 @@ export default function PromotionReportPage() {
 
   return (
     <Layout>
-      <div className="max-w-7xl mx-auto">
+      <Container size="6xl">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">รายงานยอดขายโปรโมชั่น</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">ยอดขายแยกตามโปรโมชั่น (ไม่รวมตัวแทน/ห้าง)</p>
+            <h1 className="heading-2">รายงานยอดขายโปรโมชั่น</h1>
+            <p className="page-subtitle">ยอดขายแยกตามโปรโมชั่น (ไม่รวมตัวแทน/ห้าง)</p>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-end gap-3 mb-6">
+        <div className="flex flex-wrap items-end gap-3">
           <div className="w-64">
             <DateRangePicker
               value={dateRange}
@@ -117,49 +121,47 @@ export default function PromotionReportPage() {
 
         {/* Summary cards */}
         {summary && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white dark:bg-[#1E293B] rounded-xl p-4 border border-gray-200 dark:border-gray-700/50">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card padding="sm">
               <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
                 <Tag className="w-4 h-4" />
                 <span className="text-sm">โปรโมชั่น</span>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{summary.total_promotions}</p>
-            </div>
-            <div className="bg-white dark:bg-[#1E293B] rounded-xl p-4 border border-gray-200 dark:border-gray-700/50">
+            </Card>
+            <Card padding="sm">
               <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
                 <ShoppingCart className="w-4 h-4" />
                 <span className="text-sm">คำสั่งซื้อ</span>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{summary.total_orders}</p>
-            </div>
-            <div className="bg-white dark:bg-[#1E293B] rounded-xl p-4 border border-gray-200 dark:border-gray-700/50">
+            </Card>
+            <Card padding="sm">
               <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
                 <Package className="w-4 h-4" />
                 <span className="text-sm">จำนวนชิ้น</span>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{summary.total_qty}</p>
-            </div>
-            <div className="bg-white dark:bg-[#1E293B] rounded-xl p-4 border border-gray-200 dark:border-gray-700/50">
+            </Card>
+            <Card padding="sm">
               <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
                 <Banknote className="w-4 h-4" />
                 <span className="text-sm">ยอดขายรวม</span>
               </div>
               <p className="text-2xl font-bold text-primary">฿{formatPrice(summary.total_sales)}</p>
-            </div>
+            </Card>
           </div>
         )}
 
         {/* Table */}
-        <div className="bg-white dark:bg-[#1E293B] rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden">
+        <Card padding="none" className="overflow-hidden">
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-            </div>
+            <LoadingCard />
           ) : report.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
-              <BarChart3 className="w-10 h-10 mb-2 opacity-50" />
-              <p>ไม่พบข้อมูลโปรโมชั่นในช่วงเวลานี้</p>
-            </div>
+            <EmptyCard
+              icon={<BarChart3 className="w-10 h-10 text-gray-400 opacity-50" />}
+              title="ไม่พบข้อมูลโปรโมชั่นในช่วงเวลานี้"
+            />
           ) : (
             <>
             {/* Desktop Table */}
@@ -188,13 +190,14 @@ export default function PromotionReportPage() {
                           )}
                           <div>
                             <p className="text-gray-900 dark:text-white font-medium">{item.name}</p>
-                            <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                              item.status === 'active'
-                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                                : 'bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400'
-                            }`}>
+                            <Badge
+                              tone={item.status === 'active' ? 'emerald' : 'gray'}
+                              shape="square"
+                              size="sm"
+                              className="mt-0.5"
+                            >
                               {item.status === 'active' ? 'ใช้งาน' : item.status === 'inactive' ? 'ปิด' : item.status}
-                            </span>
+                            </Badge>
                           </div>
                         </div>
                       </td>
@@ -234,13 +237,13 @@ export default function PromotionReportPage() {
                         <span className="text-sm text-gray-600 dark:text-gray-300">
                           {TYPE_LABELS[item.promotion_type] || item.promotion_type}
                         </span>
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                          item.status === 'active'
-                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                            : 'bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400'
-                        }`}>
+                        <Badge
+                          tone={item.status === 'active' ? 'emerald' : 'gray'}
+                          shape="square"
+                          size="sm"
+                        >
                           {item.status === 'active' ? 'ใช้งาน' : item.status === 'inactive' ? 'ปิด' : item.status}
-                        </span>
+                        </Badge>
                       </div>
                     </div>
                   </div>
@@ -263,8 +266,8 @@ export default function PromotionReportPage() {
             </div>
             </>
           )}
-        </div>
-      </div>
+        </Card>
+      </Container>
     </Layout>
   );
 }

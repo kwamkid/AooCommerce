@@ -2,8 +2,9 @@
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 import { parseFeatures, DEFAULT_PRESET, DEFAULT_FEATURES, type FeatureFlags } from '@/lib/features';
+import { gatesFromPackageFeatures, applyPackageGates, PERMISSIVE_GATES } from '@/lib/package-features';
 
-// GET - read feature flags from companies.settings
+// GET - read feature flags from companies.settings + active package gates
 export async function GET(request: NextRequest) {
   try {
     const { isAuth, companyId } = await checkAuthWithCompany(request);
@@ -15,21 +16,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No company context' }, { status: 403 });
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('companies')
-      .select('settings')
-      .eq('id', companyId)
-      .single();
+    const [companyRes, subRes] = await Promise.all([
+      supabaseAdmin
+        .from('companies')
+        .select('settings')
+        .eq('id', companyId)
+        .single(),
+      supabaseAdmin
+        .from('user_subscriptions')
+        .select('package:packages(features)')
+        .eq('company_id', companyId)
+        .eq('status', 'active')
+        .single(),
+    ]);
 
-    if (error) {
-      return NextResponse.json({ preset: DEFAULT_PRESET, features: DEFAULT_FEATURES });
+    if (companyRes.error) {
+      return NextResponse.json({ preset: DEFAULT_PRESET, features: DEFAULT_FEATURES, gates: PERMISSIVE_GATES });
     }
 
-    const settings = (data?.settings as Record<string, unknown>) || {};
+    const settings = (companyRes.data?.settings as Record<string, unknown>) || {};
     const result = parseFeatures(settings);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pkgFeatures = (subRes.data?.package as any)?.features || null;
+    const gates = subRes.data ? gatesFromPackageFeatures(pkgFeatures) : PERMISSIVE_GATES;
+    // Clamp saved feature flags to what the package actually allows. Stops a
+    // downgraded subscription from continuing to expose locked features.
+    const features = applyPackageGates(result.features, gates);
 
     return NextResponse.json({
-      ...result,
+      preset: result.preset,
+      features,
+      gates,
       bill_expiry_days: settings.bill_expiry_days ?? null,
       consignment_settings: settings.consignment ?? null,
       brand_gp_overrides: settings.brand_gp_overrides ?? null,
@@ -65,17 +82,32 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'features is required' }, { status: 400 });
     }
 
-    // Read current settings, merge, and save
-    const { data: company } = await supabaseAdmin
-      .from('companies')
-      .select('settings')
-      .eq('id', companyId)
-      .single();
+    // Read current settings + package gates in parallel
+    const [companyRes, subRes] = await Promise.all([
+      supabaseAdmin
+        .from('companies')
+        .select('settings')
+        .eq('id', companyId)
+        .single(),
+      supabaseAdmin
+        .from('user_subscriptions')
+        .select('package:packages(features)')
+        .eq('company_id', companyId)
+        .eq('status', 'active')
+        .single(),
+    ]);
 
-    const currentSettings = (company?.settings as Record<string, unknown>) || {};
+    const currentSettings = (companyRes.data?.settings as Record<string, unknown>) || {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pkgFeatures = (subRes.data?.package as any)?.features || null;
+    const gates = subRes.data ? gatesFromPackageFeatures(pkgFeatures) : PERMISSIVE_GATES;
+    // Enforce package gates server-side — silently clamp instead of erroring so
+    // legacy clients that haven't been updated yet still get a sensible save.
+    const clampedFeatures = applyPackageGates(features, gates);
+
     const newSettings: Record<string, unknown> = {
       ...currentSettings,
-      features,
+      features: clampedFeatures,
     };
     if (consignment_settings !== undefined) {
       newSettings.consignment = consignment_settings;

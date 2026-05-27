@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { getStockConfig } from '@/lib/stock-utils';
 
 interface Body {
   use_warehouse?: boolean;
@@ -24,10 +25,13 @@ export async function POST(request: NextRequest) {
   }
 
   const body = (await request.json().catch(() => null)) as Body | null;
-  const useWarehouse = body?.use_warehouse !== false; // default true
+  // Clamp user request to what the package allows — Free package always lands
+  // as use_warehouse=false even if the client somehow sent true.
+  const stockConfig = await getStockConfig(auth.companyId);
+  const useWarehouse = stockConfig.stockEnabled && body?.use_warehouse !== false;
 
-  // Persist the toggle in companies.settings.use_warehouse.
-  // We re-read settings to merge — companies.settings is jsonb.
+  // Persist the toggle in companies.settings.use_warehouse AND mirror it to
+  // settings.features.stock so the Feature เสริม UI + Sidebar gating stay in sync.
   const { data: company, error: getErr } = await supabaseAdmin
     .from('companies')
     .select('settings')
@@ -36,7 +40,12 @@ export async function POST(request: NextRequest) {
   if (getErr) return NextResponse.json({ error: getErr.message }, { status: 500 });
 
   const currentSettings = (company?.settings as Record<string, unknown> | null) || {};
-  const newSettings = { ...currentSettings, use_warehouse: useWarehouse };
+  const currentFeatures = (currentSettings.features as Record<string, unknown> | undefined) || {};
+  const newSettings = {
+    ...currentSettings,
+    use_warehouse: useWarehouse,
+    features: { ...currentFeatures, stock: useWarehouse },
+  };
 
   await supabaseAdmin
     .from('companies')

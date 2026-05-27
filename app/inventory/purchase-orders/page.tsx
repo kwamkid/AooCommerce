@@ -12,7 +12,7 @@ import { generatePOPdf } from '@/lib/supplier-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import DataTable from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
-import ActionMenu, { ActionItem } from '@/app/orders/components/ActionMenu';
+import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import {
   Loader2, Plus, Search, ClipboardList, Factory, Warehouse,

@@ -11,7 +11,7 @@ import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import DataTable from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
-import ActionMenu from '@/app/orders/components/ActionMenu';
+import ActionMenu from '@/components/ui/ActionMenu';
 import {
   Loader2, ArrowDownToLine, Plus, Warehouse, Eye, Search,
   CheckCircle2, XCircle, Printer, User,

@@ -1,12 +1,12 @@
 // Path: app/onboarding/page.tsx
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Image from 'next/image';
-import { Building2, FileText, Upload, X, AlertCircle, Loader2, Plus, ChevronRight, Users, User, LogOut } from 'lucide-react';
+import { Building2, AlertCircle, Loader2, Plus, ChevronRight, Users, User, LogOut } from 'lucide-react';
 
 interface CompanyMembership {
   company_id: string;
@@ -23,28 +23,16 @@ interface CompanyMembership {
 export default function OnboardingPage() {
   const router = useRouter();
   const { session, user, loading, signOut } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [showCreateForm, setShowCreateForm] = useState(false);
   const [companies, setCompanies] = useState<CompanyMembership[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(true);
   const [needsName, setNeedsName] = useState(false);
   const [profileName, setProfileName] = useState('');
   const [savingName, setSavingName] = useState(false);
-  const [skipped, setSkipped] = useState(false);
 
-  // Form state
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-  });
-
-  // Logo state
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-
-  // Fetch existing companies
+  // Fetch existing companies + (if profile is missing) prompt for name. If the
+  // user has no companies AND profile is set, send them straight into the
+  // setup wizard at step 1 — the wizard now collects logo/name/description.
   useFetchOnce(async () => {
     if (!session?.access_token) {
       setLoadingCompanies(false);
@@ -70,10 +58,10 @@ export default function OnboardingPage() {
       if (isPlaceholder) {
         setNeedsName(true);
         setProfileName('');
-      }
-
-      if (memberships.length === 0) {
-        setShowCreateForm(true);
+      } else if (memberships.length === 0) {
+        // Profile is OK and the user has zero companies → wizard.
+        router.replace('/onboarding/setup');
+        return;
       }
     } catch (error) {
       console.error('Error fetching companies:', error);
@@ -82,33 +70,24 @@ export default function OnboardingPage() {
     }
   }, !loading && !!user && !!session?.access_token);
 
-  // Handle logo selection
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setLogoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Remove logo
-  const removeLogo = () => {
-    setLogoFile(null);
-    setLogoPreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
   // Select existing company and go to dashboard
   const handleSelectCompany = (companyId: string) => {
     localStorage.setItem('aoo-current-company-id', companyId);
     // Full page navigation to reinitialize all contexts with new company
     window.location.href = '/dashboard';
+  };
+
+  // Open the setup wizard. The wizard owns logo/name/description (step 1)
+  // and only creates the company at /api/onboarding/finalize, so abandoning
+  // mid-way leaves no orphan record.
+  const handleCreateNew = () => {
+    // Wipe any wizard state from a previous attempt so the new wizard starts
+    // fresh (otherwise the previous company's logo would preload).
+    try {
+      ['aoo-wiz-company', 'aoo-wiz-channels', 'aoo-wiz-warehouse', 'aoo-wiz-carriers', 'aoo-wiz-payment']
+        .forEach(k => sessionStorage.removeItem(k));
+    } catch { /* ignore */ }
+    router.push('/onboarding/setup');
   };
 
   // Handle save profile name
@@ -134,75 +113,14 @@ export default function OnboardingPage() {
         return;
       }
       setNeedsName(false);
+      // After saving name, if the user has zero companies, jump into the wizard.
+      if (companies.length === 0) {
+        router.replace('/onboarding/setup');
+      }
     } catch {
       setError('เกิดข้อผิดพลาดในการบันทึกชื่อ');
     } finally {
       setSavingName(false);
-    }
-  };
-
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (!formData.name.trim()) {
-      setError('กรุณาระบุชื่อบริษัท');
-      return;
-    }
-
-    if (!session?.access_token) {
-      setError('กรุณาเข้าสู่ระบบก่อน');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      // Create company
-      const response = await fetch('/api/companies', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          description: formData.description || undefined,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        setError(result.error || 'เกิดข้อผิดพลาดในการสร้างบริษัท');
-        setIsLoading(false);
-        return;
-      }
-
-      // Upload logo if provided
-      if (logoFile && result.company?.id) {
-        const logoFormData = new FormData();
-        logoFormData.append('file', logoFile);
-        logoFormData.append('companyId', result.company.id);
-
-        await fetch('/api/companies/logo', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: logoFormData,
-        });
-      }
-
-      // Set as current company and send to the setup wizard.
-      // The server returns redirect_to (currently /onboarding/setup) — fall back
-      // defensively so a server change doesn't strand new companies.
-      localStorage.setItem('aoo-current-company-id', result.company.id);
-      window.location.href = result.redirect_to || '/onboarding/setup';
-    } catch {
-      setError('เกิดข้อผิดพลาดในการสร้างบริษัท');
-      setIsLoading(false);
     }
   };
 
@@ -253,12 +171,7 @@ export default function OnboardingPage() {
               <h2 className="text-xl font-semibold text-white mb-2">ยินดีต้อนรับ!</h2>
               <p className="text-gray-400 text-sm">กรุณาระบุชื่อของคุณเพื่อดำเนินการต่อ</p>
             </>
-          ) : skipped ? (
-            <>
-              <h2 className="text-xl font-semibold text-white mb-2">ยินดีต้อนรับ!</h2>
-              <p className="text-gray-400 text-sm">คุณสามารถสร้างบริษัทได้ทุกเมื่อ หรือรอรับคำเชิญจากผู้อื่น</p>
-            </>
-          ) : companies.length > 0 && !showCreateForm ? (
+          ) : companies.length > 0 ? (
             <>
               <h2 className="text-xl font-semibold text-white mb-2">เลือกบริษัท</h2>
               <p className="text-gray-400 text-sm">เลือกบริษัทที่ต้องการเข้าใช้งาน หรือสร้างบริษัทใหม่</p>
@@ -316,8 +229,8 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Company List (if has companies and not showing create form) */}
-        {!needsName && companies.length > 0 && !showCreateForm && (
+        {/* Company List (if has companies) */}
+        {!needsName && companies.length > 0 && (
           <div className="space-y-4 mb-6">
             {/* Existing Companies */}
             <div className="space-y-3">
@@ -359,9 +272,9 @@ export default function OnboardingPage() {
               ))}
             </div>
 
-            {/* Create New Company Button */}
+            {/* Create New Company Button — opens the wizard at step 1 */}
             <button
-              onClick={() => setShowCreateForm(true)}
+              onClick={handleCreateNew}
               className="w-full bg-white/5 backdrop-blur-md rounded-xl p-4 border border-dashed border-gray-600 hover:border-primary/50 hover:bg-white/10 transition-all flex items-center gap-4 text-left group"
             >
               <div className="w-14 h-14 rounded-lg bg-white/5 flex items-center justify-center border border-gray-600 group-hover:border-primary/30">
@@ -377,156 +290,6 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Skipped state — show button to create company */}
-        {!needsName && skipped && (
-          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-white/10 text-center">
-            <Building2 className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-            <p className="text-gray-400 mb-6">
-              คุณยังไม่มีบริษัท สร้างบริษัทใหม่หรือรอรับคำเชิญจากทีมของคุณ
-            </p>
-            <button
-              onClick={() => { setSkipped(false); setShowCreateForm(true); }}
-              className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors flex items-center justify-center"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              สร้างบริษัทใหม่
-            </button>
-          </div>
-        )}
-
-        {/* Create Company Form */}
-        {!needsName && !skipped && showCreateForm && (
-          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-primary/20">
-            {/* Back button if has existing companies */}
-            {companies.length > 0 && (
-              <button
-                onClick={() => setShowCreateForm(false)}
-                className="text-sm text-gray-400 hover:text-white mb-4 flex items-center gap-1 transition-colors"
-              >
-                <ChevronRight className="w-4 h-4 rotate-180" />
-                กลับไปรายการบริษัท
-              </button>
-            )}
-
-            {/* Error Alert */}
-            {error && (
-              <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start space-x-3">
-                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-300">{error}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Logo Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  โลโก้บริษัท (ไม่บังคับ)
-                </label>
-                <div className="flex items-center space-x-4">
-                  {logoPreview ? (
-                    <div className="relative">
-                      <img
-                        src={logoPreview}
-                        alt="โลโก้"
-                        className="w-20 h-20 rounded-lg object-cover border-2 border-primary/30"
-                      />
-                      <button
-                        type="button"
-                        onClick={removeLogo}
-                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-600 flex flex-col items-center justify-center text-gray-500 hover:border-primary/50 hover:text-primary transition-colors"
-                    >
-                      <Upload className="w-6 h-6 mb-1" />
-                      <span className="text-xs">อัพโหลด</span>
-                    </button>
-                  )}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoChange}
-                    className="hidden"
-                  />
-                  <div className="text-xs text-gray-500 dark:text-slate-400">
-                    <p>รองรับไฟล์ JPG, PNG</p>
-                    <p>แนะนำขนาด 200x200 พิกเซล</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Company Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  ชื่อร้าน/ชื่อแบรนด์ <span className="text-red-400">*</span>
-                </label>
-                <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                    placeholder="ชื่อร้านค้าหรือแบรนด์ของคุณ"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  คำอธิบาย (ไม่บังคับ)
-                </label>
-                <div className="relative">
-                  <FileText className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
-                    placeholder="อธิบายเกี่ยวกับธุรกิจของคุณ"
-                    rows={3}
-                    disabled={isLoading}
-                  />
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                    กำลังสร้างบริษัท...
-                  </>
-                ) : (
-                  'สร้างบริษัท'
-                )}
-              </button>
-            </form>
-
-            {/* Skip button — only show when user has no companies */}
-            {companies.length === 0 && (
-              <button
-                onClick={() => { setSkipped(true); setShowCreateForm(false); }}
-                className="w-full mt-4 text-sm text-gray-400 hover:text-white transition-colors"
-              >
-                ข้ามไปก่อน
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

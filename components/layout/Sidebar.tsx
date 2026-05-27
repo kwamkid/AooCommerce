@@ -46,6 +46,7 @@ import {
   FileText,
   Store,
   RotateCcw,
+  Pencil,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -161,7 +162,13 @@ export default function Sidebar() {
   useEffect(() => {
     if (pathname?.startsWith('/settings')) setSettingsOpen(true);
     if (pathname?.startsWith('/inventory')) setInventoryOpen(true);
-    if (pathname?.startsWith('/products') || pathname === '/settings/categories' || pathname === '/settings/brands') setProductsOpen(true);
+    // "แก้ไขแบบชุด" is its own top-level parent — don't auto-open products
+    // or inventory when we're on a bulk page.
+    if (pathname?.startsWith('/products/bulk') || pathname?.startsWith('/inventory/bulk-stock-update')) {
+      // bulk is a parent menu item; nothing else to open
+    } else if (pathname?.startsWith('/products') || pathname === '/settings/categories' || pathname === '/settings/brands') {
+      setProductsOpen(true);
+    }
     if (pathname?.startsWith('/invoices') || pathname?.startsWith('/credit-notes') || pathname?.startsWith('/statements')) setAccountingOpen(true);
     if (pathname?.startsWith('/replenishments') || pathname?.startsWith('/consignment')) setConsignmentOpen(true);
     if (pathname?.startsWith('/department-store/reports') || pathname?.startsWith('/department-orders')) setDeptStoreOpen(true);
@@ -329,10 +336,29 @@ export default function Sidebar() {
         if (item.href === '/reports/supplier' && !features.supplier) return false;
         if (item.href === '/settings/suppliers' && !features.supplier) return false;
         // Hide inventory when stock is disabled
-        if (item.href === '/inventory' && !stockEnabled) return false;
+        if (item.href === '/inventory' && !features.stock) return false;
         return true;
       })
     }))
+    .map(section => {
+      // Inject "แก้ไขแบบชุด" as a parent (top-level) item inside the "สินค้า"
+      // section — positioned right after inventory when stock is on, otherwise
+      // right after the products link. It's not a submenu of either.
+      if (section.title !== 'สินค้า') return section;
+      const bulkItem: MenuItem = {
+        label: 'แก้ไขแบบชุด',
+        href: '/products/bulk',
+        icon: <Pencil className="w-5 h-5" />,
+        roles: ['admin'],
+      };
+      if (!bulkItem.roles.some(r => effectiveRoles.has(r))) return section;
+      const items = [...section.items];
+      const anchorHref = features.stock ? '/inventory' : '/products';
+      const idx = items.findIndex(i => i.href === anchorHref);
+      if (idx >= 0) items.splice(idx + 1, 0, bulkItem);
+      else items.push(bulkItem);
+      return { ...section, items };
+    })
     .filter(section => section.items.length > 0);
 
   // Inject low stock badge into inventory menu item
@@ -626,7 +652,14 @@ export default function Sidebar() {
 
                   // Products item: render as collapsible with submenu
                   if (item.href === '/products') {
-                    const isProductsPage = pathname?.startsWith('/products') || pathname === '/settings/categories' || pathname === '/settings/brands';
+                    // Bulk is its own top-level parent now — don't highlight
+                    // the products header while the user is on /products/bulk.
+                    const isBulkPage = pathname?.startsWith('/products/bulk') || pathname?.startsWith('/inventory/bulk-stock-update');
+                    const isProductsPage = !isBulkPage && (
+                      pathname?.startsWith('/products')
+                      || pathname === '/settings/categories'
+                      || pathname === '/settings/brands'
+                    );
                     return (
                       <div key={item.href}>
                         <button
@@ -722,7 +755,9 @@ export default function Sidebar() {
 
                   // Inventory item: render as collapsible with submenu
                   if (item.href === '/inventory') {
-                    const isInventoryPage = pathname?.startsWith('/inventory');
+                    // Exclude /inventory/bulk-stock-update — that's owned by
+                    // the standalone "แก้ไขแบบชุด" parent item.
+                    const isInventoryPage = pathname?.startsWith('/inventory') && !pathname?.startsWith('/inventory/bulk-stock-update');
                     return (
                       <div key={item.href}>
                         <button
@@ -839,10 +874,12 @@ export default function Sidebar() {
                       <MessageCircle className="w-4 h-4" />
                       <span className="text-[16px] font-medium">ช่องทาง Chat</span>
                     </Link>
-                    <Link href="/settings/warehouses" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/warehouses' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
-                      <Warehouse className="w-4 h-4" />
-                      <span className="text-[16px] font-medium">คลังสินค้า</span>
-                    </Link>
+                    {features.stock && (
+                      <Link href="/settings/warehouses" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/warehouses' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                        <Warehouse className="w-4 h-4" />
+                        <span className="text-[16px] font-medium">คลังสินค้า</span>
+                      </Link>
+                    )}
                     <Link href="/settings/carriers" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/carriers' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
                       <Truck className="w-4 h-4" />
                       <span className="text-[16px] font-medium">ขนส่ง</span>

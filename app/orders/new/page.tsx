@@ -3,9 +3,12 @@
 import { Suspense, useRef, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
+import { LoadingCard } from '@/components/ui/StateCard';
 import OrderForm from '@/components/orders/OrderForm';
 import { apiFetch } from '@/lib/api-client';
-import { ArrowLeft, Loader2, Copy, Repeat, Package, CornerDownRight } from 'lucide-react';
+import { Copy, Repeat, Package, CornerDownRight } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
 
 interface InitialOrderData {
@@ -54,9 +57,9 @@ export default function NewOrderPage() {
   return (
     <Suspense fallback={
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <Container size="full">
+          <LoadingCard />
+        </Container>
       </Layout>
     }>
       <NewOrderContent />
@@ -253,9 +256,9 @@ function NewOrderContent() {
   if (loadingDuplicate) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <Container size="full">
+          <LoadingCard />
+        </Container>
       </Layout>
     );
   }
@@ -263,54 +266,38 @@ function NewOrderContent() {
   if (duplicateError) {
     return (
       <Layout>
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => router.back()} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">สั่งซ้ำ</h1>
-          </div>
+        <Container size="full" gap="sm">
+          <PageHeader title="สั่งซ้ำ" backHref="-1" />
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {duplicateError}
           </div>
-        </div>
+        </Container>
       </Layout>
     );
   }
 
   return (
     <Layout>
-      <div className="space-y-4">
+      <Container size="full" gap="sm">
         {/* Header */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {isExchange ? 'เปลี่ยนสินค้า' : duplicateId ? 'สั่งซ้ำ' : 'สร้างคำสั่งซื้อใหม่'}
-              </h1>
-              {isExchange && sourceOrderNumber && (
-                <p className="text-sm text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                  <Repeat className="w-3.5 h-3.5" />
-                  เปลี่ยนสินค้าจากบิล #{sourceOrderNumber}
-                </p>
-              )}
-              {!isExchange && sourceOrderNumber && (
-                <p className="text-sm text-gray-500 dark:text-slate-400 flex items-center gap-1">
-                  <Copy className="w-3.5 h-3.5" />
-                  คัดลอกจาก #{sourceOrderNumber}
-                </p>
-              )}
-            </div>
-          </div>
-          <div ref={warehouseRef} />
-        </div>
+        <PageHeader
+          title={isExchange ? 'เปลี่ยนสินค้า' : duplicateId ? 'สั่งซ้ำ' : 'สร้างคำสั่งซื้อใหม่'}
+          subtitle={
+            isExchange && sourceOrderNumber ? (
+              <span className="text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                <Repeat className="w-3.5 h-3.5" />
+                เปลี่ยนสินค้าจากบิล #{sourceOrderNumber}
+              </span>
+            ) : !isExchange && sourceOrderNumber ? (
+              <span className="flex items-center gap-1">
+                <Copy className="w-3.5 h-3.5" />
+                คัดลอกจาก #{sourceOrderNumber}
+              </span>
+            ) : undefined
+          }
+          backHref="-1"
+        />
+        <div ref={warehouseRef} />
 
         {/* Exchange: Return Items Summary */}
         {isExchange && exchangeReturnItems.length > 0 && (
@@ -359,7 +346,7 @@ function NewOrderContent() {
           exchangeData={exchangeData}
           exchangeCreditAmount={exchangeCreditAmount}
         />
-      </div>
+      </Container>
     </Layout>
   );
 }

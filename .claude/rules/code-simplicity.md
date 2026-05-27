@@ -8,6 +8,150 @@
 
 ## 1. Shared UI Components (`components/ui/`)
 
+### Layout Primitives — **ใช้แทน inline class ทุกครั้ง** (เพิ่ม 2026-05-27)
+> 📐 **Reference**: [/dev/design](app/dev/design/page.tsx) — Showcase ทุก variant
+> 🧪 **Demo**: [/dev/demo](app/dev/demo/page.tsx) — Sales Dashboard ใช้ทุก component (copy structure เป็น template ได้)
+
+| ต้องการ | ใช้ | ห้าม |
+|---------|-----|------|
+| ปุ่ม (primary/secondary/ghost/danger/success + sizes + loading + icon) | `Button` | inline `<button className="bg-[#F4511E]...">` |
+| ปุ่ม Export / Import — **กัน icon สลับ** | `ExportButton` / `ImportButton` | สร้าง Button + Upload/Download icon เอง (สลับบ่อย!) |
+| Card / surface (white shadow box) | `Card` (padding: none/sm/md/lg) | inline `<div className="bg-white rounded-lg shadow-sm p-X">` |
+| Container / page max-width wrapper | `Container` (size: sm…6xl/full + gap) | inline `<div className="max-w-5xl space-y-6">` |
+| Badge / tag (8 tones × pill/square × sm/md) | `Badge` | inline `<span className="bg-X-50 text-X-700 px-2 py-0.5 rounded-full">` |
+| Page header (back + title + subtitle + actions) | `PageHeader` | inline header layout ทุกครั้ง — **เมื่อใช้ PageHeader ห้ามใส่ `title`/`breadcrumbs` ใน `<Layout>` อีก** (จะ duplicate) |
+| Loading state (spinner + message) | `LoadingCard` (from `StateCard.tsx`) | สร้าง spinner card เอง |
+| Empty / no-data state | `EmptyCard` (from `StateCard.tsx`) | สร้าง empty card เอง |
+| ไม่มีสิทธิ์ guard | `NoPermissionCard` (from `StateCard.tsx`) | สร้าง guard เอง |
+| Done / result screen (success/error icon + summary + actions) | `DoneCard` (from `StateCard.tsx`) | สร้าง done screen เอง |
+| KPI box (label + value + delta trend + icon) | `Stat` (from `Chart.tsx`) | สร้าง stat box เอง |
+| Bar chart (vertical bars, no axis) | `BarChart` (from `Chart.tsx`) | install chart lib สำหรับ simple bar |
+| Sparkline (tiny SVG line) | `Sparkline` (from `Chart.tsx`) | สร้าง mini chart เอง |
+| Progress bar | `ProgressBar` (from `Chart.tsx`) | inline `<div className="bg-X h-2">` |
+
+**Button variants (ใช้ให้ตรง semantic):**
+- `primary` — main CTA สีส้ม (สร้าง, บันทึก, ยืนยัน)
+- `secondary` — outline neutral (ยกเลิก, Cancel)
+- `ghost` — low emphasis (toolbar icon button)
+- `danger` — destructive (ลบ, ยกเลิก order, void)
+- `success` — confirmation (ยืนยันสลิป, สำเร็จ — หายาก)
+
+**Export / Import icons** (recurring bug — ดู [fix-bug.md](../../fix-bug.md)):
+- **Export = `Upload` icon (ลูกศรขึ้น)** — ส่งข้อมูลออกจากระบบ
+- **Import = `Download` icon (ลูกศรลง)** — นำข้อมูลเข้าระบบ
+- → ใช้ `<ExportButton />` / `<ImportButton />` เสมอ — icon ถูก bake ไว้แล้ว ห้ามใช้ raw Button + Upload/Download
+
+**Control heights — ต้องตรงกันทุก variant (global standard):**
+- sm = `h-8` (32px)
+- md = `h-10` (40px) ← **default for Button + FormSelect**
+- lg = `h-11` (44px)
+- → ถ้าวาง Button + FormSelect ข้างกัน ใช้ size เดียวกัน → height ตรงกันอัตโนมัติ
+
+### Global CSS classes (`app/globals.css`) — เปลี่ยนที่นี่ที่เดียว
+> ทุก style ของ Button / Card / Badge / Modal อยู่ใน `globals.css` ภายใต้ `@layer components`
+> DOM แสดงเป็น `class="btn btn-md btn-primary"` ไม่ใช่ utility chain ยาวๆ
+
+| Group | Classes | ใช้กับ |
+|---|---|---|
+| Typography | `.heading-{1/2/3/4}`, `.body-text`, `.subtitle-text`, `.helper-text`, `.page-subtitle`, `.section-desc`, `.field-label` | ใช้แทน inline `text-Nxl font-bold text-gray-900 ...` ทุกที่ |
+| Button | `.btn` + `.btn-{sm/md/lg}` + `.btn-{primary/secondary/ghost/danger/success}` | `<Button>` component |
+| Card | `.card` + `.card-flat?` + `.card-p-{sm/md/lg}` | `<Card>` component |
+| Badge | `.badge` + `.badge-{sm/md}` + `.badge-{pill/square}` + `.badge-{tone}` | `<Badge>` component |
+| Modal | `.modal-root`, `.modal-backdrop`, `.modal-panel`, `.modal-header`, `.modal-body`, `.modal-footer`, `.modal-title`, `.modal-close-btn` | `<Modal>` component |
+| Table | `.data-table-wrap`, `.data-thead`, `.data-th`, `.data-tbody`, `.data-tr`, `.data-td`, `.data-pagination` | `<DataTable>` + list pages |
+| Filter card | `.data-filter-card` | list page filter section |
+| Focus action button | `.btn-focus-action` + `.green/.indigo/.amber` | list page row action |
+
+**Typography mapping**:
+- `.heading-1` = `text-3xl font-bold` — list page title
+- `.heading-2` = `text-2xl font-bold` — sub-page (PageHeader)
+- `.heading-3` = `text-lg font-semibold` — section / card title
+- `.heading-4` = `text-base font-semibold` — small section
+- `.body-text` = `text-base` — paragraph
+- `.subtitle-text` = `text-sm` — description
+- `.helper-text` = `text-xs` — label / caption
+- `.page-subtitle` = under h1 (`text-gray-600 mt-1`)
+- `.section-desc` = under h2/h3 (`text-sm text-gray-500 mt-0.5`)
+- `.field-label` = form input label (`block text-sm font-medium mb-1`)
+- Mobile responsive auto-included — h1 + h2 scale down at < 768px
+
+**กฎ**: เมื่ออัพเดท visual style ของ Button/Card/Badge/Modal → แก้ใน `globals.css` ไม่ใช่ใน Tailwind className ของ component
+ดู [/dev/design](app/dev/design/page.tsx) สำหรับ live preview ทุก variant
+
+**Container sizes**:
+- `full` — list pages (DataTable spans full)
+- `6xl` — wide content (design showcase, dashboards)
+- `5xl` — bulk action pages (**default**)
+- `4xl` — bulk hub, mid-width
+- `2xl` — detail/edit forms
+- `xl` — narrow settings forms
+
+**Page title pattern**:
+- **List page (top-level)**: Layout no-args + inline `<h1 className="heading-1">` + `<p className="page-subtitle">` (เหมือน `/promotions`)
+- **Sub-page (มี back)**: Layout no-args + `<PageHeader title subtitle backHref />` (เหมือน `/products/bulk/create`)
+- ❌ ห้ามใช้ Layout `title` + `breadcrumbs` props พร้อมกับ PageHeader (duplicate)
+
+### DataTable — Full-featured table สำหรับทุก list page (อัพเดท 2026-05-27)
+
+> **มาตรฐานใหม่** — ทุก list page ใหม่ต้องใช้ DataTable นี้ + features ทั้งหมดที่มี
+
+```tsx
+<DataTable
+  storageKey="orders"                          // unique per page → localStorage (widths, order, visibility)
+  columns={[
+    {
+      key: 'order_no', label: 'เลขที่',
+      sortable: true, resizable: true, reorderable: true,  // ← features per column
+      defaultWidth: 130,
+      render: (r) => <div>{r.order_no}</div>,
+      edit: {                                  // ← cell inline edit
+        type: 'number' | 'text' | 'select',
+        getValue: (r) => r.value,
+        onSave: async (r, v) => await api.update(r.id, { value: v }),
+        options: [{ value, label }],           // for select
+        validate: (v) => Number(v) > 0 ? null : 'error msg',
+      },
+    },
+  ]}
+  data={rows}
+  getRowId={(r) => r.id}
+
+  // Pagination — ใช้ DEFAULT_RECORDS_PER_PAGE = 20 (enum 20/50/100/200)
+  currentPage={page}
+  totalPages={totalPages}
+  totalRecords={total}
+  recordsPerPage={perPage}
+  onPageChange={setPage}
+  onRecordsPerPageChange={setPerPage}
+
+  // Sort (controlled)
+  sortBy={sortBy}                              // 'order_no'
+  sortDir={sortDir}                            // 'asc' | 'desc' | undefined
+  onSort={(key, dir) => { setSortBy(...); setSortDir(...); }}
+/>
+```
+
+**Features ที่ DataTable มี (all built-in):**
+| Feature | Per-column flag | Persistence |
+|---|---|---|
+| Sort | `sortable: true` + DataTable props `sortBy/sortDir/onSort` | — (controlled) |
+| Resize | `resizable: true` + `defaultWidth: 130` | localStorage `dt-widths:{storageKey}` |
+| Reorder (drag-and-drop with FLIP animation) | `reorderable: true` | localStorage `dt-order:{storageKey}` |
+| Cell edit (inline) | `edit: { type, getValue, onSave, options?, validate? }` | — (caller controls) |
+| Column visibility toggle | (auto) | localStorage `col-toggle:{storageKey}` |
+| Reset button | (auto — `↻` icon in footer) | clears all 3 localStorage entries |
+| Pagination | (auto) | enum `[20, 50, 100, 200]` |
+| Mobile responsive | (auto) | desktop table + mobile cards |
+| Last column auto-flex | (auto) | pins to right edge always |
+
+**ข้อสังเกตสำคัญ:**
+- **Last column ไม่ resize ได้** — มันเป็น auto-flex (เพื่อ pin ขวา)
+- ถ้าอยาก resize column ที่มัน lock เป็น last → reorder ให้มันไม่อยู่ตำแหน่งสุดท้ายก่อน
+- Column widths เริ่มต้นใช้ **%** (proportional ของ defaultWidth) — table เต็ม container เสมอ
+- หลัง user resize ครั้งแรก → snapshot ทุก width เป็น px → resize ตัวเดียวเปลี่ยนแค่ตัวเดียว
+- Resize min = 80px (กัน header text หาย)
+- Header text มี `min-width: max-content` → cell ไม่หดต่ำกว่า header content
+
 ### Form Inputs
 | ต้องการ | ใช้ | ห้าม |
 |---------|-----|------|
@@ -159,6 +303,24 @@ const columns: DataTableColumn<Order>[] = [
 | `pos-utils.ts` | `lib/pos-utils.ts` | `calculatePosOrderTotals()` — POS VAT calculation |
 | `utils/format.ts` | `lib/utils/format.ts` | `formatPrice()`, `formatNumber()` |
 | `thai-address-data.ts` | `lib/thai-address-data.ts` | `searchAddress()`, `PROVINCES` — Thai address DB |
+
+### Bulk Excel Templates — Per-action import/export (อัพเดท 2026-05-27)
+| Utility | Path | ใช้สำหรับ |
+|---------|------|----------|
+| `parse-template.ts` | `lib/bulk/parse-template.ts` | `readFileToRows()`, `rowsToSheet()`, `getCell()`, `validateHeaders()`, `isInstructionRow()` — **header-based** parser (xlsx + csv) |
+| `BulkUploadCard` | `components/bulk/BulkUploadCard.tsx` | Upload area (file input + template download + help slot) |
+| `BulkPreviewBar` | `components/bulk/BulkPreviewBar.tsx` | Sticky bar เหนือ preview table (badges + cancel/confirm) |
+| `BulkErrorModal` | `components/bulk/BulkErrorModal.tsx` | Modal 3 section (Header / Row / Other issues) |
+| Hub page | `/products/bulk` | Tiles เลือก action — เพิ่ม action ใหม่ตรงนี้ |
+| Module pattern | `/products/bulk/<action>/page.tsx` + `/api/products/bulk/<action>/{export,apply}/route.ts` | Filter → Export → Upload → dry-run preview → Apply |
+
+**ทุก bulk action ใหม่ต้องใช้**:
+- `lib/bulk/parse-template.ts` — **ห้ามอ่าน column ตามตำแหน่ง** (เคยมี bug, ดู [fix-bug.md](../../fix-bug.md))
+- `BulkUploadCard` + `BulkPreviewBar` + `BulkErrorModal` (no inline copies)
+- ExcelJS + lock ID columns (gray + protection) + sheet protection (no password)
+- Dedicated RPC ที่ return `{ results, summary: {updated, unchanged, errors}, dry_run }`
+- ห้าม double-confirm (ปุ่ม "ยืนยัน" ใน `BulkPreviewBar` เป็น confirmation step เดียว)
+- ห้ามรวมหลาย action ใน 1 mega template (parser bug + UX สับสน)
 
 ### PDF Generators — ทุกไฟล์ return `Promise<Blob>`
 | Generator | Path | เอกสาร |

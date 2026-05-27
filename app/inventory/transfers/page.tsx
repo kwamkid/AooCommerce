@@ -11,8 +11,9 @@ import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import DataTable from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
-import ActionMenu from '@/app/orders/components/ActionMenu';
+import ActionMenu from '@/components/ui/ActionMenu';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import StatusTabs from '@/components/ui/StatusTabs';
 import {
   Loader2, ArrowRightLeft, Plus, Warehouse, Eye, Printer, User,
   CheckCircle2, Clock, XCircle, AlertTriangle, Truck, Search, Ban,
@@ -227,33 +228,18 @@ export default function TransferListPage() {
     >
       <div className="space-y-4">
         {/* Status Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {[
-            { key: 'all', label: 'ทั้งหมด', active: 'bg-indigo-600', inactive: 'bg-indigo-50 dark:bg-indigo-950/50', labelColor: 'text-indigo-600 dark:text-indigo-400', countColor: 'text-indigo-700 dark:text-indigo-300' },
-            { key: 'pending', label: 'ที่ต้องจัดส่ง', active: 'bg-yellow-500', inactive: 'bg-yellow-50 dark:bg-yellow-950/50', labelColor: 'text-yellow-600 dark:text-yellow-400', countColor: 'text-yellow-700 dark:text-yellow-300' },
-            { key: 'shipping', label: 'กำลังส่ง', active: 'bg-blue-600', inactive: 'bg-blue-50 dark:bg-blue-950/50', labelColor: 'text-blue-600 dark:text-blue-400', countColor: 'text-blue-700 dark:text-blue-300' },
-            { key: 'pending_confirm', label: 'รอยืนยัน', active: 'bg-orange-500', inactive: 'bg-orange-50 dark:bg-orange-950/50', labelColor: 'text-orange-600 dark:text-orange-400', countColor: 'text-orange-700 dark:text-orange-300' },
-            { key: 'received', label: 'รับสินค้าแล้ว', active: 'bg-emerald-600', inactive: 'bg-emerald-50 dark:bg-emerald-950/50', labelColor: 'text-emerald-600 dark:text-emerald-400', countColor: 'text-emerald-700 dark:text-emerald-300' },
-            { key: 'cancelled', label: 'ยกเลิก', active: 'bg-gray-500', inactive: 'bg-gray-100 dark:bg-gray-800', labelColor: 'text-gray-500 dark:text-gray-400', countColor: 'text-gray-600 dark:text-gray-300' },
-          ].map((s) => {
-            const isActive = statusFilter === s.key;
-            const count = statusCounts[s.key] || 0;
-            return (
-              <button
-                key={s.key}
-                onClick={() => { setStatusFilter(s.key); setPage(1); }}
-                className={`flex-shrink-0 rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
-                  isActive
-                    ? `${s.active} text-white shadow-md`
-                    : `${s.inactive} hover:opacity-80`
-                }`}
-              >
-                <div className={`text-xs font-medium ${isActive ? 'text-white/80' : s.labelColor}`}>{s.label}</div>
-                <div className={`text-xl font-bold ${isActive ? 'text-white' : s.countColor}`}>{count}</div>
-              </button>
-            );
-          })}
-        </div>
+        <StatusTabs
+          activeKey={statusFilter}
+          onSelect={(k) => { setStatusFilter(k); setPage(1); }}
+          tabs={[
+            { key: 'all', label: 'ทั้งหมด', count: statusCounts.all || 0 },
+            { key: 'pending', label: 'ที่ต้องจัดส่ง', count: statusCounts.pending || 0 },
+            { key: 'shipping', label: 'กำลังส่ง', count: statusCounts.shipping || 0 },
+            { key: 'pending_confirm', label: 'รอยืนยัน', count: statusCounts.pending_confirm || 0 },
+            { key: 'received', label: 'รับสินค้าแล้ว', count: statusCounts.received || 0, colorKey: 'completed' },
+            { key: 'cancelled', label: 'ยกเลิก', count: statusCounts.cancelled || 0 },
+          ]}
+        />
 
         {/* Search & Filters */}
         <div className="flex items-center gap-2">

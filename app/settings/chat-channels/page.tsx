@@ -13,6 +13,9 @@ import {
   Trash2, Edit2, LogIn, Search
 } from 'lucide-react';
 import Image from 'next/image';
+import Container from '@/components/ui/Container';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import Toggle from '@/components/ui/Toggle';
 
 const FB_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '';
 
@@ -31,22 +34,6 @@ interface FbPage {
   instagram: { id: string; name: string; profile_picture_url: string } | null;
 }
 
-// Toggle component
-function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={() => !disabled && onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors ${
-        checked ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-    >
-      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-        checked ? 'translate-x-5' : 'translate-x-0'
-      }`} />
-    </button>
-  );
-}
 
 // Step number circle
 function StepNumber({ number }: { number: number }) {
@@ -515,7 +502,7 @@ export default function ChatChannelsPage() {
   if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
     return (
       <Layout title="ช่องทาง Chat">
-        <div className="text-center py-16 text-gray-500 dark:text-slate-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+        <NoPermissionCard />
       </Layout>
     );
   }
@@ -835,7 +822,7 @@ export default function ChatChannelsPage() {
         { label: 'ช่องทาง Chat' },
       ]}
     >
-      <div className="max-w-3xl">
+      <Container size="2xl" gap="none">
         {/* Tabs */}
         <div className="flex border-b border-gray-200 dark:border-slate-700 mb-6">
           <button
@@ -873,9 +860,7 @@ export default function ChatChannelsPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-primary animate-spin" />
-          </div>
+          <LoadingCard />
         ) : (
           <div className="space-y-4">
             {/* Account Cards */}
@@ -928,7 +913,7 @@ export default function ChatChannelsPage() {
             })()}
           </div>
         )}
-      </div>
+      </Container>
       {confirmDialog}
     </Layout>
   );

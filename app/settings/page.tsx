@@ -3,10 +3,17 @@
 import { useState, useEffect } from 'react';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
+import { NoPermissionCard } from '@/components/ui/StateCard';
+import FormInput from '@/components/ui/FormInput';
+import { useFormValidation } from '@/lib/useFormValidation';
 import { useAuth } from '@/lib/auth-context';
+import { useCompany } from '@/lib/company-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import { Users, Plus, X, Save, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock } from 'lucide-react';
+import { Users, Plus, X, Save, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock, Building2 } from 'lucide-react';
 
 interface DayRange {
   minDays: number;
@@ -29,6 +36,7 @@ const colorPresets = [
 
 export default function SettingsPage() {
   const { userProfile } = useAuth();
+  const { currentCompany, companyRoles } = useCompany();
   const { confirmDialog, confirm } = useConfirmDialog();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -50,6 +58,11 @@ export default function SettingsPage() {
   const [showClearModal, setShowClearModal] = useState(false);
   const [clearConfirmText, setClearConfirmText] = useState('');
   const [clearing, setClearing] = useState(false);
+
+  // Delete Company
+  const [showDeleteCompanyModal, setShowDeleteCompanyModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingCompany, setDeletingCompany] = useState(false);
 
   // Bill Expiry Settings
   const [billExpiryEnabled, setBillExpiryEnabled] = useState(false);
@@ -262,9 +275,13 @@ export default function SettingsPage() {
     }
   };
 
+  // Form refs for confirm-text modals (Clear All, Delete Company)
+  const clearForm = useFormValidation();
+  const deleteCompanyForm = useFormValidation();
+
   // --- Clear All Data ---
   const handleClearAllData = async () => {
-    if (clearConfirmText !== 'ลบทั้งหมด') return;
+    if (!clearForm.validateAll()) return;
     setClearing(true);
     setError('');
     setSuccess('');
@@ -282,6 +299,36 @@ export default function SettingsPage() {
       else setError('ไม่สามารถลบข้อมูลได้');
     } finally {
       setClearing(false);
+    }
+  };
+
+  // --- Delete Company ---
+  // Hard-deletes the entire company. After success we wipe the locally-cached
+  // current-company pointer + auth cache and bounce to /onboarding so the user
+  // can pick a remaining company or create a new one.
+  const handleDeleteCompany = async () => {
+    if (!currentCompany) return;
+    if (!deleteCompanyForm.validateAll()) return;
+    setDeletingCompany(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await apiFetch(`/api/companies/${currentCompany.id}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'ลบบริษัทไม่สำเร็จ');
+
+      try {
+        localStorage.removeItem('aoo-current-company-id');
+        sessionStorage.removeItem('aoo-auth-cache');
+      } catch { /* ignore */ }
+      // Full reload so every context (auth/company/features) re-initializes.
+      window.location.href = '/onboarding';
+    } catch (err) {
+      if (err instanceof Error) setError(err.message);
+      else setError('ลบบริษัทไม่สำเร็จ');
+      setDeletingCompany(false);
     }
   };
 
@@ -337,12 +384,7 @@ export default function SettingsPage() {
   if (!userProfile?.roles?.includes('admin') && !userProfile?.roles?.includes('owner')) {
     return (
       <Layout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">ไม่มีสิทธิ์เข้าถึง</h2>
-            <p className="text-gray-600 dark:text-slate-400">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</p>
-          </div>
-        </div>
+        <NoPermissionCard />
       </Layout>
     );
   }
@@ -371,20 +413,21 @@ export default function SettingsPage() {
         )}
 
         {/* CRM Settings */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+        <Card padding="none">
           <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-slate-700">
             <div className="flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ช่วงวันติดตามลูกค้า</h2>
+              <h2 className="heading-3">ช่วงวันติดตามลูกค้า</h2>
             </div>
-            <button
+            <Button
+              variant="primary"
+              size="sm"
+              loading={savingCRM}
+              icon={!savingCRM ? <Save className="w-4 h-4" /> : undefined}
               onClick={handleSaveCRMSettings}
-              disabled={savingCRM}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50"
             >
-              {savingCRM ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               บันทึก
-            </button>
+            </Button>
           </div>
 
           <div className="p-4">
@@ -440,13 +483,13 @@ export default function SettingsPage() {
 
                       {/* Max Days Input */}
                       <div className="col-span-2">
-                        <input
+                        <FormInput
                           type="number"
                           min={range.minDays}
                           value={range.maxDays ?? ''}
                           placeholder="∞"
                           onChange={(e) => handleUpdateMaxDays(index, e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                          size="sm"
                         />
                       </div>
 
@@ -471,7 +514,7 @@ export default function SettingsPage() {
                   );
                 })}
 
-                {/* Add Button */}
+                {/* Add Button — dashed border (intentional custom) */}
                 <button
                   onClick={handleAddRange}
                   className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors"
@@ -482,14 +525,14 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Variation Types Settings */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+        <Card padding="none">
           <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-slate-700">
             <div className="flex items-center gap-2">
               <Tag className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประเภทตัวเลือกสินค้า</h2>
+              <h2 className="heading-3">ประเภทตัวเลือกสินค้า</h2>
             </div>
           </div>
 
@@ -509,7 +552,7 @@ export default function SettingsPage() {
                   <div key={vt.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
                     {editingVTId === vt.id ? (
                       <>
-                        <input
+                        <FormInput
                           type="text"
                           value={editingVTName}
                           onChange={(e) => setEditingVTName(e.target.value)}
@@ -517,7 +560,8 @@ export default function SettingsPage() {
                             if (e.key === 'Enter') handleUpdateVariationType(vt.id);
                             if (e.key === 'Escape') { setEditingVTId(null); setEditingVTName(''); }
                           }}
-                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                          containerClassName="flex-1"
+                          size="sm"
                           autoFocus
                         />
                         <button
@@ -559,42 +603,47 @@ export default function SettingsPage() {
 
                 {/* Add New */}
                 <div className="flex items-center gap-3 pt-2">
-                  <input
+                  <FormInput
                     type="text"
                     value={newTypeName}
                     onChange={(e) => setNewTypeName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') handleAddVariationType(); }}
                     placeholder="ชื่อประเภทตัวเลือกใหม่"
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    containerClassName="flex-1"
+                    size="sm"
                   />
-                  <button
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    loading={addingVT}
+                    icon={!addingVT ? <Plus className="w-4 h-4" /> : undefined}
+                    disabled={!newTypeName.trim()}
                     onClick={handleAddVariationType}
-                    disabled={addingVT || !newTypeName.trim()}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50 text-sm"
                   >
-                    {addingVT ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                     เพิ่ม
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
           </div>
-        </div>
+        </Card>
+
         {/* Bill Expiry Settings */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+        <Card padding="none">
           <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-slate-700">
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">บิลหมดอายุ</h2>
+              <h2 className="heading-3">บิลหมดอายุ</h2>
             </div>
-            <button
+            <Button
+              variant="primary"
+              size="sm"
+              loading={savingBillExpiry}
+              icon={!savingBillExpiry ? <Save className="w-4 h-4" /> : undefined}
               onClick={handleSaveBillExpiry}
-              disabled={savingBillExpiry}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50"
             >
-              {savingBillExpiry ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               บันทึก
-            </button>
+            </Button>
           </div>
 
           <div className="p-4">
@@ -621,28 +670,30 @@ export default function SettingsPage() {
                 {billExpiryEnabled && (
                   <div className="flex items-center gap-2 ml-7">
                     <span className="text-sm text-gray-600 dark:text-slate-400">หมดอายุหลัง</span>
-                    <input
+                    <FormInput
                       type="number"
                       min={1}
                       max={90}
                       value={billExpiryDays}
                       onChange={(e) => setBillExpiryDays(Math.max(1, Math.min(90, Number(e.target.value) || 1)))}
-                      className="w-20 px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-center focus:ring-1 focus:ring-primary focus:border-primary"
+                      postfix="วัน"
+                      size="sm"
+                      containerClassName="w-28"
+                      className="text-center"
                     />
-                    <span className="text-sm text-gray-600 dark:text-slate-400">วัน</span>
                   </div>
                 )}
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Danger Zone: Clear All Data */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border-2 border-red-200 dark:border-red-900/50">
+        <Card padding="none" className="border-2 border-red-200 dark:border-red-900/50">
           <div className="flex items-center justify-between p-4 border-b border-red-100 dark:border-red-900/30">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-500" />
-              <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">ล้างข้อมูลทั้งหมด</h2>
+              <h2 className="heading-3 !text-red-600 dark:!text-red-400">ล้างข้อมูลทั้งหมด</h2>
             </div>
           </div>
 
@@ -653,74 +704,184 @@ export default function SettingsPage() {
             <p className="text-sm text-gray-500 dark:text-slate-500 mb-4">
               สิ่งที่ยังคงอยู่: ตั้งค่าระบบ, ผู้ใช้, คลังสินค้า, ช่องทางชำระเงิน, การเชื่อมต่อ Shopee, POS terminals
             </p>
-            <button
+            <Button
+              variant="danger"
+              size="sm"
+              icon={<Trash2 className="w-4 h-4" />}
               onClick={() => setShowClearModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
             >
-              <Trash2 className="w-4 h-4" />
               ล้างข้อมูลทั้งหมด
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
 
-        {/* Clear All Data Confirmation Modal */}
-        {showClearModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                  <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">ยืนยันการล้างข้อมูล</h3>
-              </div>
-
-              <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
-                การดำเนินการนี้จะลบข้อมูลต่อไปนี้ <strong className="text-red-600">อย่างถาวร</strong>:
-              </p>
-              <ul className="text-sm text-gray-600 dark:text-slate-400 mb-4 space-y-1 ml-4">
-                <li>• คำสั่งซื้อทั้งหมด (Orders, POS, Shipments, Payments)</li>
-                <li>• POS Sessions ทั้งหมด</li>
-                <li>• ลูกค้าทั้งหมด (Customers, Addresses)</li>
-                <li>• สินค้าทั้งหมด (Products, Variations, Images)</li>
-                <li>• หมวดหมู่, แบรนด์, ตัวเลือกสินค้า</li>
-                <li>• สต็อกทั้งหมด (Inventory, Transfers, Receives, Issues)</li>
-                <li>• แชททั้งหมด (LINE, Facebook messages)</li>
-                <li>• Shopee product links, category cache, logs</li>
-              </ul>
-
-              <p className="text-sm text-gray-700 dark:text-slate-300 mb-2 font-medium">
-                พิมพ์ &quot;ลบทั้งหมด&quot; เพื่อยืนยัน:
-              </p>
-              <input
-                type="text"
-                value={clearConfirmText}
-                onChange={(e) => setClearConfirmText(e.target.value)}
-                placeholder="ลบทั้งหมด"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent mb-4 bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                autoFocus
-              />
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => { setShowClearModal(false); setClearConfirmText(''); }}
-                  disabled={clearing}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors font-medium text-sm disabled:opacity-50"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  onClick={handleClearAllData}
-                  disabled={clearing || clearConfirmText !== 'ลบทั้งหมด'}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {clearing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                  {clearing ? 'กำลังลบ...' : 'ลบทั้งหมด'}
-                </button>
+        {/* Danger Zone: Delete Company (owners only) */}
+        {companyRoles.includes('owner') && currentCompany && (
+          <Card padding="none" className="border-2 border-red-300 dark:border-red-900/60">
+            <div className="flex items-center justify-between p-4 border-b border-red-100 dark:border-red-900/30">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-red-600" />
+                <h2 className="heading-3 !text-red-700 dark:!text-red-400">ลบบริษัทนี้</h2>
               </div>
             </div>
+
+            <div className="p-4">
+              <p className="text-sm text-gray-600 dark:text-slate-400 mb-2">
+                ลบบริษัท <strong className="text-gray-900 dark:text-white">{currentCompany.name}</strong> ออกจากระบบ <strong className="text-red-600">อย่างถาวร</strong> พร้อมข้อมูลทั้งหมด (รวมคลังสินค้า, ช่องทางชำระเงิน, การเชื่อมต่อ Shopee, สมาชิก ฯลฯ)
+              </p>
+              <p className="text-sm text-gray-500 dark:text-slate-500 mb-4">
+                เฉพาะเจ้าของบริษัทเท่านั้นที่ลบได้ — ไม่สามารถกู้คืนได้
+              </p>
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<Trash2 className="w-4 h-4" />}
+                onClick={() => setShowDeleteCompanyModal(true)}
+                className="!bg-red-700 hover:!bg-red-800"
+              >
+                ลบบริษัทนี้
+              </Button>
+            </div>
+          </Card>
+        )}
+
+      </div>
+
+      {/* Clear All Data Confirmation Modal */}
+      <Modal
+        open={showClearModal}
+        onClose={() => { setShowClearModal(false); setClearConfirmText(''); }}
+        title={
+          <span className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+            </span>
+            ยืนยันการล้างข้อมูล
+          </span>
+        }
+        size="md"
+        footer={
+          <div className="flex gap-3 p-4">
+            <Button
+              variant="secondary"
+              fullWidth
+              disabled={clearing}
+              onClick={() => { setShowClearModal(false); setClearConfirmText(''); }}
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              variant="danger"
+              fullWidth
+              loading={clearing}
+              icon={!clearing ? <Trash2 className="w-4 h-4" /> : undefined}
+              disabled={clearConfirmText !== 'ลบทั้งหมด'}
+              onClick={handleClearAllData}
+            >
+              {clearing ? 'กำลังลบ...' : 'ลบทั้งหมด'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="p-6">
+          <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
+            การดำเนินการนี้จะลบข้อมูลต่อไปนี้ <strong className="text-red-600">อย่างถาวร</strong>:
+          </p>
+          <ul className="text-sm text-gray-600 dark:text-slate-400 mb-4 space-y-1 ml-4">
+            <li>• คำสั่งซื้อทั้งหมด (Orders, POS, Shipments, Payments)</li>
+            <li>• POS Sessions ทั้งหมด</li>
+            <li>• ลูกค้าทั้งหมด (Customers, Addresses)</li>
+            <li>• สินค้าทั้งหมด (Products, Variations, Images)</li>
+            <li>• หมวดหมู่, แบรนด์, ตัวเลือกสินค้า</li>
+            <li>• สต็อกทั้งหมด (Inventory, Transfers, Receives, Issues)</li>
+            <li>• แชททั้งหมด (LINE, Facebook messages)</li>
+            <li>• Shopee product links, category cache, logs</li>
+          </ul>
+
+          <FormInput
+            ref={clearForm.register('confirm')}
+            label='พิมพ์ "ลบทั้งหมด" เพื่อยืนยัน:'
+            type="text"
+            value={clearConfirmText}
+            onChange={(e) => setClearConfirmText(e.target.value)}
+            placeholder="ลบทั้งหมด"
+            size="sm"
+            required
+            validate={(v) => v === 'ลบทั้งหมด' ? null : 'ต้องพิมพ์ตรงกัน'}
+            autoFocus
+          />
+        </div>
+      </Modal>
+
+      {/* Delete Company Confirmation Modal */}
+      <Modal
+        open={showDeleteCompanyModal && !!currentCompany}
+        onClose={() => { setShowDeleteCompanyModal(false); setDeleteConfirmText(''); }}
+        title={
+          <span className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+            </span>
+            ยืนยันการลบบริษัท
+          </span>
+        }
+        size="md"
+        footer={
+          currentCompany && (
+            <div className="flex gap-3 p-4">
+              <Button
+                variant="secondary"
+                fullWidth
+                disabled={deletingCompany}
+                onClick={() => { setShowDeleteCompanyModal(false); setDeleteConfirmText(''); }}
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                variant="danger"
+                fullWidth
+                loading={deletingCompany}
+                icon={!deletingCompany ? <Trash2 className="w-4 h-4" /> : undefined}
+                disabled={deleteConfirmText !== currentCompany.name}
+                onClick={handleDeleteCompany}
+                className="!bg-red-700 hover:!bg-red-800"
+              >
+                {deletingCompany ? 'กำลังลบ...' : 'ลบบริษัทถาวร'}
+              </Button>
+            </div>
+          )
+        }
+      >
+        {currentCompany && (
+          <div className="p-6">
+            <p className="text-sm text-gray-600 dark:text-slate-400 mb-3">
+              คุณกำลังจะลบบริษัท <strong className="text-gray-900 dark:text-white">{currentCompany.name}</strong> <strong className="text-red-600">อย่างถาวร</strong> รวมถึง:
+            </p>
+            <ul className="text-sm text-gray-600 dark:text-slate-400 mb-4 space-y-1 ml-4">
+              <li>• คำสั่งซื้อ, ลูกค้า, สินค้า, สต็อก, เอกสารทั้งหมด</li>
+              <li>• คลังสินค้า, ขนส่ง, ช่องทางชำระเงิน</li>
+              <li>• การเชื่อมต่อ Shopee/TikTok/LINE/Facebook</li>
+              <li>• สมาชิกทีม + คำเชิญที่ยังไม่ตอบรับ</li>
+              <li>• ทั้งบริษัทจะหายไปจากรายการของทุกคน</li>
+            </ul>
+
+            <FormInput
+              ref={deleteCompanyForm.register('confirm')}
+              label={<>พิมพ์ชื่อบริษัท <span className="font-bold">&quot;{currentCompany.name}&quot;</span> เพื่อยืนยัน:</>}
+              type="text"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder={currentCompany.name}
+              autoComplete="off"
+              size="sm"
+              required
+              validate={(v) => v === currentCompany.name ? null : 'ชื่อบริษัทไม่ตรง'}
+              autoFocus
+            />
           </div>
         )}
-      </div>
+      </Modal>
+
       {confirmDialog}
     </Layout>
   );

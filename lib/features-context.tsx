@@ -5,10 +5,12 @@ import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { DEFAULT_FEATURES, DEFAULT_PRESET, type FeatureFlags, type BusinessPreset } from '@/lib/features';
+import { PERMISSIVE_GATES, type PackageGates } from '@/lib/package-features';
 
 interface FeaturesContextType {
   features: FeatureFlags;
   preset: BusinessPreset;
+  gates: PackageGates;
   billExpiryDays: number | null;
   loading: boolean;
   fetched: boolean; // true after API data has been loaded at least once
@@ -22,6 +24,7 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
   const { currentCompany } = useCompany();
   const [features, setFeatures] = useState<FeatureFlags>(DEFAULT_FEATURES);
   const [preset, setPreset] = useState<BusinessPreset>(DEFAULT_PRESET);
+  const [gates, setGates] = useState<PackageGates>(PERMISSIVE_GATES);
   const [billExpiryDays, setBillExpiryDays] = useState<number | null>(7);
   const [loading, setLoading] = useState(true);
   const [fetched, setFetched] = useState(false);
@@ -34,6 +37,7 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
         const data = await res.json();
         setPreset(data.preset || DEFAULT_PRESET);
         setFeatures(data.features || DEFAULT_FEATURES);
+        if (data.gates) setGates(data.gates as PackageGates);
         // null = not configured → default 7, 0 = explicitly disabled
         const rawDays = data.bill_expiry_days;
         setBillExpiryDays(rawDays === 0 ? 0 : (rawDays && rawDays > 0 ? rawDays : 7));
@@ -59,8 +63,8 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
   }, [userId, companyId, fetchFeatures]);
 
   const value = useMemo(() => ({
-    features, preset, billExpiryDays, loading, fetched, refreshFeatures: fetchFeatures,
-  }), [features, preset, billExpiryDays, loading, fetched, fetchFeatures]);
+    features, preset, gates, billExpiryDays, loading, fetched, refreshFeatures: fetchFeatures,
+  }), [features, preset, gates, billExpiryDays, loading, fetched, fetchFeatures]);
 
   return (
     <FeaturesContext.Provider value={value}>

@@ -3,11 +3,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import PageHeader from '@/components/ui/PageHeader';
+import { LoadingCard } from '@/components/ui/StateCard';
+import Alert from '@/components/ui/Alert';
+import FormInput from '@/components/ui/FormInput';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  ArrowLeft,
   Plus,
   Trash2,
   Loader2,
@@ -15,7 +20,6 @@ import {
   MapPin,
   X,
   Save,
-  AlertCircle
 } from 'lucide-react';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
@@ -609,9 +613,9 @@ export default function EditOrderPage() {
   if (authLoading || loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <Container size="full">
+          <LoadingCard />
+        </Container>
       </Layout>
     );
   }
@@ -620,85 +624,46 @@ export default function EditOrderPage() {
   if (statusError) {
     return (
       <Layout>
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push(`/orders/${orderId}`)}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-6 h-6 text-gray-600" />
-            </button>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">แก้ไขคำสั่งซื้อ</h1>
-          </div>
+        <Container size="full">
+          <PageHeader title="แก้ไขคำสั่งซื้อ" backHref={`/orders/${orderId}`} />
 
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex items-start gap-4">
-            <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="text-lg font-semibold text-red-900 mb-2">ไม่สามารถแก้ไขได้</h3>
-              <p className="text-red-700">{statusError}</p>
-            </div>
-          </div>
+          <Alert tone="danger" title="ไม่สามารถแก้ไขได้">{statusError}</Alert>
 
           <div className="flex gap-3">
-            <button
-              onClick={() => router.push('/orders')}
-              className="px-6 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
-            >
+            <Button variant="secondary" onClick={() => router.push('/orders')}>
               กลับไปหน้ารายการคำสั่งซื้อ
-            </button>
-            <button
-              onClick={() => router.push(`/orders/${orderId}`)}
-              className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-hover transition-colors"
-            >
+            </Button>
+            <Button variant="primary" onClick={() => router.push(`/orders/${orderId}`)}>
               ดูรายละเอียดคำสั่งซื้อ
-            </button>
+            </Button>
           </div>
-        </div>
+        </Container>
       </Layout>
     );
   }
 
   return (
     <Layout>
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.push('/orders')}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6 text-gray-600" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              แก้ไขคำสั่งซื้อ #{originalOrder?.order_number}
-            </h1>
-            {originalOrder && (
-              <p className="text-sm text-gray-500 mt-1">
-                สร้างเมื่อ: {new Date(originalOrder.order_date).toLocaleDateString('th-TH', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </p>
-            )}
-          </div>
-        </div>
+      <Container size="full">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Header */}
+          <PageHeader
+            title={`แก้ไขคำสั่งซื้อ #${originalOrder?.order_number ?? ''}`}
+            subtitle={originalOrder ? (
+              <>สร้างเมื่อ: {new Date(originalOrder.order_date).toLocaleDateString('th-TH', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}</>
+            ) : undefined}
+            backHref="/orders"
+          />
 
         {/* Messages */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
-            {success}
-          </div>
-        )}
+        {error && <Alert tone="danger">{error}</Alert>}
+        {success && <Alert tone="success">{success}</Alert>}
 
         {/* Customer Information (Read-only) */}
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
@@ -798,35 +763,23 @@ export default function EditOrderPage() {
                         placeholder="-- เลือกสาขา --"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        ค่าจัดส่ง
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">฿</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={branch.shipping_fee || ''}
-                          onChange={(e) => handleUpdateBranchShippingFee(branchIndex, parseFloat(e.target.value) || 0)}
-                          placeholder="0.00"
-                          className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        หมายเหตุการจัดส่ง
-                      </label>
-                      <input
-                        type="text"
-                        value={branch.delivery_notes}
-                        onChange={(e) => handleUpdateBranchNotes(branchIndex, e.target.value)}
-                        placeholder="หมายเหตุสำหรับสาขานี้..."
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
+                    <FormInput
+                      label="ค่าจัดส่ง"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={branch.shipping_fee || ''}
+                      onChange={(e) => handleUpdateBranchShippingFee(branchIndex, parseFloat(e.target.value) || 0)}
+                      placeholder="0.00"
+                      icon={<span className="text-sm">฿</span>}
+                    />
+                    <FormInput
+                      label="หมายเหตุการจัดส่ง"
+                      type="text"
+                      value={branch.delivery_notes}
+                      onChange={(e) => handleUpdateBranchNotes(branchIndex, e.target.value)}
+                      placeholder="หมายเหตุสำหรับสาขานี้..."
+                    />
                   </div>
                   {branchOrders.length > 1 && (
                     <div className="mt-3 flex justify-end">
@@ -1022,34 +975,25 @@ export default function EditOrderPage() {
         {/* Action Buttons */}
         {branchOrders.length > 0 && branchOrders.some(b => b.products.length > 0) && (
           <div className="flex justify-end gap-3">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              icon={<X className="w-5 h-5" />}
               onClick={() => router.push('/orders')}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
             >
-              <X className="w-5 h-5" />
               ยกเลิก
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              disabled={saving}
-              className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50"
+              variant="primary"
+              loading={saving}
+              icon={!saving ? <Save className="w-5 h-5" /> : undefined}
             >
-              {saving ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  กำลังบันทึก...
-                </>
-              ) : (
-                <>
-                  <Save className="w-5 h-5" />
-                  บันทึกการแก้ไข
-                </>
-              )}
-            </button>
+              {saving ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
+            </Button>
           </div>
         )}
-      </form>
+        </form>
+      </Container>
     </Layout>
   );
 }

@@ -4,6 +4,16 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-r
 import { ReactNode } from 'react';
 import FormSelect from '@/components/ui/FormSelect';
 
+/**
+ * GLOBAL enum for records-per-page across every list/data table.
+ * **ห้ามใช้ค่าอื่นนอกจากนี้** — ถ้าผ่านค่าอื่น dropdown จะแสดง placeholder
+ * "-- เลือก --" เพราะไม่ match option ใดๆ.
+ */
+export const RECORDS_PER_PAGE_OPTIONS = [20, 50, 100, 200] as const;
+export type RecordsPerPage = typeof RECORDS_PER_PAGE_OPTIONS[number];
+/** Default records-per-page when initialising state. */
+export const DEFAULT_RECORDS_PER_PAGE: RecordsPerPage = 20;
+
 function getPageNumbers(currentPage: number, totalPages: number): (number | string)[] {
   const pages: (number | string)[] = [];
   if (totalPages <= 3) {
@@ -60,7 +70,9 @@ export default function Pagination({
     <div className="data-pagination">
       <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400">
         <span>{startIdx + 1} - {endIdx} จาก {totalRecords} รายการ</span>
-        <div className="mx-1 w-[90px]">
+        {/* Trigger sized to fit max 3-digit number ("200") + chevron only.
+            Dropdown popup itself uses minWidth: triggerWidth so options can grow wider. */}
+        <div className="mx-1 w-[72px]">
           <FormSelect
             value={String(recordsPerPage)}
             onChange={(val) => {

@@ -3,6 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import Toggle from '@/components/ui/Toggle';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -35,22 +39,6 @@ interface GatewayChannelConfig {
   installment_plans?: string[];
 }
 
-// Toggle component
-function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={() => !disabled && onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors ${
-        checked ? 'bg-primary' : 'bg-gray-300'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-    >
-      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-        checked ? 'translate-x-5' : 'translate-x-0'
-      }`} />
-    </button>
-  );
-}
 
 export default function PaymentChannelsPage() {
   const { userProfile } = useAuth();
@@ -374,7 +362,7 @@ export default function PaymentChannelsPage() {
   if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
     return (
       <Layout title="ช่องทางชำระเงิน">
-        <div className="text-center py-16 text-gray-500 dark:text-slate-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+        <NoPermissionCard />
       </Layout>
     );
   }
@@ -403,9 +391,7 @@ export default function PaymentChannelsPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-primary animate-spin" />
-          </div>
+          <LoadingCard />
         ) : (
           <div className="space-y-4">
             {/* Tip */}
@@ -427,7 +413,7 @@ export default function PaymentChannelsPage() {
               // === CASH CARD ===
               if (channel.type === 'cash') {
                 return (
-                  <div key={channel.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+                  <Card key={channel.id} padding="none">
                     <div className="flex items-center gap-3 p-4">
                       <div className="flex flex-col flex-shrink-0">
                         <button
@@ -459,7 +445,7 @@ export default function PaymentChannelsPage() {
                         />
                       </div>
                     </div>
-                  </div>
+                  </Card>
                 );
               }
 
@@ -476,7 +462,7 @@ export default function PaymentChannelsPage() {
                 );
 
                 const ppCard = (
-                  <div key={channel.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+                  <Card key={channel.id} padding="none">
                     <div className="flex items-center gap-3 p-4">
                       <div className="flex flex-col flex-shrink-0">
                         <button
@@ -510,7 +496,7 @@ export default function PaymentChannelsPage() {
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </Card>
                 );
 
                 // If last PromptPay card, show add button after it
@@ -564,7 +550,7 @@ export default function PaymentChannelsPage() {
                 const isEditing = editingBankId === channel.id;
 
                 const bankCard = (
-                  <div key={channel.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+                  <Card key={channel.id} padding="none">
                     {/* Header */}
                     <div className="flex items-center gap-3 p-4">
                       <div className="flex flex-col flex-shrink-0">
@@ -674,7 +660,7 @@ export default function PaymentChannelsPage() {
                         </div>
                       </div>
                     )}
-                  </div>
+                  </Card>
                 );
 
                 // If this is the last bank_transfer card, also render the add-bank button
@@ -745,7 +731,7 @@ export default function PaymentChannelsPage() {
               // === PAYMENT GATEWAY CARD ===
               if (channel.type === 'payment_gateway') {
                 return (
-                  <div key={channel.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+                  <Card key={channel.id} padding="none">
                     {/* Header */}
                     <div className="flex items-center gap-3 p-4">
                       <div className="flex flex-col flex-shrink-0">
@@ -982,13 +968,18 @@ export default function PaymentChannelsPage() {
                         )}
 
                         {/* Save button */}
-                        <button onClick={handleSaveGateway} disabled={savingGateway} className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-                          {savingGateway ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        <Button
+                          variant="primary"
+                          onClick={handleSaveGateway}
+                          loading={savingGateway}
+                          disabled={savingGateway}
+                          icon={<Save className="w-4 h-4" />}
+                        >
                           บันทึก
-                        </button>
+                        </Button>
                       </div>
                     )}
-                  </div>
+                  </Card>
                 );
               }
 

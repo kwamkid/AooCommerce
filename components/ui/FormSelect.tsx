@@ -13,6 +13,16 @@ export interface FormSelectOption {
   icon?: React.ReactNode;
 }
 
+export type FormSelectSize = 'sm' | 'md' | 'lg';
+
+/** Trigger height classes — defined in globals.css under .form-control-{size}.
+ *  Heights match `.btn-{size}` so triggers line up with buttons in toolbars. */
+const TRIGGER_SIZE: Record<FormSelectSize, string> = {
+  sm: 'form-control-sm',
+  md: 'form-control-md',
+  lg: 'form-control-lg',
+};
+
 interface FormSelectProps {
   value: string;
   onChange: (value: string) => void;
@@ -22,6 +32,8 @@ interface FormSelectProps {
   /** Icon shown inside the trigger button (left side) */
   icon?: React.ReactNode;
   disabled?: boolean;
+  /** Trigger size — must align with Button when used in toolbars. Default 'md' (40px). */
+  size?: FormSelectSize;
   /** Enable search when options > this threshold (default: 5) */
   searchThreshold?: number;
   /** If set, show a "clear/all" option at top that resets value. Label = this string (e.g. "ทั้งหมด") */
@@ -40,6 +52,7 @@ export default function FormSelect({
   searchPlaceholder = 'ค้นหา...',
   icon,
   disabled,
+  size = 'md',
   searchThreshold = 7,
   clearLabel,
   clearValue = '',
@@ -186,7 +199,7 @@ export default function FormSelect({
           setHighlightIdx(-1);
         }}
         disabled={disabled}
-        className={`w-full flex items-center gap-2 px-3 h-[42px] border rounded-lg text-base text-left transition-colors ${
+        className={`w-full flex items-center gap-2 px-3 ${TRIGGER_SIZE[size]} border rounded-lg text-left transition-colors ${
           open
             ? 'border-gray-400 dark:border-slate-400 ring-2 ring-gray-300/50 dark:ring-slate-400/50 bg-white dark:bg-slate-800'
             : isActive
@@ -212,7 +225,10 @@ export default function FormSelect({
             className={`bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg overflow-hidden ${
               portal ? 'fixed z-[9999]' : 'absolute z-40 top-full mt-1 left-0 right-0'
             }`}
-            style={portal && portalPos ? { top: portalPos.top, left: portalPos.left, width: portalPos.width } : undefined}
+            // `minWidth` instead of fixed `width` lets the dropdown grow if its
+            // longest option exceeds the trigger width (prevents truncation like
+            // "7 วันล่า..." when the trigger is auto-sized).
+            style={portal && portalPos ? { top: portalPos.top, left: portalPos.left, minWidth: portalPos.width, maxWidth: 'min(420px, calc(100vw - 16px))' } : undefined}
           >
             {/* Search */}
             {showSearch && (
@@ -240,7 +256,7 @@ export default function FormSelect({
                   type="button"
                   onClick={() => handleSelect(o.id)}
                   onMouseEnter={() => setHighlightIdx(idx)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-base transition-colors ${
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 pr-8 text-sm transition-colors ${
                     idx === highlightIdx
                       ? 'bg-gray-50 dark:bg-slate-700'
                       : ''
@@ -251,10 +267,14 @@ export default function FormSelect({
                   }`}
                 >
                   {o.icon && <span className="flex-shrink-0">{o.icon}</span>}
-                  <div className="flex-1 min-w-0 text-left">
-                    <div className="truncate">{o.label}</div>
+                  {/* `whitespace-nowrap` keeps the label intact so the dropdown
+                      grows to fit it (capped by maxWidth on the dropdown root).
+                      Was previously `min-w-0 truncate` — that forced labels like
+                      "7 วันล่าสุด" to render as "7 วันล่า…" even with extra space. */}
+                  <div className="flex-1 text-left">
+                    <div className="whitespace-nowrap">{o.label}</div>
                     {o.subtitle && (
-                      <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{o.subtitle}</div>
+                      <div className="text-xs text-gray-400 dark:text-slate-500 whitespace-nowrap">{o.subtitle}</div>
                     )}
                   </div>
                   {o.id === value && <Check className="w-4 h-4 text-primary flex-shrink-0" />}

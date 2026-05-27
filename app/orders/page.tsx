@@ -3,6 +3,15 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
+import Badge from '@/components/ui/Badge';
+import ImageLightbox from '@/components/ui/ImageLightbox';
+import StatusTabs from '@/components/ui/StatusTabs';
+import { LoadingCard } from '@/components/ui/StateCard';
+import Alert from '@/components/ui/Alert';
+import FormInput from '@/components/ui/FormInput';
 import SearchInput, { SearchInputHandle } from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
@@ -58,7 +67,6 @@ import { showPdfPreview, preOpenPrintWindow } from '@/lib/print-pdf';
 import { markOrdersPrinted, updateLocalPrintStatus } from '@/lib/print-tracking';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { printAndTrack, type PrintType } from '@/components/ui/OrderPrintButtons';
-import { getTabColor } from '@/lib/status-tab-colors';
 import { useCompany } from '@/lib/company-context';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FormSelect from '@/components/ui/FormSelect';
@@ -187,14 +195,6 @@ function OrdersPageContent() {
   const [rtsOnHoldCount, setRtsOnHoldCount] = useState(0);
   const searchInputRef = useRef<SearchInputHandle>(null);
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
-
-  // Close lightbox on ESC
-  useEffect(() => {
-    if (!lightboxImage) return;
-    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxImage(null); };
-    document.addEventListener('keydown', handleEsc);
-    return () => document.removeEventListener('keydown', handleEsc);
-  }, [lightboxImage]);
 
   // Close modal on ESC
   useEffect(() => {
@@ -739,73 +739,59 @@ function OrdersPageContent() {
   if (authLoading || loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <Container size="full">
+          <LoadingCard />
+        </Container>
       </Layout>
     );
   }
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <Container size="full">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ShoppingCart className="w-8 h-8 text-primary" />
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">คำสั่งซื้อ</h1>
+            <h1 className="heading-1">คำสั่งซื้อ</h1>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => fetchOrders()}
               disabled={fetching}
-              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-white transition-colors disabled:opacity-50"
+              icon={<RefreshCw className={`w-5 h-5 ${fetching ? 'animate-spin' : ''}`} />}
               title="รีเฟรช"
-            >
-              <RefreshCw className={`w-5 h-5 ${fetching ? 'animate-spin' : ''}`} />
-            </button>
-            <button
+              aria-label="รีเฟรช"
+            />
+            <Button
+              variant="primary"
+              icon={<Plus className="w-5 h-5" />}
               onClick={() => router.push('/orders/new')}
-              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2"
             >
-              <Plus className="w-5 h-5" />
               สร้าง<span className="hidden md:inline">คำสั่งซื้อ</span>
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Error */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">{error}</div>
-        )}
+        {error && <Alert tone="danger">{error}</Alert>}
 
         {/* Status Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {[
-            { key: 'all', label: 'ทั้งหมด', ...getTabColor('all') },
-            { key: 'new', label: 'ใหม่', ...getTabColor('new') },
-            { key: 'ready_to_ship', label: 'รอกดรับ', ...getTabColor('ready_to_ship') },
-            { key: 'processing', label: 'ที่ต้องจัดส่ง', ...getTabColor('processing') },
-            { key: 'shipping', label: 'กำลังส่ง', ...getTabColor('shipping') },
-            { key: 'completed', label: 'สำเร็จ', ...getTabColor('completed') },
-            { key: 'cancelled', label: 'ยกเลิก', ...getTabColor('cancelled') },
-          ].map((s) => {
-            const isActive = statusFilter === s.key;
-            const count = statusCounts[s.key] || 0;
-            return (
-              <button
-                key={s.key}
-                onClick={() => setParams({ status: s.key })}
-                className={`flex-shrink-0 rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
-                  isActive ? `${s.active} text-white shadow-md` : `${s.inactive} hover:opacity-80`
-                }`}
-              >
-                <div className={`text-xs font-medium ${isActive ? 'text-white/80' : s.labelColor}`}>{s.label}</div>
-                <div className={`text-xl font-bold ${isActive ? 'text-white' : s.countColor}`}>{count}</div>
-              </button>
-            );
-          })}
-        </div>
+        <StatusTabs
+          activeKey={statusFilter}
+          onSelect={(k) => setParams({ status: k })}
+          tabs={[
+            { key: 'all', label: 'ทั้งหมด', count: statusCounts.all || 0 },
+            { key: 'new', label: 'ใหม่', count: statusCounts.new || 0 },
+            { key: 'ready_to_ship', label: 'รอกดรับ', count: statusCounts.ready_to_ship || 0 },
+            { key: 'processing', label: 'ที่ต้องจัดส่ง', count: statusCounts.processing || 0 },
+            { key: 'shipping', label: 'กำลังส่ง', count: statusCounts.shipping || 0 },
+            { key: 'completed', label: 'สำเร็จ', count: statusCounts.completed || 0 },
+            { key: 'cancelled', label: 'ยกเลิก', count: statusCounts.cancelled || 0 },
+          ]}
+        />
 
         {/* Filters */}
         <div className="data-filter-card">
@@ -841,37 +827,38 @@ function OrdersPageContent() {
             )}
             {/* Clear filters button */}
             {hasActiveFilters && (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<FilterX className="w-3.5 h-3.5" />}
                 onClick={() => {
                   setSearchTerm('');
                   setDeliveryDateRange({ startDate: null, endDate: null });
                   router.replace('/orders', { scroll: false });
                 }}
-                className="flex items-center gap-1 px-2.5 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0 whitespace-nowrap"
+                className="!text-red-600 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-900/20"
               >
-                <FilterX className="w-3.5 h-3.5" />
                 ล้างตัวกรอง
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
-              onClick={() => setShowAdvancedFilter(true)}
-              className={`flex items-center gap-1.5 px-3 h-[42px] border rounded-lg text-sm transition-colors flex-shrink-0 ${
-                (paymentFilter !== 'all' || createdByFilter !== 'all' || orderTypeFilter !== 'all' || deliveryDateRange?.startDate)
-                  ? 'border-primary bg-orange-50 dark:bg-orange-900/20 text-primary'
-                  : 'border-gray-300 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-400 dark:hover:border-slate-500'
-              }`}
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-              <span className="hidden sm:inline">ตัวกรอง</span>
-              {(() => {
-                const count = [paymentFilter !== 'all', createdByFilter !== 'all', orderTypeFilter !== 'all', !!deliveryDateRange?.startDate].filter(Boolean).length;
-                return count > 0 ? (
-                  <span className="bg-primary text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{count}</span>
-                ) : null;
-              })()}
-            </button>
+            {(() => {
+              const advCount = [paymentFilter !== 'all', createdByFilter !== 'all', orderTypeFilter !== 'all', !!deliveryDateRange?.startDate].filter(Boolean).length;
+              return (
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowAdvancedFilter(true)}
+                  icon={<SlidersHorizontal className="w-4 h-4" />}
+                  className={advCount > 0 ? '!border-primary !bg-orange-50 dark:!bg-orange-900/20 !text-primary' : ''}
+                >
+                  <span className="hidden sm:inline">ตัวกรอง</span>
+                  {advCount > 0 && (
+                    <Badge tone="orange" size="sm" className="!bg-primary !text-white">
+                      {advCount}
+                    </Badge>
+                  )}
+                </Button>
+              );
+            })()}
           </div>
 
           {/* Row 2 */}
@@ -903,109 +890,103 @@ function OrdersPageContent() {
         </div>
 
         {/* Advanced filter modal */}
-        {showAdvancedFilter && (
-          <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 pt-[15vh]" onClick={() => setShowAdvancedFilter(false)}>
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-slate-700">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">ตัวกรองเพิ่มเติม</h3>
-                <button onClick={() => setShowAdvancedFilter(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-              <div className="px-5 py-4 space-y-4">
-                {/* Payment status */}
-                <div>
-                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5">สถานะชำระ</label>
-                  <FormSelect
-                    value={paymentFilter}
-                    onChange={(v) => setParams({ payment: v })}
-                    options={[
-                      { id: 'pending', label: 'รอชำระ' },
-                      { id: 'verifying', label: 'รอตรวจสอบ' },
-                      { id: 'paid', label: 'ชำระแล้ว' },
-                    ]}
-                    placeholder="ทั้งหมด"
-                    clearLabel="ทั้งหมด"
-                    clearValue="all"
-                    icon={<CreditCard className="w-4 h-4" />}
-                    searchThreshold={99}
-                  />
-                </div>
-                {/* Order type */}
-                <div>
-                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5">ประเภทบิล</label>
-                  <FormSelect
-                    value={orderTypeFilter}
-                    onChange={(v) => setParams({ order_type: v })}
-                    options={[
-                      { id: 'exchange', label: 'เปลี่ยนสินค้า' },
-                      { id: 'normal', label: 'บิลปกติ' },
-                    ]}
-                    placeholder="ทั้งหมด"
-                    clearLabel="ทั้งหมด"
-                    clearValue="all"
-                    icon={<Repeat className="w-4 h-4" />}
-                    searchThreshold={99}
-                  />
-                </div>
-                {/* Created by */}
-                <div>
-                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5">ผู้เปิดบิล</label>
-                  {createdByDropdownOptions.length > 0 ? (
-                    <SearchableDropdown
-                      value={createdByFilter}
-                      onChange={(v) => setParams({ created_by: v })}
-                      options={createdByDropdownOptions}
-                      placeholder="ทั้งหมด"
-                      searchPlaceholder="ค้นหาชื่อ..."
-                      defaultIcon={<User className="w-4 h-4" />}
-                    />
-                  ) : (
-                    <FormSelect value="" onChange={() => {}} options={[]} placeholder="ทั้งหมด" disabled icon={<User className="w-4 h-4" />} searchThreshold={99} />
-                  )}
-                </div>
-                {/* Delivery date */}
-                {features.delivery_date.enabled && (
-                  <div>
-                    <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5">วันที่ส่ง</label>
-                    <DateRangePicker
-                      value={deliveryDateRange}
-                      onChange={(val) => setDeliveryDateRange(val)}
-                      placeholder="ทั้งหมด"
-                    />
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-                {(paymentFilter !== 'all' || createdByFilter !== 'all' || orderTypeFilter !== 'all' || deliveryDateRange?.startDate) ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDeliveryDateRange({ startDate: null, endDate: null });
-                      const params = new URLSearchParams(searchParams.toString());
-                      params.delete('payment');
-                      params.delete('created_by');
-                      params.delete('order_type');
-                      params.delete('page');
-                      const qs = params.toString();
-                      router.replace(qs ? `?${qs}` : '/orders', { scroll: false });
-                    }}
-                    className="text-sm text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                  >
-                    ล้างตัวกรอง
-                  </button>
-                ) : <div />}
-                <button
-                  type="button"
-                  onClick={() => setShowAdvancedFilter(false)}
-                  className="px-6 py-2.5 bg-primary text-white text-base font-medium rounded-lg hover:bg-primary-hover transition-colors"
+        <Modal
+          open={showAdvancedFilter}
+          onClose={() => setShowAdvancedFilter(false)}
+          title="ตัวกรองเพิ่มเติม"
+          size="md"
+          footer={
+            <div className="flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-slate-800/50">
+              {(paymentFilter !== 'all' || createdByFilter !== 'all' || orderTypeFilter !== 'all' || deliveryDateRange?.startDate) ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setDeliveryDateRange({ startDate: null, endDate: null });
+                    const params = new URLSearchParams(searchParams.toString());
+                    params.delete('payment');
+                    params.delete('created_by');
+                    params.delete('order_type');
+                    params.delete('page');
+                    const qs = params.toString();
+                    router.replace(qs ? `?${qs}` : '/orders', { scroll: false });
+                  }}
+                  className="!text-gray-500 dark:!text-slate-400 hover:!text-red-500 dark:hover:!text-red-400"
                 >
-                  เสร็จสิ้น
-                </button>
-              </div>
+                  ล้างตัวกรอง
+                </Button>
+              ) : <div />}
+              <Button variant="primary" onClick={() => setShowAdvancedFilter(false)}>
+                เสร็จสิ้น
+              </Button>
             </div>
+          }
+        >
+          <div className="px-5 py-4 space-y-4">
+            {/* Payment status */}
+            <div>
+              <label className="field-label">สถานะชำระ</label>
+              <FormSelect
+                value={paymentFilter}
+                onChange={(v) => setParams({ payment: v })}
+                options={[
+                  { id: 'pending', label: 'รอชำระ' },
+                  { id: 'verifying', label: 'รอตรวจสอบ' },
+                  { id: 'paid', label: 'ชำระแล้ว' },
+                ]}
+                placeholder="ทั้งหมด"
+                clearLabel="ทั้งหมด"
+                clearValue="all"
+                icon={<CreditCard className="w-4 h-4" />}
+                searchThreshold={99}
+              />
+            </div>
+            {/* Order type */}
+            <div>
+              <label className="field-label">ประเภทบิล</label>
+              <FormSelect
+                value={orderTypeFilter}
+                onChange={(v) => setParams({ order_type: v })}
+                options={[
+                  { id: 'exchange', label: 'เปลี่ยนสินค้า' },
+                  { id: 'normal', label: 'บิลปกติ' },
+                ]}
+                placeholder="ทั้งหมด"
+                clearLabel="ทั้งหมด"
+                clearValue="all"
+                icon={<Repeat className="w-4 h-4" />}
+                searchThreshold={99}
+              />
+            </div>
+            {/* Created by */}
+            <div>
+              <label className="field-label">ผู้เปิดบิล</label>
+              {createdByDropdownOptions.length > 0 ? (
+                <SearchableDropdown
+                  value={createdByFilter}
+                  onChange={(v) => setParams({ created_by: v })}
+                  options={createdByDropdownOptions}
+                  placeholder="ทั้งหมด"
+                  searchPlaceholder="ค้นหาชื่อ..."
+                  defaultIcon={<User className="w-4 h-4" />}
+                />
+              ) : (
+                <FormSelect value="" onChange={() => {}} options={[]} placeholder="ทั้งหมด" disabled icon={<User className="w-4 h-4" />} searchThreshold={99} />
+              )}
+            </div>
+            {/* Delivery date */}
+            {features.delivery_date.enabled && (
+              <div>
+                <label className="field-label">วันที่ส่ง</label>
+                <DateRangePicker
+                  value={deliveryDateRange}
+                  onChange={(val) => setDeliveryDateRange(val)}
+                  placeholder="ทั้งหมด"
+                />
+              </div>
+            )}
           </div>
-        )}
+        </Modal>
 
         {fetching ? (
           <div className="flex items-center justify-center py-20">
@@ -1081,96 +1062,73 @@ function OrdersPageContent() {
         )}
 
         {/* Status Update Modal (order status only) */}
-        {statusUpdateModal.show && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-            onClick={() => setStatusUpdateModal({ show: false, order: null, nextStatus: '', statusType: 'order' })}
-          >
-            <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  ยืนยันการเปลี่ยนสถานะคำสั่งซื้อ
-                </h3>
-                <button
-                  onClick={() => setStatusUpdateModal({ show: false, order: null, nextStatus: '', statusType: 'order' })}
-                  className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-
-              <div className="mb-6 space-y-3">
-                <p className="text-gray-700 dark:text-slate-300">
-                  คำสั่งซื้อ: <span className="font-medium">{statusUpdateModal.order?.order_number}</span>
-                </p>
-                <p className="text-gray-700 dark:text-slate-300">
-                  ลูกค้า: <span className="font-medium">{statusUpdateModal.order?.customer_name || statusUpdateModal.order?.delivery_name}</span>
-                </p>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-gray-600 dark:text-slate-400">เปลี่ยนจาก:</span>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${ORDER_STATUS_CONFIG[statusUpdateModal.order?.order_status || '']?.bg || ''} ${ORDER_STATUS_CONFIG[statusUpdateModal.order?.order_status || '']?.color || ''}`}>
-                    {ORDER_STATUS_CONFIG[statusUpdateModal.order?.order_status || '']?.label || ''}
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${ORDER_STATUS_CONFIG[statusUpdateModal.nextStatus]?.bg || ''} ${ORDER_STATUS_CONFIG[statusUpdateModal.nextStatus]?.color || ''}`}>
-                    {ORDER_STATUS_CONFIG[statusUpdateModal.nextStatus]?.label || ''}
-                  </span>
-                </div>
-
-                {/* Shipping Details Form (processing -> shipping) */}
-                {statusUpdateModal.nextStatus === 'shipping' && (
-                  <div className="mt-6 pt-6 border-t dark:border-slate-700 space-y-4">
-                    <h4 className="font-medium text-gray-900 dark:text-white">ข้อมูลจัดส่ง</h4>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">ขนส่ง</label>
-                      <FormSelect
-                        value={shippingDetails.carrier}
-                        onChange={(val) => setShippingDetails({ ...shippingDetails, carrier: val })}
-                        options={carrierOptions}
-                        placeholder="-- เลือกขนส่ง --"
-                        searchThreshold={99}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เลขพัสดุ</label>
-                      <input
-                        type="text"
-                        value={shippingDetails.trackingNumber}
-                        onChange={(e) => setShippingDetails({ ...shippingDetails, trackingNumber: e.target.value })}
-                        placeholder="กรอกเลขพัสดุ (ไม่บังคับ)"
-                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setStatusUpdateModal({ show: false, order: null, nextStatus: '', statusType: 'order' })}
-                  disabled={updatingStatus}
-                  className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  onClick={confirmStatusUpdate}
-                  disabled={updatingStatus}
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {updatingStatus ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>กำลังบันทึก...</span>
-                    </>
-                  ) : (
-                    <span>ยืนยัน</span>
-                  )}
-                </button>
-              </div>
+        <Modal
+          open={statusUpdateModal.show}
+          onClose={() => setStatusUpdateModal({ show: false, order: null, nextStatus: '', statusType: 'order' })}
+          title="ยืนยันการเปลี่ยนสถานะคำสั่งซื้อ"
+          size="lg"
+          footer={
+            <div className="flex gap-3 justify-end p-4">
+              <Button
+                variant="secondary"
+                disabled={updatingStatus}
+                onClick={() => setStatusUpdateModal({ show: false, order: null, nextStatus: '', statusType: 'order' })}
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                variant="primary"
+                loading={updatingStatus}
+                onClick={confirmStatusUpdate}
+              >
+                {updatingStatus ? 'กำลังบันทึก...' : 'ยืนยัน'}
+              </Button>
             </div>
+          }
+        >
+          <div className="p-5 space-y-3">
+            <p className="text-gray-700 dark:text-slate-300">
+              คำสั่งซื้อ: <span className="font-medium">{statusUpdateModal.order?.order_number}</span>
+            </p>
+            <p className="text-gray-700 dark:text-slate-300">
+              ลูกค้า: <span className="font-medium">{statusUpdateModal.order?.customer_name || statusUpdateModal.order?.delivery_name}</span>
+            </p>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-600 dark:text-slate-400">เปลี่ยนจาก:</span>
+              <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${ORDER_STATUS_CONFIG[statusUpdateModal.order?.order_status || '']?.bg || ''} ${ORDER_STATUS_CONFIG[statusUpdateModal.order?.order_status || '']?.color || ''}`}>
+                {ORDER_STATUS_CONFIG[statusUpdateModal.order?.order_status || '']?.label || ''}
+              </span>
+              <ChevronRight className="w-4 h-4 text-gray-400" />
+              <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${ORDER_STATUS_CONFIG[statusUpdateModal.nextStatus]?.bg || ''} ${ORDER_STATUS_CONFIG[statusUpdateModal.nextStatus]?.color || ''}`}>
+                {ORDER_STATUS_CONFIG[statusUpdateModal.nextStatus]?.label || ''}
+              </span>
+            </div>
+
+            {/* Shipping Details Form (processing -> shipping) */}
+            {statusUpdateModal.nextStatus === 'shipping' && (
+              <div className="mt-6 pt-6 border-t dark:border-slate-700 space-y-4">
+                <h4 className="heading-4">ข้อมูลจัดส่ง</h4>
+                <div>
+                  <label className="field-label">ขนส่ง</label>
+                  <FormSelect
+                    value={shippingDetails.carrier}
+                    onChange={(val) => setShippingDetails({ ...shippingDetails, carrier: val })}
+                    options={carrierOptions}
+                    placeholder="-- เลือกขนส่ง --"
+                    searchThreshold={99}
+                  />
+                </div>
+                <FormInput
+                  label="เลขพัสดุ"
+                  type="text"
+                  value={shippingDetails.trackingNumber}
+                  onChange={(e) => setShippingDetails({ ...shippingDetails, trackingNumber: e.target.value })}
+                  placeholder="กรอกเลขพัสดุ (ไม่บังคับ)"
+                />
+              </div>
+            )}
           </div>
-        )}
+        </Modal>
 
         {/* Payment Modal (shared component) */}
         <PaymentModal
@@ -1218,7 +1176,7 @@ function OrdersPageContent() {
             }}
           />
         )}
-      </div>
+      </Container>
 
       {/* Toast */}
       {toast && (
@@ -1228,27 +1186,7 @@ function OrdersPageContent() {
         </div>
       )}
 
-      {/* Image Lightbox */}
-      {lightboxImage && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70"
-          onClick={() => setLightboxImage(null)}
-          role="dialog"
-        >
-          <button
-            onClick={() => setLightboxImage(null)}
-            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
-          >
-            <X className="w-6 h-6" />
-          </button>
-          <img
-            src={lightboxImage}
-            alt="Product"
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      <ImageLightbox src={lightboxImage} onClose={() => setLightboxImage(null)} alt="Product" />
 
       {/* PDF Loading Overlay */}
       <LoadingOverlay
@@ -1265,9 +1203,9 @@ export default function OrdersPage() {
   return (
     <Suspense fallback={
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <Container size="full">
+          <LoadingCard />
+        </Container>
       </Layout>
     }>
       <OrdersPageContent />

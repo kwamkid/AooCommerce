@@ -12,6 +12,10 @@ import {
   Loader2, Plus, Check, X, Edit2, Trash2, Tag, ChevronRight, Search
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import Container from '@/components/ui/Container';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 
 interface CategoryItem {
   id: string;
@@ -25,9 +29,7 @@ export default function CategoriesPageWrapper() {
   return (
     <Suspense fallback={
       <Layout title="หมวดหมู่สินค้า">
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     }>
       <CategoriesPage />
@@ -273,7 +275,7 @@ function CategoriesPage() {
   if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
     return (
       <Layout title="หมวดหมู่สินค้า">
-        <div className="text-center py-16 text-gray-500 dark:text-slate-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+        <NoPermissionCard />
       </Layout>
     );
   }
@@ -286,11 +288,9 @@ function CategoriesPage() {
         { label: 'หมวดหมู่สินค้า' },
       ]}
     >
-      <div className="max-w-3xl">
+      <Container size="2xl">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-primary animate-spin" />
-          </div>
+          <LoadingCard />
         ) : (
           <div className="space-y-4">
             {/* Search */}
@@ -312,7 +312,7 @@ function CategoriesPage() {
 
             {/* Category Cards */}
             {filteredCategories.map(parent => (
-              <div key={parent.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
+              <Card key={parent.id} padding="none" className="overflow-hidden">
                 {/* Parent row */}
                 <div className="flex items-center gap-3 p-4">
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -450,12 +450,12 @@ function CategoriesPage() {
                     </div>
                   </div>
                 )}
-              </div>
+              </Card>
             ))}
 
             {/* Add parent category form */}
             {showAddForm ? (
-              <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
+              <Card padding="md" className="space-y-3">
                 <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
                   <Tag className="w-4 h-4 text-primary" />
                   เพิ่มหมวดหมู่
@@ -483,22 +483,23 @@ function CategoriesPage() {
                   />
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <button
+                  <Button
+                    variant="primary"
                     onClick={handleAdd}
-                    disabled={saving}
-                    className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                    loading={saving}
+                    icon={<Check className="w-4 h-4" />}
                   >
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                     บันทึก
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={resetAddForm}
-                    className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-base font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+                    icon={<X className="w-4 h-4" />}
                   >
-                    <X className="w-4 h-4" /> ยกเลิก
-                  </button>
+                    ยกเลิก
+                  </Button>
                 </div>
-              </div>
+              </Card>
             ) : (
               <button
                 onClick={() => { cancelEdit(); resetChildForm(); setShowAddForm(true); }}
@@ -510,7 +511,7 @@ function CategoriesPage() {
             )}
           </div>
         )}
-      </div>
+      </Container>
       {confirmDialog}
     </Layout>
   );

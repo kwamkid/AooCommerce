@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { getStockConfig } from '@/lib/stock-utils';
 
 // Default carrier seed (top 4 + self + other) — same as Step 3's prefill checkboxes.
 const DEFAULT_CARRIERS = [
@@ -32,33 +33,45 @@ export async function POST(request: NextRequest) {
     .update({ business_channels: ['retail'] })
     .eq('id', companyId);
 
-  // 2) warehouse: prefill = create "คลังหลัก" if none exists
-  const { count: whCount } = await supabaseAdmin
-    .from('warehouses')
-    .select('id', { count: 'exact', head: true })
-    .eq('company_id', companyId);
+  // 2) warehouse: prefill = create "คลังหลัก" if package allows it.
+  // Free package has stock_enabled=false → skip warehouse creation + force
+  // features.stock=false so the rest of the app hides stock UI.
+  const stockConfig = await getStockConfig(companyId);
+  if (stockConfig.stockEnabled) {
+    const { count: whCount } = await supabaseAdmin
+      .from('warehouses')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', companyId);
 
-  if ((whCount ?? 0) === 0) {
-    await supabaseAdmin.from('warehouses').insert({
-      company_id: companyId,
-      name: 'คลังหลัก',
-      is_active: true,
-      is_default: true,
-      warehouse_type: 'internal',
-      created_by: auth.userId,
-    });
+    if ((whCount ?? 0) === 0) {
+      await supabaseAdmin.from('warehouses').insert({
+        company_id: companyId,
+        name: 'คลังหลัก',
+        is_active: true,
+        is_default: true,
+        warehouse_type: 'internal',
+        created_by: auth.userId,
+      });
+    }
   }
 
-  // Persist use_warehouse flag in companies.settings
+  // Persist use_warehouse + features.stock in companies.settings
   const { data: company } = await supabaseAdmin
     .from('companies')
     .select('settings')
     .eq('id', companyId)
     .single();
   const currentSettings = (company?.settings as Record<string, unknown> | null) || {};
+  const currentFeatures = (currentSettings.features as Record<string, unknown> | undefined) || {};
   await supabaseAdmin
     .from('companies')
-    .update({ settings: { ...currentSettings, use_warehouse: true } })
+    .update({
+      settings: {
+        ...currentSettings,
+        use_warehouse: stockConfig.stockEnabled,
+        features: { ...currentFeatures, stock: stockConfig.stockEnabled },
+      },
+    })
     .eq('id', companyId);
 
   // 3) carriers: prefill = top 4 + self + other

@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import { LoadingCard } from '@/components/ui/StateCard';
 import OrderForm from '@/components/orders/OrderForm';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
@@ -790,9 +793,9 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
   if (authLoading || loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <Container size="full">
+          <LoadingCard />
+        </Container>
       </Layout>
     );
   }
@@ -800,22 +803,21 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
   if (error) {
     return (
       <Layout>
-        <div className="text-center py-12">
-          <div className="text-red-600 mb-4">{error}</div>
-          <button
-            onClick={() => router.push('/orders')}
-            className="text-primary hover:underline"
-          >
-            กลับไปหน้ารายการคำสั่งซื้อ
-          </button>
-        </div>
+        <Container size="full">
+          <div className="text-center py-12">
+            <div className="text-red-600 mb-4">{error}</div>
+            <Button variant="ghost" onClick={() => router.push('/orders')}>
+              กลับไปหน้ารายการคำสั่งซื้อ
+            </Button>
+          </div>
+        </Container>
       </Layout>
     );
   }
 
   return (
     <Layout>
-      <div className="space-y-6 print:space-y-3 print:bg-white print:text-black">
+      <Container size="full" className="print:space-y-3 print:bg-white print:text-black">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
@@ -863,52 +865,59 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           <div className="flex flex-wrap gap-2 print:hidden">
             {/* Record payment button (new + pending) — all non-marketplace */}
             {!isMarketplaceOrder && orderStatus === 'new' && paymentStatus === 'pending' && (
-              <button
-                onClick={handlePaymentStatusClick}
+              <Button
+                variant="success"
+                size="sm"
+                icon={<Banknote className="w-4 h-4" />}
                 disabled={updating}
-                className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
+                onClick={handlePaymentStatusClick}
                 title="บันทึกชำระเงิน"
               >
-                <Banknote className="w-4 h-4" />
                 บันทึกชำระเงิน
-              </button>
+              </Button>
             )}
             {/* Accept Order button (ready_to_ship → processing) — all non-marketplace */}
             {!isMarketplaceOrder && (orderStatus === 'ready_to_ship' || (updating && orderStatus === 'processing')) && (
-              <button
+              <Button
+                variant="primary"
+                size="sm"
+                icon={updating ? undefined : <PackageCheck className="w-4 h-4" />}
+                loading={updating}
                 onClick={handleOrderStatusClick}
-                disabled={updating}
-                className="bg-orange-500 text-white px-3 py-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
                 title="รับออเดอร์"
               >
-                {updating ? <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</> : <><PackageCheck className="w-4 h-4" /> รับออเดอร์</>}
-              </button>
+                {updating ? 'กำลังดำเนินการ...' : 'รับออเดอร์'}
+              </Button>
             )}
             {/* Ship button (processing → open ship modal) — all non-marketplace */}
             {!isMarketplaceOrder && orderStatus === 'processing' && (
-              <button
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<Package className="w-4 h-4" />}
                 onClick={() => setShowShipModal(true)}
-                className="bg-amber-500 text-white px-3 py-2 rounded-lg hover:bg-amber-600 transition-colors flex items-center gap-1.5 text-sm font-medium"
                 title="จัดส่งแล้ว"
+                className="!bg-amber-500 hover:!bg-amber-600"
               >
-                <Package className="w-4 h-4" /> จัดส่งแล้ว
-              </button>
+                จัดส่งแล้ว
+              </Button>
             )}
             {/* Bill online — all non-marketplace */}
             {!isMarketplaceOrder && (
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Link2 className="w-4 h-4" />}
                 onClick={() => {
                   const billUrl = `${window.location.origin}/bills/${orderId}`;
                   navigator.clipboard.writeText(billUrl).then(() => {
                     showToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
                   });
                 }}
-                className="bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5 text-sm"
                 title="บิลออนไลน์"
               >
-                <Link2 className="w-4 h-4" />
                 <span className="hidden md:inline">บิลออนไลน์</span>
-              </button>
+              </Button>
             )}
             {/* Action menu (void/refund/exchange/cancel) */}
             {orderStatus !== 'cancelled' && (
@@ -1742,7 +1751,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           </div>
         )}
 
-      </div>
+      </Container>
 
       {/* Credit Notes list */}
       {creditNotes.length > 0 && (

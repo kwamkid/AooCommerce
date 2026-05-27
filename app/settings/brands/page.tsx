@@ -13,6 +13,10 @@ import {
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import EntitySearchInput, { EntitySearchOption } from '@/components/ui/EntitySearchInput';
+import Container from '@/components/ui/Container';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 
 interface SupplierRef {
   id: string;
@@ -34,9 +38,7 @@ export default function BrandsPage() {
   return (
     <Suspense fallback={
       <Layout title="แบรนด์" breadcrumbs={[{ label: 'ตั้งค่าระบบ', href: '/settings' }, { label: 'แบรนด์' }]}>
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     }>
       <BrandsPageInner />
@@ -233,7 +235,7 @@ function BrandsPageInner() {
   if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
     return (
       <Layout title="แบรนด์">
-        <div className="text-center py-16 text-gray-500 dark:text-slate-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+        <NoPermissionCard />
       </Layout>
     );
   }
@@ -248,7 +250,7 @@ function BrandsPageInner() {
           { label: 'แบรนด์' },
         ]}
       >
-        <div className="max-w-3xl">
+        <Container size="2xl">
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-start gap-3">
             <Award className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div>
@@ -256,7 +258,7 @@ function BrandsPageInner() {
               <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">กรุณาเปิดฟีเจอร์แบรนด์ในการตั้งค่าเพื่อใช้งาน</p>
             </div>
           </div>
-        </div>
+        </Container>
       </Layout>
     );
   }
@@ -269,11 +271,9 @@ function BrandsPageInner() {
         { label: 'แบรนด์' },
       ]}
     >
-      <div className="max-w-3xl">
+      <Container size="2xl">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-primary animate-spin" />
-          </div>
+          <LoadingCard />
         ) : (
           <div className="space-y-4">
             {/* Brand count */}
@@ -295,7 +295,7 @@ function BrandsPageInner() {
 
             {/* Brand Cards */}
             {filteredBrands.map(brand => (
-              <div key={brand.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
+              <Card key={brand.id} padding="none" className="overflow-hidden">
                 <div className="flex items-center gap-3 p-4">
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                     <Award className="w-4 h-4 text-primary" />
@@ -408,12 +408,12 @@ function BrandsPageInner() {
                     </div>
                   )}
                 </div>
-              </div>
+              </Card>
             ))}
 
             {/* Add brand form */}
             {showAddForm ? (
-              <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
+              <Card padding="md" className="space-y-3">
                 <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
                   <Award className="w-4 h-4 text-primary" />
                   เพิ่มแบรนด์
@@ -431,22 +431,23 @@ function BrandsPageInner() {
                   />
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <button
+                  <Button
+                    variant="primary"
                     onClick={handleAdd}
-                    disabled={saving}
-                    className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                    loading={saving}
+                    icon={<Check className="w-4 h-4" />}
                   >
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                     บันทึก
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={resetAddForm}
-                    className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-base font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+                    icon={<X className="w-4 h-4" />}
                   >
-                    <X className="w-4 h-4" /> ยกเลิก
-                  </button>
+                    ยกเลิก
+                  </Button>
                 </div>
-              </div>
+              </Card>
             ) : (
               <button
                 onClick={() => { cancelEdit(); setShowAddForm(true); }}
@@ -458,7 +459,7 @@ function BrandsPageInner() {
             )}
           </div>
         )}
-      </div>
+      </Container>
       {confirmDialog}
     </Layout>
   );

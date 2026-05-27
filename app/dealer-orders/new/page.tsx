@@ -1,20 +1,15 @@
 'use client';
 
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
-import { ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
 
 export default function NewDealerOrderPage() {
   return (
     <Layout>
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <Link href="/dealer-orders" className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
-            <ArrowLeft className="w-6 h-6" />
-          </Link>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">สร้างคำสั่งซื้อตัวแทนขายขาด</h1>
-        </div>
+      <Container size="full" gap="sm">
+        <PageHeader title="สร้างคำสั่งซื้อตัวแทนขายขาด" backHref="/dealer-orders" />
         <DealerOrderForm
           mode="wholesale"
           customerTypeFilter="wholesale_dealer"
@@ -22,7 +17,7 @@ export default function NewDealerOrderPage() {
           showWarehousePicker
           backUrl="/dealer-orders"
         />
-      </div>
+      </Container>
     </Layout>
   );
 }

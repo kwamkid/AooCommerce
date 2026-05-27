@@ -72,44 +72,26 @@ export default function Modal({
   const hasHeader = Boolean(title) || !hideCloseButton;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="fixed inset-0 bg-black/50"
-        onClick={disableBackdropClose ? undefined : onClose}
-      />
-      <div
-        className={`relative bg-white dark:bg-slate-800 rounded-xl w-full ${SIZE_CLASS[size]} shadow-xl flex flex-col max-h-[calc(100vh-2rem)]`}
-      >
+    <div className="modal-root">
+      <div className="modal-backdrop" onClick={disableBackdropClose ? undefined : onClose} />
+      <div className={`modal-panel ${SIZE_CLASS[size]}`}>
         {hasHeader && (
-          <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-slate-700 rounded-t-xl">
+          <div className="modal-header">
             <div className="flex items-center min-w-0">
               {icon && <span className="mr-2 flex-shrink-0">{icon}</span>}
-              {title && (
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white truncate">
-                  {title}
-                </h3>
-              )}
+              {title && <h3 className="modal-title">{title}</h3>}
             </div>
             {!hideCloseButton && (
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="ปิด"
-                className="flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-              >
+              <button type="button" onClick={onClose} aria-label="ปิด" className="modal-close-btn">
                 <X className="w-5 h-5" />
               </button>
             )}
           </div>
         )}
 
-        <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
+        <div className="modal-body">{children}</div>
 
-        {footer && (
-          <div className="border-t border-gray-200 dark:border-slate-700 rounded-b-xl">
-            {footer}
-          </div>
-        )}
+        {footer && <div className="modal-footer">{footer}</div>}
       </div>
     </div>
   );

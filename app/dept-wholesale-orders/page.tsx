@@ -12,9 +12,10 @@ import {
   Banknote, XCircle, Trash2, Send, Printer, FileText, ClipboardList, UserPlus,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
-import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
+import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
-import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
+import { getBadgeColor } from '@/lib/status-tab-colors';
+import StatusTabs from '@/components/ui/StatusTabs';
 import PaymentModal from '@/app/orders/components/PaymentModal';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import { printOrder, type PrintType } from '@/components/ui/OrderPrintButtons';
@@ -42,12 +43,12 @@ function formatMoney(n: number) {
 }
 
 const STATUS_TABS = [
-  { key: 'all', label: 'ทั้งหมด', ...getTabColor('all') },
-  { key: 'new', label: 'ใหม่', ...getTabColor('new') },
-  { key: 'ready_to_ship', label: 'รอคอนเฟิร์ม', ...getTabColor('ready_to_ship') },
-  { key: 'processing', label: 'ที่ต้องจัดส่ง', ...getTabColor('processing') },
-  { key: 'completed', label: 'สำเร็จ', ...getTabColor('completed') },
-  { key: 'cancelled', label: 'ยกเลิก', ...getTabColor('cancelled') },
+  { key: 'all', label: 'ทั้งหมด' },
+  { key: 'new', label: 'ใหม่' },
+  { key: 'ready_to_ship', label: 'รอคอนเฟิร์ม' },
+  { key: 'processing', label: 'ที่ต้องจัดส่ง' },
+  { key: 'completed', label: 'สำเร็จ' },
+  { key: 'cancelled', label: 'ยกเลิก' },
 ];
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
@@ -236,19 +237,11 @@ export default function DeptWholesaleOrdersPage() {
         </div>
 
         {/* Status Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {STATUS_TABS.map(s => {
-            const isActive = statusFilter === s.key;
-            const count = statusCounts[s.key] || 0;
-            return (
-              <button key={s.key} onClick={() => { setStatusFilter(s.key); setPage(1); }}
-                className={`flex-shrink-0 rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${isActive ? `${s.active} text-white shadow-md` : `${s.inactive} hover:opacity-80`}`}>
-                <div className={`text-xs font-medium ${isActive ? 'text-white/80' : s.labelColor}`}>{s.label}</div>
-                <div className={`text-xl font-bold ${isActive ? 'text-white' : s.countColor}`}>{count}</div>
-              </button>
-            );
-          })}
-        </div>
+        <StatusTabs
+          activeKey={statusFilter}
+          onSelect={(k) => { setStatusFilter(k); setPage(1); }}
+          tabs={STATUS_TABS.map(t => ({ ...t, count: statusCounts[t.key] || 0 }))}
+        />
 
         {/* Search + Flow filter */}
         <div className="data-filter-card">

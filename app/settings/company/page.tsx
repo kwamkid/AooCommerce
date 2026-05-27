@@ -10,9 +10,13 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
   Building2, FileText, Phone, Mail, MapPin, Receipt, Upload, X,
-  AlertCircle, Loader2, Save, User, Briefcase, Landmark,
+  AlertCircle, Save, User, Briefcase, Landmark,
 } from 'lucide-react';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Container from '@/components/ui/Container';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 
 interface CompanyData {
   id: string;
@@ -37,7 +41,6 @@ export default function CompanySettingsPage() {
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ phone?: string; email?: string }>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -113,7 +116,6 @@ export default function CompanySettingsPage() {
 
   const handleUploadLogo = async () => {
     if (!logoFile || !currentCompany?.id || !session?.access_token) return;
-    setIsUploadingLogo(true);
     try {
       const logoFormData = new FormData();
       logoFormData.append('file', logoFile);
@@ -134,8 +136,6 @@ export default function CompanySettingsPage() {
       }
     } catch {
       setError('เกิดข้อผิดพลาดในการอัพโหลดโลโก้');
-    } finally {
-      setIsUploadingLogo(false);
     }
   };
 
@@ -221,11 +221,11 @@ export default function CompanySettingsPage() {
 
       if (!companyRes.ok) throw new Error(companyResult.error || 'ไม่สามารถบันทึกข้อมูลบริษัทได้');
 
+      if (logoFile) await handleUploadLogo();
+
       showToast('บันทึกสำเร็จ', 'success');
 
       await refreshCompanies();
-
-      if (logoFile) await handleUploadLogo();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึก', 'error');
     } finally {
@@ -239,11 +239,7 @@ export default function CompanySettingsPage() {
   if (!isOwnerOrAdmin && !isLoading) {
     return (
       <Layout title="ข้อมูลบริษัท" breadcrumbs={[{ label: 'ตั้งค่า', href: '/settings' }, { label: 'ข้อมูลบริษัท' }]}>
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-8 text-center">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">ไม่มีสิทธิ์เข้าถึง</h3>
-          <p className="text-gray-500 dark:text-slate-400">เฉพาะเจ้าของและผู้ดูแลระบบเท่านั้นที่สามารถแก้ไขข้อมูลบริษัทได้</p>
-        </div>
+        <NoPermissionCard subtitle="เฉพาะเจ้าของและผู้ดูแลระบบเท่านั้นที่สามารถแก้ไขข้อมูลบริษัทได้" />
       </Layout>
     );
   }
@@ -251,10 +247,7 @@ export default function CompanySettingsPage() {
   return (
     <Layout title="ข้อมูลบริษัท" breadcrumbs={[{ label: 'ตั้งค่า', href: '/settings' }, { label: 'ข้อมูลบริษัท' }]}>
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <span className="ml-3 text-gray-500 dark:text-slate-400">กำลังโหลดข้อมูล...</span>
-        </div>
+        <LoadingCard />
       ) : (
         <form onSubmit={handleSubmit}>
           {/* Error alert */}
@@ -266,10 +259,10 @@ export default function CompanySettingsPage() {
           )}
 
           {/* 2-Column Layout */}
-          <div className="max-w-2xl space-y-6">
+          <Container size="xl">
               {/* Logo */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">โลโก้บริษัท</h3>
+              <Card padding="md">
+                <h3 className="heading-3 mb-4">โลโก้บริษัท</h3>
                 <div className="flex items-center space-x-4">
                   {logoPreview || logoUrl ? (
                     <div className="relative">
@@ -294,18 +287,12 @@ export default function CompanySettingsPage() {
                     <input ref={fileInputRef} type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">JPG, PNG แนะนำ 200x200px</p>
                   </div>
-                  {logoPreview && (
-                    <button type="button" onClick={handleUploadLogo} disabled={isUploadingLogo} className="px-3 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center">
-                      {isUploadingLogo ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Upload className="w-4 h-4 mr-1" />}
-                      อัพโหลด
-                    </button>
-                  )}
                 </div>
-              </div>
+              </Card>
 
               {/* Business Type */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">ประเภทกิจการ</h3>
+              <Card padding="md">
+                <h3 className="heading-3 mb-4">ประเภทกิจการ</h3>
                 <div className="grid grid-cols-3 gap-3">
                   {([
                     { key: 'individual', label: 'บุคคลธรรมดา', icon: <User className="w-6 h-6" /> },
@@ -336,11 +323,11 @@ export default function CompanySettingsPage() {
                     );
                   })}
                 </div>
-              </div>
+              </Card>
 
               {/* General Info */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">ข้อมูลทั่วไป</h3>
+              <Card padding="md">
+                <h3 className="heading-3 mb-4">ข้อมูลทั่วไป</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -392,11 +379,11 @@ export default function CompanySettingsPage() {
                     />
                   </div>
                 </div>
-              </div>
+              </Card>
 
               {/* Tax Info — show for non-individual or always allow tax_id */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+              <Card padding="md">
+                <h3 className="heading-3 mb-4 flex items-center">
                   <Receipt className="w-5 h-5 mr-2 text-primary" />
                   ข้อมูลภาษี
                 </h3>
@@ -440,14 +427,15 @@ export default function CompanySettingsPage() {
                       </div>
                     </div>
                 </div>
-              </div>
+              </Card>
 
-          </div>{/* end max-w-2xl */}
+          </Container>{/* end max-w-2xl */}
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 mt-6 max-w-2xl">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="lg"
               disabled={isSaving}
               onClick={() => {
                 setFormData(initialFormRef.current);
@@ -456,21 +444,18 @@ export default function CompanySettingsPage() {
                 setLogoPreview(null);
                 setError('');
               }}
-              className="px-6 py-3 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-semibold rounded-lg transition-colors hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ยกเลิก
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              disabled={isSaving}
-              className="px-6 py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              variant="primary"
+              size="lg"
+              loading={isSaving}
+              icon={<Save className="w-5 h-5" />}
             >
-              {isSaving ? (
-                <><Loader2 className="w-5 h-5 animate-spin mr-2" />กำลังบันทึก...</>
-              ) : (
-                <><Save className="w-5 h-5 mr-2" />บันทึกข้อมูล</>
-              )}
-            </button>
+              {isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+            </Button>
           </div>
         </form>
       )}

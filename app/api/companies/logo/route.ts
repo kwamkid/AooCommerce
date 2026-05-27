@@ -45,18 +45,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }
 
-    // Get public URL
+    // Get public URL with cache-buster (same filename gets overwritten via upsert)
     const { data: urlData } = supabaseAdmin.storage
       .from('company-logos')
       .getPublicUrl(filePath);
+    const logoUrl = `${urlData.publicUrl}?v=${Date.now()}`;
 
     // Update company record
     await supabaseAdmin
       .from('companies')
-      .update({ logo_url: urlData.publicUrl })
+      .update({ logo_url: logoUrl })
       .eq('id', companyId);
 
-    return NextResponse.json({ success: true, logoUrl: urlData.publicUrl });
+    return NextResponse.json({ success: true, logoUrl });
   } catch (error) {
     console.error('Upload logo error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

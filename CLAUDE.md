@@ -8,6 +8,15 @@
 - **Language**: UI ภาษาไทย, code/comments ภาษาอังกฤษได้
 - **Files**: `todo.md` = งานที่ยังไม่ได้ทำ
 
+## 🐛 Fix Bug Log — **บังคับอ่านก่อนแก้ bug ทุกครั้ง!**
+
+**ไฟล์**: [fix-bug.md](fix-bug.md) — log bug ที่แก้ไปแล้วทั้งหมด (root cause + วิธีแก้ + ป้องกัน regression)
+
+**กฎ**:
+1. ก่อนแก้ bug ใหม่ → **อ่าน `fix-bug.md` ก่อน** เพื่อเช็คว่าเคยเจอ/แก้คล้ายกันมั้ย — จะได้ไม่ผิดซ้ำ
+2. หลังแก้ bug เสร็จ → **เพิ่ม entry ใหม่ที่ด้านบนสุด** ของ `fix-bug.md` (รูปแบบตามที่กำหนดในไฟล์)
+3. ถ้า bug ที่แก้เกี่ยวข้องกับ entry เก่า → update entry เดิม + เพิ่มหมายเหตุว่า regression
+
 ## Rules (`.claude/rules/`) — อ่านก่อนเขียน code!
 
 | Rule File | เนื้อหา |
@@ -16,6 +25,85 @@
 | `order-flows.md` | Customer type × sale type × status flow + auto-issue documents |
 | `list-page-actions.md` | Focus action + ActionMenu ทุกหน้า list (per status) |
 | `detail-page-actions.md` | Action buttons ทุกหน้า detail/edit (per status) |
+
+---
+
+## 🎨 Design System — **อ่านก่อนสร้างหน้าใหม่!**
+
+### Reference templates (copy structure ได้เลย)
+- **[app/dev/demo/page.tsx](app/dev/demo/page.tsx)** — Sales Dashboard ใช้ทุก shared component จริง (KPI Stat, BarChart, Sparkline, ProgressBar, DataTable, Card, Container, Badge, FormSelect, ExportButton). **ใช้เป็น template ตอนสร้าง dashboard / list page ใหม่**
+- **[app/dev/design/page.tsx](app/dev/design/page.tsx)** — showcase ทุก variant ของ Button/Card/Badge/Alert/Modal/DataTable/FormInput. **ดูก่อนเลือก variant**
+- **[.claude/rules/code-simplicity.md](.claude/rules/code-simplicity.md)** — รายการ shared comp + global CSS ครบ + ห้ามสร้างซ้ำ
+
+### Shared components ใน `components/ui/` (18 ตัว — ใช้แทน inline class เสมอ)
+
+| Component | ใช้สำหรับ |
+|---|---|
+| `Button` | ทุกปุ่ม — variants: primary/secondary/ghost/danger/success, sizes: sm/md/lg |
+| `ExportButton` / `ImportButton` | ปุ่ม export/import — icon (Upload/Download) baked ห้ามใช้ผิด |
+| `Card` | bg-white shadow box — padding: none/sm/md/lg, flat? |
+| `Container` | page wrapper — size: full/2xl/4xl/5xl/6xl, gap: none/sm/md/lg |
+| `Badge` | tag/pill — tones: gray/red/amber/emerald/blue/indigo/purple/orange, shape: pill/square, size: sm/md |
+| `Alert` | banner เตือน — tones: danger/warning/info/success, มี icon + title? + onClose? |
+| `PageHeader` | sub-page header — title + subtitle + backHref + actions slot |
+| `Modal` | dialog — sizes: sm…4xl, footer slot, ESC + backdrop close |
+| `StatusTabs` | list page status filter — `tabs={[{key,label,count,tooltip,hidden}]}` + activeKey + onSelect (ใช้ `getTabColor()` ภายใน) |
+| `DataTable` | ตาราง list page — column toggle, resize, reorder, sort, inline edit, selection, mobile cards, pagination — ใช้ `storageKey` แยกแต่ละหน้า |
+| `FormInput` | text input — มี **built-in validation** (required/min/max/pattern/custom validate), error/hint/icon/postfix/label all built-in, ใช้ ref handle `.validate()`/`.focus()` |
+| `FormSelect` | dropdown — ห้ามใช้ native `<select>` |
+| `SearchInput` | search box with X clear |
+| `Toggle` | iOS-style on/off switch |
+| `Checkbox` | checkbox |
+| `ActionMenu` | row action dropdown (portal z-9999) — items: `[{key,label,icon,onClick,danger?,dividerBefore?}]` |
+| `ImageLightbox` | fullscreen image viewer — `src` + `onClose` |
+| `StateCard` exports | `LoadingCard`, `EmptyCard`, `NoPermissionCard`, `DoneCard` |
+| `Chart` exports | `Stat`, `BarChart`, `Sparkline`, `ProgressBar` |
+
+### Form validation pattern (ใช้กับฟอร์มหลาย field)
+```tsx
+import FormInput from '@/components/ui/FormInput';
+import { useFormValidation } from '@/lib/useFormValidation';
+
+const form = useFormValidation();
+
+<FormInput ref={form.register('name')} label="ชื่อ" required value={name} onChange={...} />
+<FormInput ref={form.register('email')} label="อีเมล" required pattern="^[^@]+@[^@]+\.[^@]+$" patternMessage="รูปแบบอีเมลไม่ถูกต้อง" value={email} onChange={...} />
+<FormInput ref={form.register('phone')} label="เบอร์โทร" pattern="^\d{10}$" value={phone} onChange={...} />
+
+const onSubmit = () => {
+  if (!form.validateAll()) return;  // ← shows all errors + focus first invalid
+  submit();
+};
+```
+Validation rules built-in: `required`, `requiredMessage`, `minLength`, `maxLength`, `min`, `max`, `pattern`, `patternMessage`, `validate` (custom). External `error` prop overrides internal (สำหรับ server-side error)
+
+### Page composition cheatsheet
+
+**List page (top-level)**:
+```tsx
+<Layout>
+  <Container size="full">
+    <div className="flex justify-between">
+      <div><h1 className="heading-1">หัวข้อ</h1><p className="page-subtitle">...</p></div>
+      <div className="flex gap-2"><ExportButton /><Button variant="primary" icon={<Plus/>}>เพิ่ม</Button></div>
+    </div>
+    <StatusTabs activeKey={...} onSelect={...} tabs={[...]} />
+    <div className="data-filter-card"><SearchInput /><FormSelect /></div>
+    <DataTable storageKey="..." columns={...} data={...} ... />
+  </Container>
+</Layout>
+```
+
+**Sub-page (มี back)**:
+```tsx
+<Layout>
+  <Container size="2xl">
+    <PageHeader title="..." subtitle="..." backHref="/parent" actions={<Button/>} />
+    <Card>...form...</Card>
+  </Container>
+</Layout>
+```
+⚠️ เมื่อใช้ `<PageHeader>` ห้ามใส่ `title`/`breadcrumbs` ใน `<Layout>` อีก (duplicate)
 
 ---
 
@@ -294,6 +382,13 @@ marketplace_accounts → marketplace_product_links → product_variations
 - **Architecture เป้าหมาย**: Webhook → save log → Queue → Worker (controlled concurrency, rate limit per platform, retry + dead letter)
 - **จุดที่ต้องเปลี่ยน**: แค่ webhook route — เพิ่มยิง queue แทน `after()` async
 
+### Shopee Description Sync + Central Product Upsert (เพิ่มเมื่อ 2026-05-21)
+- **Description**: ดึง description จริงจาก Shopee เก็บใน `products.description` + per-platform ใน `marketplace_product_links.platform_description` (column ใหม่) — ลบ stub `"Shopee Item #..."`
+- **Extended description** (whitelist sellers): flatten text → description, image URLs → `marketplace_product_links.platform_description_images` JSONB (ไม่ปนกับ product_images หลัก)
+- **Central function** `upsertShopeeProduct()` ใน [lib/shopee/product-helpers.ts](lib/shopee/product-helpers.ts) — ใช้ร่วม 3 entry points (UI import / bulk sync / order sync) ผ่าน `backfillSiblingVariations` เสมอ → variations ครบทุกตัว
+- **Export priority**: `platform_description` (account ปลายทาง) → `products.description` → `product.name`
+- **UI**: textarea per-platform ใน Shopee tab ของ product edit page + thumbnail สำหรับ description images
+
 ---
 
 ## Promotion Module
@@ -307,15 +402,33 @@ marketplace_accounts → marketplace_product_links → product_variations
 
 ---
 
-## Product Import/Export (อัพเดท 2026-04-13)
-- **Export Excel (.xlsx)**: ปุ่ม Export ในหน้าสินค้า — RPC `export_products` (1 query: products+shops+links)
-  - ID columns (A,B) สีเทา + locked ห้ามแก้ | Parent row bold | Child rows แยกชัด
-  - ราคา marketplace แยกทุกร้าน (dynamic columns) | ชื่อไฟล์ตาม filter: `{all|filter}-product-{count}-{date}.xlsx`
-- **Import (Excel/CSV)**: `/products/import` — dry-run preview แสดงเฉพาะสิ่งที่เปลี่ยน
-  - RPC `bulk_upsert_products` (1 query แทน N×2) | dry-run เทียบ diff ใน SQL แล้ว rollback
-  - มี ID → update | ไม่มี → create | ราคาเปลี่ยน → auto sync Shopee
-  - Format validation ตั้งแต่เลือกไฟล์ (column count, header check, old format detection)
-- **API**: `/api/products/export` (POST, RPC) | `/api/products/bulk-import` (POST, RPC+dry_run)
+## Product Import/Export
+
+### Export (1 ไฟล์ใหญ่ — ทุก field)
+- ปุ่ม Export ในหน้าสินค้า — RPC `export_products` (products + shops + marketplace links)
+- ID columns (A,B) สีเทา + locked | Parent row bold | Child rows แยกชัด
+- ราคา marketplace แยกทุกร้าน (dynamic columns) | ชื่อไฟล์: `{all|filter}-product-{count}-{date}.xlsx`
+
+### Bulk Edit (อัพเดท 2026-05-27 — แยก action เหมือน Shopee)
+**Hub**: `/products/bulk` — เลือก action แล้วได้ template เฉพาะส่วนนั้น (เลียนแบบ Shopee mass_update_*)
+
+| Action | URL | RPC | Editable fields |
+|---|---|---|---|
+| เพิ่มสินค้าใหม่ | `/products/bulk/create` | `bulk_create_products` | code, name, variations, brand, category, description (create-only, error if code exists) |
+| ข้อมูลพื้นฐาน | `/products/bulk/basic-info` | `bulk_update_product_basic_info` | code, name, is_active, brand (by name), category (by name), description |
+| ราคา | `/products/bulk/price` | `bulk_update_variation_prices` | default_price, discount_price, cost_price (perm) |
+| สต็อก | `/inventory/bulk-stock-update` | (inline) | stock per warehouse |
+| ราคา Marketplace | (planned) | — | per-shop prices |
+
+**Pattern ทุก module**: Filter → Export → แก้ใน Excel → Upload → **Dry-run preview (diff)** → Confirm → Apply
+- **Parser**: [lib/bulk/parse-template.ts](lib/bulk/parse-template.ts) — header-based (ทนต่อ column reorder) — **ห้ามอ่าน column ตามตำแหน่ง** (เคยมี bug, ดู [fix-bug.md](fix-bug.md))
+- **APIs**: `/api/products/bulk/<action>/export` (GET, template data) + `/api/products/bulk/<action>/apply` (POST, dry_run + import)
+- **RPC pattern**: ทุก bulk RPC return `{ results[], summary: {updated, unchanged, errors}, dry_run }`
+
+### Legacy (ลบแล้ว 2026-05-27)
+- ~~`/products/import`~~ (mega template) → แทนที่ด้วย `/products/bulk` hub
+- ~~`/api/products/bulk-import`~~ → แทนที่ด้วย `/api/products/bulk/<action>/apply`
+- `bulk_upsert_products` RPC ยังอยู่ใน DB (รอ drop ใน migration ต่อไป)
 
 ## Shopee API Success Rate Fixes (เพิ่มเมื่อ 2026-04-12)
 

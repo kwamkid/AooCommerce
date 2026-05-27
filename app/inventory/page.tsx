@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
-import Link from 'next/link';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import { LoadingCard } from '@/components/ui/StateCard';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import {
@@ -15,6 +18,7 @@ import HistoryTab from './components/HistoryTab';
 import MonitorTab from './components/MonitorTab';
 
 export default function InventoryPage() {
+  const router = useRouter();
   const [activeTab, setActiveTabState] = useState<TabKey>('stock');
 
   // Read hash on mount (client-only to avoid hydration mismatch)
@@ -50,29 +54,53 @@ export default function InventoryPage() {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <Container size="full">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <h1 className="heading-1 flex items-center gap-3">
               <Package2 className="w-8 h-8 text-primary" />
               สินค้าคงคลัง
             </h1>
-            <p className="text-gray-600 dark:text-slate-400 mt-1 hidden md:block">จัดการสต็อกสินค้าและดูประวัติการเคลื่อนไหว</p>
+            <p className="page-subtitle hidden md:block">จัดการสต็อกสินค้าและดูประวัติการเคลื่อนไหว</p>
           </div>
           <div className="flex gap-2">
-            <Link href="/inventory/receive" className="flex items-center gap-2 px-3 md:px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-medium transition-colors" title="รับเข้า">
-              <ArrowDownToLine className="w-4 h-4" /> <span className="hidden md:inline">รับเข้า</span>
-            </Link>
-            <Link href="/inventory/issue" className="flex items-center gap-2 px-3 md:px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg text-sm font-medium transition-colors" title="เบิกออก">
-              <ArrowUpFromLine className="w-4 h-4" /> <span className="hidden md:inline">เบิกออก</span>
-            </Link>
-            <Link href="/inventory/transfer" className="flex items-center gap-2 px-3 md:px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg text-sm font-medium transition-colors" title="โอนย้าย">
-              <ArrowLeftRight className="w-4 h-4" /> <span className="hidden md:inline">โอนย้าย</span>
-            </Link>
-            <Link href="/inventory/bulk-stock-update" className="flex items-center gap-2 px-3 md:px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg text-sm font-medium transition-colors" title="อัพเดท Stock แบบ Bulk">
-              <FileSpreadsheet className="w-4 h-4" /> <span className="hidden md:inline">Bulk</span>
-            </Link>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<ArrowDownToLine className="w-4 h-4" />}
+              onClick={() => router.push('/inventory/receive')}
+              title="รับเข้า"
+            >
+              <span className="hidden md:inline">รับเข้า</span>
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ArrowUpFromLine className="w-4 h-4" />}
+              onClick={() => router.push('/inventory/issue')}
+              title="เบิกออก"
+            >
+              <span className="hidden md:inline">เบิกออก</span>
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ArrowLeftRight className="w-4 h-4" />}
+              onClick={() => router.push('/inventory/transfer')}
+              title="โอนย้าย"
+            >
+              <span className="hidden md:inline">โอนย้าย</span>
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<FileSpreadsheet className="w-4 h-4" />}
+              onClick={() => router.push('/inventory/bulk-stock-update')}
+              title="อัพเดท Stock แบบ Bulk"
+            >
+              <span className="hidden md:inline">Bulk</span>
+            </Button>
           </div>
         </div>
 
@@ -91,7 +119,7 @@ export default function InventoryPage() {
 
         {/* Tab Content */}
         {activeTab === 'stock' && (
-          <Suspense fallback={<div className="flex items-center justify-center py-16"><Package2 className="w-6 h-6 text-gray-300 animate-pulse" /></div>}>
+          <Suspense fallback={<LoadingCard />}>
             <StockTab
               warehouses={warehouses}
               onViewHistory={(variationId, productLabel) => {
@@ -113,7 +141,7 @@ export default function InventoryPage() {
         {activeTab === 'monitor' && (
           <MonitorTab warehouses={warehouses} />
         )}
-      </div>
+      </Container>
     </Layout>
   );
 }

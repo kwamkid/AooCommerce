@@ -6,7 +6,7 @@ import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { getTabColor } from '@/lib/status-tab-colors';
+import StatusTabs from '@/components/ui/StatusTabs';
 import {
   FileText, Loader2, RefreshCw, CheckCircle2,
   AlertCircle, Clock, Package, Eye, Receipt,
@@ -16,7 +16,7 @@ import { showPdfPreview } from '@/lib/print-pdf';
 import { markPrinted as markPrintedDB } from '@/lib/print-tracking';
 import Tooltip from '@/components/ui/Tooltip';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import ActionMenu, { type ActionItem } from '@/app/orders/components/ActionMenu';
+import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 
 interface Statement {
@@ -45,11 +45,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 };
 
 const STATUS_TABS = [
-  { key: 'all',            label: 'ทั้งหมด',       ...getTabColor('all') },
-  { key: 'sent',           label: 'รอชำระ',        ...getTabColor('sent') },
-  { key: 'partially_paid', label: 'ชำระบางส่วน',   ...getTabColor('partially_paid') },
-  { key: 'paid',           label: 'ชำระแล้ว',      ...getTabColor('paid') },
-  { key: 'overdue',        label: 'เกินกำหนด',     ...getTabColor('overdue') },
+  { key: 'all',            label: 'ทั้งหมด' },
+  { key: 'sent',           label: 'รอชำระ' },
+  { key: 'partially_paid', label: 'ชำระบางส่วน' },
+  { key: 'paid',           label: 'ชำระแล้ว' },
+  { key: 'overdue',        label: 'เกินกำหนด' },
 ];
 
 const THAI_MONTHS = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
@@ -453,25 +453,11 @@ function StatementsContent() {
         </div>
 
         {/* Status Tabs */}
-        <div className="flex gap-2 flex-wrap">
-          {STATUS_TABS.map(tab => {
-            const count = getTabCount(tab.key);
-            const isActive = activeStatus === tab.key;
-            return (
-              <div key={tab.key} className="flex-shrink-0">
-                <button
-                  onClick={() => setParams({ status: tab.key })}
-                  className={`rounded-xl px-4 py-2 min-w-[80px] text-center transition-all ${
-                    isActive ? `${tab.active} text-white shadow-md` : `${tab.inactive} hover:opacity-80`
-                  }`}
-                >
-                  <div className={`text-xs font-medium ${isActive ? 'text-white/80' : tab.labelColor}`}>{tab.label}</div>
-                  <div className={`text-xl font-bold ${isActive ? 'text-white' : tab.countColor}`}>{count}</div>
-                </button>
-              </div>
-            );
-          })}
-        </div>
+        <StatusTabs
+          activeKey={activeStatus}
+          onSelect={(k) => setParams({ status: k })}
+          tabs={STATUS_TABS.map(t => ({ ...t, count: getTabCount(t.key) }))}
+        />
 
         {/* Search */}
         <div className="flex items-center gap-2">

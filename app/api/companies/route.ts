@@ -124,18 +124,19 @@ export async function POST(request: NextRequest) {
       can_view_cost: true,
     });
 
-    // Assign Free package to the new company
-    const { data: freePackage } = await supabaseAdmin
+    // Default subscription — currently Enterprise (highest) for every new
+    // signup. TODO: revert to 'free' once we have a real upgrade flow.
+    const { data: defaultPackage } = await supabaseAdmin
       .from('packages')
       .select('id')
-      .eq('slug', 'free')
+      .eq('slug', 'enterprise')
       .single();
 
-    if (freePackage) {
+    if (defaultPackage) {
       await supabaseAdmin.from('user_subscriptions').insert({
         company_id: company.id,
         user_id: auth.userId,
-        package_id: freePackage.id,
+        package_id: defaultPackage.id,
         status: 'active',
       });
     }

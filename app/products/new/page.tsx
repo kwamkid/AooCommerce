@@ -4,10 +4,12 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
+import { LoadingCard } from '@/components/ui/StateCard';
 import ProductForm, { type ProductItem } from '@/components/products/ProductForm';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
-import { ArrowLeft, Loader2 } from 'lucide-react';
 
 function NewProductContent() {
   const router = useRouter();
@@ -61,6 +63,7 @@ function NewProductContent() {
     };
 
     loadSourceProduct();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [duplicateId, authLoading, userProfile]);
 
   const title = duplicateId ? 'คัดลอกสินค้า' : 'เพิ่มสินค้า';
@@ -68,12 +71,9 @@ function NewProductContent() {
   if (duplicateId && (authLoading || loading)) {
     return (
       <Layout>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-3" />
-            <p className="text-gray-500 text-sm">กำลังโหลดข้อมูล...</p>
-          </div>
-        </div>
+        <Container size="4xl">
+          <LoadingCard />
+        </Container>
       </Layout>
     );
   }
@@ -81,43 +81,22 @@ function NewProductContent() {
   if (error) {
     return (
       <Layout>
-        <div className="max-w-4xl space-y-4">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => router.push('/products')}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
-          </div>
+        <Container size="4xl" gap="sm">
+          <PageHeader title={title} backHref="/products" />
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
             {error}
           </div>
-        </div>
+        </Container>
       </Layout>
     );
   }
 
   return (
     <Layout>
-      <div className="space-y-4 max-w-4xl">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.push('/products')}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
-        </div>
-
-        {/* Form */}
+      <Container size="4xl" gap="sm">
+        <PageHeader title={title} backHref="/products" />
         <ProductForm editingProduct={duplicateProduct} formOptions={null} />
-      </div>
+      </Container>
     </Layout>
   );
 }
@@ -126,12 +105,9 @@ export default function NewProductPage() {
   return (
     <Suspense fallback={
       <Layout>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-3" />
-            <p className="text-gray-500 text-sm">กำลังโหลด...</p>
-          </div>
-        </div>
+        <Container size="4xl">
+          <LoadingCard />
+        </Container>
       </Layout>
     }>
       <NewProductContent />

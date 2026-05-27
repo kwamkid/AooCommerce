@@ -10,6 +10,11 @@ import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Plus, Check, X, Edit2, Trash2, Warehouse, Star, StarOff, AlertTriangle, Info, Users
 } from 'lucide-react';
+import Container from '@/components/ui/Container';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import Toggle from '@/components/ui/Toggle';
 
 interface WarehouseItem {
   id: string;
@@ -30,21 +35,6 @@ interface StockConfig {
   allowOversell: boolean;
 }
 
-function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={() => !disabled && onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors ${
-        checked ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-    >
-      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-        checked ? 'translate-x-5' : 'translate-x-0'
-      }`} />
-    </button>
-  );
-}
 
 export default function WarehouseSettingsPage() {
   const { userProfile } = useAuth();
@@ -210,7 +200,7 @@ export default function WarehouseSettingsPage() {
   if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
     return (
       <Layout title="คลังสินค้า">
-        <div className="text-center py-16 text-gray-500 dark:text-slate-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+        <NoPermissionCard />
       </Layout>
     );
   }
@@ -230,7 +220,7 @@ export default function WarehouseSettingsPage() {
         { label: 'คลังสินค้า' },
       ]}
     >
-      <div className="max-w-3xl">
+      <Container size="2xl">
         {/* Stock not enabled */}
         {!stockConfig.stockEnabled && !loading && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-start gap-3 mb-6">
@@ -243,13 +233,11 @@ export default function WarehouseSettingsPage() {
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-primary animate-spin" />
-          </div>
+          <LoadingCard />
         ) : stockConfig.stockEnabled ? (
           <div className="space-y-4">
             {/* Stock Settings */}
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4">
+            <Card padding="md">
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">อนุญาตขายเมื่อ stock หมด</p>
@@ -265,7 +253,7 @@ export default function WarehouseSettingsPage() {
                   disabled={savingOversell}
                 />
               </div>
-            </div>
+            </Card>
 
             {/* Info banner — explain auto-create consignment warehouses */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex items-start gap-3">
@@ -282,7 +270,7 @@ export default function WarehouseSettingsPage() {
             {/* Internal Warehouses Section */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-base font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                <h2 className="heading-4 flex items-center gap-2">
                   <Warehouse className="w-4 h-4 text-primary" />
                   คลังภายใน
                 </h2>
@@ -318,7 +306,7 @@ export default function WarehouseSettingsPage() {
             {consignmentWarehouses.length > 0 && (
               <div className="pt-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-base font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                  <h2 className="heading-4 flex items-center gap-2">
                     <Users className="w-4 h-4 text-amber-600" />
                     คลังฝากขาย
                     <span className="text-xs text-gray-400 dark:text-slate-500 font-normal">(สร้างอัตโนมัติจากลูกค้า)</span>
@@ -332,7 +320,7 @@ export default function WarehouseSettingsPage() {
             )}
           </div>
         ) : null}
-      </div>
+      </Container>
       {confirmDialog}
     </Layout>
   );
@@ -340,7 +328,7 @@ export default function WarehouseSettingsPage() {
   function renderWarehouseCard(wh: WarehouseItem) {
     return (
       <div key={wh.id} className="space-y-4">
-        <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden ${!wh.is_active ? 'opacity-60' : ''}`}>
+        <Card padding="none" className={`overflow-hidden ${!wh.is_active ? 'opacity-60' : ''}`}>
           <div className="flex items-center gap-3 p-4">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
               <Warehouse className="w-5 h-5 text-primary" />
@@ -391,7 +379,7 @@ export default function WarehouseSettingsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </Card>
 
         {editingId === wh.id && showForm && renderForm()}
       </div>
@@ -401,7 +389,7 @@ export default function WarehouseSettingsPage() {
   function renderConsignmentCard(wh: WarehouseItem) {
     const customerLabel = wh.customer?.customer_type === 'department_store' ? 'ห้างฝากขาย' : 'ตัวแทนฝากขาย';
     return (
-      <div key={wh.id} className={`bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden ${!wh.is_active ? 'opacity-60' : ''}`}>
+      <Card key={wh.id} padding="none" className={`overflow-hidden ${!wh.is_active ? 'opacity-60' : ''}`}>
         <div className="flex items-center gap-3 p-4">
           <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
             <Users className="w-5 h-5 text-amber-600 dark:text-amber-400" />
@@ -418,13 +406,13 @@ export default function WarehouseSettingsPage() {
             </div>
           </div>
         </div>
-      </div>
+      </Card>
     );
   }
 
   function renderForm() {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
+      <Card padding="md" className="space-y-3">
         <div className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
           <Warehouse className="w-4 h-4 text-primary" />
           {editingId ? 'แก้ไขคลังสินค้า' : 'เพิ่มคลังภายใน'}
@@ -475,22 +463,25 @@ export default function WarehouseSettingsPage() {
         </div>
 
         <div className="flex gap-2 pt-1">
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+            loading={saving}
+            icon={<Check className="w-4 h-4" />}
           >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             บันทึก
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={resetForm}
-            className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+            icon={<X className="w-4 h-4" />}
           >
-            <X className="w-4 h-4" /> ยกเลิก
-          </button>
+            ยกเลิก
+          </Button>
         </div>
-      </div>
+      </Card>
     );
   }
 }
