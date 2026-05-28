@@ -101,6 +101,7 @@ function ProductsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { userProfile, loading: authLoading } = useAuth();
+  const canViewCost = userProfile?.canViewCost === true;
   const { features } = useFeatures();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
@@ -636,34 +637,69 @@ function ProductsPageContent() {
       defaultWidth: 160,
       reorderable: true,
       resizable: true,
-      render: (product) => (
-        product.product_type === 'simple' ? (
-          <div className="text-base flex items-center space-x-1 whitespace-nowrap">
-            <span className="text-gray-400 font-medium">฿</span>
-            <span>{formatNumber(product.simple_default_price)}</span>
-            {product.simple_discount_price != null && product.simple_discount_price > 0 && (
-              <span className="text-red-600 dark:text-red-400">(฿{formatNumber(product.simple_discount_price)})</span>
-            )}
-          </div>
-        ) : (
+      render: (product) => {
+        const renderPrice = (def: number | null | undefined, disc: number | null | undefined, key: string) => {
+          const hasDiscount = disc != null && disc > 0;
+          return (
+            <div key={key} className="text-base flex items-center space-x-1 whitespace-nowrap">
+              <span className="text-gray-400 font-medium">฿</span>
+              <span className={hasDiscount ? 'text-gray-400 line-through dark:text-slate-500' : ''}>
+                {formatNumber(def)}
+              </span>
+              {hasDiscount && (
+                <span className="text-red-600 dark:text-red-400 font-medium">(฿{formatNumber(disc)})</span>
+              )}
+            </div>
+          );
+        };
+        if (product.product_type === 'simple') {
+          return renderPrice(product.simple_default_price, product.simple_discount_price, 'simple');
+        }
+        if (!product.variations || product.variations.length === 0) {
+          return <span className="data-muted text-gray-400 dark:text-slate-500 text-base">ไม่มีสินค้าย่อย</span>;
+        }
+        return (
           <div className="space-y-1">
-            {product.variations && product.variations.length > 0 ? (
-              product.variations.map((v) => (
-                <div key={v.variation_id || `${product.product_id}-${v.variation_label}`} className="text-base flex items-center space-x-1 whitespace-nowrap">
-                  <span className="text-gray-400 font-medium">฿</span>
-                  <span>{formatNumber(v.default_price)}</span>
-                  {v.discount_price > 0 && (
-                    <span className="text-red-600 dark:text-red-400">(฿{formatNumber(v.discount_price)})</span>
-                  )}
-                </div>
-              ))
-            ) : (
-              <span className="data-muted text-gray-400 dark:text-slate-500 text-base">ไม่มีสินค้าย่อย</span>
+            {product.variations.map((v) =>
+              renderPrice(v.default_price, v.discount_price, v.variation_id || `${product.product_id}-${v.variation_label}`)
             )}
           </div>
-        )
-      ),
+        );
+      },
     },
+    ...(canViewCost ? [{
+      key: 'cost',
+      label: 'ราคาทุน',
+      defaultVisible: false,
+      defaultWidth: 120,
+      reorderable: true,
+      resizable: true,
+      render: (product: ProductItem) => {
+        if (product.product_type === 'simple') {
+          const cost = product.variations?.[0]?.cost_price;
+          if (cost == null) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
+          return (
+            <div className="text-base flex items-center space-x-1 whitespace-nowrap">
+              <span className="text-gray-400 font-medium">฿</span>
+              <span>{formatNumber(cost)}</span>
+            </div>
+          );
+        }
+        if (!product.variations || product.variations.length === 0) {
+          return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
+        }
+        return (
+          <div className="space-y-1">
+            {product.variations.map((v) => (
+              <div key={v.variation_id || `${product.product_id}-${v.variation_label}`} className="text-base flex items-center space-x-1 whitespace-nowrap">
+                <span className="text-gray-400 font-medium">฿</span>
+                <span>{v.cost_price != null ? formatNumber(v.cost_price) : '-'}</span>
+              </div>
+            ))}
+          </div>
+        );
+      },
+    } as DataTableColumn<ProductItem>] : []),
     {
       key: 'sku',
       label: 'SKU',
@@ -833,12 +869,18 @@ function ProductsPageContent() {
         <div className="mt-1.5">
           {product.product_type === 'simple' ? (
             <div>
-              <span className="text-base font-semibold text-gray-900 dark:text-white">
-                ฿{formatNumber(product.simple_default_price)}
-              </span>
-              {product.simple_discount_price != null && product.simple_discount_price > 0 && (
-                <span className="text-sm text-red-600 dark:text-red-400 ml-1">
-                  (฿{formatNumber(product.simple_discount_price)})
+              {product.simple_discount_price != null && product.simple_discount_price > 0 ? (
+                <>
+                  <span className="text-base text-gray-400 dark:text-slate-500 line-through">
+                    ฿{formatNumber(product.simple_default_price)}
+                  </span>
+                  <span className="text-base font-semibold text-red-600 dark:text-red-400 ml-1">
+                    ฿{formatNumber(product.simple_discount_price)}
+                  </span>
+                </>
+              ) : (
+                <span className="text-base font-semibold text-gray-900 dark:text-white">
+                  ฿{formatNumber(product.simple_default_price)}
                 </span>
               )}
               {product.simple_sku && (
@@ -852,9 +894,13 @@ function ProductsPageContent() {
                   <div key={v.variation_id || `${product.product_id}-${v.variation_label}`} className="flex items-center gap-1.5 text-sm">
                     <Wine className="w-3 h-3 text-gray-400 flex-shrink-0" />
                     <span className="text-gray-500 dark:text-slate-400">{v.variation_label}</span>
-                    <span className="text-gray-900 dark:text-white font-medium">฿{formatNumber(v.default_price)}</span>
-                    {v.discount_price > 0 && (
-                      <span className="text-red-600 dark:text-red-400 text-xs">(฿{formatNumber(v.discount_price)})</span>
+                    {v.discount_price > 0 ? (
+                      <>
+                        <span className="text-gray-400 dark:text-slate-500 line-through">฿{formatNumber(v.default_price)}</span>
+                        <span className="text-red-600 dark:text-red-400 font-medium">฿{formatNumber(v.discount_price)}</span>
+                      </>
+                    ) : (
+                      <span className="text-gray-900 dark:text-white font-medium">฿{formatNumber(v.default_price)}</span>
                     )}
                   </div>
                 ))

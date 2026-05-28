@@ -85,8 +85,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate shipments for each item (only when customer is provided)
-    if (orderData.customer_id) {
+    // Validate shipments only when the order actually has a shipping_address.
+    // Chat-order flow: staff creates order with customer name + items, the
+    // customer fills the delivery address later → empty shipments[] is fine.
+    if (orderData.customer_id && orderData.shipping_address_id) {
       for (const item of orderData.items) {
         if (!item.shipments || item.shipments.length === 0) {
           return NextResponse.json(
@@ -95,7 +97,6 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Validate total shipment quantity matches item quantity
         const totalShipmentQty = item.shipments.reduce((sum, s) => sum + s.quantity, 0);
         if (totalShipmentQty !== item.quantity) {
           return NextResponse.json(
@@ -1819,21 +1820,25 @@ export async function PUT(request: NextRequest) {
         );
       }
 
-      // Validate shipments for each item
-      for (const item of items) {
-        if (!item.shipments || item.shipments.length === 0) {
-          return NextResponse.json(
-            { error: 'Each item must have at least one shipment' },
-            { status: 400 }
-          );
-        }
+      // Validate shipments only when the user actually attached a shipping
+      // address (chat-order flow: address may be filled by the customer later).
+      const anyHasShipments = items.some((i: any) => Array.isArray(i.shipments) && i.shipments.length > 0);
+      if (anyHasShipments) {
+        for (const item of items) {
+          if (!item.shipments || item.shipments.length === 0) {
+            return NextResponse.json(
+              { error: 'Each item must have at least one shipment' },
+              { status: 400 }
+            );
+          }
 
-        const totalShipmentQty = item.shipments.reduce((sum: number, s: any) => sum + s.quantity, 0);
-        if (totalShipmentQty !== item.quantity) {
-          return NextResponse.json(
-            { error: `Total shipment quantity (${totalShipmentQty}) does not match item quantity (${item.quantity})` },
-            { status: 400 }
-          );
+          const totalShipmentQty = item.shipments.reduce((sum: number, s: any) => sum + s.quantity, 0);
+          if (totalShipmentQty !== item.quantity) {
+            return NextResponse.json(
+              { error: `Total shipment quantity (${totalShipmentQty}) does not match item quantity (${item.quantity})` },
+              { status: 400 }
+            );
+          }
         }
       }
 

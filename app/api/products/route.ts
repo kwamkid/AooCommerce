@@ -616,6 +616,16 @@ export async function GET(request: NextRequest) {
       .map(id => productMap.get(id))
       .filter(Boolean);
 
+    // Scrub cost_price for users without can_view_cost
+    const canViewCost = auth.canViewCost === true;
+    if (!canViewCost) {
+      for (const p of groupedProducts) {
+        if (Array.isArray(p.variations)) {
+          for (const v of p.variations) delete v.cost_price;
+        }
+      }
+    }
+
     // Build shop options from parallel results (already fetched above)
     let shopOptions: { id: string; name: string; platform: string; icon?: string }[] = [];
     if (includeShopOptions && shopLinksResult.data) {
@@ -644,6 +654,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       products: groupedProducts,
+      can_view_cost: canViewCost,
       ...(paginate ? { total: totalCount || 0, page, limit } : {}),
       ...(includeShopOptions ? { shopOptions } : {}),
     });
