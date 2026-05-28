@@ -58,6 +58,23 @@ async function verifyAuthToken(token: string): Promise<{ id: string } | null> {
 }
 
 /**
+ * Process-level cache for resolved auth results, keyed by `${token}|${companyId}`.
+ *
+ * Why: every API route calls `checkAuthWithCompany`, which fires TWO network
+ * round-trips to Supabase (JWT verify + company_members lookup) — ~400-600ms
+ * of baseline latency per request. Caching at the module level lets warm
+ * serverless invocations skip both calls when the same client makes several
+ * requests within the TTL window.
+ *
+ * Trade-off: stale role changes / forced logout take up to TTL to take
+ * effect. 30s is short enough for that to be acceptable and long enough to
+ * cover a typical page load that fires multiple parallel API calls.
+ */
+const AUTH_CACHE_TTL_MS = 30_000;
+type CachedAuth = { expiresAt: number; result: AuthResult };
+const authCache = new Map<string, CachedAuth>();
+
+/**
  * Check authentication and extract company context.
  * Company ID comes from X-Company-Id header or falls back to user's first company.
  */
@@ -69,13 +86,20 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
     }
 
     const token = authHeader.substring(7);
+    const companyId = request.headers.get('x-company-id') || '';
+    const cacheKey = `${token}|${companyId}`;
+
+    const cached = authCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.result;
+    }
+
     const user = await verifyAuthToken(token);
     if (!user) {
       return { isAuth: false };
     }
 
-    const companyId = request.headers.get('x-company-id');
-
+    let result: AuthResult;
     if (companyId) {
       const { data: membership } = await supabaseAdmin
         .from('company_members')
@@ -86,35 +110,50 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
         .single();
 
       if (!membership) {
-        return { isAuth: true, userId: user.id };
+        result = { isAuth: true, userId: user.id };
+      } else {
+        result = {
+          isAuth: true,
+          userId: user.id,
+          companyId,
+          companyRoles: membership.roles,
+          canViewCost: membership.can_view_cost === true,
+        };
       }
+    } else {
+      // No company header — get user's default (first) company
+      const { data: membership } = await supabaseAdmin
+        .from('company_members')
+        .select('company_id, roles, can_view_cost')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('joined_at', { ascending: true })
+        .limit(1)
+        .single();
 
-      return {
+      result = {
         isAuth: true,
         userId: user.id,
-        companyId,
-        companyRoles: membership.roles,
-        canViewCost: membership.can_view_cost === true,
+        companyId: membership?.company_id || undefined,
+        companyRoles: membership?.roles || undefined,
+        canViewCost: membership?.can_view_cost === true,
       };
     }
 
-    // No company header — get user's default (first) company
-    const { data: membership } = await supabaseAdmin
-      .from('company_members')
-      .select('company_id, roles, can_view_cost')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .order('joined_at', { ascending: true })
-      .limit(1)
-      .single();
+    // Cache only authenticated results — invalid tokens are cheap to re-check
+    // and we don't want to lock out a user whose token just refreshed.
+    if (result.isAuth) {
+      authCache.set(cacheKey, { expiresAt: Date.now() + AUTH_CACHE_TTL_MS, result });
+      // Best-effort cleanup of expired entries on each cache miss
+      if (authCache.size > 256) {
+        const now = Date.now();
+        for (const [k, v] of authCache.entries()) {
+          if (v.expiresAt <= now) authCache.delete(k);
+        }
+      }
+    }
 
-    return {
-      isAuth: true,
-      userId: user.id,
-      companyId: membership?.company_id || undefined,
-      companyRoles: membership?.roles || undefined,
-      canViewCost: membership?.can_view_cost === true,
-    };
+    return result;
   } catch {
     return { isAuth: false };
   }

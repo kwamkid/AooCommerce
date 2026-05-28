@@ -39,6 +39,7 @@ const CACHED_GET_PATHS: { match: (url: string) => boolean; ttlMs: number }[] = [
   { match: u => u === '/api/warehouses' || u.startsWith('/api/warehouses?'), ttlMs: 60_000 },
   { match: u => u.startsWith('/api/sales-channels'), ttlMs: 60_000 },
   { match: u => u === '/api/settings/features', ttlMs: 60_000 },
+  { match: u => u === '/api/carriers' || u.startsWith('/api/carriers?'), ttlMs: 60_000 },
 ];
 
 function cacheableFor(url: string): number | null {
