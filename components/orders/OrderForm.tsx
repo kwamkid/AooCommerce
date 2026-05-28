@@ -15,6 +15,7 @@ import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ItemsTable, { type TableItem as OrderTableItem, type PromotionComponent } from '@/components/ui/ItemsTable';
 import PromotionSelectModal, { type PromoData, type PromoItemData, type PromotionSelectResult } from '@/components/ui/PromotionSelectModal';
 import Modal from '@/components/ui/Modal';
+import NumberInput from '@/components/ui/NumberInput';
 import { calculateQtyDiscount, type PromotionTier } from '@/lib/promotions';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
@@ -146,6 +147,9 @@ interface OrderFormProps {
   // Order source (e.g., 'line', 'facebook') and channel name
   source?: string;
   sourceName?: string;
+  // Originating chat account — when present, lock the sales channel selector to that
+  // chat-linked sales_channels row so e.g. "LINE - ABC" orders can't be miscategorized.
+  chatAccountId?: string;
   // Exchange data — items to return from original order (CN created atomically on save)
   exchangeData?: {
     from_order_id: string;
@@ -170,6 +174,7 @@ export default function OrderForm({
   headerActionsRef,
   source,
   sourceName,
+  chatAccountId,
   exchangeData,
   exchangeCreditAmount,
 }: OrderFormProps) {
@@ -199,6 +204,20 @@ export default function OrderForm({
   const [storedExchangeCredit, setStoredExchangeCredit] = useState(0);
   const isEditMode = !!editOrderId;
   const isReadOnly = isEditMode && (editOrderSource === 'shopee' || editOrderStatus !== 'new' || editPaymentStatus !== 'pending');
+
+  // Sales channel — manual orders track origin (เปิดบิลตรง / LINE OA "ABC" / Walk-in / ...).
+  // chatAccountId prop, when set, locks this selector to the matching chat-linked row.
+  const [salesChannels, setSalesChannels] = useState<Array<{
+    id: string;
+    code: string;
+    name: string;
+    channel_type: 'manual' | 'chat';
+    platform: string | null;
+    chat_account_id: string | null;
+    is_active: boolean;
+  }>>([]);
+  const [selectedSalesChannelId, setSelectedSalesChannelId] = useState<string>('');
+  const salesChannelLocked = !!chatAccountId;
 
   // Customer selection
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -307,11 +326,41 @@ export default function OrderForm({
       fetchCustomers();
       fetchProducts();
       fetchPromotions();
+      fetchSalesChannels();
     } else {
       setLoadingProducts(false);
     }
     fetchWarehouses();
   }, !authLoading && !!userProfile);
+
+  const fetchSalesChannels = async () => {
+    try {
+      const res = await apiFetch('/api/sales-channels?active=true');
+      if (!res.ok) return;
+      const json = await res.json();
+      setSalesChannels(json.channels || []);
+    } catch (e) {
+      console.warn('fetchSalesChannels failed:', e);
+    }
+  };
+
+  // Pick the default sales channel once the list loads. Priority:
+  //   1. edit mode → use the order's existing sales_channel_id (set later from preloadedOrder)
+  //   2. chat context → match the chat-linked row by chat_account_id
+  //   3. default → 'direct'
+  useEffect(() => {
+    if (salesChannels.length === 0) return;
+    if (selectedSalesChannelId) return; // already set (e.g. from edit hydration)
+    if (chatAccountId) {
+      const chatRow = salesChannels.find(c => c.chat_account_id === chatAccountId);
+      if (chatRow) {
+        setSelectedSalesChannelId(chatRow.id);
+        return;
+      }
+    }
+    const direct = salesChannels.find(c => c.code === 'direct');
+    if (direct) setSelectedSalesChannelId(direct.id);
+  }, [salesChannels, chatAccountId, selectedSalesChannelId]);
 
   // Auto-select preselected customer
   useEffect(() => {
@@ -458,6 +507,7 @@ export default function OrderForm({
         setEditOrderStatus(order.order_status);
         setEditPaymentStatus(order.payment_status || 'pending');
         setEditOrderSource(order.source || 'manual');
+        if (order.sales_channel_id) setSelectedSalesChannelId(order.sales_channel_id);
 
         // Set customer
         if (order.customer) {
@@ -1415,6 +1465,8 @@ export default function OrderForm({
         ...(addressAction !== 'auto' ? { address_action: addressAction } : {}),
         // Source channel info (from chat)
         ...(source ? { source, source_name: sourceName || undefined } : {}),
+        // Sales channel — manual order origin (NULL if list hadn't loaded yet)
+        sales_channel_id: selectedSalesChannelId || null,
         // Bill expiry: compute expires_at based on mode
         ...(expiryMode === 'custom' ? {
           expires_at: new Date(Date.now() + customExpiryDays * 86400000).toISOString(),
@@ -1754,6 +1806,29 @@ export default function OrderForm({
           readOnly={isReadOnly}
         />
 
+        {/* Sales channel — manual orders only (marketplace uses source) */}
+        {salesChannels.length > 0 && (
+          <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+              ช่องทางการขาย
+              {salesChannelLocked && (
+                <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">(ล็อกตามที่มา chat)</span>
+              )}
+            </label>
+            <FormSelect
+              value={selectedSalesChannelId}
+              onChange={setSelectedSalesChannelId}
+              disabled={isReadOnly || salesChannelLocked}
+              options={salesChannels.map(c => ({
+                id: c.id,
+                label: c.name,
+                subtitle: c.channel_type === 'chat' ? 'Chat' : undefined,
+              }))}
+              placeholder="-- เลือกช่องทาง --"
+            />
+          </div>
+        )}
+
         {/* Delivery Date */}
         {features.delivery_date.enabled && (
         <div ref={deliveryDateRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
@@ -1899,12 +1974,11 @@ export default function OrderForm({
                       <span className="text-gray-700 dark:text-slate-300">กำหนดเอง</span>
                       {expiryMode === 'custom' && (
                         <span className="flex items-center gap-1 ml-1">
-                          <input
-                            type="number"
+                          <NumberInput
                             min={1}
                             max={90}
                             value={customExpiryDays}
-                            onChange={(e) => setCustomExpiryDays(Math.max(1, Math.min(90, parseInt(e.target.value) || 1)))}
+                            onChange={(n) => setCustomExpiryDays(Math.max(1, Math.min(90, n || 1)))}
                             className="w-14 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-sm text-center bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                           <span className="text-gray-500 dark:text-slate-400 text-xs">วัน</span>

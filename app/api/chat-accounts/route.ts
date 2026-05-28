@@ -1,6 +1,11 @@
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import {
+  createSalesChannelForChatAccount,
+  syncSalesChannelFromChatAccount,
+  deactivateSalesChannelForChatAccount,
+} from '@/lib/sales-channels-sync';
 
 // GET - List chat accounts
 export async function GET(request: NextRequest) {
@@ -118,6 +123,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'ชื่อ account ซ้ำ กรุณาใช้ชื่ออื่น' }, { status: 400 });
       }
       throw error;
+    }
+
+    // Mirror into sales_channels so OrderForm + filters pick it up immediately.
+    // Best-effort: if it fails we still return the chat_account success and rely on
+    // the next chat-accounts edit / migration backfill to reconcile.
+    try {
+      await createSalesChannelForChatAccount({
+        companyId,
+        chatAccountId: data.id,
+        platform: platform as 'line' | 'facebook',
+        accountName: account_name.trim(),
+      });
+    } catch (e) {
+      console.warn('createSalesChannelForChatAccount failed:', e);
     }
 
     // Auto-fetch LINE bot profile (non-blocking)
@@ -253,6 +272,19 @@ export async function PUT(request: NextRequest) {
 
     if (error) throw error;
 
+    // Keep the sales_channels mirror in step (name + is_active).
+    try {
+      await syncSalesChannelFromChatAccount({
+        companyId,
+        chatAccountId: id,
+        platform: existing.platform as 'line' | 'facebook',
+        accountName: (updateData.account_name as string | undefined) ?? existing.account_name,
+        isActive: (updateData.is_active as boolean | undefined) ?? existing.is_active,
+      });
+    } catch (e) {
+      console.warn('syncSalesChannelFromChatAccount failed:', e);
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('PUT chat-accounts error:', error);
@@ -273,6 +305,14 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Account ID is required' }, { status: 400 });
+    }
+
+    // Deactivate the mirror first so it ends up is_active=false (the FK SET NULL
+    // fires on the delete below and clears chat_account_id automatically).
+    try {
+      await deactivateSalesChannelForChatAccount({ companyId, chatAccountId: id });
+    } catch (e) {
+      console.warn('deactivateSalesChannelForChatAccount failed:', e);
     }
 
     const { error } = await supabaseAdmin

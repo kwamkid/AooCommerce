@@ -1098,13 +1098,29 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               </div>
             </div>
 
-            {/* Source channel info */}
-            {orderSource && orderSource !== 'manual' && !isMarketplaceOrder && (
+            {/* Source channel info — legacy display for chat-sourced manual orders */}
+            {orderSource && orderSource !== 'manual' && !isMarketplaceOrder && !fullOrderData?.sales_channel && (
               <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
                 {PLATFORM_ICONS[orderSource] && (
                   <img src={PLATFORM_ICONS[orderSource]} alt={orderSource} className="w-4 h-4" />
                 )}
                 <span>{fullOrderData?.source_name || orderSource}</span>
+              </div>
+            )}
+
+            {/* Sales channel badge — preferred over legacy source when available */}
+            {fullOrderData?.sales_channel && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-gray-500 dark:text-slate-400">ช่องทางการขาย:</span>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    fullOrderData.sales_channel.channel_type === 'chat'
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+                      : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-200'
+                  }`}
+                >
+                  {fullOrderData.sales_channel.name}
+                </span>
               </div>
             )}
 

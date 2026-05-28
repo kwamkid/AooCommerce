@@ -53,6 +53,7 @@ interface OrderData {
   tax_invoice_address?: string;
   source?: string;
   source_name?: string;
+  sales_channel_id?: string | null;
   expires_at?: string | null;
   items: OrderItemInput[];
   exchange?: {
@@ -282,6 +283,7 @@ export async function POST(request: NextRequest) {
         tax_invoice_address: orderData.tax_invoice_address || null,
         source: orderData.source || 'manual',
         source_name: orderData.source_name || null,
+        sales_channel_id: orderData.sales_channel_id || null,
         flow_type: flowType,
         expires_at: expiresAt,
         created_by: auth.userId,
@@ -720,7 +722,7 @@ export async function GET(request: NextRequest) {
 
     // If ID is provided, fetch single order with full details
     if (orderId) {
-      // Fetch order with customer
+      // Fetch order with customer + sales channel (so detail page can show channel name)
       const { data: order, error: orderError } = await supabaseAdmin
         .from('orders')
         .select(`
@@ -740,6 +742,13 @@ export async function GET(request: NextRequest) {
             billing_amphoe,
             billing_province,
             billing_postal_code
+          ),
+          sales_channel:sales_channels (
+            id,
+            code,
+            name,
+            channel_type,
+            platform
           )
         `)
         .eq('id', orderId)
@@ -1566,7 +1575,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // --- Single order update ---
-    const { id, items, delivery_date, payment_method, discount_amount, notes, internal_notes } = body;
+    const { id, items, delivery_date, payment_method, discount_amount, notes, internal_notes, sales_channel_id } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -1928,6 +1937,8 @@ export async function PUT(request: NextRequest) {
           payment_method: payment_method || null,
           notes: notes || null,
           internal_notes: internal_notes || null,
+          // Only overwrite sales_channel_id if explicitly provided (undefined = keep existing)
+          ...(sales_channel_id !== undefined ? { sales_channel_id: sales_channel_id || null } : {}),
           updated_at: new Date().toISOString()
         })
         .eq('id', id)

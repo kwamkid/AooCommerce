@@ -875,6 +875,10 @@ export default function Sidebar() {
                       <MessageCircle className="w-4 h-4" />
                       <span className="text-[16px] font-medium">ช่องทาง Chat</span>
                     </Link>
+                    <Link href="/settings/sales-channels" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/sales-channels' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                      <Store className="w-4 h-4" />
+                      <span className="text-[16px] font-medium">ช่องทางการขาย</span>
+                    </Link>
                     {features.stock && (
                       <Link href="/settings/warehouses" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/warehouses' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
                         <Warehouse className="w-4 h-4" />
