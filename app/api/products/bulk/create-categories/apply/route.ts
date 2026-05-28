@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, canBulkEdit } from '@/lib/supabase-admin';
 
 interface CreateCategoryItem {
   name: string;
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRoles)) {
+    if (!canBulkEdit(auth.companyRoles)) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
     }
 

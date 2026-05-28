@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, canBulkEdit } from '@/lib/supabase-admin';
 
 interface ApplyItem {
   product_id: string;
@@ -18,8 +18,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Permission: owner/admin only
-    if (!isAdminRole(auth.companyRoles)) {
+    // Permission: owner/admin/manager/warehouse
+    if (!canBulkEdit(auth.companyRoles)) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
     }
 

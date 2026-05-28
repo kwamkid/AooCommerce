@@ -131,7 +131,16 @@ export function hasAnyRole(userRoles: string[] | undefined, requiredRoles: strin
   return requiredRoles.some(r => userRoles.includes(r));
 }
 
-const VALID_ROLES = ['owner', 'admin', 'account', 'warehouse', 'sales', 'cashier'];
+/**
+ * Can access bulk edit (Excel template import/update).
+ * owner + admin + manager + warehouse.
+ */
+export function canBulkEdit(roles?: string[]): boolean {
+  if (!roles) return false;
+  return roles.includes('owner') || roles.includes('admin') || roles.includes('manager') || roles.includes('warehouse');
+}
+
+const VALID_ROLES = ['owner', 'admin', 'manager', 'account', 'warehouse', 'sales', 'cashier'];
 const EXCLUSIVE_ROLES = ['owner', 'admin'];
 
 /**

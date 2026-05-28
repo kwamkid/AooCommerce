@@ -72,7 +72,7 @@ export default function BulkCreateProductsPage() {
   const { showToast } = useToast();
   const brandEnabled = features.product_brand;
 
-  const isAdmin = companyRoles.includes('owner') || companyRoles.includes('admin');
+  const isAdmin = companyRoles.includes('owner') || companyRoles.includes('admin') || companyRoles.includes('manager') || companyRoles.includes('warehouse');
   const canEditCost = userProfile?.canViewCost === true;
 
   const [step, setStep] = useState<'upload' | 'checking' | 'preview' | 'importing' | 'done'>('upload');

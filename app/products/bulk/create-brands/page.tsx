@@ -45,7 +45,7 @@ export default function BulkCreateBrandsPage() {
   const { userProfile } = useAuth();
   const { companyRoles } = useCompany();
   const { showToast } = useToast();
-  const isAdmin = companyRoles.includes('owner') || companyRoles.includes('admin');
+  const isAdmin = companyRoles.includes('owner') || companyRoles.includes('admin') || companyRoles.includes('manager') || companyRoles.includes('warehouse');
 
   const [step, setStep] = useState<'upload' | 'checking' | 'preview' | 'importing' | 'done'>('upload');
   const [parsedItems, setParsedItems] = useState<CreateItem[]>([]);

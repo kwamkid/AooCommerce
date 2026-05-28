@@ -99,16 +99,19 @@ function ActionCard({ a }: { a: BulkAction }) {
 export default function BulkProductsHub() {
   const { companyRoles } = useCompany();
   const { features } = useFeatures();
-  const isOwnerOrAdmin = companyRoles.includes('owner') || companyRoles.includes('admin');
+  const canEdit = companyRoles.includes('owner')
+    || companyRoles.includes('admin')
+    || companyRoles.includes('manager')
+    || companyRoles.includes('warehouse');
   const visibleEditActions = EDIT_ACTIONS.filter(a => !a.requiresStock || features.stock);
 
-  if (!isOwnerOrAdmin) {
+  if (!canEdit) {
     return (
       <Layout>
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-8 text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">ไม่มีสิทธิ์เข้าถึง</h3>
-          <p className="text-gray-500 dark:text-slate-400">เฉพาะเจ้าของและผู้ดูแลระบบเท่านั้น</p>
+          <p className="text-gray-500 dark:text-slate-400">เฉพาะเจ้าของ ผู้ดูแลระบบ ผู้จัดการ และคลังสินค้าเท่านั้น</p>
         </div>
       </Layout>
     );

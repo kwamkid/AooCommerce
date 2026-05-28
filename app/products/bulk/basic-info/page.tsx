@@ -87,7 +87,7 @@ export default function BulkBasicInfoPage() {
   const { features } = useFeatures();
   const { showToast } = useToast();
   const brandEnabled = features.product_brand;
-  const isAdmin = companyRoles.includes('owner') || companyRoles.includes('admin');
+  const isAdmin = companyRoles.includes('owner') || companyRoles.includes('admin') || companyRoles.includes('manager') || companyRoles.includes('warehouse');
 
   const [brands, setBrands] = useState<Brand[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);

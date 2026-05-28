@@ -15,7 +15,7 @@ import {
   Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check,
   Loader2, CheckCircle, Clock, Copy, Phone,
   Plus, Link2, Monitor, DollarSign,
-  Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package,
+  Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package, UserCog,
 } from 'lucide-react';
 import Checkbox from '@/components/ui/Checkbox';
 import Modal from '@/components/ui/Modal';
@@ -54,10 +54,11 @@ interface Invitation {
 
 const ROLE_OPTIONS: { value: string; label: string; icon: React.ElementType; desc: string }[] = [
   { value: 'admin', label: 'ผู้ดูแลระบบ', icon: ShieldCheck, desc: 'จัดการระบบทั้งหมด' },
+  { value: 'manager', label: 'ผู้จัดการ', icon: UserCog, desc: 'ดูแลทีม จัดการสินค้า แก้ไขแบบชุด' },
   { value: 'sales', label: 'แอดมินออนไลน์', icon: Headset, desc: 'ออเดอร์ แชท CRM รายงาน' },
   { value: 'cashier', label: 'แคชเชียร์', icon: CreditCard, desc: 'POS + สต็อกสาขา' },
   { value: 'account', label: 'บัญชี', icon: Calculator, desc: 'บัญชี รายงาน ดูคำสั่งซื้อ' },
-  { value: 'warehouse', label: 'คลังสินค้า', icon: Package, desc: 'จัดส่ง จัดการคลัง' },
+  { value: 'warehouse', label: 'คลังสินค้า', icon: Package, desc: 'จัดส่ง จัดการคลัง แก้ไขแบบชุด' },
 ];
 
 // Roles that are exclusive (cannot combine with others)
@@ -66,6 +67,7 @@ const EXCLUSIVE_ROLES = ['owner', 'admin'];
 const ROLE_LABELS: Record<string, string> = {
   owner: 'เจ้าของ',
   admin: 'ผู้ดูแลระบบ',
+  manager: 'ผู้จัดการ',
   account: 'บัญชี',
   warehouse: 'คลังสินค้า',
   sales: 'แอดมินออนไลน์',
@@ -75,6 +77,7 @@ const ROLE_LABELS: Record<string, string> = {
 const ROLE_COLORS: Record<string, string> = {
   owner: 'bg-purple-100 text-purple-800 border-purple-200',
   admin: 'bg-red-100 text-red-800 border-red-200',
+  manager: 'bg-indigo-100 text-indigo-800 border-indigo-200',
   account: 'bg-green-100 text-green-800 border-green-200',
   warehouse: 'bg-orange-100 text-orange-800 border-orange-200',
   sales: 'bg-cyan-100 text-cyan-800 border-cyan-200',
