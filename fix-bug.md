@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-05-28 — FormSelect portal dropdown scroll ดูข้อมูลไม่ได้ — โดน auto-close
+
+**ที่เกิด**: [components/ui/FormSelect.tsx:120-128](components/ui/FormSelect.tsx#L120-L128) — เห็นชัดใน modal "เพิ่มหมวดหมู่ใหม่" บน ProductForm (categories > 8 รายการ)
+**อาการ**: เปิด dropdown ใน FormSelect ที่ใช้ `portal` mode → list ยาวเกิน 240px → พอ scroll ใน list ทันที dropdown ปิด → ดูรายการที่เหลือไม่ได้
+**Root cause**: `handleScroll = () => setOpen(false)` ผูกกับ `window.addEventListener('scroll', ..., true)` (capture phase) — มันจับ scroll event ของ **ทุก** scrollable element รวมถึง list ภายใน dropdown เอง → user scroll → event bubble ขึ้น capture → close ทันที (intent เดิมคือปิดเมื่อ scroll หน้าหลัก เพราะ portal float อยู่กลางจอ จะหลุดจาก trigger)
+**วิธีแก้**: ใน `handleScroll` ให้ ignore event ที่ `target` อยู่ใน `dropdownRef.current` — ปิดเฉพาะ scroll นอก dropdown ([FormSelect.tsx:121-127](components/ui/FormSelect.tsx#L121-L127))
+**ป้องกัน regression**: ทุก global capture-phase listener ที่จะเปลี่ยน state ของ popover ต้องเช็ค `target` ว่าอยู่ใน portal เองมั้ยก่อน — pattern เดียวกับ click-outside ที่มีอยู่แล้ว (line 93)
+
+---
+
 ## 2026-05-28 — variation_types create error: "ชื่อประเภทนี้มีอยู่แล้ว" (ทั้งที่บริษัทยังไม่เคยสร้าง)
 
 **ที่เกิด**: [app/api/variation-types/route.ts](app/api/variation-types/route.ts) POST → DB `public.variation_types`

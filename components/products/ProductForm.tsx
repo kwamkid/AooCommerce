@@ -1,7 +1,7 @@
 // Path: components/products/ProductForm.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
@@ -158,6 +158,22 @@ export default function ProductForm({
   // Category & Brand state
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [brands, setBrands] = useState<BrandOption[]>([]);
+
+  // Flatten category tree into FormSelect options. Memoized so a stable array
+  // reference is passed to FormSelect — prevents downstream re-renders.
+  const categoryOptions = useMemo(() => categories.flatMap(parent =>
+    parent.children && parent.children.length > 0
+      ? [
+          { id: parent.id, label: parent.name },
+          ...parent.children.map(child => ({
+            id: child.id,
+            label: child.name,
+            level: 1,
+            triggerLabel: `${parent.name} > ${child.name}`,
+          })),
+        ]
+      : [{ id: parent.id, label: parent.name }]
+  ), [categories]);
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryParentId, setNewCategoryParentId] = useState('');
@@ -843,14 +859,7 @@ export default function ProductForm({
                   <FormSelect
                     value={formData.category_id || ''}
                     onChange={value => setFormData(prev => ({ ...prev, category_id: value }))}
-                    options={categories.flatMap(parent =>
-                      parent.children && parent.children.length > 0
-                        ? [
-                            { id: parent.id, label: parent.name, subtitle: 'หมวดหลัก' },
-                            ...parent.children.map(child => ({ id: child.id, label: child.name, subtitle: parent.name })),
-                          ]
-                        : [{ id: parent.id, label: parent.name }]
-                    )}
+                    options={categoryOptions}
                     placeholder="ไม่ระบุ"
                     clearLabel="ไม่ระบุ"
                   />

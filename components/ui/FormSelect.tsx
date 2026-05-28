@@ -11,6 +11,11 @@ export interface FormSelectOption {
   subtitle?: string;
   /** React node icon shown before label */
   icon?: React.ReactNode;
+  /** Indent level for hierarchical lists (0 = top, 1 = nested under parent). */
+  level?: number;
+  /** Override label in the trigger only (list still shows `label`).
+   *  Use for breadcrumb display, e.g. `"เสื้อผ้า > เสื้อยืด"`. */
+  triggerLabel?: string;
 }
 
 export type FormSelectSize = 'sm' | 'md' | 'lg';
@@ -78,7 +83,7 @@ export default function FormSelect({
     : options;
 
   // Build full list: clearLabel option + filtered options
-  const allItems: { id: string; label: string; isClear?: boolean; icon?: React.ReactNode; subtitle?: string }[] = [];
+  const allItems: { id: string; label: string; isClear?: boolean; icon?: React.ReactNode; subtitle?: string; level?: number }[] = [];
   if (clearLabel && !search) {
     allItems.push({ id: clearValue, label: clearLabel, isClear: true });
   }
@@ -117,8 +122,13 @@ export default function FormSelect({
       });
     };
     updatePos();
-    // Close on scroll (dropdown would float detached), reposition on resize
-    const handleScroll = () => { setOpen(false); setSearch(''); };
+    // Close on outside scroll (dropdown would float detached from trigger), but
+    // ignore scrolls inside the dropdown's own scrollable list.
+    const handleScroll = (e: Event) => {
+      if (dropdownRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+      setSearch('');
+    };
     window.addEventListener('scroll', handleScroll, true);
     window.addEventListener('resize', updatePos);
     return () => {
@@ -212,7 +222,7 @@ export default function FormSelect({
         <span className={`flex-1 truncate ${
           selected ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-400'
         }`}>
-          {selected?.label || (clearLabel && value === clearValue ? clearLabel : placeholder)}
+          {selected?.triggerLabel || selected?.label || (clearLabel && value === clearValue ? clearLabel : placeholder)}
         </span>
         <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform text-gray-400 dark:text-slate-400 ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -249,14 +259,19 @@ export default function FormSelect({
 
             {/* Options list */}
             <div ref={listRef} className="max-h-[240px] overflow-y-auto py-1">
-              {allItems.map((o, idx) => (
+              {allItems.map((o, idx) => {
+                const level = !o.isClear ? (o.level || 0) : 0;
+                return (
                 <button
                   key={o.isClear ? '__clear__' : o.id}
                   data-option
                   type="button"
                   onClick={() => handleSelect(o.id)}
-                  onMouseEnter={() => setHighlightIdx(idx)}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 pr-8 text-sm transition-colors ${
+                  style={level > 0 ? { paddingLeft: `${16 + level * 20}px` } : undefined}
+                  // Mouse-hover highlight is CSS-only (no setState on every
+                  // mouseenter) — avoids re-rendering the whole list on hover.
+                  // Keyboard nav still uses `highlightIdx` state.
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 pr-8 text-sm transition-colors hover:bg-gray-50 dark:hover:bg-slate-700 ${
                     idx === highlightIdx
                       ? 'bg-gray-50 dark:bg-slate-700'
                       : ''
@@ -266,6 +281,9 @@ export default function FormSelect({
                       : 'text-gray-700 dark:text-slate-300'
                   }`}
                 >
+                  {level > 0 && (
+                    <span className="text-gray-300 dark:text-slate-600 flex-shrink-0 select-none">└</span>
+                  )}
                   {o.icon && <span className="flex-shrink-0">{o.icon}</span>}
                   {/* `whitespace-nowrap` keeps the label intact so the dropdown
                       grows to fit it (capped by maxWidth on the dropdown root).
@@ -279,7 +297,8 @@ export default function FormSelect({
                   </div>
                   {o.id === value && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
                 </button>
-              ))}
+                );
+              })}
               {allItems.length === 0 && (
                 <div className="px-3 py-4 text-sm text-gray-400 dark:text-slate-500 text-center">
                   ไม่พบผลลัพธ์
