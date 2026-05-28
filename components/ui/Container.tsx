@@ -2,16 +2,27 @@ import type { HTMLAttributes, ReactNode } from 'react';
 
 type ContainerSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl' | '5xl' | '6xl' | 'full';
 
+// TRIAL: force every Container to full width — see if it feels good before committing.
+// To revert: restore the original mapping below.
+//   sm:    'max-w-sm',
+//   md:    'max-w-md',
+//   lg:    'max-w-lg',
+//   xl:    'max-w-2xl',
+//   '2xl': 'max-w-3xl',
+//   '4xl': 'max-w-4xl',
+//   '5xl': 'max-w-5xl',
+//   '6xl': 'max-w-6xl',
+//   full:  'max-w-full',
 const SIZE_CLASSES: Record<ContainerSize, string> = {
-  sm: 'max-w-sm',
-  md: 'max-w-md',
-  lg: 'max-w-lg',
-  xl: 'max-w-2xl',     // form pages (narrow)
-  '2xl': 'max-w-3xl',  // detail/edit forms
-  '4xl': 'max-w-4xl',  // wider forms / bulk hub
-  '5xl': 'max-w-5xl',  // bulk action pages (default)
-  '6xl': 'max-w-6xl',  // wide content
-  full: 'max-w-full',  // list pages (full width)
+  sm: 'max-w-full',
+  md: 'max-w-full',
+  lg: 'max-w-full',
+  xl: 'max-w-full',
+  '2xl': 'max-w-full',
+  '4xl': 'max-w-full',
+  '5xl': 'max-w-full',
+  '6xl': 'max-w-full',
+  full: 'max-w-full',
 };
 
 interface ContainerProps extends HTMLAttributes<HTMLDivElement> {

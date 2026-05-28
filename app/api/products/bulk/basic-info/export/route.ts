@@ -3,9 +3,10 @@ import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 /**
  * GET /api/products/bulk/basic-info/export
- *   ?brand_ids=uuid,uuid&category_ids=uuid,uuid&status=active|inactive|all
+ *   ?brand_ids=uuid,uuid&category_ids=uuid,uuid&status=active|inactive|all&search=...
  *
  * Returns one row per product (NOT per variation) — basic info lives on products table.
+ * Search matches name / code (products) and sku / barcode (variations — products with any matching variation).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -18,6 +19,18 @@ export async function GET(request: NextRequest) {
     const brandIds = (searchParams.get('brand_ids') || '').split(',').map(s => s.trim()).filter(Boolean);
     const categoryIds = (searchParams.get('category_ids') || '').split(',').map(s => s.trim()).filter(Boolean);
     const status = searchParams.get('status') || 'active'; // active | inactive | all
+    const search = (searchParams.get('search') || '').trim();
+
+    // Resolve sku/barcode matches via product_variations → product_ids first
+    let varProductIds: string[] = [];
+    if (search) {
+      const { data: varMatches } = await supabaseAdmin
+        .from('product_variations')
+        .select('product_id')
+        .eq('company_id', auth.companyId)
+        .or(`sku.ilike.%${search}%,barcode.ilike.%${search}%`);
+      varProductIds = [...new Set((varMatches || []).map(v => v.product_id).filter(Boolean))];
+    }
 
     let q = supabaseAdmin
       .from('products')
@@ -29,6 +42,14 @@ export async function GET(request: NextRequest) {
 
     if (brandIds.length > 0) q = q.in('brand_id', brandIds);
     if (categoryIds.length > 0) q = q.in('category_id', categoryIds);
+
+    if (search) {
+      if (varProductIds.length > 0) {
+        q = q.or(`name.ilike.%${search}%,code.ilike.%${search}%,id.in.(${varProductIds.join(',')})`);
+      } else {
+        q = q.or(`name.ilike.%${search}%,code.ilike.%${search}%`);
+      }
+    }
 
     q = q.order('name');
 

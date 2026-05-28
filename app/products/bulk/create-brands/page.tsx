@@ -11,6 +11,7 @@ import {
   readFileToRows, rowsToSheet, getCell, isRowEmpty, isInstructionRow,
   validateHeaders, type RequiredColumn,
 } from '@/lib/bulk/parse-template';
+import { addTemplateHeader } from '@/lib/bulk/excel-template';
 
 import Button from '@/components/ui/Button';
 import PageHeader from '@/components/ui/PageHeader';
@@ -62,18 +63,8 @@ export default function BulkCreateBrandsPage() {
     const ws = wb.addWorksheet('new-brands');
 
     const headers = ['ชื่อแบรนด์*'];
-    const headerRow = ws.addRow(headers);
-    headerRow.height = 28;
-    headerRow.eachCell(cell => {
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4511E' } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    });
-
-    const noteRow = ws.addRow(['(จำเป็น)']);
-    noteRow.eachCell(cell => {
-      cell.font = { italic: true, color: { argb: 'FF999999' }, size: 9 };
-    });
+    const instructions = ['(จำเป็น)'];
+    addTemplateHeader(ws, headers, instructions);
 
     const samples: string[][] = [
       ['Brand A'],
@@ -84,7 +75,7 @@ export default function BulkCreateBrandsPage() {
     samples.forEach(s => ws.addRow(s));
 
     ws.columns = [{ width: 32 }];
-    ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 1 }];
+    ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2 }];
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

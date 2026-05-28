@@ -31,9 +31,9 @@ import {
   Wine,
   Loader2,
   Award,
-  FilterX,
   Pencil,
   SlidersHorizontal,
+  X,
 } from 'lucide-react';
 import SharedActionMenu from '@/components/ui/ActionMenu';
 import SearchableDropdown, { DropdownOption } from '@/components/ui/SearchableDropdown';
@@ -1028,17 +1028,15 @@ function ProductsPageContent() {
                 );
               })}
             </div>
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<FilterX className="w-3.5 h-3.5" />}
-                onClick={clearAllFilters}
-                className="w-full md:w-auto !text-red-600 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-900/20"
-              >
-                ล้างตัวกรอง
-              </Button>
-            )}
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              aria-label="ล้างตัวกรอง"
+              title="ล้างตัวกรอง"
+              className="h-10 w-10 flex items-center justify-center rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors md:flex-shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
             </div>
           </div>
         </div>

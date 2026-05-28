@@ -12,6 +12,11 @@ import {
   readFileToRows, rowsToSheet, getCell, isRowEmpty, isInstructionRow,
   validateHeaders, type RequiredColumn,
 } from '@/lib/bulk/parse-template';
+import { addTemplateHeader } from '@/lib/bulk/excel-template';
+import {
+  STATUS_COLUMN_HEADER, STATUS_INSTRUCTION,
+  STATUS_LABEL_ACTIVE, STATUS_LABEL_INACTIVE, parseStatusValue,
+} from '@/lib/bulk/status-enum';
 
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -170,7 +175,7 @@ export default function BulkCreateProductsPage() {
     const headers = [
       'รหัสสินค้า*',
       'ชื่อสินค้า*',
-      'ใช้งาน',
+      STATUS_COLUMN_HEADER,
       'ประเภท',
       'ตัวเลือก',
       'SKU',
@@ -182,24 +187,15 @@ export default function BulkCreateProductsPage() {
       'หมวดหมู่',
       'คำอธิบาย',
     ];
-    const headerRow = ws.addRow(headers);
-    headerRow.height = 28;
-    headerRow.eachCell(cell => {
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4511E' } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    });
 
-    // Helper notes row right below the header. Italic gray so it doesn't compete
-    // with sample data. Parser detects + skips it via isInstructionRow.
     type Row = (string | number)[];
     const optionalCols = (cost: string, brand: string): Row =>
       [...(costInTemplate ? [cost] : []), ...(brandEnabled ? [brand] : [])];
 
-    const noteRow = ws.addRow([
+    const instructions: string[] = [
       '(จำเป็น)',
       '(จำเป็น)',
-      '(ค่าว่าง = เปิด)',
+      STATUS_INSTRUCTION,
       '(สินค้าปกติ = 1 แถว / สินค้าย่อย = หลายแถวรหัสเดียวกัน)',
       '(ใส่ "-" ถ้าไม่มี)',
       '(ไม่บังคับ)',
@@ -210,19 +206,17 @@ export default function BulkCreateProductsPage() {
       ...(brandEnabled ? ['(ชื่อต้องตรงในระบบ — ไม่ตรง = error)'] : []),
       '(ชื่อต้องตรงในระบบ — ไม่ตรง = error)',
       '(หลายบรรทัดได้)',
-    ]);
-    noteRow.eachCell(cell => {
-      cell.font = { italic: true, color: { argb: 'FF999999' }, size: 9 };
-    });
+    ];
+    addTemplateHeader(ws, headers, instructions);
 
     const samples: Row[] = [
-      ['P001', 'กางเกงยีนส์ ทรงสลิม', 'เปิด', 'สินค้าปกติ', '-', 'JN-001', '8850010', 890, 790, ...optionalCols('450', 'Brand A'), 'เสื้อผ้า', 'ทรงตรง กระเป๋าหลัง 2 ใบ'],
-      ['P002', 'เสื้อยืดผู้ชาย คอกลม', 'เปิด', 'สินค้าย่อย', 'ไซส์ M', 'TS-M', '8850020', 350, 299, ...optionalCols('180', 'Brand A'), 'เสื้อผ้า', 'เนื้อผ้าคอตตอน 100%'],
-      ['P002', 'เสื้อยืดผู้ชาย คอกลม', 'เปิด', 'สินค้าย่อย', 'ไซส์ L', 'TS-L', '8850021', 350, 299, ...optionalCols('180', ''), '', ''],
-      ['P003', 'กระเป๋าผ้าแคนวาส', 'ปิด', 'สินค้าปกติ', '-', 'BAG-001', '8850030', 450, 399, ...optionalCols('200', 'Brand B'), 'กระเป๋า', 'ยังไม่พร้อมขาย — รอผลิตล็อตใหม่'],
-      ['P004', 'แก้วเซรามิก Premium', 'เปิด', 'สินค้าย่อย', 'สีขาว', 'MUG-WHT', '8850040', 220, 199, ...optionalCols('90', 'Brand C'), 'ของใช้ในบ้าน', ''],
-      ['P004', 'แก้วเซรามิก Premium', 'เปิด', 'สินค้าย่อย', 'สีดำ',  'MUG-BLK', '8850041', 220, 199, ...optionalCols('90', ''), '', ''],
-      ['P004', 'แก้วเซรามิก Premium', 'เปิด', 'สินค้าย่อย', 'สีฟ้า', 'MUG-BLU', '8850042', 220, 199, ...optionalCols('90', ''), '', ''],
+      ['P001', 'กางเกงยีนส์ ทรงสลิม', STATUS_LABEL_ACTIVE,   'สินค้าปกติ', '-',     'JN-001',  '8850010', 890, 790, ...optionalCols('450', 'Brand A'), 'เสื้อผ้า',         'ทรงตรง กระเป๋าหลัง 2 ใบ'],
+      ['P002', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE,   'สินค้าย่อย', 'ไซส์ M', 'TS-M',    '8850020', 350, 299, ...optionalCols('180', 'Brand A'), 'เสื้อผ้า',         'เนื้อผ้าคอตตอน 100%'],
+      ['P002', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE,   'สินค้าย่อย', 'ไซส์ L', 'TS-L',    '8850021', 350, 299, ...optionalCols('180', ''),         '',                   ''],
+      ['P003', 'กระเป๋าผ้าแคนวาส',     STATUS_LABEL_INACTIVE, 'สินค้าปกติ', '-',     'BAG-001', '8850030', 450, 399, ...optionalCols('200', 'Brand B'), 'กระเป๋า',           'ยังไม่พร้อมขาย — รอผลิตล็อตใหม่'],
+      ['P004', 'แก้วเซรามิก Premium',  STATUS_LABEL_ACTIVE,   'สินค้าย่อย', 'สีขาว',  'MUG-WHT', '8850040', 220, 199, ...optionalCols('90',  'Brand C'), 'ของใช้ในบ้าน',     ''],
+      ['P004', 'แก้วเซรามิก Premium',  STATUS_LABEL_ACTIVE,   'สินค้าย่อย', 'สีดำ',   'MUG-BLK', '8850041', 220, 199, ...optionalCols('90',  ''),         '',                   ''],
+      ['P004', 'แก้วเซรามิก Premium',  STATUS_LABEL_ACTIVE,   'สินค้าย่อย', 'สีฟ้า',  'MUG-BLU', '8850042', 220, 199, ...optionalCols('90',  ''),         '',                   ''],
     ];
     samples.forEach(s => {
       const row = ws.addRow(s);
@@ -235,7 +229,7 @@ export default function BulkCreateProductsPage() {
     colWidths.push(20, 60);
     ws.columns = colWidths.map(w => ({ width: w }));
 
-    ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 1 }];
+    ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2 }];
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -332,10 +326,11 @@ export default function BulkCreateProductsPage() {
         if (badNumeric) continue;
 
         const item: CreateItem = { code, name: name || code, __rowNum: rowNum };
-        const activeRaw = (getCell(row, 'ใช้งาน', 'active', 'is_active') || '').toLowerCase();
-        if (activeRaw && ['ปิด', 'ไม่ใช้งาน', 'inactive', 'no', 'false', '0'].includes(activeRaw)) {
-          item.is_active = false;
-        }
+        // Status: read from "สถานะ" (current header) or legacy "ใช้งาน" for files
+        // generated before standardization. parseStatusValue handles both labels.
+        const statusRaw = getCell(row, 'สถานะ', 'ใช้งาน', 'status', 'active', 'is_active');
+        const parsedActive = parseStatusValue(statusRaw);
+        if (parsedActive === false) item.is_active = false;
         const vlabel = getCell(row, 'ตัวเลือก', 'variation_label');
         if (vlabel) item.variation_label = vlabel;
         const sku = getCell(row, 'SKU', 'sku');
