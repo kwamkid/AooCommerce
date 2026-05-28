@@ -757,10 +757,11 @@ export async function PUT(request: NextRequest) {
     if (category_id !== undefined) updateData.category_id = category_id || null;
     if (brand_id !== undefined) updateData.brand_id = brand_id || null;
 
-    // If product was auto-created from Shopee, mark as edited
+    // If product was auto-created from Shopee, mark as edited.
+    // Also fetch variation_label so we can detect simple ↔ variation type switch below.
     const { data: currentProduct } = await supabaseAdmin
       .from('products')
-      .select('source')
+      .select('source, variation_label')
       .eq('id', id)
       .eq('company_id', auth.companyId)
       .single();
@@ -790,21 +791,67 @@ export async function PUT(request: NextRequest) {
     // Variation product: variation_label is null in products table
     const isSimpleProduct = data.variation_label !== null;
 
+    // Detect type switch (simple ↔ variation). currentProduct (fetched earlier
+    // for source-change tracking) carries the PREVIOUS variation_label, so
+    // comparing against data.variation_label tells us if the user just toggled
+    // type in this request. When type switches, we soft-archive ALL existing
+    // variation rows — variation_id is FK'd by 19 tables (orders, inventory,
+    // reports, snapshots…) so hard-delete would either be rejected by the DB
+    // or cascade-wipe historical rows. Soft-archive preserves history.
+    const prevWasSimple = currentProduct?.variation_label !== null && currentProduct?.variation_label !== undefined;
+    const typeSwitched =
+      variation_label !== undefined &&
+      ((prevWasSimple && !isSimpleProduct) || (!prevWasSimple && isSimpleProduct));
+
+    if (typeSwitched) {
+      await supabaseAdmin
+        .from('product_variations')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('product_id', id)
+        .eq('company_id', auth.companyId);
+    }
+
     if (isSimpleProduct) {
       // For simple products: update the single variation row
       // Get the variation price/stock data from body
       const { default_price, discount_price, cost_price, stock, min_stock, sku, barcode } = body;
 
       if (default_price !== undefined || discount_price !== undefined || cost_price !== undefined || stock !== undefined || min_stock !== undefined || sku !== undefined || barcode !== undefined) {
-        // Find the existing variation for this simple product
-        const { data: existingVariation } = await supabaseAdmin
-          .from('product_variations')
-          .select('id')
-          .eq('product_id', id)
-          .eq('company_id', auth.companyId)
-          .single();
+        // After a type switch (variation → simple) all old variations were
+        // archived, so there's no "current" simple variation — create one.
+        // Otherwise, look up the existing simple variation (the one that's
+        // still active) to update in place.
+        const { data: existingVariation } = typeSwitched
+          ? { data: null as { id: string } | null }
+          : await supabaseAdmin
+              .from('product_variations')
+              .select('id')
+              .eq('product_id', id)
+              .eq('company_id', auth.companyId)
+              .eq('is_active', true)
+              .maybeSingle();
 
-        if (existingVariation) {
+        if (!existingVariation) {
+          // Insert fresh simple variation
+          await supabaseAdmin
+            .from('product_variations')
+            .insert({
+              company_id: auth.companyId,
+              product_id: id,
+              variation_label: variation_label || '-',
+              sku: sku || null,
+              barcode: barcode || null,
+              default_price: default_price ?? 0,
+              discount_price: discount_price ?? 0,
+              cost_price: cost_price ?? 0,
+              stock: stock ?? 0,
+              min_stock: min_stock ?? 0,
+              is_active: true,
+              attributes: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+        } else if (existingVariation) {
           // Update existing variation
           const variationUpdate: any = { updated_at: new Date().toISOString() };
           if (default_price !== undefined) variationUpdate.default_price = default_price;
@@ -836,13 +883,16 @@ export async function PUT(request: NextRequest) {
         const existingIds = existingVariations?.map(v => v.id) || [];
         const providedIds = variations.filter(v => v.id).map(v => v.id);
 
-        // Delete variations that are no longer in the list
-        const toDelete = existingIds.filter(id => !providedIds.includes(id));
-        if (toDelete.length > 0) {
+        // Soft-archive variations that are no longer in the list (instead of
+        // hard-delete). Hard-delete would either be rejected by RESTRICT FKs
+        // (order_items, supplier_snapshot_*) or cascade-wipe historical rows
+        // (inventory, reports). Archiving keeps history intact.
+        const toArchive = existingIds.filter(id => !providedIds.includes(id));
+        if (toArchive.length > 0) {
           await supabaseAdmin
             .from('product_variations')
-            .delete()
-            .in('id', toDelete)
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .in('id', toArchive)
             .eq('company_id', auth.companyId);
         }
 

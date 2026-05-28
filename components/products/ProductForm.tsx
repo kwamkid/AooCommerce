@@ -20,7 +20,8 @@ import {
   Loader2,
   Check,
   Layers,
-  BoxSelect
+  BoxSelect,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface CategoryOption {
@@ -154,6 +155,11 @@ export default function ProductForm({
   const [variationTypes, setVariationTypes] = useState<VariationTypeItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+
+  // Track the product_type the form was loaded with — used to detect when the
+  // user is changing simple ↔ variation in edit mode (needs confirmation).
+  const originalProductType = editingProduct?.product_type;
+  const [pendingTypeChange, setPendingTypeChange] = useState<'simple' | 'variation' | null>(null);
 
   // Category & Brand state
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -484,6 +490,10 @@ export default function ProductForm({
       if (formData.default_price <= 0) {
         errors.default_price = 'ราคาต้องมากกว่า 0';
       }
+      // Discount must be strictly less than default (0 = no discount, allowed)
+      if (formData.discount_price > 0 && formData.discount_price >= formData.default_price) {
+        errors.discount_price = 'ราคาขายต้องน้อยกว่าราคาปกติ';
+      }
     } else if (formData.product_type === 'variation') {
       if (formData.selected_variation_types.length === 0) {
         errors.variation_types = 'กรุณาเลือกอย่างน้อย 1 ประเภท';
@@ -502,6 +512,9 @@ export default function ProductForm({
         }
         if (v.default_price <= 0) {
           errors[`variation.${i}.price`] = 'ต้องมากกว่า 0';
+        }
+        if (v.discount_price > 0 && v.discount_price >= v.default_price) {
+          errors[`variation.${i}.discount`] = 'ราคาขายต้องน้อยกว่าราคาปกติ';
         }
       }
 
@@ -924,7 +937,15 @@ export default function ProductForm({
           {/* Simple */}
           <button
             type="button"
-            onClick={() => setFormData({ ...formData, product_type: 'simple' })}
+            onClick={() => {
+              if (formData.product_type === 'simple') return;
+              // Edit mode + switching away from the loaded type → confirm first
+              if (originalProductType && originalProductType !== 'simple') {
+                setPendingTypeChange('simple');
+                return;
+              }
+              setFormData({ ...formData, product_type: 'simple' });
+            }}
             className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
               formData.product_type === 'simple'
                 ? 'border-primary bg-primary/5 shadow-sm'
@@ -954,7 +975,14 @@ export default function ProductForm({
           {/* Variation */}
           <button
             type="button"
-            onClick={() => setFormData({ ...formData, product_type: 'variation' })}
+            onClick={() => {
+              if (formData.product_type === 'variation') return;
+              if (originalProductType && originalProductType !== 'variation') {
+                setPendingTypeChange('variation');
+                return;
+              }
+              setFormData({ ...formData, product_type: 'variation' });
+            }}
             className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
               formData.product_type === 'variation'
                 ? 'border-primary bg-primary/5 shadow-sm'
@@ -1299,6 +1327,71 @@ export default function ProductForm({
         </button>
       </div>
     </form>
+
+    {/* Type-change confirmation (edit mode only) — see soft-archive behavior
+        on the API side: old variations are deactivated, not hard-deleted, so
+        existing orders/inventory references stay intact. */}
+    <Modal
+      open={!!pendingTypeChange}
+      onClose={() => setPendingTypeChange(null)}
+      title={
+        <span className="flex items-center gap-2">
+          <ShieldAlert className="w-5 h-5 text-amber-600" />
+          ยืนยันการเปลี่ยนประเภทสินค้า
+        </span>
+      }
+      size="md"
+      footer={
+        <div className="flex justify-end gap-2 p-4">
+          <Button variant="secondary" onClick={() => setPendingTypeChange(null)}>
+            ยกเลิก
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              if (pendingTypeChange) {
+                setFormData(prev => ({ ...prev, product_type: pendingTypeChange }));
+              }
+              setPendingTypeChange(null);
+            }}
+          >
+            ยืนยันเปลี่ยนประเภท
+          </Button>
+        </div>
+      }
+    >
+      <div className="p-5 space-y-3">
+        <p className="text-sm text-gray-700 dark:text-slate-300">
+          กำลังเปลี่ยนประเภทจาก{' '}
+          <strong className="text-gray-900 dark:text-white">
+            {originalProductType === 'simple' ? 'Simple Product' : 'Variation Product'}
+          </strong>
+          {' → '}
+          <strong className="text-gray-900 dark:text-white">
+            {pendingTypeChange === 'simple' ? 'Simple Product' : 'Variation Product'}
+          </strong>
+        </p>
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-300 space-y-1.5">
+          <p className="font-medium">⚠ การเปลี่ยนแปลงนี้มีผลใหญ่ต่อสินค้าตัวนี้</p>
+          <ul className="list-disc list-inside space-y-1 text-xs">
+            {pendingTypeChange === 'simple' ? (
+              <>
+                <li>ตัวเลือกย่อย (variations) ทั้งหมดจะถูก<strong>ปิดใช้งาน</strong>เมื่อกดบันทึก</li>
+                <li>ระบบจะ<strong>ไม่ลบ</strong>ตัวเลือกย่อยเก่า — เพื่อรักษา order/stock/รายงานเก่าไว้ครบ</li>
+                <li>ราคา/สต็อกของสินค้านี้จะกลายเป็นค่าเดียวตามที่กรอกใหม่</li>
+              </>
+            ) : (
+              <>
+                <li>ราคา/สต็อกของแบบ Simple ปัจจุบันจะถูก<strong>ปิดใช้งาน</strong>เมื่อกดบันทึก</li>
+                <li>ต้องสร้างตัวเลือกย่อย (variations) ใหม่ทั้งหมด</li>
+                <li>ระบบจะ<strong>ไม่ลบ</strong>ของเก่า — order/stock/รายงานเก่ายังอยู่ครบ</li>
+              </>
+            )}
+            <li className="text-amber-900 dark:text-amber-200 font-medium">การเปลี่ยนแปลงจะมีผลตอนกด &quot;บันทึก&quot; เท่านั้น (ยังไม่บันทึกตอนนี้)</li>
+          </ul>
+        </div>
+      </div>
+    </Modal>
 
     {/* Quick-add: Category */}
     <Modal
