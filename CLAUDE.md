@@ -193,6 +193,29 @@ import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
 - สูตร: `new_wac = (existing_qty × old_wac + received_qty × new_cost) / total_qty`
 - **ห้ามเรียก WAC** จากย้ายคลัง, ส่งตัวแทน, ส่งห้าง, return — เฉพาะ inventory receives เท่านั้น
 
+### Product variations — Soft-archive only (ห้าม hard-delete)
+- `product_variations.id` ถูก FK reference **19 ตาราง** (order_items, inventory*, reports, supplier_snapshot_*, marketplace_product_links ฯลฯ); หลายตัวเป็น RESTRICT → DB reject; หลายตัวเป็น CASCADE → wipe history
+- **ทุก "ลบ variation"** ใน API/RPC ต้องใช้ `UPDATE is_active=false` ไม่ใช่ `.delete()`
+- **Type-switch (Simple ↔ Variation)** ใน `/api/products` PUT: detect ผ่าน `currentProduct.variation_label` vs incoming → soft-archive variations เก่าทั้งหมด → insert ตัวใหม่ใน branch ตามประเภทใหม่
+- Front-end: ProductForm มี `pendingTypeChange` modal warning ก่อน toggle (เฉพาะ edit mode)
+
+### Discount price < Default price (บังคับทั่วระบบ)
+- กฎ: `discount_price > 0 AND discount_price >= default_price` → reject. `discount_price = 0` = "ไม่มีส่วนลด" อนุญาตเสมอ
+- บังคับ 3 จุด:
+  1. `ProductForm` UI — inline error "ราคาขายต้องน้อยกว่าราคาปกติ" (simple + per-variation)
+  2. `bulk_create_products` RPC — error row, ระบุ variation label
+  3. `bulk_update_variation_prices` RPC — เช็ค **FINAL value** (incoming OR existing) catch partial edit
+
+### Bulk Excel templates — Format conventions
+- **Row structure**: Row 1 = header (orange/white bold), Row 2 = instruction (gray italic — ใช้ **red bold** เฉพาะ required), Row 3+ = data
+- ใช้ `addHeaderRow` / `addInstructionRow` / `addTemplateHeader` จาก [lib/bulk/excel-template.ts](lib/bulk/excel-template.ts) เสมอ
+- Instruction cells: `string` = gray ปกติ; `{ text, required: true }` = red bold (เช่น "จำเป็นต้องกรอก")
+- Status column: ใช้ `STATUS_COLUMN_HEADER` (= "สถานะ"), `STATUS_INSTRUCTION`, `STATUS_LABEL_ACTIVE/INACTIVE` จาก [lib/bulk/status-enum.ts](lib/bulk/status-enum.ts) — ห้าม hardcode "เปิด"/"ปิด" หรือ "ใช้งาน"/"ไม่ใช้งาน"
+- **Create templates** = ตัวอย่างพอดี (1-3 records): create-categories 3 rows = 2 records (1 มี sub + 1 ไม่มี); create-brands 2 rows; create products 3 patterns (simple, 1-dim, 2-dim variation)
+- **Edit templates** = export ของจริง + lock ID columns + instructions เป็น "(ค่าว่าง = ไม่แก้)"
+- Variation product: ใช้ "ประเภทตัวเลือก 1/2 + ตัวเลือก 1/2" pattern; RPC จะ resolve / auto-create `variation_types` per company แล้ว set `products.selected_variation_types` + `product_variations.attributes`
+- Freeze pane: `ySplit: 2` (lock both header + instruction rows)
+
 ---
 
 ## DB Schema (สำคัญ)

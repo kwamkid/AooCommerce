@@ -41,7 +41,7 @@ function NewProductContent() {
         const duplicated: ProductItem = {
           ...found,
           product_id: '', // empty = create mode in ProductForm
-          code: '', // will auto-generate in ProductForm
+          code: '', // user must enter the new product's own code
           name: found.name + ' (สำเนา)',
           image: '', // don't copy image reference
           main_image_url: '', // don't copy image

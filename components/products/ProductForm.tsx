@@ -199,18 +199,12 @@ export default function ProductForm({
   const [productImages, setProductImages] = useState<ProductImage[]>(initialImages || []);
   const [variationImages, setVariationImages] = useState<Record<string, ProductImage[]>>(initialVariationImages || {});
 
-  // Generate sellable product code
-  const generateSellableCode = () => {
-    const prefix = 'SKU';
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-    return `${prefix}-${timestamp}${random}`;
-  };
-
   // Initialize form data
   const initFormData = (): ProductFormData => {
     if (editingProduct) {
-      const useCode = editingProduct.product_id ? editingProduct.code : generateSellableCode();
+      // Edit existing → keep existing code. Duplicate (no product_id) → blank
+      // so the user enters the new product's own code manually.
+      const useCode = editingProduct.product_id ? editingProduct.code : '';
       if (editingProduct.product_type === 'simple') {
         return {
           code: useCode,
@@ -264,7 +258,7 @@ export default function ProductForm({
     }
 
     return {
-      code: generateSellableCode(),
+      code: '',
       name: '',
       description: '',
       image: '',

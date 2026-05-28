@@ -94,7 +94,6 @@ export default function BulkBasicInfoPage() {
   const [brandIds, setBrandIds] = useState<string[]>([]);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<ProductStatusFilter>('active');
-  const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
 
   const [step, setStep] = useState<'upload' | 'checking' | 'preview' | 'importing' | 'done'>('upload');
@@ -132,7 +131,6 @@ export default function BulkBasicInfoPage() {
       const params = new URLSearchParams({ status: statusFilter });
       if (brandEnabled && brandIds.length > 0) params.set('brand_ids', brandIds.join(','));
       if (categoryIds.length > 0) params.set('category_ids', categoryIds.join(','));
-      if (search.trim()) params.set('search', search.trim());
 
       const res = await apiFetch(`/api/products/bulk/basic-info/export?${params.toString()}`);
       const data = await res.json();
@@ -390,8 +388,6 @@ export default function BulkBasicInfoPage() {
             </Alert>
 
             <ProductFilters
-              search={search}
-              onSearchChange={setSearch}
               status={statusFilter}
               onStatusChange={setStatusFilter}
               brandIds={brandEnabled ? brandIds : undefined}
@@ -401,7 +397,6 @@ export default function BulkBasicInfoPage() {
               onCategoryIdsChange={setCategoryIds}
               categories={categories}
               onReset={() => {
-                setSearch('');
                 setStatusFilter('active');
                 setBrandIds([]);
                 setCategoryIds([]);

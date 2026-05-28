@@ -22,6 +22,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { LoadingCard, EmptyCard, NoPermissionCard, DoneCard } from '@/components/ui/StateCard';
 import BulkUploadCard from '@/components/bulk/BulkUploadCard';
 import BulkPreviewBar from '@/components/bulk/BulkPreviewBar';
+import IncludeCostToggle from '@/components/bulk/IncludeCostToggle';
 import ProductFilters, { type ProductStatusFilter } from '@/components/products/ProductFilters';
 import Pagination from '@/app/components/Pagination';
 import { addHeaderRow, addInstructionRow } from '@/lib/bulk/excel-template';
@@ -80,12 +81,16 @@ export default function BulkPricePage() {
   const isAdmin = companyRoles.includes('owner') || companyRoles.includes('admin') || companyRoles.includes('manager') || companyRoles.includes('warehouse');
   const canEditCost = userProfile?.canViewCost === true;
 
+  // Default include cost when permitted; user can untick before export.
+  // Same pattern as `/products/bulk/create` so the template shape stays consistent.
+  const [includeCost, setIncludeCost] = useState<boolean>(canEditCost);
+  const costInTemplate = canEditCost && includeCost;
+
   const [brands, setBrands] = useState<Brand[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [brandIds, setBrandIds] = useState<string[]>([]);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<ProductStatusFilter>('active');
-  const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
 
   const [step, setStep] = useState<'upload' | 'checking' | 'preview' | 'importing' | 'done'>('upload');
@@ -123,7 +128,6 @@ export default function BulkPricePage() {
       const params = new URLSearchParams({ status: statusFilter });
       if (brandEnabled && brandIds.length > 0) params.set('brand_ids', brandIds.join(','));
       if (categoryIds.length > 0) params.set('category_ids', categoryIds.join(','));
-      if (search.trim()) params.set('search', search.trim());
 
       const res = await apiFetch(`/api/products/bulk/price/export?${params.toString()}`);
       const data = await res.json();
@@ -162,7 +166,7 @@ export default function BulkPricePage() {
         'SKU',
         'ราคาปกติ',
         'ราคาขาย',
-        ...(canEditCost ? ['ราคาทุน'] : []),
+        ...(costInTemplate ? ['ราคาทุน'] : []),
       ];
       // Header row — manually add to apply green tint to editable price columns
       const headerRow = addHeaderRow(ws, headers);
@@ -180,7 +184,7 @@ export default function BulkPricePage() {
         '(read-only)',
         '(ตัวเลข ≥ 0)',
         '(ตัวเลข ≥ 0; 0 = ไม่มีส่วนลด)',
-        ...(canEditCost ? ['(ตัวเลข ≥ 0)'] : []),
+        ...(costInTemplate ? ['(ตัวเลข ≥ 0)'] : []),
       ];
       addInstructionRow(ws, instructions);
 
@@ -199,7 +203,7 @@ export default function BulkPricePage() {
           it.default_price ?? 0,
           it.discount_price ?? 0,
         ];
-        if (canEditCost) rowVals.push(it.cost_price ?? 0);
+        if (costInTemplate) rowVals.push(it.cost_price ?? 0);
 
         const row = ws.addRow(rowVals);
 
@@ -217,7 +221,7 @@ export default function BulkPricePage() {
           cell.protection = { locked: true };
         }
         // Editable price cols (7+)
-        const priceEnd = canEditCost ? 9 : 8;
+        const priceEnd = costInTemplate ? 9 : 8;
         for (let c = 7; c <= priceEnd; c++) {
           const cell = row.getCell(c);
           cell.protection = { locked: false };
@@ -227,7 +231,7 @@ export default function BulkPricePage() {
       }
 
       const colWidths = [38, 38, 14, 32, 16, 16, 12, 12];
-      if (canEditCost) colWidths.push(12);
+      if (costInTemplate) colWidths.push(12);
       ws.columns = colWidths.map(w => ({ width: w }));
 
       ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 2 }];
@@ -380,7 +384,7 @@ export default function BulkPricePage() {
       <Container size="5xl">
         <PageHeader
           title="แก้ไขราคา"
-          subtitle={`แก้ราคาปกติ / ราคาขาย${canEditCost ? ' / ราคาทุน' : ''}`}
+          subtitle={`แก้ราคาปกติ / ราคาขาย${costInTemplate ? ' / ราคาทุน' : ''}`}
           backHref="/products/bulk"
         />
 
@@ -395,8 +399,6 @@ export default function BulkPricePage() {
             </Alert>
 
             <ProductFilters
-              search={search}
-              onSearchChange={setSearch}
               status={statusFilter}
               onStatusChange={setStatusFilter}
               brandIds={brandEnabled ? brandIds : undefined}
@@ -406,11 +408,16 @@ export default function BulkPricePage() {
               onCategoryIdsChange={setCategoryIds}
               categories={categories}
               onReset={() => {
-                setSearch('');
                 setStatusFilter('active');
                 setBrandIds([]);
                 setCategoryIds([]);
               }}
+            />
+
+            <IncludeCostToggle
+              visible={canEditCost}
+              checked={includeCost}
+              onChange={setIncludeCost}
             />
 
             <BulkUploadCard
@@ -424,7 +431,7 @@ export default function BulkPricePage() {
                   <p className="font-medium text-gray-800 dark:text-slate-300 mb-2">วิธีใช้:</p>
                   <ul className="space-y-1 list-disc list-inside">
                     <li>กด <strong>Export สินค้า</strong> → ได้ไฟล์ Excel ทุก variation ตาม filter</li>
-                    <li>แก้เฉพาะ column <strong className="text-emerald-700">ราคาปกติ / ราคาขาย{canEditCost ? ' / ราคาทุน' : ''}</strong> (header สีเขียว)</li>
+                    <li>แก้เฉพาะ column <strong className="text-emerald-700">ราคาปกติ / ราคาขาย{costInTemplate ? ' / ราคาทุน' : ''}</strong> (header สีเขียว)</li>
                     <li>คอลัมน์อื่น read-only (เพื่อ context — ห้ามแก้)</li>
                     <li>อัพโหลดกลับ → ระบบแสดง preview ก่อนบันทึก</li>
                   </ul>

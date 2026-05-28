@@ -18,13 +18,13 @@ import {
   STATUS_LABEL_ACTIVE, STATUS_LABEL_INACTIVE, parseStatusValue,
 } from '@/lib/bulk/status-enum';
 
-import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import PageHeader from '@/components/ui/PageHeader';
 import { LoadingCard, EmptyCard, NoPermissionCard, DoneCard } from '@/components/ui/StateCard';
 import BulkUploadCard from '@/components/bulk/BulkUploadCard';
 import BulkPreviewBar from '@/components/bulk/BulkPreviewBar';
 import BulkErrorModal, { type BulkErrorReport } from '@/components/bulk/BulkErrorModal';
+import IncludeCostToggle from '@/components/bulk/IncludeCostToggle';
 
 import {
   AlertCircle, PackagePlus, FileSpreadsheet,
@@ -506,19 +506,11 @@ export default function BulkCreateProductsPage() {
 
         {step === 'upload' && (
           <div className="space-y-4">
-            {canEditCost && (
-              <Card padding="sm">
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={includeCost}
-                    onChange={(e) => setIncludeCost(e.target.checked)}
-                    className="w-4 h-4 accent-[#F4511E]"
-                  />
-                  รวมคอลัมน์ <strong>ราคาทุน</strong> ใน Template
-                </label>
-              </Card>
-            )}
+            <IncludeCostToggle
+              visible={canEditCost}
+              checked={includeCost}
+              onChange={setIncludeCost}
+            />
 
             <BulkUploadCard
               title="ดาวน์โหลด Template → กรอกข้อมูล → อัพโหลด"
