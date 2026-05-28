@@ -161,6 +161,9 @@ export default function ProductForm({
   const [newCategoryParentId, setNewCategoryParentId] = useState('');
   const [showNewBrand, setShowNewBrand] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
+  const [showNewVariationType, setShowNewVariationType] = useState(false);
+  const [newVariationTypeName, setNewVariationTypeName] = useState('');
+  const [creatingVariationType, setCreatingVariationType] = useState(false);
 
   // Image state
   const [productImages, setProductImages] = useState<ProductImage[]>(initialImages || []);
@@ -568,6 +571,50 @@ export default function ProductForm({
       }
     } catch (e) {
       console.error('Failed to create category:', e);
+    }
+  };
+
+  // Handle create variation type (quick-add)
+  const handleCreateVariationType = async () => {
+    const name = newVariationTypeName.trim();
+    if (!name || creatingVariationType) return;
+    setCreatingVariationType(true);
+    try {
+      const res = await apiFetch('/api/variation-types', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        showToast(result.error || 'ไม่สามารถเพิ่มประเภทตัวเลือกได้', 'error');
+        return;
+      }
+      const created = result.data;
+      setVariationTypes(prev => [...prev, created]);
+      // Auto-select the newly created type
+      const newSelected = [...formData.selected_variation_types, created.id];
+      const newTypeNames = newSelected
+        .map(id => (id === created.id ? created.name : variationTypes.find(t => t.id === id)?.name))
+        .filter((n): n is string => !!n);
+      const updatedVariations = formData.variations.map(v => {
+        const newAttrs: Record<string, string> = {};
+        for (const nm of newTypeNames) newAttrs[nm] = v.attributes[nm] || '';
+        return { ...v, attributes: newAttrs, variation_label: buildDisplayName(newAttrs) };
+      });
+      setFormData(prev => ({
+        ...prev,
+        selected_variation_types: newSelected,
+        variations: updatedVariations,
+      }));
+      clearFieldError('variation_types');
+      setNewVariationTypeName('');
+      setShowNewVariationType(false);
+    } catch (e) {
+      console.error('Failed to create variation type:', e);
+      showToast('ไม่สามารถเพิ่มประเภทตัวเลือกได้', 'error');
+    } finally {
+      setCreatingVariationType(false);
     }
   };
 
@@ -1001,12 +1048,9 @@ export default function ProductForm({
           {/* Select Variation Types */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5" data-field="variation_types">
             <h3 className="text-base font-medium text-gray-700 dark:text-slate-300 mb-1">เลือกประเภทตัวเลือก *</h3>
-            <p className="text-sm text-gray-400 mb-3">เลือกอย่างน้อย 1 ประเภท เพื่อกำหนดตัวเลือก</p>
-            {variationTypes.length === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-700 rounded-lg p-3 text-center">ยังไม่มีประเภทตัวเลือก กรุณาเพิ่มใน Settings</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {variationTypes.map(vt => {
+            <p className="text-sm text-gray-400 mb-3">เลือกอย่างน้อย 1 ประเภท เพื่อกำหนดตัวเลือก (เช่น สี, ขนาด, รสชาติ)</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {variationTypes.map(vt => {
                   const isSelected = formData.selected_variation_types.includes(vt.id);
                   return (
                     <button
@@ -1051,6 +1095,44 @@ export default function ProductForm({
                     </button>
                   );
                 })}
+              <button
+                type="button"
+                onClick={() => setShowNewVariationType(v => !v)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors"
+                title="เพิ่มประเภทตัวเลือกใหม่"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                เพิ่มประเภท
+              </button>
+            </div>
+            {showNewVariationType && (
+              <div className="mt-3 flex gap-2">
+                <input
+                  autoFocus
+                  value={newVariationTypeName}
+                  onChange={e => setNewVariationTypeName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); handleCreateVariationType(); }
+                    if (e.key === 'Escape') { setShowNewVariationType(false); setNewVariationTypeName(''); }
+                  }}
+                  placeholder="เช่น สี, ขนาด, รสชาติ"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateVariationType}
+                  disabled={!newVariationTypeName.trim() || creatingVariationType}
+                  className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                >
+                  {creatingVariationType ? 'กำลังเพิ่ม...' : 'เพิ่ม'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowNewVariationType(false); setNewVariationTypeName(''); }}
+                  className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-600 dark:text-slate-300"
+                >
+                  ยกเลิก
+                </button>
               </div>
             )}
             <FieldError error={fieldErrors.variation_types} />
