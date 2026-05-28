@@ -132,7 +132,7 @@ export default function BulkCreateBrandsPage() {
         const name = getCell(row, 'ชื่อแบรนด์*', 'ชื่อแบรนด์', 'name');
         if (!name) {
           // Only push error if row has any other content
-          if (row.some(c => c && String(c).trim() !== '')) {
+          if (Object.values(row).some(c => c && String(c).trim() !== '')) {
             rowIssues.push(`แถว ${rowNum}: ไม่มีชื่อแบรนด์`);
           }
           continue;

@@ -262,7 +262,7 @@ export default function BulkBasicInfoPage() {
         const productId = getCell(row, 'product_id (ห้ามแก้)', 'product_id');
         if (!productId) {
           // Row has data but no product_id — silently skipped, but count for warning
-          if (row.some(c => c && String(c).trim())) skippedNoId++;
+          if (Object.values(row).some(c => c && String(c).trim())) skippedNoId++;
           continue;
         }
 

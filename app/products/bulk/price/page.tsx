@@ -280,7 +280,7 @@ export default function BulkPricePage() {
         const productId = getCell(row, 'product_id (ห้ามแก้)', 'product_id');
         const variationId = getCell(row, 'variation_id (ห้ามแก้)', 'variation_id');
         if (!variationId) {
-          if (row.some(c => c && String(c).trim())) skippedNoId++;
+          if (Object.values(row).some(c => c && String(c).trim())) skippedNoId++;
           continue;
         }
 
