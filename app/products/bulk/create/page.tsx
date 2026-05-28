@@ -34,6 +34,10 @@ interface CreateItem {
   code: string;
   name?: string;
   variation_label?: string;
+  /** key = variation_type name (e.g. "สี"), value = the choice (e.g. "ขาว").
+   *  RPC uses these keys to resolve / auto-create variation_types per company
+   *  and to set products.selected_variation_types + product_variations.attributes. */
+  attributes?: Record<string, string>;
   sku?: string;
   barcode?: string;
   default_price?: number;
@@ -150,10 +154,10 @@ export default function BulkCreateProductsPage() {
     const list: RequiredColumn[] = [
       { aliases: ['รหัสสินค้า*', 'รหัสสินค้า', 'code'], label: 'รหัสสินค้า' },
       { aliases: ['ชื่อสินค้า*', 'ชื่อสินค้า', 'name'], label: 'ชื่อสินค้า' },
-      { aliases: ['ตัวเลือก', 'variation_label'], label: 'ตัวเลือก' },
+      { aliases: ['ตัวเลือก 1', 'ตัวเลือก', 'variation_value_1', 'variation_label'], label: 'ตัวเลือก 1' },
       { aliases: ['SKU', 'sku'], label: 'SKU' },
       { aliases: ['Barcode', 'barcode'], label: 'Barcode' },
-      { aliases: ['ราคาปกติ', 'default_price', 'price'], label: 'ราคาปกติ' },
+      { aliases: ['ราคาปกติ*', 'ราคาปกติ', 'default_price', 'price'], label: 'ราคาปกติ' },
       { aliases: ['ราคาขาย', 'discount_price', 'discount'], label: 'ราคาขาย' },
     ];
     if (costInTemplate) {
@@ -177,10 +181,13 @@ export default function BulkCreateProductsPage() {
       'ชื่อสินค้า*',
       STATUS_COLUMN_HEADER,
       'ประเภท',
-      'ตัวเลือก',
+      'ประเภทตัวเลือก 1',
+      'ตัวเลือก 1',
+      'ประเภทตัวเลือก 2',
+      'ตัวเลือก 2',
       'SKU',
       'Barcode',
-      'ราคาปกติ',
+      'ราคาปกติ*',
       'ราคาขาย',
       ...(costInTemplate ? ['ราคาทุน'] : []),
       ...(brandEnabled ? ['แบรนด์'] : []),
@@ -192,15 +199,18 @@ export default function BulkCreateProductsPage() {
     const optionalCols = (cost: string, brand: string): Row =>
       [...(costInTemplate ? [cost] : []), ...(brandEnabled ? [brand] : [])];
 
-    const instructions: string[] = [
-      '(จำเป็น)',
-      '(จำเป็น)',
+    const instructions: import('@/lib/bulk/excel-template').InstructionCell[] = [
+      { text: 'จำเป็นต้องกรอก', required: true },
+      { text: 'จำเป็นต้องกรอก', required: true },
       STATUS_INSTRUCTION,
       '(สินค้าปกติ = 1 แถว / สินค้าย่อย = หลายแถวรหัสเดียวกัน)',
-      '(ใส่ "-" ถ้าไม่มี)',
+      '(สินค้าย่อย: ใส่ชื่อประเภท เช่น สี, ขนาด — เว้นว่างถ้าสินค้าปกติ)',
+      '(สินค้าย่อย: ค่าของประเภทตัวเลือก 1 เช่น ขาว, M)',
+      '(ถ้าสินค้าย่อยมี 2 ประเภท — เช่น สี + ขนาด)',
+      '(ค่าของประเภทตัวเลือก 2)',
       '(ไม่บังคับ)',
       '(ไม่บังคับ)',
-      '(ค่าว่าง = 0)',
+      { text: 'จำเป็นต้องกรอก (ตัวเลข ≥ 0)', required: true },
       '(ค่าว่าง = 0)',
       ...(costInTemplate ? ['(ค่าว่าง = 0)'] : []),
       ...(brandEnabled ? ['(ชื่อต้องตรงในระบบ — ไม่ตรง = error)'] : []),
@@ -209,21 +219,25 @@ export default function BulkCreateProductsPage() {
     ];
     addTemplateHeader(ws, headers, instructions);
 
+    // Samples — 3 patterns:
+    //   - Simple product (1 row, no variation types)
+    //   - Variable product with 1 variation type (สี)
+    //   - Variable product with 2 variation types (สี + ขนาด)
     const samples: Row[] = [
-      ['P001', 'กางเกงยีนส์ ทรงสลิม', STATUS_LABEL_ACTIVE,   'สินค้าปกติ', '-',     'JN-001',  '8850010', 890, 790, ...optionalCols('450', 'Brand A'), 'เสื้อผ้า',         'ทรงตรง กระเป๋าหลัง 2 ใบ'],
-      ['P002', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE,   'สินค้าย่อย', 'ไซส์ M', 'TS-M',    '8850020', 350, 299, ...optionalCols('180', 'Brand A'), 'เสื้อผ้า',         'เนื้อผ้าคอตตอน 100%'],
-      ['P002', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE,   'สินค้าย่อย', 'ไซส์ L', 'TS-L',    '8850021', 350, 299, ...optionalCols('180', ''),         '',                   ''],
-      ['P003', 'กระเป๋าผ้าแคนวาส',     STATUS_LABEL_INACTIVE, 'สินค้าปกติ', '-',     'BAG-001', '8850030', 450, 399, ...optionalCols('200', 'Brand B'), 'กระเป๋า',           'ยังไม่พร้อมขาย — รอผลิตล็อตใหม่'],
-      ['P004', 'แก้วเซรามิก Premium',  STATUS_LABEL_ACTIVE,   'สินค้าย่อย', 'สีขาว',  'MUG-WHT', '8850040', 220, 199, ...optionalCols('90',  'Brand C'), 'ของใช้ในบ้าน',     ''],
-      ['P004', 'แก้วเซรามิก Premium',  STATUS_LABEL_ACTIVE,   'สินค้าย่อย', 'สีดำ',   'MUG-BLK', '8850041', 220, 199, ...optionalCols('90',  ''),         '',                   ''],
-      ['P004', 'แก้วเซรามิก Premium',  STATUS_LABEL_ACTIVE,   'สินค้าย่อย', 'สีฟ้า',  'MUG-BLU', '8850042', 220, 199, ...optionalCols('90',  ''),         '',                   ''],
+      ['P001', 'กางเกงยีนส์ ทรงสลิม', STATUS_LABEL_ACTIVE, 'สินค้าปกติ', '',    '',    '',     '',  'JN-001',  '8850010', 890, 790, ...optionalCols('450', 'Brand A'), 'เสื้อผ้า',     'ทรงตรง กระเป๋าหลัง 2 ใบ'],
+      ['P002', 'แก้วเซรามิก Premium', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ขาว', '',     '',  'MUG-WHT', '8850040', 220, 199, ...optionalCols('90',  'Brand C'), 'ของใช้ในบ้าน', ''],
+      ['P002', 'แก้วเซรามิก Premium', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ดำ',  '',     '',  'MUG-BLK', '8850041', 220, 199, ...optionalCols('90',  ''),         '',             ''],
+      ['P003', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ขาว', 'ขนาด', 'M', 'TS-WM',   '8850050', 350, 299, ...optionalCols('180', 'Brand A'), 'เสื้อผ้า',     'เนื้อผ้าคอตตอน 100%'],
+      ['P003', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ขาว', 'ขนาด', 'L', 'TS-WL',   '8850051', 350, 299, ...optionalCols('180', ''),         '',             ''],
+      ['P003', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ดำ',  'ขนาด', 'M', 'TS-BM',   '8850052', 350, 299, ...optionalCols('180', ''),         '',             ''],
+      ['P003', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ดำ',  'ขนาด', 'L', 'TS-BL',   '8850053', 350, 299, ...optionalCols('180', ''),         '',             ''],
     ];
     samples.forEach(s => {
       const row = ws.addRow(s);
       row.getCell(headers.length).alignment = { wrapText: true, vertical: 'top' };
     });
 
-    const colWidths = [16, 44, 10, 20, 16, 16, 16, 12, 12];
+    const colWidths = [16, 44, 10, 20, 16, 14, 16, 14, 14, 14, 12, 12];
     if (costInTemplate) colWidths.push(12);
     if (brandEnabled) colWidths.push(20);
     colWidths.push(20, 60);
@@ -331,8 +345,25 @@ export default function BulkCreateProductsPage() {
         const statusRaw = getCell(row, 'สถานะ', 'ใช้งาน', 'status', 'active', 'is_active');
         const parsedActive = parseStatusValue(statusRaw);
         if (parsedActive === false) item.is_active = false;
-        const vlabel = getCell(row, 'ตัวเลือก', 'variation_label');
-        if (vlabel) item.variation_label = vlabel;
+        // Variation type/value pairs — supports up to 2 dimensions (e.g. สี + ขนาด).
+        // Backward-compat: old "ตัวเลือก" column maps to ตัวเลือก 1 value.
+        const type1 = getCell(row, 'ประเภทตัวเลือก 1', 'variation_type_1');
+        const value1 = getCell(row, 'ตัวเลือก 1', 'ตัวเลือก', 'variation_value_1', 'variation_label');
+        const type2 = getCell(row, 'ประเภทตัวเลือก 2', 'variation_type_2');
+        const value2 = getCell(row, 'ตัวเลือก 2', 'variation_value_2');
+
+        const attributes: Record<string, string> = {};
+        if (type1 && value1 && value1 !== '-') attributes[type1] = value1;
+        if (type2 && value2 && value2 !== '-') attributes[type2] = value2;
+
+        if (Object.keys(attributes).length > 0) {
+          item.attributes = attributes;
+          // Build display label from values (e.g. "ขาว / M")
+          item.variation_label = Object.values(attributes).join(' / ');
+        } else if (value1 && value1 !== '-') {
+          // Legacy single-column template (no type given) — keep value as label only
+          item.variation_label = value1;
+        }
         const sku = getCell(row, 'SKU', 'sku');
         if (sku) item.sku = sku;
         const barcode = getCell(row, 'Barcode', 'barcode');

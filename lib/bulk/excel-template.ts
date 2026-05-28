@@ -15,6 +15,11 @@ import type { Worksheet, Row } from 'exceljs';
 const HEADER_FILL = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF4511E' } };
 const HEADER_FONT = { bold: true, color: { argb: 'FFFFFFFF' } };
 const INSTRUCTION_FONT = { italic: true, color: { argb: 'FF999999' }, size: 9 };
+const INSTRUCTION_FONT_REQUIRED = { italic: true, bold: true, color: { argb: 'FFDC2626' }, size: 9 };
+
+/** Instruction cell — `string` for normal gray text, `{ text, required: true }`
+ * for required columns rendered in red bold. */
+export type InstructionCell = string | { text: string; required?: boolean };
 
 export function addHeaderRow(ws: Worksheet, headers: string[]): Row {
   const row = ws.addRow(headers);
@@ -27,10 +32,13 @@ export function addHeaderRow(ws: Worksheet, headers: string[]): Row {
   return row;
 }
 
-export function addInstructionRow(ws: Worksheet, instructions: string[]): Row {
-  const row = ws.addRow(instructions);
-  row.eachCell(cell => {
-    cell.font = INSTRUCTION_FONT;
+export function addInstructionRow(ws: Worksheet, instructions: InstructionCell[]): Row {
+  const texts = instructions.map(i => (typeof i === 'string' ? i : i.text));
+  const row = ws.addRow(texts);
+  row.eachCell((cell, col) => {
+    const inst = instructions[col - 1];
+    const isRequired = typeof inst === 'object' && inst.required === true;
+    cell.font = isRequired ? INSTRUCTION_FONT_REQUIRED : INSTRUCTION_FONT;
   });
   return row;
 }
@@ -39,7 +47,7 @@ export function addInstructionRow(ws: Worksheet, instructions: string[]): Row {
 export function addTemplateHeader(
   ws: Worksheet,
   headers: string[],
-  instructions: string[],
+  instructions: InstructionCell[],
 ): void {
   addHeaderRow(ws, headers);
   addInstructionRow(ws, instructions);
