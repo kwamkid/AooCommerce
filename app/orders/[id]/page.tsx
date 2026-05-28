@@ -1,13 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
+import Modal from '@/components/ui/Modal';
 import NumberInput from '@/components/ui/NumberInput';
+import FormInput from '@/components/ui/FormInput';
 import { LoadingCard } from '@/components/ui/StateCard';
 import OrderForm from '@/components/orders/OrderForm';
+import TaxInvoiceEditModal, { type TaxInvoiceSnapshot } from '@/components/ui/TaxInvoiceEditModal';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
@@ -196,8 +200,8 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
   const [refundLoading, setRefundLoading] = useState(false);
   const [showActionTypeModal, setShowActionTypeModal] = useState(false);
 
-  // Delivery info edit
-  const [editingDelivery, setEditingDelivery] = useState(false);
+  // Delivery info edit (modal)
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [deliveryForm, setDeliveryForm] = useState({
     delivery_name: '', delivery_phone: '', delivery_email: '',
     delivery_address: '', delivery_district: '', delivery_amphoe: '',
@@ -205,6 +209,14 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
   });
   const [savingDelivery, setSavingDelivery] = useState(false);
   const [deliveryErrors, setDeliveryErrors] = useState<Record<string, string>>({});
+
+  // Tax invoice edit (modal)
+  const [showTaxModal, setShowTaxModal] = useState(false);
+  const [savingTax, setSavingTax] = useState(false);
+
+  // Portal refs for warehouse + sales channel pickers (rendered by OrderForm)
+  const warehouseRef = useRef<HTMLDivElement>(null);
+  const salesChannelRef = useRef<HTMLDivElement>(null);
 
   // Toast (using global)
 
@@ -286,7 +298,58 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
       delivery_postal_code: fullOrderData.delivery_postal_code || '',
     });
     setDeliveryErrors({});
-    setEditingDelivery(true);
+    setShowDeliveryModal(true);
+  };
+
+  // Tax invoice edit handlers
+  const taxSnapshot: TaxInvoiceSnapshot = {
+    tax_type: (fullOrderData?.tax_invoice_type === 'corporate' ? 'corporate' : 'personal') as 'personal' | 'corporate',
+    tax_company_name: fullOrderData?.tax_invoice_name || '',
+    tax_id: fullOrderData?.tax_invoice_tax_id || '',
+    tax_branch: fullOrderData?.tax_invoice_branch || '',
+    billing_address: fullOrderData?.tax_invoice_address || '',
+  };
+  const handleSaveTaxInvoice = async (snap: TaxInvoiceSnapshot, alsoUpdateCustomer = false) => {
+    try {
+      setSavingTax(true);
+      const orderPatch = {
+        id: orderId,
+        tax_invoice_requested: true,
+        tax_invoice_type: snap.tax_type,
+        tax_invoice_name: snap.tax_company_name,
+        tax_invoice_tax_id: snap.tax_id,
+        tax_invoice_branch: snap.tax_branch,
+        tax_invoice_address: snap.billing_address,
+      };
+      const res = await apiFetch('/api/orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderPatch),
+      });
+      if (!res.ok) throw new Error('Failed to update tax invoice');
+
+      if (alsoUpdateCustomer && fullOrderData?.customer?.id) {
+        await apiFetch('/api/customers', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: fullOrderData.customer.id,
+            tax_type: snap.tax_type,
+            tax_company_name: snap.tax_company_name,
+            tax_id: snap.tax_id,
+            tax_branch: snap.tax_branch,
+            billing_address: snap.billing_address,
+          }),
+        });
+      }
+      showToast(alsoUpdateCustomer ? 'บันทึกใบกำกับและอัพเดทข้อมูลลูกค้าสำเร็จ' : 'บันทึกใบกำกับสำเร็จ');
+      setShowTaxModal(false);
+      await fetchOrderHeader();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'ไม่สามารถบันทึกใบกำกับได้', 'error');
+    } finally {
+      setSavingTax(false);
+    }
   };
 
   const handleSaveDelivery = async () => {
@@ -322,7 +385,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
       });
       if (!response.ok) throw new Error('Failed to update');
       showToast('บันทึกข้อมูลจัดส่งสำเร็จ');
-      setEditingDelivery(false);
+      setShowDeliveryModal(false);
       fetchOrderHeader();
     } catch {
       showToast('ไม่สามารถบันทึกข้อมูลได้', 'error');
@@ -820,16 +883,17 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
     <Layout>
       <Container size="full" className="print:space-y-3 print:bg-white print:text-black">
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
-            <button
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Button
+              variant="ghost"
+              icon={<ArrowLeft className="w-5 h-5" />}
               onClick={() => router.push(backUrl)}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors print:hidden"
-            >
-              <ArrowLeft className="w-6 h-6 text-gray-600 dark:text-slate-300" />
-            </button>
-            <div>
-              <div className="flex items-center gap-3">
+              className="print:hidden"
+              aria-label="กลับ"
+            />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1
                   className="text-2xl font-bold font-mono text-gray-900 dark:text-white print:text-black hover:text-primary cursor-pointer transition-colors"
                   onClick={() => { navigator.clipboard.writeText(orderNumber).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
@@ -844,6 +908,19 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 {isPosOrder && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
                     POS
+                  </span>
+                )}
+                {/* Status badges inline next to order number — replaces removed Status card */}
+                {orderStatus !== 'cancelled' && (
+                  <>
+                    <OrderStatusBadge status={orderStatus} />
+                    <PaymentStatusBadge status={paymentStatus} />
+                  </>
+                )}
+                {orderStatus === 'cancelled' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-100 text-sm font-medium">
+                    <XCircle className="w-3.5 h-3.5" />
+                    {fullOrderData?.cancellation_reason === 'expired' ? 'หมดอายุ' : 'ยกเลิก'}
                   </span>
                 )}
               </div>
@@ -863,29 +940,56 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               )}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 print:hidden">
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
             {/* Record payment button (new + pending) — all non-marketplace */}
             {!isMarketplaceOrder && orderStatus === 'new' && paymentStatus === 'pending' && (
               <Button
                 variant="success"
-                size="sm"
                 icon={<Banknote className="w-4 h-4" />}
                 disabled={updating}
                 onClick={handlePaymentStatusClick}
-                title="บันทึกชำระเงิน"
               >
                 บันทึกชำระเงิน
               </Button>
+            )}
+            {/* Approve / reject slip (verifying state) */}
+            {!isMarketplaceOrder && paymentStatus === 'verifying' && paymentRecord && (
+              <>
+                {paymentRecord.slip_image_url && (
+                  <Button
+                    variant="secondary"
+                    icon={<Eye className="w-4 h-4" />}
+                    onClick={() => setShowSlipModal(true)}
+                  >
+                    ดูสลิป
+                  </Button>
+                )}
+                <Button
+                  variant="secondary"
+                  icon={<ShieldX className="w-4 h-4" />}
+                  disabled={updating}
+                  onClick={handleRejectPayment}
+                  className="!text-red-600 !border-red-300 hover:!bg-red-50"
+                >
+                  ปฏิเสธ
+                </Button>
+                <Button
+                  variant="success"
+                  icon={<ShieldCheck className="w-4 h-4" />}
+                  loading={updating}
+                  onClick={handleApprovePayment}
+                >
+                  ยืนยันสลิป
+                </Button>
+              </>
             )}
             {/* Accept Order button (ready_to_ship → processing) — all non-marketplace */}
             {!isMarketplaceOrder && (orderStatus === 'ready_to_ship' || (updating && orderStatus === 'processing')) && (
               <Button
                 variant="primary"
-                size="sm"
                 icon={updating ? undefined : <PackageCheck className="w-4 h-4" />}
                 loading={updating}
                 onClick={handleOrderStatusClick}
-                title="รับออเดอร์"
               >
                 {updating ? 'กำลังดำเนินการ...' : 'รับออเดอร์'}
               </Button>
@@ -894,47 +998,92 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             {!isMarketplaceOrder && orderStatus === 'processing' && (
               <Button
                 variant="primary"
-                size="sm"
                 icon={<Package className="w-4 h-4" />}
                 onClick={() => setShowShipModal(true)}
-                title="จัดส่งแล้ว"
-                className="!bg-amber-500 hover:!bg-amber-600"
+                className="!bg-amber-500 hover:!bg-amber-600 !border-amber-500"
               >
                 จัดส่งแล้ว
               </Button>
             )}
-            {/* Bill online — all non-marketplace */}
-            {!isMarketplaceOrder && (
+            {/* Shipping → completed */}
+            {!isMarketplaceOrder && orderStatus === 'shipping' && (
               <Button
-                variant="secondary"
-                size="sm"
-                icon={<Link2 className="w-4 h-4" />}
-                onClick={() => {
-                  const billUrl = `${window.location.origin}/bills/${orderId}`;
-                  navigator.clipboard.writeText(billUrl).then(() => {
-                    showToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
-                  });
-                }}
-                title="บิลออนไลน์"
+                variant="success"
+                icon={<CheckCircle className="w-4 h-4" />}
+                loading={updating}
+                onClick={handleOrderStatusClick}
               >
-                <span className="hidden md:inline">บิลออนไลน์</span>
+                สำเร็จ
               </Button>
             )}
-            {/* Action menu (void/refund/exchange/cancel) */}
+            {/* Shopee: Accept Order button */}
+            {isShopeeOrder && externalStatus === 'READY_TO_SHIP' && (
+              <Button
+                variant="primary"
+                icon={<PackageCheck className="w-4 h-4" />}
+                loading={shopeeActionLoading}
+                onClick={handleAcceptShopeeOrder}
+                className="!bg-orange-500 hover:!bg-orange-600 !border-orange-500"
+              >
+                รับออเดอร์
+              </Button>
+            )}
+            {/* Shopee: Sync button */}
+            {isShopeeOrder && (
+              <Button
+                variant="secondary"
+                icon={<RefreshCw className={`w-4 h-4 ${shopeeActionLoading ? 'animate-spin' : ''}`} />}
+                disabled={shopeeActionLoading}
+                onClick={handleResyncOrder}
+                title="Sync ข้อมูลจาก Shopee ใหม่"
+                aria-label="Sync Shopee"
+              />
+            )}
+            {/* Action menu (จัดการ) */}
             {orderStatus !== 'cancelled' && (
               <div className="relative">
-                <button
+                <Button
+                  variant="secondary"
+                  icon={<Pencil className="w-4 h-4" />}
+                  iconRight={<ChevronDown className="w-3.5 h-3.5" />}
                   onClick={() => setShowActionMenu(!showActionMenu)}
-                  className="bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5 text-sm"
                 >
-                  <Pencil className="w-4 h-4" />
                   <span className="hidden md:inline">จัดการ</span>
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </button>
+                </Button>
                 {showActionMenu && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowActionMenu(false)} />
-                    <div className="absolute right-0 mt-1 w-52 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg z-50 py-1">
+                    <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg z-50 py-1">
+                      {/* Bill online link — all non-marketplace */}
+                      {!isMarketplaceOrder && (
+                        <button
+                          onClick={() => {
+                            setShowActionMenu(false);
+                            const billUrl = `${window.location.origin}/bills/${orderId}`;
+                            navigator.clipboard.writeText(billUrl).then(() => showToast('คัดลอกลิงก์บิลออนไลน์แล้ว'));
+                          }}
+                          className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
+                        >
+                          <Link2 className="w-4 h-4 text-gray-400" />
+                          คัดลอกลิงก์บิลออนไลน์
+                        </button>
+                      )}
+                      {/* Edit shipping — only when carrier/tracking exists */}
+                      {!isMarketplaceOrder && (fullOrderData?.shipping_carrier || fullOrderData?.tracking_number) && (
+                        <button
+                          onClick={() => {
+                            setShowActionMenu(false);
+                            setShipCarrier(fullOrderData.shipping_carrier || '');
+                            setShipTracking(fullOrderData.tracking_number || '');
+                            setEditingShipping(true);
+                            setShowShipModal(true);
+                          }}
+                          className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
+                        >
+                          <Truck className="w-4 h-4 text-gray-400" />
+                          แก้ไขข้อมูลจัดส่ง
+                        </button>
+                      )}
                       {/* Exchange/Refund — paid, not cancelled */}
                       {paymentStatus === 'paid' && (
                         <button
@@ -948,7 +1097,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                       {/* Void/Cancel bill — all non-marketplace */}
                       {!isMarketplaceOrder && (
                         <>
-                          {paymentStatus === 'paid' && <div className="border-t border-gray-100 dark:border-slate-700 my-1" />}
+                          <div className="border-t border-gray-100 dark:border-slate-700 my-1" />
                           <button
                             onClick={() => { setShowActionMenu(false); handleVoid(); }}
                             disabled={voidLoading}
@@ -964,38 +1113,16 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 )}
               </div>
             )}
-            {/* Shopee: Accept Order button */}
-            {isShopeeOrder && externalStatus === 'READY_TO_SHIP' && (
-              <button
-                onClick={handleAcceptShopeeOrder}
-                disabled={shopeeActionLoading}
-                className="bg-orange-500 text-white px-3 py-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
-              >
-                {shopeeActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackageCheck className="w-4 h-4" />}
-                รับออเดอร์
-              </button>
-            )}
-            {/* Shopee: Sync button */}
-            {isShopeeOrder && (
-              <button
-                onClick={handleResyncOrder}
-                disabled={shopeeActionLoading}
-                className="bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
-                title="Sync ข้อมูลจาก Shopee ใหม่"
-              >
-                <RefreshCw className={`w-4 h-4 ${shopeeActionLoading ? 'animate-spin' : ''}`} />
-              </button>
-            )}
             {/* Print dropdown */}
             <div className="relative">
-              <button
+              <Button
+                variant="secondary"
+                icon={<Printer className="w-4 h-4" />}
+                iconRight={<ChevronDown className="w-3.5 h-3.5" />}
                 onClick={() => setShowPrintMenu(!showPrintMenu)}
-                className="bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5 text-sm"
               >
-                <Printer className="w-4 h-4" />
                 <span className="hidden md:inline">พิมพ์</span>
-                <ChevronDown className="w-3.5 h-3.5" />
-              </button>
+              </Button>
               {showPrintMenu && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowPrintMenu(false)} />
@@ -1085,133 +1212,81 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           );
         })()}
 
-        {/* Status Management + Customer — 2-column layout (hidden on print) */}
+        {/* Customer + Tax Invoice — 2-column layout */}
         {orderStatus !== 'cancelled' && !isMarketplaceOrder && !isPosOrder && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print:hidden">
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-4">
-            {/* Status badges row */}
-            <div>
-              <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">สถานะ</div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <OrderStatusBadge status={orderStatus} />
-                <PaymentStatusBadge status={paymentStatus} />
-              </div>
+          <Card padding="md">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">ลูกค้า</div>
+              {['new', 'ready_to_ship', 'processing'].includes(orderStatus) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<Pencil className="w-3.5 h-3.5" />}
+                  onClick={handleEditDelivery}
+                >
+                  แก้ไขข้อมูลจัดส่ง
+                </Button>
+              )}
             </div>
 
-            {/* Source channel info — legacy display for chat-sourced manual orders */}
-            {orderSource && orderSource !== 'manual' && !isMarketplaceOrder && !fullOrderData?.sales_channel && (
-              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
-                {PLATFORM_ICONS[orderSource] && (
-                  <img src={PLATFORM_ICONS[orderSource]} alt={orderSource} className="w-4 h-4" />
+            {/* Customer row */}
+            {fullOrderData?.customer ? (
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                <span className="data-primary text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
+                {fullOrderData.customer.phone && (
+                  <span className="data-secondary text-gray-400 dark:text-slate-500">· {fullOrderData.customer.phone}</span>
                 )}
-                <span>{fullOrderData?.source_name || orderSource}</span>
+                {fullOrderData?.customer?.email && (
+                  <span className="data-secondary text-gray-400 dark:text-slate-500">· {fullOrderData.customer.email}</span>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-400 dark:text-slate-500 mb-3">ไม่มีข้อมูลลูกค้า</div>
+            )}
+
+            {/* Delivery info — full width now (tax moved to its own card) */}
+            {(fullOrderData?.delivery_name || fullOrderData?.delivery_address) && (
+              <div className="space-y-1.5 text-sm">
+                <div className="text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wide">ข้อมูลจัดส่ง</div>
+                {fullOrderData.delivery_name && (
+                  <div className="text-gray-800 dark:text-slate-200 font-medium">
+                    {fullOrderData.delivery_name}
+                    {fullOrderData.delivery_phone ? ` · ${fullOrderData.delivery_phone}` : ''}
+                  </div>
+                )}
+                {fullOrderData.delivery_address && (
+                  <div className="text-gray-600 dark:text-slate-400">
+                    {[fullOrderData.delivery_address, fullOrderData.delivery_district, fullOrderData.delivery_amphoe, fullOrderData.delivery_province, fullOrderData.delivery_postal_code].filter(Boolean).join(' ')}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Sales channel badge — preferred over legacy source when available */}
-            {fullOrderData?.sales_channel && (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-500 dark:text-slate-400">ช่องทางการขาย:</span>
-                <span
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    fullOrderData.sales_channel.channel_type === 'chat'
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
-                      : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-200'
-                  }`}
-                >
-                  {fullOrderData.sales_channel.name}
-                </span>
-              </div>
-            )}
-
-            {/* Divider between badges and actions/payment info */}
-            <div className="border-t border-gray-200 dark:border-slate-600" />
-
-            {/* Order status actions — advance button (skip statuses handled by header buttons) */}
-            {getNextOrderStatus(orderStatus) && orderStatus !== 'new' && orderStatus !== 'ready_to_ship' && orderStatus !== 'processing' && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  variant="primary"
-                  loading={updating}
-                  icon={<Truck className="w-4 h-4" />}
-                  onClick={handleOrderStatusClick}
-                >
-                  {updating ? 'กำลังดำเนินการ...' : `เปลี่ยนเป็น "${getOrderStatusLabel(getNextOrderStatus(orderStatus)!)}"`}
-                </Button>
-              </div>
-            )}
-
-            {/* Payment actions (skip for 'new' — header handles it) */}
-            {paymentStatus === 'pending' && orderStatus !== 'new' && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePaymentStatusClick}
-                  disabled={updating}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
-                >
-                  <Banknote className="w-4 h-4" />
-                  บันทึกชำระเงิน
-                </button>
-              </div>
-            )}
-            {paymentStatus === 'verifying' && paymentRecord && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
-                    {paymentRecord.payment_method === 'transfer' ? 'โอนเงิน' : 'เงินสด'}
-                    {paymentRecord.transfer_date && ` ${new Date(paymentRecord.transfer_date).toLocaleDateString('th-TH')}`}
-                  </span>
-                  {paymentRecord.slip_image_url && (
-                    <button
-                      onClick={() => setShowSlipModal(true)}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline flex items-center gap-1"
-                    >
-                      <Eye className="w-3 h-3" />
-                      ดูสลิป
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleRejectPayment}
-                    disabled={updating}
-                    className="px-3 py-1.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    <ShieldX className="w-4 h-4" />
-                    ปฏิเสธ
-                  </button>
-                  <button
-                    onClick={handleApprovePayment}
-                    disabled={updating}
-                    className="px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    ยืนยันการชำระเงิน
-                  </button>
-                </div>
-              </div>
-            )}
-            {paymentStatus === 'paid' && paymentRecord && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-green-700 bg-green-50 dark:bg-green-900/30 dark:text-green-300 px-2 py-1 rounded">
+            {/* Payment record (paid / verifying state — actions live in header) */}
+            {(paymentStatus === 'paid' || paymentStatus === 'verifying') && paymentRecord && (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 flex items-center gap-2 flex-wrap text-sm">
+                <Banknote className="w-4 h-4 text-gray-400" />
+                <span className={`badge badge-sm badge-pill ${paymentStatus === 'paid' ? 'badge-emerald' : 'badge-purple'}`}>
                   {paymentRecord.payment_method === 'cash' && 'เงินสด'}
                   {paymentRecord.payment_method === 'transfer' && 'โอนเงิน'}
                   {paymentRecord.payment_method === 'credit' && 'เครดิต'}
                   {paymentRecord.payment_method === 'cheque' && 'เช็ค'}
-                  {paymentRecord.amount > 0 && ` ฿${formatPrice(paymentRecord.amount)}`}
+                  {paymentRecord.amount > 0 && ` · ฿${formatPrice(paymentRecord.amount)}`}
                 </span>
                 {paymentRecord.payment_method === 'cash' && paymentRecord.collected_by && (
-                  <span className="text-xs text-gray-500 dark:text-slate-400">คนเก็บ: {paymentRecord.collected_by}</span>
+                  <span className="text-gray-500 dark:text-slate-400">คนเก็บ: {paymentRecord.collected_by}</span>
                 )}
                 {paymentRecord.payment_method === 'transfer' && paymentRecord.transfer_date && (
-                  <span className="text-xs text-gray-500 dark:text-slate-400">{new Date(paymentRecord.transfer_date).toLocaleDateString('th-TH')}</span>
+                  <span className="text-gray-500 dark:text-slate-400">{new Date(paymentRecord.transfer_date).toLocaleDateString('th-TH')}</span>
                 )}
                 {paymentRecord.slip_image_url && (
                   <button
                     onClick={() => setShowSlipModal(true)}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline flex items-center gap-1"
+                    className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                   >
-                    <Eye className="w-3 h-3" />
+                    <Eye className="w-3.5 h-3.5" />
                     ดูสลิป
                   </button>
                 )}
@@ -1224,105 +1299,59 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 ? getTrackingUrl(fullOrderData.shipping_carrier, fullOrderData.tracking_number)
                 : null;
               return (
-                <>
-                  <div className="border-t border-gray-200 dark:border-slate-600" />
-                  <div className="flex items-center gap-2 flex-wrap text-sm">
-                    <Truck className="w-4 h-4 text-gray-400 dark:text-slate-500" />
-                    {fullOrderData.shipping_carrier && (
-                      <span className="text-gray-700 dark:text-slate-300">
-                        {getCarrierLabel(fullOrderData.shipping_carrier)}
-                      </span>
-                    )}
-                    {fullOrderData.tracking_number && (
-                      trackUrl ? (
-                        <a
-                          href={trackUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="code-text bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
-                        >
-                          {fullOrderData.tracking_number}
-                        </a>
-                      ) : (
-                        <span className="code-text bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">
-                          {fullOrderData.tracking_number}
-                        </span>
-                      )
-                    )}
-                    {fullOrderData.tracking_number && (
-                      <button
-                        onClick={() => {
-                          const text = trackUrl
-                            ? `${getCarrierLabel(fullOrderData.shipping_carrier)}: ${fullOrderData.tracking_number}\nติดตามพัสดุ: ${trackUrl}`
-                            : fullOrderData.tracking_number;
-                          navigator.clipboard.writeText(text);
-                          showToast('คัดลอกข้อมูลพัสดุแล้ว');
-                        }}
-                        className="text-xs text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
-                        title="คัดลอกข้อมูลพัสดุ"
+                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 flex items-center gap-2 flex-wrap text-sm">
+                  <Truck className="w-4 h-4 text-gray-400 dark:text-slate-500" />
+                  {fullOrderData.shipping_carrier && (
+                    <span className="text-gray-700 dark:text-slate-300">{getCarrierLabel(fullOrderData.shipping_carrier)}</span>
+                  )}
+                  {fullOrderData.tracking_number && (
+                    trackUrl ? (
+                      <a
+                        href={trackUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="code-text bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                       >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                        {fullOrderData.tracking_number}
+                      </a>
+                    ) : (
+                      <span className="code-text bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">{fullOrderData.tracking_number}</span>
+                    )
+                  )}
+                  {fullOrderData.tracking_number && (
                     <button
                       onClick={() => {
-                        setShipCarrier(fullOrderData.shipping_carrier || '');
-                        setShipTracking(fullOrderData.tracking_number || '');
-                        setEditingShipping(true);
-                        setShowShipModal(true);
+                        const text = trackUrl
+                          ? `${getCarrierLabel(fullOrderData.shipping_carrier)}: ${fullOrderData.tracking_number}\nติดตามพัสดุ: ${trackUrl}`
+                          : fullOrderData.tracking_number;
+                        navigator.clipboard.writeText(text);
+                        showToast('คัดลอกข้อมูลพัสดุแล้ว');
                       }}
-                      className="text-xs text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 transition-colors ml-auto"
+                      className="text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
+                      title="คัดลอกข้อมูลพัสดุ"
                     >
-                      <Pencil className="w-3.5 h-3.5" />
+                      <Copy className="w-3.5 h-3.5" />
                     </button>
-                  </div>
-                </>
+                  )}
+                </div>
               );
             })()}
-          </div>
 
-          {/* Right: Customer + Delivery Info */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">ลูกค้า</div>
-              {['new', 'ready_to_ship'].includes(orderStatus) && !editingDelivery && (
-                <button
-                  onClick={handleEditDelivery}
-                  className="text-xs text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 flex items-center gap-1 transition-colors"
-                >
-                  <Pencil className="w-3 h-3" />
-                  แก้ไข
-                </button>
-              )}
-            </div>
-            {fullOrderData?.customer && (
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                <span className="data-primary text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
-                {fullOrderData.customer.phone && (
-                  <span className="data-secondary text-gray-400 dark:text-slate-500">· {fullOrderData.customer.phone}</span>
-                )}
+            {/* Legacy chat-source label — only when no sales_channel is set (picker handles the rest) */}
+            {orderSource && orderSource !== 'manual' && !fullOrderData?.sales_channel && (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 flex items-center gap-2 flex-wrap text-sm">
+                <span className="text-gray-500 dark:text-slate-400">ที่มา:</span>
+                <span className="inline-flex items-center gap-1 text-gray-600 dark:text-slate-300">
+                  {PLATFORM_ICONS[orderSource] && (
+                    <img src={PLATFORM_ICONS[orderSource]} alt={orderSource} className="w-4 h-4" />
+                  )}
+                  {fullOrderData?.source_name || orderSource}
+                </span>
               </div>
             )}
-            {/* Delivery Info */}
-            {(fullOrderData?.delivery_name || fullOrderData?.delivery_address) && (
-              <div className="space-y-1.5 text-sm">
-                <div className="text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wide">ข้อมูลจัดส่ง</div>
-                {fullOrderData.delivery_name && (
-                  <div className="text-gray-800 dark:text-slate-200 font-medium">{fullOrderData.delivery_name}{fullOrderData.delivery_phone ? ` · ${fullOrderData.delivery_phone}` : ''}</div>
-                )}
-                {fullOrderData.delivery_address && (
-                  <div className="text-gray-600 dark:text-slate-400">
-                    {[fullOrderData.delivery_address, fullOrderData.delivery_district, fullOrderData.delivery_amphoe, fullOrderData.delivery_province, fullOrderData.delivery_postal_code].filter(Boolean).join(' ')}
-                  </div>
-                )}
-              </div>
-            )}
-            {!fullOrderData?.customer && !fullOrderData?.delivery_name && !fullOrderData?.delivery_address && (
-              <div className="text-sm text-gray-400 dark:text-slate-500">ไม่มีข้อมูลลูกค้า</div>
-            )}
-            {/* Tracking / Parcels */}
-            {fullOrderData?.is_split && fullOrderData?.parcels?.length > 0 ? (
+
+            {/* Parcels (split shipment) */}
+            {fullOrderData?.is_split && fullOrderData?.parcels?.length > 0 && (
               <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600">
                 <div className="text-xs font-medium text-gray-400 dark:text-slate-500 mb-2">กล่องพัสดุ ({fullOrderData.parcels.length} กล่อง)</div>
                 <div className="space-y-2">
@@ -1353,20 +1382,80 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   ))}
                 </div>
               </div>
-            ) : null}
-            {/* Tax Invoice */}
-            {fullOrderData?.tax_invoice_requested && (
-              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 space-y-1.5">
-                <span className="text-xs font-medium text-primary bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded">ขอใบกำกับภาษี</span>
+            )}
+
+            {/* Order status advance button — for skipped statuses (shipping → completed handled by header) */}
+            {getNextOrderStatus(orderStatus) && orderStatus !== 'new' && orderStatus !== 'ready_to_ship' && orderStatus !== 'processing' && orderStatus !== 'shipping' && (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600">
+                <Button
+                  variant="primary"
+                  loading={updating}
+                  icon={<Truck className="w-4 h-4" />}
+                  onClick={handleOrderStatusClick}
+                >
+                  {updating ? 'กำลังดำเนินการ...' : `เปลี่ยนเป็น "${getOrderStatusLabel(getNextOrderStatus(orderStatus)!)}"`}
+                </Button>
+              </div>
+            )}
+          </Card>
+
+          {/* Tax Invoice card — right column */}
+          <div className={`rounded-xl border ${
+            fullOrderData?.tax_invoice_requested
+              ? 'bg-orange-50/60 dark:bg-orange-900/15 border-orange-200 dark:border-orange-800/40'
+              : 'bg-gray-50 dark:bg-slate-800/40 border-gray-200 dark:border-slate-700 border-dashed'
+          } p-5`}>
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div className="flex items-center gap-2">
+                <ReceiptText className={`w-4 h-4 ${fullOrderData?.tax_invoice_requested ? 'text-primary' : 'text-gray-400'}`} />
+                <div className="text-base font-medium text-gray-700 dark:text-slate-200 uppercase tracking-wide">ใบกำกับภาษี</div>
+                {fullOrderData?.tax_invoice_requested && (
+                  <span className="badge badge-sm badge-pill badge-orange">ขอใบกำกับ</span>
+                )}
+              </div>
+              {['new', 'ready_to_ship', 'processing'].includes(orderStatus) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<Pencil className="w-3.5 h-3.5" />}
+                  onClick={() => setShowTaxModal(true)}
+                >
+                  {fullOrderData?.tax_invoice_requested ? 'แก้ไขใบกำกับ' : 'ขอใบกำกับ'}
+                </Button>
+              )}
+            </div>
+
+            {fullOrderData?.tax_invoice_requested ? (
+              <div className="text-sm space-y-1 mt-3">
                 {fullOrderData.tax_invoice_name && (
-                  <div className="data-text text-gray-700 dark:text-slate-300">{fullOrderData.tax_invoice_name}</div>
+                  <div className="text-gray-900 dark:text-slate-100 font-medium">{fullOrderData.tax_invoice_name}</div>
                 )}
-                {fullOrderData.tax_invoice_tax_id && (
-                  <div className="data-secondary text-gray-500 dark:text-slate-400">เลขผู้เสียภาษี: {fullOrderData.tax_invoice_tax_id}</div>
+                <div className="flex items-center gap-4 flex-wrap text-gray-600 dark:text-slate-400">
+                  {fullOrderData.tax_invoice_tax_id && (
+                    <span>เลขผู้เสียภาษี: <span className="text-gray-800 dark:text-slate-200 font-mono">{fullOrderData.tax_invoice_tax_id}</span></span>
+                  )}
+                  {fullOrderData.tax_invoice_branch && (
+                    <span>สาขา: <span className="text-gray-800 dark:text-slate-200">{fullOrderData.tax_invoice_branch}</span></span>
+                  )}
+                </div>
+                {fullOrderData.tax_invoice_address && (
+                  <div className="text-gray-600 dark:text-slate-400">{fullOrderData.tax_invoice_address}</div>
                 )}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                ลูกค้ายังไม่ได้ขอใบกำกับภาษี — กด "ขอใบกำกับ" เพื่อเพิ่มได้
               </div>
             )}
           </div>
+          </div>
+        )}
+
+        {/* Warehouse + Sales channel picker row (portaled from OrderForm) */}
+        {!isMarketplaceOrder && !isPosOrder && (
+          <div className="flex justify-end items-center gap-2 print:hidden">
+            <div ref={warehouseRef} />
+            <div ref={salesChannelRef} />
           </div>
         )}
 
@@ -1583,86 +1672,18 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           </div>
         )}
 
-        {/* Delivery Edit Form — only show when editing or delivery info incomplete */}
+        {/* Inline "Delivery info missing" banner — visible only when delivery is empty AND editable */}
         {fullOrderData && !isMarketplaceOrder && !isPosOrder && (() => {
           const deliveryComplete = !!(fullOrderData.delivery_name && fullOrderData.delivery_phone && fullOrderData.delivery_address);
-          // Only show this section when editing OR when delivery info is incomplete and status allows editing
-          if (deliveryComplete && !editingDelivery) return null;
-          if (!deliveryComplete && !['new', 'ready_to_ship'].includes(orderStatus)) return null;
+          if (deliveryComplete) return null;
+          if (!['new', 'ready_to_ship'].includes(orderStatus)) return null;
           return (
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">{editingDelivery ? 'แก้ไขข้อมูลจัดส่ง' : 'กรอกข้อมูลจัดส่ง'}</div>
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg px-4 py-3 flex items-center justify-between gap-3 print:hidden">
+              <span className="text-sm text-amber-800 dark:text-amber-300">ยังไม่มีข้อมูลจัดส่ง — กรอกก่อนเพื่อพิมพ์ใบปะหน้า</span>
+              <Button variant="primary" size="sm" icon={<Pencil className="w-3.5 h-3.5" />} onClick={handleEditDelivery}>
+                กรอกข้อมูลจัดส่ง
+              </Button>
             </div>
-
-            <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ชื่อผู้รับ *</label>
-                    <input type="text" value={deliveryForm.delivery_name}
-                      onChange={e => { setDeliveryForm(f => ({ ...f, delivery_name: e.target.value })); setDeliveryErrors(prev => { const { name, ...rest } = prev; return rest; }); }}
-                      className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 ${deliveryErrors.name ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
-                    {deliveryErrors.name && <p className="text-red-500 text-xs mt-1">{deliveryErrors.name}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">เบอร์โทร *</label>
-                    <input type="text" inputMode="tel" value={deliveryForm.delivery_phone}
-                      onChange={e => { setDeliveryForm(f => ({ ...f, delivery_phone: e.target.value })); setDeliveryErrors(prev => { const { phone, ...rest } = prev; return rest; }); }}
-                      className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 ${deliveryErrors.phone ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
-                    {deliveryErrors.phone && <p className="text-red-500 text-xs mt-1">{deliveryErrors.phone}</p>}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">อีเมล</label>
-                  <input type="text" inputMode="email" value={deliveryForm.delivery_email}
-                    onChange={e => { setDeliveryForm(f => ({ ...f, delivery_email: e.target.value })); setDeliveryErrors(prev => { const { email, ...rest } = prev; return rest; }); }}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 ${deliveryErrors.email ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
-                  {deliveryErrors.email && <p className="text-red-500 text-xs mt-1">{deliveryErrors.email}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ที่อยู่ *</label>
-                  <textarea value={deliveryForm.delivery_address}
-                    onChange={e => { setDeliveryForm(f => ({ ...f, delivery_address: e.target.value })); setDeliveryErrors(prev => { const { address, ...rest } = prev; return rest; }); }}
-                    rows={2}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 ${deliveryErrors.address ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`} />
-                  {deliveryErrors.address && <p className="text-red-500 text-xs mt-1">{deliveryErrors.address}</p>}
-                </div>
-                <ThaiAddressInput
-                  district={deliveryForm.delivery_district}
-                  amphoe={deliveryForm.delivery_amphoe}
-                  province={deliveryForm.delivery_province}
-                  postalCode={deliveryForm.delivery_postal_code}
-                  onAddressChange={(addr) => {
-                    setDeliveryForm(f => ({
-                      ...f,
-                      ...(addr.district !== undefined && { delivery_district: addr.district }),
-                      ...(addr.amphoe !== undefined && { delivery_amphoe: addr.amphoe }),
-                      ...(addr.province !== undefined && { delivery_province: addr.province }),
-                      ...(addr.postalCode !== undefined && { delivery_postal_code: addr.postalCode }),
-                    }));
-                  }}
-                />
-                {(deliveryErrors.province || deliveryErrors.postal_code) && (
-                  <p className="text-red-500 text-xs -mt-1">{deliveryErrors.province || deliveryErrors.postal_code}</p>
-                )}
-                <div className="flex gap-2 pt-1">
-                  {editingDelivery && (
-                    <Button variant="secondary" className="flex-1" onClick={() => setEditingDelivery(false)}>
-                      ยกเลิก
-                    </Button>
-                  )}
-                  <Button
-                    variant="primary"
-                    className="flex-1"
-                    loading={savingDelivery}
-                    disabled={!deliveryForm.delivery_name || !deliveryForm.delivery_phone || !deliveryForm.delivery_address || !deliveryForm.delivery_province || !deliveryForm.delivery_postal_code}
-                    onClick={handleSaveDelivery}
-                  >
-                    บันทึก
-                  </Button>
-                </div>
-              </div>
-          </div>
           );
         })()}
 
@@ -1674,6 +1695,8 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           onSuccess={handleOrderSaved}
           onCancel={() => router.push('/orders')}
           printMode={printMode}
+          warehousePortalRef={warehouseRef}
+          salesChannelPortalRef={salesChannelRef}
         />
 
         {/* Shopee Ship Modal */}
@@ -1764,6 +1787,96 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               />
             </div>
           </div>
+        )}
+
+        {/* Delivery Edit Modal */}
+        <Modal
+          open={showDeliveryModal}
+          onClose={() => !savingDelivery && setShowDeliveryModal(false)}
+          title="แก้ไขข้อมูลจัดส่ง"
+          size="2xl"
+          footer={
+            <div className="flex justify-end gap-3 px-6 py-4">
+              <Button variant="secondary" disabled={savingDelivery} onClick={() => setShowDeliveryModal(false)}>
+                ยกเลิก
+              </Button>
+              <Button
+                variant="primary"
+                loading={savingDelivery}
+                disabled={!deliveryForm.delivery_name || !deliveryForm.delivery_phone || !deliveryForm.delivery_address || !deliveryForm.delivery_province || !deliveryForm.delivery_postal_code}
+                onClick={handleSaveDelivery}
+              >
+                บันทึก
+              </Button>
+            </div>
+          }
+        >
+          <div className="px-6 py-5 space-y-4">
+            <FormInput
+              label="ชื่อผู้รับ"
+              required
+              value={deliveryForm.delivery_name}
+              onChange={(e) => { setDeliveryForm(f => ({ ...f, delivery_name: e.target.value })); setDeliveryErrors(prev => { const { name, ...rest } = prev; return rest; }); }}
+              error={deliveryErrors.name}
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormInput
+                label="เบอร์โทร"
+                required
+                inputMode="tel"
+                value={deliveryForm.delivery_phone}
+                onChange={(e) => { setDeliveryForm(f => ({ ...f, delivery_phone: e.target.value })); setDeliveryErrors(prev => { const { phone, ...rest } = prev; return rest; }); }}
+                error={deliveryErrors.phone}
+              />
+              <FormInput
+                label="อีเมล"
+                type="email"
+                inputMode="email"
+                value={deliveryForm.delivery_email}
+                onChange={(e) => { setDeliveryForm(f => ({ ...f, delivery_email: e.target.value })); setDeliveryErrors(prev => { const { email, ...rest } = prev; return rest; }); }}
+                error={deliveryErrors.email}
+              />
+            </div>
+            <div>
+              <label className="field-label">ที่อยู่ <span className="text-red-500">*</span></label>
+              <textarea
+                value={deliveryForm.delivery_address}
+                onChange={(e) => { setDeliveryForm(f => ({ ...f, delivery_address: e.target.value })); setDeliveryErrors(prev => { const { address, ...rest } = prev; return rest; }); }}
+                rows={2}
+                placeholder="บ้านเลขที่ ถนน หมู่บ้าน"
+                className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 ${deliveryErrors.address ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`}
+              />
+              {deliveryErrors.address && <p className="text-red-500 text-xs mt-1">{deliveryErrors.address}</p>}
+            </div>
+            <ThaiAddressInput
+              district={deliveryForm.delivery_district}
+              amphoe={deliveryForm.delivery_amphoe}
+              province={deliveryForm.delivery_province}
+              postalCode={deliveryForm.delivery_postal_code}
+              onAddressChange={(addr) => {
+                setDeliveryForm(f => ({
+                  ...f,
+                  ...(addr.district !== undefined && { delivery_district: addr.district }),
+                  ...(addr.amphoe !== undefined && { delivery_amphoe: addr.amphoe }),
+                  ...(addr.province !== undefined && { delivery_province: addr.province }),
+                  ...(addr.postalCode !== undefined && { delivery_postal_code: addr.postalCode }),
+                }));
+              }}
+            />
+            {(deliveryErrors.province || deliveryErrors.postal_code) && (
+              <p className="text-red-500 text-xs -mt-1">{deliveryErrors.province || deliveryErrors.postal_code}</p>
+            )}
+          </div>
+        </Modal>
+
+        {/* Tax Invoice Edit Modal */}
+        {showTaxModal && (
+          <TaxInvoiceEditModal
+            data={taxSnapshot}
+            onSave={(snap) => handleSaveTaxInvoice(snap, false)}
+            onSaveAndUpdateCustomer={fullOrderData?.customer?.id ? (snap) => handleSaveTaxInvoice(snap, true) : undefined}
+            onClose={() => !savingTax && setShowTaxModal(false)}
+          />
         )}
 
       </Container>

@@ -1821,7 +1821,7 @@ export default function OrderForm({
       )}
 
       {/* Warehouse Picker — portal into header or inline fallback */}
-      {stockEnabled && warehouses.length > 1 && (() => {
+      {stockEnabled && warehouses.length >= 1 && (() => {
         const warehousePicker = (
           <div className="inline-block min-w-[160px]">
             <FormSelect
