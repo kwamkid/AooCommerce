@@ -35,7 +35,7 @@
 - **[app/dev/design/page.tsx](app/dev/design/page.tsx)** — showcase ทุก variant ของ Button/Card/Badge/Alert/Modal/DataTable/FormInput. **ดูก่อนเลือก variant**
 - **[.claude/rules/code-simplicity.md](.claude/rules/code-simplicity.md)** — รายการ shared comp + global CSS ครบ + ห้ามสร้างซ้ำ
 
-### Shared components ใน `components/ui/` (18 ตัว — ใช้แทน inline class เสมอ)
+### Shared components ใน `components/ui/` (20 ตัว — ใช้แทน inline class เสมอ)
 
 | Component | ใช้สำหรับ |
 |---|---|
@@ -47,6 +47,7 @@
 | `Alert` | banner เตือน — tones: danger/warning/info/success, มี icon + title? + onClose? |
 | `PageHeader` | sub-page header — title + subtitle + backHref + actions slot |
 | `Modal` | dialog — sizes: sm…4xl, footer slot, ESC + backdrop close |
+| `Tabs` | underlined content tabs — `tabs={[{key,label,icon?,count?,href?,activeColorClass?}]}` + activeKey + onSelect (state-based) หรือ href (Link-based) |
 | `StatusTabs` | list page status filter — `tabs={[{key,label,count,tooltip,hidden}]}` + activeKey + onSelect (ใช้ `getTabColor()` ภายใน) |
 | `DataTable` | ตาราง list page — column toggle, resize, reorder, sort, inline edit, selection, mobile cards, pagination — ใช้ `storageKey` แยกแต่ละหน้า |
 | `FormInput` | text input — มี **built-in validation** (required/min/max/pattern/custom validate), error/hint/icon/postfix/label all built-in, ใช้ ref handle `.validate()`/`.focus()` |
@@ -56,6 +57,7 @@
 | `Checkbox` | checkbox |
 | `ActionMenu` | row action dropdown (portal z-9999) — items: `[{key,label,icon,onClick,danger?,dividerBefore?}]` |
 | `ImageLightbox` | fullscreen image viewer — `src` + `onClose` |
+| `PlatformIcon` | social icon — `id='line\|facebook\|instagram\|tiktok'` + size? + title? (จาก `/public/social/*.svg`) — ใช้ตอนแสดง chat platform / sales channel platform เสมอ |
 | `StateCard` exports | `LoadingCard`, `EmptyCard`, `NoPermissionCard`, `DoneCard` |
 | `Chart` exports | `Stat`, `BarChart`, `Sparkline`, `ProgressBar` |
 
@@ -104,6 +106,19 @@ Validation rules built-in: `required`, `requiredMessage`, `minLength`, `maxLengt
 </Layout>
 ```
 ⚠️ เมื่อใช้ `<PageHeader>` ห้ามใส่ `title`/`breadcrumbs` ใน `<Layout>` อีก (duplicate)
+
+### Form action buttons (บังคับ)
+ทุกฟอร์ม + Modal — **action group ชิดขวาของ container เสมอ**, secondary ก่อน primary, gap-3:
+```tsx
+<div className="flex justify-end gap-3">
+  <Button variant="secondary" onClick={cancel}>ยกเลิก</Button>
+  <Button variant="primary" loading={saving} onClick={save}>บันทึก</Button>
+</div>
+```
+- กลุ่มปุ่ม **ชิดขวา** (`justify-end`) — ห้าม `justify-start` / `justify-between` / `justify-center`
+- เรียงปุ่ม: **ยกเลิก (secondary) → บันทึก (primary)** ซ้ายไปขวา — ไม่กลับด้าน
+- gap-3 = 12px ระหว่างปุ่ม | gap-2 = 8px เฉพาะใน Modal footer (กระชับขึ้น)
+- ใช้กับทุกที่: form footer, Modal footer, action bars, danger zone ฯลฯ
 
 ---
 

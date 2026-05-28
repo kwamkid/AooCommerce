@@ -1,4 +1,4 @@
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import {
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!isAdminRole(companyRoles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!can(companyRoles, 'masterdata.chat_channels')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
     const { platform, account_name, credentials } = body;
@@ -184,7 +184,7 @@ export async function PUT(request: NextRequest) {
     const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!isAdminRole(companyRoles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!can(companyRoles, 'masterdata.chat_channels')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
     const { id, account_name, credentials, is_active } = body;
@@ -298,7 +298,7 @@ export async function DELETE(request: NextRequest) {
     const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!isAdminRole(companyRoles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!can(companyRoles, 'masterdata.chat_channels')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

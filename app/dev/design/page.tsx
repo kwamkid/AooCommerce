@@ -22,6 +22,8 @@ import { LoadingCard, EmptyCard, NoPermissionCard, DoneCard } from '@/components
 import BulkErrorModal, { type BulkErrorReport } from '@/components/bulk/BulkErrorModal';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { Stat, ProgressBar, BarChart, Sparkline } from '@/components/ui/Chart';
+import Tabs from '@/components/ui/Tabs';
+import PlatformIcon from '@/components/ui/PlatformIcon';
 import {
   Plus, Save, Trash2, Check, AlertCircle, AlertTriangle, Pencil, Settings, Download, Upload, ArrowRight,
   ShoppingCart, Package, Banknote, Users,
@@ -52,6 +54,7 @@ export default function DesignSystemPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [errorReport, setErrorReport] = useState<BulkErrorReport | null>(null);
   const [page, setPage] = useState(1);
+  const [demoTab, setDemoTab] = useState<'orders' | 'invoices' | 'reports'>('orders');
   const [perPage, setPerPage] = useState<number>(20);
   const [rows, setRows] = useState<DemoRow[]>(INITIAL_ROWS);
   const [sortBy, setSortBy] = useState<SortKey | undefined>('name');
@@ -290,6 +293,76 @@ export default function DesignSystemPage() {
                 </>
               }
             />
+          </Card>
+        </Section>
+
+        {/* TABS */}
+        <Section title="Tabs" desc="<Tabs activeKey tabs={[{key,label,icon?,count?,href?,activeColorClass?}]} onSelect? /> — underlined content tabs">
+          <Card>
+            <Group label="State-based (onSelect)">
+              <div className="w-full">
+                <Tabs
+                  activeKey={demoTab}
+                  onSelect={(k) => setDemoTab(k as typeof demoTab)}
+                  tabs={[
+                    { key: 'orders', label: 'คำสั่งซื้อ', count: 24 },
+                    { key: 'invoices', label: 'ใบกำกับ', count: 8 },
+                    { key: 'reports', label: 'รายงาน' },
+                  ]}
+                />
+                <div className="subtitle-text text-gray-600 dark:text-slate-400">
+                  active: <span className="font-mono">{demoTab}</span>
+                </div>
+              </div>
+            </Group>
+            <Group label="With icons + custom active color (per tab)">
+              <div className="w-full">
+                <Tabs
+                  activeKey="facebook"
+                  tabs={[
+                    { key: 'facebook', label: 'FB / IG', icon: <PlatformIcon id="facebook" size={16} />, count: 2, activeColorClass: 'border-facebook text-facebook' },
+                    { key: 'line', label: 'LINE', icon: <PlatformIcon id="line" size={16} />, count: 1, activeColorClass: 'border-line text-line' },
+                  ]}
+                />
+              </div>
+            </Group>
+            <Group label="Link-based (route navigation)">
+              <div className="w-full">
+                <Tabs
+                  activeKey="general"
+                  tabs={[
+                    { key: 'general', label: 'ทั่วไป', href: '/settings' },
+                    { key: 'company', label: 'ข้อมูลบริษัท', href: '/settings/company' },
+                  ]}
+                />
+                <Hint>กดเพื่อเปิด route จริง</Hint>
+              </div>
+            </Group>
+          </Card>
+        </Section>
+
+        {/* PLATFORM ICON */}
+        <Section title="PlatformIcon" desc="<PlatformIcon id='line|facebook|instagram|tiktok' size? title? /> — social icons from /public/social/">
+          <Card>
+            <Group label="All platforms (default size 18)">
+              <PlatformIcon id="line" />
+              <PlatformIcon id="facebook" />
+              <PlatformIcon id="instagram" />
+              <PlatformIcon id="tiktok" />
+            </Group>
+            <Group label="Sizes 14 / 18 / 24 / 32">
+              <PlatformIcon id="facebook" size={14} />
+              <PlatformIcon id="facebook" size={18} />
+              <PlatformIcon id="facebook" size={24} />
+              <PlatformIcon id="facebook" size={32} />
+            </Group>
+            <Group label="Stacked (FB + IG together)">
+              <div className="inline-flex items-center gap-1.5">
+                <PlatformIcon id="facebook" />
+                <PlatformIcon id="instagram" />
+              </div>
+              <Hint>ใช้ pattern นี้ตอนแสดงว่า chat account เชื่อม FB + IG ในตัวเดียวกัน</Hint>
+            </Group>
           </Card>
         </Section>
 

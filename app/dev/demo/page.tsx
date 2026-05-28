@@ -20,6 +20,7 @@ import Badge from '@/components/ui/Badge';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { Stat, BarChart, Sparkline, ProgressBar } from '@/components/ui/Chart';
 import FormSelect from '@/components/ui/FormSelect';
+import Tabs from '@/components/ui/Tabs';
 import {
   Banknote, ShoppingCart, Package, Users,
   Eye, Pencil,
@@ -69,8 +70,13 @@ export default function DemoDashboardPage() {
   const [sortBy, setSortBy] = useState<string | undefined>('order_no');
   const [sortDir, setSortDir] = useState<'asc' | 'desc' | undefined>('desc');
   const [orders, setOrders] = useState<OrderRow[]>(DEMO_ORDERS);
+  const [orderTab, setOrderTab] = useState<'all' | OrderRow['status']>('all');
 
-  const sortedOrders = [...orders].sort((a, b) => {
+  const filteredOrders = orderTab === 'all'
+    ? orders
+    : orders.filter(o => o.status === orderTab);
+
+  const sortedOrders = [...filteredOrders].sort((a, b) => {
     if (!sortBy || !sortDir) return 0;
     const va = a[sortBy as keyof OrderRow];
     const vb = b[sortBy as keyof OrderRow];
@@ -79,6 +85,11 @@ export default function DemoDashboardPage() {
     if (va > vb) return sortDir === 'asc' ? 1 : -1;
     return 0;
   });
+
+  const orderCounts = orders.reduce<Record<string, number>>((acc, o) => {
+    acc[o.status] = (acc[o.status] || 0) + 1;
+    return acc;
+  }, {});
 
   const columns: DataTableColumn<OrderRow>[] = [
     {
@@ -281,6 +292,18 @@ export default function DemoDashboardPage() {
             <h2 className="heading-3">ออเดอร์ล่าสุด</h2>
             <Button variant="ghost" size="sm">ดูทั้งหมด →</Button>
           </div>
+          <Tabs
+            activeKey={orderTab}
+            onSelect={(k) => setOrderTab(k as typeof orderTab)}
+            tabs={[
+              { key: 'all',        label: 'ทั้งหมด',   count: orders.length },
+              { key: 'new',        label: 'ใหม่',      count: orderCounts.new || undefined },
+              { key: 'processing', label: 'กำลังจัด',  count: orderCounts.processing || undefined },
+              { key: 'shipping',   label: 'จัดส่ง',    count: orderCounts.shipping || undefined },
+              { key: 'completed',  label: 'สำเร็จ',    count: orderCounts.completed || undefined },
+              { key: 'cancelled',  label: 'ยกเลิก',    count: orderCounts.cancelled || undefined },
+            ]}
+          />
           <Card padding="none">
             <DataTable<OrderRow>
               storageKey="dev-demo-orders"

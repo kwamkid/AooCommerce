@@ -13,8 +13,10 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Toggle from '@/components/ui/Toggle';
 import FormSelect from '@/components/ui/FormSelect';
+import PlatformIcon from '@/components/ui/PlatformIcon';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
@@ -28,6 +30,7 @@ interface SalesChannel {
   channel_type: 'manual' | 'chat';
   platform: string | null;
   chat_account_id: string | null;
+  has_ig?: boolean;
   icon: string | null;
   color: string | null;
   is_active: boolean;
@@ -47,15 +50,6 @@ const PLATFORM_OPTIONS = [
   { id: 'shopee', label: 'Shopee' },
   { id: 'lazada', label: 'Lazada' },
 ];
-
-const PLATFORM_BADGE_TONE: Record<string, 'gray' | 'emerald' | 'blue' | 'orange' | 'indigo' | 'purple'> = {
-  line: 'emerald',
-  facebook: 'blue',
-  instagram: 'purple',
-  tiktok: 'gray',
-  shopee: 'orange',
-  lazada: 'indigo',
-};
 
 export default function SalesChannelsPage() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -79,7 +73,7 @@ export default function SalesChannelsPage() {
   const [formPlatform, setFormPlatform] = useState('');
   const [formActive, setFormActive] = useState(true);
 
-  const isAdmin = !!userProfile?.roles?.some(r => r === 'owner' || r === 'admin' || r === 'manager');
+  const isAdmin = can(userProfile?.roles, 'masterdata.sales_channels');
 
   const loadChannels = async () => {
     try {
@@ -268,6 +262,19 @@ export default function SalesChannelsPage() {
     );
   }
 
+  // Show platform as icon(s). Chat channels with IG linked show both FB + IG icons stacked.
+  function renderPlatformIcons(c: SalesChannel) {
+    const ids: string[] = [];
+    if (c.platform) ids.push(c.platform);
+    if (c.channel_type === 'chat' && c.platform === 'facebook' && c.has_ig) ids.push('instagram');
+    if (ids.length === 0) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
+    return (
+      <div className="flex items-center gap-1.5">
+        {ids.map(id => <PlatformIcon key={id} id={id} />)}
+      </div>
+    );
+  }
+
   const columns: DataTableColumn<SalesChannel>[] = [
     {
       key: 'name',
@@ -304,25 +311,21 @@ export default function SalesChannelsPage() {
     {
       key: 'type',
       label: 'ประเภท',
-      headerClassName: 'w-[120px]',
+      headerClassName: 'w-[110px]',
       render: (c) =>
         c.channel_type === 'chat' ? (
-          <Badge tone="emerald">
-            <MessageCircle className="w-3.5 h-3.5 mr-1" />Chat
+          <Badge tone="emerald" size="sm">
+            <MessageCircle className="w-3 h-3 mr-1" />Chat
           </Badge>
         ) : (
-          <Badge tone="gray">Manual</Badge>
+          <Badge tone="gray" size="sm">Manual</Badge>
         ),
     },
     {
       key: 'platform',
       label: 'แพลตฟอร์ม',
-      headerClassName: 'w-[140px]',
-      render: (c) => {
-        if (!c.platform) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
-        const tone = PLATFORM_BADGE_TONE[c.platform] || 'gray';
-        return <Badge tone={tone}>{c.platform}</Badge>;
-      },
+      headerClassName: 'w-[110px]',
+      render: (c) => renderPlatformIcons(c),
     },
     {
       key: 'status',
@@ -425,9 +428,7 @@ export default function SalesChannelsPage() {
                 </div>
                 <p className="text-sm text-gray-400 dark:text-slate-500 truncate">{c.code}</p>
                 <div className="flex items-center gap-2 mt-1.5">
-                  {c.platform && (
-                    <Badge tone={PLATFORM_BADGE_TONE[c.platform] || 'gray'}>{c.platform}</Badge>
-                  )}
+                  {renderPlatformIcons(c)}
                 </div>
               </div>
               <div onClick={(e) => e.stopPropagation()}>

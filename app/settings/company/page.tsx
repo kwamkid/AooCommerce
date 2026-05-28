@@ -6,6 +6,7 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useCompany } from '@/lib/company-context';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
@@ -16,6 +17,7 @@ import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Container from '@/components/ui/Container';
+import Tabs from '@/components/ui/Tabs';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 
 interface CompanyData {
@@ -234,7 +236,7 @@ export default function CompanySettingsPage() {
   };
 
   // Check permissions
-  const isOwnerOrAdmin = companyRoles.includes('owner') || companyRoles.includes('admin') || companyRoles.includes('manager');
+  const isOwnerOrAdmin = can(companyRoles, 'company.edit');
 
   if (!isOwnerOrAdmin && !isLoading) {
     return (
@@ -247,10 +249,17 @@ export default function CompanySettingsPage() {
   return (
     <Layout>
       <Container size="full" gap="none">
-        <div className="mb-6">
-          <h1 className="heading-1">ข้อมูลบริษัท</h1>
+        <div>
+          <h1 className="heading-1">ตั้งค่า</h1>
           <p className="page-subtitle">ตั้งค่าชื่อบริษัท ที่อยู่ เลขประจำตัวผู้เสียภาษี และโลโก้</p>
         </div>
+        <Tabs
+          activeKey="company"
+          tabs={[
+            { key: 'general', label: 'ทั่วไป', href: '/settings' },
+            { key: 'company', label: 'ข้อมูลบริษัท', href: '/settings/company' },
+          ]}
+        />
       {isLoading ? (
         <LoadingCard />
       ) : (

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -12,29 +13,20 @@ import {
   ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap, Plus,
   Trash2, Edit2, Search, Facebook as FacebookSolidIcon
 } from 'lucide-react';
-import Image from 'next/image';
 import dynamic from 'next/dynamic';
+import ActionMenu from '@/components/ui/ActionMenu';
 import Button from '@/components/ui/Button';
 import Container from '@/components/ui/Container';
+import PlatformIcon from '@/components/ui/PlatformIcon';
 import SearchInput from '@/components/ui/SearchInput';
+import Tabs from '@/components/ui/Tabs';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import Toggle from '@/components/ui/Toggle';
 
-// Lazy-load the page-selection modal — only needed after FB OAuth returns pages.
-// Loads in parallel with the OAuth round-trip so the modal is ready by the time pages arrive.
+// Lazy-load modals — only needed on edit / after FB OAuth returns pages.
 const Modal = dynamic(() => import('@/components/ui/Modal'), { ssr: false });
 
 const FB_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '';
-
-function FbIcon({ size = 16 }: { size?: number }) {
-  return <Image src="/social/facebook.svg" alt="Facebook" width={size} height={size} />;
-}
-function LineIcon({ size = 16 }: { size?: number }) {
-  return <Image src="/social/line_oa.svg" alt="LINE" width={size} height={size} />;
-}
-function IgIcon({ size = 16 }: { size?: number }) {
-  return <Image src="/social/instagram.svg" alt="Instagram" width={size} height={size} />;
-}
 
 interface FbPage {
   id: string;
@@ -127,12 +119,6 @@ export default function ChatChannelsPage() {
   const [testInfo, setTestInfo] = useState<Record<string, TestInfo>>({});
   const [testErrors, setTestErrors] = useState<Record<string, string>>({});
 
-  // Expand state
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  // Guide state (for webhook per card)
-  const [guideOpen, setGuideOpen] = useState<Record<string, boolean>>({});
-
   // Copy state
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
@@ -151,7 +137,7 @@ export default function ChatChannelsPage() {
 
   useFetchOnce(() => {
     fetchAccounts();
-  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')));
+  }, can(userProfile?.roles, 'masterdata.chat_channels'));
 
   // Load FB SDK when Facebook tab is active
   useEffect(() => {
@@ -464,7 +450,6 @@ export default function ChatChannelsPage() {
       if (!response.ok) throw new Error('Failed to delete');
       showToast('ลบ Account สำเร็จ');
       setAccounts(prev => prev.filter(a => a.id !== id));
-      if (expandedId === id) setExpandedId(null);
     } catch {
       showToast('ลบไม่สำเร็จ', 'error');
     } finally {
@@ -512,7 +497,7 @@ export default function ChatChannelsPage() {
   const tabConfig = PLATFORM_CONFIG[activeTab];
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
+  if (userProfile && !can(userProfile.roles, 'masterdata.chat_channels')) {
     return (
       <Layout>
         <NoPermissionCard />
@@ -560,9 +545,9 @@ export default function ChatChannelsPage() {
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
         <div className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
           {formPlatform === 'line' ? (
-            <LineIcon size={16} />
+            <PlatformIcon id="line" size={16} />
           ) : (
-            <FbIcon size={16} />
+            <PlatformIcon id="facebook" size={16} />
           )}
           {editingId ? 'แก้ไข' : 'เพิ่ม'} {formConfig.label} Account
         </div>
@@ -698,41 +683,26 @@ export default function ChatChannelsPage() {
           <h1 className="heading-1">ช่องทาง Chat</h1>
           <p className="page-subtitle">เชื่อมต่อ LINE OA และ Facebook / Instagram เพื่อรับข้อความจากลูกค้า</p>
         </div>
-        {/* Tabs */}
-        <div className="flex border-b border-gray-200 dark:border-slate-700 mb-6">
-          <button
-            onClick={() => { setActiveTab('facebook'); resetForm(); }}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'facebook'
-                ? 'border-facebook text-facebook'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
-            }`}
-          >
-            <FbIcon size={16} />
-            FB / IG
-            {fbAccounts.length > 0 && (
-              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                activeTab === 'facebook' ? 'bg-facebook/10 text-facebook' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
-              }`}>{fbAccounts.length}</span>
-            )}
-          </button>
-          <button
-            onClick={() => { setActiveTab('line'); resetForm(); }}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'line'
-                ? 'border-line text-line'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
-            }`}
-          >
-            <LineIcon size={16} />
-            LINE
-            {lineAccounts.length > 0 && (
-              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                activeTab === 'line' ? 'bg-line/10 text-line' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
-              }`}>{lineAccounts.length}</span>
-            )}
-          </button>
-        </div>
+        <Tabs
+          activeKey={activeTab}
+          onSelect={(key) => { setActiveTab(key as 'facebook' | 'line'); resetForm(); }}
+          tabs={[
+            {
+              key: 'facebook',
+              label: 'FB / IG',
+              icon: <PlatformIcon id="facebook" size={16} />,
+              count: fbAccounts.length || undefined,
+              activeColorClass: 'border-facebook text-facebook',
+            },
+            {
+              key: 'line',
+              label: 'LINE',
+              icon: <PlatformIcon id="line" size={16} />,
+              count: lineAccounts.length || undefined,
+              activeColorClass: 'border-line text-line',
+            },
+          ]}
+        />
 
         {loading ? (
           <LoadingCard />
@@ -741,7 +711,6 @@ export default function ChatChannelsPage() {
             {/* Account Cards */}
             {tabAccounts.map(account => {
               const card = renderAccountCard(account);
-              const isEditing = editingId === account.id;
               const isLast = account === tabAccounts[tabAccounts.length - 1];
 
               // FB OAuth: button triggers OAuth directly (no intermediate form); manual mode uses inline form.
@@ -752,8 +721,6 @@ export default function ChatChannelsPage() {
               return (
                 <div key={account.id} className="space-y-4">
                   {card}
-                  {/* Inline edit form right below this card */}
-                  {isEditing && showForm && renderInlineForm()}
                   {/* Add button after last card */}
                   {showAddButton && (
                     isFbOAuthAdd ? renderFbAddButton() : (
@@ -880,7 +847,7 @@ export default function ChatChannelsPage() {
                           <img src={page.picture_url} alt={page.name} className={`w-9 h-9 rounded-full ${isConnected ? 'grayscale' : ''}`} />
                         ) : (
                           <div className="w-9 h-9 rounded-full bg-facebook/10 flex items-center justify-center">
-                            <FbIcon size={16} />
+                            <PlatformIcon id="facebook" size={16} />
                           </div>
                         )}
                         {page.instagram && (
@@ -918,17 +885,157 @@ export default function ChatChannelsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Test-connection loading modal — visible while the test API is running */}
+      <Modal
+        open={!!testingId}
+        onClose={() => { /* not closeable — auto-dismisses when API resolves */ }}
+        size="sm"
+        hideCloseButton
+        disableBackdropClose
+      >
+        <div className="p-6 flex flex-col items-center text-center gap-3">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <div>
+            <p className="body-text font-medium text-gray-900 dark:text-white">กำลังทดสอบการเชื่อมต่อ</p>
+            {(() => {
+              const target = accounts.find(a => a.id === testingId);
+              return target ? (
+                <p className="subtitle-text text-gray-500 dark:text-slate-400 mt-1">{target.account_name}</p>
+              ) : null;
+            })()}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit account modal — opens when user clicks pencil icon on an account card */}
+      <Modal
+        open={!!editingId && showForm}
+        onClose={resetForm}
+        title={`แก้ไข ${formConfig.label} Account`}
+        icon={formPlatform === 'line' ? <PlatformIcon id="line" size={18} /> : <FacebookSolidIcon className="w-5 h-5 text-facebook" fill="currentColor" stroke="none" />}
+        size="lg"
+        disableBackdropClose={saving}
+        hideCloseButton={saving}
+        footer={
+          <div className="flex gap-2 justify-end p-4">
+            <Button variant="secondary" onClick={resetForm} disabled={saving} icon={<X className="w-4 h-4" />}>
+              ยกเลิก
+            </Button>
+            <Button onClick={handleSave} loading={saving} icon={!saving ? <Check className="w-4 h-4" /> : undefined}>
+              บันทึก
+            </Button>
+          </div>
+        }
+      >
+        <div className="p-4 space-y-3">
+          {/* Account Name */}
+          <div>
+            <label className="field-label">ชื่อ Account</label>
+            <input
+              type="text"
+              value={accountName}
+              onChange={e => setAccountName(e.target.value)}
+              placeholder={formPlatform === 'line' ? 'เช่น ร้านหลัก LINE OA' : 'เช่น Main Page'}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+            />
+          </div>
+
+          {/* LINE credentials — FB tokens are managed by OAuth so we don't expose them */}
+          {formPlatform === 'line' && formConfig.fields.map(field => (
+            <div key={field.key}>
+              <label className="field-label">{field.label}</label>
+              <div className="relative">
+                <input
+                  type={showFields[field.key] ? 'text' : 'password'}
+                  value={credentials[field.key] || ''}
+                  onChange={e => setCredentials(prev => ({ ...prev, [field.key]: e.target.value }))}
+                  placeholder={field.placeholder}
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowFields(prev => ({ ...prev, [field.key]: !prev[field.key] }))}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                >
+                  {showFields[field.key] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* LINE webhook URL — needed for LINE Developers Console setup */}
+          {editingId && formPlatform === 'line' && (() => {
+            const editingAccount = accounts.find(a => a.id === editingId);
+            if (!editingAccount) return null;
+            return (
+              <>
+                <div>
+                  <label className="field-label">Webhook URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={editingAccount.webhook_url}
+                      readOnly
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg helper-text bg-gray-50 dark:bg-slate-700/50 text-gray-700 dark:text-slate-300 font-mono"
+                    />
+                    <button
+                      onClick={() => handleCopy(editingAccount.webhook_url, `webhook-${editingAccount.id}`)}
+                      className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5"
+                    >
+                      {copiedField === `webhook-${editingAccount.id}` ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setFormGuideOpen(!formGuideOpen)}
+                  className="flex items-center gap-2 subtitle-text text-gray-500 dark:text-slate-400 hover:text-primary transition-colors"
+                >
+                  <Zap className="w-4 h-4 text-primary" />
+                  <span>วิธีตั้งค่า Webhook</span>
+                  {formGuideOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+
+                {formGuideOpen && (
+                  <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-3 space-y-3 helper-text text-gray-600 dark:text-slate-400">
+                    <div className="flex gap-2">
+                      <StepNumber number={1} />
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white subtitle-text">เปิด LINE Developers Console</p>
+                        <a href="https://developers.line.biz/console/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-line hover:underline">
+                          <ExternalLink className="w-3 h-3" /> เปิด LINE Developers
+                        </a>
+                        <p className="mt-1">เลือก Channel &rarr; แท็บ Messaging API &rarr; Webhook settings &rarr; Edit</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <StepNumber number={2} />
+                      <p className="font-medium text-gray-900 dark:text-white subtitle-text">วาง Webhook URL ด้านบน &rarr; กด Update &rarr; เปิด Use webhook</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <StepNumber number={3} />
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white subtitle-text">ปิดข้อความอัตโนมัติ (แนะนำ)</p>
+                        <p>LINE OA Manager &rarr; Settings &rarr; Response settings &rarr; ปิด Auto-response</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      </Modal>
     </Layout>
   );
 
   // Render account card
   function renderAccountCard(account: ChatAccount) {
     const config = PLATFORM_CONFIG[account.platform];
-    const isExpanded = expandedId === account.id;
     const info = testInfo[account.id];
     const errorMsg: string | undefined = testErrors[account.id];
     const isTesting = testingId === account.id;
-    const isDeleting = deletingId === account.id;
 
     // Bot/Page info from credentials
     const botName = (account.platform === 'line'
@@ -964,9 +1071,9 @@ export default function ChatChannelsPage() {
             ) : (
               <div className="w-10 h-10 rounded-lg flex items-center justify-center group-hover:opacity-75 transition-opacity" style={{ backgroundColor: `${config.color}15` }}>
                 {account.platform === 'line' ? (
-                  <LineIcon size={20} />
+                  <PlatformIcon id="line" size={20} />
                 ) : (
-                  <FbIcon size={20} />
+                  <PlatformIcon id="facebook" size={20} />
                 )}
               </div>
             )}
@@ -995,21 +1102,21 @@ export default function ChatChannelsPage() {
             <div className="flex items-center gap-2 subtitle-text text-gray-500 dark:text-slate-400">
               {account.platform === 'line' ? (
                 <span className="inline-flex items-center gap-1">
-                  <LineIcon size={14} />
+                  <PlatformIcon id="line" size={14} />
                   <span className="text-line dark:text-line">LINE</span>
                   {basicId ? <span className="text-gray-500 dark:text-slate-400">@{basicId}</span> : null}
                 </span>
               ) : (
                 <>
                   <span className="inline-flex items-center gap-1">
-                    <FbIcon size={14} />
+                    <PlatformIcon id="facebook" size={14} />
                     <span className="text-facebook dark:text-facebook">
                       {pageUsername ? `@${pageUsername}` : 'Facebook'}
                     </span>
                   </span>
                   {igUsername ? (
                     <span className="inline-flex items-center gap-1">
-                      <IgIcon size={14} />
+                      <PlatformIcon id="instagram" size={14} />
                       <span className="text-pink-500">@{igUsername}</span>
                     </span>
                   ) : null}
@@ -1024,31 +1131,44 @@ export default function ChatChannelsPage() {
             <button
               onClick={() => startEdit(account)}
               className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+              title="แก้ไขชื่อ"
             >
               <Edit2 className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => setExpandedId(isExpanded ? null : account.id)}
-              className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-            >
-              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
+            <ActionMenu
+              items={[
+                {
+                  key: 'test',
+                  label: isTesting ? 'กำลังทดสอบ...' : 'ทดสอบเชื่อมต่อ',
+                  icon: isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />,
+                  onClick: () => handleTest(account),
+                  disabled: isTesting,
+                },
+                {
+                  key: 'delete',
+                  label: 'ลบ',
+                  icon: <Trash2 className="w-4 h-4" />,
+                  onClick: async () => {
+                    const ok = await confirm({ title: 'ต้องการลบ Account นี้?', variant: 'danger' });
+                    if (ok) handleDelete(account.id);
+                  },
+                  danger: true,
+                  dividerBefore: true,
+                },
+              ]}
+            />
           </div>
         </div>
 
-        {/* Expanded Section */}
-        {isExpanded && (
-          <div className="px-4 pb-4 space-y-3 border-t border-gray-100 dark:border-slate-700 pt-3">
-            {/* Extra info not shown in header */}
-            {(pageId || igAccountId) && (
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
-                {pageId ? <span>Page ID: {pageId}</span> : null}
-                {igAccountId ? <span className="text-pink-500">IG ID: {igAccountId}</span> : null}
+        {/* Inline test error banner (rarely shown — info already in toast) */}
+        {(errorMsg || (!botPicture && info)) && (
+          <div className="px-4 pb-4 -mt-2">
+            {errorMsg ? (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
+                <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                <span className="text-sm text-red-600 dark:text-red-400">{errorMsg}</span>
               </div>
-            )}
-
-            {/* Test result (only shown after clicking test, when no bot info in credentials yet) */}
-            {!botPicture && info ? (
+            ) : !botPicture && info ? (
               <div className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: `${config.color}08`, border: `1px solid ${config.color}30` }}>
                 {info.picture_url ? <img src={info.picture_url} alt={info.name} className="w-10 h-10 rounded-full" /> : null}
                 <div className="flex-1">
@@ -1059,92 +1179,6 @@ export default function ChatChannelsPage() {
                 <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: config.color }} />
               </div>
             ) : null}
-
-            {errorMsg ? (
-              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
-                <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                <span className="text-sm text-red-600 dark:text-red-400">{errorMsg}</span>
-              </div>
-            ) : null}
-
-            {/* Webhook URL & Guide — LINE only (FB uses auto-subscribe) */}
-            {account.platform === 'line' && (
-              <>
-                <div>
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Webhook URL</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={account.webhook_url}
-                      readOnly
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-xs bg-gray-50 dark:bg-slate-700/50 text-gray-700 dark:text-slate-300 font-mono"
-                    />
-                    <button
-                      onClick={() => handleCopy(account.webhook_url, `webhook-${account.id}`)}
-                      className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5"
-                    >
-                      {copiedField === `webhook-${account.id}` ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setGuideOpen(prev => ({ ...prev, [account.id]: !prev[account.id] }))}
-                  className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 hover:text-primary transition-colors"
-                >
-                  <Zap className="w-4 h-4 text-primary" />
-                  <span>วิธีตั้งค่า Webhook</span>
-                  {guideOpen[account.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
-
-                {guideOpen[account.id] && (
-                  <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-3 space-y-3 text-xs text-gray-600 dark:text-slate-400">
-                    <div className="flex gap-2">
-                      <StepNumber number={1} />
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white text-sm">เปิด LINE Developers Console</p>
-                        <a href="https://developers.line.biz/console/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-line hover:underline">
-                          <ExternalLink className="w-3 h-3" /> เปิด LINE Developers
-                        </a>
-                        <p className="mt-1">เลือก Channel &rarr; แท็บ Messaging API &rarr; Webhook settings &rarr; Edit</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <StepNumber number={2} />
-                      <p className="font-medium text-gray-900 dark:text-white text-sm">วาง Webhook URL ด้านบน &rarr; กด Update &rarr; เปิด Use webhook</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <StepNumber number={3} />
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white text-sm">ปิดข้อความอัตโนมัติ (แนะนำ)</p>
-                        <p>LINE OA Manager &rarr; Settings &rarr; Response settings &rarr; ปิด Auto-response</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={() => handleTest(account)}
-                disabled={isTesting}
-                className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
-                style={{ border: `1px solid ${config.color}`, color: config.color }}
-              >
-                {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                ทดสอบเชื่อมต่อ
-              </button>
-              <button
-                onClick={async () => { const ok = await confirm({ title: 'ต้องการลบ Account นี้?', variant: 'danger' }); if (ok) handleDelete(account.id); }}
-                disabled={isDeleting}
-                className="px-3 py-2 border border-red-300 dark:border-red-800 text-red-500 text-sm rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                ลบ
-              </button>
-            </div>
           </div>
         )}
       </div>

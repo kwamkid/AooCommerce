@@ -20,6 +20,8 @@
 | Container / page max-width wrapper | `Container` (size: sm…6xl/full + gap) | inline `<div className="max-w-5xl space-y-6">` |
 | Badge / tag (8 tones × pill/square × sm/md) | `Badge` | inline `<span className="bg-X-50 text-X-700 px-2 py-0.5 rounded-full">` |
 | Page header (back + title + subtitle + actions) | `PageHeader` | inline header layout ทุกครั้ง — **เมื่อใช้ PageHeader ห้ามใส่ `title`/`breadcrumbs` ใน `<Layout>` อีก** (จะ duplicate) |
+| Content tabs (underlined border-b style) | `Tabs` (state-based via `onSelect` หรือ route-based via `href`) | inline `<div className="flex border-b">...<button border-b-2>...` chain — **อย่าสับสนกับ `StatusTabs`** ที่ใช้สำหรับ list-page filter (count ใหญ่ + solid pill) |
+| Social platform icon (FB / LINE / IG / TikTok) | `PlatformIcon` (`id`, `size`, `title`) | inline `<Image src="/social/X.svg">` — **ห้ามสร้าง local FbIcon/LineIcon/IgIcon helper** ในแต่ละหน้า (duplicated 3 ครั้งแล้วต้อง refactor) |
 | Loading state (spinner + message) | `LoadingCard` (from `StateCard.tsx`) | สร้าง spinner card เอง |
 | Empty / no-data state | `EmptyCard` (from `StateCard.tsx`) | สร้าง empty card เอง |
 | ไม่มีสิทธิ์ guard | `NoPermissionCard` (from `StateCard.tsx`) | สร้าง guard เอง |
@@ -293,7 +295,9 @@ const columns: DataTableColumn<Order>[] = [
 |---------|------|----------|
 | `api-client.ts` | `lib/api-client.ts` | `apiFetch()` — authenticated API client (auto token, company_id, dedup GET) |
 | `supabase.ts` | `lib/supabase.ts` | `supabase` client (public) + `handleSupabaseError()` |
-| `supabase-admin.ts` | `lib/supabase-admin.ts` | `supabaseAdmin` (service role — server only) |
+| `supabase-admin.ts` | `lib/supabase-admin.ts` | `supabaseAdmin` (service role — server only); re-exports `can` from `permissions.ts` |
+| `permissions.ts` | `lib/permissions.ts` | **Single source of truth** สำหรับ role-based permissions — `can(roles, 'capability')` + 30 capabilities (`inventory.manage`, `customer.edit`, `settings.access`, ฯลฯ) |
+| `useAuthGuard.ts` | `lib/useAuthGuard.ts` | Client hook ป้องกันหน้า: `useAuthGuard('cap')` (redirect ไป `/dashboard`) หรือ `useAuthGuard('cap', { noRedirect: true })` (render fallback เอง) |
 | `flow-types.ts` | `lib/flow-types.ts` | `isCreditFlow()`, `isCashFlow()`, `isConsignmentFlow()`, `isDepartmentFlow()`, `getFlowLabel()` |
 | `status-tab-colors.ts` | `lib/status-tab-colors.ts` | `getTabColor()`, `getBadgeColor()` — ห้ามกำหนดสี status เอง |
 | `address-parser.ts` | `lib/address-parser.ts` | `parseThaiAddress()` — parse ที่อยู่ไทย/อังกฤษ |
@@ -446,3 +450,43 @@ const columns: DataTableColumn<Order>[] = [
 
 ### DealerOrderForm = 1 form หลายโหมด
 ใช้ `mode` prop แยก wholesale/consignment/department — **ห้ามสร้างฟอร์มแยก**
+
+### Permissions — ใช้ `can()` + `useAuthGuard()` เสมอ (อย่าใช้ role check แบบเดิม)
+- **Single source of truth**: [lib/permissions.ts](../../lib/permissions.ts) — 30 capabilities (`inventory.manage`, `customer.edit`, `settings.access`, `marketplace.sync`, ฯลฯ)
+- **เพิ่ม/แก้สิทธิ์** → แก้ที่ `lib/permissions.ts` ไฟล์เดียว (capability matrix + role groups)
+- **ห้ามเขียน** `roles.includes('admin') || roles.includes('owner') || ...` กระจายในไฟล์ — ใช้ `can(roles, 'capability')` เสมอ
+- **ห้ามใช้** deprecated helpers: `isAdminRole`, `isStrictAdmin`, `canBulkEdit`, `canManageInventory`, `hasAnyRole` (เก็บไว้เป็น @deprecated alias ใน supabase-admin.ts)
+
+**Pattern**:
+```ts
+// API route
+import { can } from '@/lib/supabase-admin';  // or '@/lib/permissions'
+if (!can(auth.companyRoles, 'inventory.manage')) return 403;
+
+// Client page — redirect (default /dashboard)
+import { useAuthGuard } from '@/lib/useAuthGuard';
+useAuthGuard('customer.edit');
+
+// Client page — render NoPermissionCard
+const { allowed, loading } = useAuthGuard('settings.access', { noRedirect: true });
+if (loading) return <LoadingCard />;
+if (!allowed) return <NoPermissionCard />;
+
+// Conditional UI flag
+import { can } from '@/lib/permissions';
+const canEdit = can(userProfile?.roles, 'customer.edit');
+```
+
+**Capability ที่มี (เลือกตัวที่ตรงความหมายที่สุด)**:
+- `company.*` — delete, edit
+- `members.*` — view, invite, grant_admin (strict, ป้องกัน privilege escalation)
+- `settings.*` — access, delete_all_data
+- `masterdata.*` — warehouses, carriers, suppliers, payment_channels, sales_channels, pos_terminals, chat_channels, brands, categories
+- `inventory.*` — view, manage (transfer/receive/issue/adjust)
+- `product.bulk_edit`
+- `customer.*` — view, edit
+- `supplier.edit`, `report.supplier.*` — view, create, delete
+- `marketplace.*` — connect, sync, ship, push
+- `order.split`, `pos.manage`, `onboarding.manage`, `logs.view`, `invoice.backfill`
+
+ถ้าต้อง capability ใหม่ → เพิ่มใน `CAPABILITIES` matrix ของ [lib/permissions.ts](../../lib/permissions.ts) (ใช้ pattern `{domain}.{action}`)

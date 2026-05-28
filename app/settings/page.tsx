@@ -7,11 +7,13 @@ import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import Tabs from '@/components/ui/Tabs';
 import { NoPermissionCard } from '@/components/ui/StateCard';
 import FormInput from '@/components/ui/FormInput';
 import { useFormValidation } from '@/lib/useFormValidation';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
+import { can } from '@/lib/permissions';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { Users, Plus, X, Save, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock, Building2 } from 'lucide-react';
@@ -76,7 +78,7 @@ export default function SettingsPage() {
     fetchCRMSettings();
     fetchVariationTypes();
     fetchBillExpiry();
-  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')));
+  }, can(userProfile?.roles, 'settings.access'));
 
   const fetchCRMSettings = async () => {
     try {
@@ -382,7 +384,7 @@ export default function SettingsPage() {
   };
 
   // Only allow admin to access this page
-  if (!userProfile?.roles?.includes('admin') && !userProfile?.roles?.includes('owner') && !userProfile?.roles?.includes('manager')) {
+  if (!can(userProfile?.roles, 'settings.access')) {
     return (
       <Layout>
         <NoPermissionCard />
@@ -394,9 +396,16 @@ export default function SettingsPage() {
     <Layout>
       <Container size="full">
         <div>
-          <h1 className="heading-1">ตั้งค่าทั่วไป</h1>
+          <h1 className="heading-1">ตั้งค่า</h1>
           <p className="page-subtitle">จัดการช่วงวันติดตามลูกค้า ประเภทตัวเลือกสินค้า และการตั้งค่าระบบอื่นๆ</p>
         </div>
+        <Tabs
+          activeKey="general"
+          tabs={[
+            { key: 'general', label: 'ทั่วไป', href: '/settings' },
+            { key: 'company', label: 'ข้อมูลบริษัท', href: '/settings/company' },
+          ]}
+        />
 
         {/* Success Message */}
         {success && (
@@ -716,7 +725,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* Danger Zone: Delete Company (owners only) */}
-        {companyRoles.includes('owner') && currentCompany && (
+        {can(companyRoles, 'company.delete') && currentCompany && (
           <Card padding="none" className="border-2 border-red-300 dark:border-red-900/60">
             <div className="flex items-center justify-between p-4 border-b border-red-100 dark:border-red-900/30">
               <div className="flex items-center gap-2">

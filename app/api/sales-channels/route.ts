@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 interface SalesChannelRow {
   id: string;
@@ -45,7 +45,29 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ channels: data || [] });
+  // Enrich chat-linked rows with has_ig so the UI can show FB+IG icons together.
+  const chatIds = (data || [])
+    .filter(c => c.channel_type === 'chat' && c.chat_account_id)
+    .map(c => c.chat_account_id as string);
+
+  const igMap = new Map<string, boolean>();
+  if (chatIds.length > 0) {
+    const { data: chatRows } = await supabaseAdmin
+      .from('chat_accounts')
+      .select('id, credentials')
+      .in('id', chatIds);
+    for (const row of chatRows || []) {
+      const creds = row.credentials as Record<string, unknown> | null;
+      igMap.set(row.id as string, !!(creds && creds.ig_account_id));
+    }
+  }
+
+  const channels = (data || []).map(c => ({
+    ...c,
+    has_ig: c.chat_account_id ? igMap.get(c.chat_account_id) ?? false : false,
+  }));
+
+  return NextResponse.json({ channels });
 }
 
 // POST — create a custom manual channel (chat channels are managed by chat-accounts sync).
@@ -54,7 +76,7 @@ export async function POST(request: NextRequest) {
   if (!auth.isAuth || !auth.companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!isAdminRole(auth.companyRoles)) {
+  if (!can(auth.companyRoles, 'masterdata.sales_channels')) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการช่องทางการขาย' }, { status: 403 });
   }
 
@@ -125,7 +147,7 @@ export async function PUT(request: NextRequest) {
   if (!auth.isAuth || !auth.companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!isAdminRole(auth.companyRoles)) {
+  if (!can(auth.companyRoles, 'masterdata.sales_channels')) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการช่องทางการขาย' }, { status: 403 });
   }
 
@@ -222,7 +244,7 @@ export async function DELETE(request: NextRequest) {
   if (!auth.isAuth || !auth.companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!isAdminRole(auth.companyRoles)) {
+  if (!can(auth.companyRoles, 'masterdata.sales_channels')) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการช่องทางการขาย' }, { status: 403 });
   }
 

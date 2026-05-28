@@ -1,11 +1,11 @@
-import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 // POST - Exchange short-lived FB token for long-lived token and return pages
 export async function POST(request: NextRequest) {
   try {
     const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !isAdminRole(companyRoles)) {
+    if (!isAuth || !companyId || !can(companyRoles, 'masterdata.chat_channels')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

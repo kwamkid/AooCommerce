@@ -1,4 +1,4 @@
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 // POST - Test chat account connection
@@ -10,7 +10,7 @@ export async function POST(
     const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!isAdminRole(companyRoles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!can(companyRoles, 'masterdata.chat_channels')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const { id } = await params;
 
