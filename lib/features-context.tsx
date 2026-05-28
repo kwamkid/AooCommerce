@@ -19,6 +19,37 @@ interface FeaturesContextType {
 
 const FeaturesContext = createContext<FeaturesContextType | undefined>(undefined);
 
+interface CachedFeaturesBundle {
+  preset: BusinessPreset;
+  features: FeatureFlags;
+  gates?: PackageGates;
+  billExpiryDays: number | null;
+}
+
+// localStorage key — per-company so switching companies reads the right cache.
+function cacheKey(companyId: string) {
+  return `aoo-features:${companyId}`;
+}
+
+function readCachedFeatures(companyId: string | undefined): CachedFeaturesBundle | null {
+  if (!companyId || typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(cacheKey(companyId));
+    return raw ? (JSON.parse(raw) as CachedFeaturesBundle) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedFeatures(companyId: string, bundle: CachedFeaturesBundle) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(cacheKey(companyId), JSON.stringify(bundle));
+  } catch {
+    // Quota / privacy mode — silently ignore; in-memory state still works.
+  }
+}
+
 export function FeaturesProvider({ children }: { children: React.ReactNode }) {
   const { userProfile } = useAuth();
   const { currentCompany } = useCompany();
@@ -29,42 +60,72 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [fetched, setFetched] = useState(false);
 
-  const fetchFeatures = useCallback(async () => {
+  const fetchFeatures = useCallback(async (companyIdForCache: string | undefined) => {
     setLoading(true);
     try {
       const res = await apiFetch('/api/settings/features');
       if (res.ok) {
         const data = await res.json();
-        setPreset(data.preset || DEFAULT_PRESET);
-        setFeatures(data.features || DEFAULT_FEATURES);
-        if (data.gates) setGates(data.gates as PackageGates);
-        // null = not configured → default 7, 0 = explicitly disabled
+        const nextPreset = data.preset || DEFAULT_PRESET;
+        const nextFeatures = data.features || DEFAULT_FEATURES;
+        const nextGates = (data.gates as PackageGates | undefined) ?? gates;
         const rawDays = data.bill_expiry_days;
-        setBillExpiryDays(rawDays === 0 ? 0 : (rawDays && rawDays > 0 ? rawDays : 7));
+        const nextDays = rawDays === 0 ? 0 : (rawDays && rawDays > 0 ? rawDays : 7);
+
+        setPreset(nextPreset);
+        setFeatures(nextFeatures);
+        if (data.gates) setGates(data.gates as PackageGates);
+        setBillExpiryDays(nextDays);
         setFetched(true);
+        if (companyIdForCache) {
+          writeCachedFeatures(companyIdForCache, {
+            preset: nextPreset,
+            features: nextFeatures,
+            gates: nextGates,
+            billExpiryDays: nextDays,
+          });
+        }
       }
     } catch {
-      // Keep defaults on error
+      // Network error — keep whatever we have (cached or all-off defaults)
     } finally {
       setLoading(false);
     }
+    // gates is intentionally excluded — including it would loop the callback ref
+    // since gates is set inside the same function.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Use stable IDs instead of object references to prevent re-fetch on every re-render
   const userId = userProfile?.id;
   const companyId = currentCompany?.id;
 
+  // Hydrate from localStorage as soon as the active company is known so
+  // feature-gated UI matches reality on the very first render — eliminates
+  // the "delivery_date input flashes then hides" race for returning users.
+  useEffect(() => {
+    if (!companyId) return;
+    const cached = readCachedFeatures(companyId);
+    if (!cached) return;
+    setPreset(cached.preset);
+    setFeatures(cached.features);
+    if (cached.gates) setGates(cached.gates);
+    setBillExpiryDays(cached.billExpiryDays);
+  }, [companyId]);
+
   useEffect(() => {
     if (userId && companyId) {
-      fetchFeatures();
+      fetchFeatures(companyId);
     } else {
       setLoading(false);
     }
   }, [userId, companyId, fetchFeatures]);
 
+  const refreshFeatures = useCallback(() => fetchFeatures(companyId), [fetchFeatures, companyId]);
+
   const value = useMemo(() => ({
-    features, preset, gates, billExpiryDays, loading, fetched, refreshFeatures: fetchFeatures,
-  }), [features, preset, gates, billExpiryDays, loading, fetched, fetchFeatures]);
+    features, preset, gates, billExpiryDays, loading, fetched, refreshFeatures,
+  }), [features, preset, gates, billExpiryDays, loading, fetched, refreshFeatures]);
 
   return (
     <FeaturesContext.Provider value={value}>

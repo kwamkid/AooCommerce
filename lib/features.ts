@@ -125,8 +125,24 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   },
 };
 
-// Default = delivery mode (backward compatible with existing companies)
-export const DEFAULT_FEATURES: FeatureFlags = PRESET_DEFAULTS.delivery;
+// Conservative all-off baseline used as the initial render state before the
+// real config loads from /api/settings/features. This prevents feature-gated
+// UI (e.g. delivery_date input, stock columns) from flashing visible-then-hidden
+// when the user does not have that feature enabled. Features that ARE enabled
+// will appear once the fetch completes — the only visible change is "nothing
+// then it appears" instead of "wrong thing then it disappears".
+export const DEFAULT_FEATURES: FeatureFlags = {
+  delivery_date: { enabled: false, required: false },
+  billing_cycle: false,
+  marketplace_sync: false,
+  pos: false,
+  consignment: false,
+  product_brand: false,
+  parcel_splitting: false,
+  supplier: false,
+  department_store: false,
+  stock: false,
+};
 export const DEFAULT_PRESET: BusinessPreset = 'delivery';
 
 // Detect which preset matches the given features (null if none match)
