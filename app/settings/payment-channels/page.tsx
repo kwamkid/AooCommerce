@@ -8,6 +8,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import Toggle from '@/components/ui/Toggle';
+import NumberInput from '@/components/ui/NumberInput';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -896,7 +897,7 @@ export default function PaymentChannelsPage() {
                                             <div className="px-3 pb-3 pt-1 border-t border-gray-100 dark:border-slate-700 space-y-3">
                                               <div>
                                                 <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ยอดสั่งซื้อขั้นต่ำ (บาท)</label>
-                                                <input type="number" min="0" value={chConfig?.min_amount || 0} onChange={e => handleUpdateBeamChannel(ch.code, 'min_amount', Number(e.target.value))} className="w-40 px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
+                                                <NumberInput min="0" value={chConfig?.min_amount || 0} onChange={(n) => handleUpdateBeamChannel(ch.code, 'min_amount', n)} className="w-40 px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
                                               </div>
                                               <div>
                                                 <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ประเภทลูกค้าที่ใช้ได้</label>

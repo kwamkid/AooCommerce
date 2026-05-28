@@ -3,6 +3,7 @@
 import ItemsTable from '@/components/ui/ItemsTable';
 import ProductSearchInput from '@/components/ui/ProductSearchInput';
 import PriceDiscountCombo from '@/components/ui/PriceDiscountCombo';
+import NumberInput from '@/components/ui/NumberInput';
 import { Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { productDisplayName, productSubtitle } from '@/lib/product-display';
 import type { PromotionItemForm } from './types';
@@ -87,10 +88,9 @@ export default function BuyGetSection({ hook }: Props) {
           }}
         />
       ) : (
-        <input
-          type="number"
+        <NumberInput
           value={item.quantity}
-          onChange={e => handleUpdateItem(item.key, 'quantity', Math.max(1, parseInt(e.target.value) || 1))}
+          onChange={(n) => handleUpdateItem(item.key, 'quantity', Math.max(1, n || 1))}
           min={1}
           className="w-16 h-[42px] px-2 text-right border border-gray-300 dark:border-slate-500 rounded-lg bg-transparent text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary text-sm"
         />

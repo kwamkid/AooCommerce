@@ -6,6 +6,7 @@ import Image from 'next/image';
 import imageCompression from 'browser-image-compression';
 import { Loader2, Package, Camera, Sun, Moon, CheckCircle2, XCircle, Clock, Truck, AlertTriangle } from 'lucide-react';
 import { productDisplayName } from '@/lib/product-display';
+import NumberInput from '@/components/ui/NumberInput';
 
 interface ReplenishmentItem {
   id: string;
@@ -430,12 +431,11 @@ export default function ReplenishmentReceivePage() {
                           >
                             -
                           </button>
-                          <input
-                            type="number"
+                          <NumberInput
                             min={0}
                             value={qty}
-                            onChange={(e) => {
-                              const v = Math.max(0, parseInt(e.target.value) || 0);
+                            onChange={(n) => {
+                              const v = Math.max(0, n);
                               setQuantities(prev => ({ ...prev, [item.id]: v }));
                             }}
                             style={!dark ? (

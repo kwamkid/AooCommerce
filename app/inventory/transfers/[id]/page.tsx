@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import NumberInput from '@/components/ui/NumberInput';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
@@ -620,12 +621,11 @@ export default function TransferDetailPage() {
                           {showConfirmed && (
                             <td className="px-4 py-3 text-center">
                               {isConfirmEditable ? (
-                                <input
-                                  type="number"
+                                <NumberInput
                                   min={0}
                                   max={item.qty_sent}
                                   value={confirmedQtys[item.id] ?? item.qty_received ?? item.qty_sent}
-                                  onChange={e => setConfirmedQtys(prev => ({ ...prev, [item.id]: Math.min(Math.max(0, parseInt(e.target.value) || 0), item.qty_sent) }))}
+                                  onChange={(n) => setConfirmedQtys(prev => ({ ...prev, [item.id]: Math.min(Math.max(0, n), item.qty_sent) }))}
                                   className="w-16 px-2 py-1 text-center border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary"
                                 />
                               ) : (

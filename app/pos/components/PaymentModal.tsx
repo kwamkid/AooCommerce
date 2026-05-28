@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2, Plus, Trash2, Download } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import NumberInput from '@/components/ui/NumberInput';
 import Modal from '@/components/ui/Modal';
 import { QRCodeSVG } from 'qrcode.react';
 import generatePayload from 'promptpay-qr';
@@ -349,10 +350,9 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
                     options={channels.map(ch => ({ id: ch.id, label: ch.name }))}
                     searchThreshold={99}
                   />
-                  <input
-                    type="number"
-                    value={t.amount || ''}
-                    onChange={(e) => updateSplitTender(idx, 'amount', Number(e.target.value) || 0)}
+                  <NumberInput
+                    value={t.amount}
+                    onChange={(n) => updateSplitTender(idx, 'amount', n)}
                     placeholder="จำนวนเงิน"
                     className="flex-1 px-3 py-1.5 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-sm text-right focus:outline-none focus:ring-1 focus:ring-primary"
                   />

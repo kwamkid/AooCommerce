@@ -18,6 +18,7 @@ import { featureLockReason } from '@/lib/package-features';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import GpOverridePanel from '@/components/customers/GpOverridePanel';
 import Button from '@/components/ui/Button';
+import NumberInput from '@/components/ui/NumberInput';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 
 // Feature icons for showing inside preset chips
@@ -518,10 +519,9 @@ function ConsignmentSettingsPanel({
         <div>
           <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1">ส่งยอดภายใน</label>
           <div className="relative">
-            <input
-              type="number"
+            <NumberInput
               value={settings.default_report_due_days}
-              onChange={(e) => onChange({ default_report_due_days: parseInt(e.target.value) || 15 })}
+              onChange={(n) => onChange({ default_report_due_days: n || 15 })}
               className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-base focus:outline-none focus:ring-2 focus:ring-amber-400"
               min="1" max="90"
             />
@@ -532,10 +532,9 @@ function ConsignmentSettingsPanel({
         <div>
           <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1">ชำระภายใน</label>
           <div className="relative">
-            <input
-              type="number"
+            <NumberInput
               value={settings.default_payment_terms}
-              onChange={(e) => onChange({ default_payment_terms: parseInt(e.target.value) || 30 })}
+              onChange={(n) => onChange({ default_payment_terms: n })}
               className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-base focus:outline-none focus:ring-2 focus:ring-amber-400"
               min="0" max="180"
             />

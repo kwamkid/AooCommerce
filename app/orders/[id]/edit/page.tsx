@@ -9,6 +9,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import { LoadingCard } from '@/components/ui/StateCard';
 import Alert from '@/components/ui/Alert';
 import FormInput from '@/components/ui/FormInput';
+import NumberInput from '@/components/ui/NumberInput';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { apiFetch } from '@/lib/api-client';
@@ -816,26 +817,24 @@ export default function EditOrderPage() {
                             <div className="text-sm text-gray-500 dark:text-slate-400">{product.product_code}</div>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <input
+                            <NumberInput
                               ref={(el) => {
                                 const key = `${branchIndex}-${productIndex}`;
                                 quantityInputRefs.current[key] = el;
                               }}
-                              type="number"
                               min="1"
                               value={product.quantity}
-                              onChange={(e) => handleUpdateProductQuantity(branchIndex, productIndex, parseInt(e.target.value) || 1)}
+                              onChange={(n) => handleUpdateProductQuantity(branchIndex, productIndex, n || 1)}
                               className="w-20 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-primary"
                             />
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="inline-flex items-stretch">
-                              <input
-                                type="number"
+                              <NumberInput
                                 min="0"
                                 step="0.01"
                                 value={product.unit_price}
-                                onChange={(e) => handleUpdateProductPrice(branchIndex, productIndex, Math.max(0, parseFloat(e.target.value) || 0))}
+                                onChange={(n) => handleUpdateProductPrice(branchIndex, productIndex, Math.max(0, n))}
                                 className="w-20 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-primary"
                               />
                               <span className="px-1.5 border border-l-0 border-gray-300 dark:border-slate-600 rounded-r bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 text-sm font-bold flex items-center">฿</span>
@@ -843,13 +842,12 @@ export default function EditOrderPage() {
                           </td>
                           <td className="px-4 py-3 text-center">
                             <div className="inline-flex items-stretch">
-                              <input
-                                type="number"
+                              <NumberInput
                                 min="0"
                                 max="100"
                                 step="0.01"
                                 value={product.discount_percent}
-                                onChange={(e) => handleUpdateProductDiscount(branchIndex, productIndex, Math.max(0, parseFloat(e.target.value) || 0))}
+                                onChange={(n) => handleUpdateProductDiscount(branchIndex, productIndex, Math.max(0, n))}
                                 className="w-16 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-primary"
                               />
                               <span className="px-2 border border-l-0 border-gray-300 dark:border-slate-600 rounded-r bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 text-sm font-bold flex items-center">%</span>

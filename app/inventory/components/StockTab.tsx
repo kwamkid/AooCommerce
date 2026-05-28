@@ -7,6 +7,7 @@ import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { Loader2, Search, Package2, Pencil, Eye, EyeOff, ClipboardList, Warehouse, FilterX, Layers } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import NumberInput from '@/components/ui/NumberInput';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
 import AdjustStockModal from './AdjustStockModal';
@@ -694,11 +695,10 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                       {visibleColumns.has('min') && (
                         <td className="px-3 py-2 text-right text-sm text-gray-500 dark:text-slate-400">
                           {minStockEditMode ? (
-                            <input
-                              type="number"
+                            <NumberInput
                               min="0"
                               value={minStockEdits[item.variation_id] ?? item.min_stock ?? 0}
-                              onChange={e => handleMinStockChange(item.variation_id, e.target.value)}
+                              onChange={(n) => handleMinStockChange(item.variation_id, String(n))}
                               className="w-20 h-8 px-2 text-right text-sm border border-gray-300 dark:border-slate-500 rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400"
                             />
                           ) : (
@@ -830,11 +830,10 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                           {minStockEditMode ? (
                             <div className="flex items-center gap-1">
                               <span>Min:</span>
-                              <input
-                                type="number"
+                              <NumberInput
                                 min="0"
                                 value={minStockEdits[item.variation_id] ?? item.min_stock ?? 0}
-                                onChange={e => handleMinStockChange(item.variation_id, e.target.value)}
+                                onChange={(n) => handleMinStockChange(item.variation_id, String(n))}
                                 className="w-16 h-7 px-2 text-right text-xs border border-gray-300 dark:border-slate-500 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
                               />
                             </div>

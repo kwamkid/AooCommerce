@@ -2,6 +2,7 @@
 
 import ItemsTable from '@/components/ui/ItemsTable';
 import FormSelect from '@/components/ui/FormSelect';
+import NumberInput from '@/components/ui/NumberInput';
 import { Plus, X } from 'lucide-react';
 import { DISCOUNT_TYPE_OPTIONS } from './types';
 import type { UsePromotionFormReturn } from './usePromotionForm';
@@ -80,10 +81,9 @@ export default function QtyDiscountSection({ hook }: Props) {
             {form.tiers.map((tier) => (
               <div key={tier.key} className="flex items-center gap-2 flex-wrap">
                 <span className="text-base text-gray-500 dark:text-slate-400 w-16 flex-shrink-0">ซื้อ ≥</span>
-                <input
-                  type="number"
+                <NumberInput
                   value={tier.min_qty}
-                  onChange={e => handleUpdateTier(tier.key, 'min_qty', Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={(n) => handleUpdateTier(tier.key, 'min_qty', Math.max(1, n || 1))}
                   min={1}
                   className="w-20 h-[34px] px-2 text-center border border-gray-300 dark:border-slate-500 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
@@ -96,10 +96,9 @@ export default function QtyDiscountSection({ hook }: Props) {
                     searchThreshold={99}
                   />
                 </div>
-                <input
-                  type="number"
-                  value={tier.discount_value || ''}
-                  onChange={e => handleUpdateTier(tier.key, 'discount_value', parseFloat(e.target.value) || 0)}
+                <NumberInput
+                  value={tier.discount_value}
+                  onChange={(n) => handleUpdateTier(tier.key, 'discount_value', n)}
                   min={0}
                   placeholder="0"
                   className="w-24 h-[34px] px-2 text-right border border-gray-300 dark:border-slate-500 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"

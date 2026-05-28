@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { Loader2, Package, Sun, Moon, CheckCircle2, ClipboardList, BarChart3, ChevronRight, AlertCircle, KeyRound, LogOut, Store } from 'lucide-react';
 import { productDisplayName } from '@/lib/product-display';
+import NumberInput from '@/components/ui/NumberInput';
 
 interface StockItem {
   variation_id: string;
@@ -656,12 +657,11 @@ export default function ConsignmentPortalPage() {
                                 >
                                   -
                                 </button>
-                                <input
-                                  type="number"
+                                <NumberInput
                                   min={0}
                                   value={item.qty_sold}
-                                  onChange={e => {
-                                    const v = Math.max(0, parseInt(e.target.value) || 0);
+                                  onChange={(n) => {
+                                    const v = Math.max(0, n);
                                     setReportItems(prev => prev.map((ri, i) =>
                                       i === idx ? { ...ri, qty_sold: v } : ri
                                     ));

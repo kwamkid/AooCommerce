@@ -6,6 +6,7 @@ import ProductSearchInput, { type ProductSearchItem, type SearchMode } from '@/c
 import FormSelect from '@/components/ui/FormSelect';
 import DiscountInput from '@/components/ui/DiscountInput';
 import PostfixInput from '@/components/ui/PostfixInput';
+import NumberInput from '@/components/ui/NumberInput';
 import { productDisplayName } from '@/lib/product-display';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -277,16 +278,9 @@ export default function ItemsTable({
         poMismatch ? 'border-amber-400 dark:border-amber-500' : 'border-gray-300 dark:border-slate-600'
       }`}>
         <div className="relative">
-          <input type="number" min="1"
-            value={item.quantity || ''}
-            onChange={e => {
-              const raw = e.target.value;
-              if (raw === '') {
-                onUpdateField!(idx, 'quantity', 0);
-              } else {
-                onUpdateField!(idx, 'quantity', parseInt(raw) || 0);
-              }
-            }}
+          <NumberInput min="1"
+            value={item.quantity}
+            onChange={(n) => onUpdateField!(idx, 'quantity', n)}
             onBlur={() => {
               if (!item.quantity || item.quantity < 1) {
                 onUpdateField!(idx, 'quantity', 1);
@@ -681,8 +675,8 @@ export default function ItemsTable({
                           }
                         </span>
                       : <div className="relative">
-                          <input type="number" min="0" step="0.01" value={item.unit_price || ''}
-                            onChange={e => onUpdateField!(idx, 'unit_price', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                          <NumberInput min="0" step="0.01" value={item.unit_price ?? 0}
+                            onChange={(n) => onUpdateField!(idx, 'unit_price', n)}
                             onBlur={() => { if (!item.unit_price) onUpdateField!(idx, 'unit_price', 0); }}
                             className={`w-24 text-right pr-5 ${INPUT_CLS}`} />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">฿</span>
@@ -696,8 +690,8 @@ export default function ItemsTable({
                     {readOnly
                       ? <span className="text-sm text-gray-900 dark:text-white">฿{fmt(item.unit_cost ?? 0)}</span>
                       : <div className="relative">
-                          <input type="number" min="0" step="0.01" value={item.unit_cost || ''}
-                            onChange={e => onUpdateField!(idx, 'unit_cost', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                          <NumberInput min="0" step="0.01" value={item.unit_cost ?? 0}
+                            onChange={(n) => onUpdateField!(idx, 'unit_cost', n)}
                             onBlur={() => { if (!item.unit_cost) onUpdateField!(idx, 'unit_cost', 0); }}
                             className={`w-24 text-right pr-5 ${INPUT_CLS}`} />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">฿</span>
@@ -711,8 +705,8 @@ export default function ItemsTable({
                     {readOnly
                       ? <span className="text-sm text-gray-900 dark:text-white">฿{fmt(item.special_price ?? 0)}</span>
                       : <div className="relative">
-                          <input type="number" min="0" step="0.01" value={item.special_price ?? ''}
-                            onChange={e => onUpdateField!(idx, 'special_price', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                          <NumberInput min="0" step="0.01" value={item.special_price ?? 0}
+                            onChange={(n) => onUpdateField!(idx, 'special_price', n)}
                             placeholder="0"
                             className={`w-24 text-right pr-5 ${INPUT_CLS}`} />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">฿</span>
@@ -724,10 +718,10 @@ export default function ItemsTable({
                   <div>
                     <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">ส่วนลด</label>
                     <div className="flex items-stretch">
-                      <input type="number" min="0" step="0.01"
+                      <NumberInput min="0" step="0.01"
                         max={item.discount_type === 'percent' ? 100 : undefined}
-                        value={item.discount_value || ''}
-                        onChange={e => onUpdateField!(idx, 'discount_value', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                        value={item.discount_value ?? 0}
+                        onChange={(n) => onUpdateField!(idx, 'discount_value', n)}
                         onBlur={() => { if (!item.discount_value) onUpdateField!(idx, 'discount_value', 0); }}
                         disabled={readOnly}
                         className={`w-14 text-center rounded-l-lg rounded-r-none border-r-0 ${INPUT_CLS}`} />

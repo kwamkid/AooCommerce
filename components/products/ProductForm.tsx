@@ -13,6 +13,7 @@ import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
+import NumberInput from '@/components/ui/NumberInput';
 import {
   Plus,
   Trash2,
@@ -1032,33 +1033,30 @@ export default function ProductForm({
             </div>
             <div data-field="default_price">
               <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">ราคาปกติ (฿) *</label>
-              <input
-                type="number"
+              <NumberInput
                 step="0.01"
                 value={formData.default_price}
-                onChange={(e) => { setFormData({ ...formData, default_price: parseFloat(e.target.value) || 0 }); clearFieldError('default_price'); }}
+                onChange={(n) => { setFormData({ ...formData, default_price: n }); clearFieldError('default_price'); }}
                 className={inputClass('default_price', 'w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent')}
               />
               <FieldError error={fieldErrors.default_price} />
             </div>
             <div>
               <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">ราคาลด (฿)</label>
-              <input
-                type="number"
+              <NumberInput
                 step="0.01"
                 value={formData.discount_price}
-                onChange={(e) => setFormData({ ...formData, discount_price: parseFloat(e.target.value) || 0 })}
+                onChange={(n) => setFormData({ ...formData, discount_price: n })}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
             {canViewCost && (
               <div>
                 <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">ต้นทุน (฿)</label>
-                <input
-                  type="number"
+                <NumberInput
                   step="0.01"
                   value={formData.cost_price}
-                  onChange={(e) => setFormData({ ...formData, cost_price: parseFloat(e.target.value) || 0 })}
+                  onChange={(n) => setFormData({ ...formData, cost_price: n })}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
@@ -1249,33 +1247,30 @@ export default function ProductForm({
                             </div>
                             <div data-field={`variation.${index}.price`}>
                               <label className="block text-xs font-medium text-gray-400 mb-0.5">ราคา (฿) *</label>
-                              <input
-                                type="number"
+                              <NumberInput
                                 step="0.01"
                                 value={variation.default_price}
-                                onChange={(e) => updateVariation(index, 'default_price', parseFloat(e.target.value) || 0)}
+                                onChange={(n) => updateVariation(index, 'default_price', n)}
                                 className={inputClass(`variation.${index}.price`, 'w-full px-2 py-1.5 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-slate-700 dark:text-white')}
                               />
                               <FieldError error={fieldErrors[`variation.${index}.price`]} />
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-400 mb-0.5">ราคาลด (฿)</label>
-                              <input
-                                type="number"
+                              <NumberInput
                                 step="0.01"
                                 value={variation.discount_price}
-                                onChange={(e) => updateVariation(index, 'discount_price', parseFloat(e.target.value) || 0)}
+                                onChange={(n) => updateVariation(index, 'discount_price', n)}
                                 className="w-full px-2 py-1.5 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-slate-700 dark:text-white"
                               />
                             </div>
                             {canViewCost && (
                               <div>
                                 <label className="block text-xs font-medium text-gray-400 mb-0.5">ต้นทุน (฿)</label>
-                                <input
-                                  type="number"
+                                <NumberInput
                                   step="0.01"
                                   value={variation.cost_price}
-                                  onChange={(e) => updateVariation(index, 'cost_price', parseFloat(e.target.value) || 0)}
+                                  onChange={(n) => updateVariation(index, 'cost_price', n)}
                                   className="w-full px-2 py-1.5 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-slate-700 dark:text-white"
                                 />
                               </div>

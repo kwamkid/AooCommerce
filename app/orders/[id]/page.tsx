@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import Button from '@/components/ui/Button';
+import NumberInput from '@/components/ui/NumberInput';
 import { LoadingCard } from '@/components/ui/StateCard';
 import OrderForm from '@/components/orders/OrderForm';
 import { useAuth } from '@/lib/auth-context';
@@ -1899,14 +1900,13 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                     >
                       -
                     </button>
-                    <input
-                      type="number"
+                    <NumberInput
                       min={0}
                       max={item.max}
                       value={item.quantity}
-                      onChange={e => {
+                      onChange={(n) => {
                         const updated = [...refundItems];
-                        updated[idx].quantity = Math.min(item.max, Math.max(0, parseInt(e.target.value) || 0));
+                        updated[idx].quantity = Math.min(item.max, Math.max(0, n));
                         setRefundItems(updated);
                       }}
                       className="w-12 text-center text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white py-1"

@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react';
 import { formatNumber } from '@/lib/utils/format';
+import NumberInput from './NumberInput';
 
 interface OrderSummaryBoxProps {
   /** Box title */
@@ -68,12 +69,11 @@ export default function OrderSummaryBox({
             <span>ค่าจัดส่ง</span>
             {onShippingChange && !readOnly ? (
               <div className="relative w-[108px]">
-                <input
-                  type="number"
+                <NumberInput
                   min={0}
                   step={0.01}
-                  value={shippingFee || ''}
-                  onChange={e => onShippingChange(parseFloat(e.target.value) || 0)}
+                  value={shippingFee}
+                  onChange={(n) => onShippingChange(n)}
                   placeholder="0"
                   className="w-full px-2 pr-7 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
                 />
@@ -91,13 +91,12 @@ export default function OrderSummaryBox({
             <span className="text-gray-500 dark:text-slate-400">ส่วนลดรวม</span>
             {onDiscountChange && !readOnly ? (
               <div className="flex items-stretch w-[108px]">
-                <input
-                  type="number"
+                <NumberInput
                   min={0}
                   max={discountType === 'percent' ? 100 : undefined}
                   step={0.01}
                   value={discountValue}
-                  onChange={e => onDiscountChange(parseFloat(e.target.value) || 0)}
+                  onChange={(n) => onDiscountChange(n)}
                   className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-l-lg border-r-0 text-right text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary focus:z-10"
                 />
                 <button

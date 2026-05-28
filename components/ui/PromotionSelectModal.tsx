@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Gift, Minus, Plus, Package, ShoppingCart } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
 import Modal from './Modal';
+import NumberInput from './NumberInput';
 
 // ── Types ──────────────────────────────────────────────
 
@@ -379,11 +380,10 @@ export default function PromotionSelectModal({
                 >
                   <Minus className="w-5 h-5" />
                 </button>
-                <input
-                  type="number"
+                <NumberInput
                   min={1}
                   value={qty}
-                  onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={(n) => setQty(Math.max(1, n || 1))}
                   className="w-20 h-10 text-center text-lg font-bold bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <button

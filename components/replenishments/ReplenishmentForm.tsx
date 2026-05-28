@@ -9,6 +9,7 @@ import {
   QrCode, Copy, Camera, Link2, AlertTriangle, Eye, Printer,
 } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import NumberInput from '@/components/ui/NumberInput';
 import { useCompany } from '@/lib/company-context';
 import { formatNumber } from '@/lib/utils/format';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
@@ -804,12 +805,11 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                           </td>
                           {hasMismatch && (
                             <td className="text-center px-3 py-3">
-                              <input
-                                type="number"
+                              <NumberInput
                                 min={0}
                                 value={confirmedQuantities[item.id!] ?? item.received_quantity}
-                                onChange={e => {
-                                  const v = Math.max(0, parseInt(e.target.value) || 0);
+                                onChange={(n) => {
+                                  const v = Math.max(0, n);
                                   setConfirmedQuantities(prev => ({ ...prev, [item.id!]: v }));
                                 }}
                                 className="w-16 px-2 py-1.5 text-center border border-amber-300 dark:border-amber-700 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 font-bold focus:outline-none focus:ring-2 focus:ring-amber-400"
@@ -989,9 +989,9 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                           <span className="text-gray-700 dark:text-slate-300">กำหนดเอง</span>
                           {expiryMode === 'custom' && (
                             <span className="flex items-center gap-1 ml-1">
-                              <input
-                                type="number" min={1} max={90} value={customExpiryDays}
-                                onChange={e => setCustomExpiryDays(Math.max(1, Math.min(90, parseInt(e.target.value) || 1)))}
+                              <NumberInput
+                                min={1} max={90} value={customExpiryDays}
+                                onChange={(n) => setCustomExpiryDays(Math.max(1, Math.min(90, n || 1)))}
                                 className="w-14 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-sm text-center bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
                               />
                               <span className="text-gray-500 dark:text-slate-400 text-xs">วัน</span>

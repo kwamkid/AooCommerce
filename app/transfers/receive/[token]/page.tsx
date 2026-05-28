@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import imageCompression from 'browser-image-compression';
 import { Loader2, Package, Camera, Sun, Moon, CheckCircle2, XCircle, Clock, Truck, AlertTriangle } from 'lucide-react';
+import NumberInput from '@/components/ui/NumberInput';
 
 interface TransferItem {
   id: string;
@@ -422,13 +423,12 @@ export default function TransferReceivePage() {
                           >
                             -
                           </button>
-                          <input
-                            type="number"
+                          <NumberInput
                             min={0}
                             max={item.qty_sent}
                             value={qty}
-                            onChange={(e) => {
-                              const v = Math.min(item.qty_sent, Math.max(0, parseInt(e.target.value) || 0));
+                            onChange={(n) => {
+                              const v = Math.min(item.qty_sent, Math.max(0, n));
                               setQuantities(prev => ({ ...prev, [item.id]: v }));
                             }}
                             className={`w-16 h-9 text-center rounded-lg text-lg font-bold border focus:outline-none focus:ring-2 focus:ring-amber-400 ${

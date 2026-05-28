@@ -16,6 +16,7 @@ import {
 import { THAI_BANKS, getBankByCode } from '@/lib/constants/banks';
 import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
+import NumberInput from '@/components/ui/NumberInput';
 import { apiFetch } from '@/lib/api-client';
 
 const SUPPLIER_TYPES = [
@@ -270,8 +271,8 @@ export default function SupplierForm({
         {form.supplier_type === 'credit' && (
           <div>
             <label className={labelClass}>เครดิต (วัน)</label>
-            <input type="number" value={form.payment_terms}
-              onChange={e => updateField('payment_terms', parseInt(e.target.value) || 0)}
+            <NumberInput value={form.payment_terms}
+              onChange={(n) => updateField('payment_terms', n)}
               className="w-32 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base sm:text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               placeholder="30" min={0} />
           </div>
@@ -391,8 +392,8 @@ export default function SupplierForm({
             {form.supplier_type === 'credit' && (
               <div>
                 <label className={labelClass}>เครดิต (วัน)</label>
-                <input type="number" value={form.payment_terms}
-                  onChange={e => updateField('payment_terms', parseInt(e.target.value) || 0)}
+                <NumberInput value={form.payment_terms}
+                  onChange={(n) => updateField('payment_terms', n)}
                   className="w-32 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base sm:text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                   placeholder="30" min={0} />
               </div>

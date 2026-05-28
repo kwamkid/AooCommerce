@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Minus, Plus, Trash2, User, Tag } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
+import NumberInput from '@/components/ui/NumberInput';
 
 export interface CartItemComponent {
   variation_id: string;
@@ -119,11 +120,10 @@ function DiscountPopover({ item, onUpdate }: { item: CartItem; onUpdate: (type: 
         <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg p-3 w-52">
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">ส่วนลดรายการนี้</p>
           <div className="flex items-stretch gap-1">
-            <input
+            <NumberInput
               ref={inputRef}
-              type="number"
-              value={value || ''}
-              onChange={(e) => setValue(Math.max(0, Number(e.target.value) || 0))}
+              value={value}
+              onChange={(n) => setValue(Math.max(0, n))}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
               placeholder="0"
               className="flex-1 px-2 py-1.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-gray-700 rounded-l text-gray-900 dark:text-white text-sm text-right placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary w-0"
@@ -287,11 +287,10 @@ export default function CartPanel({
         <div className="flex items-center gap-2">
           <span className="text-gray-500 dark:text-gray-400 text-sm">ส่วนลดทั้งบิล</span>
           <div className="flex items-stretch ml-auto">
-            <input
-              type="number"
-              value={orderDiscount || ''}
-              onChange={(e) => {
-                let v = Math.max(0, Number(e.target.value) || 0);
+            <NumberInput
+              value={orderDiscount}
+              onChange={(n) => {
+                let v = Math.max(0, n);
                 if (orderDiscountType === 'percent') v = Math.min(v, 100);
                 else v = Math.min(v, itemsSubtotal);
                 onUpdateOrderDiscount(v);
