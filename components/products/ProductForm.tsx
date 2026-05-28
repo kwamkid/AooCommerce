@@ -855,12 +855,15 @@ export default function ProductForm({
                     clearLabel="ไม่ระบุ"
                   />
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="md"
+                  icon={<Plus className="w-4 h-4" />}
                   onClick={() => setShowNewCategory(true)}
-                  className="px-2 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 hover:text-primary hover:border-primary transition-colors"
+                  aria-label="เพิ่มหมวดหมู่ใหม่"
                   title="เพิ่มหมวดหมู่ใหม่"
-                >+</button>
+                  className="!px-2.5"
+                />
               </div>
             </div>
 
@@ -878,12 +881,15 @@ export default function ProductForm({
                       clearLabel="ไม่ระบุ"
                     />
                   </div>
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    icon={<Plus className="w-4 h-4" />}
                     onClick={() => setShowNewBrand(true)}
-                    className="px-2 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 hover:text-primary hover:border-primary transition-colors"
+                    aria-label="เพิ่มแบรนด์ใหม่"
                     title="เพิ่มแบรนด์ใหม่"
-                  >+</button>
+                    className="!px-2.5"
+                  />
                 </div>
                 {features.supplier && (() => {
                   const selectedBrand = brands.find(b => b.id === formData.brand_id);
@@ -1321,6 +1327,7 @@ export default function ProductForm({
               options={categories.map(c => ({ id: c.id, label: c.name }))}
               placeholder="ไม่ระบุ (หมวดหลัก)"
               clearLabel="ไม่ระบุ (หมวดหลัก)"
+              portal
             />
           </div>
         )}
