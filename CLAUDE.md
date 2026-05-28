@@ -8,6 +8,14 @@
 - **Language**: UI ภาษาไทย, code/comments ภาษาอังกฤษได้
 - **Files**: `todo.md` = งานที่ยังไม่ได้ทำ
 
+## 🚫 Git Workflow — **ห้าม `git push` จนกว่าจะได้รับคำสั่ง**
+
+- **Commit ได้** เมื่องานเสร็จ (ตามคำสั่งหรือสมเหตุสมผล)
+- **ห้าม `git push`** จนกว่า user จะบอกเองชัดๆ ("push เลย", "push ขึ้นไป", "deploy")
+- ถ้าทำงานหลายรอบ → commit สะสมไว้ใน local จนกว่า user จะอนุมัติ push
+- เหตุผล: user ต้องการ review/ทดสอบ local ก่อนขึ้น production
+- เวลาแจ้งงานเสร็จ บอกแค่ "commit แล้ว" หรือระบุ hash — อย่าเสนอ push เอง
+
 ## 🐛 Fix Bug Log — **บังคับอ่านก่อนแก้ bug ทุกครั้ง!**
 
 **ไฟล์**: [fix-bug.md](fix-bug.md) — log bug ที่แก้ไปแล้วทั้งหมด (root cause + วิธีแก้ + ป้องกัน regression)
