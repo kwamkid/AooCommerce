@@ -849,16 +849,18 @@ export default function ItemsTable({
                   />
               }
             </div>
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-slate-500 border-t border-gray-100 dark:border-slate-700">
-              <Package className="w-14 h-14 mb-3 opacity-40" />
-              <p className="text-sm">{emptyMessage}</p>
+            {/* No items yet — keep this compact (search above already prompts).
+                Old layout used py-12 + w-14 icon which left a huge empty card. */}
+            <div className="flex items-center justify-center gap-2 py-5 text-gray-400 dark:text-slate-500 border-t border-gray-100 dark:border-slate-700">
+              <Package className="w-5 h-5 opacity-50" />
+              <p className="text-sm">ยังไม่มีสินค้า</p>
             </div>
           </>
         )}
 
         {items.length === 0 && readOnly && (
-          <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-slate-500">
-            <Package className="w-14 h-14 mb-3 opacity-40" />
+          <div className="flex items-center justify-center gap-2 py-6 text-gray-400 dark:text-slate-500">
+            <Package className="w-5 h-5 opacity-50" />
             <p className="text-sm">{emptyMessage}</p>
           </div>
         )}

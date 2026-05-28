@@ -74,6 +74,7 @@ function NewOrderContent() {
   const exchangeDataParam = searchParams.get('exchange_data');
   const fromOrderId = searchParams.get('from_order');
   const warehouseRef = useRef<HTMLDivElement>(null);
+  const salesChannelRef = useRef<HTMLDivElement>(null);
 
   const isExchange = !!exchangeDataParam && !!fromOrderId;
 
@@ -296,8 +297,13 @@ function NewOrderContent() {
             ) : undefined
           }
           backHref="-1"
+          actions={
+            <div className="flex items-center gap-2">
+              <div ref={warehouseRef} />
+              <div ref={salesChannelRef} />
+            </div>
+          }
         />
-        <div ref={warehouseRef} />
 
         {/* Exchange: Return Items Summary */}
         {isExchange && exchangeReturnItems.length > 0 && (
@@ -342,6 +348,7 @@ function NewOrderContent() {
         {/* Order Form */}
         <OrderForm
           warehousePortalRef={warehouseRef}
+          salesChannelPortalRef={salesChannelRef}
           initialOrderData={initialData}
           exchangeData={exchangeData}
           exchangeCreditAmount={exchangeCreditAmount}

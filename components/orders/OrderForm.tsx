@@ -37,6 +37,7 @@ import {
   CheckCircle,
   Send,
   Warehouse,
+  Store,
   Settings,
   Clock
 } from 'lucide-react';
@@ -142,6 +143,8 @@ interface OrderFormProps {
   printMode?: 'order' | 'packing' | null;
   // Portal target for warehouse picker (renders into parent header)
   warehousePortalRef?: RefObject<HTMLDivElement | null>;
+  // Portal target for sales channel picker (renders into parent header)
+  salesChannelPortalRef?: RefObject<HTMLDivElement | null>;
   // Portal target for header actions (copy order button)
   headerActionsRef?: RefObject<HTMLDivElement | null>;
   // Order source (e.g., 'line', 'facebook') and channel name
@@ -171,6 +174,7 @@ export default function OrderForm({
   onSendBillToChat,
   printMode = null,
   warehousePortalRef,
+  salesChannelPortalRef,
   headerActionsRef,
   source,
   sourceName,
@@ -1763,6 +1767,26 @@ export default function OrderForm({
         return <div className="flex justify-end">{warehousePicker}</div>;
       })()}
 
+      {/* Sales Channel Picker — portals into header when target ref is provided.
+          Inline fallback lives in the form body (see below). */}
+      {salesChannels.length > 0 && salesChannelPortalRef?.current && createPortal(
+        <div className="inline-block min-w-[180px]" title={salesChannelLocked ? 'ล็อกตามที่มา chat' : undefined}>
+          <FormSelect
+            value={selectedSalesChannelId}
+            onChange={setSelectedSalesChannelId}
+            disabled={isReadOnly || salesChannelLocked}
+            options={salesChannels.map(c => ({
+              id: c.id,
+              label: c.name,
+              subtitle: c.channel_type === 'chat' ? 'Chat' : undefined,
+            }))}
+            icon={<Store className="w-4 h-4" />}
+            placeholder="-- ช่องทาง --"
+          />
+        </div>,
+        salesChannelPortalRef.current,
+      )}
+
       {/* Customer + Delivery section — hidden in edit mode (shown in top card instead) */}
       {!isEditMode && (
       <div ref={deliverySectionRef} className="space-y-4">
@@ -1806,8 +1830,10 @@ export default function OrderForm({
           readOnly={isReadOnly}
         />
 
-        {/* Sales channel — manual orders only (marketplace uses source) */}
-        {salesChannels.length > 0 && (
+        {/* Sales channel — when a portal target is provided (e.g. /orders/new
+            header), the picker renders there as a compact control.
+            Otherwise (embedded contexts, edit pages without portal), shown inline. */}
+        {salesChannels.length > 0 && !salesChannelPortalRef && (
           <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
             <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
               ช่องทางการขาย
