@@ -26,12 +26,26 @@ export async function GET(request: NextRequest) {
 
     const stockConfigPromise = getStockConfig(companyId);
 
-    // Fire the four base queries in parallel
+    // Pre-query the default warehouse id so we can fold its inventory into the
+    // same parallel batch. Tiny query (~10-50ms) — net win vs the client
+    // firing /api/inventory separately after the warehouses come back.
+    const { data: defaultWh } = await supabaseAdmin
+      .from('warehouses')
+      .select('id')
+      .eq('company_id', companyId)
+      .eq('is_active', true)
+      .eq('warehouse_type', 'internal')
+      .eq('is_default', true)
+      .maybeSingle();
+    const defaultWarehouseId = defaultWh?.id ?? null;
+
+    // Fire all base queries in parallel
     const [
       customersResult,
       productsViewResult,
       warehousesResult,
       salesChannelsResult,
+      inventoryResult,
     ] = await Promise.all([
       supabaseAdmin
         .from('customers')
@@ -60,6 +74,13 @@ export async function GET(request: NextRequest) {
         .eq('is_active', true)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true }),
+      defaultWarehouseId
+        ? supabaseAdmin
+            .from('inventory')
+            .select('variation_id, quantity, reserved_quantity')
+            .eq('company_id', companyId)
+            .eq('warehouse_id', defaultWarehouseId)
+        : Promise.resolve({ data: [] as { variation_id: string; quantity: number; reserved_quantity: number }[] }),
     ]);
 
     const productIds = (productsViewResult.data || []).map(p => p.id);
@@ -193,12 +214,26 @@ export async function GET(request: NextRequest) {
 
     const stockConfig = await stockConfigPromise;
 
+    // Build inventory map for default warehouse — same shape OrderForm expects
+    const inventoryMap: Record<string, { quantity: number; reserved_quantity: number; available: number }> = {};
+    for (const row of inventoryResult.data || []) {
+      const quantity = Number(row.quantity) || 0;
+      const reserved = Number(row.reserved_quantity) || 0;
+      inventoryMap[row.variation_id] = {
+        quantity,
+        reserved_quantity: reserved,
+        available: quantity - reserved,
+      };
+    }
+
     return NextResponse.json({
       customers: customersResult.data || [],
       products: groupedProducts,
       warehouses: warehousesResult.data || [],
       stockConfig,
       salesChannels: salesChannelsResult.data || [],
+      defaultWarehouseId,
+      inventoryMap,
     });
   } catch (error) {
     console.error('[Orders New Init] Error:', error);

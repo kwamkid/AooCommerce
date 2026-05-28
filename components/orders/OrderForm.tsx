@@ -434,7 +434,9 @@ export default function OrderForm({
       });
       setProducts(flatProducts);
 
-      // Warehouses + stock config — same default-pick logic as fetchWarehouses
+      // Warehouses + stock config — same default-pick logic as fetchWarehouses,
+      // but inventory for the default warehouse comes embedded so we skip the
+      // separate /api/inventory round trip on mount.
       if (data.stockConfig?.stockEnabled) {
         setStockEnabled(true);
         setAllowOversell(data.stockConfig.allowOversell !== false);
@@ -443,7 +445,11 @@ export default function OrderForm({
         const defaultWh = wh.find((w: any) => w.is_default);
         if (defaultWh && !selectedWarehouseId) {
           setSelectedWarehouseId(defaultWh.id);
-          fetchInventoryForWarehouse(defaultWh.id);
+          if (data.inventoryMap && data.defaultWarehouseId === defaultWh.id) {
+            setInventoryMap(data.inventoryMap);
+          } else {
+            fetchInventoryForWarehouse(defaultWh.id);
+          }
         }
       }
 
