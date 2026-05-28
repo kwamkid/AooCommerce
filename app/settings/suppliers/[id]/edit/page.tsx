@@ -4,12 +4,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import SupplierForm, { type SupplierFormData } from '@/components/suppliers/SupplierForm';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 export default function EditSupplierPage() {
   const params = useParams();
@@ -137,18 +139,15 @@ export default function EditSupplierPage() {
   if (error || !supplier) {
     return (
       <Layout>
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => router.push('/settings/suppliers')}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-              <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">แก้ไขซัพพลายเออร์</h1>
-          </div>
+        <Container size="full">
+          <PageHeader
+            title="แก้ไขซัพพลายเออร์"
+            backHref="/settings/suppliers"
+          />
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
             {error || 'ไม่พบซัพพลายเออร์'}
           </div>
-        </div>
+        </Container>
       </Layout>
     );
   }
@@ -157,15 +156,12 @@ export default function EditSupplierPage() {
 
   return (
     <Layout>
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <button type="button" onClick={() => router.push('/settings/suppliers')}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">แก้ไขซัพพลายเออร์</h1>
-        </div>
+      <Container size="full">
+        <PageHeader
+          title="แก้ไขซัพพลายเออร์"
+          subtitle={(s.name as string) || undefined}
+          backHref="/settings/suppliers"
+        />
 
         {/* Form */}
         <SupplierForm
@@ -192,7 +188,7 @@ export default function EditSupplierPage() {
           isEditing
           isLoading={saving}
         />
-      </div>
+      </Container>
     </Layout>
   );
 }

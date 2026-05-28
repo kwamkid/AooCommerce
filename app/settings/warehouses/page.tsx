@@ -199,7 +199,7 @@ export default function WarehouseSettingsPage() {
   // Admin guard
   if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
     return (
-      <Layout title="คลังสินค้า">
+      <Layout>
         <NoPermissionCard />
       </Layout>
     );
@@ -213,14 +213,12 @@ export default function WarehouseSettingsPage() {
     : `${activeInternal.length}/${stockConfig.maxWarehouses}`;
 
   return (
-    <Layout
-      title="คลังสินค้า"
-      breadcrumbs={[
-        { label: 'ตั้งค่าระบบ', href: '/settings' },
-        { label: 'คลังสินค้า' },
-      ]}
-    >
-      <Container size="2xl">
+    <Layout>
+      <Container size="full">
+        <div>
+          <h1 className="heading-1">คลังสินค้า</h1>
+          <p className="page-subtitle">จัดการคลังสินค้าและคลังฝากขาย ({limitText})</p>
+        </div>
         {/* Stock not enabled */}
         {!stockConfig.stockEnabled && !loading && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-start gap-3 mb-6">

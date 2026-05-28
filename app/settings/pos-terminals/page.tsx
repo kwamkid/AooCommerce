@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
@@ -379,21 +380,19 @@ export default function PosTerminalsPage() {
   // Admin guard
   if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
     return (
-      <Layout title="เครื่อง POS">
+      <Layout>
         <NoPermissionCard />
       </Layout>
     );
   }
 
   return (
-    <Layout
-      title="เครื่อง POS"
-      breadcrumbs={[
-        { label: 'ตั้งค่าระบบ', href: '/settings' },
-        { label: 'เครื่อง POS' },
-      ]}
-    >
-      <div>
+    <Layout>
+      <Container size="full">
+        <div className="mb-6">
+          <h1 className="heading-1">เครื่อง POS</h1>
+          <p className="page-subtitle">จัดการเครื่อง POS ที่เชื่อมกับคลังสินค้าและช่องทางชำระเงิน</p>
+        </div>
         {/* POS not enabled */}
         {!features.pos && !loading && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-start gap-3 mb-6">
@@ -627,7 +626,7 @@ export default function PosTerminalsPage() {
             )}
           </div>
         ) : null}
-      </div>
+      </Container>
       {confirmDialog}
     </Layout>
   );

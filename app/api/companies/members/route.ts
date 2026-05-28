@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole, validateRoles } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, isAdminRole, isStrictAdmin, validateRoles } from '@/lib/supabase-admin';
 
 // owner/admin always implicitly see cost; for other roles, honor the flag
 function resolveCanViewCost(roles: string[] | undefined, requested: unknown): boolean {
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check permission (owner or admin)
+    // Check permission (owner, admin, or manager)
     if (!isAdminRole(auth.companyRoles)) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์เชิญสมาชิก' }, { status: 403 });
     }
@@ -87,6 +87,13 @@ export async function POST(request: NextRequest) {
     const rolesError = validateRoles(roles);
     if (rolesError) {
       return NextResponse.json({ error: rolesError }, { status: 400 });
+    }
+
+    // Manager cannot invite owner/admin roles
+    if (!isStrictAdmin(auth.companyRoles)
+        && Array.isArray(roles)
+        && (roles.includes('owner') || roles.includes('admin'))) {
+      return NextResponse.json({ error: 'ผู้จัดการไม่สามารถเชิญตำแหน่งผู้ดูแลระบบหรือเจ้าของได้' }, { status: 403 });
     }
 
     // Check package member limit
@@ -211,6 +218,16 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่สามารถแก้ไขตำแหน่งเจ้าของได้' }, { status: 403 });
     }
 
+    // Manager cannot modify admin members, nor assign admin/owner roles
+    if (!isStrictAdmin(auth.companyRoles)) {
+      if (targetMember?.roles?.includes('admin')) {
+        return NextResponse.json({ error: 'ผู้จัดการไม่สามารถแก้ไขผู้ดูแลระบบได้' }, { status: 403 });
+      }
+      if (Array.isArray(roles) && (roles.includes('owner') || roles.includes('admin'))) {
+        return NextResponse.json({ error: 'ผู้จัดการไม่สามารถมอบตำแหน่งผู้ดูแลระบบหรือเจ้าของได้' }, { status: 403 });
+      }
+    }
+
     const { data, error } = await supabaseAdmin
       .from('company_members')
       .update({
@@ -254,6 +271,18 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (type === 'invitation') {
+      // Manager cannot cancel invitations to owner/admin roles
+      if (!isStrictAdmin(auth.companyRoles)) {
+        const { data: inv } = await supabaseAdmin
+          .from('company_invitations')
+          .select('roles')
+          .eq('id', memberId)
+          .eq('company_id', auth.companyId)
+          .single();
+        if (inv?.roles?.includes('owner') || inv?.roles?.includes('admin')) {
+          return NextResponse.json({ error: 'ผู้จัดการไม่สามารถยกเลิกคำเชิญของผู้ดูแลระบบได้' }, { status: 403 });
+        }
+      }
       await supabaseAdmin
         .from('company_invitations')
         .update({ status: 'cancelled' })
@@ -270,6 +299,11 @@ export async function DELETE(request: NextRequest) {
 
       if (targetMember?.roles?.includes('owner')) {
         return NextResponse.json({ error: 'ไม่สามารถลบเจ้าของบริษัทได้' }, { status: 403 });
+      }
+
+      // Manager cannot remove admin members
+      if (!isStrictAdmin(auth.companyRoles) && targetMember?.roles?.includes('admin')) {
+        return NextResponse.json({ error: 'ผู้จัดการไม่สามารถลบผู้ดูแลระบบได้' }, { status: 403 });
       }
 
       await supabaseAdmin

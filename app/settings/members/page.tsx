@@ -510,10 +510,11 @@ export default function MembersPage() {
     </div>
   );
 
-  // Role checkboxes component — vertical list with icons
+  // Role checkboxes component — vertical list with icons.
+  // Manager can invite/edit any role EXCEPT admin (only strict admin/owner can grant admin).
   const RoleCheckboxes = ({ selectedRoles, onChange, disabled }: { selectedRoles: string[]; onChange: (roles: string[]) => void; disabled?: boolean }) => (
     <div className="space-y-1.5">
-      {ROLE_OPTIONS.map((option) => {
+      {ROLE_OPTIONS.filter(o => isStrictAdmin || o.value !== 'admin').map((option) => {
         const Icon = option.icon;
         const isSelected = selectedRoles.includes(option.value);
         return (

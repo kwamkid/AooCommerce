@@ -4,11 +4,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import SupplierForm, { type SupplierFormData } from '@/components/suppliers/SupplierForm';
 
 export default function NewSupplierPage() {
@@ -85,18 +87,11 @@ export default function NewSupplierPage() {
 
   return (
     <Layout>
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.push('/settings/suppliers')}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">เพิ่มซัพพลายเออร์ใหม่</h1>
-        </div>
+      <Container size="full">
+        <PageHeader
+          title="เพิ่มซัพพลายเออร์ใหม่"
+          backHref="/settings/suppliers"
+        />
 
         {/* Form */}
         <SupplierForm
@@ -104,7 +99,7 @@ export default function NewSupplierPage() {
           onCancel={() => router.push('/settings/suppliers')}
           isLoading={saving}
         />
-      </div>
+      </Container>
     </Layout>
   );
 }
