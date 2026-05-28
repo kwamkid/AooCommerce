@@ -393,7 +393,8 @@ export default function DataTable<T>({
           return sum + (typeof w === 'number' ? w : (col.defaultWidth ?? 100));
         }, 0) + (hasSelection ? 40 : 0);
         return (
-      <div className="hidden md:block overflow-x-auto">
+      <div className="hidden md:block">
+        <div className="overflow-x-auto">
         <div className="data-table-wrap">
           <table
             /*
@@ -497,6 +498,7 @@ export default function DataTable<T>({
               })}
             </tbody>
           </table>
+        </div>
         </div>
         {!hidePagination && (
           <Pagination
