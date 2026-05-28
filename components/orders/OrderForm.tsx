@@ -9,6 +9,7 @@ import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { useCompany } from '@/lib/company-context';
 import { apiFetch } from '@/lib/api-client';
+import { supabase } from '@/lib/supabase';
 import { parseThaiAddress } from '@/lib/address-parser';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
@@ -909,6 +910,49 @@ export default function OrderForm({
       console.error('Error fetching inventory:', error);
     }
   };
+
+  // Live inventory updates for the currently-selected warehouse so concurrent
+  // sellers in the same company don't oversell. Subscribes to postgres_changes
+  // on the inventory row for this warehouse and patches the local map per
+  // variation. Channel name includes company + warehouse so cross-tenant
+  // events can't leak and re-mounts don't collide.
+  useEffect(() => {
+    const companyId = currentCompany?.id;
+    if (!companyId || !selectedWarehouseId) return;
+
+    const channel = supabase
+      .channel(`inv-${companyId}-${selectedWarehouseId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'inventory',
+        filter: `warehouse_id=eq.${selectedWarehouseId}`,
+      }, (payload) => {
+        const row = (payload.new || payload.old) as { variation_id?: string; quantity?: number; reserved_quantity?: number } | null;
+        if (!row?.variation_id) return;
+        if (payload.eventType === 'DELETE') {
+          setInventoryMap(prev => {
+            if (!(row.variation_id! in prev)) return prev;
+            const { [row.variation_id!]: _, ...rest } = prev;
+            return rest;
+          });
+          return;
+        }
+        const quantity = Number(row.quantity) || 0;
+        const reserved = Number(row.reserved_quantity) || 0;
+        setInventoryMap(prev => ({
+          ...prev,
+          [row.variation_id!]: {
+            quantity,
+            reserved_quantity: reserved,
+            available: quantity - reserved,
+          },
+        }));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [currentCompany?.id, selectedWarehouseId]);
 
   // Reuse from hook
   const { fillDeliveryFromAddress } = customerPrefill;

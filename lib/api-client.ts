@@ -40,7 +40,29 @@ const CACHED_GET_PATHS: { match: (url: string) => boolean; ttlMs: number }[] = [
   { match: u => u.startsWith('/api/sales-channels'), ttlMs: 60_000 },
   { match: u => u === '/api/settings/features', ttlMs: 60_000 },
   { match: u => u === '/api/carriers' || u.startsWith('/api/carriers?'), ttlMs: 60_000 },
+  // OrderForm init bundle — short TTL so a back-and-forth in the same flow
+  // is instant, but any genuine order/inventory drift surfaces quickly. The
+  // realtime inventory subscription in OrderForm patches per-variation deltas
+  // during the cached window, so stock stays live without re-fetching.
+  { match: u => u === '/api/orders/new/init', ttlMs: 30_000 },
 ];
+
+/**
+ * Mapping from write-path URL prefixes to cached read URLs that need to
+ * be invalidated. The default behaviour invalidates only the same prefix
+ * (e.g. POST /api/warehouses wipes /api/warehouses cache), but some reads
+ * are composites of multiple resources — /api/orders/new/init bundles
+ * customers + products + warehouses + sales-channels + inventory, so a
+ * write to any of those should drop its cache too.
+ */
+const CACHE_DEPENDENCIES: Record<string, string[]> = {
+  '/api/orders': ['/api/orders/new/init'],
+  '/api/customers': ['/api/orders/new/init'],
+  '/api/products': ['/api/orders/new/init'],
+  '/api/warehouses': ['/api/orders/new/init'],
+  '/api/sales-channels': ['/api/orders/new/init'],
+  '/api/inventory': ['/api/orders/new/init'],
+};
 
 function cacheableFor(url: string): number | null {
   for (const rule of CACHED_GET_PATHS) {
@@ -123,6 +145,13 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
   const path = url.split('?')[0];
   if (cacheableFor(path) !== null || cacheableFor(url) !== null) {
     invalidateApiCache(path);
+  }
+  // Drop dependent composite caches (e.g. /orders/new/init blends multiple
+  // resources — a write to any of them should wipe the bundle too).
+  for (const [writePrefix, dependents] of Object.entries(CACHE_DEPENDENCIES)) {
+    if (path === writePrefix || path.startsWith(`${writePrefix}/`)) {
+      for (const dep of dependents) invalidateApiCache(dep);
+    }
   }
 
   return fetch(url, { ...options, headers });

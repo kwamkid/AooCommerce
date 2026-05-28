@@ -752,6 +752,13 @@ function OrdersPageContent() {
               variant="primary"
               icon={<Plus className="w-5 h-5" />}
               onClick={() => router.push('/orders/new')}
+              onMouseEnter={() => {
+                // Warm the page bundle and prime the API cache so a click
+                // lands on an already-fetched form. apiFetch's 30s cache
+                // catches the result so the form mount skips the round trip.
+                router.prefetch('/orders/new');
+                apiFetch('/api/orders/new/init').catch(() => {});
+              }}
             >
               <span>สร้าง<span className="hidden md:inline">คำสั่งซื้อ</span></span>
             </Button>
