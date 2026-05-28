@@ -65,6 +65,7 @@
 | `Checkbox` | checkbox |
 | `ActionMenu` | row action dropdown (portal z-9999) — items: `[{key,label,icon,onClick,danger?,dividerBefore?}]` |
 | `ImageLightbox` | fullscreen image viewer — `src` + `onClose` |
+| `ProductImageThumb` | square product thumbnail (xs/sm/md/lg) — hover magnifying-glass overlay + click → `ImageLightbox` (internal state) + `fallbackIcon`. **ใช้แทน inline `<img>` + setLightboxSrc ทุกครั้ง** — เลิก duplicate ESC + lightbox div |
 | `PlatformIcon` | social icon — `id='line\|facebook\|instagram\|tiktok'` + size? + title? (จาก `/public/social/*.svg`) — ใช้ตอนแสดง chat platform / sales channel platform เสมอ |
 | `StateCard` exports | `LoadingCard`, `EmptyCard`, `NoPermissionCard`, `DoneCard` |
 | `Chart` exports | `Stat`, `BarChart`, `Sparkline`, `ProgressBar` |
@@ -496,6 +497,53 @@ marketplace_accounts → marketplace_product_links → product_variations
 ### Header Notification
 - `/api/marketplace/health` — คืน expired/disconnected shop count
 - Header bell badge แสดง counter จำนวนร้านที่มีปัญหา (poll ทุก 5 นาที)
+
+---
+
+## ⚡ Performance Architecture (เพิ่มเมื่อ 2026-05-29)
+
+ระบบ caching + consolidation layer หลายชั้น — เปลี่ยน /orders/new cold load จาก 12 calls → 3 calls (cumulative ~10s → ~1.2s)
+
+### Consolidated read endpoints (1 ปลายทางแทนหลาย call)
+| Endpoint | รวมอะไร | ใช้กับ |
+|---|---|---|
+| `/api/header/summary` | warehouses+stockConfig+low_stock_count+chat_unread+orders_ready_count+marketplace_health | `HeaderSummaryProvider` ใน [lib/header-summary-context.tsx](lib/header-summary-context.tsx) → Sidebar + Header. Realtime subs: orders, line_contacts, fb_contacts (debounced 500ms refresh) + 5-min interval สำหรับ marketplace health |
+| `/api/orders/new/init` | customers + products + warehouses + sales_channels + stockConfig + default-warehouse inventory | OrderForm `fetchInitBundle()` (non-marketplace path) → 1 call แทน 5; fallback เป็น individual fetches ถ้า /init error |
+
+### apiFetch cache layer ([lib/api-client.ts](lib/api-client.ts))
+- **In-memory response cache** key by `(URL, companyId)` พร้อม TTL ต่อ path:
+  - `/api/warehouses`, `/api/sales-channels`, `/api/settings/features`, `/api/carriers` → 60s
+  - `/api/orders/new/init` → 30s
+- **Auto-invalidate** เมื่อ POST/PUT/PATCH/DELETE ปลายทางเดียวกัน
+- **`CACHE_DEPENDENCIES` map** — write `/api/orders|customers|products|warehouses|sales-channels|inventory` → invalidate `/api/orders/new/init` ด้วย (composite cache)
+- **Export `invalidateApiCache(prefix)`** สำหรับ manual invalidation
+
+### Server-side auth cache ([lib/supabase-admin.ts](lib/supabase-admin.ts))
+- `checkAuthWithCompany` ทำ 2 round-trips ทุก call (JWT verify + company_members query) → cache result 30s, key by `${token}|${companyId}`
+- Cache เฉพาะ `isAuth=true` (invalid token re-check ได้ราคาถูก)
+- Auto-cleanup ที่ size > 256 (bounded memory)
+- Stale role/forced-logout propagate ใน ≤30s — acceptable
+
+### Realtime patterns ที่ใช้
+- **Sidebar badges** (orders, chat) — Supabase Realtime postgres_changes ใน `HeaderSummaryProvider` → debounced 500ms refresh
+- **OrderForm inventory** — subscribe `inventory` table filter `warehouse_id=eq.${selectedWarehouseId}` → patch `inventoryMap` per variation (insert/update/delete). Channel name `inv-${companyId}-${warehouseId}` กัน cross-tenant ชน
+- **Marketplace health** — polling 5 นาที (ไม่มี webhook event สำหรับ token expiry) — ใน `HeaderSummaryProvider`
+
+### Defer non-critical fetches
+- `/api/promotions?status=active&limit=200` + `/api/products/top-sellers` ใน OrderForm — defer 300ms หลัง mount เพื่อให้ critical burst (init endpoint) settle ก่อน
+
+### Prefetch on hover
+- ปุ่ม "+ สร้างคำสั่งซื้อ" ใน `/orders` — `onMouseEnter` ยิง `router.prefetch('/orders/new')` + `apiFetch('/api/orders/new/init')` พร้อมกัน → click หลัง hover ~1s = เปิดทันที
+
+### Feature flags hydration ([lib/features-context.tsx](lib/features-context.tsx))
+- `DEFAULT_FEATURES` = all-off baseline (ไม่ใช่ delivery preset) — ป้องกัน feature-gated UI flash visible→hidden ตอน config โหลด
+- localStorage cache per company id → returning user เห็น feature state ถูกต้องทันทีตอน first render
+- Network error → ใช้ค่า cache ล่าสุด (ไม่ใช่ defaults)
+
+### กฎทั่วไป
+- **เพิ่ม endpoint cacheable** → เพิ่มเข้า `CACHED_GET_PATHS` ใน [lib/api-client.ts](lib/api-client.ts) (อย่ายุ่ง CACHE_DEPENDENCIES ถ้าไม่ใช่ composite)
+- **เพิ่ม composite endpoint** → ใส่ `CACHE_DEPENDENCIES` ให้ครอบ underlying resources
+- **ห้าม polling** ถ้ามี realtime ทำหน้าที่ได้ — ยกเว้น external system ที่ไม่มี webhook (Shopee marketplace token expiry)
 
 ---
 
