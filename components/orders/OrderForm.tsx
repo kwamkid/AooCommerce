@@ -342,18 +342,16 @@ export default function OrderForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch customers, products, and warehouse config (once)
+  // Fetch customers, products, warehouses, and sales channels (once)
   // For marketplace orders (edit mode), skip customers/products — they're read-only
   useFetchOnce(() => {
     const isMarketplace = isMarketplaceSource(preloadedOrder?.source);
-    if (!isMarketplace) {
-      fetchCustomers();
-      fetchProducts();
-      fetchSalesChannels();
-    } else {
+    if (isMarketplace) {
       setLoadingProducts(false);
+      fetchWarehouses();
+    } else {
+      fetchInitBundle();
     }
-    fetchWarehouses();
   }, !authLoading && !!userProfile);
 
   // Promotions are non-critical for first paint — defer ~300ms so the
@@ -375,6 +373,90 @@ export default function OrderForm({
       setSalesChannels(json.channels || []);
     } catch (e) {
       console.warn('fetchSalesChannels failed:', e);
+    }
+  };
+
+  // Single round-trip mount fetch — replaces 4 parallel client calls
+  // (customers + products + warehouses + sales-channels) with one consolidated
+  // request whose DB queries fan out in parallel on the serverless side. Falls
+  // back to the individual fetches if /init errors so a deploy gone wrong
+  // doesn't brick the form.
+  const fetchInitBundle = async () => {
+    try {
+      setLoadingProducts(true);
+      const res = await apiFetch('/api/orders/new/init');
+      if (!res.ok) throw new Error('init failed');
+      const data = await res.json();
+
+      // Customers — same retail-only filter + alphabetical sort as fetchCustomers
+      const retailTypes = ['retail', 'dropship', 'affiliate', null, undefined, ''];
+      const sortedCustomers = (data.customers || [])
+        .filter((c: Customer & { is_active?: boolean; customer_type?: string }) =>
+          c.is_active !== false && retailTypes.includes(c.customer_type || ''))
+        .sort((a: Customer, b: Customer) => a.name.localeCompare(b.name));
+      setCustomers(sortedCustomers);
+
+      // Products — same flatten-variations pattern as fetchProducts
+      const flatProducts: Product[] = [];
+      (data.products || []).forEach((sp: any) => {
+        if (sp.product_type === 'simple') {
+          const variation_id = sp.variations && sp.variations.length > 0 ? sp.variations[0].variation_id : null;
+          flatProducts.push({
+            id: variation_id || sp.product_id,
+            product_id: sp.product_id,
+            code: sp.code,
+            name: sp.name,
+            image: sp.main_image_url || sp.image,
+            variation_label: sp.simple_variation_label,
+            product_type: 'simple',
+            sku: sp.simple_sku,
+            default_price: sp.simple_default_price || 0,
+            discount_price: sp.simple_discount_price || 0,
+            stock: sp.simple_stock || 0,
+          });
+        } else {
+          (sp.variations || []).forEach((v: any) => {
+            flatProducts.push({
+              id: v.variation_id,
+              product_id: sp.product_id,
+              code: `${sp.code}-${v.variation_label}`,
+              name: sp.name,
+              image: v.image_url || sp.main_image_url || sp.image,
+              variation_label: v.variation_label,
+              product_type: 'variation',
+              sku: v.sku,
+              default_price: v.default_price || 0,
+              discount_price: v.discount_price || 0,
+              stock: v.stock || 0,
+            });
+          });
+        }
+      });
+      setProducts(flatProducts);
+
+      // Warehouses + stock config — same default-pick logic as fetchWarehouses
+      if (data.stockConfig?.stockEnabled) {
+        setStockEnabled(true);
+        setAllowOversell(data.stockConfig.allowOversell !== false);
+        const wh = data.warehouses || [];
+        setWarehouses(wh);
+        const defaultWh = wh.find((w: any) => w.is_default);
+        if (defaultWh && !selectedWarehouseId) {
+          setSelectedWarehouseId(defaultWh.id);
+          fetchInventoryForWarehouse(defaultWh.id);
+        }
+      }
+
+      // Sales channels
+      setSalesChannels(data.salesChannels || []);
+    } catch (e) {
+      console.warn('init bundle failed, falling back to individual fetches:', e);
+      fetchCustomers();
+      fetchProducts();
+      fetchSalesChannels();
+      fetchWarehouses();
+    } finally {
+      setLoadingProducts(false);
     }
   };
 
